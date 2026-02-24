@@ -18,6 +18,42 @@ use_repo(dart, "dart_toolchains")
 register_toolchains("@dart_toolchains//:all")
 ```
 
+## Usage
+
+### Running the Dart SDK
+
+No separate Dart SDK installation is needed. The toolchain downloads the SDK
+automatically. To run the `dart` CLI directly:
+
+```shell
+bazel run @rules_dart//dart -- --version
+bazel run @rules_dart//dart -- analyze lib/
+bazel run @rules_dart//dart -- format lib/
+```
+
+### Rules
+
+```starlark
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_binary", "dart_test")
+
+dart_library(
+    name = "greeter",
+    srcs = glob(["lib/**/*.dart"]),
+)
+
+dart_binary(
+    name = "app",
+    main = "bin/main.dart",
+    deps = [":greeter"],
+)
+
+dart_test(
+    name = "greeter_test",
+    main = "test/greeter_test.dart",
+    deps = [":greeter"],
+)
+```
+
 ### Using WORKSPACE
 
 From the release you wish to use:

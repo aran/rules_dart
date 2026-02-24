@@ -88,3 +88,9 @@ bzl_library(
         "//dart:providers",
     ],
 )
+
+bzl_library(
+    name = "dart_sdk_binary",
+    srcs = ["dart_sdk_binary.bzl"],
+    visibility = ["//dart:__subpackages__"],
+)

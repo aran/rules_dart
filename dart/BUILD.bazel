@@ -1,4 +1,5 @@
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("//dart/private:dart_sdk_binary.bzl", "dart_sdk_binary")
 load("//dart/private:resolved_toolchain.bzl", "resolved_toolchain")
 
 # This is the target rule authors should put in their "toolchains"
@@ -13,6 +14,15 @@ resolved_toolchain(
     name = "resolved_toolchain",
     # Marked manual so that `bazel test //...` passes
     # even if no toolchain is registered.
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+)
+
+# Run the Dart SDK binary:
+#   bazel run @rules_dart//dart -- --version
+#   bazel run @rules_dart//dart -- analyze lib/
+dart_sdk_binary(
+    name = "dart",
     tags = ["manual"],
     visibility = ["//visibility:public"],
 )
@@ -64,3 +74,4 @@ bzl_library(
     srcs = ["toolchain.bzl"],
     visibility = ["//visibility:public"],
 )
+

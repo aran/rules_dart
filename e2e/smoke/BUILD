@@ -11,3 +11,11 @@ build_test(
         "@rules_dart//dart:resolved_toolchain",
     ],
 )
+
+# Verify the dart SDK binary is runnable
+sh_test(
+    name = "dart_version_test",
+    srcs = ["dart_version_test.sh"],
+    data = ["@rules_dart//dart"],
+    args = ["$(rootpath @rules_dart//dart)"],
+)
