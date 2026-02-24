@@ -69,25 +69,32 @@ dart_binary = rule(
     implementation = _dart_binary_impl,
     attrs = {
         "main": attr.label(
-            doc = "The main Dart source file (entry point).",
+            doc = "The Dart entrypoint file containing a top-level `main()` function.",
             mandatory = True,
             allow_single_file = [".dart"],
         ),
         "srcs": attr.label_list(
-            doc = "Additional Dart source files.",
+            doc = "Additional Dart source files that are part of this binary's package but not reachable via `deps`.",
             allow_files = [".dart"],
         ),
         "deps": attr.label_list(
-            doc = "dart_library targets this binary depends on.",
+            doc = "`dart_library` targets this binary depends on.",
             providers = [DartInfo],
         ),
         "compile_mode": attr.string(
-            doc = "The compilation mode to use.",
+            doc = """\
+The `dart compile` mode. Determines the output format:
+
+- `exe` (default): Self-contained native machine code. No Dart SDK needed at runtime. Best for deployment.
+- `aot-snapshot`: AOT-compiled snapshot. Requires `dartaotruntime` to execute. Smaller than `exe`.
+- `kernel`: Dart kernel binary (`.dill`). Requires `dart` to execute. Fastest compilation, useful for development.
+- `jit-snapshot`: JIT snapshot with trained profile data. Requires `dart` to execute. Fastest startup after warmup.
+""",
             default = "exe",
             values = ["exe", "aot-snapshot", "kernel", "jit-snapshot"],
         ),
     },
     executable = True,
     toolchains = ["//dart:toolchain_type"],
-    doc = "Compiles a Dart application into a native executable using `dart compile`.",
+    doc = "Compiles a Dart application using `dart compile`.",
 )

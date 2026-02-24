@@ -105,20 +105,20 @@ dart_test = rule(
     implementation = _dart_test_impl,
     attrs = {
         "main": attr.label(
-            doc = "The main Dart test source file.",
+            doc = "The Dart test file to run. Must contain a top-level `main()` function.",
             mandatory = True,
             allow_single_file = [".dart"],
         ),
         "srcs": attr.label_list(
-            doc = "Additional Dart source files.",
+            doc = "Additional Dart source files that are part of this test's package but not reachable via `deps`.",
             allow_files = [".dart"],
         ),
         "deps": attr.label_list(
-            doc = "dart_library targets this test depends on.",
+            doc = "`dart_library` targets this test depends on.",
             providers = [DartInfo],
         ),
     },
     test = True,
     toolchains = ["//dart:toolchain_type"],
-    doc = "Runs a Dart test file using the Dart VM.",
+    doc = "Runs a Dart test file using the Dart VM. The test is executed directly, without the `package:test` runner.",
 )

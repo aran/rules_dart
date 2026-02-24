@@ -12,8 +12,16 @@ load("//dart/private:versions.bzl", "TOOL_VERSIONS")
 ########
 _DOC = "Fetch the Dart SDK for a given version and platform"
 _ATTRS = {
-    "dart_version": attr.string(mandatory = True, values = TOOL_VERSIONS.keys()),
-    "platform": attr.string(mandatory = True, values = PLATFORMS.keys()),
+    "dart_version": attr.string(
+        doc = "The Dart SDK version to download (e.g. `3.11.0`). Must be a version listed in `versions.bzl`.",
+        mandatory = True,
+        values = TOOL_VERSIONS.keys(),
+    ),
+    "platform": attr.string(
+        doc = "The target platform (e.g. `macos-arm64`, `linux-x64`). Must match a key in `PLATFORMS`.",
+        mandatory = True,
+        values = PLATFORMS.keys(),
+    ),
 }
 
 def _dart_sdk_repo_impl(repository_ctx):

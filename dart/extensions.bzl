@@ -58,4 +58,5 @@ dart = module_extension(
     tag_classes = {"toolchain": dart_toolchain},
     os_dependent = False,
     arch_dependent = False,
+    doc = "Installs a Dart SDK toolchain. Multiple modules may request different versions; the latest is selected.",
 )

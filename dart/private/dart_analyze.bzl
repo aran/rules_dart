@@ -1,8 +1,8 @@
 """Implementation of the dart_analyze_test rule.
 
-Runs `dart analyze` on a dart_library target as a Bazel test. The analysis
-runs at build time as an action -- if analysis fails, the build fails.
-The test executable is a trivial pass-through.
+Runs `dart analyze` on a `dart_library` target as a Bazel test. The analysis
+runs at build time as an action — if analysis fails, the build fails.
+The test target itself is a trivial pass-through that always succeeds.
 """
 
 load("//dart:providers.bzl", "DartInfo")
@@ -103,16 +103,16 @@ dart_analyze_test = rule(
     implementation = _dart_analyze_test_impl,
     attrs = {
         "lib": attr.label(
-            doc = "The dart_library target to analyze.",
+            doc = "The `dart_library` target to analyze. All transitive sources are included.",
             mandatory = True,
             providers = [DartInfo],
         ),
         "options": attr.label(
-            doc = "An analysis_options.yaml file.",
+            doc = "An `analysis_options.yaml` file. If omitted, the Dart SDK's default analysis options are used.",
             allow_single_file = [".yaml"],
         ),
     },
     test = True,
     toolchains = ["//dart:toolchain_type"],
-    doc = "Runs `dart analyze` on a Dart library as a test target.",
+    doc = "Runs `dart analyze` on a Dart library as a build-time action. Fails the build if any analysis issues are found.",
 )

@@ -3,32 +3,32 @@
 DartInfo = provider(
     doc = "Information about a Dart library's sources and transitive dependencies.",
     fields = {
-        "package_name": "The Dart package name for this library.",
-        "lib_root": "The workspace-relative path to the package root directory.",
-        "transitive_srcs": "Depset of all transitive Dart source Files.",
-        "transitive_packages": "Depset of DartPackageInfo providers for all transitive deps.",
+        "package_name": "str: The Dart package name for this library.",
+        "lib_root": "str: The workspace-relative path to the package root directory (used to construct `package:` URIs).",
+        "transitive_srcs": "depset[File]: All transitive Dart source files, including this library's own sources.",
+        "transitive_packages": "depset[DartPackageInfo]: Package metadata for this library and all transitive deps.",
     },
 )
 
 DartPackageInfo = provider(
-    doc = "Lightweight info about a single Dart package for use in depsets.",
+    doc = "Metadata about a single Dart package, carried in depsets within DartInfo.",
     fields = {
-        "package_name": "The Dart package name.",
-        "lib_root": "The workspace-relative path to the package root directory.",
+        "package_name": "str: The Dart package name.",
+        "lib_root": "str: The workspace-relative path to the package root directory.",
     },
 )
 
 DartPackageConfigInfo = provider(
-    doc = "Information about a generated package_config.json file.",
+    doc = "A generated `package_config.json` file that maps `package:` URIs to source locations.",
     fields = {
-        "file": "The package_config.json File.",
+        "file": "File: The generated package_config.json.",
     },
 )
 
 DartCompileInfo = provider(
-    doc = "Information about a compiled Dart binary.",
+    doc = "Information about a compiled Dart output.",
     fields = {
-        "executable": "The compiled executable File.",
-        "compile_mode": "The compilation mode used (exe, aot-snapshot, kernel, jit-snapshot).",
+        "executable": "File: The compiled output file.",
+        "compile_mode": "str: The compilation mode used (`exe`, `aot-snapshot`, `kernel`, or `jit-snapshot`).",
     },
 )

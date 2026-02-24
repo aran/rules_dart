@@ -83,24 +83,29 @@ dart_web_application = rule(
     implementation = _dart_web_application_impl,
     attrs = {
         "main": attr.label(
-            doc = "The main Dart source file (entry point).",
+            doc = "The Dart entrypoint file containing a top-level `main()` function.",
             mandatory = True,
             allow_single_file = [".dart"],
         ),
         "srcs": attr.label_list(
-            doc = "Additional Dart source files.",
+            doc = "Additional Dart source files that are part of this application's package but not reachable via `deps`.",
             allow_files = [".dart"],
         ),
         "deps": attr.label_list(
-            doc = "dart_library targets this application depends on.",
+            doc = "`dart_library` targets this application depends on.",
             providers = [DartInfo],
         ),
         "compile_mode": attr.string(
-            doc = "The web compilation mode to use.",
+            doc = """\
+The web compilation mode:
+
+- `js` (default): Compiles to JavaScript via `dart compile js`.
+- `wasm`: Compiles to WebAssembly via `dart compile wasm`. Requires a browser with WasmGC support.
+""",
             default = "js",
             values = ["js", "wasm"],
         ),
     },
     toolchains = ["//dart:toolchain_type"],
-    doc = "Compiles a Dart application to JavaScript or WebAssembly.",
+    doc = "Compiles a Dart web application to JavaScript or WebAssembly.",
 )

@@ -55,17 +55,17 @@ dart_library = rule(
     implementation = _dart_library_impl,
     attrs = {
         "srcs": attr.label_list(
-            doc = "Dart source files for this library.",
+            doc = "Dart source files (`.dart`) for this library. Typically `glob([\"lib/**/*.dart\"])`.",
             allow_files = [".dart"],
             mandatory = True,
         ),
         "deps": attr.label_list(
-            doc = "Other dart_library targets this library depends on.",
+            doc = "Other `dart_library` targets this library depends on. Their sources and package metadata are propagated transitively.",
             providers = [DartInfo],
         ),
         "package_name": attr.string(
-            doc = "Override the auto-derived Dart package name.",
+            doc = "The Dart package name used in `package:` imports. If omitted, defaults to the last component of the Bazel package path.",
         ),
     },
-    doc = "Collects Dart sources and propagates dependency information. Does not compile.",
+    doc = "Collects Dart sources and propagates dependency information via `DartInfo`. Does not compile.",
 )

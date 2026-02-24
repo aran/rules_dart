@@ -46,12 +46,12 @@ dart_format_test = rule(
     implementation = _dart_format_test_impl,
     attrs = {
         "srcs": attr.label_list(
-            doc = "Dart source files to check formatting.",
+            doc = "Dart source files (`.dart`) to check. Typically `glob([\"lib/**/*.dart\"])`.",
             allow_files = [".dart"],
             mandatory = True,
         ),
     },
     test = True,
     toolchains = ["//dart:toolchain_type"],
-    doc = "Checks that Dart source files are properly formatted using dart format.",
+    doc = "Checks that Dart source files match `dart format` output. Fails if any file would be changed by formatting.",
 )
