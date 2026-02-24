@@ -1,0 +1,33 @@
+load("@bazel_gazelle//:def.bzl", "gazelle", "gazelle_binary", "gazelle_generation_test")
+
+# gazelle:map_kind bzl_library bzl_library @bazel_skylib//:bzl_library.bzl
+gazelle_binary(
+    name = "gazelle_bin",
+    languages = [
+        "@bazel_skylib_gazelle_plugin//bzl",
+        "//gazelle/dart",
+    ],
+)
+
+gazelle(
+    name = "gazelle",
+    gazelle = "gazelle_bin",
+)
+
+sh_test(
+    name = "gazelle_test",
+    srcs = ["gazelle_test.sh"],
+    args = ["$(rootpath :gazelle_bin)"],
+    data = [":gazelle_bin"],
+)
+
+filegroup(
+    name = "testdata",
+    srcs = glob(["testdata/**"]),
+)
+
+gazelle_generation_test(
+    name = "gazelle_generation_test",
+    gazelle_binary = ":gazelle_bin",
+    test_data = [":testdata"],
+)
