@@ -67,16 +67,15 @@ Run `bazel run //:gazelle` to keep them up-to-date.
 
 ## Using this as a development dependency of other rules
 
-You'll commonly find that you develop in another WORKSPACE, such as
-some other ruleset that depends on rules_dart, or in a nested
-WORKSPACE in the integration_tests folder.
+You'll commonly find that you develop in another repository that
+depends on rules_dart.
 
-To always tell Bazel to use this directory rather than some release
-artifact or a version fetched from the internet, run this from this
+To always tell Bazel to use this local checkout rather than a release
+artifact or a version fetched from the registry, run this from this
 directory:
 
 ```sh
-OVERRIDE="--override_repository=rules_dart=$(pwd)/rules_dart"
+OVERRIDE="--override_module=rules_dart=$(pwd)"
 echo "common $OVERRIDE" >> ~/.bazelrc
 ```
 
