@@ -1,5 +1,5 @@
-load("@bazel_lib//:bzl_library.bzl", "bzl_library")
-load("//mylang/private:resolved_toolchain.bzl", "resolved_toolchain")
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("//dart/private:resolved_toolchain.bzl", "resolved_toolchain")
 
 # This is the target rule authors should put in their "toolchains"
 # attribute in order to get a runtime for the correct platform.
@@ -22,8 +22,8 @@ bzl_library(
     srcs = ["repositories.bzl"],
     visibility = ["//visibility:public"],
     deps = [
-        "//mylang/private:toolchains_repo",
-        "//mylang/private:versions",
+        "//dart/private:toolchains_repo",
+        "//dart/private:versions",
         "@bazel_tools//tools/build_defs/repo:cache.bzl",
         "@bazel_tools//tools/build_defs/repo:http.bzl",
         "@bazel_tools//tools/build_defs/repo:utils.bzl",
@@ -34,6 +34,14 @@ bzl_library(
     name = "defs",
     srcs = ["defs.bzl"],
     visibility = ["//visibility:public"],
+    deps = [
+        "//dart/private:dart_analyze",
+        "//dart/private:dart_binary",
+        "//dart/private:dart_format_test",
+        "//dart/private:dart_library",
+        "//dart/private:dart_test",
+        "//dart/private:dart_web_application",
+    ],
 )
 
 bzl_library(
@@ -42,8 +50,13 @@ bzl_library(
     visibility = ["//visibility:public"],
     deps = [
         ":repositories",
-        "@bazel_tools//tools/build_defs/repo:cache.bzl",
     ],
+)
+
+bzl_library(
+    name = "providers",
+    srcs = ["providers.bzl"],
+    visibility = ["//visibility:public"],
 )
 
 bzl_library(
