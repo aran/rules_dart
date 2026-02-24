@@ -1,0 +1,17 @@
+load("@rules_dart//dart:defs.bzl", "dart_analyze_test", "dart_format_test", "dart_library")
+
+dart_library(
+    name = "mylib",
+    srcs = glob(["lib/**/*.dart"]),
+    visibility = ["//visibility:public"],
+)
+
+dart_analyze_test(
+    name = "analyze_test",
+    lib = ":mylib",
+)
+
+dart_format_test(
+    name = "format_test",
+    srcs = glob(["lib/**/*.dart"]),
+)

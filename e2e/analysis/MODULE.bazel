@@ -1,0 +1,14 @@
+module(name = "analysis_e2e")
+
+bazel_dep(name = "rules_dart", version = "0.0.0")
+
+local_path_override(
+    module_name = "rules_dart",
+    path = "../..",
+)
+
+dart = use_extension("@rules_dart//dart:extensions.bzl", "dart")
+dart.toolchain(dart_version = "3.11.0")
+use_repo(dart, "dart_toolchains")
+
+register_toolchains("@dart_toolchains//:all")

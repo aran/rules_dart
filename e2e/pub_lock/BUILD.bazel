@@ -1,0 +1,12 @@
+load("@rules_dart//dart:defs.bzl", "dart_binary")
+
+exports_files(["pubspec.lock"])
+
+dart_binary(
+    name = "app",
+    main = "main.dart",
+    deps = [
+        "@pub_deps//:collection",
+        "@pub_deps//:path",
+    ],
+)

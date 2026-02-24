@@ -1,0 +1,6 @@
+load("@rules_dart//dart:defs.bzl", "dart_web_application")
+
+dart_web_application(
+    name = "app",
+    main = "main.dart",
+)

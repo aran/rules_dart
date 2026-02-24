@@ -1,0 +1,18 @@
+load("@rules_dart//dart:defs.bzl", "dart_test")
+
+dart_test(
+    name = "mathlib_test",
+    main = "mathlib_test.dart",
+    deps = ["//mathlib"],
+)
+
+dart_test(
+    name = "simple_test",
+    main = "test/simple_test.dart",
+)
+
+dart_test(
+    name = "utils_test",
+    main = "test/utils_test.dart",
+    deps = ["//utils"],
+)

@@ -1,0 +1,16 @@
+load("@rules_dart//dart:defs.bzl", "dart_analyze_test", "dart_format_test", "dart_library")
+
+dart_library(
+    name = "good_lib",
+    srcs = glob(["lib/**/*.dart"]),
+)
+
+dart_analyze_test(
+    name = "analyze",
+    lib = ":good_lib",
+)
+
+dart_format_test(
+    name = "format_test",
+    srcs = glob(["lib/**/*.dart"]),
+)
