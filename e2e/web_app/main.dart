@@ -1,3 +1,7 @@
+import 'package:greet/greet.dart';
+import 'config.dart';
+
 void main() {
-  print('Hello from Dart compiled to JavaScript!');
+  print('$appName v$appVersion');
+  print(greet('JavaScript'));
 }

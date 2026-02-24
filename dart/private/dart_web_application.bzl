@@ -22,12 +22,14 @@ def _dart_web_application_impl(ctx):
     package_config = ctx.actions.declare_file(ctx.label.name + ".web_config.json")
     ctx.actions.write(output = package_config, content = config_content)
 
-    # Determine output
+    # Determine output and staging extension
     compile_mode = ctx.attr.compile_mode
     if compile_mode == "js":
         output = ctx.actions.declare_file(ctx.label.name + ".js")
+        staging_ext = ".js"
     elif compile_mode == "wasm":
         output = ctx.actions.declare_file(ctx.label.name + ".wasm")
+        staging_ext = ".wasm"
     else:
         fail("Unknown web compile_mode: %s" % compile_mode)
 
@@ -41,6 +43,16 @@ def _dart_web_application_impl(ctx):
                 'ln -s "$(pwd)/{root}" "$PROJ/{root}"'.format(root = pkg.lib_root),
             )
 
+    # Symlink additional source files (srcs) into the staging directory
+    for src in ctx.files.srcs:
+        src_short = src.short_path
+        symlink_cmds.append(
+            'mkdir -p "$PROJ/$(dirname {path})" && ln -sf "$(pwd)/{src}" "$PROJ/{path}"'.format(
+                src = src.path,
+                path = src_short,
+            ),
+        )
+
     # Build the compilation command using a staging directory
     main_short = ctx.file.main.short_path
 
@@ -52,8 +64,8 @@ mkdir -p "$PROJ/.dart_tool"
 cp "{config}" "$PROJ/.dart_tool/package_config.json"
 {symlinks}
 cp "{main}" "$PROJ/{main_short}"
-"{dart}" compile {mode} -o "$PROJ/output" "$PROJ/{main_short}"
-cp "$PROJ/output" "{output}"
+"{dart}" compile {mode} -o "$PROJ/output{ext}" "$PROJ/{main_short}"
+cp "$PROJ/output{ext}" "{output}"
 """.format(
         config = package_config.path,
         dart = dart_sdk_info.dart.path,
@@ -61,6 +73,7 @@ cp "$PROJ/output" "{output}"
         main = ctx.file.main.path,
         main_short = main_short,
         output = output.path,
+        ext = staging_ext,
         symlinks = "\n".join(symlink_cmds),
     )
 

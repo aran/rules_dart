@@ -42,15 +42,13 @@ def _dart_analyze_test_impl(ctx):
                 ),
             )
 
-    # Build the analysis command
-    analyze_flags = "--fatal-infos"
+    # Copy analysis_options.yaml into the staging dir if provided.
+    # The analyzer discovers it from the project root automatically.
+    options_cmd = ""
     if ctx.attr.options:
-        analyze_flags += ' --options="$(pwd)/{options}"'.format(
+        options_cmd = 'cp "$(pwd)/{options}" "$PROJ/analysis_options.yaml"'.format(
             options = ctx.file.options.path,
         )
-
-    # Target the project root (analyze all symlinked sources)
-    analyze_target = "$PROJ"
 
     stamp = ctx.actions.declare_file(ctx.label.name + ".analyzed")
 
@@ -61,15 +59,15 @@ trap 'rm -rf "$PROJ"' EXIT
 mkdir -p "$PROJ/.dart_tool"
 cp "{config}" "$PROJ/.dart_tool/package_config.json"
 printf 'name: __analyze__\\nenvironment:\\n  sdk: ">=3.0.0 <4.0.0"\\n' > "$PROJ/pubspec.yaml"
+{options_cmd}
 {symlinks}
-"{dart}" analyze {flags} "{target}"
+"{dart}" analyze --fatal-infos "$PROJ"
 touch "{stamp}"
 """.format(
         config = package_config.path,
         dart = dart_sdk_info.dart.path,
-        flags = analyze_flags,
-        target = analyze_target,
         stamp = stamp.path,
+        options_cmd = options_cmd,
         symlinks = "\n".join(symlink_cmds),
     )
 

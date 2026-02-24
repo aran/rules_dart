@@ -16,3 +16,11 @@ dart_test(
     main = "test/utils_test.dart",
     deps = ["//utils"],
 )
+
+# Demonstrates the srcs attribute — test_helpers.dart is a local
+# source file used by the test but not in a dart_library.
+dart_test(
+    name = "helpers_test",
+    main = "test/helpers_test.dart",
+    srcs = ["test_helpers.dart"],
+)

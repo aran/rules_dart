@@ -4,3 +4,23 @@ dart_binary(
     name = "hello",
     main = "hello.dart",
 )
+
+# Alternative compile modes — same source, different output formats.
+
+dart_binary(
+    name = "hello_aot",
+    main = "hello.dart",
+    compile_mode = "aot-snapshot",
+)
+
+dart_binary(
+    name = "hello_kernel",
+    main = "hello.dart",
+    compile_mode = "kernel",
+)
+
+dart_binary(
+    name = "hello_jit",
+    main = "hello.dart",
+    compile_mode = "jit-snapshot",
+)

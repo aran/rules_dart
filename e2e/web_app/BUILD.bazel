@@ -3,4 +3,14 @@ load("@rules_dart//dart:defs.bzl", "dart_web_application")
 dart_web_application(
     name = "app",
     main = "main.dart",
+    srcs = ["config.dart"],
+    deps = ["//greet"],
+)
+
+dart_web_application(
+    name = "app_wasm",
+    main = "main.dart",
+    srcs = ["config.dart"],
+    deps = ["//greet"],
+    compile_mode = "wasm",
 )

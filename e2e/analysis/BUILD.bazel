@@ -10,6 +10,13 @@ dart_analyze_test(
     lib = ":good_lib",
 )
 
+# Same library analyzed with stricter custom options.
+dart_analyze_test(
+    name = "analyze_strict",
+    lib = ":good_lib",
+    options = "analysis_options.yaml",
+)
+
 dart_format_test(
     name = "format_test",
     srcs = glob(["lib/**/*.dart"]),
