@@ -1,0 +1,25 @@
+load("@bazel_gazelle//:def.bzl", "gazelle", "gazelle_binary")
+
+gazelle_binary(
+    name = "gazelle_bin",
+    languages = [
+        "@rules_dart//gazelle/dart",
+    ],
+)
+
+gazelle(
+    name = "gazelle",
+    gazelle = "gazelle_bin",
+)
+
+sh_test(
+    name = "gazelle_test",
+    srcs = ["gazelle_test.sh"],
+    args = ["$(rootpath :gazelle_bin)"],
+    data = [
+        ":gazelle_bin",
+        "bin/hello.dart",
+        "lib/greeter.dart",
+        "test/greeter_test.dart",
+    ],
+)

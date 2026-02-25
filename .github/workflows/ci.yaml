@@ -27,12 +27,12 @@ jobs:
           "e2e/dart_test",
           "e2e/pub_deps",
           "e2e/pub_lock",
-          "e2e/web_app"
+          "e2e/web_app",
+          "e2e/gazelle"
         ]
       exclude: |
         [
           {"folder": ".", "bzlmodEnabled": false},
-          {"folder": ".", "bazelVersion": "6.4.0"},
           {"folder": "e2e/smoke", "bzlmodEnabled": false},
           {"folder": "e2e/hello_world", "bzlmodEnabled": false},
           {"folder": "e2e/library_deps", "bzlmodEnabled": false},
@@ -40,7 +40,8 @@ jobs:
           {"folder": "e2e/dart_test", "bzlmodEnabled": false},
           {"folder": "e2e/pub_deps", "bzlmodEnabled": false},
           {"folder": "e2e/pub_lock", "bzlmodEnabled": false},
-          {"folder": "e2e/web_app", "bzlmodEnabled": false}
+          {"folder": "e2e/web_app", "bzlmodEnabled": false},
+          {"folder": "e2e/gazelle", "bzlmodEnabled": false}
         ]
   pre-commit:
     runs-on: ubuntu-latest

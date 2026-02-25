@@ -34,8 +34,15 @@ bazel_dep(name = "bazel_skylib", version = "1.8.2")
 bazel_dep(name = "package_metadata", version = "0.0.6")
 bazel_dep(name = "platforms", version = "1.0.0")
 
-bazel_dep(name = "gazelle", version = "0.47.0", dev_dependency = True, repo_name = "bazel_gazelle")
-bazel_dep(name = "rules_go", version = "0.60.0", dev_dependency = True, repo_name = "io_bazel_rules_go")
+# The Gazelle plugin at //gazelle/dart is a go_library, so its BUILD file
+# loads @io_bazel_rules_go//go:def.bzl. In bzlmod, BUILD files are evaluated
+# in the context of their owning module — so rules_go must be a regular (not
+# dev) dependency for the plugin to be loadable from downstream modules.
+# The Go SDK and toolchain are only fetched if a target in //gazelle/... is
+# actually built; they are not downloaded for normal Dart-only usage.
+bazel_dep(name = "gazelle", version = "0.47.0", repo_name = "bazel_gazelle")
+bazel_dep(name = "rules_go", version = "0.60.0", repo_name = "io_bazel_rules_go")
+
 bazel_dep(name = "bazel_skylib_gazelle_plugin", version = "1.8.2", dev_dependency = True)
 bazel_dep(name = "bazel_lib", version = "3.0.0", dev_dependency = True)
 bazel_dep(name = "buildifier_prebuilt", version = "8.2.1", dev_dependency = True)

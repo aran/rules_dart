@@ -1,3 +1,9 @@
+load(":common_test.bzl", "common_test_suite")
 load(":versions_test.bzl", "versions_test_suite")
+load(":yaml_parser_test.bzl", "yaml_parser_test_suite")
 
 versions_test_suite(name = "versions_test")
+
+common_test_suite(name = "common_test")
+
+yaml_parser_test_suite(name = "yaml_parser_test")

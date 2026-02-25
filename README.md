@@ -104,6 +104,12 @@ dart_binary(
 )
 ```
 
+> **Note**: `pub.from_lock()` only resolves **hosted** packages (i.e. packages
+> from pub.dev). Packages with `git`, `path`, or `sdk` sources in the lock file
+> are skipped. SDK packages (like `flutter`) are provided by the toolchain and
+> don't need Bazel targets. If you have `git` or `path` dependencies, declare
+> them manually with `pub.package()` or as local `dart_library` targets.
+
 ### Static analysis and formatting
 
 ```starlark
@@ -145,3 +151,4 @@ The [`e2e/`](e2e/) directory contains complete working examples:
 | [`web_app`](e2e/web_app/) | JavaScript and WebAssembly compilation with library deps |
 | [`pub_deps`](e2e/pub_deps/) | Single pub.dev package via `pub.package()` |
 | [`pub_lock`](e2e/pub_lock/) | Multiple packages from `pubspec.lock` via `pub.from_lock()` |
+| [`gazelle`](e2e/gazelle/) | Automatic BUILD file generation with Gazelle |

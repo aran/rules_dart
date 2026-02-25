@@ -12,11 +12,18 @@ def _pub_lock_repository_impl(ctx):
     lock_content = ctx.read(lock_path)
     packages = parse_pubspec_lock(lock_content)
 
-    # Filter to only hosted packages (skip sdk, path, git for now)
+    # Filter to only hosted packages, warn about unsupported sources
     hosted_packages = {}
     for name, info in packages.items():
-        if info.get("source") == "hosted":
+        source = info.get("source", "unknown")
+        if source == "hosted":
             hosted_packages[name] = info
+        elif source == "sdk":
+            # SDK packages (e.g. dart itself) are provided by the toolchain
+            pass
+        else:
+            # buildifier: disable=print
+            print("pub.from_lock: skipping package \"%s\" (source: %s). Only hosted packages are supported." % (name, source))  # noqa: E501
 
     if not hosted_packages:
         # No hosted packages - create empty repo
