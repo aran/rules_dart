@@ -28,7 +28,8 @@ jobs:
           "e2e/pub_deps",
           "e2e/pub_lock",
           "e2e/web_app",
-          "e2e/gazelle"
+          "e2e/gazelle",
+          "e2e/cross_compile"
         ]
       exclude: |
         [
@@ -41,7 +42,8 @@ jobs:
           {"folder": "e2e/pub_deps", "bzlmodEnabled": false},
           {"folder": "e2e/pub_lock", "bzlmodEnabled": false},
           {"folder": "e2e/web_app", "bzlmodEnabled": false},
-          {"folder": "e2e/gazelle", "bzlmodEnabled": false}
+          {"folder": "e2e/gazelle", "bzlmodEnabled": false},
+          {"folder": "e2e/cross_compile", "bzlmodEnabled": false}
         ]
   pre-commit:
     runs-on: ubuntu-latest

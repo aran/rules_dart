@@ -1,0 +1,29 @@
+load("@rules_dart//dart:defs.bzl", "dart_binary")
+
+platform(
+    name = "linux_x64",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+)
+
+dart_binary(
+    name = "app",
+    main = "hello.dart",
+)
+
+dart_binary(
+    name = "app_aot",
+    main = "hello.dart",
+    compile_mode = "aot-snapshot",
+)
+
+# Verifies the cross-compiled binary is ELF (Linux), not Mach-O (macOS).
+# On Linux hosts this is a no-op (native build produces ELF anyway),
+# but on macOS hosts it validates actual cross-compilation.
+sh_test(
+    name = "cross_compile_test",
+    srcs = ["cross_compile_test.sh"],
+    data = [":app"],
+)

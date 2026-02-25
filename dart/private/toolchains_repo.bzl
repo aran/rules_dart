@@ -25,31 +25,52 @@ PLATFORMS = {
             "@platforms//os:macos",
             "@platforms//cpu:aarch64",
         ],
+        dart_os = "macos",
+        dart_arch = "arm64",
     ),
     "macos-x64": struct(
         compatible_with = [
             "@platforms//os:macos",
             "@platforms//cpu:x86_64",
         ],
+        dart_os = "macos",
+        dart_arch = "x64",
     ),
     "linux-x64": struct(
         compatible_with = [
             "@platforms//os:linux",
             "@platforms//cpu:x86_64",
         ],
+        dart_os = "linux",
+        dart_arch = "x64",
     ),
     "linux-arm64": struct(
         compatible_with = [
             "@platforms//os:linux",
             "@platforms//cpu:aarch64",
         ],
+        dart_os = "linux",
+        dart_arch = "arm64",
     ),
     "windows-x64": struct(
         compatible_with = [
             "@platforms//os:windows",
             "@platforms//cpu:x86_64",
         ],
+        dart_os = "windows",
+        dart_arch = "x64",
     ),
+}
+
+# Known-working cross-compilation pairs: exec platform -> list of target platforms.
+# Dart's AOT compiler can cross-compile exe and aot-snapshot to these targets
+# using --target-os and --target-arch flags.
+CROSS_TARGETS = {
+    "macos-arm64": ["linux-x64", "linux-arm64"],
+    "macos-x64": ["linux-x64", "linux-arm64"],
+    "linux-x64": ["linux-arm64"],
+    "linux-arm64": ["linux-x64"],
+    "windows-x64": ["linux-x64", "linux-arm64"],
 }
 
 def _toolchains_repo_impl(repository_ctx):
@@ -61,11 +82,13 @@ def _toolchains_repo_impl(repository_ctx):
 
 """
 
+    # Native toolchains: exec and target constraints match the same platform.
     for [platform, meta] in PLATFORMS.items():
         build_content += """
 toolchain(
     name = "{platform}_toolchain",
     exec_compatible_with = {compatible_with},
+    target_compatible_with = {compatible_with},
     toolchain = "@{user_repository_name}_{platform}//:dart_toolchain",
     toolchain_type = "@rules_dart//dart:toolchain_type",
 )
@@ -74,6 +97,29 @@ toolchain(
             user_repository_name = repository_ctx.attr.user_repository_name,
             compatible_with = meta.compatible_with,
         )
+
+    # Cross-compilation toolchains: exec constraints = host, target constraints = cross target.
+    for [exec_platform, targets] in CROSS_TARGETS.items():
+        exec_meta = PLATFORMS[exec_platform]
+        for target_platform in targets:
+            target_meta = PLATFORMS[target_platform]
+            cross_name = exec_platform + "_cross_" + target_platform
+            build_content += """
+toolchain(
+    name = "{cross_name}_toolchain",
+    exec_compatible_with = {exec_compatible_with},
+    target_compatible_with = {target_compatible_with},
+    toolchain = "@{user_repository_name}_{exec_platform}//:dart_toolchain_cross_{target_platform}",
+    toolchain_type = "@rules_dart//dart:toolchain_type",
+)
+""".format(
+                cross_name = cross_name,
+                exec_compatible_with = exec_meta.compatible_with,
+                target_compatible_with = target_meta.compatible_with,
+                user_repository_name = repository_ctx.attr.user_repository_name,
+                exec_platform = exec_platform,
+                target_platform = target_platform,
+            )
 
     repository_ctx.file("BUILD.bazel", build_content)
 

@@ -8,7 +8,9 @@ def dart_compile_action(
         srcs,
         package_config,
         output,
-        compile_mode = "exe"):
+        compile_mode = "exe",
+        target_os = "",
+        target_arch = ""):
     """Creates a Dart compile action.
 
     Args:
@@ -20,11 +22,20 @@ def dart_compile_action(
         package_config: The package_config.json File.
         output: The output File to produce.
         compile_mode: The compilation mode ("exe", "aot-snapshot", "kernel", "jit-snapshot").
+        target_os: Cross-compilation target OS (e.g. "linux"). Empty for native.
+        target_arch: Cross-compilation target architecture (e.g. "x64"). Empty for native.
     """
     args = ctx.actions.args()
     args.add("compile")
     args.add(compile_mode)
     args.add("--packages", package_config)
+
+    # Cross-compilation flags (only valid for exe and aot-snapshot modes)
+    if target_os and (compile_mode == "exe" or compile_mode == "aot-snapshot"):
+        args.add("--target-os", target_os)
+    if target_arch and (compile_mode == "exe" or compile_mode == "aot-snapshot"):
+        args.add("--target-arch", target_arch)
+
     args.add("-o", output)
     args.add(main)
 

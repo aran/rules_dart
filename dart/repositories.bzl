@@ -4,7 +4,7 @@ These are needed for local dev, and users must install them as well.
 See https://docs.bazel.build/versions/main/skylark/deploying.html#dependencies
 """
 
-load("//dart/private:toolchains_repo.bzl", "PLATFORMS", "toolchains_repo")
+load("//dart/private:toolchains_repo.bzl", "CROSS_TARGETS", "PLATFORMS", "toolchains_repo")
 load("//dart/private:versions.bzl", "TOOL_VERSIONS")
 
 ########
@@ -65,6 +65,27 @@ dart_toolchain(
         version = version,
     )
 
+    # Generate cross-compilation toolchain targets for this SDK.
+    cross_targets = CROSS_TARGETS.get(platform, [])
+    for target_platform in cross_targets:
+        target_meta = PLATFORMS[target_platform]
+        build_content += """
+dart_toolchain(
+    name = "dart_toolchain_cross_{target_platform}",
+    dart = "{dart_bin}",
+    sdk_root = ":sdk_root",
+    version = "{version}",
+    target_os = "{target_os}",
+    target_arch = "{target_arch}",
+)
+""".format(
+            target_platform = target_platform,
+            dart_bin = dart_bin,
+            version = version,
+            target_os = target_meta.dart_os,
+            target_arch = target_meta.dart_arch,
+        )
+
     repository_ctx.file("BUILD.bazel", build_content)
 
 dart_repositories = repository_rule(
@@ -95,6 +116,11 @@ def dart_register_toolchains(name, register = True, **kwargs):
         )
         if register:
             native.register_toolchains("@%s_toolchains//:%s_toolchain" % (name, platform))
+
+            # Register cross-compilation toolchains
+            for target_platform in CROSS_TARGETS.get(platform, []):
+                cross_name = platform + "_cross_" + target_platform
+                native.register_toolchains("@%s_toolchains//:%s_toolchain" % (name, cross_name))
 
     toolchains_repo(
         name = name + "_toolchains",

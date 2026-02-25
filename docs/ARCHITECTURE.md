@@ -86,6 +86,56 @@ Unlike Go/Rust, Dart does not produce intermediate object files for libraries. T
 
 ---
 
+## Cross-Compilation
+
+Dart's AOT compiler supports cross-compilation via `--target-os` and `--target-arch` flags on `dart compile exe` and `dart compile aot-snapshot`. No separate SDK is needed — the host SDK can produce binaries for other platforms.
+
+### How It Works
+
+Each SDK repository generates both a **native** `dart_toolchain` target (no `target_os`/`target_arch`) and **cross** `dart_toolchain_cross_{target}` targets for each supported cross-compilation pair. The toolchains repository registers:
+
+- **Native toolchains** (5): `exec_compatible_with` and `target_compatible_with` match the same platform
+- **Cross toolchains** (8): `exec_compatible_with` = host, `target_compatible_with` = cross target
+
+When `--platforms` is set, Bazel's toolchain resolution picks the cross toolchain. `DartSdkInfo` carries `target_os`/`target_arch`, which `dart_compile_action` passes as `--target-os`/`--target-arch` flags.
+
+### Supported Cross-Compilation Matrix
+
+| Host (exec) | Target |
+|-------------|--------|
+| macOS arm64 | linux-x64, linux-arm64 |
+| macOS x64 | linux-x64, linux-arm64 |
+| Linux x64 | linux-arm64 |
+| Linux arm64 | linux-x64 |
+| Windows x64 | linux-x64, linux-arm64 |
+
+### Usage
+
+Define a platform and set `--platforms`:
+
+```python
+# BUILD.bazel
+platform(
+    name = "linux_x64",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+)
+```
+
+```sh
+bazel build //:my_binary --platforms=//:linux_x64
+```
+
+### Limitations
+
+- Only `exe` and `aot-snapshot` compile modes support cross-compilation. `kernel` and `jit-snapshot` are VM formats and ignore target flags.
+- `dart_web_application` output (JS/WASM) is platform-independent — no cross-compilation needed.
+- `dart_test` runs on the host — cross-compiled tests are not supported.
+
+---
+
 ## Testing
 
 | Test Type | Location | What |

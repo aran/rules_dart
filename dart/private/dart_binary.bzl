@@ -52,6 +52,8 @@ def _dart_binary_impl(ctx):
         package_config = package_config,
         output = output,
         compile_mode = compile_mode,
+        target_os = dart_sdk_info.target_os,
+        target_arch = dart_sdk_info.target_arch,
     )
 
     return [
