@@ -7,12 +7,12 @@ load("//dart/private:versions.bzl", "TOOL_VERSIONS")
 
 def _smoke_test_impl(ctx):
     env = unittest.begin(ctx)
-    asserts.equals(env, "3.11.0", TOOL_VERSIONS.keys()[0])
+    asserts.equals(env, "3.11.1", TOOL_VERSIONS.keys()[0])
     return unittest.end(env)
 
 def _platforms_test_impl(ctx):
     env = unittest.begin(ctx)
-    versions = TOOL_VERSIONS["3.11.0"]
+    versions = TOOL_VERSIONS["3.11.1"]
     asserts.true(env, "macos-arm64" in versions)
     asserts.true(env, "macos-x64" in versions)
     asserts.true(env, "linux-x64" in versions)

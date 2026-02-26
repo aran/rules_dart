@@ -10,7 +10,7 @@ Add to your `MODULE.bazel`:
 bazel_dep(name = "rules_dart", version = "0.0.0")
 
 dart = use_extension("@rules_dart//dart:extensions.bzl", "dart")
-dart.toolchain(dart_version = "3.11.0")
+dart.toolchain(dart_version = "3.11.1")
 use_repo(dart, "dart_toolchains")
 
 register_toolchains("@dart_toolchains//:all")
