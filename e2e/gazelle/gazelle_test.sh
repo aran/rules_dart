@@ -10,6 +10,10 @@ trap "rm -rf ${WORK}" EXIT
 # Copy source files into the temp workspace
 mkdir -p "${WORK}/lib" "${WORK}/bin" "${WORK}/test"
 cp "${TEST_SRCDIR}/${TEST_WORKSPACE}/lib/greeter.dart" "${WORK}/lib/"
+cp "${TEST_SRCDIR}/${TEST_WORKSPACE}/lib/platform_client.dart" "${WORK}/lib/"
+cp "${TEST_SRCDIR}/${TEST_WORKSPACE}/lib/stub.dart" "${WORK}/lib/"
+cp "${TEST_SRCDIR}/${TEST_WORKSPACE}/lib/io_impl.dart" "${WORK}/lib/"
+cp "${TEST_SRCDIR}/${TEST_WORKSPACE}/lib/web_impl.dart" "${WORK}/lib/"
 cp "${TEST_SRCDIR}/${TEST_WORKSPACE}/bin/hello.dart" "${WORK}/bin/"
 cp "${TEST_SRCDIR}/${TEST_WORKSPACE}/bin/show_import.dart" "${WORK}/bin/"
 cp "${TEST_SRCDIR}/${TEST_WORKSPACE}/bin/deferred_import.dart" "${WORK}/bin/"
@@ -35,9 +39,13 @@ check_contains() {
   fi
 }
 
-# lib/ should have dart_library
+# lib/ should have dart_library with all srcs
 check_contains "lib/BUILD.bazel" "dart_library" "dart_library rule"
 check_contains "lib/BUILD.bazel" "greeter.dart" "greeter.dart in srcs"
+check_contains "lib/BUILD.bazel" "platform_client.dart" "platform_client.dart in srcs"
+check_contains "lib/BUILD.bazel" "stub.dart" "stub.dart in srcs"
+check_contains "lib/BUILD.bazel" "io_impl.dart" "io_impl.dart in srcs"
+check_contains "lib/BUILD.bazel" "web_impl.dart" "web_impl.dart in srcs"
 
 # bin/ should have dart_binary with dep on //lib
 check_contains "bin/BUILD.bazel" "dart_binary" "dart_binary rule"

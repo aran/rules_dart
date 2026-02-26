@@ -1,7 +1,6 @@
 package dart
 
 import (
-	"bufio"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -20,44 +19,65 @@ type DartImport struct {
 
 var importRe = regexp.MustCompile(`^\s*(?:import|export)\s+['"](.+?)['"]`)
 
-// ParseDartFile extracts import/export URIs from a Dart source file.
+// condLineRe detects continuation lines: indented "if (" clauses.
+var condLineRe = regexp.MustCompile(`^\s+if\s*\(`)
+
+// condURIRe extracts URIs from "if (condition) 'uri'" clauses.
+var condURIRe = regexp.MustCompile(`if\s*\([^)]+\)\s+['"](.+?)['"]`)
+
+// classifyURI parses a URI string into a classified DartImport.
+func classifyURI(uri string) DartImport {
+	imp := DartImport{URI: uri}
+	if strings.HasPrefix(uri, "dart:") {
+		imp.IsDartSDK = true
+	} else if strings.HasPrefix(uri, "package:") {
+		imp.IsPackage = true
+		rest := strings.TrimPrefix(uri, "package:")
+		parts := strings.SplitN(rest, "/", 2)
+		imp.Package = parts[0]
+		if len(parts) > 1 {
+			imp.Path = parts[1]
+		}
+	} else {
+		imp.IsRelative = true
+		imp.Path = uri
+	}
+	return imp
+}
+
+// ParseDartFile extracts import/export URIs from a Dart source file,
+// including conditional import/export branch URIs.
 func ParseDartFile(path string) ([]DartImport, error) {
-	f, err := os.Open(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
-
+	lines := strings.Split(string(data), "\n")
 	var imports []DartImport
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := scanner.Text()
+
+	for i := 0; i < len(lines); i++ {
+		line := lines[i]
 		m := importRe.FindStringSubmatch(line)
 		if m == nil {
 			continue
 		}
-		uri := m[1]
-		imp := DartImport{URI: uri}
+		// Primary URI
+		imports = append(imports, classifyURI(m[1]))
 
-		if strings.HasPrefix(uri, "dart:") {
-			imp.IsDartSDK = true
-		} else if strings.HasPrefix(uri, "package:") {
-			imp.IsPackage = true
-			// package:foo/bar.dart -> package=foo, path=bar.dart
-			rest := strings.TrimPrefix(uri, "package:")
-			parts := strings.SplitN(rest, "/", 2)
-			imp.Package = parts[0]
-			if len(parts) > 1 {
-				imp.Path = parts[1]
-			}
-		} else {
-			imp.IsRelative = true
-			imp.Path = uri
+		// Conditional URIs on the same line (single-line form)
+		for _, cm := range condURIRe.FindAllStringSubmatch(line, -1) {
+			imports = append(imports, classifyURI(cm[1]))
 		}
 
-		imports = append(imports, imp)
+		// Lookahead: consume indented "if (...)" continuation lines
+		for i+1 < len(lines) && condLineRe.MatchString(lines[i+1]) {
+			i++
+			for _, cm := range condURIRe.FindAllStringSubmatch(lines[i], -1) {
+				imports = append(imports, classifyURI(cm[1]))
+			}
+		}
 	}
-	return imports, scanner.Err()
+	return imports, nil
 }
 
 // DartFileInfo holds metadata about a Dart source file.

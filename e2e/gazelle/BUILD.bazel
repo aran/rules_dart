@@ -23,6 +23,10 @@ sh_test(
         "bin/hello.dart",
         "bin/show_import.dart",
         "lib/greeter.dart",
+        "lib/io_impl.dart",
+        "lib/platform_client.dart",
+        "lib/stub.dart",
+        "lib/web_impl.dart",
         "test/greeter_test.dart",
     ],
 )
