@@ -18,7 +18,7 @@ type DartImport struct {
 	Path      string // Path within package (e.g., "bar.dart")
 }
 
-var importRe = regexp.MustCompile(`^\s*(?:import|export)\s+['"](.+?)['"]\s*;`)
+var importRe = regexp.MustCompile(`^\s*(?:import|export)\s+['"](.+?)['"]`)
 
 // ParseDartFile extracts import/export URIs from a Dart source file.
 func ParseDartFile(path string) ([]DartImport, error) {

@@ -1,0 +1,63 @@
+load("@rules_dart//dart:defs.bzl", "dart_binary")
+
+dart_binary(
+    name = "basic",
+    main = "basic.dart",
+    deps = ["//lib"],
+)
+
+dart_binary(
+    name = "double_quotes",
+    main = "double_quotes.dart",
+    deps = ["//lib"],
+)
+
+dart_binary(
+    name = "multi_dep",
+    main = "multi_dep.dart",
+    deps = [
+        "//lib",
+        "@http",
+    ],
+)
+
+dart_binary(
+    name = "multiline_show",
+    main = "multiline_show.dart",
+    deps = ["//lib"],
+)
+
+dart_binary(
+    name = "sdk_only",
+    main = "sdk_only.dart",
+)
+
+dart_binary(
+    name = "with_as",
+    main = "with_as.dart",
+    deps = ["//lib"],
+)
+
+dart_binary(
+    name = "with_deferred",
+    main = "with_deferred.dart",
+    deps = ["//lib"],
+)
+
+dart_binary(
+    name = "with_hide",
+    main = "with_hide.dart",
+    deps = ["//lib"],
+)
+
+dart_binary(
+    name = "with_show",
+    main = "with_show.dart",
+    deps = ["//lib"],
+)
+
+dart_binary(
+    name = "with_show_hide",
+    main = "with_show_hide.dart",
+    deps = ["//lib"],
+)

@@ -1,0 +1,12 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+dart_library(
+    name = "lib",
+    srcs = [
+        "greeter.dart",
+        "helper.dart",
+        "reexport.dart",
+    ],
+    visibility = ["//visibility:public"],
+    deps = ["@foo"],
+)

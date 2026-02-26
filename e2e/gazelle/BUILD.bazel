@@ -19,7 +19,9 @@ sh_test(
     args = ["$(rootpath :gazelle_bin)"],
     data = [
         ":gazelle_bin",
+        "bin/deferred_import.dart",
         "bin/hello.dart",
+        "bin/show_import.dart",
         "lib/greeter.dart",
         "test/greeter_test.dart",
     ],
