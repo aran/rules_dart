@@ -3,8 +3,10 @@
 /// Usage: dart run tool/refresh_locks.dart
 ///
 /// Finds every directory containing a MODULE.bazel (excluding references/)
-/// and runs `bazel mod tidy --lockfile_mode=refresh` in each. This both refreshes the lock file and
-/// keeps MODULE.bazel formatting canonical.
+/// and runs `bazel mod tidy --lockfile_mode=refresh` in each, followed by
+/// `bazel build --nobuild --lockfile_mode=update //...` to capture any
+/// transitive module extension entries that `mod tidy` misses. This keeps
+/// MODULE.bazel formatting canonical and lock files complete.
 /// Uses only dart:io — no pubspec needed.
 library;
 
@@ -27,18 +29,35 @@ Future<void> main() async {
     final rel = _relativePath(root, ws);
     stdout.write('Refreshing $rel ... ');
 
-    final result = await Process.run(
+    // Step 1: bazel mod tidy --lockfile_mode=refresh
+    // Formats MODULE.bazel and refreshes the lock file from the registry.
+    final tidy = await Process.run(
       'bazel',
       ['mod', 'tidy', '--lockfile_mode=refresh'],
       workingDirectory: ws,
     );
 
-    if (result.exitCode == 0) {
+    if (tidy.exitCode != 0) {
+      stdout.writeln('FAILED at mod tidy (exit ${tidy.exitCode})');
+      stderr.writeln(tidy.stderr);
+      failed++;
+      continue;
+    }
+
+    // Step 2: bazel build --nobuild --lockfile_mode=update //...
+    // Captures transitive module extension entries that mod tidy misses.
+    final build = await Process.run(
+      'bazel',
+      ['build', '--nobuild', '--lockfile_mode=update', '//...'],
+      workingDirectory: ws,
+    );
+
+    if (build.exitCode == 0) {
       stdout.writeln('ok');
       passed++;
     } else {
-      stdout.writeln('FAILED (exit ${result.exitCode})');
-      stderr.writeln(result.stderr);
+      stdout.writeln('FAILED at build (exit ${build.exitCode})');
+      stderr.writeln(build.stderr);
       failed++;
     }
   }
