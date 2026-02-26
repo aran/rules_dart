@@ -114,9 +114,11 @@ file at runtime — keep file lists current as the repo evolves.
 - `e2e/cross_compile`
 
 **Procedure**: Run `dart run tool/refresh_locks.dart` (or manually run
-`bazel build --nobuild --lockfile_mode=update //...` in each directory).
+`bazel mod tidy --lockfile_mode=refresh` in each directory). This both
+refreshes the lock file (pulling fresh registry data) and keeps MODULE.bazel
+formatting canonical.
 
-**Verification**: All workspaces report success; `git diff` shows only lock file changes.
+**Verification**: All workspaces report success.
 
 **Automation**: `/refresh-locks` slash command.
 

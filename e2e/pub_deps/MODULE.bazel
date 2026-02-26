@@ -1,7 +1,6 @@
 module(name = "pub_deps_e2e")
 
 bazel_dep(name = "rules_dart", version = "0.0.0")
-
 local_path_override(
     module_name = "rules_dart",
     path = "../..",
@@ -16,7 +15,7 @@ register_toolchains("@dart_toolchains//:all")
 pub = use_extension("@rules_dart//dart/pub:extensions.bzl", "pub")
 pub.package(
     name = "path",
-    version = "1.9.1",
     sha256 = "75cca69d1490965be98c73ceaea117e8a04dd21217b37b292c9ddbec0d955bc5",
+    version = "1.9.1",
 )
 use_repo(pub, "path")

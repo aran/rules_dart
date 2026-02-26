@@ -1,10 +1,10 @@
-/// Discovers all Bazel workspaces and refreshes their MODULE.bazel.lock files.
+/// Runs `bazel mod tidy` in all Bazel workspaces.
 ///
 /// Usage: dart run tool/refresh_locks.dart
 ///
 /// Finds every directory containing a MODULE.bazel (excluding references/)
-/// and runs `bazel build --nobuild --lockfile_mode=update` in each to refresh
-/// the lock file without reformatting MODULE.bazel (which `bazel mod tidy` does).
+/// and runs `bazel mod tidy --lockfile_mode=refresh` in each. This both refreshes the lock file and
+/// keeps MODULE.bazel formatting canonical.
 /// Uses only dart:io — no pubspec needed.
 library;
 
@@ -29,7 +29,7 @@ Future<void> main() async {
 
     final result = await Process.run(
       'bazel',
-      ['build', '--nobuild', '--lockfile_mode=update', '//...'],
+      ['mod', 'tidy', '--lockfile_mode=refresh'],
       workingDirectory: ws,
     );
 

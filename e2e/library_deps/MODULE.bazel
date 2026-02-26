@@ -1,7 +1,6 @@
 module(name = "library_deps")
 
 bazel_dep(name = "rules_dart", version = "0.0.0")
-
 local_path_override(
     module_name = "rules_dart",
     path = "../..",
