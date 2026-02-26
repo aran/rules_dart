@@ -94,18 +94,15 @@ dart_repositories = repository_rule(
     attrs = _ATTRS,
 )
 
-def dart_register_toolchains(name, register = True, **kwargs):
-    """Convenience macro for users which does typical setup.
+def dart_register_toolchains(name, **kwargs):
+    """Convenience macro for setting up Dart SDK repositories.
 
     - create a repository for each built-in platform like "dart_linux_x64"
     - create a repository exposing toolchains for each platform like "dart_toolchains"
-    - register a toolchain pointing at each platform
     Users can avoid this macro and do these steps themselves, if they want more control.
 
     Args:
         name: base name for all created repos, like "dart"
-        register: whether to call through to native.register_toolchains.
-            Should be True when called directly, but False when used under bzlmod extension.
         **kwargs: passed to each dart_repositories call
     """
     for platform in PLATFORMS.keys():
@@ -114,13 +111,6 @@ def dart_register_toolchains(name, register = True, **kwargs):
             platform = platform,
             **kwargs
         )
-        if register:
-            native.register_toolchains("@%s_toolchains//:%s_toolchain" % (name, platform))
-
-            # Register cross-compilation toolchains
-            for target_platform in CROSS_TARGETS.get(platform, []):
-                cross_name = platform + "_cross_" + target_platform
-                native.register_toolchains("@%s_toolchains//:%s_toolchain" % (name, cross_name))
 
     toolchains_repo(
         name = name + "_toolchains",

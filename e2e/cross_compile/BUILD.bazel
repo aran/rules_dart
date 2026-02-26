@@ -1,4 +1,5 @@
 load("@rules_dart//dart:defs.bzl", "dart_binary")
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
 
 platform(
     name = "linux_x64",

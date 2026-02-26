@@ -5,7 +5,7 @@
 `rules_dart` is a Bazel rule set for the Dart language. It:
 
 - Downloads published Dart SDK releases (not building from source)
-- Uses bzlmod exclusively, targeting Bazel 8.x
+- Uses bzlmod exclusively, targeting Bazel 9.x
 - Is designed for future extension by a `rules_flutter` rule set
 
 ---
@@ -78,7 +78,7 @@ Unlike Go/Rust, Dart does not produce intermediate object files for libraries. T
 
 ## Design Decisions
 
-1. **Bazel version**: Bazel 8.x only. bzlmod required.
+1. **Bazel version**: Bazel 9.x only. bzlmod required.
 2. **Platforms**: macos-arm64, macos-x64, linux-x64, linux-arm64, windows-x64.
 3. **Compilation modes**: `dart compile exe` (default), `aot-snapshot`, `kernel`, `jit-snapshot`, plus web (`js`, `wasm`).
 4. **pub.from_lock**: Only `hosted` packages are resolved. `git`/`path` sources produce a warning and are skipped. `sdk` sources are silently skipped (provided by the toolchain).
@@ -143,5 +143,5 @@ bazel build //:my_binary --platforms=//:linux_x64
 | Starlark unit tests | `dart/tests/` | versions.bzl, common.bzl (package_config), yaml_parser.bzl |
 | Gazelle tests | `dev/` | gazelle_generation_test + shell test |
 | E2e integration tests | `e2e/*/` | Full build scenarios in isolated workspaces |
-| CI | `.github/workflows/ci.yaml` | All e2e folders on Bazel 8.x |
-| BCR presubmit | `.bcr/presubmit.yml` | Multi-platform × Bazel 8.x |
+| CI | `.github/workflows/ci.yaml` | All e2e folders on Bazel 9.x |
+| BCR presubmit | `.bcr/presubmit.yml` | Multi-platform × Bazel 9.x |

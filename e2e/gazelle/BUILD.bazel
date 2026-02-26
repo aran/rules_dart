@@ -1,4 +1,5 @@
 load("@bazel_gazelle//:def.bzl", "gazelle", "gazelle_binary")
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
 
 gazelle_binary(
     name = "gazelle_bin",

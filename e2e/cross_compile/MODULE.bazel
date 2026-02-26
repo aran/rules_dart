@@ -2,6 +2,8 @@ module(name = "cross_compile")
 
 bazel_dep(name = "platforms", version = "1.0.0")
 bazel_dep(name = "rules_dart", version = "0.0.0")
+bazel_dep(name = "rules_shell", version = "0.6.1")
+
 local_path_override(
     module_name = "rules_dart",
     path = "../..",
@@ -12,3 +14,8 @@ dart.toolchain(dart_version = "3.11.1")
 use_repo(dart, "dart_toolchains")
 
 register_toolchains("@dart_toolchains//:all")
+
+# Register the cross-compile target as an execution platform so that Bazel 9's
+# test toolchain resolution can find a platform matching the target constraints.
+# The test still physically executes on the host; this just satisfies analysis.
+register_execution_platforms("//:linux_x64")

@@ -43,7 +43,7 @@ file at runtime — keep file lists current as the repo evolves.
 
 ## Bazel Version Bump
 
-**Trigger**: New Bazel release (typically minor/patch within 8.x).
+**Trigger**: New Bazel release (typically minor/patch within 9.x).
 
 **Files**:
 - `.bazelversion`
@@ -169,12 +169,11 @@ formatting canonical.
 **Trigger**: When adding or removing an e2e workspace.
 
 **Files**:
-- `.github/workflows/ci.yaml` — `folders` and `exclude` arrays in the test job
+- `.github/workflows/ci.yaml` — `folders` array in the test job
 
 **Procedure**:
 1. Compare `e2e/*/MODULE.bazel` against the `folders` array in `ci.yaml`
 2. Add/remove entries to match
-3. Update the `exclude` array to match (each folder gets a `bzlmodEnabled: false` entry)
 
 **Verification**: CI workflow runs all e2e workspaces.
 
