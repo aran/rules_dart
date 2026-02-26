@@ -42,6 +42,11 @@ func (d *dartLang) GenerateRules(args language.GenerateArgs) language.GenerateRe
 		sort.Strings(srcs)
 		r.SetAttr("srcs", srcs)
 		r.SetAttr("visibility", []string{"//visibility:public"})
+		if args.Config.Exts != nil {
+			if pkgName, ok := args.Config.Exts["dart_package_name"].(string); ok && pkgName != "" {
+				r.SetAttr("package_name", pkgName)
+			}
+		}
 		gen = append(gen, r)
 		imports = append(imports, collectImports(libFiles))
 	}

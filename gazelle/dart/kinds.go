@@ -7,8 +7,9 @@ var dartKinds = map[string]rule.KindInfo{
 		MatchAttrs:    []string{"srcs"},
 		NonEmptyAttrs: map[string]bool{"srcs": true},
 		MergeableAttrs: map[string]bool{
-			"srcs": true,
-			"deps": true,
+			"srcs":         true,
+			"deps":         true,
+			"package_name": true,
 		},
 		ResolveAttrs: map[string]bool{"deps": true},
 	},

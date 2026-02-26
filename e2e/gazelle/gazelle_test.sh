@@ -63,4 +63,86 @@ if [[ ${FAIL} -ne 0 ]]; then
   exit 1
 fi
 
+echo "--- Basic tests passed ---"
+
+# ============================================================
+# Test dart_pub_deps_repo directive
+# ============================================================
+WORK2="$(mktemp -d)"
+trap "rm -rf ${WORK} ${WORK2}" EXIT
+
+mkdir -p "${WORK2}/lib"
+touch "${WORK2}/WORKSPACE"
+
+# Root BUILD with dart_pub_deps_repo directive
+cat > "${WORK2}/BUILD.bazel" <<'EOF'
+# gazelle:dart_pub_deps_repo pub_deps
+EOF
+
+# Dart file that imports external packages
+cat > "${WORK2}/lib/app.dart" <<'EOF'
+import 'package:shelf/shelf.dart';
+import 'package:path/path.dart';
+void main() {}
+EOF
+touch "${WORK2}/lib/BUILD.bazel"
+
+"${GAZELLE_BIN}" -lang dart -repo_root "${WORK2}" "${WORK2}"
+
+check_contains2() {
+  local file="$1" pattern="$2" desc="$3"
+  if ! grep -q "${pattern}" "${WORK2}/${file}"; then
+    echo "FAIL: ${file} missing ${desc}"
+    echo "  Contents:"
+    sed 's/^/    /' "${WORK2}/${file}"
+    FAIL=1
+  else
+    echo "PASS: ${file} contains ${desc}"
+  fi
+}
+
+# lib/ deps should use @pub_deps// labels
+check_contains2 "lib/BUILD.bazel" "@pub_deps//:shelf" "@pub_deps//:shelf dep"
+check_contains2 "lib/BUILD.bazel" "@pub_deps//:path" "@pub_deps//:path dep"
+
+# ============================================================
+# Test dart_package_name directive emits package_name attr
+# ============================================================
+WORK3="$(mktemp -d)"
+trap "rm -rf ${WORK} ${WORK2} ${WORK3}" EXIT
+
+mkdir -p "${WORK3}/lib"
+touch "${WORK3}/WORKSPACE" "${WORK3}/BUILD.bazel"
+
+cat > "${WORK3}/lib/BUILD.bazel" <<'EOF'
+# gazelle:dart_package_name my_app
+EOF
+
+cat > "${WORK3}/lib/app.dart" <<'EOF'
+String hello() => 'hello';
+EOF
+
+"${GAZELLE_BIN}" -lang dart -repo_root "${WORK3}" "${WORK3}"
+
+check_contains3() {
+  local file="$1" pattern="$2" desc="$3"
+  if ! grep -q "${pattern}" "${WORK3}/${file}"; then
+    echo "FAIL: ${file} missing ${desc}"
+    echo "  Contents:"
+    sed 's/^/    /' "${WORK3}/${file}"
+    FAIL=1
+  else
+    echo "PASS: ${file} contains ${desc}"
+  fi
+}
+
+# dart_package_name should set both name and package_name
+check_contains3 "lib/BUILD.bazel" 'name = "my_app"' "name = my_app"
+check_contains3 "lib/BUILD.bazel" 'package_name = "my_app"' "package_name = my_app"
+
+if [[ ${FAIL} -ne 0 ]]; then
+  echo "SOME TESTS FAILED"
+  exit 1
+fi
+
 echo "All Gazelle e2e tests passed"

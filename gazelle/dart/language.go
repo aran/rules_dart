@@ -31,6 +31,7 @@ func (*dartLang) CheckFlags(fs *flag.FlagSet, c *config.Config) error           
 func (*dartLang) KnownDirectives() []string {
 	return []string{
 		"dart_package_name",
+		"dart_pub_deps_repo",
 	}
 }
 
@@ -46,6 +47,12 @@ func (*dartLang) Configure(c *config.Config, rel string, f *rule.File) {
 				c.Exts = make(map[string]interface{})
 			}
 			c.Exts["dart_package_name"] = d.Value
+		case "dart_pub_deps_repo":
+			// Store pub deps repository name for external dep labels
+			if c.Exts == nil {
+				c.Exts = make(map[string]interface{})
+			}
+			c.Exts["dart_pub_deps_repo"] = d.Value
 		}
 	}
 }

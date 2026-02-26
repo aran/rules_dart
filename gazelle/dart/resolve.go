@@ -36,6 +36,13 @@ func (d *dartLang) Resolve(c *config.Config, ix *resolve.RuleIndex, rc *repo.Rem
 		return
 	}
 
+	pubDepsRepo := ""
+	if c.Exts != nil {
+		if repo, ok := c.Exts["dart_pub_deps_repo"].(string); ok {
+			pubDepsRepo = repo
+		}
+	}
+
 	var deps []string
 	for _, pkg := range is.SortedPackages() {
 		// Skip self-references (importing own package)
@@ -53,11 +60,15 @@ func (d *dartLang) Resolve(c *config.Config, ix *resolve.RuleIndex, rc *repo.Rem
 			continue
 		}
 
-		// Try external repository (pub package)
-		// Convention: @<package_name> or @pub_deps//<package_name>
-		lbl := label.New(pkg, "", pkg)
+		// External repository (pub package)
+		var lbl label.Label
+		if pubDepsRepo != "" {
+			lbl = label.New(pubDepsRepo, "", pkg)
+		} else {
+			lbl = label.New(pkg, "", pkg)
+		}
 		deps = append(deps, lbl.String())
-		log.Printf("gazelle: dart: unresolved import %q for %s, assuming external @%s", pkg, from, pkg)
+		log.Printf("gazelle: dart: unresolved import %q for %s, assuming external %s", pkg, from, lbl)
 	}
 
 	if len(deps) > 0 {

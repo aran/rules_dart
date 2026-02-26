@@ -1,0 +1,9 @@
+load("@rules_dart//dart:defs.bzl", "dart_test")
+
+exports_files(["pubspec.lock"])
+
+dart_test(
+    name = "example_test",
+    main = "test/example_test.dart",
+    deps = ["@pub_deps//:test"],
+)

@@ -241,6 +241,21 @@
         }
       }
     },
+    "@@rules_dart+//dart/pub:extensions.bzl%pub": {
+      "general": {
+        "bzlTransitiveDigest": "ZwVV/cFXsgU6qhr/gjwE6Xh9QOUISNOHr7NtmA8v9aU=",
+        "usagesDigest": "aQGv783qumGShlBFQWubFKO2YCYshr93DNTKWnyOSBs=",
+        "recordedInputs": [],
+        "generatedRepoSpecs": {
+          "pub_deps": {
+            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_repository.bzl%pub_lock_repository",
+            "attributes": {
+              "lock_file": "@@//:pubspec.lock"
+            }
+          }
+        }
+      }
+    },
     "@@rules_kotlin+//src/main/starlark/core/repositories:bzlmod_setup.bzl%rules_kotlin_extensions": {
       "general": {
         "bzlTransitiveDigest": "ABI1D/sbS1ovwaW/kHDoj8nnXjQ0oKU9fzmzEG4iT8o=",

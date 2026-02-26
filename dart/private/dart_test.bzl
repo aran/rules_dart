@@ -40,7 +40,15 @@ def _generate_runtime_package_config(ctx, deps):
     else:
         entries = []
         for pkg in packages:
-            root_uri = prefix + "/" + pkg.lib_root if prefix else pkg.lib_root
+            lib_root = pkg.lib_root
+
+            # In the runfiles tree, external repos are siblings of _main/
+            # (e.g. $RUNFILES/repo_name/pkg/), not under _main/external/.
+            # Convert workspace_root-based paths to runfiles-relative paths.
+            if lib_root.startswith("external/"):
+                lib_root = "../" + lib_root[len("external/"):]
+
+            root_uri = prefix + "/" + lib_root if prefix else lib_root
             entries.append(
                 '    {{"name": "{name}", "rootUri": "{root_uri}", "packageUri": "lib/"}}'.format(
                     name = pkg.package_name,
@@ -120,5 +128,5 @@ dart_test = rule(
     },
     test = True,
     toolchains = ["//dart:toolchain_type"],
-    doc = "Runs a Dart test file using the Dart VM. The test is executed directly, without the `package:test` runner.",
+    doc = "Runs a Dart test file using the Dart VM.",
 )

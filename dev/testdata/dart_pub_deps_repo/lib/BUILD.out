@@ -1,0 +1,13 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+# gazelle:dart_pub_deps_repo pub_deps
+
+dart_library(
+    name = "lib",
+    srcs = ["app.dart"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@pub_deps//:path",
+        "@pub_deps//:shelf",
+    ],
+)

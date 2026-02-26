@@ -1,2 +1,2 @@
-gazelle: gazelle: dart: unresolved import "http" for //bin:multi_dep, assuming external @http
-gazelle: gazelle: dart: unresolved import "foo" for //lib, assuming external @foo
+gazelle: gazelle: dart: unresolved import "http" for //bin:multi_dep, assuming external @http//:http
+gazelle: gazelle: dart: unresolved import "foo" for //lib, assuming external @foo//:foo

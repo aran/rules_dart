@@ -1,0 +1,2 @@
+gazelle: gazelle: dart: unresolved import "path" for //lib, assuming external @pub_deps//:path
+gazelle: gazelle: dart: unresolved import "shelf" for //lib, assuming external @pub_deps//:shelf

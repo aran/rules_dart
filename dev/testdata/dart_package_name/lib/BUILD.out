@@ -1,0 +1,10 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+# gazelle:dart_package_name my_app
+
+dart_library(
+    name = "my_app",
+    package_name = "my_app",
+    srcs = ["app.dart"],
+    visibility = ["//visibility:public"],
+)
