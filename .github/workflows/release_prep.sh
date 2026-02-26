@@ -24,8 +24,6 @@ tar --create --auto-compress \
     --file "$GITHUB_WORKSPACE/${ARCHIVE%.tar.gz}.docs.tar.gz" .
 
 cat << EOF
-## Using Bzlmod
-
 Add to your \`MODULE.bazel\` file:
 
 \`\`\`starlark

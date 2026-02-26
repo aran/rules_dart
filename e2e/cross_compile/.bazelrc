@@ -1,2 +1,0 @@
-# Cross-compile all targets to Linux x64
-build --platforms=//:linux_x64

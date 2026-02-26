@@ -1,4 +1,5 @@
 load("@rules_dart//dart:defs.bzl", "dart_binary")
+load("@rules_platform//platform_data:defs.bzl", "platform_data")
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
 
 platform(
@@ -14,6 +15,12 @@ dart_binary(
     main = "hello.dart",
 )
 
+platform_data(
+    name = "app_linux_x64",
+    target = ":app",
+    platform = "//:linux_x64",
+)
+
 dart_binary(
     name = "app_aot",
     main = "hello.dart",
@@ -26,5 +33,5 @@ dart_binary(
 sh_test(
     name = "cross_compile_test",
     srcs = ["cross_compile_test.sh"],
-    data = [":app"],
+    data = [":app_linux_x64"],
 )
