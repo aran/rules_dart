@@ -22,7 +22,9 @@ def _dart_sdk_binary_impl(ctx):
         output = script,
         content = """#!/usr/bin/env bash
 RUNFILES="${{RUNFILES_DIR:-$0.runfiles}}"
-exec "$RUNFILES/{dart}" "$@"
+DART="$(cd "$RUNFILES" && pwd)/{dart}"
+cd "$BUILD_WORKING_DIRECTORY"
+exec "$DART" "$@"
 """.format(dart = dart_path),
         is_executable = True,
     )
