@@ -107,9 +107,8 @@ dart_binary(
 
 > **Note**: `pub.from_lock()` only resolves **hosted** packages (i.e. packages
 > from pub.dev). Packages with `git`, `path`, or `sdk` sources in the lock file
-> are skipped. SDK packages (like `flutter`) are provided by the toolchain and
-> don't need Bazel targets. If you have `git` or `path` dependencies, declare
-> them manually with `pub.package()` or as local `dart_library` targets.
+> are skipped. If you have `git` or `path` dependencies, declare them manually
+> with `pub.package()` or as local `dart_library` targets.
 
 ### BUILD file generation with Gazelle
 
