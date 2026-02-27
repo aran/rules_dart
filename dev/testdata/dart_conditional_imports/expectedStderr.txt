@@ -1,2 +1,0 @@
-gazelle: gazelle: dart: unresolved import "native_helpers" for //lib, assuming external @native_helpers//:native_helpers
-gazelle: gazelle: dart: unresolved import "web_helpers" for //lib, assuming external @web_helpers//:web_helpers

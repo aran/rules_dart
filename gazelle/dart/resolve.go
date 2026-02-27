@@ -1,7 +1,6 @@
 package dart
 
 import (
-	"log"
 	"sort"
 
 	"github.com/bazelbuild/bazel-gazelle/config"
@@ -68,7 +67,6 @@ func (d *dartLang) Resolve(c *config.Config, ix *resolve.RuleIndex, rc *repo.Rem
 			lbl = label.New(pkg, "", pkg)
 		}
 		deps = append(deps, lbl.String())
-		log.Printf("gazelle: dart: unresolved import %q for %s, assuming external %s", pkg, from, lbl)
 	}
 
 	if len(deps) > 0 {
