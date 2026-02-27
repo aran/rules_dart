@@ -17,7 +17,7 @@ rules_dart/
   MODULE.bazel                     # module: rules_dart
   dart/
     BUILD.bazel                    # toolchain_type, resolved_toolchain
-    defs.bzl                       # Public API (6 rules)
+    defs.bzl                       # Public API (7 rules)
     providers.bzl                  # DartInfo, DartPackageInfo, DartPackageConfigInfo, DartCompileInfo
     toolchain.bzl                  # DartSdkInfo provider, dart_toolchain rule
     extensions.bzl                 # dart.toolchain(dart_version = "3.11.1")
@@ -33,7 +33,7 @@ rules_dart/
       dart_test.bzl                # dart_test: test execution via Dart VM
       dart_analyze.bzl             # dart_analyze_test: static analysis as build-time action
       dart_format_test.bzl         # dart_format_test: format checking
-      dart_web_application.bzl     # dart_web_application: JS/WASM compilation
+      dart_web_application.bzl     # dart_js_binary, dart_wasm_binary: JS/WASM compilation
       package_config.bzl           # Standalone package_config.json generation rule
       common.bzl                   # Shared utilities
     tests/                         # Starlark unit tests (versions, package_config, yaml_parser)
@@ -72,7 +72,7 @@ rules_dart/
 
 Unlike Go/Rust, Dart does not produce intermediate object files for libraries. The compiler takes the full transitive source tree. Therefore:
 - `dart_library` is **source-only** — it collects sources and propagates `DartInfo`
-- Compilation happens in `dart_binary`, `dart_test`, `dart_web_application`
+- Compilation happens in `dart_binary`, `dart_test`, `dart_js_binary`, `dart_wasm_binary`
 - `package_config.json` is generated at build time from the transitive `DartInfo` graph to bridge Bazel's dep model with Dart's `package:` URI resolution
 
 ---
@@ -81,7 +81,7 @@ Unlike Go/Rust, Dart does not produce intermediate object files for libraries. T
 
 1. **Bazel version**: Bazel 9.x only. bzlmod required.
 2. **Platforms**: macos-arm64, macos-x64, linux-x64, linux-arm64, windows-x64.
-3. **Compilation modes**: `dart compile exe` (default), `aot-snapshot`, `kernel`, `jit-snapshot`, plus web (`js`, `wasm`).
+3. **Compilation modes**: `dart compile exe` (default), `aot-snapshot`, `kernel`, `jit-snapshot`, plus `dart_js_binary` (JS) and `dart_wasm_binary` (WASM) for web.
 4. **pub.from_lock**: Only `hosted` packages are resolved. `git`/`path` sources produce a warning and are skipped. `sdk` sources are silently skipped (provided by the toolchain).
 5. **Gazelle plugin**: `rules_go` and `gazelle` are non-dev dependencies so `//gazelle/dart` is loadable from downstream modules. See the comment in `MODULE.bazel` for the full rationale. The Go SDK is only fetched if a target in `//gazelle/...` is actually built.
 
@@ -132,7 +132,7 @@ bazel build //:my_binary --platforms=//:linux_x64
 ### Limitations
 
 - Only `exe` and `aot-snapshot` compile modes support cross-compilation. `kernel` and `jit-snapshot` are VM formats and ignore target flags.
-- `dart_web_application` output (JS/WASM) is platform-independent — no cross-compilation needed.
+- `dart_js_binary` and `dart_wasm_binary` output is platform-independent — no cross-compilation needed.
 - `dart_test` runs on the host — cross-compiled tests are not supported.
 
 ---

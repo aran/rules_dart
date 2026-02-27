@@ -1,14 +1,23 @@
-"""Implementation of the dart_web_application rule.
+"""Implementation of dart_js_binary and dart_wasm_binary rules.
 
-Compiles a Dart application to JavaScript using `dart compile js`.
+Compiles a Dart application to JavaScript or WebAssembly for use in a browser.
 Uses a staging directory with .dart_tool/package_config.json for package
-resolution, since `dart compile js` does not accept --packages.
+resolution, since `dart compile js/wasm` does not accept --packages.
 """
 
 load("//dart:providers.bzl", "DartInfo")
 load("//dart/private:common.bzl", "collect_packages", "collect_transitive_srcs", "generate_package_config_content")
 
-def _dart_web_application_impl(ctx):
+def _dart_web_compile(ctx, compile_mode):
+    """Shared compilation logic for JS and WASM web targets.
+
+    Args:
+        ctx: The rule context.
+        compile_mode: "js" or "wasm".
+
+    Returns:
+        A list of providers.
+    """
     toolchain = ctx.toolchains["//dart:toolchain_type"]
     dart_sdk_info = toolchain.dart_sdk_info
 
@@ -22,16 +31,13 @@ def _dart_web_application_impl(ctx):
     package_config = ctx.actions.declare_file(ctx.label.name + ".web_config.json")
     ctx.actions.write(output = package_config, content = config_content)
 
-    # Determine output and staging extension
-    compile_mode = ctx.attr.compile_mode
+    # Determine output extension
     if compile_mode == "js":
         output = ctx.actions.declare_file(ctx.label.name + ".js")
         staging_ext = ".js"
-    elif compile_mode == "wasm":
+    else:
         output = ctx.actions.declare_file(ctx.label.name + ".wasm")
         staging_ext = ".wasm"
-    else:
-        fail("Unknown web compile_mode: %s" % compile_mode)
 
     # Build symlink commands for dependency packages
     symlink_cmds = []
@@ -93,33 +99,38 @@ cp "$PROJ/output{ext}" "{output}"
         ),
     ]
 
-dart_web_application = rule(
-    implementation = _dart_web_application_impl,
-    attrs = {
-        "main": attr.label(
-            doc = "The Dart entrypoint file containing a top-level `main()` function.",
-            mandatory = True,
-            allow_single_file = [".dart"],
-        ),
-        "srcs": attr.label_list(
-            doc = "Additional Dart source files that are part of this application's package but not reachable via `deps`.",
-            allow_files = [".dart"],
-        ),
-        "deps": attr.label_list(
-            doc = "`dart_library` targets this application depends on.",
-            providers = [DartInfo],
-        ),
-        "compile_mode": attr.string(
-            doc = """\
-The web compilation mode:
+def _dart_js_binary_impl(ctx):
+    return _dart_web_compile(ctx, "js")
 
-- `js` (default): Compiles to JavaScript via `dart compile js`.
-- `wasm`: Compiles to WebAssembly via `dart compile wasm`. Requires a browser with WasmGC support.
-""",
-            default = "js",
-            values = ["js", "wasm"],
-        ),
-    },
+def _dart_wasm_binary_impl(ctx):
+    return _dart_web_compile(ctx, "wasm")
+
+_WEB_BINARY_ATTRS = {
+    "main": attr.label(
+        doc = "The Dart entrypoint file containing a top-level `main()` function.",
+        mandatory = True,
+        allow_single_file = [".dart"],
+    ),
+    "srcs": attr.label_list(
+        doc = "Additional Dart source files that are part of this application's package but not reachable via `deps`.",
+        allow_files = [".dart"],
+    ),
+    "deps": attr.label_list(
+        doc = "`dart_library` targets this application depends on.",
+        providers = [DartInfo],
+    ),
+}
+
+dart_js_binary = rule(
+    implementation = _dart_js_binary_impl,
+    attrs = _WEB_BINARY_ATTRS,
     toolchains = ["//dart:toolchain_type"],
-    doc = "Compiles a Dart web application to JavaScript or WebAssembly.",
+    doc = "Compiles a Dart web application to JavaScript via `dart compile js`.",
+)
+
+dart_wasm_binary = rule(
+    implementation = _dart_wasm_binary_impl,
+    attrs = _WEB_BINARY_ATTRS,
+    toolchains = ["//dart:toolchain_type"],
+    doc = "Compiles a Dart web application to WebAssembly via `dart compile wasm`. Requires a browser with WasmGC support.",
 )

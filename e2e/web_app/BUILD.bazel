@@ -1,16 +1,15 @@
-load("@rules_dart//dart:defs.bzl", "dart_web_application")
+load("@rules_dart//dart:defs.bzl", "dart_js_binary", "dart_wasm_binary")
 
-dart_web_application(
+dart_js_binary(
     name = "app",
     main = "main.dart",
     srcs = ["config.dart"],
     deps = ["//greet"],
 )
 
-dart_web_application(
+dart_wasm_binary(
     name = "app_wasm",
     main = "main.dart",
     srcs = ["config.dart"],
     deps = ["//greet"],
-    compile_mode = "wasm",
 )

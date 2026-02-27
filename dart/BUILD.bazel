@@ -20,7 +20,7 @@ resolved_toolchain(
 
 # Run the Dart SDK binary:
 #   bazel run @rules_dart//dart -- --version
-#   bazel run @rules_dart//dart -- analyze lib/
+#   bazel run @rules_dart//dart -- analyze lib
 dart_sdk_binary(
     name = "dart",
     tags = ["manual"],
