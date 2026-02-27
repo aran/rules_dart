@@ -40,7 +40,7 @@ def _dart_web_application_impl(ctx):
         if pkg.lib_root and pkg.lib_root not in seen_roots:
             seen_roots[pkg.lib_root] = True
             symlink_cmds.append(
-                'ln -s "$(pwd)/{root}" "$PROJ/{root}"'.format(root = pkg.lib_root),
+                'mkdir -p "$PROJ/$(dirname {root})" && ln -s "$(pwd)/{root}" "$PROJ/{root}"'.format(root = pkg.lib_root),
             )
 
     # Symlink additional source files (srcs) into the staging directory
@@ -63,6 +63,7 @@ trap 'rm -rf "$PROJ"' EXIT
 mkdir -p "$PROJ/.dart_tool"
 cp "{config}" "$PROJ/.dart_tool/package_config.json"
 {symlinks}
+mkdir -p "$PROJ/$(dirname {main_short})"
 cp "{main}" "$PROJ/{main_short}"
 "{dart}" compile {mode} -o "$PROJ/output{ext}" "$PROJ/{main_short}"
 cp "$PROJ/output{ext}" "{output}"

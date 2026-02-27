@@ -56,10 +56,13 @@ def _dart_binary_impl(ctx):
         target_arch = dart_sdk_info.target_arch,
     )
 
+    runfiles = ctx.runfiles(files = ctx.files.data)
+
     return [
         DefaultInfo(
             files = depset([output]),
             executable = output,
+            runfiles = runfiles,
         ),
         DartCompileInfo(
             executable = output,
@@ -82,6 +85,10 @@ dart_binary = rule(
         "deps": attr.label_list(
             doc = "`dart_library` targets this binary depends on.",
             providers = [DartInfo],
+        ),
+        "data": attr.label_list(
+            doc = "Additional files needed at runtime. These are added to runfiles so they can be found via the runfiles tree when using `bazel run`.",
+            allow_files = True,
         ),
         "compile_mode": attr.string(
             doc = """\

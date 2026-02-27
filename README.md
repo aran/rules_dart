@@ -111,6 +111,64 @@ dart_binary(
 > don't need Bazel targets. If you have `git` or `path` dependencies, declare
 > them manually with `pub.package()` or as local `dart_library` targets.
 
+### BUILD file generation with Gazelle
+
+rules\_dart includes a [Gazelle](https://github.com/bazelbuild/bazel-gazelle)
+plugin that generates `BUILD.bazel` files from your Dart source tree.
+
+Add `gazelle` to your `MODULE.bazel`:
+
+```starlark
+bazel_dep(name = "gazelle", version = "0.47.0")
+```
+
+Then create a root `BUILD.bazel` with the Gazelle targets:
+
+```starlark
+load("@gazelle//:def.bzl", "gazelle", "gazelle_binary")
+
+gazelle_binary(
+    name = "gazelle_bin",
+    languages = [
+        "@rules_dart//gazelle/dart",
+    ],
+)
+
+gazelle(
+    name = "gazelle",
+    gazelle = "gazelle_bin",
+)
+```
+
+Run Gazelle to generate or update BUILD files:
+
+```shell
+bazel run //:gazelle
+```
+
+Gazelle will scan `lib/`, `bin/`, and `test/` directories, emitting
+`dart_library`, `dart_binary`, and `dart_test` targets respectively. It
+resolves `import` statements to determine `deps`, including support for
+`show` and `deferred` import modifiers.
+
+#### Directives
+
+Add directives as comments in a `BUILD.bazel` file to control generation:
+
+- **`# gazelle:dart_pub_deps_repo pub_deps`** — tells Gazelle which
+  external repository holds pub.dev packages. Imports like
+  `package:shelf/shelf.dart` are resolved to `@pub_deps//:shelf`.
+
+- **`# gazelle:dart_package_name my_app`** — explicitly sets the
+  `package_name` attribute on the generated `dart_library` rule.
+
+#### pubspec.yaml auto-detection
+
+If a `pubspec.yaml` file is present in the same directory as a `lib/`
+folder, Gazelle reads the `name` field and uses it as both the target name
+and `package_name` for the generated `dart_library`. This means most
+projects need no directives at all.
+
 ### Static analysis and formatting
 
 ```starlark
