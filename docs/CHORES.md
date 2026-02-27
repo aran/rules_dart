@@ -24,6 +24,7 @@ file at runtime — keep file lists current as the repo evolves.
 - `README.md` — `dart.toolchain(dart_version = "...")` in installation snippet
 - `docs/ARCHITECTURE.md` — `dart.toolchain(dart_version = "...")` in directory tree
 - `dart/tests/versions_test.bzl` — asserted version key in `_smoke_test_impl`
+- `dart/runfiles/pubspec.yaml` — `environment.sdk` constraint
 
 **Procedure**:
 1. Run `dart run tool/fetch_sdk_hashes.dart {version}` to get SHA-256 hashes
@@ -113,12 +114,12 @@ file at runtime — keep file lists current as the repo evolves.
 - `e2e/gazelle`
 - `e2e/cross_compile`
 
-**Procedure**: Run `dart run tool/refresh_locks.dart` (or manually run
-`bazel mod tidy --lockfile_mode=refresh` in each directory). This both
-refreshes the lock file (pulling fresh registry data) and keeps MODULE.bazel
-formatting canonical.
+**Procedure**: Run `dart run tool/refresh_locks.dart`. This both refreshes
+Bazel lock files (pulling fresh registry data, keeping MODULE.bazel
+formatting canonical) and runs `dart pub get` in any in-repo Dart packages
+(currently `dart/runfiles/`) to refresh their `pubspec.lock` files.
 
-**Verification**: All workspaces report success.
+**Verification**: All workspaces and packages report success.
 
 **Automation**: `/refresh-locks` slash command.
 
@@ -161,6 +162,32 @@ formatting canonical.
 **Verification**: `bazel build //...` in affected e2e workspaces succeeds.
 
 **Automation**: Manual — low frequency, requires checking sha256 hashes.
+
+---
+
+## In-repo Dart Package Maintenance
+
+**Trigger**: Periodic or before a release.
+
+**Packages**: `dart/runfiles/`
+
+Each in-repo Dart package is publishable to pub.dev. Maintenance includes:
+- **SDK constraint**: The `environment.sdk` lower bound in `pubspec.yaml`
+  tracks the project's minimum supported Dart SDK. Updated by `/bump-dart-sdk`.
+- **Dependencies**: Any pub dependencies need periodic bumping. Run
+  `dart pub outdated` in the package directory to check.
+- **Lock file**: `pubspec.lock` is refreshed automatically by
+  `tool/refresh_locks.dart`.
+- **Version**: Committed as `0.0.0-dev`. The real version is injected from
+  the git tag at publish time by the release workflow.
+- **Publishing**: Handled automatically by the `pub-publish` job in the
+  release workflow (`.github/workflows/release.yaml`).
+
+**Verification**: `dart pub get` succeeds; `dart pub outdated` reports no
+critical updates.
+
+**Automation**: `/maintenance-audit` checks SDK constraint consistency and
+outdated dependencies.
 
 ---
 
@@ -233,6 +260,7 @@ formatting canonical.
 
 **Files**:
 - `.github/workflows/ci.yaml`
+- `.github/workflows/release.yaml`
 - `.github/workflows/publish.yaml` (if it exists)
 
 **Procedure**: Handled automatically by Renovate (default behavior).

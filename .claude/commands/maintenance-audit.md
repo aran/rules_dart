@@ -21,6 +21,10 @@ Run a read-only audit of all maintenance chores. Do NOT make any changes — onl
 
    **Pre-commit hooks**: Run `pre-commit autoupdate --dry-run` if pre-commit is available. Report if any hooks are outdated.
 
+   **In-repo Dart packages**: For each `pubspec.yaml` under `dart/` (currently `dart/runfiles/pubspec.yaml`):
+   - Read the `environment.sdk` lower bound and compare against the project's minimum supported Dart SDK (from `dart/private/versions.bzl`). They should be consistent.
+   - Run `dart pub outdated` in the package directory and report any outdated dependencies.
+
 3. Present findings as a checklist:
    ```
    - [x] Dart SDK: current (3.11.0)

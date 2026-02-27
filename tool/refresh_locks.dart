@@ -1,12 +1,17 @@
-/// Runs `bazel mod tidy` in all Bazel workspaces.
+/// Refreshes all lock files in the repository.
 ///
 /// Usage: dart run tool/refresh_locks.dart
 ///
-/// Finds every directory containing a MODULE.bazel (excluding references/)
-/// and runs `bazel mod tidy --lockfile_mode=refresh` in each, followed by
-/// `bazel build --nobuild --lockfile_mode=update //...` to capture any
-/// transitive module extension entries that `mod tidy` misses. This keeps
-/// MODULE.bazel formatting canonical and lock files complete.
+/// 1. Finds every directory containing a MODULE.bazel (excluding references/)
+///    and runs `bazel mod tidy --lockfile_mode=refresh` in each, followed by
+///    `bazel build --nobuild --lockfile_mode=update //...` to capture any
+///    transitive module extension entries that `mod tidy` misses. This keeps
+///    MODULE.bazel formatting canonical and lock files complete.
+///
+/// 2. Finds every directory containing a pubspec.yaml (excluding references/,
+///    dev/testdata/, and e2e/) and runs `dart pub get` to refresh the
+///    pubspec.lock file.
+///
 /// Uses only dart:io — no pubspec needed.
 library;
 
@@ -59,6 +64,38 @@ Future<void> main() async {
       stdout.writeln('FAILED at build (exit ${build.exitCode})');
       stderr.writeln(build.stderr);
       failed++;
+    }
+  }
+
+  // --- Phase 2: pubspec.lock files ---
+  final pubPackages = _findPubPackages(root);
+
+  if (pubPackages.isNotEmpty) {
+    stdout.writeln('');
+    stdout.writeln('Found ${pubPackages.length} Dart packages:');
+    for (final pkg in pubPackages) {
+      stdout.writeln('  ${_relativePath(root, pkg)}');
+    }
+    stdout.writeln('');
+
+    for (final pkg in pubPackages) {
+      final rel = _relativePath(root, pkg);
+      stdout.write('Refreshing $rel pubspec.lock ... ');
+
+      final result = await Process.run(
+        'dart',
+        ['pub', 'get'],
+        workingDirectory: pkg,
+      );
+
+      if (result.exitCode == 0) {
+        stdout.writeln('ok');
+        passed++;
+      } else {
+        stdout.writeln('FAILED (exit ${result.exitCode})');
+        stderr.writeln(result.stderr);
+        failed++;
+      }
     }
   }
 
@@ -121,6 +158,38 @@ List<String> _findWorkspaces(String root) {
   });
 
   return workspaces;
+}
+
+/// Find all directories containing pubspec.yaml, excluding references/,
+/// dev/testdata/, and e2e/.
+List<String> _findPubPackages(String root) {
+  final packages = <String>[];
+
+  void scan(Directory dir) {
+    if (dir.path.contains('/references/')) return;
+    if (dir.path.contains('/dev/testdata/')) return;
+    if (dir.path.contains('/e2e/')) return;
+    if (dir.path.contains('/.git')) return;
+    if (dir.path.contains('/bazel-')) return;
+    if (dir.path.contains('/.dart_tool')) return;
+
+    if (File('${dir.path}/pubspec.yaml').existsSync()) {
+      packages.add(dir.path);
+    }
+
+    for (final entity in dir.listSync()) {
+      if (entity is Directory) {
+        final name = entity.path.split('/').last;
+        if (name.startsWith('.') || name.startsWith('bazel-')) continue;
+        if (name == 'references') continue;
+        scan(entity);
+      }
+    }
+  }
+
+  scan(Directory(root));
+  packages.sort();
+  return packages;
 }
 
 String _relativePath(String root, String path) {

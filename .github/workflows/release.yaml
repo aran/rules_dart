@@ -32,3 +32,23 @@ jobs:
       tag_name: ${{ inputs.tag_name || github.ref_name }}
     secrets:
       publish_token: ${{ secrets.publish_token || secrets.BCR_PUBLISH_TOKEN }}
+  pub-publish:
+    needs: release
+    if: secrets.PUB_TOKEN != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag_name || github.ref_name }}
+      - uses: dart-lang/setup-dart@v1
+      - name: Inject version from tag
+        run: |
+          TAG="${{ inputs.tag_name || github.ref_name }}"
+          VERSION="${TAG#v}"
+          sed -i "s/^version: 0\.0\.0-dev$/version: $VERSION/" dart/runfiles/pubspec.yaml
+          echo "Publishing runfiles $VERSION"
+      - name: Publish to pub.dev
+        run: dart pub publish --force
+        working-directory: dart/runfiles
+        env:
+          PUB_TOKEN: ${{ secrets.PUB_TOKEN }}

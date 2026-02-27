@@ -16,14 +16,16 @@ Bump the Dart SDK to version $ARGUMENTS.
    - `README.md` — the installation snippet
    - `docs/ARCHITECTURE.md` — the directory tree comment
 
-6. Update `dart/tests/versions_test.bzl`:
+6. Update the SDK constraint in `dart/runfiles/pubspec.yaml` (`environment.sdk`) to `^$ARGUMENTS` and run `dart pub get` in `dart/runfiles/` to refresh the lock file.
+
+7. Update `dart/tests/versions_test.bzl`:
    - Change the asserted version key in `_smoke_test_impl` to the new version
    - Change the version key used in `_platforms_test_impl`
 
-7. Run `dart run tool/refresh_locks.dart` to regenerate all MODULE.bazel.lock files.
+8. Run `dart run tool/refresh_locks.dart` to regenerate all lock files.
 
-8. Run `bazel test //dart/tests/...` to verify unit tests pass.
+9. Run `bazel test //dart/tests/...` to verify unit tests pass.
 
-9. Pick one e2e workspace (e.g. `e2e/hello_world`) and run `bazel build //...` in it to verify the new SDK resolves correctly.
+10. Pick one e2e workspace (e.g. `e2e/hello_world`) and run `bazel build //...` in it to verify the new SDK resolves correctly.
 
-10. Commit with message: `chore: bump Dart SDK to $ARGUMENTS`
+11. Commit with message: `chore: bump Dart SDK to $ARGUMENTS`
