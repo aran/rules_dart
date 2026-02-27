@@ -140,6 +140,37 @@ check_contains3() {
 check_contains3 "lib/BUILD.bazel" 'name = "my_app"' "name = my_app"
 check_contains3 "lib/BUILD.bazel" 'package_name = "my_app"' "package_name = my_app"
 
+# ============================================================
+# Test X/lib/ auto-detection of package name
+# ============================================================
+WORK4="$(mktemp -d)"
+trap "rm -rf ${WORK} ${WORK2} ${WORK3} ${WORK4}" EXIT
+
+mkdir -p "${WORK4}/mylib/lib"
+touch "${WORK4}/WORKSPACE" "${WORK4}/BUILD.bazel" "${WORK4}/mylib/lib/BUILD.bazel"
+
+cat > "${WORK4}/mylib/lib/mylib.dart" <<'EOF'
+String greet() => 'hi';
+EOF
+
+"${GAZELLE_BIN}" -lang dart -repo_root "${WORK4}" "${WORK4}"
+
+check_contains4() {
+  local file="$1" pattern="$2" desc="$3"
+  if ! grep -q "${pattern}" "${WORK4}/${file}"; then
+    echo "FAIL: ${file} missing ${desc}"
+    echo "  Contents:"
+    sed 's/^/    /' "${WORK4}/${file}"
+    FAIL=1
+  else
+    echo "PASS: ${file} contains ${desc}"
+  fi
+}
+
+# X/lib/ should auto-detect name from parent dir
+check_contains4 "mylib/lib/BUILD.bazel" 'name = "mylib"' "name = mylib"
+check_contains4 "mylib/lib/BUILD.bazel" 'package_name = "mylib"' "package_name = mylib"
+
 if [[ ${FAIL} -ne 0 ]]; then
   echo "SOME TESTS FAILED"
   exit 1

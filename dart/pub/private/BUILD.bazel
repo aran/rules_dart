@@ -13,8 +13,14 @@ bzl_library(
 )
 
 bzl_library(
-    name = "pub_lock_repository",
-    srcs = ["pub_lock_repository.bzl"],
+    name = "pub_lock_package",
+    srcs = ["pub_lock_package.bzl"],
     visibility = ["//dart/pub:__subpackages__"],
     deps = [":yaml_parser"],
+)
+
+bzl_library(
+    name = "pub_lock_hub",
+    srcs = ["pub_lock_hub.bzl"],
+    visibility = ["//dart/pub:__subpackages__"],
 )

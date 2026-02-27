@@ -221,16 +221,76 @@
   "moduleExtensions": {
     "@@rules_dart+//dart/pub:extensions.bzl%pub": {
       "general": {
-        "bzlTransitiveDigest": "ZwVV/cFXsgU6qhr/gjwE6Xh9QOUISNOHr7NtmA8v9aU=",
+        "bzlTransitiveDigest": "v65+jCcIL5Hut1EIt/2NZA+QmUr85qesQuYK/CNwvXc=",
         "usagesDigest": "Cm7P5bM8fEiB+7/X9cv3DPx/LttNSwSXbHfhd+m3hk0=",
-        "recordedInputs": [],
+        "recordedInputs": [
+          "FILE:@@//pubspec.lock a352cc8382876d3d74e8d5922ab0edf435435452861368868e1690665a6625a2"
+        ],
         "generatedRepoSpecs": {
-          "pub_deps": {
-            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_repository.bzl%pub_lock_repository",
+          "pub_deps__collection": {
+            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_package.bzl%pub_lock_package",
             "attributes": {
-              "lock_file": "@@//:pubspec.lock"
+              "package_name": "collection",
+              "version": "1.19.1",
+              "sha256": "2f5709ae4d3d59dd8f7cd309b4e023046b57d8a6c82130785d2b0e5868084e76",
+              "base_url": "https://pub.dev",
+              "hub_name": "pub_deps",
+              "lock_packages": [
+                "collection",
+                "meta",
+                "path"
+              ]
+            }
+          },
+          "pub_deps__meta": {
+            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_package.bzl%pub_lock_package",
+            "attributes": {
+              "package_name": "meta",
+              "version": "1.16.0",
+              "sha256": "e3641ec5d63ebf0d9b41bd43201a66e3fc79a65db5f61fc181f04cd27aab950c",
+              "base_url": "https://pub.dev",
+              "hub_name": "pub_deps",
+              "lock_packages": [
+                "collection",
+                "meta",
+                "path"
+              ]
+            }
+          },
+          "pub_deps__path": {
+            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_package.bzl%pub_lock_package",
+            "attributes": {
+              "package_name": "path",
+              "version": "1.9.1",
+              "sha256": "75cca69d1490965be98c73ceaea117e8a04dd21217b37b292c9ddbec0d955bc5",
+              "base_url": "https://pub.dev",
+              "hub_name": "pub_deps",
+              "lock_packages": [
+                "collection",
+                "meta",
+                "path"
+              ]
+            }
+          },
+          "pub_deps": {
+            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_hub.bzl%pub_lock_hub",
+            "attributes": {
+              "hub_name": "pub_deps",
+              "packages": [
+                "collection",
+                "meta",
+                "path"
+              ]
             }
           }
+        },
+        "moduleExtensionMetadata": {
+          "explicitRootModuleDirectDeps": [
+            "pub_deps"
+          ],
+          "explicitRootModuleDirectDevDeps": [],
+          "useAllRepos": "NO",
+          "reproducible": false
         }
       }
     },

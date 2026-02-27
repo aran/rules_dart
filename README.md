@@ -91,7 +91,8 @@ pub.from_lock(
 use_repo(pub, "pub_deps")
 ```
 
-Packages are available as `@pub_deps//:package_name`:
+Each hosted package is downloaded into its own external repository for better
+caching and parallelism. Packages are available as `@pub_deps//:package_name`:
 
 ```starlark
 dart_binary(

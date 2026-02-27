@@ -42,10 +42,20 @@ func (d *dartLang) GenerateRules(args language.GenerateArgs) language.GenerateRe
 		sort.Strings(srcs)
 		r.SetAttr("srcs", srcs)
 		r.SetAttr("visibility", []string{"//visibility:public"})
+		needsPkgName := false
 		if args.Config.Exts != nil {
-			if pkgName, ok := args.Config.Exts["dart_package_name"].(string); ok && pkgName != "" {
-				r.SetAttr("package_name", pkgName)
+			if _, ok := args.Config.Exts["dart_package_name"].(string); ok {
+				needsPkgName = true
 			}
+		}
+		if path.Base(args.Rel) == "lib" {
+			parent := path.Dir(args.Rel)
+			if parent != "." && parent != "" {
+				needsPkgName = true
+			}
+		}
+		if needsPkgName {
+			r.SetAttr("package_name", r.Name())
 		}
 		gen = append(gen, r)
 		imports = append(imports, collectImports(libFiles))
@@ -80,6 +90,13 @@ func libraryName(rel string, c *config.Config) string {
 	if c.Exts != nil {
 		if name, ok := c.Exts["dart_package_name"].(string); ok && name != "" {
 			return name
+		}
+	}
+	// X/lib/ → parent dir name "X"
+	if path.Base(rel) == "lib" {
+		parent := path.Dir(rel)
+		if parent != "." && parent != "" {
+			return path.Base(parent)
 		}
 	}
 	if rel == "" {

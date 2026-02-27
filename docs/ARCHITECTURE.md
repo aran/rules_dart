@@ -42,7 +42,8 @@ rules_dart/
       extensions.bzl               # pub.package() and pub.from_lock() module extensions
       private/
         pub_repository.bzl         # Single pub.dev package repository rule
-        pub_lock_repository.bzl    # pubspec.lock parser + multi-package repository rule
+        pub_lock_package.bzl       # Single spoke repo for one lock file package
+        pub_lock_hub.bzl           # Hub repo with aliases to spoke repos
         yaml_parser.bzl            # Minimal YAML subset parser
   gazelle/
     dart/                          # Gazelle language plugin (Go)

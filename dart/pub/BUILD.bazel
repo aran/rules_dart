@@ -5,8 +5,10 @@ bzl_library(
     srcs = ["extensions.bzl"],
     visibility = ["//visibility:public"],
     deps = [
-        "//dart/pub/private:pub_lock_repository",
+        "//dart/pub/private:pub_lock_hub",
+        "//dart/pub/private:pub_lock_package",
         "//dart/pub/private:pub_repository",
+        "//dart/pub/private:yaml_parser",
     ],
 )
 
