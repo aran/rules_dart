@@ -7,7 +7,7 @@ Bazel rule set for building Dart applications and libraries.
 Add to your `MODULE.bazel`:
 
 ```starlark
-bazel_dep(name = "rules_dart", version = "0.0.0")
+bazel_dep(name = "rules_dart", version = "0.1.0")
 
 dart = use_extension("@rules_dart//dart:extensions.bzl", "dart")
 dart.toolchain(dart_version = "3.11.1")
