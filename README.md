@@ -186,6 +186,13 @@ dart_format_test(
 
 ### Web compilation
 
+`dart_web_application` compiles a Dart entrypoint to JavaScript or WebAssembly
+for use in a browser. It supports two modes via the `compile_mode` attribute:
+
+- `js` (default) — compiles to JavaScript via `dart compile js`
+- `wasm` — compiles to WebAssembly via `dart compile wasm` (requires a browser
+  with WasmGC support)
+
 ```starlark
 load("@rules_dart//dart:defs.bzl", "dart_web_application")
 
@@ -193,6 +200,13 @@ dart_web_application(
     name = "app",
     main = "main.dart",
     deps = [":my_lib"],
+)
+
+dart_web_application(
+    name = "app_wasm",
+    main = "main.dart",
+    deps = [":my_lib"],
+    compile_mode = "wasm",
 )
 ```
 
