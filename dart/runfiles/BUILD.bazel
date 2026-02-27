@@ -1,0 +1,7 @@
+load("//dart:defs.bzl", "dart_library")
+
+dart_library(
+    name = "runfiles",
+    srcs = ["lib/runfiles.dart"],
+    visibility = ["//visibility:public"],
+)

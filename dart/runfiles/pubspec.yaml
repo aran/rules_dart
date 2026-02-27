@@ -1,0 +1,7 @@
+name: runfiles
+description: Bazel runfiles library for Dart. Locates data files at runtime.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.10.0
