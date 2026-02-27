@@ -37,7 +37,7 @@ func (d *dartLang) GenerateRules(args language.GenerateArgs) language.GenerateRe
 
 	// Generate dart_library for lib/ directories
 	if len(libFiles) > 0 {
-		r := rule.NewRule("dart_library", libraryName(args.Rel, args.Config))
+		r := rule.NewRule("dart_library", libraryName(args.Rel, args.Dir, args.Config))
 		srcs := fileNames(libFiles)
 		sort.Strings(srcs)
 		r.SetAttr("srcs", srcs)
@@ -48,11 +48,8 @@ func (d *dartLang) GenerateRules(args language.GenerateArgs) language.GenerateRe
 				needsPkgName = true
 			}
 		}
-		if path.Base(args.Rel) == "lib" {
-			parent := path.Dir(args.Rel)
-			if parent != "." && parent != "" {
-				needsPkgName = true
-			}
+		if FindPubspecName(args.Dir, args.Rel) != "" {
+			needsPkgName = true
 		}
 		if needsPkgName {
 			r.SetAttr("package_name", r.Name())
@@ -86,18 +83,14 @@ func (d *dartLang) GenerateRules(args language.GenerateArgs) language.GenerateRe
 }
 
 // libraryName determines the dart_library target name.
-func libraryName(rel string, c *config.Config) string {
+func libraryName(rel string, dir string, c *config.Config) string {
 	if c.Exts != nil {
 		if name, ok := c.Exts["dart_package_name"].(string); ok && name != "" {
 			return name
 		}
 	}
-	// X/lib/ → parent dir name "X"
-	if path.Base(rel) == "lib" {
-		parent := path.Dir(rel)
-		if parent != "." && parent != "" {
-			return path.Base(parent)
-		}
+	if name := FindPubspecName(dir, rel); name != "" {
+		return name
 	}
 	if rel == "" {
 		return "lib"

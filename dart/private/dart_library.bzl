@@ -12,8 +12,8 @@ def _dart_library_impl(ctx):
         package_name = ctx.label.name
 
     # Derive the workspace-relative path to the package root directory.
-    # For X/lib/ packages, strip the /lib suffix since Dart's packageUri: "lib/"
-    # is appended to rootUri, so rootUri should be the parent directory.
+    # Strip trailing /lib since Dart's packageUri: "lib/" is appended to
+    # rootUri in package_config.json — rootUri must point to the parent of lib/.
     if ctx.label.workspace_root:
         if ctx.label.package:
             lib_root = ctx.label.workspace_root + "/" + ctx.label.package
@@ -21,8 +21,8 @@ def _dart_library_impl(ctx):
             lib_root = ctx.label.workspace_root
     else:
         lib_root = ctx.label.package
-    if lib_root.endswith("/lib"):
-        lib_root = lib_root[:-4]
+    if lib_root.endswith("/lib") or lib_root == "lib":
+        lib_root = lib_root[:-4] if lib_root.endswith("/lib") else ""
 
     # Collect transitive sources
     transitive_srcs = depset(

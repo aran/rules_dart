@@ -80,6 +80,45 @@ func ParseDartFile(path string) ([]DartImport, error) {
 	return imports, nil
 }
 
+// ParsePubspecName reads pubspec.yaml in dir and returns the package name,
+// or "" if not found.
+func ParsePubspecName(dir string) string {
+	data, err := os.ReadFile(filepath.Join(dir, "pubspec.yaml"))
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.HasPrefix(line, "name:") {
+			name := strings.TrimSpace(strings.TrimPrefix(line, "name:"))
+			name = strings.Trim(name, "\"'")
+			return name
+		}
+	}
+	return ""
+}
+
+// FindPubspecName walks up from dir toward the repo root looking for
+// pubspec.yaml. rel is the workspace-relative path of dir; it bounds the
+// upward search so we never look above the repo root.
+func FindPubspecName(dir string, rel string) string {
+	current := dir
+	remaining := rel
+	for {
+		if name := ParsePubspecName(current); name != "" {
+			return name
+		}
+		if remaining == "" || remaining == "." {
+			break
+		}
+		remaining = filepath.Dir(remaining)
+		if remaining == "." {
+			remaining = ""
+		}
+		current = filepath.Dir(current)
+	}
+	return ""
+}
+
 // DartFileInfo holds metadata about a Dart source file.
 type DartFileInfo struct {
 	Path    string       // Relative path from package root
