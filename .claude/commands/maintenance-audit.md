@@ -19,6 +19,8 @@ Run a read-only audit of all maintenance chores. Do NOT make any changes — onl
    - Does the e2e list in the testing table match actual `e2e/` directories?
    - Are version strings current?
 
+   **GitHub workflow dependencies**: Grep all `.github/workflows/*.yaml` files for `uses:` lines. For each external dependency (actions and reusable workflows), check the repo's latest release/tag via `gh api repos/{owner}/{repo}/releases/latest` or `gh api repos/{owner}/{repo}/tags`. Report any that are outdated. Also flag inconsistencies (e.g. `actions/checkout` pinned to different versions across workflows).
+
    **Pre-commit hooks**: Run `pre-commit autoupdate --dry-run` if pre-commit is available. Report if any hooks are outdated.
 
    **In-repo Dart packages**: For each `pubspec.yaml` under `dart/` (currently `dart/runfiles/pubspec.yaml`):

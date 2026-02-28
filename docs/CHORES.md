@@ -254,17 +254,25 @@ outdated dependencies.
 
 ---
 
-## GitHub Actions Bumps
+## GitHub Workflow Dependency Bumps
 
-**Trigger**: New versions of GitHub Actions used in workflows.
+**Trigger**: Periodic or when a dependency releases a version we need.
 
-**Files**:
-- `.github/workflows/ci.yaml`
-- `.github/workflows/release.yaml`
-- `.github/workflows/publish.yaml` (if it exists)
+**Files**: All `.github/workflows/*.yaml` files.
 
-**Procedure**: Handled automatically by Renovate (default behavior).
+**Dependencies** (all `uses:` references across workflows):
+- Actions: `actions/checkout`, `amannn/action-semantic-pull-request`,
+  `dart-lang/setup-dart`, `smlx/ccv`, `pre-commit/action`,
+  `technote-space/workflow-conclusion-action`
+- Reusable workflows: `bazel-contrib/.github` (CI + release),
+  `bazel-contrib/publish-to-bcr`
 
-**Verification**: Renovate opens PRs; CI passes.
+**Procedure**:
+1. For each `uses:` reference, check the repo's tags/releases for newer versions
+2. Update the version ref
+3. For reusable workflows, review changelogs for new inputs or breaking changes
+4. Keep `actions/checkout` version consistent across all workflows
 
-**Automation**: Renovate — no manual action needed.
+**Verification**: CI workflow runs successfully.
+
+**Automation**: `/maintenance-audit` checks for outdated versions.
