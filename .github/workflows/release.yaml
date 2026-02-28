@@ -34,7 +34,7 @@ jobs:
       publish_token: ${{ secrets.publish_token || secrets.BCR_PUBLISH_TOKEN }}
   pub-publish:
     needs: release
-    if: secrets.PUB_TOKEN != ''
+    if: ${{ secrets.PUB_TOKEN != '' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
