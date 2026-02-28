@@ -56,13 +56,13 @@ rules_dart/
 
 ## Provider Design
 
-| Provider | Level | Purpose |
-|----------|-------|---------|
-| `DartSdkInfo` | Toolchain | SDK binaries (`dart`, `dartaotruntime`), SDK root, version, tool_files |
-| `DartInfo` | Library | Package name, lib_root, transitive_srcs, transitive_packages |
-| `DartPackageInfo` | Metadata | Single package's name + lib_root (carried in DartInfo depsets) |
-| `DartPackageConfigInfo` | Build action | Generated package_config.json file |
-| `DartCompileInfo` | Binary | Compiled output file, compile_mode string |
+| Provider                | Level        | Purpose                                                               |
+| ----------------------- | ------------ | --------------------------------------------------------------------- |
+| `DartSdkInfo`           | Toolchain    | SDK binaries (`dart`, `dartaotruntime`), SDK root, version, tool_files |
+| `DartInfo`              | Library      | Package name, lib_root, transitive_srcs, transitive_packages          |
+| `DartPackageInfo`       | Metadata     | Single package's name + lib_root (carried in DartInfo depsets)         |
+| `DartPackageConfigInfo` | Build action | Generated package_config.json file                                    |
+| `DartCompileInfo`       | Binary       | Compiled output file, compile_mode string                             |
 
 **DartInfo contains zero Flutter concepts.** A future `rules_flutter` wraps/extends, never modifies.
 
@@ -71,6 +71,7 @@ rules_dart/
 ## Dart Compilation Model
 
 Unlike Go/Rust, Dart does not produce intermediate object files for libraries. The compiler takes the full transitive source tree. Therefore:
+
 - `dart_library` is **source-only** — it collects sources and propagates `DartInfo`
 - Compilation happens in `dart_binary`, `dart_test`, `dart_js_binary`, `dart_wasm_binary`
 - `package_config.json` is generated at build time from the transitive `DartInfo` graph to bridge Bazel's dep model with Dart's `package:` URI resolution
@@ -102,12 +103,12 @@ When `--platforms` is set, Bazel's toolchain resolution picks the cross toolchai
 
 ### Supported Cross-Compilation Matrix
 
-| Host (exec) | Target |
-|-------------|--------|
+| Host (exec) | Target                 |
+| ----------- | ---------------------- |
 | macOS arm64 | linux-x64, linux-arm64 |
-| macOS x64 | linux-x64, linux-arm64 |
-| Linux x64 | linux-arm64 |
-| Linux arm64 | linux-x64 |
+| macOS x64   | linux-x64, linux-arm64 |
+| Linux x64   | linux-arm64            |
+| Linux arm64 | linux-x64              |
 | Windows x64 | linux-x64, linux-arm64 |
 
 ### Usage
@@ -145,35 +146,35 @@ Bazel's `-c` flag (`fastbuild`, `dbg`, `opt`) controls compiler flags automatica
 
 **dart_binary (exe / aot-snapshot)**
 
-| Bazel Mode | Flags |
-|---|---|
-| `fastbuild` | _(none)_ |
-| `dbg` | `--enable-asserts` |
-| `opt` | `--extra-gen-snapshot-options=--optimization_level=2` |
+| Bazel Mode  | Flags                                                |
+| ----------- | ---------------------------------------------------- |
+| `fastbuild` | _(none)_                                             |
+| `dbg`       | `--enable-asserts`                                   |
+| `opt`       | `--extra-gen-snapshot-options=--optimization_level=2` |
 
 **dart_binary (kernel / jit-snapshot)**
 
-| Bazel Mode | Flags |
-|---|---|
-| `fastbuild` | _(none)_ |
-| `dbg` | `--enable-asserts` |
-| `opt` | _(none)_ |
+| Bazel Mode  | Flags              |
+| ----------- | ------------------ |
+| `fastbuild` | _(none)_           |
+| `dbg`       | `--enable-asserts` |
+| `opt`       | _(none)_           |
 
 **dart_js_binary**
 
-| Bazel Mode | Flags |
-|---|---|
+| Bazel Mode  | Flags                              |
+| ----------- | ---------------------------------- |
 | `fastbuild` | _(none — dart2js defaults to -O1)_ |
-| `dbg` | `--enable-asserts -O0` |
-| `opt` | `-O2` |
+| `dbg`       | `--enable-asserts -O0`             |
+| `opt`       | `-O2`                              |
 
 **dart_wasm_binary**
 
-| Bazel Mode | Flags |
-|---|---|
-| `fastbuild` | _(none)_ |
-| `dbg` | `--enable-asserts` |
-| `opt` | _(none)_ |
+| Bazel Mode  | Flags              |
+| ----------- | ------------------ |
+| `fastbuild` | _(none)_           |
+| `dbg`       | `--enable-asserts` |
+| `opt`       | _(none)_           |
 
 ### Per-Target Attributes
 
@@ -184,10 +185,10 @@ Bazel's `-c` flag (`fastbuild`, `dbg`, `opt`) controls compiler flags automatica
 
 ## Testing
 
-| Test Type | Location | What |
-|-----------|----------|------|
-| Starlark unit tests | `dart/tests/` | versions.bzl, common.bzl (package_config), yaml_parser.bzl |
-| Gazelle tests | `dev/` | gazelle_generation_test + shell test |
-| E2e integration tests | `e2e/*/` | Full build scenarios in isolated workspaces |
-| CI | `.github/workflows/ci.yaml` | All e2e folders on Bazel 9.x |
-| BCR presubmit | `.bcr/presubmit.yml` | Multi-platform × Bazel 9.x |
+| Test Type             | Location                    | What                                                       |
+| --------------------- | --------------------------- | ---------------------------------------------------------- |
+| Starlark unit tests   | `dart/tests/`               | versions.bzl, common.bzl (package_config), yaml_parser.bzl |
+| Gazelle tests         | `dev/`                      | gazelle_generation_test + shell test                       |
+| E2e integration tests | `e2e/*/`                    | Full build scenarios in isolated workspaces                |
+| CI                    | `.github/workflows/ci.yaml` | All e2e folders on Bazel 9.x                               |
+| BCR presubmit         | `.bcr/presubmit.yml`        | Multi-platform × Bazel 9.x                                |

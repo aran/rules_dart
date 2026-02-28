@@ -9,6 +9,7 @@ Check and bump all `bazel_dep` versions in MODULE.bazel to their latest BCR rele
 3. For each dep that has a newer version available, update the `version` field in the root `MODULE.bazel`. Skip any that are already current. Report what you're updating.
 
 4. Mirror version changes to e2e workspaces that duplicate the same deps:
+
    - `e2e/smoke/MODULE.bazel` — `bazel_skylib`
    - `e2e/gazelle/MODULE.bazel` — `bazel_skylib`, `gazelle`, `rules_go`
    - `e2e/cross_compile/MODULE.bazel` — `platforms`

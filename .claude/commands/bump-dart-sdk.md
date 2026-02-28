@@ -9,16 +9,19 @@ Bump the Dart SDK to version $ARGUMENTS.
 3. Add the new version entry to `dart/private/versions.bzl` in the `TOOL_VERSIONS` dict, inserting it as the **first** entry (newest on top).
 
 4. Update `dart_version` in all MODULE.bazel files listed in CHORES.md:
+
    - Root `MODULE.bazel`
    - All `e2e/*/MODULE.bazel` files that contain `dart.toolchain(dart_version = "...")`
 
 5. Update version references in:
+
    - `README.md` — the installation snippet
    - `docs/ARCHITECTURE.md` — the directory tree comment
 
 6. Update the SDK constraint in `dart/runfiles/pubspec.yaml` (`environment.sdk`) to `^$ARGUMENTS` and run `dart pub get` in `dart/runfiles/` to refresh the lock file.
 
 7. Update `dart/tests/versions_test.bzl`:
+
    - Change the asserted version key in `_smoke_test_impl` to the new version
    - Change the version key used in `_platforms_test_impl`
 

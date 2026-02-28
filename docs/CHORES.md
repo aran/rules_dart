@@ -10,6 +10,7 @@ file at runtime — keep file lists current as the repo evolves.
 **Trigger**: New stable Dart SDK release.
 
 **Files**:
+
 - `dart/private/versions.bzl` — add new version entry to `TOOL_VERSIONS`
 - `MODULE.bazel` — `dart.toolchain(dart_version = "...")`
 - `e2e/hello_world/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
@@ -27,6 +28,7 @@ file at runtime — keep file lists current as the repo evolves.
 - `dart/runfiles/pubspec.yaml` — `environment.sdk` constraint
 
 **Procedure**:
+
 1. Run `dart run tool/fetch_sdk_hashes.dart {version}` to get SHA-256 hashes
 2. Add the new version entry to `dart/private/versions.bzl`
 3. Update `dart_version` in all MODULE.bazel files listed above
@@ -47,6 +49,7 @@ file at runtime — keep file lists current as the repo evolves.
 **Trigger**: New Bazel release (typically minor/patch within 9.x).
 
 **Files**:
+
 - `.bazelversion`
 - `e2e/smoke/.bazelversion`
 - `e2e/hello_world/.bazelversion`
@@ -62,6 +65,7 @@ file at runtime — keep file lists current as the repo evolves.
 - `docs/ARCHITECTURE.md` — prose mentioning "Bazel 8.x" (if major version changes)
 
 **Procedure**:
+
 1. Update all `.bazelversion` files to the new version
 2. If the major version changed, update `.bcr/presubmit.yml` matrix and `docs/ARCHITECTURE.md`
 3. Regenerate lock files: `dart run tool/refresh_locks.dart`
@@ -78,6 +82,7 @@ file at runtime — keep file lists current as the repo evolves.
 **Trigger**: Periodic (monthly) or when a dep releases a version we need.
 
 **Files**:
+
 - `MODULE.bazel` — `bazel_dep()` version strings
 - E2e workspaces that duplicate deps:
   - `e2e/smoke/MODULE.bazel` — `bazel_skylib`
@@ -85,6 +90,7 @@ file at runtime — keep file lists current as the repo evolves.
   - `e2e/cross_compile/MODULE.bazel` — `platforms`
 
 **Procedure**:
+
 1. For each `bazel_dep` in root `MODULE.bazel`, check latest version on BCR
 2. Update versions, skip any already current
 3. Mirror version changes to e2e workspaces that duplicate the same deps
@@ -102,6 +108,7 @@ file at runtime — keep file lists current as the repo evolves.
 **Trigger**: After any change to `MODULE.bazel` files or their transitive deps.
 
 **Workspaces** (directories containing `MODULE.bazel`):
+
 - `.` (root)
 - `e2e/smoke`
 - `e2e/hello_world`
@@ -130,6 +137,7 @@ formatting canonical) and runs `dart pub get` in any in-repo Dart packages
 **Trigger**: Dart SDK adds support for a new platform (rare).
 
 **Files**:
+
 - `dart/private/toolchains_repo.bzl` — `PLATFORMS` dict, possibly `CROSS_TARGETS`
 - `dart/private/versions.bzl` — add platform key to each version entry
 - `tool/fetch_sdk_hashes.dart` — add platform to `platforms` list
@@ -150,10 +158,12 @@ formatting canonical) and runs `dart pub get` in any in-repo Dart packages
 **Trigger**: When pub.dev packages used in e2e tests release new versions.
 
 **Files**:
+
 - `e2e/pub_deps/MODULE.bazel` — `pub.package()` version and sha256
 - `e2e/pub_lock/pubspec.lock` — regenerate from `pubspec.yaml`
 
 **Procedure**:
+
 1. Check pub.dev for latest versions of packages used in e2e tests
 2. Update `pub.package()` calls with new version and sha256
 3. For `pub_lock`, run `dart pub get` in the e2e/pub_lock directory to refresh the lock file
@@ -172,6 +182,7 @@ formatting canonical) and runs `dart pub get` in any in-repo Dart packages
 **Packages**: `dart/runfiles/`
 
 Each in-repo Dart package is publishable to pub.dev. Maintenance includes:
+
 - **SDK constraint**: The `environment.sdk` lower bound in `pubspec.yaml`
   tracks the project's minimum supported Dart SDK. Updated by `/bump-dart-sdk`.
 - **Dependencies**: Any pub dependencies need periodic bumping. Run
@@ -196,9 +207,11 @@ outdated dependencies.
 **Trigger**: When adding or removing an e2e workspace.
 
 **Files**:
+
 - `.github/workflows/ci.yaml` — `folders` array in the test job
 
 **Procedure**:
+
 1. Compare `e2e/*/MODULE.bazel` against the `folders` array in `ci.yaml`
 2. Add/remove entries to match
 
@@ -213,6 +226,7 @@ outdated dependencies.
 **Trigger**: When changing the test module or Bazel version requirements.
 
 **Files**:
+
 - `.bcr/presubmit.yml` — module_path, platform matrix, bazel matrix
 
 **Procedure**: Update the YAML to match current requirements.
@@ -228,6 +242,7 @@ outdated dependencies.
 **Trigger**: After any structural change (new rules, new e2e workspaces, etc.).
 
 **Files**:
+
 - `docs/ARCHITECTURE.md` — directory tree, provider table, testing table, e2e list
 - `README.md` — examples table, installation snippet, version references
 
@@ -244,6 +259,7 @@ outdated dependencies.
 **Trigger**: New versions of pre-commit hooks (buildifier, etc.).
 
 **Files**:
+
 - `.pre-commit-config.yaml`
 
 **Procedure**: Handled automatically by Renovate (`:enablePreCommit` preset).
@@ -261,6 +277,7 @@ outdated dependencies.
 **Files**: All `.github/workflows/*.yaml` files.
 
 **Dependencies** (all `uses:` references across workflows):
+
 - Actions: `actions/checkout`, `amannn/action-semantic-pull-request`,
   `dart-lang/setup-dart`, `smlx/ccv`, `pre-commit/action`,
   `technote-space/workflow-conclusion-action`
@@ -268,6 +285,7 @@ outdated dependencies.
   `bazel-contrib/publish-to-bcr`
 
 **Procedure**:
+
 1. For each `uses:` reference, check the repo's tags/releases for newer versions
 2. Update the version ref
 3. For reusable workflows, review changelogs for new inputs or breaking changes
