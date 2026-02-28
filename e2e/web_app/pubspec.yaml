@@ -1,0 +1,4 @@
+name: web_app
+dependencies:
+  greet:
+    path: greet

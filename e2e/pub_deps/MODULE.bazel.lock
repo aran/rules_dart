@@ -221,7 +221,7 @@
   "moduleExtensions": {
     "@@rules_dart+//dart/pub:extensions.bzl%pub": {
       "general": {
-        "bzlTransitiveDigest": "ZwVV/cFXsgU6qhr/gjwE6Xh9QOUISNOHr7NtmA8v9aU=",
+        "bzlTransitiveDigest": "v65+jCcIL5Hut1EIt/2NZA+QmUr85qesQuYK/CNwvXc=",
         "usagesDigest": "T9y31qtHTkAfp7PdpK5lhUS7tFQM2w794qFUqfO9AIs=",
         "recordedInputs": [],
         "generatedRepoSpecs": {
@@ -234,6 +234,14 @@
               "deps": []
             }
           }
+        },
+        "moduleExtensionMetadata": {
+          "explicitRootModuleDirectDeps": [
+            "path"
+          ],
+          "explicitRootModuleDirectDevDeps": [],
+          "useAllRepos": "NO",
+          "reproducible": false
         }
       }
     },

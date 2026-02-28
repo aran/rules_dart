@@ -1,0 +1,4 @@
+analyzer:
+  exclude:
+    - "bazel-*/**"
+    - "e2e/**/bazel-*/**"
