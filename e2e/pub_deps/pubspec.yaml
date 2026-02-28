@@ -1,6 +1,5 @@
-name: web_app
+name: pub_deps
 environment:
   sdk: ^3.11.0
 dependencies:
-  greet:
-    path: greet
+  path: ^1.9.1

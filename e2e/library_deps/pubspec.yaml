@@ -1,0 +1,6 @@
+name: library_deps
+environment:
+  sdk: ^3.11.0
+dependencies:
+  greeter:
+    path: greeter

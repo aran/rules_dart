@@ -1,6 +1,6 @@
-name: web_app
+name: greeter
 environment:
   sdk: ^3.11.0
 dependencies:
-  greet:
-    path: greet
+  utils:
+    path: ../utils

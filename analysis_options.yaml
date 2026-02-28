@@ -2,3 +2,5 @@ analyzer:
   exclude:
     - "bazel-*/**"
     - "e2e/**/bazel-*/**"
+    - "dev/testdata/**"
+    - "references/**"

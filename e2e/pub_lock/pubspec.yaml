@@ -1,0 +1,6 @@
+name: pub_lock
+environment:
+  sdk: ^3.11.0
+dependencies:
+  collection: ^1.19.1
+  path: ^1.9.1

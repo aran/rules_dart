@@ -1,0 +1,8 @@
+name: dart_test
+environment:
+  sdk: ^3.11.0
+dependencies:
+  mathlib:
+    path: mathlib
+  utils:
+    path: utils

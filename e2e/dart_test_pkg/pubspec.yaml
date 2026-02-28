@@ -1,0 +1,5 @@
+name: dart_test_pkg
+environment:
+  sdk: ^3.11.0
+dev_dependencies:
+  test: ^1.29.0
