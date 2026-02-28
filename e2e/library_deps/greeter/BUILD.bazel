@@ -3,6 +3,6 @@ load("@rules_dart//dart:defs.bzl", "dart_library")
 dart_library(
     name = "greeter",
     srcs = glob(["lib/**/*.dart"]),
-    deps = ["//utils"],
     visibility = ["//visibility:public"],
+    deps = ["//utils"],
 )

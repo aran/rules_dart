@@ -2,14 +2,14 @@ load("@rules_dart//dart:defs.bzl", "dart_js_binary", "dart_wasm_binary")
 
 dart_js_binary(
     name = "app",
-    main = "main.dart",
     srcs = ["config.dart"],
+    main = "main.dart",
     deps = ["//greet"],
 )
 
 dart_wasm_binary(
     name = "app_wasm",
-    main = "main.dart",
     srcs = ["config.dart"],
+    main = "main.dart",
     deps = ["//greet"],
 )

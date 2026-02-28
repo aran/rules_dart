@@ -9,18 +9,18 @@ dart_binary(
 
 dart_binary(
     name = "hello_aot",
-    main = "hello.dart",
     compile_mode = "aot-snapshot",
+    main = "hello.dart",
 )
 
 dart_binary(
     name = "hello_kernel",
-    main = "hello.dart",
     compile_mode = "kernel",
+    main = "hello.dart",
 )
 
 dart_binary(
     name = "hello_jit",
-    main = "hello.dart",
     compile_mode = "jit-snapshot",
+    main = "hello.dart",
 )

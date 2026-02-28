@@ -3,5 +3,5 @@ load("@rules_dart//dart:defs.bzl", "dart_binary")
 dart_binary(
     name = "app",
     main = "main.dart",
-    deps = ["@path//:path"],
+    deps = ["@path"],
 )

@@ -17,14 +17,14 @@ dart_binary(
 
 platform_data(
     name = "app_linux_x64",
-    target = ":app",
     platform = "//:linux_x64",
+    target = ":app",
 )
 
 dart_binary(
     name = "app_aot",
-    main = "hello.dart",
     compile_mode = "aot-snapshot",
+    main = "hello.dart",
 )
 
 # Verifies the cross-compiled binary is ELF (Linux), not Mach-O (macOS).

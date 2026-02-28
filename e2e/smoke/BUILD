@@ -17,6 +17,6 @@ build_test(
 sh_test(
     name = "dart_version_test",
     srcs = ["dart_version_test.sh"],
-    data = ["@rules_dart//dart"],
     args = ["$(rootpath @rules_dart//dart)"],
+    data = ["@rules_dart//dart"],
 )

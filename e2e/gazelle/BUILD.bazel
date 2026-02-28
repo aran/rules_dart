@@ -18,7 +18,6 @@ sh_test(
     srcs = ["gazelle_test.sh"],
     args = ["$(rootpath :gazelle_bin)"],
     data = [
-        ":gazelle_bin",
         "bin/deferred_import.dart",
         "bin/hello.dart",
         "bin/show_import.dart",
@@ -28,5 +27,6 @@ sh_test(
         "lib/stub.dart",
         "lib/web_impl.dart",
         "test/greeter_test.dart",
+        ":gazelle_bin",
     ],
 )
