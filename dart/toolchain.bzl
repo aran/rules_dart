@@ -14,8 +14,6 @@ DartSdkInfo = provider(
 
 def _dart_toolchain_impl(ctx):
     sdk_root = ctx.attr.sdk_root
-    dart = ctx.attr.dart
-
     tool_files = ctx.attr.sdk_root.files.to_list()
 
     dart_sdk_info = DartSdkInfo(

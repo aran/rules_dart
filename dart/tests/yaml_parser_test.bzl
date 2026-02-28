@@ -1,6 +1,8 @@
 """Unit tests for yaml_parser.bzl."""
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
+
+# buildifier: disable=bzl-visibility
 load("//dart/pub/private:yaml_parser.bzl", "parse_pubspec_deps", "parse_pubspec_lock")
 
 _SAMPLE_LOCK = """\
@@ -77,6 +79,7 @@ def _parse_pubspec_deps_test_impl(ctx):
     asserts.equals(env, 2, len(result))
     asserts.true(env, "collection" in result)
     asserts.true(env, "path" in result)
+
     # dev_dependencies should NOT be included
     asserts.true(env, "test" not in result)
     return unittest.end(env)
