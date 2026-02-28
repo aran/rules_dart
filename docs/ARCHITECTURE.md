@@ -137,6 +137,51 @@ bazel build //:my_binary --platforms=//:linux_x64
 
 ---
 
+## Compilation Modes
+
+Bazel's `-c` flag (`fastbuild`, `dbg`, `opt`) controls compiler flags automatically. Rules read `ctx.var["COMPILATION_MODE"]` and map it to Dart compiler flags. Per-target overrides are available via `dart_compile_flags` and `defines` attributes on all compilation rules.
+
+### Flag Mapping
+
+**dart_binary (exe / aot-snapshot)**
+
+| Bazel Mode | Flags |
+|---|---|
+| `fastbuild` | _(none)_ |
+| `dbg` | `--enable-asserts` |
+| `opt` | `--extra-gen-snapshot-options=--optimization_level=2` |
+
+**dart_binary (kernel / jit-snapshot)**
+
+| Bazel Mode | Flags |
+|---|---|
+| `fastbuild` | _(none)_ |
+| `dbg` | `--enable-asserts` |
+| `opt` | _(none)_ |
+
+**dart_js_binary**
+
+| Bazel Mode | Flags |
+|---|---|
+| `fastbuild` | _(none — dart2js defaults to -O1)_ |
+| `dbg` | `--enable-asserts -O0` |
+| `opt` | `-O2` |
+
+**dart_wasm_binary**
+
+| Bazel Mode | Flags |
+|---|---|
+| `fastbuild` | _(none)_ |
+| `dbg` | `--enable-asserts` |
+| `opt` | _(none)_ |
+
+### Per-Target Attributes
+
+- **`dart_compile_flags`** (`string_list`): Extra flags appended after mode defaults. Appears last so user flags override defaults (e.g., `-O4` after `-O2` — dart2js uses last-wins).
+- **`defines`** (`string_list`): Entries in `key=value` format. Each becomes a `-Dkey=value` flag passed to the compiler.
+
+---
+
 ## Testing
 
 | Test Type | Location | What |

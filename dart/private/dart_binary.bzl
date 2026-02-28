@@ -54,6 +54,8 @@ def _dart_binary_impl(ctx):
         compile_mode = compile_mode,
         target_os = dart_sdk_info.target_os,
         target_arch = dart_sdk_info.target_arch,
+        extra_flags = ctx.attr.dart_compile_flags,
+        defines = ctx.attr.defines,
     )
 
     runfiles = ctx.runfiles(files = ctx.files.data)
@@ -101,6 +103,12 @@ The `dart compile` mode. Determines the output format:
 """,
             default = "exe",
             values = ["exe", "aot-snapshot", "kernel", "jit-snapshot"],
+        ),
+        "dart_compile_flags": attr.string_list(
+            doc = "Extra flags passed to `dart compile` after compilation-mode defaults. Flags appear last so they can override defaults (e.g., `--extra-gen-snapshot-options=--optimization_level=3`).",
+        ),
+        "defines": attr.string_list(
+            doc = "Dart environment declarations (`key=value`). Each entry becomes a `-Dkey=value` flag.",
         ),
     },
     executable = True,

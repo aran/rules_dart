@@ -8,6 +8,32 @@ resolution, since `dart compile js/wasm` does not accept --packages.
 load("//dart:providers.bzl", "DartInfo")
 load("//dart/private:common.bzl", "collect_packages", "collect_transitive_srcs", "generate_package_config_content")
 
+def _get_web_compilation_mode_flags(ctx, compile_mode):
+    """Returns compiler flags for the current Bazel compilation mode (web targets).
+
+    Args:
+        ctx: The rule context.
+        compile_mode: "js" or "wasm".
+
+    Returns:
+        A list of flag strings.
+    """
+    bazel_mode = ctx.var["COMPILATION_MODE"]
+
+    if compile_mode == "js":
+        if bazel_mode == "dbg":
+            return ["--enable-asserts", "-O0"]
+        elif bazel_mode == "opt":
+            return ["-O2"]
+        else:
+            return []
+    else:
+        # wasm
+        if bazel_mode == "dbg":
+            return ["--enable-asserts"]
+        else:
+            return []
+
 def _dart_web_compile(ctx, compile_mode):
     """Shared compilation logic for JS and WASM web targets.
 
@@ -59,6 +85,13 @@ def _dart_web_compile(ctx, compile_mode):
             ),
         )
 
+    # Build compilation flags
+    flags = _get_web_compilation_mode_flags(ctx, compile_mode)
+    for d in ctx.attr.defines:
+        flags.append("-D" + d)
+    flags.extend(ctx.attr.dart_compile_flags)
+    flags_str = " ".join(flags)
+
     # Build the compilation command using a staging directory
     main_short = ctx.file.main.short_path
 
@@ -71,12 +104,13 @@ cp "{config}" "$PROJ/.dart_tool/package_config.json"
 {symlinks}
 mkdir -p "$PROJ/$(dirname {main_short})"
 cp "{main}" "$PROJ/{main_short}"
-"{dart}" compile {mode} -o "$PROJ/output{ext}" "$PROJ/{main_short}"
+"{dart}" compile {mode} {flags} -o "$PROJ/output{ext}" "$PROJ/{main_short}"
 cp "$PROJ/output{ext}" "{output}"
 """.format(
         config = package_config.path,
         dart = dart_sdk_info.dart.path,
         mode = compile_mode,
+        flags = flags_str,
         main = ctx.file.main.path,
         main_short = main_short,
         output = output.path,
@@ -118,6 +152,12 @@ _WEB_BINARY_ATTRS = {
     "deps": attr.label_list(
         doc = "`dart_library` targets this application depends on.",
         providers = [DartInfo],
+    ),
+    "dart_compile_flags": attr.string_list(
+        doc = "Extra flags passed to `dart compile` after compilation-mode defaults. Flags appear last so they can override defaults (e.g., `-O4` for dart2js).",
+    ),
+    "defines": attr.string_list(
+        doc = "Dart environment declarations (`key=value`). Each entry becomes a `-Dkey=value` flag.",
     ),
 }
 
