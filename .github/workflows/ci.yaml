@@ -17,6 +17,10 @@ jobs:
   test:
     uses: bazel-contrib/.github/.github/workflows/bazel.yaml@v6
     with:
+      bazel_versions: '["9.0.0"]'
+      # Exit code 4 means "build succeeded but no test targets found", which is
+      # expected for build-only e2e folders like hello_world and web_app.
+      bazel_test_command: "bazel test //... || [ $? -eq 4 ]"
       folders: |
         [
           ".",
