@@ -72,14 +72,14 @@ def _dart_web_compile(ctx, compile_mode):
         if pkg.lib_root and pkg.lib_root not in seen_roots:
             seen_roots[pkg.lib_root] = True
             symlink_cmds.append(
-                'mkdir -p "$PROJ/$(dirname {root})" && ln -s "$(pwd)/{root}" "$PROJ/{root}"'.format(root = pkg.lib_root),
+                'mkdir -p "$PROJ/$(dirname {root})" && cp -rL "$(pwd)/{root}" "$PROJ/{root}"'.format(root = pkg.lib_root),
             )
 
     # Symlink additional source files (srcs) into the staging directory
     for src in ctx.files.srcs:
         src_short = src.short_path
         symlink_cmds.append(
-            'mkdir -p "$PROJ/$(dirname {path})" && ln -sf "$(pwd)/{src}" "$PROJ/{path}"'.format(
+            'mkdir -p "$PROJ/$(dirname {path})" && cp "$(pwd)/{src}" "$PROJ/{path}"'.format(
                 src = src.path,
                 path = src_short,
             ),
@@ -99,6 +99,8 @@ def _dart_web_compile(ctx, compile_mode):
 set -e
 PROJ=$(mktemp -d)
 trap 'rm -rf "$PROJ"' EXIT
+export HOME="$PROJ"
+export LOCALAPPDATA="$PROJ"
 mkdir -p "$PROJ/.dart_tool"
 cp "{config}" "$PROJ/.dart_tool/package_config.json"
 {symlinks}
@@ -122,7 +124,6 @@ cp "$PROJ/output{ext}" "{output}"
         command = cmd,
         inputs = [package_config, ctx.file.main, dart_sdk_info.dart] + all_srcs + list(dart_sdk_info.tool_files),
         outputs = [output],
-        env = {"HOME": "/tmp"},
         mnemonic = "DartCompileWeb",
         progress_message = "Compiling Dart %s %s" % (compile_mode, ctx.label),
     )

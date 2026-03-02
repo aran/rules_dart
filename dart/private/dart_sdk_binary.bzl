@@ -5,6 +5,8 @@ Usage:
     bazel run @rules_dart//dart -- analyze lib/
 """
 
+load("//dart/private:common.bzl", "BASH_RUNFILES_ATTR", "BASH_RUNFILES_INIT")
+
 def _runfiles_path(f, workspace_name):
     """Convert a File to its path in the runfiles tree."""
     if f.short_path.startswith("../"):
@@ -21,15 +23,19 @@ def _dart_sdk_binary_impl(ctx):
     ctx.actions.write(
         output = script,
         content = """#!/usr/bin/env bash
-RUNFILES="${{RUNFILES_DIR:-$0.runfiles}}"
-DART="$(cd "$RUNFILES" && pwd)/{dart}"
+{runfiles_init}
+DART="$(rlocation "{dart}")"
 cd "$BUILD_WORKING_DIRECTORY"
 exec "$DART" "$@"
-""".format(dart = dart_path),
+""".format(
+            runfiles_init = BASH_RUNFILES_INIT,
+            dart = dart_path,
+        ),
         is_executable = True,
     )
 
     runfiles = ctx.runfiles(files = dart_sdk_info.tool_files)
+    runfiles = runfiles.merge(ctx.attr._runfiles_lib[DefaultInfo].default_runfiles)
 
     return [DefaultInfo(
         executable = script,
@@ -38,6 +44,7 @@ exec "$DART" "$@"
 
 dart_sdk_binary = rule(
     implementation = _dart_sdk_binary_impl,
+    attrs = BASH_RUNFILES_ATTR,
     executable = True,
     toolchains = ["//dart:toolchain_type"],
     doc = "Exposes the Dart SDK binary from the resolved toolchain as a runnable target.",

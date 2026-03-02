@@ -77,6 +77,16 @@ def dart_compile_action(
     args.add("-o", output)
     args.add(main)
 
+    # On Windows, native dart.exe receives /tmp literally (not MSYS2-translated),
+    # which crashes the analysis server. Use output.dirname as a valid writable path.
+    if dart_bin.basename.endswith(".exe"):
+        env = {
+            "USERPROFILE": output.dirname,
+            "LOCALAPPDATA": output.dirname,
+        }
+    else:
+        env = {"HOME": "/tmp"}
+
     ctx.actions.run(
         executable = dart_bin,
         arguments = [args],
@@ -87,8 +97,5 @@ def dart_compile_action(
         outputs = [output],
         mnemonic = "DartCompile",
         progress_message = "Compiling Dart %s %s" % (compile_mode, ctx.label),
-        env = {
-            # Prevent Dart from writing to HOME for analytics/config
-            "HOME": "/tmp",
-        },
+        env = env,
     )

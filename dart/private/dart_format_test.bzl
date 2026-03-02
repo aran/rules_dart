@@ -1,5 +1,7 @@
 """Implementation of the dart_format_test rule."""
 
+load("//dart/private:common.bzl", "BASH_RUNFILES_ATTR", "BASH_RUNFILES_INIT")
+
 def _runfiles_path(f, workspace_name):
     """Convert a File to its path in the runfiles tree."""
     if f.short_path.startswith("../"):
@@ -17,16 +19,16 @@ def _dart_format_test_impl(ctx):
     # Build list of source file paths in runfiles
     src_paths = []
     for src in srcs:
-        src_paths.append('"$RUNFILES/' + _runfiles_path(src, workspace_name) + '"')
+        src_paths.append('"$(rlocation "' + _runfiles_path(src, workspace_name) + '")"')
 
     test_runner = ctx.actions.declare_file(ctx.label.name)
     ctx.actions.write(
         output = test_runner,
         content = """#!/usr/bin/env bash
-set -euo pipefail
-RUNFILES="${{RUNFILES_DIR:-$0.runfiles}}"
-exec "$RUNFILES/{dart}" format --output=none --set-exit-if-changed {srcs}
+{runfiles_init}
+exec "$(rlocation "{dart}")" format --output=none --set-exit-if-changed {srcs}
 """.format(
+            runfiles_init = BASH_RUNFILES_INIT,
             dart = dart_path,
             srcs = " ".join(src_paths),
         ),
@@ -34,6 +36,7 @@ exec "$RUNFILES/{dart}" format --output=none --set-exit-if-changed {srcs}
     )
 
     runfiles = ctx.runfiles(files = list(srcs) + dart_sdk_info.tool_files)
+    runfiles = runfiles.merge(ctx.attr._runfiles_lib[DefaultInfo].default_runfiles)
 
     return [
         DefaultInfo(
@@ -44,13 +47,13 @@ exec "$RUNFILES/{dart}" format --output=none --set-exit-if-changed {srcs}
 
 dart_format_test = rule(
     implementation = _dart_format_test_impl,
-    attrs = {
+    attrs = dict({
         "srcs": attr.label_list(
             doc = "Dart source files (`.dart`) to check. Typically `glob([\"lib/**/*.dart\"])`.",
             allow_files = [".dart"],
             mandatory = True,
         ),
-    },
+    }, **BASH_RUNFILES_ATTR),
     test = True,
     toolchains = ["//dart:toolchain_type"],
     doc = "Checks that Dart source files match `dart format` output. Fails if any file would be changed by formatting.",

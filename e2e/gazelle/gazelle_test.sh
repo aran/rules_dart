@@ -2,6 +2,10 @@
 set -euo pipefail
 
 GAZELLE_BIN="${TEST_SRCDIR}/${TEST_WORKSPACE}/$1"
+# On Windows, the Go binary has .exe extension but $(rootpath) may not include it
+if [[ ! -x "$GAZELLE_BIN" ]] && [[ -x "${GAZELLE_BIN}.exe" ]]; then
+  GAZELLE_BIN="${GAZELLE_BIN}.exe"
+fi
 
 # Create a temporary workspace to run gazelle on
 WORK="$(mktemp -d)"

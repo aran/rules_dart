@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Verify the cross-compiled binary is an ELF executable (Linux), not Mach-O (macOS).
-binary="$(dirname "$0")/app_linux_x64"
+binary="${TEST_SRCDIR}/${TEST_WORKSPACE}/$1"
 file_output=$(file "$binary")
 
 echo "file output: $file_output"

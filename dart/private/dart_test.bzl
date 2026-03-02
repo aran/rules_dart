@@ -1,6 +1,7 @@
 """Implementation of the dart_test rule."""
 
 load("//dart:providers.bzl", "DartInfo")
+load("//dart/private:common.bzl", "BASH_RUNFILES_ATTR", "BASH_RUNFILES_INIT")
 
 def _runfiles_path(f, workspace_name):
     """Convert a File to its path in the runfiles tree."""
@@ -84,10 +85,10 @@ def _dart_test_impl(ctx):
     ctx.actions.write(
         output = test_runner,
         content = """#!/usr/bin/env bash
-set -euo pipefail
-RUNFILES="${{RUNFILES_DIR:-$0.runfiles}}"
-exec "$RUNFILES/{dart}" --packages="$RUNFILES/{pkg_config}" "$RUNFILES/{main}"
+{runfiles_init}
+exec "$(rlocation "{dart}")" --packages="$(rlocation "{pkg_config}")" "$(rlocation "{main}")"
 """.format(
+            runfiles_init = BASH_RUNFILES_INIT,
             dart = dart_path,
             pkg_config = pkg_config_path,
             main = main_path,
@@ -99,6 +100,7 @@ exec "$RUNFILES/{dart}" --packages="$RUNFILES/{pkg_config}" "$RUNFILES/{main}"
     runfiles = ctx.runfiles(
         files = [ctx.file.main, package_config] + all_srcs + dart_sdk_info.tool_files,
     )
+    runfiles = runfiles.merge(ctx.attr._runfiles_lib[DefaultInfo].default_runfiles)
     for dep in ctx.attr.deps:
         runfiles = runfiles.merge(dep[DefaultInfo].default_runfiles)
 
@@ -111,7 +113,7 @@ exec "$RUNFILES/{dart}" --packages="$RUNFILES/{pkg_config}" "$RUNFILES/{main}"
 
 dart_test = rule(
     implementation = _dart_test_impl,
-    attrs = {
+    attrs = dict({
         "main": attr.label(
             doc = "The Dart test file to run. Must contain a top-level `main()` function.",
             mandatory = True,
@@ -125,7 +127,7 @@ dart_test = rule(
             doc = "`dart_library` targets this test depends on.",
             providers = [DartInfo],
         ),
-    },
+    }, **BASH_RUNFILES_ATTR),
     test = True,
     toolchains = ["//dart:toolchain_type"],
     doc = "Runs a Dart test file using the Dart VM.",

@@ -2,6 +2,30 @@
 
 load("//dart:providers.bzl", "DartInfo")
 
+# Official Bazel bash runfiles v3 initialization boilerplate.
+# Sources runfiles.bash which provides rlocation() for cross-platform
+# runfile resolution (directory, manifest, and .exe.runfiles).
+# See: https://github.com/bazelbuild/rules_shell/blob/main/shell/runfiles/runfiles.bash
+BASH_RUNFILES_INIT = """\
+# --- begin runfiles.bash initialization v3 ---
+set -uo pipefail; set +e; f=bazel_tools/tools/bash/runfiles/runfiles.bash
+# shellcheck disable=SC1090
+source "${RUNFILES_DIR:-/dev/null}/$f" 2>/dev/null || \\
+  source "$(grep -sm1 "^$f " "${RUNFILES_MANIFEST_FILE:-/dev/null}" | cut -f2- -d' ')" 2>/dev/null || \\
+  source "$0.runfiles/$f" 2>/dev/null || \\
+  source "$(grep -sm1 "^$f " "$0.runfiles_manifest" | cut -f2- -d' ')" 2>/dev/null || \\
+  source "$(grep -sm1 "^$f " "$0.exe.runfiles_manifest" | cut -f2- -d' ')" 2>/dev/null || \\
+  { echo>&2 "ERROR: cannot find $f"; exit 1; }; f=; set -e
+# --- end runfiles.bash initialization v3 ---"""
+
+# Private attribute that makes the bash runfiles library available in the
+# runfiles tree of rules that generate bash launcher scripts.
+BASH_RUNFILES_ATTR = {
+    "_runfiles_lib": attr.label(
+        default = "@bazel_tools//tools/bash/runfiles",
+    ),
+}
+
 def collect_packages(deps):
     """Collect unique DartPackageInfo providers from transitive deps.
 

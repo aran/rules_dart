@@ -37,7 +37,7 @@ def _dart_analyze_test_impl(ctx):
         if src_path not in seen_paths:
             seen_paths[src_path] = True
             symlink_cmds.append(
-                'mkdir -p "$PROJ/$(dirname {path})" && ln -sf "$(pwd)/{path}" "$PROJ/{path}"'.format(
+                'mkdir -p "$PROJ/$(dirname {path})" && cp "$(pwd)/{path}" "$PROJ/{path}"'.format(
                     path = src_path,
                 ),
             )
@@ -56,6 +56,8 @@ def _dart_analyze_test_impl(ctx):
 set -e
 PROJ=$(mktemp -d)
 trap 'rm -rf "$PROJ"' EXIT
+export HOME="$PROJ"
+export LOCALAPPDATA="$PROJ"
 mkdir -p "$PROJ/.dart_tool"
 cp "{config}" "$PROJ/.dart_tool/package_config.json"
 printf 'name: __analyze__\\nenvironment:\\n  sdk: ">=3.0.0 <4.0.0"\\n' > "$PROJ/pubspec.yaml"
@@ -79,7 +81,6 @@ touch "{stamp}"
         command = cmd,
         inputs = inputs,
         outputs = [stamp],
-        env = {"HOME": "/tmp"},
         mnemonic = "DartAnalyze",
         progress_message = "Analyzing Dart library %s" % ctx.label,
     )
