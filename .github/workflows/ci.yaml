@@ -22,7 +22,8 @@ jobs:
       # expected for build-only e2e folders like hello_world and web_app.
       # Wrapped in bash -c because the reusable workflow uses the runner's
       # default shell (PowerShell on Windows) where [ $? -eq 4 ] is invalid.
-      bazel_test_command: 'bash -c "bazel test //... || [ $? -eq 4 ]"'
+      # Inner single quotes prevent the outer shell from expanding $?.
+      bazel_test_command: "bash -c 'bazel test //... || [ $? -eq 4 ]'"
       folders: |
         [
           ".",
