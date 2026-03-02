@@ -219,12 +219,34 @@
   },
   "selectedYankedVersions": {},
   "moduleExtensions": {
+    "@@pybind11_bazel+//:internal_configure.bzl%internal_configure_extension": {
+      "general": {
+        "bzlTransitiveDigest": "06cynZ1bCvvy8zHPrrDlXq+Z68xmjctHpfFxi+zEpJY=",
+        "usagesDigest": "D1r3lfzMuUBFxgG8V6o0bQTLMk3GkaGOaPzw53wrwyw=",
+        "recordedInputs": [
+          "REPO_MAPPING:pybind11_bazel+,bazel_tools bazel_tools",
+          "FILE:@@pybind11_bazel+//MODULE.bazel e6f4c20442eaa7c90d7190d8dc539d0ab422f95c65a57cc59562170c58ae3d34"
+        ],
+        "generatedRepoSpecs": {
+          "pybind11": {
+            "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_archive",
+            "attributes": {
+              "build_file": "@@pybind11_bazel+//:pybind11-BUILD.bazel",
+              "strip_prefix": "pybind11-2.12.0",
+              "urls": [
+                "https://github.com/pybind/pybind11/archive/v2.12.0.zip"
+              ]
+            }
+          }
+        }
+      }
+    },
     "@@rules_dart+//dart/pub:extensions.bzl%pub": {
       "general": {
         "bzlTransitiveDigest": "v65+jCcIL5Hut1EIt/2NZA+QmUr85qesQuYK/CNwvXc=",
         "usagesDigest": "Cm7P5bM8fEiB+7/X9cv3DPx/LttNSwSXbHfhd+m3hk0=",
         "recordedInputs": [
-          "FILE:@@//pubspec.lock a352cc8382876d3d74e8d5922ab0edf435435452861368868e1690665a6625a2"
+          "FILE:@@//pubspec.lock b3b0708e48dfd44224ba4a870c699d3a9edf8cb7a063f8974597fb6d6ad11c66"
         ],
         "generatedRepoSpecs": {
           "pub_deps__collection": {
@@ -237,22 +259,6 @@
               "hub_name": "pub_deps",
               "lock_packages": [
                 "collection",
-                "meta",
-                "path"
-              ]
-            }
-          },
-          "pub_deps__meta": {
-            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_package.bzl%pub_lock_package",
-            "attributes": {
-              "package_name": "meta",
-              "version": "1.16.0",
-              "sha256": "e3641ec5d63ebf0d9b41bd43201a66e3fc79a65db5f61fc181f04cd27aab950c",
-              "base_url": "https://pub.dev",
-              "hub_name": "pub_deps",
-              "lock_packages": [
-                "collection",
-                "meta",
                 "path"
               ]
             }
@@ -267,7 +273,6 @@
               "hub_name": "pub_deps",
               "lock_packages": [
                 "collection",
-                "meta",
                 "path"
               ]
             }
@@ -278,7 +283,6 @@
               "hub_name": "pub_deps",
               "packages": [
                 "collection",
-                "meta",
                 "path"
               ]
             }

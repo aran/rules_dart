@@ -2,7 +2,12 @@
 set -euo pipefail
 
 # Verify the cross-compiled binary is an ELF executable (Linux), not Mach-O (macOS).
-binary="${TEST_SRCDIR}/${TEST_WORKSPACE}/$1"
+# Resolve binary path via Bazel test env vars, with dirname fallback for Windows.
+if [[ -n "${TEST_SRCDIR:-}" ]] && [[ -n "${TEST_WORKSPACE:-}" ]]; then
+  binary="${TEST_SRCDIR}/${TEST_WORKSPACE}/$1"
+else
+  binary="$(dirname "$0")/$1"
+fi
 file_output=$(file "$binary")
 
 echo "file output: $file_output"

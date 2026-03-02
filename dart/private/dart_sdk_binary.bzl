@@ -25,7 +25,9 @@ def _dart_sdk_binary_impl(ctx):
         content = """#!/usr/bin/env bash
 {runfiles_init}
 DART="$(rlocation "{dart}")"
-cd "$BUILD_WORKING_DIRECTORY"
+if [[ -n "${{BUILD_WORKING_DIRECTORY:-}}" ]]; then
+  cd "$BUILD_WORKING_DIRECTORY"
+fi
 exec "$DART" "$@"
 """.format(
             runfiles_init = BASH_RUNFILES_INIT,
