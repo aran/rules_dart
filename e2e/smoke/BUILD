@@ -17,6 +17,7 @@ build_test(
 sh_test(
     name = "dart_version_test",
     srcs = ["dart_version_test.sh"],
-    args = ["$(rootpath @rules_dart//dart)"],
+    args = ["$(rlocationpath @rules_dart//dart)"],
     data = ["@rules_dart//dart"],
+    deps = ["@bazel_tools//tools/bash/runfiles"],
 )

@@ -18,8 +18,9 @@ gazelle(
 sh_test(
     name = "gazelle_test",
     srcs = ["gazelle_test.sh"],
-    args = ["$(rootpath :gazelle_bin)"],
+    args = ["$(rlocationpath :gazelle_bin)"],
     data = [":gazelle_bin"],
+    deps = ["@bazel_tools//tools/bash/runfiles"],
 )
 
 filegroup(

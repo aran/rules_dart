@@ -16,7 +16,7 @@ gazelle(
 sh_test(
     name = "gazelle_test",
     srcs = ["gazelle_test.sh"],
-    args = ["$(rootpath :gazelle_bin)"],
+    args = ["$(rlocationpath :gazelle_bin)"],
     data = [
         "bin/deferred_import.dart",
         "bin/hello.dart",
@@ -29,4 +29,5 @@ sh_test(
         "test/greeter_test.dart",
         ":gazelle_bin",
     ],
+    deps = ["@bazel_tools//tools/bash/runfiles"],
 )
