@@ -56,13 +56,13 @@ rules_dart/
 
 ## Provider Design
 
-| Provider                | Level        | Purpose                                                               |
-| ----------------------- | ------------ | --------------------------------------------------------------------- |
+| Provider                | Level        | Purpose                                                                |
+| ----------------------- | ------------ | ---------------------------------------------------------------------- |
 | `DartSdkInfo`           | Toolchain    | SDK binaries (`dart`, `dartaotruntime`), SDK root, version, tool_files |
-| `DartInfo`              | Library      | Package name, lib_root, transitive_srcs, transitive_packages          |
+| `DartInfo`              | Library      | Package name, lib_root, transitive_srcs, transitive_packages           |
 | `DartPackageInfo`       | Metadata     | Single package's name + lib_root (carried in DartInfo depsets)         |
-| `DartPackageConfigInfo` | Build action | Generated package_config.json file                                    |
-| `DartCompileInfo`       | Binary       | Compiled output file, compile_mode string                             |
+| `DartPackageConfigInfo` | Build action | Generated package_config.json file                                     |
+| `DartCompileInfo`       | Binary       | Compiled output file, compile_mode string                              |
 
 **DartInfo contains zero Flutter concepts.** A future `rules_flutter` wraps/extends, never modifies.
 
@@ -146,10 +146,10 @@ Bazel's `-c` flag (`fastbuild`, `dbg`, `opt`) controls compiler flags automatica
 
 **dart_binary (exe / aot-snapshot)**
 
-| Bazel Mode  | Flags                                                |
-| ----------- | ---------------------------------------------------- |
-| `fastbuild` | _(none)_                                             |
-| `dbg`       | `--enable-asserts`                                   |
+| Bazel Mode  | Flags                                                 |
+| ----------- | ----------------------------------------------------- |
+| `fastbuild` | _(none)_                                              |
+| `dbg`       | `--enable-asserts`                                    |
 | `opt`       | `--extra-gen-snapshot-options=--optimization_level=2` |
 
 **dart_binary (kernel / jit-snapshot)**
@@ -191,4 +191,4 @@ Bazel's `-c` flag (`fastbuild`, `dbg`, `opt`) controls compiler flags automatica
 | Gazelle tests         | `dev/`                      | gazelle_generation_test + shell test                       |
 | E2e integration tests | `e2e/*/`                    | Full build scenarios in isolated workspaces                |
 | CI                    | `.github/workflows/ci.yaml` | All e2e folders on Bazel 9.x                               |
-| BCR presubmit         | `.bcr/presubmit.yml`        | Multi-platform × Bazel 9.x                                |
+| BCR presubmit         | `.bcr/presubmit.yml`        | Multi-platform × Bazel 9.x                                 |
