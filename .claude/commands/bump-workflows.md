@@ -7,6 +7,7 @@ Update GitHub Actions versions in all workflow files to their latest releases.
 2. Grep all `.github/workflows/*.yaml` files for `uses:` lines to find current versions.
 
 3. For each external dependency, check the latest version via the GitHub API:
+
    - `gh api repos/{owner}/{repo}/releases/latest --jq .tag_name`
    - For actions pinned to a commit SHA, check the repo's tags to find the
      latest version and its corresponding SHA.

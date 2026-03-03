@@ -210,15 +210,15 @@ dart_wasm_binary(
 
 The [`e2e/`](e2e/) directory contains complete working examples:
 
-| Example                             | What it demonstrates                                                                 |
-| ----------------------------------- | ------------------------------------------------------------------------------------ |
-| [`hello_world`](e2e/hello_world/)   | Minimal binary + all compile modes (`exe`, `aot-snapshot`, `kernel`, `jit-snapshot`) |
-| [`library_deps`](e2e/library_deps/) | Transitive `dart_library` dependencies, `srcs` attribute                             |
-| [`dart_test`](e2e/dart_test/)       | Tests with and without deps, `srcs` for test helpers                                 |
-| [`analysis`](e2e/analysis/)         | `dart_analyze_test` with custom `analysis_options.yaml`, `dart_format_test`          |
-| [`web_app`](e2e/web_app/)           | JavaScript and WebAssembly compilation with library deps                             |
-| [`pub_deps`](e2e/pub_deps/)         | Single pub.dev package via `pub.package()`                                           |
-| [`pub_lock`](e2e/pub_lock/)         | Multiple packages from `pubspec.lock` via `pub.from_lock()`                          |
-| [`gazelle`](e2e/gazelle/)           | Automatic BUILD file generation with Gazelle                                         |
-| [`cross_compile`](e2e/cross_compile/) | Cross-compilation to other platforms via `platform_data` transition                |
-| [`dart_test_pkg`](e2e/dart_test_pkg/) | `dart_test` with pub dependencies via `pub.from_lock()`                            |
+| Example                               | What it demonstrates                                                                 |
+| ------------------------------------- | ------------------------------------------------------------------------------------ |
+| [`hello_world`](e2e/hello_world/)     | Minimal binary + all compile modes (`exe`, `aot-snapshot`, `kernel`, `jit-snapshot`) |
+| [`library_deps`](e2e/library_deps/)   | Transitive `dart_library` dependencies, `srcs` attribute                             |
+| [`dart_test`](e2e/dart_test/)         | Tests with and without deps, `srcs` for test helpers                                 |
+| [`analysis`](e2e/analysis/)           | `dart_analyze_test` with custom `analysis_options.yaml`, `dart_format_test`          |
+| [`web_app`](e2e/web_app/)             | JavaScript and WebAssembly compilation with library deps                             |
+| [`pub_deps`](e2e/pub_deps/)           | Single pub.dev package via `pub.package()`                                           |
+| [`pub_lock`](e2e/pub_lock/)           | Multiple packages from `pubspec.lock` via `pub.from_lock()`                          |
+| [`gazelle`](e2e/gazelle/)             | Automatic BUILD file generation with Gazelle                                         |
+| [`cross_compile`](e2e/cross_compile/) | Cross-compilation to other platforms via `platform_data` transition                  |
+| [`dart_test_pkg`](e2e/dart_test_pkg/) | `dart_test` with pub dependencies via `pub.from_lock()`                              |
