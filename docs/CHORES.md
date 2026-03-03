@@ -16,6 +16,7 @@ file at runtime — keep file lists current as the repo evolves.
 - `e2e/hello_world/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
 - `e2e/library_deps/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
 - `e2e/dart_test/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
+- `e2e/dart_test_pkg/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
 - `e2e/analysis/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
 - `e2e/web_app/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
 - `e2e/pub_deps/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
@@ -55,6 +56,7 @@ file at runtime — keep file lists current as the repo evolves.
 - `e2e/hello_world/.bazelversion`
 - `e2e/library_deps/.bazelversion`
 - `e2e/dart_test/.bazelversion`
+- `e2e/dart_test_pkg/.bazelversion`
 - `e2e/analysis/.bazelversion`
 - `e2e/web_app/.bazelversion`
 - `e2e/pub_deps/.bazelversion`
@@ -114,6 +116,7 @@ file at runtime — keep file lists current as the repo evolves.
 - `e2e/hello_world`
 - `e2e/library_deps`
 - `e2e/dart_test`
+- `e2e/dart_test_pkg`
 - `e2e/analysis`
 - `e2e/web_app`
 - `e2e/pub_deps`

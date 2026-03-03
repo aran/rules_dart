@@ -49,7 +49,8 @@ rules_dart/
     dart/                          # Gazelle language plugin (Go)
   dev/                             # Gazelle tests + testdata
   e2e/                             # Integration tests (smoke, hello_world, library_deps, dart_test,
-                                   #   analysis, web_app, pub_deps, pub_lock, gazelle, cross_compile)
+                                   #   dart_test_pkg, analysis, web_app, pub_deps, pub_lock, gazelle,
+                                   #   cross_compile)
 ```
 
 ---

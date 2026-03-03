@@ -32,6 +32,7 @@ jobs:
           "e2e/library_deps",
           "e2e/analysis",
           "e2e/dart_test",
+          "e2e/dart_test_pkg",
           "e2e/pub_deps",
           "e2e/pub_lock",
           "e2e/web_app",
