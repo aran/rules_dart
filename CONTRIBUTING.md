@@ -8,16 +8,48 @@ contributing immediately and skip the next step.
 
 ## Formatting
 
-Starlark files should be formatted by buildifier.
-We suggest using a pre-commit hook to automate this.
-First [install pre-commit](https://pre-commit.com/#installation),
-then run
+Starlark files must be formatted by buildifier, and YAML files by yamlfmt.
+We suggest using a pre-commit hook to automate this. Two options:
+
+### Option A — Git hook (no extra tools needed)
+
+Copy the script below to `.git/hooks/pre-commit` and make it executable.
+It runs buildifier, yamlfmt, and typos via `bazel run`, so no additional
+installs are needed beyond Bazel.
+
+```shell
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "Running buildifier check..."
+bazel run //.github/workflows:buildifier.check
+
+echo "Running yamlfmt check..."
+bazel run @multitool//tools/yamlfmt -- -lint \
+  .github/workflows/*.yaml \
+  .pre-commit-config.yaml \
+  .bcr/presubmit.yml
+
+echo "Running typos check..."
+bazel run @multitool//tools/typos -- .
+```
+
+```shell
+cp .git/hooks/pre-commit.sample .git/hooks/pre-commit
+# paste the script above, then:
+chmod +x .git/hooks/pre-commit
+```
+
+### Option B — pre-commit
+
+[Install pre-commit](https://pre-commit.com/#installation), then run:
 
 ```shell
 pre-commit install
 ```
 
-Otherwise later tooling on CI will yell at you about formatting/linting violations.
+This runs the full hook suite including prettier, commitizen, and file
+hygiene checks.
 
 ## Running tests
 
@@ -48,6 +80,12 @@ cd e2e/analysis && bazel test //...
 
 # dart_test (Dart VM test execution)
 cd e2e/dart_test && bazel test //...
+
+# dart_test with pub dependencies
+cd e2e/dart_test_pkg && bazel test //...
+
+# Cross-compilation to other platforms
+cd e2e/cross_compile && bazel build //...
 
 # External pub.dev packages
 cd e2e/pub_deps && bazel build //...
