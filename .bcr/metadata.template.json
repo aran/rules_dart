@@ -2,9 +2,9 @@
   "homepage": "https://github.com/aran/rules_dart",
   "maintainers": [
     {
-      "name": "Aran Donohue",
+      "email": "aran.donohue@gmail.com",
       "github": "aran",
-      "github_user_id": 5295
+      "name": "Aran Donohue"
     }
   ],
   "repository": ["github:aran/rules_dart"],
