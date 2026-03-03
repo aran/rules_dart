@@ -22,6 +22,8 @@ Run a read-only audit of all maintenance chores. Do NOT make any changes — onl
 
    **GitHub workflow dependencies**: Grep all `.github/workflows/*.yaml` files for `uses:` lines. For each external dependency (actions and reusable workflows), check the repo's latest release/tag via `gh api repos/{owner}/{repo}/releases/latest` or `gh api repos/{owner}/{repo}/tags`. Report any that are outdated. Also flag inconsistencies (e.g. `actions/checkout` pinned to different versions across workflows).
 
+   **Multitool versions**: Follow `docs/CHORES.md` § "Multitool Version Bumps" to check for outdated tools.
+
    **Pre-commit hooks**: Run `pre-commit autoupdate --dry-run` if pre-commit is available. Report if any hooks are outdated.
 
    **In-repo Dart packages**: For each `pubspec.yaml` under `dart/` (currently `dart/runfiles/pubspec.yaml`):
@@ -35,6 +37,7 @@ Run a read-only audit of all maintenance chores. Do NOT make any changes — onl
    - [x] Dart SDK: current (3.11.0)
    - [ ] Bazel: stale (have 8.2.1, latest is 8.3.0) → /bump-bazel 8.3.0
    - [x] bazel_dep versions: all current
+   - [x] Multitool: all current
    ...
    ```
 

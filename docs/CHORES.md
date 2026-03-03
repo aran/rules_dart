@@ -254,6 +254,33 @@ outdated dependencies.
 
 ---
 
+## Multitool Version Bumps
+
+**Trigger**: Periodic (monthly) or when a managed tool releases a version we need.
+
+**Files**:
+
+- `multitool.lock.json` — tool versions, URLs, and SHA-256 hashes
+
+**Managed tools**: `yamlfmt`, `typos`
+
+**Procedure**:
+
+1. For each tool in `multitool.lock.json`, check its GitHub releases for newer versions
+2. Download archives for all platform variants (macOS/Linux, arm64/x86_64)
+3. Compute SHA-256 hashes and update the lockfile entries
+4. Regenerate lock files: `dart run tool/refresh_locks.dart`
+5. Run `bazel run @multitool//tools/yamlfmt -- -lint .` and
+   `bazel run @multitool//tools/typos -- .` to verify the updated tools work
+
+**Verification**: Both tools run successfully against the repo.
+
+**Automation**: `/bump-multitool` slash command. Alternatively, install the
+[multitool CLI](https://github.com/theoremlp/multitool) and run
+`multitool --lockfile ./multitool.lock.json update`.
+
+---
+
 ## Pre-commit Hook Bumps
 
 **Trigger**: New versions of pre-commit hooks (buildifier, etc.).
