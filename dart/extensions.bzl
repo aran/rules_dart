@@ -14,6 +14,10 @@ load(":repositories.bzl", "dart_register_toolchains")
 
 _DEFAULT_NAME = "dart"
 
+def _parse_version(v):
+    """Splits a version string into a list of ints for comparison."""
+    return [int(x) for x in v.split(".")]
+
 dart_toolchain = tag_class(attrs = {
     "name": attr.string(doc = """\
 Base name for generated repositories, allowing more than one Dart toolchain to be registered.
@@ -36,8 +40,10 @@ def _toolchain_extension(module_ctx):
             registrations[toolchain.name].append(toolchain.dart_version)
     for name, versions in registrations.items():
         if len(versions) > 1:
-            # TODO: should be semver-aware, using MVS
-            selected = sorted(versions, reverse = True)[0]
+            selected = versions[0]
+            for v in versions[1:]:
+                if _parse_version(v) > _parse_version(selected):
+                    selected = v
 
             # buildifier: disable=print
             print("NOTE: Dart toolchain {} has multiple versions {}, selected {}".format(name, versions, selected))
