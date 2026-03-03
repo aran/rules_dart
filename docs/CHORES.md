@@ -278,6 +278,9 @@ outdated dependencies.
 
 **Verification**: Both tools run successfully against the repo.
 
+Also update the matching `rev:` values in `.pre-commit-config.yaml` for yamlfmt
+and typos to keep CI and local hooks in sync.
+
 **Automation**: `/bump-multitool` slash command. Alternatively, install the
 [multitool CLI](https://github.com/theoremlp/multitool) and run
 `multitool --lockfile ./multitool.lock.json update`.
@@ -323,4 +326,4 @@ outdated dependencies.
 
 **Verification**: CI workflow runs successfully.
 
-**Automation**: `/maintenance-audit` checks for outdated versions.
+**Automation**: `/bump-workflows` slash command. `/maintenance-audit` checks for outdated versions.

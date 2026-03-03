@@ -18,10 +18,13 @@ Update multitool-managed tools to their latest versions.
 
 5. Skip any tools that are already at the latest version.
 
-6. Regenerate all lock files: `dart run tool/refresh_locks.dart`
+6. Also update the `rev:` for yamlfmt and typos in `.pre-commit-config.yaml`
+   to match the new versions.
 
-7. Verify the updated tools work:
+7. Regenerate all lock files: `dart run tool/refresh_locks.dart`
+
+8. Verify the updated tools work:
    - `bazel run @multitool//tools/yamlfmt -- -lint .`
    - `bazel run @multitool//tools/typos -- .`
 
-8. Commit with message: `chore: bump multitool-managed tools`
+9. Commit with message: `chore: bump multitool-managed tools`

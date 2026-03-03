@@ -24,6 +24,8 @@ Run a read-only audit of all maintenance chores. Do NOT make any changes — onl
 
    **Multitool versions**: Follow `docs/CHORES.md` § "Multitool Version Bumps" to check for outdated tools.
 
+   **Pre-commit config sync**: Compare the `rev:` values for yamlfmt and typos in `.pre-commit-config.yaml` against the versions in `multitool.lock.json`. They should match (per `docs/CHORES.md` § "Multitool Version Bumps").
+
    **Pre-commit hooks**: Run `pre-commit autoupdate --dry-run` if pre-commit is available. Report if any hooks are outdated.
 
    **In-repo Dart packages**: For each `pubspec.yaml` under `dart/` (currently `dart/runfiles/pubspec.yaml`):
