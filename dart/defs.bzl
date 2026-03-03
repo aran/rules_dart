@@ -1,4 +1,15 @@
-"Public API re-exports"
+"""Rules for building, testing, and analyzing Dart code.
+
+Load this file from your BUILD files to access the following rules:
+
+- `dart_library`: Collects Dart sources and propagates dependency information. Does not compile.
+- `dart_binary`: Compiles a Dart application (`exe`, `aot-snapshot`, `kernel`, or `jit-snapshot`).
+- `dart_test`: Runs a Dart test file using the Dart VM.
+- `dart_analyze_test`: Runs `dart analyze` on a library as a build-time action.
+- `dart_format_test`: Checks that sources match `dart format` output.
+- `dart_js_binary`: Compiles a Dart web application to JavaScript.
+- `dart_wasm_binary`: Compiles a Dart web application to WebAssembly.
+"""
 
 load("//dart/private:dart_analyze.bzl", _dart_analyze_test = "dart_analyze_test")
 load("//dart/private:dart_binary.bzl", _dart_binary = "dart_binary")

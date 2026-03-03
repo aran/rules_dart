@@ -1,8 +1,15 @@
-"Public API for pub.dev package management."
+"""Pub.dev package management.
 
-# The pub module extension is used directly from extensions.bzl:
-#   pub = use_extension("@rules_dart//dart/pub:extensions.bzl", "pub")
-#   pub.package(name = "path", version = "1.9.1", sha256 = "...")
-#   use_repo(pub, "path")
-#
-# This file is reserved for future pub-related rules.
+This file is reserved for future pub-related build rules. To declare pub
+dependencies, use the module extension in your MODULE.bazel instead:
+
+    pub = use_extension("@rules_dart//dart/pub:extensions.bzl", "pub")
+
+    # Individual packages:
+    pub.package(name = "path", version = "1.9.1", sha256 = "...")
+    use_repo(pub, "path")
+
+    # Or from a lockfile:
+    pub.from_lock(name = "my_deps", lock = "//:pubspec.lock")
+    use_repo(pub, "my_deps")
+"""
