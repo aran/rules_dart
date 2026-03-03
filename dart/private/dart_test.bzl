@@ -3,13 +3,16 @@
 load("//dart:providers.bzl", "DartInfo")
 load("//dart/private:common.bzl", "WINDOWS_CONSTRAINT_ATTR", "create_test_executable", "runfiles_path")
 
-def _generate_runtime_package_config(ctx, deps):
-    """Generate package_config.json with rootUri values correct for the runfiles tree.
+def _generate_packages_manifest(ctx, deps):
+    """Generate a packages manifest for runtime package_config.json construction.
 
-    At runtime (test execution), files are in the runfiles tree where both
-    the config file and sources share the same workspace-relative layout.
-    We compute rootUri relative to the config file's short_path dirname.
+    Each line has: <name>\t<runfiles_root>\t<runfiles_representative_file>
+    The test runner uses rlocation on the representative file to derive
+    the absolute package root path, making this work on all platforms
+    (including Windows manifest-only mode).
     """
+    workspace_name = ctx.workspace_name
+
     packages = []
     seen = {}
     for dep in deps:
@@ -19,43 +22,46 @@ def _generate_runtime_package_config(ctx, deps):
                 seen[pkg.package_name] = True
                 packages.append(pkg)
 
-    package_config = ctx.actions.declare_file(ctx.label.name + ".package_config.json")
+    # Collect all transitive source files to find a representative per package
+    all_srcs = []
+    for dep in deps:
+        all_srcs.extend(dep[DartInfo].transitive_srcs.to_list())
 
-    # Compute depth from the config file's short_path directory.
-    if "/" in package_config.short_path:
-        dirname = package_config.short_path.rsplit("/", 1)[0]
-        depth = len(dirname.split("/"))
-    else:
-        depth = 0
-
-    prefix = "/".join([".."] * depth) if depth > 0 else ""
-
-    if not packages:
-        content = '{"configVersion": 2, "packages": []}\n'
-    else:
-        entries = []
+    # Build a map from lib_root prefix to a representative source file
+    root_to_src = {}
+    for src in all_srcs:
+        src_rpath = runfiles_path(src, workspace_name)
         for pkg in packages:
             lib_root = pkg.lib_root
 
             # In the runfiles tree, external repos are siblings of _main/
-            # (e.g. $RUNFILES/repo_name/pkg/), not under _main/external/.
-            # Convert workspace_root-based paths to runfiles-relative paths.
             if lib_root.startswith("external/"):
-                lib_root = "../" + lib_root[len("external/"):]
+                rf_root = lib_root[len("external/"):]
+            else:
+                rf_root = workspace_name + "/" + lib_root
 
-            root_uri = prefix + "/" + lib_root if prefix else lib_root
-            entries.append(
-                '    {{"name": "{name}", "rootUri": "{root_uri}", "packageUri": "lib/"}}'.format(
-                    name = pkg.package_name,
-                    root_uri = root_uri,
-                ),
-            )
-        content = '{{\n  "configVersion": 2,\n  "packages": [\n{packages}\n  ]\n}}\n'.format(
-            packages = ",\n".join(entries),
-        )
+            if src_rpath.startswith(rf_root + "/") and rf_root not in root_to_src:
+                root_to_src[rf_root] = src_rpath
 
-    ctx.actions.write(output = package_config, content = content)
-    return package_config
+    manifest = ctx.actions.declare_file(ctx.label.name + ".packages")
+    lines = []
+    for pkg in packages:
+        lib_root = pkg.lib_root
+        if lib_root.startswith("external/"):
+            rf_root = lib_root[len("external/"):]
+        else:
+            rf_root = workspace_name + "/" + lib_root
+
+        rep_file = root_to_src.get(rf_root, "")
+        if rep_file:
+            lines.append("{name}\t{root}\t{file}".format(
+                name = pkg.package_name,
+                root = rf_root,
+                file = rep_file,
+            ))
+
+    ctx.actions.write(output = manifest, content = "\n".join(lines) + "\n")
+    return manifest
 
 def _dart_test_impl(ctx):
     toolchain = ctx.toolchains["//dart:toolchain_type"]
@@ -66,13 +72,13 @@ def _dart_test_impl(ctx):
     for dep in ctx.attr.deps:
         all_srcs.extend(dep[DartInfo].transitive_srcs.to_list())
 
-    # Generate package_config.json for runtime
-    package_config = _generate_runtime_package_config(ctx, ctx.attr.deps)
+    # Generate packages manifest for runtime package_config.json construction
+    packages_manifest = _generate_packages_manifest(ctx, ctx.attr.deps)
 
     # Resolve runfiles-relative paths for env vars
     workspace_name = ctx.workspace_name
     dart_path = runfiles_path(dart_sdk_info.dart, workspace_name)
-    pkg_config_path = runfiles_path(package_config, workspace_name)
+    manifest_path = runfiles_path(packages_manifest, workspace_name)
     main_path = runfiles_path(ctx.file.main, workspace_name)
 
     # Create test executable from pre-compiled runner
@@ -81,14 +87,14 @@ def _dart_test_impl(ctx):
         ctx.attr._tool,
         env = {
             "RULES_DART_DART": dart_path,
-            "RULES_DART_PKG_CONFIG": pkg_config_path,
+            "RULES_DART_PKG_MANIFEST": manifest_path,
             "RULES_DART_MAIN": main_path,
         },
     )
 
     # Build runfiles with all needed files
     runfiles = ctx.runfiles(
-        files = [ctx.file.main, package_config] + all_srcs + ctx.files.data + dart_sdk_info.tool_files,
+        files = [ctx.file.main, packages_manifest] + all_srcs + ctx.files.data + dart_sdk_info.tool_files,
     )
     runfiles = runfiles.merge(tool_runfiles)
     for dep in ctx.attr.deps:
