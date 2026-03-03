@@ -1,6 +1,12 @@
 {
   "homepage": "https://github.com/aran/rules_dart",
-  "maintainers": [],
+  "maintainers": [
+    {
+      "name": "Aran Donohue",
+      "github": "aran",
+      "github_user_id": 5295
+    }
+  ],
   "repository": ["github:aran/rules_dart"],
   "versions": [],
   "yanked_versions": {}
