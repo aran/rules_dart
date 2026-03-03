@@ -6,7 +6,7 @@ The test target itself is a trivial pass-through that always succeeds.
 """
 
 load("//dart:providers.bzl", "DartInfo")
-load("//dart/private:common.bzl", "collect_packages", "generate_package_config_content")
+load("//dart/private:common.bzl", "WINDOWS_CONSTRAINT_ATTR", "collect_packages", "generate_package_config_content")
 
 def _dart_analyze_test_impl(ctx):
     toolchain = ctx.toolchains["//dart:toolchain_type"]
@@ -85,22 +85,31 @@ touch "{stamp}"
         progress_message = "Analyzing Dart library %s" % ctx.label,
     )
 
-    # Create trivial test script -- the real validation happens in the build action above
-    script = ctx.actions.declare_file(ctx.label.name + ".sh")
-    ctx.actions.write(
-        output = script,
-        content = "#!/bin/bash\nexit 0\n",
+    # Symlink the noop binary as the test executable.
+    # The real validation happens in the build action above.
+    is_windows = ctx.target_platform_has_constraint(
+        ctx.attr._windows_constraint[platform_common.ConstraintValueInfo],
+    )
+    ext = ".exe" if is_windows else ""
+    executable = ctx.actions.declare_file(ctx.label.name + ext)
+    ctx.actions.symlink(
+        output = executable,
+        target_file = ctx.attr._tool[DefaultInfo].files_to_run.executable,
         is_executable = True,
     )
 
+    tool_runfiles = ctx.attr._tool[DefaultInfo].default_runfiles
+    runfiles = ctx.runfiles(files = [stamp])
+    runfiles = runfiles.merge(tool_runfiles)
+
     return [DefaultInfo(
-        executable = script,
-        runfiles = ctx.runfiles(files = [stamp]),
+        executable = executable,
+        runfiles = runfiles,
     )]
 
 dart_analyze_test = rule(
     implementation = _dart_analyze_test_impl,
-    attrs = {
+    attrs = dict({
         "lib": attr.label(
             doc = "The `dart_library` target to analyze. All transitive sources are included.",
             mandatory = True,
@@ -110,7 +119,12 @@ dart_analyze_test = rule(
             doc = "An `analysis_options.yaml` file. If omitted, the Dart SDK's default analysis options are used.",
             allow_single_file = [".yaml"],
         ),
-    },
+        "_tool": attr.label(
+            default = "//dart/private/tools:noop",
+            executable = True,
+            cfg = "exec",
+        ),
+    }, **WINDOWS_CONSTRAINT_ATTR),
     test = True,
     toolchains = ["//dart:toolchain_type"],
     doc = "Runs `dart analyze` on a Dart library as a build-time action. Fails the build if any analysis issues are found.",

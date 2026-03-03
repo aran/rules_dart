@@ -1,0 +1,24 @@
+load("//dart:defs.bzl", "dart_binary")
+
+dart_binary(
+    name = "noop",
+    compile_mode = "exe",
+    main = "noop.dart",
+    visibility = ["//dart:__subpackages__"],
+)
+
+dart_binary(
+    name = "test_runner",
+    compile_mode = "exe",
+    main = "test_runner.dart",
+    visibility = ["//dart:__subpackages__"],
+    deps = ["//dart/runfiles"],
+)
+
+dart_binary(
+    name = "format_checker",
+    compile_mode = "exe",
+    main = "format_checker.dart",
+    visibility = ["//dart:__subpackages__"],
+    deps = ["//dart/runfiles"],
+)

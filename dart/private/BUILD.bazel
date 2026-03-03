@@ -60,7 +60,10 @@ bzl_library(
     name = "dart_test",
     srcs = ["dart_test.bzl"],
     visibility = ["//dart:__subpackages__"],
-    deps = ["//dart:providers"],
+    deps = [
+        ":common",
+        "//dart:providers",
+    ],
 )
 
 bzl_library(
@@ -77,6 +80,7 @@ bzl_library(
     name = "dart_format_test",
     srcs = ["dart_format_test.bzl"],
     visibility = ["//dart:__subpackages__"],
+    deps = [":common"],
 )
 
 bzl_library(

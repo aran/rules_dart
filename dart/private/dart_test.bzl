@@ -1,13 +1,7 @@
 """Implementation of the dart_test rule."""
 
 load("//dart:providers.bzl", "DartInfo")
-load("//dart/private:common.bzl", "BASH_RUNFILES_ATTR", "BASH_RUNFILES_INIT")
-
-def _runfiles_path(f, workspace_name):
-    """Convert a File to its path in the runfiles tree."""
-    if f.short_path.startswith("../"):
-        return f.short_path[3:]
-    return workspace_name + "/" + f.short_path
+load("//dart/private:common.bzl", "WINDOWS_CONSTRAINT_ATTR", "create_test_executable", "runfiles_path")
 
 def _generate_runtime_package_config(ctx, deps):
     """Generate package_config.json with rootUri values correct for the runfiles tree.
@@ -75,40 +69,39 @@ def _dart_test_impl(ctx):
     # Generate package_config.json for runtime
     package_config = _generate_runtime_package_config(ctx, ctx.attr.deps)
 
-    # Generate test runner shell script
+    # Resolve runfiles-relative paths for env vars
     workspace_name = ctx.workspace_name
-    dart_path = _runfiles_path(dart_sdk_info.dart, workspace_name)
-    pkg_config_path = _runfiles_path(package_config, workspace_name)
-    main_path = _runfiles_path(ctx.file.main, workspace_name)
+    dart_path = runfiles_path(dart_sdk_info.dart, workspace_name)
+    pkg_config_path = runfiles_path(package_config, workspace_name)
+    main_path = runfiles_path(ctx.file.main, workspace_name)
 
-    test_runner = ctx.actions.declare_file(ctx.label.name)
-    ctx.actions.write(
-        output = test_runner,
-        content = """#!/usr/bin/env bash
-{runfiles_init}
-exec "$(rlocation "{dart}")" --packages="$(rlocation "{pkg_config}")" "$(rlocation "{main}")"
-""".format(
-            runfiles_init = BASH_RUNFILES_INIT,
-            dart = dart_path,
-            pkg_config = pkg_config_path,
-            main = main_path,
-        ),
-        is_executable = True,
+    # Create test executable from pre-compiled runner
+    executable, env_info, tool_runfiles = create_test_executable(
+        ctx,
+        ctx.attr._tool,
+        env = {
+            "RULES_DART_DART": dart_path,
+            "RULES_DART_PKG_CONFIG": pkg_config_path,
+            "RULES_DART_MAIN": main_path,
+        },
     )
 
     # Build runfiles with all needed files
     runfiles = ctx.runfiles(
-        files = [ctx.file.main, package_config] + all_srcs + dart_sdk_info.tool_files,
+        files = [ctx.file.main, package_config] + all_srcs + ctx.files.data + dart_sdk_info.tool_files,
     )
-    runfiles = runfiles.merge(ctx.attr._runfiles_lib[DefaultInfo].default_runfiles)
+    runfiles = runfiles.merge(tool_runfiles)
     for dep in ctx.attr.deps:
         runfiles = runfiles.merge(dep[DefaultInfo].default_runfiles)
+    for data_dep in ctx.attr.data:
+        runfiles = runfiles.merge(data_dep[DefaultInfo].default_runfiles)
 
     return [
         DefaultInfo(
-            executable = test_runner,
+            executable = executable,
             runfiles = runfiles,
         ),
+        env_info,
     ]
 
 dart_test = rule(
@@ -127,7 +120,16 @@ dart_test = rule(
             doc = "`dart_library` targets this test depends on.",
             providers = [DartInfo],
         ),
-    }, **BASH_RUNFILES_ATTR),
+        "data": attr.label_list(
+            doc = "Additional files needed at runtime. These are added to runfiles so they can be resolved via `Runfiles.rlocation()`.",
+            allow_files = True,
+        ),
+        "_tool": attr.label(
+            default = "//dart/private/tools:test_runner",
+            executable = True,
+            cfg = "exec",
+        ),
+    }, **WINDOWS_CONSTRAINT_ATTR),
     test = True,
     toolchains = ["//dart:toolchain_type"],
     doc = "Runs a Dart test file using the Dart VM.",

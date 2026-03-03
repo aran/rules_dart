@@ -1,12 +1,6 @@
 """Implementation of the dart_format_test rule."""
 
-load("//dart/private:common.bzl", "BASH_RUNFILES_ATTR", "BASH_RUNFILES_INIT")
-
-def _runfiles_path(f, workspace_name):
-    """Convert a File to its path in the runfiles tree."""
-    if f.short_path.startswith("../"):
-        return f.short_path[3:]
-    return workspace_name + "/" + f.short_path
+load("//dart/private:common.bzl", "WINDOWS_CONSTRAINT_ATTR", "create_test_executable", "runfiles_path")
 
 def _dart_format_test_impl(ctx):
     toolchain = ctx.toolchains["//dart:toolchain_type"]
@@ -14,35 +8,36 @@ def _dart_format_test_impl(ctx):
     workspace_name = ctx.workspace_name
 
     srcs = ctx.files.srcs
-    dart_path = _runfiles_path(dart_sdk_info.dart, workspace_name)
+    dart_path = runfiles_path(dart_sdk_info.dart, workspace_name)
 
-    # Build list of source file paths in runfiles
-    src_paths = []
+    # Write a manifest file listing runfiles-relative paths of sources
+    manifest = ctx.actions.declare_file(ctx.label.name + ".format_manifest")
+    manifest_lines = []
     for src in srcs:
-        src_paths.append('"$(rlocation "' + _runfiles_path(src, workspace_name) + '")"')
+        manifest_lines.append(runfiles_path(src, workspace_name))
+    ctx.actions.write(output = manifest, content = "\n".join(manifest_lines) + "\n")
 
-    test_runner = ctx.actions.declare_file(ctx.label.name)
-    ctx.actions.write(
-        output = test_runner,
-        content = """#!/usr/bin/env bash
-{runfiles_init}
-exec "$(rlocation "{dart}")" format --output=none --set-exit-if-changed {srcs}
-""".format(
-            runfiles_init = BASH_RUNFILES_INIT,
-            dart = dart_path,
-            srcs = " ".join(src_paths),
-        ),
-        is_executable = True,
+    manifest_path = runfiles_path(manifest, workspace_name)
+
+    # Create test executable from pre-compiled format checker
+    executable, env_info, tool_runfiles = create_test_executable(
+        ctx,
+        ctx.attr._tool,
+        env = {
+            "RULES_DART_DART": dart_path,
+            "RULES_DART_FORMAT_MANIFEST": manifest_path,
+        },
     )
 
-    runfiles = ctx.runfiles(files = list(srcs) + dart_sdk_info.tool_files)
-    runfiles = runfiles.merge(ctx.attr._runfiles_lib[DefaultInfo].default_runfiles)
+    runfiles = ctx.runfiles(files = list(srcs) + [manifest] + dart_sdk_info.tool_files)
+    runfiles = runfiles.merge(tool_runfiles)
 
     return [
         DefaultInfo(
-            executable = test_runner,
+            executable = executable,
             runfiles = runfiles,
         ),
+        env_info,
     ]
 
 dart_format_test = rule(
@@ -53,7 +48,12 @@ dart_format_test = rule(
             allow_files = [".dart"],
             mandatory = True,
         ),
-    }, **BASH_RUNFILES_ATTR),
+        "_tool": attr.label(
+            default = "//dart/private/tools:format_checker",
+            executable = True,
+            cfg = "exec",
+        ),
+    }, **WINDOWS_CONSTRAINT_ATTR),
     test = True,
     toolchains = ["//dart:toolchain_type"],
     doc = "Checks that Dart source files match `dart format` output. Fails if any file would be changed by formatting.",

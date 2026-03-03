@@ -1,6 +1,5 @@
-load("@rules_dart//dart:defs.bzl", "dart_binary")
+load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_test")
 load("@rules_platform//platform_data:defs.bzl", "platform_data")
-load("@rules_shell//shell:sh_test.bzl", "sh_test")
 
 platform(
     name = "linux_x64",
@@ -30,10 +29,9 @@ dart_binary(
 # Verifies the cross-compiled binary is ELF (Linux), not Mach-O (macOS).
 # On Linux hosts this is a no-op (native build produces ELF anyway),
 # but on macOS hosts it validates actual cross-compilation.
-sh_test(
+dart_test(
     name = "cross_compile_test",
-    srcs = ["cross_compile_test.sh"],
-    args = ["$(rlocationpath :app_linux_x64)"],
     data = [":app_linux_x64"],
-    deps = ["@bazel_tools//tools/bash/runfiles"],
+    main = "cross_compile_test.dart",
+    deps = ["@rules_dart//dart/runfiles"],
 )

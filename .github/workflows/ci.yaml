@@ -23,7 +23,7 @@ jobs:
       # Wrapped in bash -c because the reusable workflow uses the runner's
       # default shell (PowerShell on Windows) where [ $? -eq 4 ] is invalid.
       # Inner single quotes prevent the outer shell from expanding $?.
-      bazel_test_command: "bash -c 'bazel test //... || [ $? -eq 4 ]'"
+      bazel_test_command: "bash -c 'bazel test --test_output=errors //... || [ $? -eq 4 ]'"
       folders: |
         [
           ".",
