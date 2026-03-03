@@ -220,3 +220,5 @@ The [`e2e/`](e2e/) directory contains complete working examples:
 | [`pub_deps`](e2e/pub_deps/)         | Single pub.dev package via `pub.package()`                                           |
 | [`pub_lock`](e2e/pub_lock/)         | Multiple packages from `pubspec.lock` via `pub.from_lock()`                          |
 | [`gazelle`](e2e/gazelle/)           | Automatic BUILD file generation with Gazelle                                         |
+| [`cross_compile`](e2e/cross_compile/) | Cross-compilation to other platforms via `platform_data` transition                |
+| [`dart_test_pkg`](e2e/dart_test_pkg/) | `dart_test` with pub dependencies via `pub.from_lock()`                            |
