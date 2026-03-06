@@ -28,17 +28,19 @@ def _dart_analyze_test_impl(ctx):
     # Collect all transitive sources
     all_srcs = lib_info.transitive_srcs.to_list()
 
-    # Build symlink commands: link each source file into the staging dir
-    # This handles both root-package and sub-package cases correctly.
+    # Build symlink commands: link each source file into the staging dir.
+    # Use short_path for the staging layout so it matches lib_root (both
+    # are in the same short_path coordinate system).
     symlink_cmds = []
     seen_paths = {}
     for src in all_srcs:
-        src_path = src.path
-        if src_path not in seen_paths:
-            seen_paths[src_path] = True
+        sp = src.short_path
+        if sp not in seen_paths:
+            seen_paths[sp] = True
             symlink_cmds.append(
-                'mkdir -p "$PROJ/$(dirname {path})" && cp "$(pwd)/{path}" "$PROJ/{path}"'.format(
-                    path = src_path,
+                'mkdir -p "$PROJ/$(dirname {dest})" && cp "$(pwd)/{src}" "$PROJ/{dest}"'.format(
+                    src = src.path,
+                    dest = sp,
                 ),
             )
 

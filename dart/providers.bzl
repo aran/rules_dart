@@ -4,7 +4,7 @@ DartInfo = provider(
     doc = "Information about a Dart library's sources and transitive dependencies.",
     fields = {
         "package_name": "str: The Dart package name for this library.",
-        "lib_root": "str: The workspace-relative path to the package root directory (used to construct `package:` URIs).",
+        "lib_root": "str: The short_path-based path to the package root directory (parent of `lib/`). Configuration-independent; consumers derive exec-root paths from source File objects.",
         "transitive_srcs": "depset[File]: All transitive Dart source files, including this library's own sources.",
         "transitive_packages": "depset[DartPackageInfo]: Package metadata for this library and all transitive deps.",
     },
@@ -14,7 +14,7 @@ DartPackageInfo = provider(
     doc = "Metadata about a single Dart package, carried in depsets within DartInfo.",
     fields = {
         "package_name": "str: The Dart package name.",
-        "lib_root": "str: The workspace-relative path to the package root directory.",
+        "lib_root": "str: The short_path-based path to the package root directory (parent of `lib/`). Configuration-independent.",
     },
 )
 

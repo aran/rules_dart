@@ -28,10 +28,9 @@ def _generate_packages_manifest(ctx, deps):
         all_srcs.extend(dep[DartInfo].transitive_srcs.to_list())
 
     # Build a map from lib_root to (runfiles_root, representative_file).
-    # Both src.path and lib_root are exec-root-relative, so we match in
-    # that coordinate system, then derive the runfiles root from the
-    # matched source's short_path. This handles source-tree, external,
-    # and generated (bazel-out/) packages uniformly.
+    # Both src.short_path and lib_root are in the same short_path coordinate
+    # system, so matching is straightforward. This handles source-tree,
+    # external, and generated (bazel-out/) packages uniformly.
     root_to_entry = {}
     for src in all_srcs:
         src_rpath = runfiles_path(src, workspace_name)
@@ -39,8 +38,9 @@ def _generate_packages_manifest(ctx, deps):
             lib_root = pkg.lib_root
             if lib_root in root_to_entry:
                 continue
-            if src.path.startswith(lib_root + "/"):
-                suffix = src.path[len(lib_root):]
+            if src.short_path.startswith(lib_root + "/") or \
+               (src.is_directory and src.short_path == lib_root):
+                suffix = src.short_path[len(lib_root):]
                 rf_root = src_rpath[:len(src_rpath) - len(suffix)]
                 root_to_entry[lib_root] = (rf_root, src_rpath)
 

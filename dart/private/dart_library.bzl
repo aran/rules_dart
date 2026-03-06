@@ -11,14 +11,21 @@ def _dart_library_impl(ctx):
     else:
         package_name = ctx.label.name
 
-    # Derive the workspace-relative path to the package root directory.
+    # Derive the short_path-based path to the package root directory.
+    # For external repos, workspace_root is "external/X" but short_path uses
+    # "../X", so we convert to match. For source-tree packages, label.package
+    # already matches short_path.
     # Strip trailing /lib since Dart's packageUri: "lib/" is appended to
     # rootUri in package_config.json — rootUri must point to the parent of lib/.
     if ctx.label.workspace_root:
+        # Convert "external/X" -> "../X" to match File.short_path convention
+        ws_root = ctx.label.workspace_root
+        if ws_root.startswith("external/"):
+            ws_root = "../" + ws_root[len("external/"):]
         if ctx.label.package:
-            lib_root = ctx.label.workspace_root + "/" + ctx.label.package
+            lib_root = ws_root + "/" + ctx.label.package
         else:
-            lib_root = ctx.label.workspace_root
+            lib_root = ws_root
     else:
         lib_root = ctx.label.package
     if lib_root.endswith("/lib") or lib_root == "lib":

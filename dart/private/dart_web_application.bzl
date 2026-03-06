@@ -6,7 +6,7 @@ resolution, since `dart compile js/wasm` does not accept --packages.
 """
 
 load("//dart:providers.bzl", "DartInfo")
-load("//dart/private:common.bzl", "collect_packages", "collect_transitive_srcs", "generate_package_config_content")
+load("//dart/private:common.bzl", "collect_packages", "collect_transitive_srcs", "generate_package_config_content", "resolve_package_roots")
 
 def _get_web_compilation_mode_flags(ctx, compile_mode):
     """Returns compiler flags for the current Bazel compilation mode (web targets).
@@ -65,15 +65,23 @@ def _dart_web_compile(ctx, compile_mode):
         output = ctx.actions.declare_file(ctx.label.name + ".wasm")
         staging_ext = ".wasm"
 
-    # Build symlink commands for dependency packages
+    # Build symlink commands for dependency packages.
+    # Use resolve_package_roots to get exec-root paths for sources,
+    # and short_path lib_root for staging destinations.
+    exec_roots = resolve_package_roots(packages, all_srcs)
     symlink_cmds = []
     seen_roots = {}
     for pkg in packages:
         if pkg.lib_root and pkg.lib_root not in seen_roots:
-            seen_roots[pkg.lib_root] = True
-            symlink_cmds.append(
-                'mkdir -p "$PROJ/$(dirname {root})" && cp -rL "$(pwd)/{root}" "$PROJ/{root}"'.format(root = pkg.lib_root),
-            )
+            exec_root = exec_roots.get(pkg.package_name)
+            if exec_root:
+                seen_roots[pkg.lib_root] = True
+                symlink_cmds.append(
+                    'mkdir -p "$PROJ/$(dirname {dest})" && cp -rL "$(pwd)/{src}" "$PROJ/{dest}"'.format(
+                        src = exec_root,
+                        dest = pkg.lib_root,
+                    ),
+                )
 
     # Symlink additional source files (srcs) into the staging directory
     for src in ctx.files.srcs:

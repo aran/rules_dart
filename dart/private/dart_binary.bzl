@@ -1,21 +1,15 @@
 """Implementation of the dart_binary rule."""
 
 load("//dart:providers.bzl", "DartCompileInfo", "DartInfo")
-load("//dart/private:common.bzl", "collect_packages", "collect_transitive_srcs", "generate_package_config_content")
+load("//dart/private:common.bzl", "collect_packages", "collect_transitive_srcs", "generate_package_config")
 load("//dart/private:dart_compile.bzl", "dart_compile_action")
 
-def _generate_package_config(ctx, deps):
+def _generate_package_config(ctx, deps, all_srcs):
     """Generate a package_config.json from the transitive DartInfo deps."""
     packages = collect_packages(deps)
     package_config = ctx.actions.declare_file(ctx.label.name + ".package_config.json")
 
-    # The config file is in the output tree (e.g. bazel-out/.../bin/app/).
-    # Sources are in the source tree (e.g. greeter/lib/).
-    # Compute relative path from the config file back to the execroot.
-    depth = len(package_config.dirname.split("/"))
-    prefix = "/".join([".."] * depth)
-
-    content = generate_package_config_content(packages, prefix)
+    content = generate_package_config(packages, all_srcs, package_config)
     ctx.actions.write(output = package_config, content = content)
     return package_config
 
@@ -27,7 +21,7 @@ def _dart_binary_impl(ctx):
     all_srcs = list(ctx.files.srcs) + collect_transitive_srcs(ctx.attr.deps)
 
     # Generate package_config.json
-    package_config = _generate_package_config(ctx, ctx.attr.deps)
+    package_config = _generate_package_config(ctx, ctx.attr.deps, all_srcs)
 
     # Determine output filename
     compile_mode = ctx.attr.compile_mode
