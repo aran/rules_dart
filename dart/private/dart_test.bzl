@@ -27,33 +27,29 @@ def _generate_packages_manifest(ctx, deps):
     for dep in deps:
         all_srcs.extend(dep[DartInfo].transitive_srcs.to_list())
 
-    # Build a map from lib_root prefix to a representative source file
-    root_to_src = {}
+    # Build a map from lib_root to (runfiles_root, representative_file).
+    # Both src.path and lib_root are exec-root-relative, so we match in
+    # that coordinate system, then derive the runfiles root from the
+    # matched source's short_path. This handles source-tree, external,
+    # and generated (bazel-out/) packages uniformly.
+    root_to_entry = {}
     for src in all_srcs:
         src_rpath = runfiles_path(src, workspace_name)
         for pkg in packages:
             lib_root = pkg.lib_root
-
-            # In the runfiles tree, external repos are siblings of _main/
-            if lib_root.startswith("external/"):
-                rf_root = lib_root[len("external/"):]
-            else:
-                rf_root = workspace_name + "/" + lib_root
-
-            if src_rpath.startswith(rf_root + "/") and rf_root not in root_to_src:
-                root_to_src[rf_root] = src_rpath
+            if lib_root in root_to_entry:
+                continue
+            if src.path.startswith(lib_root + "/"):
+                suffix = src.path[len(lib_root):]
+                rf_root = src_rpath[:len(src_rpath) - len(suffix)]
+                root_to_entry[lib_root] = (rf_root, src_rpath)
 
     manifest = ctx.actions.declare_file(ctx.label.name + ".packages")
     lines = []
     for pkg in packages:
-        lib_root = pkg.lib_root
-        if lib_root.startswith("external/"):
-            rf_root = lib_root[len("external/"):]
-        else:
-            rf_root = workspace_name + "/" + lib_root
-
-        rep_file = root_to_src.get(rf_root, "")
-        if rep_file:
+        entry = root_to_entry.get(pkg.lib_root)
+        if entry:
+            rf_root, rep_file = entry
             lines.append("{name}\t{root}\t{file}".format(
                 name = pkg.package_name,
                 root = rf_root,
