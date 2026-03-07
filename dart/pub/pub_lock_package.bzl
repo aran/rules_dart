@@ -4,7 +4,7 @@ Each hosted package gets its own external repository (spoke), with the hub
 repo providing aliases for backward-compatible `@hub//:pkg` labels.
 """
 
-load("//dart/pub/private:yaml_parser.bzl", "parse_pubspec_deps")
+load("//dart/pub:yaml_parser.bzl", "parse_pubspec_deps")
 
 def _pub_lock_package_impl(ctx):
     url = "{base}/packages/{name}/versions/{version}.tar.gz".format(
