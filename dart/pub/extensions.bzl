@@ -1,9 +1,9 @@
 """Module extension for declaring pub.dev package dependencies."""
 
-load("//dart/pub/private:pub_lock_hub.bzl", "pub_lock_hub")
-load("//dart/pub/private:pub_lock_package.bzl", "pub_lock_package")
+load("//dart/pub:pub_lock_hub.bzl", "pub_lock_hub")
+load("//dart/pub:pub_lock_package.bzl", "pub_lock_package")
+load("//dart/pub:yaml_parser.bzl", "parse_pubspec_lock")
 load("//dart/pub/private:pub_repository.bzl", "pub_package")
-load("//dart/pub/private:yaml_parser.bzl", "parse_pubspec_lock")
 
 _package = tag_class(
     attrs = {
