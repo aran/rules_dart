@@ -1,6 +1,13 @@
 """Dart SDK release versions and their SHA-256 checksums per platform."""
 
 TOOL_VERSIONS = {
+    "3.11.2": {
+        "macos-arm64": "f0f8eefc5489c1952b952d3f70baa52ae05412c448ec1f8d9d0582dc733b8645",
+        "macos-x64": "dfe0ac83b0cce53d9b409298151afe97f1c4574e53e4b16e04ad3b68d24fa96f",
+        "linux-x64": "e646de59cf9bfdba8ecdca7b27a7d6bda3bd14b4a2256728b58172fb44bbd672",
+        "linux-arm64": "c594d646319a755d332e8d438e1a0693214e73b2fbb798d0a72d909373ba6646",
+        "windows-x64": "53e723fd16ab42036ca6933abe95e7c30a0fda9c3239b32e8e9210907a1a32aa",
+    },
     "3.11.1": {
         "macos-arm64": "2ff517ac1a40700f52bf4309fb64c0dc7aaae1c4e38927bdb9e868028d6b02f9",
         "macos-x64": "a4b4ce293e0b66d232b31fc4f51f5edf930ecf5ac073b1ef367728f2d1f98d2d",

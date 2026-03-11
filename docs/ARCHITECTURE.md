@@ -20,7 +20,7 @@ rules_dart/
     defs.bzl                       # Public API (7 rules)
     providers.bzl                  # DartInfo, DartPackageInfo, DartPackageConfigInfo, DartCompileInfo
     toolchain.bzl                  # DartSdkInfo provider, dart_toolchain rule
-    extensions.bzl                 # dart.toolchain(dart_version = "3.11.1")
+    extensions.bzl                 # dart.toolchain(dart_version = "3.11.2")
     repositories.bzl               # SDK download, dart_register_toolchains
     private/
       versions.bzl                 # SDK_VERSIONS with SHA-256 hashes per platform
