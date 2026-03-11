@@ -1,3 +1,5 @@
+* text=auto eol=lf
+
 #################################
 # Configuration for 'git archive'
 # See https://git-scm.com/docs/git-archive#ATTRIBUTES
