@@ -48,6 +48,15 @@ jobs:
           VERSION="${TAG#v}"
           sed -i "s/^version: 0\.0\.0-dev$/version: $VERSION/" dart/runfiles/pubspec.yaml
           echo "Publishing runfiles $VERSION"
+      - name: Generate changelog
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ inputs.tag_name || github.ref_name }}"
+          VERSION="${TAG#v}"
+          NOTES=$(gh release view "$TAG" --json body --jq .body)
+          printf '# Changelog\n\n## %s\n\n%s\n' "$VERSION" "$NOTES" \
+            > dart/runfiles/CHANGELOG.md
       - name: Publish to pub.dev
         run: dart pub publish --force
         working-directory: dart/runfiles

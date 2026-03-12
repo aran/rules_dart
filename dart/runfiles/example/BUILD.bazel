@@ -1,0 +1,8 @@
+load("//dart:defs.bzl", "dart_test")
+
+dart_test(
+    name = "example",
+    data = ["data/message.txt"],
+    main = "example.dart",
+    deps = ["//dart/runfiles"],
+)
