@@ -32,20 +32,11 @@ jobs:
       tag_name: ${{ inputs.tag_name || github.ref_name }}
     secrets:
       publish_token: ${{ secrets.publish_token || secrets.BCR_PUBLISH_TOKEN }}
-  secrets-gate:
-    runs-on: ubuntu-latest
-    outputs:
-      has-pub-token: ${{ steps.check.outputs.has-pub-token }}
-    steps:
-      - id: check
-        if: env.PUB_TOKEN != ''
-        run: echo "has-pub-token=true" >> "$GITHUB_OUTPUT"
-        env:
-          PUB_TOKEN: ${{ secrets.PUB_TOKEN }}
   pub-publish:
-    needs: [release, secrets-gate]
-    if: needs.secrets-gate.outputs.has-pub-token == 'true'
+    needs: release
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
     steps:
       - uses: actions/checkout@v6
         with:
@@ -60,5 +51,3 @@ jobs:
       - name: Publish to pub.dev
         run: dart pub publish --force
         working-directory: dart/runfiles
-        env:
-          PUB_TOKEN: ${{ secrets.PUB_TOKEN }}
