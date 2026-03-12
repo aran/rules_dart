@@ -1,25 +1,18 @@
 "Bazel dependencies"
 
+# NOTE: The version field is intentionally omitted. Leaving it unset (the
+# default "") prevents issues when the module is used via non-registry
+# overrides (e.g. https://github.com/bazel-contrib/rules_go/issues/4380).
+# The publish-to-bcr GitHub Action patches in the release version when
+# submitting to the Bazel Central Registry.
+#
+# NOTE: compatibility_level is omitted (defaults to 0). Bumping it is very
+# disruptive — as soon as a module is requested at two different compatibility
+# levels in the dependency tree, users see an error. Only bump it when the
+# breaking change affects most use cases and isn't easy to work around, and
+# in the same commit that introduces the incompatible change.
 module(
     name = "rules_dart",
-
-    # NOTE: The version field is intentionally omitted. Leaving it unset (the
-    # default "") prevents issues when the module is used via non-registry
-    # overrides (e.g. https://github.com/bazel-contrib/rules_go/issues/4380).
-    # The publish-to-bcr GitHub Action patches in the release version when
-    # submitting to the Bazel Central Registry.
-
-    # NOTE:
-    # compatibility_level = 0,
-    #
-    # Bumping compatibility_level too frequently is discouraged because it's
-    # very disruptive: as soon as a module is requested at two different
-    # compatibility levels in the dependency tree, users will see an error.
-    #
-    # As such, the compatibility_level (1) should be bumped *only* when the
-    # breaking change affects most use cases and isn't easy to migrate and/or
-    # work-around, and (2) *in the same commit* that introduces an incompatible
-    # (breaking) change.
 )
 
 bazel_dep(name = "bazel_skylib", version = "1.9.0")
