@@ -3,6 +3,6 @@ description: Tests for Dart Bazel rule tools.
 version: 0.0.0
 publish_to: none
 environment:
-  sdk: ^3.0.0
+  sdk: ^3.10.0
 dev_dependencies:
   test: ^1.25.0
