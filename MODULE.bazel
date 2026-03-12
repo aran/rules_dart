@@ -3,19 +3,11 @@
 module(
     name = "rules_dart",
 
-    # NOTE:
-    # version = "",
-    #
-    # Always leave version unset or set to "" (the default). The default value
-    # can prevent issues when the module is used via non-registry overrides
-    # (e.g. https://github.com/bazel-contrib/rules_go/issues/4380).
-    #
-    # The publish.yaml GitHub Action sets the version in the registry to the
-    # release version by patching this MODULE.bazel file in the pull request to
-    # the BCR.
-    #
-    # For more info, see this Slack thread:
-    # https://bazelbuild.slack.com/archives/CA31HN1T3/p1750406404452179
+    # NOTE: The version field is intentionally omitted. Leaving it unset (the
+    # default "") prevents issues when the module is used via non-registry
+    # overrides (e.g. https://github.com/bazel-contrib/rules_go/issues/4380).
+    # The publish-to-bcr GitHub Action patches in the release version when
+    # submitting to the Bazel Central Registry.
 
     # NOTE:
     # compatibility_level = 0,
