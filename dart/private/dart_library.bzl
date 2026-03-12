@@ -2,34 +2,60 @@
 
 load("//dart:providers.bzl", "DartInfo", "DartPackageInfo")
 
-def _dart_library_impl(ctx):
-    # Derive package name
-    if ctx.attr.package_name:
-        package_name = ctx.attr.package_name
-    elif ctx.label.package:
-        package_name = ctx.label.package.split("/")[-1]
-    else:
-        package_name = ctx.label.name
+def derive_package_name(package_name_attr, label_package, label_name):
+    """Derive the Dart package name from rule attributes and label.
 
-    # Derive the short_path-based path to the package root directory.
-    # For external repos, workspace_root is "external/X" but short_path uses
-    # "../X", so we convert to match. For source-tree packages, label.package
-    # already matches short_path.
-    # Strip trailing /lib since Dart's packageUri: "lib/" is appended to
-    # rootUri in package_config.json — rootUri must point to the parent of lib/.
-    if ctx.label.workspace_root:
+    Args:
+        package_name_attr: Explicit package name attribute, or empty string.
+        label_package: The Bazel label package path.
+        label_name: The Bazel label name.
+
+    Returns:
+        The derived Dart package name.
+    """
+    if package_name_attr:
+        return package_name_attr
+    elif label_package:
+        return label_package.split("/")[-1]
+    else:
+        return label_name
+
+def derive_lib_root(workspace_root, label_package):
+    """Derive the library root path (short_path-based, without /lib suffix).
+
+    For external repos, converts "external/X" to "../X" to match
+    File.short_path convention. Strips trailing /lib since Dart's
+    packageUri: "lib/" is appended to rootUri in package_config.json.
+
+    Args:
+        workspace_root: The workspace root of the label (ctx.label.workspace_root).
+        label_package: The Bazel label package path (ctx.label.package).
+
+    Returns:
+        The library root path with any trailing /lib stripped.
+    """
+    if workspace_root:
         # Convert "external/X" -> "../X" to match File.short_path convention
-        ws_root = ctx.label.workspace_root
+        ws_root = workspace_root
         if ws_root.startswith("external/"):
             ws_root = "../" + ws_root[len("external/"):]
-        if ctx.label.package:
-            lib_root = ws_root + "/" + ctx.label.package
+        if label_package:
+            lib_root = ws_root + "/" + label_package
         else:
             lib_root = ws_root
     else:
-        lib_root = ctx.label.package
+        lib_root = label_package
     if lib_root.endswith("/lib") or lib_root == "lib":
         lib_root = lib_root[:-4] if lib_root.endswith("/lib") else ""
+    return lib_root
+
+def _dart_library_impl(ctx):
+    package_name = derive_package_name(
+        ctx.attr.package_name,
+        ctx.label.package,
+        ctx.label.name,
+    )
+    lib_root = derive_lib_root(ctx.label.workspace_root, ctx.label.package)
 
     # Collect transitive sources
     transitive_srcs = depset(

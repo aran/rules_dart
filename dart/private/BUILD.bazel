@@ -98,3 +98,16 @@ bzl_library(
     srcs = ["dart_sdk_binary.bzl"],
     visibility = ["//dart:__subpackages__"],
 )
+
+bzl_library(
+    name = "dart_codegen",
+    srcs = ["dart_codegen.bzl"],
+    visibility = ["//dart:__subpackages__"],
+)
+
+bzl_library(
+    name = "dart_aggregate_codegen",
+    srcs = ["dart_aggregate_codegen.bzl"],
+    visibility = ["//dart:__subpackages__"],
+    deps = ["//dart:providers"],
+)

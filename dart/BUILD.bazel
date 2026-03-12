@@ -42,8 +42,10 @@ bzl_library(
     srcs = ["defs.bzl"],
     visibility = ["//visibility:public"],
     deps = [
+        "//dart/private:dart_aggregate_codegen",
         "//dart/private:dart_analyze",
         "//dart/private:dart_binary",
+        "//dart/private:dart_codegen",
         "//dart/private:dart_format_test",
         "//dart/private:dart_library",
         "//dart/private:dart_test",
@@ -70,4 +72,14 @@ bzl_library(
     name = "toolchain",
     srcs = ["toolchain.bzl"],
     visibility = ["//visibility:public"],
+)
+
+bzl_library(
+    name = "utils",
+    srcs = ["utils.bzl"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//dart/private:common",
+        "//dart/private:dart_library",
+    ],
 )

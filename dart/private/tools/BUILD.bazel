@@ -1,5 +1,10 @@
 load("//dart:defs.bzl", "dart_binary")
 
+exports_files(
+    ["codegen_worker.dart"],
+    visibility = ["//dart:__subpackages__"],
+)
+
 dart_binary(
     name = "noop",
     compile_mode = "exe",
