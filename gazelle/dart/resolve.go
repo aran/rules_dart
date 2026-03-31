@@ -49,8 +49,14 @@ func (d *dartLang) Resolve(c *config.Config, ix *resolve.RuleIndex, rc *repo.Rem
 			continue
 		}
 
-		// Try to find in the rule index first (first-party deps)
+		// Check for gazelle:resolve override first
 		spec := resolve.ImportSpec{Lang: dartName, Imp: pkg}
+		if override, ok := resolve.FindRuleWithOverride(c, spec, dartName); ok {
+			deps = append(deps, override.Rel(from.Repo, from.Pkg).String())
+			continue
+		}
+
+		// Try to find in the rule index (first-party deps)
 		matches := ix.FindRulesByImportWithConfig(c, spec, dartName)
 		if len(matches) > 0 {
 			dep := matches[0].Label

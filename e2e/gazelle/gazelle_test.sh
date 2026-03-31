@@ -184,6 +184,46 @@ check_contains4() {
 check_contains4 "lib/BUILD.bazel" 'name = "my_server"' "name = my_server"
 check_contains4 "lib/BUILD.bazel" 'package_name = "my_server"' "package_name = my_server"
 
+# ============================================================
+# Test gazelle:resolve directive override
+# ============================================================
+WORK5="$(mktemp -d)"
+trap "rm -rf ${WORK} ${WORK2} ${WORK3} ${WORK4} ${WORK5}" EXIT
+
+mkdir -p "${WORK5}/lib"
+touch "${WORK5}/WORKSPACE"
+
+# Root BUILD with gazelle:resolve override for shelf
+cat > "${WORK5}/BUILD.bazel" <<'EOF'
+# gazelle:resolve dart shelf //third_party:shelf_custom
+EOF
+
+cat > "${WORK5}/lib/app.dart" <<'EOF'
+import 'package:shelf/shelf.dart';
+import 'package:path/path.dart';
+void main() {}
+EOF
+touch "${WORK5}/lib/BUILD.bazel"
+
+"${GAZELLE_BIN}" -lang dart -repo_root "${WORK5}" "${WORK5}"
+
+check_contains5() {
+  local file="$1" pattern="$2" desc="$3"
+  if ! grep -q "${pattern}" "${WORK5}/${file}"; then
+    echo "FAIL: ${file} missing ${desc}"
+    echo "  Contents:"
+    sed 's/^/    /' "${WORK5}/${file}"
+    FAIL=1
+  else
+    echo "PASS: ${file} contains ${desc}"
+  fi
+}
+
+# shelf should resolve to the override label
+check_contains5 "lib/BUILD.bazel" "//third_party:shelf_custom" "gazelle:resolve override for shelf"
+# path should still use default external resolution (no override)
+check_contains5 "lib/BUILD.bazel" "@path" "default resolution for path"
+
 if [[ ${FAIL} -ne 0 ]]; then
   echo "SOME TESTS FAILED"
   exit 1
