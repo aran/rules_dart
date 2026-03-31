@@ -52,7 +52,9 @@ def _dart_binary_impl(ctx):
         defines = ctx.attr.defines,
     )
 
-    runfiles = ctx.runfiles(files = ctx.files.data)
+    runfiles = ctx.runfiles(files = ctx.files.data).merge_all(
+        [dep[DefaultInfo].default_runfiles for dep in ctx.attr.data],
+    )
 
     return [
         DefaultInfo(
