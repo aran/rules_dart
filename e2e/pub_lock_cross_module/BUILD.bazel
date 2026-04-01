@@ -1,0 +1,14 @@
+load("@rules_dart//dart:defs.bzl", "dart_binary")
+
+exports_files(["lock_a.lock"])
+
+# Root module A: depends on module_b's dart_library AND its own pub deps.
+# This validates cross-module pub.from_lock deduplication.
+dart_binary(
+    name = "app",
+    main = "main.dart",
+    deps = [
+        "@deps_a//:collection",
+        "@module_b//:greeter",
+    ],
+)

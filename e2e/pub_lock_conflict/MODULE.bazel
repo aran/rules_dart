@@ -1,0 +1,27 @@
+module(name = "pub_lock_conflict_e2e")
+
+bazel_dep(name = "rules_dart", version = "0.0.0")
+local_path_override(
+    module_name = "rules_dart",
+    path = "../..",
+)
+
+dart = use_extension("@rules_dart//dart:extensions.bzl", "dart")
+dart.toolchain(dart_version = "3.11.2")
+use_repo(dart, "dart_toolchains")
+
+register_toolchains("@dart_toolchains//:all")
+
+# lock_a has path 1.9.1, lock_b has path 1.9.0.
+# Neither sets on_version_conflict = "upgrade", so this should fail with
+# an error about conflicting versions.
+pub = use_extension("@rules_dart//dart/pub:extensions.bzl", "pub")
+pub.from_lock(
+    name = "deps_a",
+    lock = "//:lock_a.lock",
+)
+pub.from_lock(
+    name = "deps_b",
+    lock = "//:lock_b.lock",
+)
+use_repo(pub, "deps_a", "deps_b")

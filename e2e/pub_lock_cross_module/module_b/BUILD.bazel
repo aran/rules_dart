@@ -1,0 +1,11 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+exports_files(["lock_b.lock"])
+
+dart_library(
+    name = "greeter",
+    package_name = "module_b",
+    srcs = ["lib/greeter.dart"],
+    visibility = ["//visibility:public"],
+    deps = ["@deps_b//:path"],
+)

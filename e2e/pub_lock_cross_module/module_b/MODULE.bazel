@@ -1,0 +1,10 @@
+module(name = "module_b")
+
+bazel_dep(name = "rules_dart", version = "0.0.0")
+
+pub = use_extension("@rules_dart//dart/pub:extensions.bzl", "pub")
+pub.from_lock(
+    name = "deps_b",
+    lock = "//:lock_b.lock",
+)
+use_repo(pub, "deps_b")

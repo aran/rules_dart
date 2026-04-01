@@ -1,0 +1,17 @@
+load("@rules_dart//dart:defs.bzl", "dart_binary")
+
+exports_files([
+    "lock_a.lock",
+    "lock_b.lock",
+])
+
+# lock_b has path 1.9.0 with on_version_conflict = "upgrade", so it
+# accepts lock_a's higher version (1.9.1). Both hubs should work.
+dart_binary(
+    name = "app",
+    main = "main.dart",
+    deps = [
+        "@deps_a//:path",
+        "@deps_b//:collection",
+    ],
+)
