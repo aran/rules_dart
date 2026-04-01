@@ -221,7 +221,7 @@
   "moduleExtensions": {
     "@@rules_dart+//dart/pub:extensions.bzl%pub": {
       "general": {
-        "bzlTransitiveDigest": "bY4qVvOvgQXsOd3GCeVgeCvcU3JsJXllzRWjTCXVJDI=",
+        "bzlTransitiveDigest": "VT9EBfrLCOF8YxuQcmnFip68BL+d4xtBnd79T5NWd1w=",
         "usagesDigest": "T9y31qtHTkAfp7PdpK5lhUS7tFQM2w794qFUqfO9AIs=",
         "recordedInputs": [],
         "generatedRepoSpecs": {
