@@ -5,3 +5,9 @@ bzl_library(
     srcs = ["pub_repository.bzl"],
     visibility = ["//dart/pub:__subpackages__"],
 )
+
+bzl_library(
+    name = "version",
+    srcs = ["version.bzl"],
+    visibility = ["//dart/pub:__subpackages__"],
+)

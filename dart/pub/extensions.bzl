@@ -4,6 +4,9 @@ load("//dart/pub:pub_lock_hub.bzl", "pub_lock_hub")
 load("//dart/pub:pub_lock_package.bzl", "pub_lock_package")
 load("//dart/pub:yaml_parser.bzl", "parse_pubspec_lock")
 load("//dart/pub/private:pub_repository.bzl", "pub_package")
+load("//dart/pub/private:version.bzl", "semver_gt")
+
+_SPOKE_PREFIX = "dart_pub"
 
 _package = tag_class(
     attrs = {
@@ -37,6 +40,12 @@ _from_lock = tag_class(
             mandatory = True,
             allow_single_file = True,
         ),
+        "on_version_conflict": attr.string(
+            doc = "What to do when another lock file provides a higher version of a package. " +
+                  "'error' (default) fails the build. 'upgrade' accepts the higher version.",
+            default = "error",
+            values = ["error", "upgrade"],
+        ),
     },
 )
 
@@ -57,53 +66,122 @@ def _pub_impl(ctx):
             deps = pkg.deps,
         )
 
-    # Handle lock file declarations — hub + spoke pattern
-    all_hub_names = []
+    # Collect all packages from all lock files into a unified registry.
+    # registry[pkg_name] = {url, entries: [{version, sha256, hub_name, lock_label, on_version_conflict}]}
+    registry = {}
+
+    # Track which packages belong to each hub (for per-hub alias creation)
+    hub_packages = {}
+
+    root_hub_names = []
     for mod in ctx.modules:
+        is_root = (mod == ctx.modules[0])
         for lock_tag in mod.tags.from_lock:
             hub_name = lock_tag.name
+            if is_root:
+                root_hub_names.append(hub_name)
             lock_content = ctx.read(lock_tag.lock)
             lock_pkgs = parse_pubspec_lock(lock_content)
 
-            # Filter to only hosted packages
-            hosted = {}
+            hub_packages.setdefault(hub_name, [])
+
             for name, info in lock_pkgs.items():
                 source = info.get("source", "unknown")
                 if source == "hosted":
-                    hosted[name] = info
-                elif source == "sdk":
                     pass
+                elif source == "sdk":
+                    continue
                 else:
                     # buildifier: disable=print
                     print("pub.from_lock: skipping package \"%s\" (source: %s). Only hosted packages are supported." % (name, source))  # noqa: E501
+                    continue
 
-            hosted_names = sorted(hosted.keys())
-
-            # Create spoke repo for each hosted package
-            for name, info in hosted.items():
                 if name in explicit:
                     continue  # pub.package() wins
+
+                hub_packages[hub_name].append(name)
+
                 desc = info.get("description", {})
-                pub_lock_package(
-                    name = hub_name + "__" + name,
-                    package_name = name,
+                url = desc.get("url", "https://pub.dev")
+                entry = struct(
                     version = info.get("version", ""),
                     sha256 = desc.get("sha256", ""),
-                    base_url = desc.get("url", "https://pub.dev"),
                     hub_name = hub_name,
-                    lock_packages = hosted_names,
+                    lock_label = str(lock_tag.lock),
+                    on_version_conflict = lock_tag.on_version_conflict,
                 )
 
-            # Create hub repo with aliases
-            pub_lock_hub(
-                name = hub_name,
-                hub_name = hub_name,
-                packages = hosted_names,
-            )
-            all_hub_names.append(hub_name)
+                if name not in registry:
+                    registry[name] = struct(url = url, entries = [entry])
+                else:
+                    existing = registry[name]
+                    if existing.url != url:
+                        fail(
+                            "Package \"%s\" has conflicting registry URLs:\n" % name +
+                            "  - %s (from \"%s\")\n" % (existing.url, existing.entries[0].hub_name) +
+                            "  - %s (from \"%s\")\n" % (url, hub_name),
+                        )
+                    registry[name] = struct(url = existing.url, entries = existing.entries + [entry])
+
+    # Resolve each package to a single version
+    resolved = {}  # pkg_name -> {version, sha256, url}
+    for name, pkg in registry.items():
+        if len(pkg.entries) == 1:
+            e = pkg.entries[0]
+            resolved[name] = struct(version = e.version, sha256 = e.sha256, url = pkg.url)
+            continue
+
+        # Find the highest version
+        best = pkg.entries[0]
+        for e in pkg.entries[1:]:
+            if semver_gt(e.version, best.version):
+                best = e
+
+        # Check that all lower-version entries allow upgrading
+        for e in pkg.entries:
+            if e.version != best.version and e.on_version_conflict == "error":
+                fail(
+                    "Package \"%s\" has conflicting versions across lock files:\n" % name +
+                    "".join([
+                        "  - %s (from \"%s\", %s)\n" % (entry.version, entry.hub_name, entry.lock_label)
+                        for entry in pkg.entries
+                    ]) +
+                    "\nTo resolve, either:\n" +
+                    "  1. Set on_version_conflict = \"upgrade\" on the from_lock() call with the lower version\n" +
+                    "  2. Add an explicit declaration:\n" +
+                    "       pub.package(name = \"%s\", version = \"%s\", sha256 = \"%s\", deps = [...])\n" % (name, best.version, best.sha256) +
+                    "       # You may need to manually add deps for this package.\n" +
+                    "\nrules_dart does not support multiple versions of a package, even across lock files.",
+                )
+
+        resolved[name] = struct(version = best.version, sha256 = best.sha256, url = pkg.url)
+
+    # Create shared spoke repos
+    all_package_names = sorted(resolved.keys())
+    for name, pkg in resolved.items():
+        pub_lock_package(
+            name = _SPOKE_PREFIX + "__" + name,
+            package_name = name,
+            version = pkg.version,
+            sha256 = pkg.sha256,
+            base_url = pkg.url,
+            hub_name = _SPOKE_PREFIX,
+            lock_packages = all_package_names,
+        )
+
+    # Create per-from_lock hub repos
+    all_hub_names = []
+    for hub_name, packages in hub_packages.items():
+        pub_lock_hub(
+            name = hub_name,
+            hub_name = hub_name,
+            spoke_prefix = _SPOKE_PREFIX,
+            packages = sorted(packages),
+        )
+        all_hub_names.append(hub_name)
 
     return ctx.extension_metadata(
-        root_module_direct_deps = list(explicit.keys()) + all_hub_names,
+        root_module_direct_deps = list(explicit.keys()) + root_hub_names,
         root_module_direct_dev_deps = [],
     )
 

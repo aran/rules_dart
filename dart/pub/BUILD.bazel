@@ -28,6 +28,7 @@ bzl_library(
         ":pub_lock_package",
         ":yaml_parser",
         "//dart/pub/private:pub_repository",
+        "//dart/pub/private:version",
     ],
 )
 
