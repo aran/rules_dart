@@ -41,9 +41,25 @@ jobs:
           "e2e/web_app",
           "e2e/gazelle",
           "e2e/cross_compile",
+          "e2e/pub_lock_cross_module",
           "e2e/pub_lock_dedup",
           "e2e/pub_lock_upgrade"
         ]
+  # Workspaces that are expected to fail at module resolution.
+  # Validates that rules_dart produces the correct error messages.
+  expected-failure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: pub_lock_conflict — expect version conflict error
+        working-directory: e2e/pub_lock_conflict
+        run: |
+          if bazel build //:app 2>/dev/null; then
+            echo "ERROR: build should have failed with a version conflict"
+            exit 1
+          fi
+          bazel build //:app 2>&1 | grep -q "conflicting versions across lock files"
+          echo "OK: expected conflict error detected"
   pre-commit:
     runs-on: ubuntu-latest
     steps:
@@ -52,7 +68,7 @@ jobs:
   # For branch protection settings, this job provides a "stable" name that can be used to gate PR merges
   # on "all matrix jobs were successful".
   conclusion:
-    needs: [test, pre-commit]
+    needs: [test, expected-failure, pre-commit]
     runs-on: ubuntu-latest
     if: always()
     steps:
