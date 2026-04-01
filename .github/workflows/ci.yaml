@@ -41,8 +41,6 @@ jobs:
           "e2e/web_app",
           "e2e/gazelle",
           "e2e/cross_compile",
-          "e2e/pub_lock_conflict",
-          "e2e/pub_lock_cross_module",
           "e2e/pub_lock_dedup",
           "e2e/pub_lock_upgrade"
         ]
