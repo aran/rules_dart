@@ -17,7 +17,7 @@ rules_dart/
   MODULE.bazel                     # module: rules_dart
   dart/
     BUILD.bazel                    # toolchain_type, resolved_toolchain
-    defs.bzl                       # Public API (7 rules)
+    defs.bzl                       # Public API (9 rules)
     providers.bzl                  # DartInfo, DartPackageInfo, DartPackageConfigInfo, DartCompileInfo
     toolchain.bzl                  # DartSdkInfo provider, dart_toolchain rule
     extensions.bzl                 # dart.toolchain(dart_version = "3.11.4")
@@ -34,6 +34,8 @@ rules_dart/
       dart_analyze.bzl             # dart_analyze_test: static analysis as build-time action
       dart_format_test.bzl         # dart_format_test: format checking
       dart_web_application.bzl     # dart_js_binary, dart_wasm_binary: JS/WASM compilation
+      dart_codegen.bzl             # dart_codegen: per-file code generation with worker support
+      dart_aggregate_codegen.bzl   # dart_aggregate_codegen: package-level aggregate code generation
       package_config.bzl           # Standalone package_config.json generation rule
       common.bzl                   # Shared utilities
     tests/                         # Starlark unit tests (versions, package_config, yaml_parser)
@@ -49,8 +51,9 @@ rules_dart/
     dart/                          # Gazelle language plugin (Go)
   dev/                             # Gazelle tests + testdata
   e2e/                             # Integration tests (smoke, hello_world, library_deps, dart_test,
-                                   #   dart_test_pkg, analysis, web_app, pub_deps, pub_lock, gazelle,
-                                   #   cross_compile)
+                                   #   dart_test_pkg, analysis, web_app, pub_deps, pub_lock,
+                                   #   pub_lock_conflict, pub_lock_cross_module, pub_lock_dedup,
+                                   #   pub_lock_upgrade, gazelle, cross_compile)
 ```
 
 ---
@@ -85,7 +88,8 @@ Unlike Go/Rust, Dart does not produce intermediate object files for libraries. T
 2. **Platforms**: macos-arm64, macos-x64, linux-x64, linux-arm64, windows-x64.
 3. **Compilation modes**: `dart compile exe` (default), `aot-snapshot`, `kernel`, `jit-snapshot`, plus `dart_js_binary` (JS) and `dart_wasm_binary` (WASM) for web.
 4. **pub.from_lock**: Only `hosted` packages are resolved. `git`/`path` sources produce a warning and are skipped. `sdk` sources are silently skipped (provided by the toolchain).
-5. **Gazelle plugin**: `rules_go` and `gazelle` are non-dev dependencies so `//gazelle/dart` is loadable from downstream modules. See the comment in `MODULE.bazel` for the full rationale. The Go SDK is only fetched if a target in `//gazelle/...` is actually built.
+5. **Gazelle plugin**: `rules_go` and `gazelle` are non-dev dependencies so `//gazelle/dart` is loadable from downstream modules. See the comment in `MODULE.bazel` for the full rationale. The Go SDK is only fetched if a target in `//gazelle/...` is actually built. Supports `gazelle:resolve` directive for explicit dependency overrides.
+6. **Code generation**: `dart_codegen` (per-file) and `dart_aggregate_codegen` (package-level) provide Bazel-native alternatives to `build_runner`. `dart_codegen` supports persistent Bazel workers to amortize Dart VM startup.
 
 ---
 

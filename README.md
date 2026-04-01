@@ -161,12 +161,41 @@ Add directives as comments in a `BUILD.bazel` file to control generation:
 - **`# gazelle:dart_package_name my_app`** — explicitly sets the
   `package_name` attribute on the generated `dart_library` rule.
 
+- **`# gazelle:resolve dart package:foo/foo.dart //third_party:foo`** —
+  overrides automatic dependency resolution for a specific import, mapping
+  it to an explicit Bazel target.
+
 #### pubspec.yaml auto-detection
 
 If a `pubspec.yaml` file is present in the same directory as a `lib/`
 folder, Gazelle reads the `name` field and uses it as both the target name
 and `package_name` for the generated `dart_library`. This means most
 projects need no directives at all.
+
+### Code generation
+
+`dart_codegen` runs a generator on each source file individually.
+`dart_aggregate_codegen` runs a generator over all sources at once (for
+generators like auto_route or injectable that need a whole-package view).
+
+```starlark
+load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_aggregate_codegen")
+
+dart_codegen(
+    name = "models_generated",
+    srcs = ["user.dart", "order.dart"],
+    generator = "//tools:my_generator.dart",
+    output_suffix = ".g.dart",
+)
+
+dart_aggregate_codegen(
+    name = "routes",
+    srcs = glob(["lib/**/*.dart"]),
+    deps = [":my_lib"],
+    generator = "//tools:auto_route_generator",
+    output = "lib/router.gr.dart",
+)
+```
 
 ### Static analysis and formatting
 
@@ -221,4 +250,8 @@ The [`e2e/`](e2e/) directory contains complete working examples:
 | [`pub_lock`](e2e/pub_lock/)           | Multiple packages from `pubspec.lock` via `pub.from_lock()`                          |
 | [`gazelle`](e2e/gazelle/)             | Automatic BUILD file generation with Gazelle                                         |
 | [`cross_compile`](e2e/cross_compile/) | Cross-compilation to other platforms via `platform_data` transition                  |
-| [`dart_test_pkg`](e2e/dart_test_pkg/) | `dart_test` with pub dependencies via `pub.from_lock()`                              |
+| [`dart_test_pkg`](e2e/dart_test_pkg/)               | `dart_test` with pub dependencies via `pub.from_lock()`                    |
+| [`pub_lock_dedup`](e2e/pub_lock_dedup/)             | Cross-lock-file package deduplication                                      |
+| [`pub_lock_upgrade`](e2e/pub_lock_upgrade/)         | Version conflict resolution with `on_version_conflict = "upgrade"`         |
+| [`pub_lock_conflict`](e2e/pub_lock_conflict/)       | Version conflict detection across lock files                               |
+| [`pub_lock_cross_module`](e2e/pub_lock_cross_module/) | `pub.from_lock()` across Bazel module boundaries                         |
