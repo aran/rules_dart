@@ -124,6 +124,19 @@ String _findRepoRoot() {
   return Directory.current.path;
 }
 
+/// Workspaces that resolve only in a non-standalone context and cannot be
+/// refreshed on their own.
+const _skipWorkspaces = {
+  // Intentionally broken: two lockfiles declare conflicting versions of the
+  // same package. The `expected-failure` CI job asserts the resulting error
+  // message; `bazel mod tidy` hits the same error here.
+  'e2e/pub_lock_conflict',
+  // Nested submodule consumed only from the parent `pub_lock_cross_module`
+  // workspace. Its MODULE.bazel declares `bazel_dep(rules_dart, 0.0.0)` with
+  // no local_path_override, so standalone resolution can't find rules_dart.
+  'e2e/pub_lock_cross_module/module_b',
+};
+
 /// Find all directories containing MODULE.bazel, excluding references/.
 List<String> _findWorkspaces(String root) {
   final workspaces = <String>[];
@@ -132,6 +145,9 @@ List<String> _findWorkspaces(String root) {
     if (dir.path.contains('/references/')) return;
     if (dir.path.contains('/.git')) return;
     if (dir.path.contains('/bazel-')) return;
+
+    final rel = _relativePath(root, dir.path);
+    if (_skipWorkspaces.contains(rel)) return;
 
     if (File('${dir.path}/MODULE.bazel').existsSync()) {
       workspaces.add(dir.path);
