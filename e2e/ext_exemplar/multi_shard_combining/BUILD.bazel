@@ -1,0 +1,60 @@
+# Two SharedPartBuilders fan into the combining shim for one `.g.dart`.
+
+load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library", "dart_test")
+
+_ANN_DEPS = [
+    "@pub_deps//:copy_with_extension",
+    "@pub_deps//:json_annotation",
+]
+
+dart_codegen(
+    name = "_user_json_part",
+    package_name = "multi_shard_combining",
+    src = "lib/user.dart",
+    generator_bin = "@rules_dart//dart/ext/json_serializable:shim",
+    language_version = "3.11",
+    output_suffixes = [".json_serializable.g.part"],
+    deps = _ANN_DEPS,
+)
+
+dart_codegen(
+    name = "_user_copy_with_part",
+    package_name = "multi_shard_combining",
+    src = "lib/user.dart",
+    generator_bin = "@rules_dart//dart/ext/copy_with_extension_gen:shim",
+    language_version = "3.11",
+    output_suffixes = [".copy_with_extension_gen.g.part"],
+    deps = _ANN_DEPS,
+)
+
+dart_codegen(
+    name = "_user_combined",
+    package_name = "multi_shard_combining",
+    src = "lib/user.dart",
+    generator_bin = "@rules_dart//dart/ext/_shared/combining_shim:bin",
+    language_version = "3.11",
+    output_suffixes = [".g.dart"],
+    parts = [
+        ":_user_copy_with_part",
+        ":_user_json_part",
+    ],
+)
+
+dart_library(
+    name = "multi_shard_combining",
+    srcs = [
+        "lib/user.dart",
+        ":_user_combined",
+    ],
+    visibility = ["//visibility:public"],
+    deps = _ANN_DEPS,
+)
+
+dart_test(
+    name = "user_test",
+    main = "test/user_test.dart",
+    deps = [
+        ":multi_shard_combining",
+        "@pub_deps//:test",
+    ],
+)

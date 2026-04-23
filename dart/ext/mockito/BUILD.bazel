@@ -1,0 +1,15 @@
+load("//dart:defs.bzl", "dart_binary")
+
+# Shim binary for the mockito Builder. Plain Builder; produces .mocks.dart
+# directly. Note the entrypoint imports from `package:mockito/src/builder.dart`,
+# matching the path mockito's own build.yaml uses.
+dart_binary(
+    name = "shim",
+    srcs = ["shim.dart"],
+    main = "shim.dart",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//dart/ext:builder_shim",
+        "@ext_pub_deps//:mockito",
+    ],
+)

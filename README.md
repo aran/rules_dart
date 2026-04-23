@@ -118,7 +118,7 @@ plugin that generates `BUILD.bazel` files from your Dart source tree.
 Add `gazelle` to your `MODULE.bazel`:
 
 ```starlark
-bazel_dep(name = "gazelle", version = "0.47.0")
+bazel_dep(name = "gazelle", version = "0.50.0")
 ```
 
 Then create a root `BUILD.bazel` with the Gazelle targets:
@@ -196,6 +196,14 @@ dart_aggregate_codegen(
     output = "lib/router.gr.dart",
 )
 ```
+
+For first-party builders (`json_serializable`, `freezed`, `built_value`,
+`mockito`, `go_router`, `copy_with_extension_gen`, `injectable`, `stacked`,
+`drift`), each ships a convenience macro (`json_serializable_library`,
+`freezed_library`, …) under `dart/ext/<builder>/defs.bzl`. Gazelle discovers
+the matching annotations in sources and emits the macro automatically. See
+[`docs/ext.md`](./docs/ext.md) for the shim contract, worker behaviour, and
+dual-build migration guide when coexisting with `build_runner`.
 
 ### Static analysis and formatting
 

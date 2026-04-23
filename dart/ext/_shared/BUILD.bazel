@@ -1,0 +1,3 @@
+# Shared helpers for per-builder convenience macros. See defs.bzl.
+
+exports_files(["defs.bzl"])

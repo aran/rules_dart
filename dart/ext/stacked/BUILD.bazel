@@ -1,0 +1,69 @@
+load("//dart:defs.bzl", "dart_binary")
+
+# Six independent shim binaries, one per stacked_generator LibraryBuilder.
+
+dart_binary(
+    name = "shim_router",
+    srcs = ["shim_router.dart"],
+    main = "shim_router.dart",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//dart/ext:builder_shim",
+        "@ext_pub_deps//:stacked_generator",
+    ],
+)
+
+dart_binary(
+    name = "shim_locator",
+    srcs = ["shim_locator.dart"],
+    main = "shim_locator.dart",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//dart/ext:builder_shim",
+        "@ext_pub_deps//:stacked_generator",
+    ],
+)
+
+dart_binary(
+    name = "shim_form",
+    srcs = ["shim_form.dart"],
+    main = "shim_form.dart",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//dart/ext:builder_shim",
+        "@ext_pub_deps//:stacked_generator",
+    ],
+)
+
+dart_binary(
+    name = "shim_logger",
+    srcs = ["shim_logger.dart"],
+    main = "shim_logger.dart",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//dart/ext:builder_shim",
+        "@ext_pub_deps//:stacked_generator",
+    ],
+)
+
+dart_binary(
+    name = "shim_dialog",
+    srcs = ["shim_dialog.dart"],
+    main = "shim_dialog.dart",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//dart/ext:builder_shim",
+        "@ext_pub_deps//:stacked_generator",
+    ],
+)
+
+dart_binary(
+    name = "shim_bottomsheet",
+    srcs = ["shim_bottomsheet.dart"],
+    main = "shim_bottomsheet.dart",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//dart/ext:builder_shim",
+        "@ext_pub_deps//:stacked_generator",
+    ],
+)

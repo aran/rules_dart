@@ -1,0 +1,13 @@
+.g.dart
+.freezed.dart
+.mocks.dart
+.config.dart
+.module.dart
+.drift.dart
+.gr.dart
+.locator.dart
+.router.dart
+.form.dart
+.logger.dart
+.dialogs.dart
+.bottomsheets.dart

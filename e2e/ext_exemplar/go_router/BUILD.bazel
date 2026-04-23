@@ -1,0 +1,48 @@
+load(
+    "@rules_dart//dart:defs.bzl",
+    "dart_codegen",
+    "dart_test",
+)
+
+# End-to-end test for go_router_builder. go_router's published package
+# depends on Flutter (package:flutter/widgets.dart), so we can't bring it
+# in as a runtime dep inside rules_dart's pure-Dart test environment.
+# Instead we inject a local pure-Dart stub that mirrors go_router's
+# annotation surface — enough for the analyzer to resolve
+# @TypedGoRoute, @TypedShellRoute, etc., which is all go_router_builder
+# needs at annotation-match time.
+#
+# The generated .g.dart output imports package:flutter/material.dart and
+# therefore cannot be compiled in pure-Dart. It is NOT wrapped in a
+# dart_library; the test reads it as a string via runfiles and asserts
+# the builder emitted the expected structure.
+
+dart_codegen(
+    name = "_app_router_part",
+    package_name = "go_router_routes",
+    src = "lib/app_router.dart",
+    generator_bin = "@rules_dart//dart/ext/go_router:shim",
+    language_version = "3.11",
+    output_suffixes = [".go_router.g.part"],
+    deps = ["//go_router/_go_router_stub:go_router_stub"],
+)
+
+dart_codegen(
+    name = "_app_router_combined",
+    package_name = "go_router_routes",
+    src = "lib/app_router.dart",
+    generator_bin = "@rules_dart//dart/ext/_shared/combining_shim:bin",
+    language_version = "3.11",
+    output_suffixes = [".g.dart"],
+    parts = [":_app_router_part"],
+)
+
+dart_test(
+    name = "app_router_test",
+    data = [":_app_router_combined"],
+    main = "test/app_router_test.dart",
+    deps = [
+        "@pub_deps//:test",
+        "@rules_dart//dart/runfiles",
+    ],
+)

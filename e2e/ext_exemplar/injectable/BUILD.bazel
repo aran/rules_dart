@@ -1,0 +1,131 @@
+load(
+    "@rules_dart//dart:defs.bzl",
+    "dart_aggregate_codegen",
+    "dart_codegen",
+    "dart_library",
+    "dart_test",
+)
+load("@rules_dart//dart/ext/injectable:defs.bzl", "injectable_library")
+
+# Comprehensive injectable exemplar. Two pipelines side-by-side:
+#
+#   - Macro form (:injectable_fixture_macro) covers the full annotation
+#     surface: @injectable (Greeter), @singleton (DatabaseService),
+#     @lazySingleton (ApiClient), @module + @Named (AppModule),
+#     @Environment (Dev/ProdConfig), plus @InjectableInit driving the
+#     aggregate config stage.
+#   - Primitive form (:injectable_fixture_primitive) covers the
+#     hand-wired dart_codegen + dart_aggregate_codegen pair over a
+#     minimal PrimitiveGreeter. Separate sources so the two pipelines
+#     don't collide on output paths (each shim_metadata emits to
+#     `<src>.injectable.json`, so sharing sources would produce
+#     conflicting actions).
+
+_MACRO_SRCS = [
+    "lib/_init_counter.dart",
+    "lib/api_client.dart",
+    "lib/app_module.dart",
+    "lib/config.dart",
+    "lib/database_service.dart",
+    "lib/greeter.dart",
+    "lib/injection.dart",
+]
+
+injectable_library(
+    name = "injectable_fixture_macro",
+    package_name = "injectable_fixture",
+    srcs = _MACRO_SRCS,
+    init_src = "lib/injection.dart",
+    language_version = "3.11",
+    visibility = ["//visibility:private"],
+)
+
+# --- Primitive-form pipeline (distinct sources to avoid output collisions). ---
+
+dart_codegen(
+    name = "_primitive_greeter_metadata",
+    package_name = "injectable_fixture",
+    src = "lib/primitive_greeter.dart",
+    generator_bin = "@rules_dart//dart/ext/injectable:shim_metadata",
+    language_version = "3.11",
+    output_suffixes = [".injectable.json"],
+    deps = ["@pub_deps//:injectable"],
+)
+
+dart_codegen(
+    name = "_primitive_injection_metadata",
+    package_name = "injectable_fixture",
+    src = "lib/primitive_injection.dart",
+    generator_bin = "@rules_dart//dart/ext/injectable:shim_metadata",
+    language_version = "3.11",
+    output_suffixes = [".injectable.json"],
+    deps = ["@pub_deps//:injectable"],
+)
+
+dart_aggregate_codegen(
+    name = "_primitive_injection_config",
+    package_name = "injectable_fixture",
+    srcs = [
+        "lib/primitive_injection.dart",
+        ":_primitive_greeter_metadata",
+        ":_primitive_injection_metadata",
+    ],
+    generator_bin = "@rules_dart//dart/ext/injectable:shim_config",
+    language_version = "3.11",
+    outputs = [
+        "lib/primitive_injection.config.dart",
+        "lib/primitive_injection.module.dart",
+    ],
+    deps = ["@pub_deps//:injectable"],
+)
+
+dart_library(
+    name = "injectable_fixture_primitive",
+    package_name = "injectable_fixture",
+    srcs = [
+        "lib/primitive_greeter.dart",
+        "lib/primitive_injection.dart",
+        ":_primitive_injection_config",
+    ],
+    language_version = "3.11",
+    visibility = ["//visibility:private"],
+    deps = [
+        "@pub_deps//:get_it",
+        "@pub_deps//:injectable",
+    ],
+)
+
+# Aggregate library consumed by tests.
+dart_library(
+    name = "injectable_fixture",
+    package_name = "injectable_fixture",
+    srcs = [],
+    language_version = "3.11",
+    visibility = ["//visibility:public"],
+    deps = [
+        ":injectable_fixture_macro",
+        ":injectable_fixture_primitive",
+    ],
+)
+
+dart_test(
+    name = "macro_injection_test",
+    main = "test/macro_injection_test.dart",
+    deps = [
+        ":injectable_fixture",
+        "@pub_deps//:get_it",
+        "@pub_deps//:injectable",
+        "@pub_deps//:test",
+    ],
+)
+
+dart_test(
+    name = "primitive_injection_test",
+    main = "test/primitive_injection_test.dart",
+    deps = [
+        ":injectable_fixture",
+        "@pub_deps//:get_it",
+        "@pub_deps//:injectable",
+        "@pub_deps//:test",
+    ],
+)

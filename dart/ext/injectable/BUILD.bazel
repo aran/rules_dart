@@ -1,0 +1,30 @@
+load("//dart:defs.bzl", "dart_binary")
+
+# Two-stage pipeline (matches injectable_generator's build.yaml):
+#   shim_metadata → .injectable.json (per-class metadata, LibraryBuilder)
+#   shim_config   → .config.dart     (assembled DI graph, LibraryBuilder
+#                                     reading every metadata shard via
+#                                     findAssets glob)
+# The injectable_library macro composes both stages.
+
+dart_binary(
+    name = "shim_metadata",
+    srcs = ["shim_metadata.dart"],
+    main = "shim_metadata.dart",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//dart/ext:builder_shim",
+        "@ext_pub_deps//:injectable_generator",
+    ],
+)
+
+dart_binary(
+    name = "shim_config",
+    srcs = ["shim_config.dart"],
+    main = "shim_config.dart",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//dart/ext:builder_shim",
+        "@ext_pub_deps//:injectable_generator",
+    ],
+)

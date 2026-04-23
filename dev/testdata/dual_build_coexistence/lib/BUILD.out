@@ -1,0 +1,11 @@
+load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_library")
+
+# gazelle:dart_package_name dual_build_coexistence
+
+json_serializable_library(
+    name = "user",
+    package_name = "dual_build_coexistence",
+    srcs = ["user.dart"],
+    visibility = ["//visibility:public"],
+    deps = ["@json_annotation"],
+)

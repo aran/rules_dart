@@ -49,3 +49,13 @@ multitool = use_extension(
 )
 multitool.hub(lockfile = "//:multitool.lock.json")
 use_repo(multitool, "multitool")
+
+# Pub deps for the //dart/ext/* shim binaries (build_runner replacement).
+# Pinned by //dart/ext:pubspec.lock; resolved into @ext_pub_deps so per-builder
+# shims can depend on packages like json_serializable, freezed, mockito, …
+pub = use_extension("//dart/pub:extensions.bzl", "pub")
+pub.from_lock(
+    name = "ext_pub_deps",
+    lock = "//dart/ext:pubspec.lock",
+)
+use_repo(pub, "ext_pub_deps")

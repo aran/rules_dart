@@ -1,0 +1,133 @@
+load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library", "dart_test")
+load(
+    "@rules_dart//dart/ext/json_serializable:defs.bzl",
+    "json_serializable_library",
+)
+
+# Comprehensive e2e for json_serializable. Demonstrates:
+#
+#   - Hand-wired primitives form (:primitive_user via dart_codegen +
+#     combining), showing the plumbing the macro hides.
+#   - Cross-file Resolver walking (:cross_user depends on :base, which
+#     exposes the sibling type through DartInfo for auto-staging).
+#   - Full annotation surface via `json_serializable_library` macro
+#     (:advanced) — FieldRename.snake, @JsonKey(name:/toJson:/fromJson:),
+#     @JsonConverter, @JsonEnum, genericArgumentFactories.
+
+# --- Primitives-form demonstration (replaces the old single_shared_part). ---
+dart_codegen(
+    name = "_primitive_user_json_part",
+    package_name = "json_serializable_fixture",
+    src = "lib/primitive_user.dart",
+    generator_bin = "@rules_dart//dart/ext/json_serializable:shim",
+    language_version = "3.11",
+    output_suffixes = [".json_serializable.g.part"],
+    deps = ["@pub_deps//:json_annotation"],
+)
+
+dart_codegen(
+    name = "_primitive_user_combined",
+    package_name = "json_serializable_fixture",
+    src = "lib/primitive_user.dart",
+    generator_bin = "@rules_dart//dart/ext/_shared/combining_shim:bin",
+    language_version = "3.11",
+    output_suffixes = [".g.dart"],
+    parts = [":_primitive_user_json_part"],
+)
+
+# --- Cross-file Resolver (:base is the sibling exposed through deps). ---
+dart_library(
+    name = "base",
+    package_name = "json_serializable_fixture",
+    srcs = ["lib/base.dart"],
+    language_version = "3.11",
+)
+
+json_serializable_library(
+    name = "cross_user_lib",
+    package_name = "json_serializable_fixture",
+    srcs = ["lib/cross_user.dart"],
+    language_version = "3.11",
+    deps = [":base"],
+)
+
+# --- Advanced annotations via the macro. ---
+# user.dart references role.dart and custom_id.dart; the macro generates
+# one per-file codegen each, so each gets siblings visible via a shared
+# source-only dart_library.
+dart_library(
+    name = "_advanced_sources",
+    package_name = "json_serializable_fixture",
+    srcs = [
+        "lib/custom_id.dart",
+        "lib/role.dart",
+    ],
+    language_version = "3.11",
+)
+
+json_serializable_library(
+    name = "advanced",
+    package_name = "json_serializable_fixture",
+    srcs = [
+        "lib/custom_id.dart",
+        "lib/role.dart",
+        "lib/user.dart",
+        "lib/wrapper.dart",
+    ],
+    language_version = "3.11",
+    deps = [":_advanced_sources"],
+)
+
+# Aggregate library used by tests — pulls in every flavor.
+dart_library(
+    name = "json_serializable_fixture",
+    package_name = "json_serializable_fixture",
+    srcs = [
+        "lib/primitive_user.dart",
+        ":_primitive_user_combined",
+    ],
+    language_version = "3.11",
+    visibility = ["//visibility:public"],
+    deps = [
+        ":advanced",
+        ":base",
+        ":cross_user_lib",
+        "@pub_deps//:json_annotation",
+    ],
+)
+
+dart_test(
+    name = "primitive_user_test",
+    main = "test/primitive_user_test.dart",
+    deps = [
+        ":json_serializable_fixture",
+        "@pub_deps//:test",
+    ],
+)
+
+dart_test(
+    name = "cross_file_test",
+    main = "test/cross_file_test.dart",
+    deps = [
+        ":json_serializable_fixture",
+        "@pub_deps//:test",
+    ],
+)
+
+dart_test(
+    name = "user_test",
+    main = "test/user_test.dart",
+    deps = [
+        ":json_serializable_fixture",
+        "@pub_deps//:test",
+    ],
+)
+
+dart_test(
+    name = "wrapper_test",
+    main = "test/wrapper_test.dart",
+    deps = [
+        ":json_serializable_fixture",
+        "@pub_deps//:test",
+    ],
+)

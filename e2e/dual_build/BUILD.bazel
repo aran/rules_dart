@@ -1,0 +1,24 @@
+# Non-hermetic (network + writable FS). Enable with:
+#   bazel test //:run_build_runner_test --test_tag_filters=+manual
+#
+# Fixture files are prefixed `fixture_` rather than nested in `fixture/` so
+# the fake BUILD.bazel the script writes into the tempdir doesn't create a
+# subpackage in THIS workspace.
+
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
+
+sh_test(
+    name = "run_build_runner_test",
+    srcs = ["run_build_runner_test.sh"],
+    args = ["$(rlocationpath @rules_dart//dart)"],
+    data = [
+        "fixture_lib/user.dart",
+        "fixture_pubspec.yaml",
+        "@rules_dart//dart",
+    ],
+    tags = [
+        "manual",
+        "requires-network",
+    ],
+    deps = ["@bazel_tools//tools/bash/runfiles"],
+)

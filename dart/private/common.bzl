@@ -130,6 +130,11 @@ def resolve_package_roots(packages, all_srcs):
     Matches using short_path (same coordinate system as lib_root),
     then derives the exec-root path from the matched File.path.
 
+    Two or more packages with an empty `lib_root` are ambiguous — the
+    empty-prefix match would race to claim any `lib/`-prefixed source.
+    Fail loud if detected; callers should not be building transitive
+    `DartInfo` graphs with colliding root assignments.
+
     Args:
         packages: List of DartPackageInfo providers.
         all_srcs: List of File objects from the transitive source closure.
@@ -137,13 +142,23 @@ def resolve_package_roots(packages, all_srcs):
     Returns:
         Dict mapping package_name to exec-root-relative package root path.
     """
+    root_pkgs = [pkg for pkg in packages if not pkg.lib_root]
+    if len(root_pkgs) > 1:
+        fail(
+            "Multiple packages declare an empty `lib_root`: %s. Each " +
+            "Bazel build graph can only attribute `lib/...` sources to " +
+            "one root package." %
+            ", ".join([pkg.package_name for pkg in root_pkgs]),
+        )
+
     roots = {}
     for src in all_srcs:
         for pkg in packages:
             if pkg.package_name in roots:
                 continue
             if not pkg.lib_root:
-                # Root package: sources are directly under lib/
+                # Root package: sources are directly under lib/. Safe because
+                # the earlier check guarantees at most one such package.
                 if src.short_path.startswith("lib/") or src.short_path == "lib":
                     suffix = src.short_path
                     exec_root = src.path[:len(src.path) - len(suffix)]
@@ -185,11 +200,22 @@ def generate_package_config(packages, all_srcs, config_file):
             # Root package with no sources found — fall back to depth-based
             root_uri = relative_path(config_dir, "")
         else:
-            continue
+            fail(
+                ("generate_package_config: no source files found in " +
+                 "the transitive `DartInfo` for package %r (lib_root " +
+                 "%r). The analyzer would fail to resolve `package:%s/…` " +
+                 "imports from this package_config. Verify the Dart " +
+                 "library target actually has `srcs`.") %
+                (pkg.package_name, pkg.lib_root, pkg.package_name),
+            )
+        lv = ""
+        if hasattr(pkg, "language_version") and pkg.language_version:
+            lv = ', "languageVersion": "{lv}"'.format(lv = pkg.language_version)
         entries.append(
-            '    {{"name": "{name}", "rootUri": "{root_uri}", "packageUri": "lib/"}}'.format(
+            '    {{"name": "{name}", "rootUri": "{root_uri}", "packageUri": "lib/"{lv}}}'.format(
                 name = pkg.package_name,
                 root_uri = root_uri,
+                lv = lv,
             ),
         )
     return '{{\n  "configVersion": 2,\n  "packages": [\n{packages}\n  ]\n}}\n'.format(
@@ -216,10 +242,14 @@ def generate_package_config_content(packages, prefix):
     entries = []
     for pkg in packages:
         root_uri = prefix + "/" + pkg.lib_root if pkg.lib_root else prefix
+        lv = ""
+        if hasattr(pkg, "language_version") and pkg.language_version:
+            lv = ', "languageVersion": "{lv}"'.format(lv = pkg.language_version)
         entries.append(
-            '    {{"name": "{name}", "rootUri": "{root_uri}", "packageUri": "lib/"}}'.format(
+            '    {{"name": "{name}", "rootUri": "{root_uri}", "packageUri": "lib/"{lv}}}'.format(
                 name = pkg.package_name,
                 root_uri = root_uri,
+                lv = lv,
             ),
         )
     return '{{\n  "configVersion": 2,\n  "packages": [\n{packages}\n  ]\n}}\n'.format(
@@ -239,3 +269,231 @@ def collect_transitive_srcs(deps):
     for dep in deps:
         srcs.extend(dep[DartInfo].transitive_srcs.to_list())
     return srcs
+
+def sdk_path_from_dart(dart_file):
+    """Returns the SDK installation root by stripping `/bin/dart` from a dart File path.
+
+    AOT-compiled shims pass this via `--sdk-path` so the analyzer's
+    `AnalysisContextCollection` can locate the SDK's libraries.
+
+    Args:
+      dart_file: The toolchain's `dart` executable File.
+
+    Returns:
+      The SDK root path string.
+    """
+    p = dart_file.path
+    for suffix in ("/bin/dart", "/bin/dart.exe"):
+        if p.endswith(suffix):
+            return p[:-len(suffix)]
+    return p
+
+def synth_package_config(ctx, library_deps):
+    """Synthesises a `package_config.json` from `dart_library` targets.
+
+    Args:
+      ctx: The rule context (used to declare the output file).
+      library_deps: List of `dart_library` targets to merge.
+
+    Returns:
+      `(package_config_file, transitive_srcs_depset)`, or `(None, None)`
+      when `library_deps` is empty. The caller is expected to add both to
+      the action's `inputs` (the depset flattens lazily at execution time).
+    """
+    if not library_deps:
+        return None, None
+    packages = collect_packages(library_deps)
+    transitive_srcs = depset(transitive = [
+        dep[DartInfo].transitive_srcs
+        for dep in library_deps
+    ])
+    package_config = ctx.actions.declare_file(
+        ctx.label.name + ".package_config.json",
+    )
+
+    # generate_package_config needs a list of File (not a depset) because
+    # it performs per-file path matching. Materialising here is bounded
+    # by the dep graph size for this one target, not by the action count.
+    content = generate_package_config(
+        packages,
+        transitive_srcs.to_list(),
+        package_config,
+    )
+    ctx.actions.write(output = package_config, content = content)
+    return package_config, transitive_srcs
+
+def asset_path_for(file, lib_root):
+    """Computes the in-package asset path for a File.
+
+    Strips `lib_root` (plus the trailing `/`) from the short_path. When
+    `lib_root` is empty the short_path is returned unchanged — that's the
+    root-package case and the file's short_path IS its asset path.
+
+    Fails loudly when `lib_root` is set but the file's short_path does
+    not start with it. Previously this silently returned the unmatched
+    short_path, which produced `--input-asset` / `--dep` values that
+    couldn't be resolved to any `package:` URI — the builder would then
+    produce no output or emit an unhelpful `AssetNotFoundException`.
+
+    Args:
+      file: The File to compute the asset path for.
+      lib_root: The Dart package's short_path prefix (empty for the root
+        workspace; e.g. `external/pub_deps++pub+foo` for external pub
+        packages).
+
+    Returns:
+      The asset path string (relative to the Dart package root).
+    """
+    rel = file.short_path
+    if not lib_root:
+        return rel
+    if rel.startswith(lib_root + "/"):
+        return rel[len(lib_root) + 1:]
+    fail(
+        ("asset_path_for: file %r (short_path %r) is not under " +
+         "lib_root %r. Every codegen input / asset_dep must live inside " +
+         "the Dart package's lib_root — check that the owning " +
+         "`dart_library` target for this file has the correct " +
+         "`package_name`, or pass the file through `deps` instead.") %
+        (file.path, rel, lib_root),
+    )
+
+def dart_lib_root_for_package(deps, package_name):
+    """Looks up the Dart package's lib_root from the transitive DartInfo set.
+
+    Scans every dep in `deps`; the first `DartPackageInfo` whose
+    `package_name` matches wins.
+
+    The rule layer uses this to compute asset paths that survive the
+    codegen rule living at a deeper Bazel-package path than the Dart
+    package root (e.g. `//myapp/lib:codegen` where the Dart package is
+    `//myapp`).
+
+    Args:
+      deps: List of targets carrying `DartInfo`.
+      package_name: The Dart package name to look up.
+
+    Returns:
+      The lib_root string (possibly `""` for the root workspace package),
+      or `None` when no matching package is found.
+    """
+    for dep in deps:
+        for pkg in dep[DartInfo].transitive_packages.to_list():
+            if pkg.package_name == package_name:
+                return pkg.lib_root
+    return None
+
+def same_package_library_dep_files(deps, package_name, exclude_paths = None):
+    """Returns same-package sibling files from `deps` plus the package's lib_root.
+
+    Files at `<lib_root>/lib/...` in any transitive package whose name
+    matches `package_name` are returned. Filenames whose exec path is in
+    `exclude_paths` (e.g. the action's own `src` file) are skipped so the
+    input isn't staged twice.
+
+    Args:
+      deps: List of targets carrying `DartInfo`.
+      package_name: The Dart package name to filter on.
+      exclude_paths: Optional list of exec path strings to skip.
+
+    Returns:
+      `(files, lib_root)` — the matching sibling Files and the package's
+      lib_root. Returns `([], None)` when no matching package is found.
+    """
+    if exclude_paths == None:
+        exclude_paths = []
+    lib_root = dart_lib_root_for_package(deps, package_name)
+    if lib_root == None:
+        return [], None
+    prefix = (lib_root + "/lib/") if lib_root else "lib/"
+    excluded = {p: True for p in exclude_paths}
+    seen = {}
+    out = []
+    for dep in deps:
+        for src in dep[DartInfo].transitive_srcs.to_list():
+            if src.path in excluded:
+                continue
+            if src.short_path in seen:
+                continue
+            if not src.short_path.startswith(prefix):
+                continue
+            seen[src.short_path] = True
+            out.append(src)
+    return out, lib_root
+
+def add_shim_contract_args(
+        args,
+        ctx,
+        synth_pc,
+        auto_stage_srcs = [],
+        asset_deps = [],
+        lib_root = ""):
+    """Appends the typed shim-contract flags to `args`.
+
+    Covers `--package`, `--root-language-version`, `--dep` (repeatable —
+    `<exec_path>|<asset_path>` form — one per entry in `auto_stage_srcs`
+    and `asset_deps`), `--part`, `--config`, `--package-config`,
+    `--sdk-path`. Callers add `--input`, `--output`, and `--input-asset`
+    themselves (those are specific to the calling impl's per-src /
+    per-output loop).
+
+    Args:
+      args: The `ctx.actions.args()` object to append flags to.
+      ctx: The rule context (reads `package_name`, `config`, etc.).
+      synth_pc: The synthesised `package_config.json` File from
+        `synth_package_config`, or `None` for targets without
+        `library_deps`.
+      auto_stage_srcs: List of Files to emit as `--dep` with
+        automatically-computed asset paths. The rule layer calls
+        `same_package_library_dep_files` to compute this — users do not
+        hand-list sibling files.
+      asset_deps: List of Files from the rule's `asset_deps` attr (non-Dart
+        files the Builder's Resolver must see via `findAssets` /
+        `readAsString`). De-duplicated against `auto_stage_srcs` by exec
+        path.
+      lib_root: The Dart package's lib_root (used to compute asset paths
+        for `auto_stage_srcs` / `asset_deps`).
+
+    Returns:
+      A list of extra action-input Files that callers must include in
+      their `ctx.actions.run(inputs=...)`.
+    """
+    if not ctx.attr.package_name:
+        fail("%s: `package_name` is required." % ctx.label)
+
+    extra_inputs = []
+    args.add("--package", ctx.attr.package_name)
+
+    # When `language_version` is empty the rule defers to a built-in default
+    # so users / Gazelle don't have to specify the SDK's `<major>.<minor>` on
+    # every macro invocation. Override only when pinning to a specific value.
+    args.add("--root-language-version", ctx.attr.language_version or "3.0")
+    seen = {}
+    for src in auto_stage_srcs:
+        if src.path in seen:
+            continue
+        seen[src.path] = True
+        asset = asset_path_for(src, lib_root)
+        args.add("--dep", "{}|{}".format(src.path, asset))
+        extra_inputs.append(src)
+    for src in asset_deps:
+        if src.path in seen:
+            continue
+        seen[src.path] = True
+        asset = asset_path_for(src, lib_root)
+        args.add("--dep", "{}|{}".format(src.path, asset))
+        extra_inputs.append(src)
+    for part in ctx.files.parts:
+        args.add("--part", part.path)
+        extra_inputs.append(part)
+    if ctx.attr.config:
+        args.add("--config", ctx.attr.config)
+    if ctx.file.package_config:
+        args.add("--package-config", ctx.file.package_config.path)
+        extra_inputs.append(ctx.file.package_config)
+    elif synth_pc != None:
+        args.add("--package-config", synth_pc.path)
+        extra_inputs.append(synth_pc)
+    toolchain = ctx.toolchains["//dart:toolchain_type"]
+    args.add("--sdk-path", sdk_path_from_dart(toolchain.dart_sdk_info.dart))
+    return extra_inputs

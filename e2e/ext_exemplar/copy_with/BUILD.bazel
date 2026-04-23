@@ -1,0 +1,19 @@
+load("@rules_dart//dart:defs.bzl", "dart_test")
+load("@rules_dart//dart/ext/copy_with_extension_gen:defs.bzl", "copy_with_library")
+
+copy_with_library(
+    name = "copy_with",
+    package_name = "copy_with",
+    srcs = ["lib/user.dart"],
+    language_version = "3.11",
+    visibility = ["//visibility:public"],
+)
+
+dart_test(
+    name = "user_test",
+    main = "test/user_test.dart",
+    deps = [
+        ":copy_with",
+        "@pub_deps//:test",
+    ],
+)

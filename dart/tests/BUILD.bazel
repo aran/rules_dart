@@ -1,5 +1,8 @@
 load(":codegen_test.bzl", "codegen_test_suite")
 load(":common_test.bzl", "common_test_suite")
+load(":language_version_test.bzl", "language_version_test_suite")
+load(":library_test.bzl", "library_test_suite")
+load(":semver_test.bzl", "semver_test_suite")
 load(":versions_test.bzl", "versions_test_suite")
 load(":yaml_parser_test.bzl", "yaml_parser_test_suite")
 
@@ -10,3 +13,9 @@ common_test_suite(name = "common_test")
 yaml_parser_test_suite(name = "yaml_parser_test")
 
 codegen_test_suite(name = "codegen_test")
+
+language_version_test_suite(name = "language_version_test")
+
+library_test_suite(name = "library_test")
+
+semver_test_suite(name = "semver_test")

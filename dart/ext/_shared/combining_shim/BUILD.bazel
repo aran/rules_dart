@@ -1,0 +1,28 @@
+load("//dart:defs.bzl", "dart_binary", "dart_test")
+
+# Combining shim — concatenates SharedPartBuilder .g.part shards into one
+# .g.dart per source. Used after one or more SharedPartBuilder shims for
+# the same source. Pure stdlib + args + path; no analyzer.
+dart_binary(
+    name = "bin",
+    srcs = ["bin/main.dart"],
+    main = "bin/main.dart",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@ext_pub_deps//:args",
+        "@ext_pub_deps//:bazel_worker",
+        "@ext_pub_deps//:path",
+    ],
+)
+
+dart_test(
+    name = "combining_test",
+    srcs = ["bin/main.dart"],
+    main = "test/combining_test.dart",
+    deps = [
+        "@ext_pub_deps//:args",
+        "@ext_pub_deps//:bazel_worker",
+        "@ext_pub_deps//:path",
+        "@ext_pub_deps//:test",
+    ],
+)

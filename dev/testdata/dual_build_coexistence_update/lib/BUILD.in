@@ -1,0 +1,16 @@
+# gazelle:dart_package_name dual_build_coexistence_update
+
+load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_library")
+
+json_serializable_library(
+    name = "user",
+    srcs = [
+        "user.dart",
+        "user.freezed.dart",
+        "user.g.dart",
+    ],
+    package_name = "dual_build_coexistence_update",
+    language_version = "3.11",
+    visibility = ["//visibility:public"],
+    deps = ["@json_annotation"],
+)

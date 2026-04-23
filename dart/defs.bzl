@@ -11,6 +11,7 @@ Load this file from your BUILD files to access the following rules:
 - `dart_wasm_binary`: Compiles a Dart web application to WebAssembly.
 - `dart_codegen`: Runs a Dart code generator on source files, producing generated .dart outputs.
 - `dart_aggregate_codegen`: Runs a package-level aggregate code generator over all sources.
+- `dart_sqlcodegen`: Like `dart_codegen` but accepts non-Dart inputs (e.g. `.drift` files).
 """
 
 load("//dart/private:dart_aggregate_codegen.bzl", _dart_aggregate_codegen = "dart_aggregate_codegen")
@@ -19,6 +20,7 @@ load("//dart/private:dart_binary.bzl", _dart_binary = "dart_binary")
 load("//dart/private:dart_codegen.bzl", _dart_codegen = "dart_codegen")
 load("//dart/private:dart_format_test.bzl", _dart_format_test = "dart_format_test")
 load("//dart/private:dart_library.bzl", _dart_library = "dart_library")
+load("//dart/private:dart_sqlcodegen.bzl", _dart_sqlcodegen = "dart_sqlcodegen")
 load("//dart/private:dart_test.bzl", _dart_test = "dart_test")
 load("//dart/private:dart_web_application.bzl", _dart_js_binary = "dart_js_binary", _dart_wasm_binary = "dart_wasm_binary")
 
@@ -31,3 +33,4 @@ dart_js_binary = _dart_js_binary
 dart_wasm_binary = _dart_wasm_binary
 dart_codegen = _dart_codegen
 dart_aggregate_codegen = _dart_aggregate_codegen
+dart_sqlcodegen = _dart_sqlcodegen

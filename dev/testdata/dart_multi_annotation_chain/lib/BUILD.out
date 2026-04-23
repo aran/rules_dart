@@ -1,0 +1,47 @@
+load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library")
+
+# gazelle:dart_package_name multi_ann
+# gazelle:dart_language_version 3.11
+
+dart_codegen(
+    name = "_event_freezed_gen",
+    package_name = "multi_ann",
+    src = "event.dart",
+    generator_bin = "@rules_dart//dart/ext/freezed:shim",
+    language_version = "3.11",
+    output_suffixes = [".freezed.dart"],
+    deps = ["@pub_deps//:freezed_annotation"],
+)
+
+dart_codegen(
+    name = "_event_json_serializable_gen",
+    package_name = "multi_ann",
+    src = "event.dart",
+    generator_bin = "@rules_dart//dart/ext/json_serializable:shim",
+    language_version = "3.11",
+    output_suffixes = [".json_serializable.g.part"],
+    deps = ["@pub_deps//:json_annotation"],
+)
+
+dart_codegen(
+    name = "_event_combined",
+    package_name = "multi_ann",
+    src = "event.dart",
+    generator_bin = "@rules_dart//dart/ext/_shared/combining_shim:bin",
+    language_version = "3.11",
+    output_suffixes = [".g.dart"],
+    parts = [":_event_json_serializable_gen"],
+)
+
+dart_library(
+    name = "event",
+    package_name = "multi_ann",
+    srcs = [
+        "event.dart",
+        ":_event_combined",
+        ":_event_freezed_gen",
+    ],
+    language_version = "3.11",
+    visibility = ["//visibility:public"],
+    deps = ["@freezed_annotation"],
+)

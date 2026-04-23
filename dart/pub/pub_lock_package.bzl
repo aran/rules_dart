@@ -4,7 +4,8 @@ Each hosted package gets its own external repository (spoke), with the hub
 repo providing aliases for backward-compatible `@hub//:pkg` labels.
 """
 
-load("//dart/pub:yaml_parser.bzl", "parse_pubspec_deps")
+load("//dart/pub:yaml_parser.bzl", "parse_pubspec_deps", "parse_pubspec_sdk_constraint")
+load("//dart/pub/private:language_version.bzl", "derive_language_version")
 
 def _pub_lock_package_impl(ctx):
     url = "{base}/packages/{name}/versions/{version}.tar.gz".format(
@@ -18,13 +19,19 @@ def _pub_lock_package_impl(ctx):
         type = "tar.gz",
     )
 
-    # Read pubspec.yaml to discover deps, filter to packages in the lock file
+    # Read pubspec.yaml to discover deps + the package's SDK constraint, the
+    # latter so we can mirror pub's per-package languageVersion behaviour.
     bazel_deps = []
+    language_version = ""
     pubspec_path = ctx.path("pubspec.yaml")
     if pubspec_path.exists:
-        all_deps = parse_pubspec_deps(ctx.read(pubspec_path))
+        pubspec_content = ctx.read(pubspec_path)
+        all_deps = parse_pubspec_deps(pubspec_content)
         available = {p: True for p in ctx.attr.lock_packages}
         bazel_deps = sorted([d for d in all_deps if d in available])
+        language_version = derive_language_version(
+            parse_pubspec_sdk_constraint(pubspec_content),
+        )
 
     # Build dep labels pointing to sibling spoke repos
     dep_labels = ['        "@{hub}__{dep}//:{dep}",'.format(
@@ -45,11 +52,13 @@ dart_library(
     name = "{name}",
     srcs = glob(["lib/**/*.dart"]),
 {deps}    package_name = "{name}",
+    language_version = "{language_version}",
     visibility = ["//visibility:public"],
 )
 """.format(
         name = ctx.attr.package_name,
         deps = deps_block,
+        language_version = language_version,
     )
 
     ctx.file("BUILD.bazel", build_content)

@@ -1,0 +1,34 @@
+# Dual-build collision checker. Migration scaffolding for users adopting
+# rules_dart while build_runner is still producing committed files.
+
+load("//dart:defs.bzl", "dart_binary", "dart_library", "dart_test")
+
+dart_library(
+    name = "check_dual_build_collisions_lib",
+    package_name = "rules_dart_check_dual_build_collisions",
+    srcs = ["lib/check_dual_build_collisions.dart"],
+    language_version = "3.11",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//dart/runfiles",
+    ],
+)
+
+dart_binary(
+    name = "check_dual_build_collisions",
+    srcs = ["bin/main.dart"],
+    data = ["//gazelle/dart:baseline_generated_extensions.txt"],
+    main = "bin/main.dart",
+    visibility = ["//visibility:public"],
+    deps = [":check_dual_build_collisions_lib"],
+)
+
+dart_test(
+    name = "check_dual_build_collisions_test",
+    data = ["//gazelle/dart:baseline_generated_extensions.txt"],
+    main = "check_dual_build_collisions_test.dart",
+    deps = [
+        ":check_dual_build_collisions_lib",
+        "@ext_pub_deps//:test",
+    ],
+)

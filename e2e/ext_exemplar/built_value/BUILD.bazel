@@ -1,0 +1,71 @@
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_test")
+load("@rules_dart//dart/ext/built_value:defs.bzl", "built_value_library")
+
+# Comprehensive e2e for built_value_library:
+#  - user.dart / profile.dart — Built<T, TBuilder> value classes, one with
+#    nullable + BuiltList fields and a Serializer<T> getter
+#  - serializers.dart — @SerializersFor(...) + StandardJsonPlugin
+#
+# The serializers codegen runs on serializers.dart alone but needs to
+# resolve the `Profile` reference in `@SerializersFor([Profile])` at
+# analysis time. That's cross-file visibility inside the same package,
+# wired by putting the value classes in their own built_value_library
+# (:models) and referencing it via `deps` on the serializers target.
+# `dart_codegen` then auto-stages the sibling .dart files via
+# `same_package_library_dep_files`.
+
+built_value_library(
+    name = "models",
+    package_name = "built_value_sample",
+    srcs = [
+        "lib/profile.dart",
+        "lib/user.dart",
+    ],
+    language_version = "3.11",
+    visibility = ["//visibility:public"],
+    deps = ["@pub_deps//:built_collection"],
+)
+
+built_value_library(
+    name = "serializers",
+    package_name = "built_value_sample",
+    srcs = ["lib/serializers.dart"],
+    language_version = "3.11",
+    visibility = ["//visibility:public"],
+    deps = [
+        ":models",
+        "@pub_deps//:built_collection",
+    ],
+)
+
+# Aggregate alias so downstream consumers can just depend on :built_value.
+dart_library(
+    name = "built_value",
+    package_name = "built_value_sample",
+    srcs = [],
+    language_version = "3.11",
+    visibility = ["//visibility:public"],
+    deps = [
+        ":models",
+        ":serializers",
+    ],
+)
+
+dart_test(
+    name = "user_test",
+    main = "test/user_test.dart",
+    deps = [
+        ":built_value",
+        "@pub_deps//:test",
+    ],
+)
+
+dart_test(
+    name = "profile_serializer_test",
+    main = "test/profile_serializer_test.dart",
+    deps = [
+        ":built_value",
+        "@pub_deps//:built_collection",
+        "@pub_deps//:test",
+    ],
+)

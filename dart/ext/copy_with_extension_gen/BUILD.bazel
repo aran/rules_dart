@@ -1,0 +1,14 @@
+load("//dart:defs.bzl", "dart_binary")
+
+# Shim binary for copy_with_extension_gen. SharedPartBuilder; produces
+# .copyWith.g.part shards.
+dart_binary(
+    name = "shim",
+    srcs = ["shim.dart"],
+    main = "shim.dart",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//dart/ext:builder_shim",
+        "@ext_pub_deps//:copy_with_extension_gen",
+    ],
+)

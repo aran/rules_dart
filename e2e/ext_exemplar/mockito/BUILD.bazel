@@ -1,0 +1,75 @@
+# Comprehensive e2e for the mockito builder:
+#  - api.dart + api_test.dart — @GenerateMocks over a cross-file interface
+#  - clock.dart + nice_mock_test.dart — @GenerateNiceMocks with both a
+#    default MockSpec and MockSpec(as: #Name, onMissingStub: returnDefault)
+#
+# mockito codegen runs on the TEST file (the annotation lives there) and
+# needs the mocked interface visible at analysis time. For cross-file
+# interfaces, the library holding them goes in `deps` so `dart_codegen`'s
+# auto-staging picks up the sibling.
+
+load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library", "dart_test")
+
+dart_library(
+    name = "api",
+    package_name = "mockito_fixture",
+    srcs = ["lib/api.dart"],
+    language_version = "3.11",
+    visibility = ["//visibility:public"],
+)
+
+dart_library(
+    name = "clock",
+    package_name = "mockito_fixture",
+    srcs = ["lib/clock.dart"],
+    language_version = "3.11",
+    visibility = ["//visibility:public"],
+)
+
+dart_codegen(
+    name = "_api_test_mocks_gen",
+    package_name = "mockito_fixture",
+    src = "test/api_test.dart",
+    generator_bin = "@rules_dart//dart/ext/mockito:shim",
+    language_version = "3.11",
+    output_suffixes = [".mocks.dart"],
+    deps = [
+        ":api",
+        "@pub_deps//:mockito",
+    ],
+)
+
+dart_codegen(
+    name = "_nice_mock_test_mocks_gen",
+    package_name = "mockito_fixture",
+    src = "test/nice_mock_test.dart",
+    generator_bin = "@rules_dart//dart/ext/mockito:shim",
+    language_version = "3.11",
+    output_suffixes = [".mocks.dart"],
+    deps = [
+        ":clock",
+        "@pub_deps//:mockito",
+    ],
+)
+
+dart_test(
+    name = "api_test",
+    srcs = [":_api_test_mocks_gen"],
+    main = "test/api_test.dart",
+    deps = [
+        ":api",
+        "@pub_deps//:mockito",
+        "@pub_deps//:test",
+    ],
+)
+
+dart_test(
+    name = "nice_mock_test",
+    srcs = [":_nice_mock_test_mocks_gen"],
+    main = "test/nice_mock_test.dart",
+    deps = [
+        ":clock",
+        "@pub_deps//:mockito",
+        "@pub_deps//:test",
+    ],
+)

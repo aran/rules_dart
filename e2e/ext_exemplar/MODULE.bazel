@@ -1,0 +1,29 @@
+module(name = "ext_exemplar_e2e")
+
+bazel_dep(name = "rules_dart", version = "0.0.0")
+local_path_override(
+    module_name = "rules_dart",
+    path = "../..",
+)
+
+# Gazelle plugin support so users can `bazel run //:gazelle` to regenerate
+# BUILDs from annotated sources.
+bazel_dep(name = "gazelle", version = "0.50.0")
+bazel_dep(name = "rules_go", version = "0.55.0")
+
+dart = use_extension("@rules_dart//dart:extensions.bzl", "dart")
+dart.toolchain(dart_version = "3.11.5")
+use_repo(dart, "dart_toolchains")
+
+register_toolchains("@dart_toolchains//:all")
+
+pub = use_extension("@rules_dart//dart/pub:extensions.bzl", "pub")
+pub.from_lock(
+    name = "pub_deps",
+    lock = "//:pubspec.lock",
+    # rules_dart's ext_pub_deps pins analyzer 10.x / _fe_analyzer_shared 96.x;
+    # our user-visible deps resolve to older versions. Multi-version
+    # resolution isn't supported across modules, so accept the upgrade.
+    on_version_conflict = "upgrade",
+)
+use_repo(pub, "pub_deps")

@@ -224,6 +224,159 @@ check_contains5 "lib/BUILD.bazel" "//third_party:shelf_custom" "gazelle:resolve 
 # path should still use default external resolution (no override)
 check_contains5 "lib/BUILD.bazel" "@path" "default resolution for path"
 
+# ============================================================
+# Test annotation-driven emission: @JsonSerializable -> SharedPart + combine
+# ============================================================
+WORK6="$(mktemp -d)"
+trap "rm -rf ${WORK} ${WORK2} ${WORK3} ${WORK4} ${WORK5} ${WORK6}" EXIT
+
+mkdir -p "${WORK6}/lib"
+touch "${WORK6}/WORKSPACE" "${WORK6}/BUILD.bazel"
+
+cat > "${WORK6}/pubspec.yaml" <<'EOF'
+name: my_models
+environment:
+  sdk: ^3.11.0
+EOF
+
+cat > "${WORK6}/BUILD.bazel" <<'EOF'
+# gazelle:dart_pub_deps_repo pub_deps
+EOF
+
+cat > "${WORK6}/lib/user.dart" <<'EOF'
+import 'package:json_annotation/json_annotation.dart';
+part 'user.g.dart';
+@JsonSerializable()
+class User {
+  User({required this.id, required this.name});
+  final int id;
+  final String name;
+}
+EOF
+
+"${GAZELLE_BIN}" -lang dart -repo_root "${WORK6}" "${WORK6}"
+
+check_contains6() {
+  local file="$1" pattern="$2" desc="$3"
+  if ! grep -q "${pattern}" "${WORK6}/${file}"; then
+    echo "FAIL: ${file} missing ${desc}"
+    echo "  Contents:"
+    sed 's/^/    /' "${WORK6}/${file}"
+    FAIL=1
+  else
+    echo "PASS: ${file} contains ${desc}"
+  fi
+}
+
+# Single-annotation files emit the convenience macro, not the primitive
+# chain. The macro (json_serializable_library) internally wires the shard +
+# combining stages; we only see the one macro call in the BUILD.
+check_contains6 "lib/BUILD.bazel" "json_serializable_library(" \
+  "json_serializable_library macro call"
+check_contains6 "lib/BUILD.bazel" 'name = "user"' "macro target name"
+check_contains6 "lib/BUILD.bazel" 'package_name = "my_models"' \
+  "package_name propagated to macro"
+check_contains6 "lib/BUILD.bazel" 'language_version = ' \
+  "language_version propagated to macro"
+check_contains6 "lib/BUILD.bazel" \
+  'load("@rules_dart//dart/ext/json_serializable:defs.bzl"' \
+  "json_serializable_library load"
+# Primitive chain internals must NOT appear for a single-annotation file.
+if grep -q "_user_json_serializable_gen\|_user_combined\|combining_shim:bin" "${WORK6}/lib/BUILD.bazel"; then
+  echo "FAIL: single-annotation file emitted primitive chain instead of macro"
+  FAIL=1
+else
+  echo "PASS: primitive chain suppressed (macro used)"
+fi
+
+# ============================================================
+# Test multi-annotation cascade: @Freezed + @JsonSerializable
+# ============================================================
+WORK7="$(mktemp -d)"
+trap "rm -rf ${WORK} ${WORK2} ${WORK3} ${WORK4} ${WORK5} ${WORK6} ${WORK7}" EXIT
+
+mkdir -p "${WORK7}/lib"
+touch "${WORK7}/WORKSPACE" "${WORK7}/BUILD.bazel"
+
+cat > "${WORK7}/pubspec.yaml" <<'EOF'
+name: my_events
+EOF
+
+cat > "${WORK7}/BUILD.bazel" <<'EOF'
+# gazelle:dart_pub_deps_repo pub_deps
+EOF
+
+cat > "${WORK7}/lib/event.dart" <<'EOF'
+import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:json_annotation/json_annotation.dart';
+part 'event.freezed.dart';
+part 'event.g.dart';
+@Freezed()
+@JsonSerializable()
+abstract class Event with _$Event {
+  const factory Event({required String type, required int sequence}) = _Event;
+  factory Event.fromJson(Map<String, Object?> json) => _$EventFromJson(json);
+}
+EOF
+
+"${GAZELLE_BIN}" -lang dart -repo_root "${WORK7}" "${WORK7}"
+
+check_contains7() {
+  local file="$1" pattern="$2" desc="$3"
+  if ! grep -q "${pattern}" "${WORK7}/${file}"; then
+    echo "FAIL: ${file} missing ${desc}"
+    echo "  Contents:"
+    sed 's/^/    /' "${WORK7}/${file}"
+    FAIL=1
+  else
+    echo "PASS: ${file} contains ${desc}"
+  fi
+}
+
+# Cascade should run Freezed (PartBuilder) BEFORE JsonSerializable (SharedPart),
+# then a combining stage on the JsonSerializable shard.
+check_contains7 "lib/BUILD.bazel" "_event_freezed_gen" "freezed stage"
+check_contains7 "lib/BUILD.bazel" "_event_json_serializable_gen" "json shard stage"
+check_contains7 "lib/BUILD.bazel" "_event_combined" "combining stage"
+
+# ============================================================
+# Test generated files are suppressed
+# ============================================================
+WORK8="$(mktemp -d)"
+trap "rm -rf ${WORK} ${WORK2} ${WORK3} ${WORK4} ${WORK5} ${WORK6} ${WORK7} ${WORK8}" EXIT
+
+mkdir -p "${WORK8}/lib"
+touch "${WORK8}/WORKSPACE" "${WORK8}/BUILD.bazel"
+
+cat > "${WORK8}/pubspec.yaml" <<'EOF'
+name: my_skip
+EOF
+
+# real source
+cat > "${WORK8}/lib/keep.dart" << 'EOF'
+class Keep {}
+EOF
+# generated lookalikes that should be skipped
+echo 'class GoneG {}' > "${WORK8}/lib/keep.g.dart"
+echo 'class GoneFreezed {}' > "${WORK8}/lib/keep.freezed.dart"
+echo 'class GoneMocks {}' > "${WORK8}/lib/keep.mocks.dart"
+
+"${GAZELLE_BIN}" -lang dart -repo_root "${WORK8}" "${WORK8}"
+
+if grep -q "keep.g.dart\|keep.freezed.dart\|keep.mocks.dart" "${WORK8}/lib/BUILD.bazel"; then
+  echo "FAIL: lib/BUILD.bazel mentions a generated-file extension"
+  sed 's/^/    /' "${WORK8}/lib/BUILD.bazel"
+  FAIL=1
+else
+  echo "PASS: generated files (.g.dart/.freezed.dart/.mocks.dart) suppressed"
+fi
+if ! grep -q "keep.dart" "${WORK8}/lib/BUILD.bazel"; then
+  echo "FAIL: lib/BUILD.bazel missing keep.dart (the real source)"
+  FAIL=1
+else
+  echo "PASS: real source kept"
+fi
+
 if [[ ${FAIL} -ne 0 ]]; then
   echo "SOME TESTS FAILED"
   exit 1

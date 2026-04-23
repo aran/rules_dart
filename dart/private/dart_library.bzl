@@ -20,6 +20,33 @@ def derive_package_name(package_name_attr, label_package, label_name):
     else:
         return label_name
 
+def check_no_duplicate_srcs(label, srcs):
+    """Detects two `srcs` entries that resolve to the same package-relative path.
+
+    Typically fires when a stale `build_runner`-generated file is listed in
+    the source tree alongside a codegen target producing the same output.
+
+    Args:
+      label: The owning rule's label (included in the error message).
+      srcs: The `srcs` list to inspect.
+
+    Returns:
+      An error message string if a collision is found, or `None` otherwise.
+    """
+    seen = {}
+    for src in srcs:
+        prev = seen.get(src.short_path)
+        if prev != None and prev != src.path:
+            return (
+                ("%s: `srcs` contains two files that resolve to the same " +
+                 "package-relative path `%s` — typically a stale " +
+                 "`build_runner`-generated file in the source tree listed " +
+                 "alongside a codegen target producing the same output. " +
+                 "First: %s. Second: %s.") % (label, src.short_path, prev, src.path)
+            )
+        seen[src.short_path] = src.path
+    return None
+
 def derive_lib_root(workspace_root, label_package):
     """Derive the library root path (short_path-based, without /lib suffix).
 
@@ -57,6 +84,10 @@ def _dart_library_impl(ctx):
     )
     lib_root = derive_lib_root(ctx.label.workspace_root, ctx.label.package)
 
+    err = check_no_duplicate_srcs(ctx.label, ctx.files.srcs)
+    if err != None:
+        fail(err)
+
     # Collect transitive sources
     transitive_srcs = depset(
         direct = ctx.files.srcs,
@@ -67,6 +98,7 @@ def _dart_library_impl(ctx):
     this_pkg = DartPackageInfo(
         package_name = package_name,
         lib_root = lib_root,
+        language_version = ctx.attr.language_version,
     )
 
     # Collect transitive packages
@@ -102,6 +134,9 @@ dart_library = rule(
         ),
         "package_name": attr.string(
             doc = "The Dart package name used in `package:` imports. If omitted, defaults to the last component of the Bazel package path.",
+        ),
+        "language_version": attr.string(
+            doc = "Dart language version implied by the package's `environment.sdk` constraint, in `<major>.<minor>` form. Emitted as `languageVersion` in generated `package_config.json` entries. For pub packages this is set automatically by `pub.from_lock()`; for hand-written `dart_library` targets, set it from your workspace's `pubspec.yaml` if you want analyzer behaviour to match.",
         ),
     },
     doc = "Collects Dart sources and propagates dependency information via `DartInfo`. Does not compile.",

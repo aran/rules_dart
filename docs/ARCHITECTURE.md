@@ -89,7 +89,7 @@ Unlike Go/Rust, Dart does not produce intermediate object files for libraries. T
 3. **Compilation modes**: `dart compile exe` (default), `aot-snapshot`, `kernel`, `jit-snapshot`, plus `dart_js_binary` (JS) and `dart_wasm_binary` (WASM) for web.
 4. **pub.from_lock**: Only `hosted` packages are resolved. `git`/`path` sources produce a warning and are skipped. `sdk` sources are silently skipped (provided by the toolchain).
 5. **Gazelle plugin**: `rules_go` and `gazelle` are non-dev dependencies so `//gazelle/dart` is loadable from downstream modules. See the comment in `MODULE.bazel` for the full rationale. The Go SDK is only fetched if a target in `//gazelle/...` is actually built. Supports `gazelle:resolve` directive for explicit dependency overrides.
-6. **Code generation**: `dart_codegen` (per-file) and `dart_aggregate_codegen` (package-level) provide Bazel-native alternatives to `build_runner`. `dart_codegen` supports persistent Bazel workers to amortize Dart VM startup.
+6. **Code generation**: `dart_codegen` (per-file), `dart_aggregate_codegen` (package-level), and `dart_sqlcodegen` (drift's `.drift` preprocessor) provide Bazel-native alternatives to `build_runner`. Each runs `package:build` `Builder`s via per-builder AOT shims under `dart/ext/*/`. A Bazel persistent worker amortises Dart-VM startup across requests, but the `AnalysisContextCollection` itself is constructed fresh per request (reusing one across requests would silently corrupt `source_gen`'s process-pinned `rootPackageName`). See [`docs/ext.md`](./ext.md) for the shim contract, Gazelle synthesis, and dual-build migration guide.
 
 ---
 

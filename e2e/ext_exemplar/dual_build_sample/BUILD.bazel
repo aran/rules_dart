@@ -1,0 +1,22 @@
+# Runfiles-layout proof: with a stale `lib/user.g.dart` committed next to
+# `lib/user.dart`, Bazel's declared output wins in `:user_test`'s runfiles.
+
+load("@rules_dart//dart:defs.bzl", "dart_test")
+load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_library")
+
+json_serializable_library(
+    name = "user",
+    package_name = "dual_build_sample",
+    srcs = ["lib/user.dart"],
+    language_version = "3.11",
+    visibility = ["//visibility:public"],
+)
+
+dart_test(
+    name = "user_test",
+    main = "test/user_test.dart",
+    deps = [
+        ":user",
+        "@pub_deps//:test",
+    ],
+)

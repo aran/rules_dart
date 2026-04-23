@@ -136,3 +136,32 @@ def parse_pubspec_deps(content):
                     deps.append(dep_name)
 
     return deps
+
+def parse_pubspec_sdk_constraint(content):
+    """Extract the `environment.sdk` constraint from a pubspec.yaml file.
+
+    Returns the verbatim string after `sdk:` under the `environment:` block,
+    with surrounding quotes stripped. Returns the empty string when the
+    constraint is missing or unparseable.
+
+    Args:
+        content: String contents of a pubspec.yaml file.
+
+    Returns:
+        The SDK version constraint string, e.g. `^3.5.0` or `>=2.12.0 <4.0.0`.
+    """
+    in_environment = False
+    for line in content.split("\n"):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+
+        indent = _indent_level(line)
+
+        if indent == 0:
+            in_environment = (stripped == "environment:")
+            continue
+        if in_environment and indent == 2 and stripped.startswith("sdk:"):
+            value = stripped[len("sdk:"):].strip()
+            return _strip_quotes(value)
+    return ""

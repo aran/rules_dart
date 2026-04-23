@@ -1,5 +1,8 @@
 """Repository rule for downloading a single pub.dev package."""
 
+load("//dart/pub:yaml_parser.bzl", "parse_pubspec_sdk_constraint")
+load("//dart/pub/private:language_version.bzl", "derive_language_version")
+
 def _pub_package_impl(ctx):
     url = "https://pub.dev/api/archives/{name}-{version}.tar.gz".format(
         name = ctx.attr.package_name,
@@ -11,6 +14,14 @@ def _pub_package_impl(ctx):
         sha256 = ctx.attr.sha256 if ctx.attr.sha256 else "",
         type = "tar.gz",
     )
+
+    # Read the package's pubspec.yaml so we can mirror pub's per-package
+    # languageVersion behaviour. This lets the analyzer apply the right
+    # language semantics for packages whose SDK floor predates the running
+    # Dart SDK (e.g. `state_notifier` with `sdk: ">=2.12.0"`).
+    pubspec_content = ctx.read("pubspec.yaml")
+    sdk_constraint = parse_pubspec_sdk_constraint(pubspec_content)
+    language_version = derive_language_version(sdk_constraint)
 
     # Generate BUILD.bazel with a dart_library target
     dep_labels = ['        "@{dep}",'.format(dep = dep) for dep in ctx.attr.deps]
@@ -26,11 +37,13 @@ load("@rules_dart//dart:defs.bzl", "dart_library")
 dart_library(
     name = "{name}",
     srcs = glob(["lib/**/*.dart"]),
-{deps}    visibility = ["//visibility:public"],
+{deps}    language_version = "{language_version}",
+    visibility = ["//visibility:public"],
 )
 """.format(
         name = ctx.attr.package_name,
         deps = deps_block,
+        language_version = language_version,
     )
 
     ctx.file("BUILD.bazel", build_content)

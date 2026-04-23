@@ -1,0 +1,36 @@
+load("@rules_dart//dart:defs.bzl", "dart_test")
+load("@rules_dart//dart/ext/freezed:defs.bzl", "freezed_library")
+
+# Comprehensive e2e for freezed_library:
+#  - basic value class (event.dart) — equality, copyWith, toString
+#  - sealed union (network_result.dart) — .when/.map/.maybeWhen,
+#    @Default, per-variant copyWith, variant equality
+
+freezed_library(
+    name = "freezed_fixture",
+    package_name = "freezed_fixture",
+    srcs = [
+        "lib/event.dart",
+        "lib/network_result.dart",
+    ],
+    language_version = "3.11",
+    visibility = ["//visibility:public"],
+)
+
+dart_test(
+    name = "event_test",
+    main = "test/event_test.dart",
+    deps = [
+        ":freezed_fixture",
+        "@pub_deps//:test",
+    ],
+)
+
+dart_test(
+    name = "network_result_test",
+    main = "test/network_result_test.dart",
+    deps = [
+        ":freezed_fixture",
+        "@pub_deps//:test",
+    ],
+)

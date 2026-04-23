@@ -1,0 +1,45 @@
+# dart/ext: code-gen builders that replace build_runner.
+#
+# Each subdirectory hosts the shim binary + convenience macro for one
+# pub.dev builder (json_serializable, freezed, …). See docs/ext.md.
+
+load("//dart:defs.bzl", "dart_library", "dart_test")
+
+exports_files(
+    ["pubspec.lock"],
+    visibility = ["//visibility:public"],
+)
+
+# Shim-runner library — used by every per-builder shim binary in dart/ext/<*>/.
+dart_library(
+    name = "builder_shim",
+    package_name = "rules_dart_ext",
+    srcs = [
+        "lib/builder_shim.dart",
+        "lib/worker_entry.dart",
+    ],
+    language_version = "3.11",
+    visibility = ["//dart/ext:__subpackages__"],
+    deps = [
+        "@ext_pub_deps//:analyzer",
+        "@ext_pub_deps//:args",
+        "@ext_pub_deps//:bazel_worker",
+        "@ext_pub_deps//:build",
+        "@ext_pub_deps//:crypto",
+        "@ext_pub_deps//:glob",
+        "@ext_pub_deps//:logging",
+        "@ext_pub_deps//:package_config",
+        "@ext_pub_deps//:path",
+    ],
+)
+
+dart_test(
+    name = "builder_shim_test",
+    main = "test/builder_shim_test.dart",
+    deps = [
+        ":builder_shim",
+        "@ext_pub_deps//:build",
+        "@ext_pub_deps//:path",
+        "@ext_pub_deps//:test",
+    ],
+)

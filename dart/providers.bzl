@@ -15,6 +15,7 @@ DartPackageInfo = provider(
     fields = {
         "package_name": "str: The Dart package name.",
         "lib_root": "str: The short_path-based path to the package root directory (parent of `lib/`). Configuration-independent.",
+        "language_version": "str: Dart language version implied by the package's `environment.sdk` constraint, in `<major>.<minor>` form. Empty string when unknown (no field emitted in package_config.json).",
     },
 )
 

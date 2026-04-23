@@ -1,0 +1,74 @@
+# Cascade: freezed → json_serializable → combining. The second builder
+# reads the first's generated `.freezed.dart` via the resolver; the
+# generated file is wrapped in a tiny `dart_library` so it flows through
+# `deps` like any other Dart source.
+
+load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library", "dart_test")
+
+_ANN_DEPS = [
+    "@pub_deps//:freezed_annotation",
+    "@pub_deps//:json_annotation",
+]
+
+dart_codegen(
+    name = "_event_freezed",
+    package_name = "cascade_two_stage",
+    src = "lib/event.dart",
+    generator_bin = "@rules_dart//dart/ext/freezed:shim",
+    language_version = "3.11",
+    output_suffixes = [".freezed.dart"],
+    deps = _ANN_DEPS,
+)
+
+# Wrapping the freezed output in a dart_library exposes it as a normal
+# same-package source for the next stage's resolver via auto-staging.
+dart_library(
+    name = "_event_freezed_lib",
+    package_name = "cascade_two_stage",
+    srcs = [
+        "lib/event.dart",
+        ":_event_freezed",
+    ],
+    language_version = "3.11",
+    deps = _ANN_DEPS,
+)
+
+dart_codegen(
+    name = "_event_json_part",
+    package_name = "cascade_two_stage",
+    src = "lib/event.dart",
+    generator_bin = "@rules_dart//dart/ext/json_serializable:shim",
+    language_version = "3.11",
+    output_suffixes = [".json_serializable.g.part"],
+    deps = _ANN_DEPS + [":_event_freezed_lib"],
+)
+
+dart_codegen(
+    name = "_event_combined",
+    package_name = "cascade_two_stage",
+    src = "lib/event.dart",
+    generator_bin = "@rules_dart//dart/ext/_shared/combining_shim:bin",
+    language_version = "3.11",
+    output_suffixes = [".g.dart"],
+    parts = [":_event_json_part"],
+)
+
+dart_library(
+    name = "cascade_two_stage",
+    srcs = [
+        "lib/event.dart",
+        ":_event_combined",
+        ":_event_freezed",
+    ],
+    visibility = ["//visibility:public"],
+    deps = _ANN_DEPS,
+)
+
+dart_test(
+    name = "event_test",
+    main = "test/event_test.dart",
+    deps = [
+        ":cascade_two_stage",
+        "@pub_deps//:test",
+    ],
+)

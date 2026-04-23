@@ -3,12 +3,15 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "dart",
     srcs = [
+        "builder_registry.go",
+        "dag.go",
         "generate.go",
         "kinds.go",
         "language.go",
         "parser.go",
         "resolve.go",
     ],
+    embedsrcs = ["baseline_generated_extensions.txt"],
     importpath = "github.com/aran/rules_dart/gazelle/dart",
     visibility = ["//visibility:public"],
     deps = [
@@ -21,8 +24,15 @@ go_library(
     ],
 )
 
+exports_files(["baseline_generated_extensions.txt"])
+
 go_test(
     name = "dart_test",
-    srcs = ["parser_test.go"],
+    srcs = [
+        "builder_registry_test.go",
+        "dag_test.go",
+        "generate_test.go",
+        "parser_test.go",
+    ],
     embed = [":dart"],
 )

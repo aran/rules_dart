@@ -1,0 +1,51 @@
+load("//dart:defs.bzl", "dart_binary")
+
+# drift_dev's modern path is a 4-stage pipeline:
+#   prep → discover → analyzer → driftBuilder (SharedPart) → combining
+# Each stage gets its own dart_binary shim; users compose them via
+# dart_sqlcodegen / dart_codegen targets (or via the drift_library macro
+# in defs.bzl, which wires the chain).
+
+dart_binary(
+    name = "shim_prep",
+    srcs = ["shim_prep.dart"],
+    main = "shim_prep.dart",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//dart/ext:builder_shim",
+        "@ext_pub_deps//:drift_dev",
+    ],
+)
+
+dart_binary(
+    name = "shim_discover",
+    srcs = ["shim_discover.dart"],
+    main = "shim_discover.dart",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//dart/ext:builder_shim",
+        "@ext_pub_deps//:drift_dev",
+    ],
+)
+
+dart_binary(
+    name = "shim_analyzer",
+    srcs = ["shim_analyzer.dart"],
+    main = "shim_analyzer.dart",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//dart/ext:builder_shim",
+        "@ext_pub_deps//:drift_dev",
+    ],
+)
+
+dart_binary(
+    name = "shim_drift",
+    srcs = ["shim_drift.dart"],
+    main = "shim_drift.dart",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//dart/ext:builder_shim",
+        "@ext_pub_deps//:drift_dev",
+    ],
+)

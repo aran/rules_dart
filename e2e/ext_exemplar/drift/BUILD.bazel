@@ -1,0 +1,33 @@
+load("@rules_dart//dart:defs.bzl", "dart_test")
+load("@rules_dart//dart/ext/drift:defs.bzl", "drift_library")
+
+# Comprehensive e2e for drift:
+#  - .drift file include (todos + `AS Todo` data class + `allTodos` query)
+#  - Dart-only tables (Users, Posts) with FK + TypeConverter + default
+#  - @DriftAccessor DAO (PostsDao)
+#  - Multi-table join in a .drift named query (postsByUser)
+#
+# drift_library handles the full 4-stage pipeline (prep + discover +
+# analyzer + driftBuilder) plus combining per source.
+
+drift_library(
+    name = "drift_fixture",
+    package_name = "drift_fixture",
+    srcs = [
+        "lib/database.dart",
+        "lib/posts_dao.dart",
+    ],
+    drift_srcs = ["lib/database.drift"],
+    language_version = "3.11",
+    visibility = ["//visibility:public"],
+)
+
+dart_test(
+    name = "database_test",
+    main = "test/database_test.dart",
+    deps = [
+        ":drift_fixture",
+        "@pub_deps//:drift",
+        "@pub_deps//:test",
+    ],
+)

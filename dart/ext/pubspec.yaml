@@ -1,0 +1,32 @@
+name: rules_dart_ext
+publish_to: none
+description: >
+  Shared pubspec for the rules_dart code-gen extensions. Pins the shim-runner
+  library deps (package:build, package:analyzer) and the per-builder generator
+  packages (json_serializable, freezed, mockito, drift_dev, stacked_generator,
+  …) so all shim binaries compile from one resolved version graph.
+environment:
+  sdk: ^3.11.0
+dependencies:
+  analyzer: ^10.0.0
+  args: ^2.5.0
+  bazel_worker: ^1.1.0
+  build: ^4.0.0
+  crypto: ^3.0.0
+  glob: ^2.1.0
+  logging: ^1.3.0
+  package_config: ^2.1.0
+  path: ^1.9.0
+
+  built_value_generator: ^8.12.0
+  copy_with_extension_gen: ^14.0.0
+  drift_dev: ^2.32.0
+  freezed: ^3.2.0
+  go_router_builder: ^4.3.0
+  injectable_generator: ^3.0.0
+  json_serializable: ^6.13.0
+  mockito: ^5.6.0
+  stacked_generator: ^2.0.0
+
+dev_dependencies:
+  test: ^1.25.0

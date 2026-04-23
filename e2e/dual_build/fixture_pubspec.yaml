@@ -1,0 +1,10 @@
+name: dual_build_fixture
+description: Fixture for rules_dart's "build_runner coexists with Bazel scaffolding" test.
+publish_to: none
+environment:
+  sdk: ^3.11.0
+dependencies:
+  json_annotation: ^4.9.0
+dev_dependencies:
+  build_runner: ^2.4.13
+  json_serializable: ^6.13.0

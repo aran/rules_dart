@@ -1,0 +1,22 @@
+# Scenario matrix for the `dart/ext/` codegen pipeline. Each subpackage is
+# one shape: single SharedPart, macro form, multi-shard combining, two-stage
+# cascade, cross-file resolver/generator, PackageBuilder aggregate, etc.
+#
+# Run:      bazel test //...
+# Regen:    bazel run //:gazelle
+
+# gazelle:dart_pub_deps_repo pub_deps
+
+load("@gazelle//:def.bzl", "gazelle", "gazelle_binary")
+
+gazelle_binary(
+    name = "gazelle_bin",
+    languages = ["@rules_dart//gazelle/dart"],
+)
+
+gazelle(
+    name = "gazelle",
+    gazelle = "gazelle_bin",
+)
+
+exports_files(["pubspec.lock"])

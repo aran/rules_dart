@@ -1,0 +1,20 @@
+load("@rules_dart//dart/ext/injectable:defs.bzl", "injectable_library")
+
+# gazelle:dart_package_name injectable_init_fixture
+# gazelle:dart_language_version 3.11
+
+injectable_library(
+    name = "injectable_init_fixture",
+    package_name = "injectable_init_fixture",
+    srcs = [
+        "greeter.dart",
+        "injection.dart",
+    ],
+    init_src = "injection.dart",
+    language_version = "3.11",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@get_it",
+        "@injectable",
+    ],
+)

@@ -1,0 +1,16 @@
+import 'database.dart';
+
+CREATE TABLE todos (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL
+) AS Todo;
+
+allTodos: SELECT * FROM todos ORDER BY id;
+
+postsByUser:
+    SELECT posts.*, users.name AS author
+    FROM posts
+    INNER JOIN users ON users.id = posts.user_id
+    WHERE users.id = :userId;
+-- re-edit to force

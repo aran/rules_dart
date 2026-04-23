@@ -1,0 +1,70 @@
+load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library")
+
+# gazelle:dart_package_name stacked_fanout
+# gazelle:dart_language_version 3.11
+
+dart_codegen(
+    name = "_app_stacked_app_bottomsheets_gen",
+    package_name = "stacked_fanout",
+    src = "app.dart",
+    generator_bin = "@rules_dart//dart/ext/stacked:shim_bottomsheet",
+    language_version = "3.11",
+    output_suffixes = [".bottomsheets.dart"],
+    deps = ["@pub_deps//:stacked"],
+)
+
+dart_codegen(
+    name = "_app_stacked_app_dialogs_gen",
+    package_name = "stacked_fanout",
+    src = "app.dart",
+    generator_bin = "@rules_dart//dart/ext/stacked:shim_dialog",
+    language_version = "3.11",
+    output_suffixes = [".dialogs.dart"],
+    deps = ["@pub_deps//:stacked"],
+)
+
+dart_codegen(
+    name = "_app_stacked_app_locator_gen",
+    package_name = "stacked_fanout",
+    src = "app.dart",
+    generator_bin = "@rules_dart//dart/ext/stacked:shim_locator",
+    language_version = "3.11",
+    output_suffixes = [".locator.dart"],
+    deps = ["@pub_deps//:stacked"],
+)
+
+dart_codegen(
+    name = "_app_stacked_app_logger_gen",
+    package_name = "stacked_fanout",
+    src = "app.dart",
+    generator_bin = "@rules_dart//dart/ext/stacked:shim_logger",
+    language_version = "3.11",
+    output_suffixes = [".logger.dart"],
+    deps = ["@pub_deps//:stacked"],
+)
+
+dart_codegen(
+    name = "_app_stacked_app_router_gen",
+    package_name = "stacked_fanout",
+    src = "app.dart",
+    generator_bin = "@rules_dart//dart/ext/stacked:shim_router",
+    language_version = "3.11",
+    output_suffixes = [".router.dart"],
+    deps = ["@pub_deps//:stacked"],
+)
+
+dart_library(
+    name = "app",
+    package_name = "stacked_fanout",
+    srcs = [
+        "app.dart",
+        ":_app_stacked_app_bottomsheets_gen",
+        ":_app_stacked_app_dialogs_gen",
+        ":_app_stacked_app_locator_gen",
+        ":_app_stacked_app_logger_gen",
+        ":_app_stacked_app_router_gen",
+    ],
+    language_version = "3.11",
+    visibility = ["//visibility:public"],
+    deps = ["@stacked"],
+)

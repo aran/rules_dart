@@ -1,0 +1,13 @@
+# Local stub of `package:go_router`'s annotation surface. See
+# ../README.md or the library header in lib/go_router.dart for rationale.
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+dart_library(
+    name = "go_router_stub",
+    package_name = "go_router",
+    srcs = [
+        "lib/go_router.dart",
+        "lib/src/route_data.dart",
+    ],
+    visibility = ["//go_router:__pkg__"],
+)
