@@ -13,11 +13,30 @@ def _pub_lock_package_impl(ctx):
         name = ctx.attr.package_name,
         version = ctx.attr.version,
     )
-    ctx.download_and_extract(
+
+    # pub.dev serves some tarballs with trailing garbage past the gzip
+    # stream (observed as of 2026-04 on `nested@1.0.0`, among others).
+    # Bazel's built-in `download_and_extract` uses a strict Java gzip
+    # decoder that errors on the trailing bytes — but the archive itself
+    # is a valid tar.gz (GNU `tar -xzf` accepts it, `gunzip -t` reports
+    # "trailing garbage ignored").
+    #
+    # We download the archive, then extract with the system `tar`
+    # command, which tolerates the trailing bytes. The sha256 still
+    # verifies the download so integrity is preserved.
+    ctx.download(
         url = url,
+        output = "_archive.tar.gz",
         sha256 = ctx.attr.sha256 if ctx.attr.sha256 else "",
-        type = "tar.gz",
     )
+    result = ctx.execute(["tar", "-xzf", "_archive.tar.gz"])
+    if result.return_code != 0:
+        fail("tar -xzf failed for {url}:\nstdout: {out}\nstderr: {err}".format(
+            url = url,
+            out = result.stdout,
+            err = result.stderr,
+        ))
+    ctx.delete("_archive.tar.gz")
 
     # Read pubspec.yaml to discover deps + the package's SDK constraint, the
     # latter so we can mirror pub's per-package languageVersion behaviour.
@@ -45,12 +64,19 @@ def _pub_lock_package_impl(ctx):
             deps = "\n".join(dep_labels),
         )
 
+    # `allow_empty = True` lets resource-only (e.g. cupertino_icons:
+    # icon font assets) and platform-plugin packages (e.g. record_ios:
+    # Swift-only; Dart glue lives in the umbrella package) produce an
+    # empty dart_library rather than failing the glob. Consumers that
+    # depend on such a package via `@deps//:foo` still resolve: the
+    # empty target contributes nothing to DartInfo, and the real
+    # (resource / native) artifacts flow through separate pipelines.
     build_content = """\
 load("@rules_dart//dart:defs.bzl", "dart_library")
 
 dart_library(
     name = "{name}",
-    srcs = glob(["lib/**/*.dart"]),
+    srcs = glob(["lib/**/*.dart"], allow_empty = True),
 {deps}    package_name = "{name}",
     language_version = "{language_version}",
     visibility = ["//visibility:public"],
