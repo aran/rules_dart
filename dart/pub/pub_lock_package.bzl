@@ -10,7 +10,12 @@ shape for non-plugin packages without duplicating the format.
 """
 
 load("//dart/pub:yaml_parser.bzl", "parse_pubspec_deps", "parse_pubspec_sdk_constraint")
-load("//dart/pub/private:language_version.bzl", "derive_language_version")
+load("//dart/pub/private:language_version.bzl", _derive_language_version = "derive_language_version")
+
+# Re-export for consumers outside //dart/pub (rules_flutter's
+# flutter_pub_package). Loading the private bzl directly would trip
+# buildifier's bzl-visibility check, so we expose it via this public file.
+derive_language_version = _derive_language_version
 
 def make_dart_library_build_content(name, deps, language_version):
     """Generate the BUILD.bazel content for a single `dart_library` spoke.
@@ -94,7 +99,7 @@ def _pub_lock_package_impl(ctx):
         all_deps = parse_pubspec_deps(pubspec_content)
         available = {p: True for p in ctx.attr.lock_packages}
         bazel_deps = sorted([d for d in all_deps if d in available])
-        language_version = derive_language_version(
+        language_version = _derive_language_version(
             parse_pubspec_sdk_constraint(pubspec_content),
         )
 
