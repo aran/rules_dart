@@ -235,7 +235,7 @@
   "moduleExtensions": {
     "//dart/pub:extensions.bzl%pub": {
       "general": {
-        "bzlTransitiveDigest": "hYSGAdHhmh89f28AcjgFL2nS+v1EWXeChm+vrHS5vq4=",
+        "bzlTransitiveDigest": "WhgVqBDHK49qEiW6LBo/XP78UHlWFxLZHcGBeB75ADI=",
         "usagesDigest": "S1U8voKxlLw9MJ2o8dWiE/YkYaZUEKfIyu7KbdXd3UE=",
         "recordedInputs": [
           "FILE:@@//dart/ext/pubspec.lock 1758668e44955a5e8510370c35df0e116353dcbc951fe6139bba8b16b3983027"

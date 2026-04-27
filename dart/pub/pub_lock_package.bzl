@@ -2,10 +2,56 @@
 
 Each hosted package gets its own external repository (spoke), with the hub
 repo providing aliases for backward-compatible `@hub//:pkg` labels.
+
+Also exposes `make_dart_library_build_content` as a public Starlark helper.
+Other Bazel rule sets (notably rules_flutter's `flutter_pub_package`, the
+`flutter pub get` analog) reuse this helper to emit the same `dart_library`
+shape for non-plugin packages without duplicating the format.
 """
 
 load("//dart/pub:yaml_parser.bzl", "parse_pubspec_deps", "parse_pubspec_sdk_constraint")
 load("//dart/pub/private:language_version.bzl", "derive_language_version")
+
+def make_dart_library_build_content(name, deps, language_version):
+    """Generate the BUILD.bazel content for a single `dart_library` spoke.
+
+    The shape — `srcs = glob(["lib/**/*.dart"], allow_empty = True)`, a
+    `package_name` matching the target name, public visibility, optional
+    deps block — is the canonical pub-spoke layout. Resource-only and
+    Swift-only/Kotlin-only Flutter platform packages produce empty source
+    globs but must still resolve as labels, hence `allow_empty`.
+
+    Args:
+        name: Target name (also the `package_name` for the dart_library).
+        deps: List of fully-qualified Bazel label strings for sibling spokes
+            (e.g. `"@hub__dep//:dep"`). Pass an empty list for no deps.
+        language_version: Dart language version string (e.g. `"3.0"`),
+            usually derived from the package's pubspec SDK constraint via
+            `derive_language_version`.
+
+    Returns:
+        BUILD.bazel content as a string.
+    """
+    deps_block = ""
+    if deps:
+        dep_lines = ['        "{}",'.format(dep) for dep in deps]
+        deps_block = "    deps = [\n{}\n    ],\n".format("\n".join(dep_lines))
+
+    return """\
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+dart_library(
+    name = "{name}",
+    srcs = glob(["lib/**/*.dart"], allow_empty = True),
+{deps}    package_name = "{name}",
+    language_version = "{language_version}",
+    visibility = ["//visibility:public"],
+)
+""".format(
+        name = name,
+        deps = deps_block,
+        language_version = language_version,
+    )
 
 def _pub_lock_package_impl(ctx):
     url = "{base}/packages/{name}/versions/{version}.tar.gz".format(
@@ -52,38 +98,15 @@ def _pub_lock_package_impl(ctx):
             parse_pubspec_sdk_constraint(pubspec_content),
         )
 
-    # Build dep labels pointing to sibling spoke repos
-    dep_labels = ['        "@{hub}__{dep}//:{dep}",'.format(
-        hub = ctx.attr.hub_name,
-        dep = dep,
-    ) for dep in bazel_deps]
+    # Build full label strings for sibling spoke repos.
+    dep_labels = [
+        "@{hub}__{dep}//:{dep}".format(hub = ctx.attr.hub_name, dep = dep)
+        for dep in bazel_deps
+    ]
 
-    deps_block = ""
-    if dep_labels:
-        deps_block = "    deps = [\n{deps}\n    ],\n".format(
-            deps = "\n".join(dep_labels),
-        )
-
-    # `allow_empty = True` lets resource-only (e.g. cupertino_icons:
-    # icon font assets) and platform-plugin packages (e.g. record_ios:
-    # Swift-only; Dart glue lives in the umbrella package) produce an
-    # empty dart_library rather than failing the glob. Consumers that
-    # depend on such a package via `@deps//:foo` still resolve: the
-    # empty target contributes nothing to DartInfo, and the real
-    # (resource / native) artifacts flow through separate pipelines.
-    build_content = """\
-load("@rules_dart//dart:defs.bzl", "dart_library")
-
-dart_library(
-    name = "{name}",
-    srcs = glob(["lib/**/*.dart"], allow_empty = True),
-{deps}    package_name = "{name}",
-    language_version = "{language_version}",
-    visibility = ["//visibility:public"],
-)
-""".format(
+    build_content = make_dart_library_build_content(
         name = ctx.attr.package_name,
-        deps = deps_block,
+        deps = dep_labels,
         language_version = language_version,
     )
 
