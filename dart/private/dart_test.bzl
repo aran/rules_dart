@@ -3,10 +3,49 @@
 load("//dart:providers.bzl", "DartInfo")
 load("//dart/private:common.bzl", "WINDOWS_CONSTRAINT_ATTR", "create_test_executable", "runfiles_path")
 
+def format_packages_manifest_lines(packages, root_to_entry):
+    """Build the per-package manifest lines.
+
+    Each line has four tab-separated columns:
+    `<name>\t<runfiles_root>\t<runfiles_representative_file>\t<language_version>`.
+    The fourth column is empty when the package has no declared language
+    version; the test runner only emits `languageVersion` in the resulting
+    `package_config.json` entry when the column is non-empty (mirroring
+    `common.bzl::generate_package_config`'s "non-empty wins" predicate so
+    build-time and runtime JSON match).
+
+    Packages whose `lib_root` is missing from `root_to_entry` are skipped
+    silently — there are no source files in the runfiles tree to represent
+    them, so the analyzer/runtime cannot resolve `package:` URIs into them
+    anyway.
+
+    Args:
+      packages: List of `DartPackageInfo` providers (or struct fakes for
+        unit tests).
+      root_to_entry: Dict mapping `lib_root` to
+        `(runfiles_root, representative_file)`.
+
+    Returns:
+      List of formatted manifest lines (no trailing newline).
+    """
+    lines = []
+    for pkg in packages:
+        entry = root_to_entry.get(pkg.lib_root)
+        if entry == None:
+            continue
+        rf_root, rep_file = entry
+        lines.append("{name}\t{root}\t{file}\t{lv}".format(
+            name = pkg.package_name,
+            root = rf_root,
+            file = rep_file,
+            lv = pkg.language_version,
+        ))
+    return lines
+
 def _generate_packages_manifest(ctx, deps):
     """Generate a packages manifest for runtime package_config.json construction.
 
-    Each line has: <name>\t<runfiles_root>\t<runfiles_representative_file>
+    See `format_packages_manifest_lines` for the per-line schema.
     The test runner uses rlocation on the representative file to derive
     the absolute package root path, making this work on all platforms
     (including Windows manifest-only mode).
@@ -45,16 +84,7 @@ def _generate_packages_manifest(ctx, deps):
                 root_to_entry[lib_root] = (rf_root, src_rpath)
 
     manifest = ctx.actions.declare_file(ctx.label.name + ".packages")
-    lines = []
-    for pkg in packages:
-        entry = root_to_entry.get(pkg.lib_root)
-        if entry:
-            rf_root, rep_file = entry
-            lines.append("{name}\t{root}\t{file}".format(
-                name = pkg.package_name,
-                root = rf_root,
-                file = rep_file,
-            ))
+    lines = format_packages_manifest_lines(packages, root_to_entry)
 
     ctx.actions.write(output = manifest, content = "\n".join(lines) + "\n")
     return manifest

@@ -51,7 +51,11 @@ void main() {
 /// absolute rootUri file:// URIs derived from rlocation.
 ///
 /// Manifest format (one package per line):
-///   <name>\t<runfiles_root>\t<runfiles_representative_file>
+///   <name>\t<runfiles_root>\t<runfiles_representative_file>\t<language_version>
+/// The trailing language_version column is empty when the package didn't
+/// declare one; that case is mirrored in the JSON by omitting the
+/// `languageVersion` field, matching `generate_package_config`'s behaviour
+/// in `dart/private/common.bzl`.
 String _generatePackageConfig(Runfiles r, String manifestPath) {
   final lines = File(manifestPath)
       .readAsLinesSync()
@@ -61,11 +65,12 @@ String _generatePackageConfig(Runfiles r, String manifestPath) {
   final packages = <Map<String, String>>[];
   for (final line in lines) {
     final parts = line.split('\t');
-    if (parts.length != 3) continue;
+    if (parts.length < 3) continue;
 
     final name = parts[0];
     final root = parts[1];
     final repFile = parts[2];
+    final languageVersion = parts.length >= 4 ? parts[3] : '';
 
     // Resolve the representative file to an absolute path
     final absFile = r.rlocation(repFile);
@@ -76,11 +81,15 @@ String _generatePackageConfig(Runfiles r, String manifestPath) {
         absFile.substring(0, absFile.length - suffix.length - 1) +
         Platform.pathSeparator;
 
-    packages.add({
+    final entry = <String, String>{
       'name': name,
       'rootUri': Uri.directory(absRoot).toString(),
       'packageUri': 'lib/',
-    });
+    };
+    if (languageVersion.isNotEmpty) {
+      entry['languageVersion'] = languageVersion;
+    }
+    packages.add(entry);
   }
 
   final config = json.encode({
