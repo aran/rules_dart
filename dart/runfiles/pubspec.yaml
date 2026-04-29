@@ -5,3 +5,5 @@ repository: https://github.com/aran/rules_dart
 homepage: https://github.com/aran/rules_dart/tree/main/dart/runfiles
 environment:
   sdk: ^3.10.0
+dev_dependencies:
+  test: ^1.25.0

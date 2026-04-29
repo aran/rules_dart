@@ -1,7 +1,16 @@
-load("//dart:defs.bzl", "dart_library")
+load("//dart:defs.bzl", "dart_library", "dart_test")
 
 dart_library(
     name = "runfiles",
     srcs = ["lib/runfiles.dart"],
     visibility = ["//visibility:public"],
+)
+
+dart_test(
+    name = "runfiles_test",
+    main = "test/runfiles_test.dart",
+    deps = [
+        ":runfiles",
+        "@ext_pub_deps//:test",
+    ],
 )

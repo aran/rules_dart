@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 /// Provides access to Bazel runfiles — data files made available at runtime
@@ -15,7 +16,7 @@ import 'dart:io';
 ///
 /// void main() {
 ///   final r = Runfiles.create();
-///   final path = r.rlocation('_main/web/echo_client.js');
+///   final path = r.rlocation('my_dep/path/to/data.txt');
 ///   print(File(path).readAsStringSync());
 /// }
 /// ```
@@ -23,9 +24,27 @@ class Runfiles {
   final String? _directory;
   final Map<String, String>? _manifest;
 
-  Runfiles._({String? directory, Map<String, String>? manifest})
-      : _directory = directory,
-        _manifest = manifest;
+  /// Bzlmod repo-mapping table. Keyed by `(sourceCanonical, apparent)` →
+  /// targetCanonical. Empty-string source canonical means "main module".
+  /// See https://bazel.build/external/extension#bzlmod_repo_mapping for
+  /// the format.
+  final Map<(String, String), String> _repoMapping;
+
+  final String _defaultSourceRepo;
+
+  /// Low-level constructor that takes pre-parsed state. Most callers
+  /// should use [Runfiles.create] (or [forRepo] on an existing instance);
+  /// `fromState` exists for tests and for embedders that supply their
+  /// own runfiles tree representation.
+  Runfiles.fromState({
+    String? directory,
+    Map<String, String>? manifest,
+    Map<(String, String), String>? repoMapping,
+    String defaultSourceRepo = '',
+  })  : _directory = directory,
+        _manifest = manifest,
+        _repoMapping = repoMapping ?? const {},
+        _defaultSourceRepo = defaultSourceRepo;
 
   /// Creates a [Runfiles] instance by probing environment variables and
   /// filesystem paths.
@@ -38,8 +57,20 @@ class Runfiles {
   /// 5. `<executable>.runfiles_manifest` file
   /// 6. `<executable>.exe.runfiles_manifest` file
   ///
+  /// If a `_repo_mapping` file is present at the runfiles root (always
+  /// the case under bzlmod; absent under WORKSPACE-only builds), it's
+  /// parsed and consulted by [rlocation] for apparent → canonical repo
+  /// translation.
+  ///
+  /// [sourceRepository] is the canonical bzlmod repo name of the caller —
+  /// the default `''` means "main module" and is correct for any binary
+  /// whose `dart_binary` target lives in the main Bazel module. A binary
+  /// shipping as a Bazel dep of another module should pass its own
+  /// canonical name (e.g. `'foo+'`) so apparent-repo lookups in
+  /// [rlocation] resolve from that module's perspective.
+  ///
   /// Throws [StateError] if no runfiles can be found.
-  factory Runfiles.create() {
+  factory Runfiles.create({String sourceRepository = ''}) {
     final env = Platform.environment;
     String? directory;
     Map<String, String>? manifest;
@@ -92,24 +123,65 @@ class Runfiles {
       );
     }
 
-    return Runfiles._(directory: directory, manifest: manifest);
+    return Runfiles.fromState(
+      directory: directory,
+      manifest: manifest,
+      repoMapping: _loadRepoMapping(directory: directory, manifest: manifest),
+      defaultSourceRepo: sourceRepository,
+    );
   }
+
+  /// Returns a [Runfiles] that shares the underlying directory, manifest,
+  /// and repo-mapping table but resolves [rlocation] from
+  /// [sourceRepository]'s perspective.
+  ///
+  /// Library code that calls [rlocation] without an explicit `sourceRepo:`
+  /// should hold a `forRepo`-derived view, otherwise lookups use the
+  /// binary's source repo and resolve apparent names from the wrong
+  /// module's perspective under bzlmod with version skew.
+  Runfiles forRepo(String sourceRepository) => Runfiles.fromState(
+        directory: _directory,
+        manifest: _manifest,
+        repoMapping: _repoMapping,
+        defaultSourceRepo: sourceRepository,
+      );
 
   /// Returns the absolute path to a runfile.
   ///
-  /// [path] is the runfiles-relative path, e.g. `_main/web/echo_client.js`.
+  /// [path] is the runfiles-relative path. The first segment is treated
+  /// as an *apparent* repo name and looked up in `_repo_mapping` to find
+  /// the *canonical* repo Bazel actually wrote into runfiles (e.g.
+  /// apparent `quiche_dart` → canonical `quiche_dart+` under bzlmod).
   ///
-  /// Checks the manifest first (exact match), then falls back to the
-  /// directory tree.
-  String rlocation(String path) {
+  /// Pass [sourceRepo] (canonical name of the calling repo) to look up
+  /// the mapping from a non-main module's perspective. Defaults to the
+  /// main module ('').
+  ///
+  /// If the apparent name has no mapping, the path is used verbatim —
+  /// preserves backwards compatibility for already-canonical paths and
+  /// for non-bzlmod (WORKSPACE) builds where _repo_mapping is absent.
+  String rlocation(String path, {String? sourceRepo}) {
+    final source = sourceRepo ?? _defaultSourceRepo;
+    final translated = _applyRepoMapping(path, source);
+
     // Manifest takes priority — it's the source of truth on Windows and
     // in manifest-only mode.
-    final mapped = _manifest?[path];
+    final mapped = _manifest?[translated];
     if (mapped != null) return mapped;
 
-    if (_directory != null) return '$_directory/$path';
+    if (_directory != null) return '$_directory/$translated';
 
     throw StateError('Could not resolve runfile: $path');
+  }
+
+  String _applyRepoMapping(String path, String sourceRepo) {
+    if (_repoMapping.isEmpty) return path;
+    final slash = path.indexOf('/');
+    final apparent = slash < 0 ? path : path.substring(0, slash);
+    final rest = slash < 0 ? '' : path.substring(slash);
+    final canonical = _repoMapping[(sourceRepo, apparent)];
+    if (canonical == null) return path;
+    return '$canonical$rest';
   }
 
   /// Parses a Bazel runfiles manifest file.
@@ -124,5 +196,35 @@ class Runfiles {
       }
     }
     return result;
+  }
+
+  /// Parses bzlmod `_repo_mapping` file *content* into a
+  /// `(sourceCanonical, apparent) → targetCanonical` table. Each line is
+  /// `source,apparent,target`; the source field may be empty (main
+  /// module). Lines with a different column count are skipped.
+  static Map<(String, String), String> parseRepoMapping(String content) {
+    final out = <(String, String), String>{};
+    for (final line in const LineSplitter().convert(content)) {
+      if (line.isEmpty) continue;
+      final parts = line.split(',');
+      if (parts.length != 3) continue;
+      out[(parts[0], parts[1])] = parts[2];
+    }
+    return out;
+  }
+
+  static Map<(String, String), String> _loadRepoMapping({
+    String? directory,
+    Map<String, String>? manifest,
+  }) {
+    String? content;
+    final mapped = manifest?['_repo_mapping'];
+    if (mapped != null && File(mapped).existsSync()) {
+      content = File(mapped).readAsStringSync();
+    } else if (directory != null) {
+      final f = File('$directory/_repo_mapping');
+      if (f.existsSync()) content = f.readAsStringSync();
+    }
+    return content == null ? const {} : parseRepoMapping(content);
   }
 }
