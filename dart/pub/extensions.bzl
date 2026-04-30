@@ -146,9 +146,19 @@ def _pub_impl(ctx):
                         "  - %s (from \"%s\", %s)\n" % (entry.version, entry.hub_name, entry.lock_label)
                         for entry in pkg.entries
                     ]) +
-                    "\nTo resolve, either:\n" +
-                    "  1. Set on_version_conflict = \"upgrade\" on the from_lock() call with the lower version\n" +
-                    "  2. Add an explicit declaration:\n" +
+                    "\nThe pubspec.lock files pinned different versions of a shared transitive\n" +
+                    "package. `dart pub get` preserves existing locked versions, so it won't\n" +
+                    "bring them back into sync. To resolve:\n" +
+                    "\n" +
+                    "  1. (Preferred) Run `dart pub upgrade` in the workspace with the lower\n" +
+                    "     version. This re-resolves transitive packages within their constraints,\n" +
+                    "     pulling the shared dependency forward to match.\n" +
+                    "\n" +
+                    "  2. If constraints prevent the upgrade, set on_version_conflict = \"upgrade\"\n" +
+                    "     on the from_lock() call with the lower version, allowing it to accept\n" +
+                    "     the higher.\n" +
+                    "\n" +
+                    "  3. Or pin centrally with an explicit declaration:\n" +
                     "       pub.package(name = \"%s\", version = \"%s\", sha256 = \"%s\", deps = [...])\n" % (name, best.version, best.sha256) +
                     "       # You may need to manually add deps for this package.\n" +
                     "\nrules_dart does not support multiple versions of a package, even across lock files.",
