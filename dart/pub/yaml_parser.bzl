@@ -1,20 +1,16 @@
-"""Minimal YAML subset parser for pubspec.lock and pubspec.yaml files.
+"""Pubspec-shape extractors for pubspec.lock and pubspec.yaml files.
 
-This parser handles the specific YAML patterns found in Dart's pubspec files.
-It only supports the subset needed: maps with consistent 2-space indentation,
-and string values. No lists, multiline strings, anchors, or aliases.
+Generic YAML parsing is delegated to `@yaml.bzl//:yaml.bzl`; this module
+just projects the parsed value down to the exact shapes the rules_dart
+pub extension and repository rules consume.
 """
 
-def _strip_quotes(s):
-    """Strip surrounding double or single quotes from a string."""
-    if len(s) >= 2:
-        if (s[0] == '"' and s[-1] == '"') or (s[0] == "'" and s[-1] == "'"):
-            return s[1:-1]
-    return s
+load("@yaml.bzl//:yaml.bzl", "yaml")
 
-def _indent_level(line):
-    """Return the number of leading spaces in a line."""
-    return len(line) - len(line.lstrip(" "))
+def _load(content):
+    """Parse YAML content into a top-level dict, or None if not a mapping."""
+    data = yaml.get_value(yaml.parse(content))
+    return data if type(data) == "dict" else None
 
 def parse_pubspec_lock(content):
     """Parse a pubspec.lock file into a dict of package info.
@@ -30,78 +26,30 @@ def parse_pubspec_lock(content):
             "description": dict (keys vary by source type),
         }
     """
+    data = _load(content)
+    if data == None:
+        return {}
+    packages = data.get("packages")
+    if type(packages) != "dict":
+        return {}
+
     result = {}
-    lines = content.split("\n")
-    in_packages = False
-    current_pkg = None
-    current_data = {}
-    in_description = False
-
-    for line in lines:
-        stripped = line.strip()
-
-        # Skip empty lines and comments
-        if not stripped or stripped.startswith("#"):
+    for name, info in packages.items():
+        if type(info) != "dict":
             continue
-
-        indent = _indent_level(line)
-
-        # Look for the packages: section
-        if indent == 0:
-            if stripped == "packages:":
-                in_packages = True
-                continue
-            else:
-                # Any other top-level key ends the packages section
-                if in_packages:
-                    if current_pkg:
-                        result[current_pkg] = current_data
-                    in_packages = False
-                continue
-
-        if not in_packages:
-            continue
-
-        if indent == 2:
-            # Package name line
-            if current_pkg:
-                result[current_pkg] = current_data
-            current_pkg = stripped.rstrip(":")
-            current_data = {}
-            in_description = False
-
-        elif indent == 4:
-            # Package attribute
-            colon_pos = stripped.find(":")
-            if colon_pos < 0:
-                continue
-            key = stripped[:colon_pos].strip()
-            value = stripped[colon_pos + 1:].strip()
-
-            if key == "description":
-                if value:
-                    # Inline description (e.g., "description: flutter")
-                    current_data["description"] = {"name": _strip_quotes(value)}
+        entry = {}
+        for k, v in info.items():
+            if k == "description":
+                # An inline scalar `description: flutter` is normalised to
+                # {"name": "flutter"} so callers can always treat description
+                # as a dict.
+                if type(v) == "dict":
+                    entry["description"] = {sk: str(sv) for sk, sv in v.items()}
                 else:
-                    current_data["description"] = {}
-                in_description = True
+                    entry["description"] = {"name": str(v)}
             else:
-                current_data[key] = _strip_quotes(value)
-                in_description = False
-
-        elif indent == 6 and in_description:
-            # Description sub-attribute
-            colon_pos = stripped.find(":")
-            if colon_pos < 0:
-                continue
-            key = stripped[:colon_pos].strip()
-            value = _strip_quotes(stripped[colon_pos + 1:].strip())
-            current_data["description"][key] = value
-
-    # Save last package
-    if current_pkg:
-        result[current_pkg] = current_data
-
+                entry[k] = "" if v == None else str(v)
+        result[name] = entry
     return result
 
 def parse_pubspec_deps(content):
@@ -115,34 +63,19 @@ def parse_pubspec_deps(content):
     Returns:
         List of dependency package names.
     """
-    deps = []
-    in_deps = False
-
-    for line in content.split("\n"):
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#"):
-            continue
-
-        indent = _indent_level(line)
-
-        if indent == 0:
-            in_deps = (stripped == "dependencies:")
-        elif in_deps and indent == 2:
-            # Dependency entry
-            colon_pos = stripped.find(":")
-            if colon_pos > 0:
-                dep_name = stripped[:colon_pos].strip()
-                if dep_name and not dep_name.startswith("#"):
-                    deps.append(dep_name)
-
-    return deps
+    data = _load(content)
+    if data == None:
+        return []
+    deps = data.get("dependencies")
+    if type(deps) != "dict":
+        return []
+    return list(deps.keys())
 
 def parse_pubspec_sdk_constraint(content):
     """Extract the `environment.sdk` constraint from a pubspec.yaml file.
 
-    Returns the verbatim string after `sdk:` under the `environment:` block,
-    with surrounding quotes stripped. Returns the empty string when the
-    constraint is missing or unparseable.
+    Returns the value of `environment.sdk` as a string. Returns the empty
+    string when the constraint is missing.
 
     Args:
         content: String contents of a pubspec.yaml file.
@@ -150,18 +83,13 @@ def parse_pubspec_sdk_constraint(content):
     Returns:
         The SDK version constraint string, e.g. `^3.5.0` or `>=2.12.0 <4.0.0`.
     """
-    in_environment = False
-    for line in content.split("\n"):
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#"):
-            continue
-
-        indent = _indent_level(line)
-
-        if indent == 0:
-            in_environment = (stripped == "environment:")
-            continue
-        if in_environment and indent == 2 and stripped.startswith("sdk:"):
-            value = stripped[len("sdk:"):].strip()
-            return _strip_quotes(value)
-    return ""
+    data = _load(content)
+    if data == None:
+        return ""
+    env = data.get("environment")
+    if type(env) != "dict":
+        return ""
+    sdk = env.get("sdk")
+    if sdk == None:
+        return ""
+    return str(sdk)
