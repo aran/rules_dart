@@ -30,7 +30,9 @@ file at runtime — keep file lists current as the repo evolves.
 - `README.md` — `dart.toolchain(dart_version = "...")` in installation snippet
 - `docs/ARCHITECTURE.md` — `dart.toolchain(dart_version = "...")` in directory tree
 - `dart/tests/versions_test.bzl` — asserted version key in `_smoke_test_impl`
-- `dart/runfiles/pubspec.yaml` — `environment.sdk` constraint
+- `dart/runfiles/pubspec.yaml` — `environment.sdk` constraint (published to
+  pub.dev; keep the lower bound as low as stays compatible rather than tracking
+  the newest SDK)
 
 **Procedure**:
 
