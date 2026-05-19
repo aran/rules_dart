@@ -251,7 +251,7 @@ a migration:
 
 Three independent mechanisms guard this. Each has a dedicated test.
 
-- **Gazelle drops stale files from generated BUILDs.**
+- **Gazelle drops stale files from generated BUILD files.**
   `filterOutGeneratedFiles` in `gazelle/dart/generate.go` excludes every
   registered `produces=` extension (`.g.dart`, `.freezed.dart`,
   `.mocks.dart`, …) from `dart_library.srcs`. Pinned by the

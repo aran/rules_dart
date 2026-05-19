@@ -7,7 +7,7 @@ local_path_override(
 )
 
 # Gazelle plugin support so users can `bazel run //:gazelle` to regenerate
-# BUILDs from annotated sources.
+# BUILD files from annotated sources.
 bazel_dep(name = "gazelle", version = "0.51.0")
 bazel_dep(name = "rules_go", version = "0.60.0")
 
