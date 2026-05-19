@@ -1,1 +1,10 @@
 # See https://github.com/crate-ci/typos?tab=readme-ov-file#false-positives how to ignore
+
+[default.extend-identifiers]
+# "BUILDs" is the plural of a Bazel BUILD file; typos' acronym tokenizer
+# splits it as "BUIL" + "Ds" and flags "BUIL".
+BUILDs = "BUILDs"
+
+[default.extend-words]
+# "mis-indexed" — hyphenated English prefix, not a typo of "miss"/"mist".
+mis = "mis"
