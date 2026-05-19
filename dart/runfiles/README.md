@@ -36,7 +36,7 @@ final r = Runfiles.create(sourceRepository: 'my_module+');
 
 ### Library code that calls `rlocation`
 
-Library code that resolves runfiles needs to look them up from *its own*
+Library code that resolves runfiles needs to look them up from _its own_
 module's perspective, not the calling binary's. Hold a `forRepo` view
 keyed to your library's canonical repo:
 
