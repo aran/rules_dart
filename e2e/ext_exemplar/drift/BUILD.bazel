@@ -1,3 +1,4 @@
+load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("@rules_dart//dart:defs.bzl", "dart_test")
 load("@rules_dart//dart/ext/drift:defs.bzl", "drift_library")
 
@@ -22,12 +23,30 @@ drift_library(
     visibility = ["//visibility:public"],
 )
 
+# Hermetic libsqlite3 for the database_test: a Bazel-built shared library
+# from the official SQLite C amalgamation (via the BCR sqlite3 module).
+# The test DynamicLibrary.open()s it in setUpAll so package:sqlite3's
+# process-lookup fallback finds the symbols (macOS happens to ship a
+# usable libsqlite3; Linux/Windows runners do not have one on the Bazel
+# sandbox's library search path).
+cc_shared_library(
+    name = "libsqlite3",
+    shared_lib_name = select({
+        "@platforms//os:macos": "libsqlite3.dylib",
+        "@platforms//os:windows": "sqlite3.dll",
+        "//conditions:default": "libsqlite3.so",
+    }),
+    deps = ["@sqlite3"],
+)
+
 dart_test(
     name = "database_test",
+    data = [":libsqlite3"],
     main = "test/database_test.dart",
     deps = [
         ":drift_fixture",
         "@pub_deps//:drift",
         "@pub_deps//:test",
+        "@rules_dart//dart/runfiles",
     ],
 )

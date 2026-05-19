@@ -1,10 +1,33 @@
+import 'dart:ffi';
+import 'dart:io';
+
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:drift_fixture/database.dart';
 import 'package:drift_fixture/posts_dao.dart';
+import 'package:runfiles/runfiles.dart';
 import 'package:test/test.dart';
 
+/// Load a Bazel-built libsqlite3 into the process so `package:sqlite3`'s
+/// FFI bindings (which fall back to `DynamicLibrary.process()` lookup when
+/// no native asset is registered) find the symbols. The .so/.dylib/.dll is
+/// produced by `//drift:libsqlite3` and staged into runfiles via the test's
+/// `data` attribute — hermetic on every platform without relying on a
+/// system libsqlite3 (Linux/Windows runners don't have one on the Bazel
+/// sandbox's library search path).
+void _loadVendoredSqlite3() {
+  final libName = Platform.isMacOS
+      ? 'libsqlite3.dylib'
+      : Platform.isWindows
+          ? 'sqlite3.dll'
+          : 'libsqlite3.so';
+  final libPath = Runfiles.create().rlocation('_main/drift/$libName');
+  DynamicLibrary.open(libPath);
+}
+
 void main() {
+  setUpAll(_loadVendoredSqlite3);
+
   late AppDatabase db;
 
   setUp(() {
