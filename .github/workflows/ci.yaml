@@ -18,7 +18,7 @@ concurrency:
   cancel-in-progress: ${{ github.ref_name != 'main' }}
 jobs:
   test:
-    uses: bazel-contrib/.github/.github/workflows/bazel.yaml@v7.4.0
+    uses: bazel-contrib/.github/.github/workflows/bazel.yaml@v7.6.0
     with:
       bazel_versions: '["9.0.2"]'
       # Exit code 4 means "build succeeded but no test targets found", which is
