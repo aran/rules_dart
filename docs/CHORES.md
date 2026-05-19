@@ -28,7 +28,6 @@ file at runtime — keep file lists current as the repo evolves.
 - `e2e/pub_lock_dedup/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
 - `e2e/pub_lock_upgrade/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
 - `README.md` — `dart.toolchain(dart_version = "...")` in installation snippet
-- `docs/ARCHITECTURE.md` — `dart.toolchain(dart_version = "...")` in directory tree
 - `dart/tests/versions_test.bzl` — asserted version key in `_smoke_test_impl`
 - `dart/runfiles/pubspec.yaml` — `environment.sdk` constraint (published to
   pub.dev; keep the lower bound as low as stays compatible rather than tracking
@@ -39,7 +38,7 @@ file at runtime — keep file lists current as the repo evolves.
 1. Run `dart run tool/fetch_sdk_hashes.dart {version}` to get SHA-256 hashes
 2. Add the new version entry to `dart/private/versions.bzl`
 3. Update `dart_version` in all MODULE.bazel files listed above
-4. Update version references in `README.md` and `docs/ARCHITECTURE.md`
+4. Update version references in `README.md`
 5. Update `dart/tests/versions_test.bzl` (asserted version key)
 6. Regenerate lock files: `dart run tool/refresh_locks.dart`
 7. Run `bazel test //dart/tests/...` to verify unit tests pass
@@ -260,7 +259,7 @@ outdated dependencies.
 
 **Files**:
 
-- `docs/ARCHITECTURE.md` — directory tree, provider table, testing table, e2e list
+- `docs/ARCHITECTURE.md` — provider table, testing table, design rationale
 - `README.md` — examples table, installation snippet, version references
 
 **Procedure**: Review hardcoded counts, tables, and version strings against actual state.
