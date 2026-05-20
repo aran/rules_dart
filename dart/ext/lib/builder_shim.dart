@@ -383,20 +383,28 @@ Future<void> runShimWithArgs(
   }
 }
 
+/// Absolute + normalized path. The normalize is critical on Windows: paths
+/// arrive from Bazel using `/` separators, but `p.absolute` only prefixes
+/// the cwd (with native `\`) without normalizing the remainder, leaving
+/// mixed-separator paths that `package:build`'s path validator rejects
+/// with "Only absolute normalized paths are supported". On POSIX,
+/// `p.normalize` is a no-op for already-clean paths.
+String _absAndNormalize(String path) => p.normalize(p.absolute(path));
+
 ShimArgs _absoluteArgs(ShimArgs a) => ShimArgs(
-      inputPath: p.absolute(a.inputPath),
+      inputPath: _absAndNormalize(a.inputPath),
       inputAssetPath: a.inputAssetPath,
-      outputPaths: [for (final o in a.outputPaths) p.absolute(o)],
+      outputPaths: [for (final o in a.outputPaths) _absAndNormalize(o)],
       packageName: a.packageName,
       depPaths: [
         for (final d in a.depPaths)
-          (exec: p.absolute(d.exec), asset: d.asset),
+          (exec: _absAndNormalize(d.exec), asset: d.asset),
       ],
       config: a.config,
       packageConfigUri: a.packageConfigUri != null
-          ? p.absolute(a.packageConfigUri!)
+          ? _absAndNormalize(a.packageConfigUri!)
           : null,
-      sdkPath: a.sdkPath != null ? p.absolute(a.sdkPath!) : null,
+      sdkPath: a.sdkPath != null ? _absAndNormalize(a.sdkPath!) : null,
       rootLanguageVersion: a.rootLanguageVersion,
     );
 
