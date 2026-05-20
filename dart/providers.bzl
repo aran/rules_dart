@@ -33,3 +33,17 @@ DartCompileInfo = provider(
         "compile_mode": "str: The compilation mode used (`exe`, `aot-snapshot`, `kernel`, or `jit-snapshot`).",
     },
 )
+
+DartCodeAssetInfo = provider(
+    doc = """A native code asset (a Bazel-built dynamic library) bound to the \
+Dart `@Native`/`@DefaultAsset` asset id the owning package uses.
+
+Produced by the `dart_code_asset` rule and consumed via the `code_assets` \
+attribute of `dart_test` / `dart_binary`, which embed the mapping into the \
+compiled kernel (`gen_kernel --native-assets`) so the Dart VM resolves the \
+package's `@Native` symbols against the Bazel-built library at runtime.""",
+    fields = {
+        "asset_id": "str: The code-asset id the owning package declares (its `@ffi.DefaultAsset` / `@Native(assetId:)`), e.g. `package:sqlite3/src/ffi/libsqlite3.g.dart`.",
+        "dynamic_library": "File: The dynamic library (`.so`/`.dylib`/`.dll`) the asset resolves to.",
+    },
+)

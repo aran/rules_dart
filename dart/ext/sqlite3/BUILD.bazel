@@ -1,0 +1,29 @@
+load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
+load("//dart:defs.bzl", "dart_code_asset")
+
+# rules_dart-provided code-asset support for `package:sqlite3` (Layer 2:
+# the fallback for when the package itself doesn't ship Bazel support).
+# `package:sqlite3` normally builds its native library via `hook/build.dart`
+# (native_toolchain_c over the SQLite amalgamation). We replace that hook
+# with a Bazel cc_shared_library over the BCR `sqlite3` module, and bind it
+# to sqlite3's own code-asset id so `@Native` resolves to the Bazel build.
+
+cc_shared_library(
+    name = "libsqlite3",
+    shared_lib_name = select({
+        "@platforms//os:macos": "libsqlite3.dylib",
+        "@platforms//os:windows": "sqlite3.dll",
+        "//conditions:default": "libsqlite3.so",
+    }),
+    visibility = ["//visibility:private"],
+    deps = ["@sqlite3"],
+)
+
+dart_code_asset(
+    name = "code_asset",
+    # sqlite3's bindings declare @ffi.DefaultAsset(...) in lib/src/ffi/
+    # libsqlite3.g.dart; its hook emits the code asset under this id.
+    asset_id = "package:sqlite3/src/ffi/libsqlite3.g.dart",
+    shared_library = ":libsqlite3",
+    visibility = ["//visibility:public"],
+)

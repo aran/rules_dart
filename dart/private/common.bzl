@@ -33,6 +33,19 @@ WINDOWS_CONSTRAINT_ATTR = {
     ),
 }
 
+# Private attributes for resolving the Dart code-asset ABI string
+# (`<os>_<arch>`, e.g. `macos_arm64`) from the target platform at analysis
+# time. `DartSdkInfo.target_os/target_arch` are empty for native/host
+# toolchains (the only ones a test runs under), so we probe constraints
+# directly — the idiomatic pattern in this repo (see WINDOWS_CONSTRAINT_ATTR).
+DART_ABI_CONSTRAINT_ATTRS = {
+    "_os_macos": attr.label(default = "@platforms//os:macos"),
+    "_os_linux": attr.label(default = "@platforms//os:linux"),
+    "_os_windows": attr.label(default = "@platforms//os:windows"),
+    "_cpu_arm64": attr.label(default = "@platforms//cpu:aarch64"),
+    "_cpu_x64": attr.label(default = "@platforms//cpu:x86_64"),
+}
+
 def runfiles_path(f, workspace_name):
     """Convert a File to its runfiles-relative path.
 
@@ -321,6 +334,165 @@ def synth_package_config(ctx, library_deps):
     )
     ctx.actions.write(output = package_config, content = content)
     return package_config, transitive_srcs
+
+# --- Native code-asset (gen_kernel --native-assets) helpers ---
+#
+# SKELETON STUBS: signatures exist so `dart_test`/`dart_binary` load and the
+# unit tests fail on assertions rather than missing symbols. Implemented in a
+# follow-up edit.
+
+def target_dart_abi(ctx):
+    """Returns the Dart code-asset ABI string for the target platform.
+
+    Format `<os>_<arch>` (e.g. `macos_arm64`, `linux_x64`, `windows_x64`),
+    matching `kTargetOperatingSystemName_kTargetArchitectureName` in the VM
+    (`runtime/vm/ffi/native_assets.cc`) and the `PLATFORMS` table in
+    `toolchains_repo.bzl`. Reads `DART_ABI_CONSTRAINT_ATTRS` constraints.
+
+    Args:
+      ctx: The rule context (must spread `DART_ABI_CONSTRAINT_ATTRS` in attrs).
+
+    Returns:
+      The `<os>_<arch>` ABI string.
+    """
+    if ctx.target_platform_has_constraint(ctx.attr._os_macos[platform_common.ConstraintValueInfo]):
+        os = "macos"
+    elif ctx.target_platform_has_constraint(ctx.attr._os_linux[platform_common.ConstraintValueInfo]):
+        os = "linux"
+    elif ctx.target_platform_has_constraint(ctx.attr._os_windows[platform_common.ConstraintValueInfo]):
+        os = "windows"
+    else:
+        fail("%s: code_assets require a macos/linux/windows target OS." % ctx.label)
+    if ctx.target_platform_has_constraint(ctx.attr._cpu_arm64[platform_common.ConstraintValueInfo]):
+        arch = "arm64"
+    elif ctx.target_platform_has_constraint(ctx.attr._cpu_x64[platform_common.ConstraintValueInfo]):
+        arch = "x64"
+    else:
+        fail("%s: code_assets require an aarch64/x86_64 target CPU." % ctx.label)
+    return os + "_" + arch
+
+def find_sdk_kernel_tools(dart_sdk_info):
+    """Locates the gen_kernel toolchain files within the SDK tree.
+
+    Returns a struct with the `dartaotruntime` executable, the
+    `gen_kernel_aot.dart.snapshot`, and `vm_platform_strong.dill` Files,
+    found by exact path under the SDK root within `dart_sdk_info.tool_files`.
+
+    Args:
+      dart_sdk_info: The `DartSdkInfo` from the toolchain.
+
+    Returns:
+      `struct(dartaotruntime, gen_kernel_snapshot, platform_dill)` of Files.
+    """
+    sdk_root = sdk_path_from_dart(dart_sdk_info.dart)
+    wanted = {
+        "dartaotruntime": [
+            sdk_root + "/bin/dartaotruntime",
+            sdk_root + "/bin/dartaotruntime.exe",
+        ],
+        "gen_kernel_snapshot": [sdk_root + "/bin/snapshots/gen_kernel_aot.dart.snapshot"],
+        "platform_dill": [sdk_root + "/lib/_internal/vm_platform_strong.dill"],
+    }
+    found = {}
+    for f in dart_sdk_info.tool_files:
+        for key, paths in wanted.items():
+            if f.path in paths:
+                found[key] = f
+    for key in wanted:
+        if key not in found:
+            fail(("find_sdk_kernel_tools: could not locate %s under SDK root " +
+                  "%r (Dart %s). The SDK layout may have changed across " +
+                  "versions; native code-asset support needs the AOT " +
+                  "gen_kernel snapshot.") %
+                 (key, sdk_root, dart_sdk_info.version))
+    return struct(
+        dartaotruntime = found["dartaotruntime"],
+        gen_kernel_snapshot = found["gen_kernel_snapshot"],
+        platform_dill = found["platform_dill"],
+    )
+
+def generate_native_assets_yaml(abi, asset_entries):
+    """Generates the `native_assets.yaml` content for `gen_kernel --native-assets`.
+
+    Emits the documented format (JSON, which is valid YAML); the VM reads it
+    as `vm:ffi:native-assets` kernel metadata. Each asset uses the `relative`
+    path type, resolved at runtime against the dill/exe's real path.
+
+    Args:
+      abi: The `<os>_<arch>` ABI key (see `target_dart_abi`).
+      asset_entries: List of `(asset_id, relative_path)` tuples.
+
+    Returns:
+      String content of the native_assets.yaml file.
+    """
+    assets = ", ".join([
+        '"{id}": ["relative", "{path}"]'.format(id = asset_id, path = path)
+        for (asset_id, path) in asset_entries
+    ])
+    return '{{"format-version": [1, 0, 0], "native-assets": {{"{abi}": {{{assets}}}}}}}\n'.format(
+        abi = abi,
+        assets = assets,
+    )
+
+def gen_kernel_native_assets_action(
+        ctx,
+        dart_sdk_info,
+        main,
+        transitive_srcs,
+        package_config,
+        native_assets_yaml,
+        output_dill):
+    """Runs `gen_kernel --native-assets=<yaml>` to produce a kernel `.dill`.
+
+    Invokes `dartaotruntime gen_kernel_aot.dart.snapshot --platform <dill>
+    --packages <pc> --native-assets <yaml> -o <output> <main>`, embedding the
+    code-asset mapping as `vm:ffi:native-assets` metadata. The `.so` files are
+    NOT inputs — gen_kernel only embeds the yaml text; the libraries are a
+    runtime (runfiles) dependency.
+
+    Args:
+      ctx: The rule context.
+      dart_sdk_info: The `DartSdkInfo` from the toolchain.
+      main: The main `.dart` File.
+      transitive_srcs: Depset of transitive source Files.
+      package_config: The build-time `package_config.json` File (or None).
+      native_assets_yaml: The generated native_assets.yaml File.
+      output_dill: The output `.dill` File to produce.
+    """
+    tools = find_sdk_kernel_tools(dart_sdk_info)
+
+    args = ctx.actions.args()
+    args.add(tools.gen_kernel_snapshot)
+    args.add("--platform", tools.platform_dill)
+    if package_config != None:
+        args.add("--packages", package_config)
+    args.add("--native-assets", native_assets_yaml)
+    args.add("-o", output_dill)
+    args.add(main)
+
+    direct = [main, native_assets_yaml]
+    if package_config != None:
+        direct.append(package_config)
+    transitive = [depset(dart_sdk_info.tool_files)]
+    if transitive_srcs != None:
+        transitive.append(transitive_srcs)
+
+    # Mirror dart_compile.bzl's HOME handling so the frontend has a writable
+    # home (Windows native dart receives /tmp literally and crashes).
+    if dart_sdk_info.dart.basename.endswith(".exe"):
+        env = {"USERPROFILE": output_dill.dirname, "LOCALAPPDATA": output_dill.dirname}
+    else:
+        env = {"HOME": "/tmp"}
+
+    ctx.actions.run(
+        executable = tools.dartaotruntime,
+        arguments = [args],
+        inputs = depset(direct = direct, transitive = transitive),
+        outputs = [output_dill],
+        mnemonic = "DartGenKernelNativeAssets",
+        progress_message = "Compiling Dart kernel with native assets %s" % ctx.label,
+        env = env,
+    )
 
 def asset_path_for(file, lib_root):
     """Computes the in-package asset path for a File.

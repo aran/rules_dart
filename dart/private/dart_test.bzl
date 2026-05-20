@@ -1,7 +1,15 @@
 """Implementation of the dart_test rule."""
 
-load("//dart:providers.bzl", "DartInfo")
-load("//dart/private:common.bzl", "WINDOWS_CONSTRAINT_ATTR", "create_test_executable", "runfiles_path")
+load("//dart:providers.bzl", "DartCodeAssetInfo", "DartInfo")
+load(
+    "//dart/private:common.bzl",
+    "DART_ABI_CONSTRAINT_ATTRS",
+    "WINDOWS_CONSTRAINT_ATTR",
+    "create_test_executable",
+    "find_sdk_kernel_tools",
+    "runfiles_path",
+    "target_dart_abi",
+)
 
 def format_packages_manifest_lines(packages, root_to_entry):
     """Build the per-package manifest lines.
@@ -89,9 +97,67 @@ def _generate_packages_manifest(ctx, deps):
     ctx.actions.write(output = manifest, content = "\n".join(lines) + "\n")
     return manifest
 
+def _dart_test_code_assets_impl(ctx, dart_sdk_info, all_srcs, packages_manifest):
+    """code_assets path: compile main->kernel with native assets, run the dill.
+
+    The kernel compile happens at TEST time inside the runner (not as a build
+    action), because a codegen package's source and generated files only
+    co-locate in the runfiles tree — the same reason the default path resolves
+    packages at runtime. The runner reuses the runtime package_config built
+    from `packages_manifest`, then writes a native_assets.yaml that points each
+    asset at the rlocation-resolved (absolute) `.so`, runs
+    `gen_kernel --native-assets`, and runs the resulting dill.
+    """
+    workspace_name = ctx.workspace_name
+    tools = find_sdk_kernel_tools(dart_sdk_info)
+
+    # Per-asset manifest: "<asset_id>\t<so_runfiles_path>".
+    libs = []
+    ca_lines = []
+    for dep in ctx.attr.code_assets:
+        info = dep[DartCodeAssetInfo]
+        libs.append(info.dynamic_library)
+        ca_lines.append("{}\t{}".format(
+            info.asset_id,
+            runfiles_path(info.dynamic_library, workspace_name),
+        ))
+    code_assets_manifest = ctx.actions.declare_file(ctx.label.name + ".code_assets")
+    ctx.actions.write(output = code_assets_manifest, content = "\n".join(ca_lines) + "\n")
+
+    executable, env_info, tool_runfiles = create_test_executable(
+        ctx,
+        ctx.attr._tool,
+        env = {
+            "RULES_DART_DART": runfiles_path(dart_sdk_info.dart, workspace_name),
+            "RULES_DART_PKG_MANIFEST": runfiles_path(packages_manifest, workspace_name),
+            "RULES_DART_MAIN": runfiles_path(ctx.file.main, workspace_name),
+            "RULES_DART_GENKERNEL": runfiles_path(tools.gen_kernel_snapshot, workspace_name),
+            "RULES_DART_AOTRUNTIME": runfiles_path(tools.dartaotruntime, workspace_name),
+            "RULES_DART_PLATFORM": runfiles_path(tools.platform_dill, workspace_name),
+            "RULES_DART_ABI": target_dart_abi(ctx),
+            "RULES_DART_CODE_ASSETS": runfiles_path(code_assets_manifest, workspace_name),
+        },
+    )
+
+    runfiles = ctx.runfiles(
+        files = [ctx.file.main, packages_manifest, code_assets_manifest] +
+                all_srcs + libs + ctx.files.data + dart_sdk_info.tool_files,
+    )
+    runfiles = runfiles.merge(tool_runfiles)
+    for dep in ctx.attr.deps:
+        runfiles = runfiles.merge(dep[DefaultInfo].default_runfiles)
+    for data_dep in ctx.attr.data:
+        runfiles = runfiles.merge(data_dep[DefaultInfo].default_runfiles)
+
+    return [
+        DefaultInfo(executable = executable, runfiles = runfiles),
+        env_info,
+    ]
+
 def _dart_test_impl(ctx):
     toolchain = ctx.toolchains["//dart:toolchain_type"]
     dart_sdk_info = toolchain.dart_sdk_info
+    workspace_name = ctx.workspace_name
 
     # Collect all transitive sources from deps
     all_srcs = list(ctx.files.srcs)
@@ -101,8 +167,13 @@ def _dart_test_impl(ctx):
     # Generate packages manifest for runtime package_config.json construction
     packages_manifest = _generate_packages_manifest(ctx, ctx.attr.deps)
 
+    # When the test declares native code assets, the runner compiles the main
+    # to a kernel (embedding the asset mapping) and runs the dill instead of
+    # the source. Everything else is shared.
+    if ctx.attr.code_assets:
+        return _dart_test_code_assets_impl(ctx, dart_sdk_info, all_srcs, packages_manifest)
+
     # Resolve runfiles-relative paths for env vars
-    workspace_name = ctx.workspace_name
     dart_path = runfiles_path(dart_sdk_info.dart, workspace_name)
     manifest_path = runfiles_path(packages_manifest, workspace_name)
     main_path = runfiles_path(ctx.file.main, workspace_name)
@@ -156,12 +227,20 @@ dart_test = rule(
             doc = "Additional files needed at runtime. These are added to runfiles so they can be resolved via `Runfiles.rlocation()`.",
             allow_files = True,
         ),
+        "code_assets": attr.label_list(
+            doc = """Native code assets (e.g. `//dart/ext/sqlite3:code_asset`) the test's \
+`@Native` FFI bindings resolve against. When set, the test's `main` is compiled to a kernel \
+with the code-asset mapping embedded (`gen_kernel --native-assets`) and the dill is run, so the \
+Dart VM resolves the native libraries from Bazel runfiles — no `dart:ffi` ceremony in the test \
+source. Each entry must provide `DartCodeAssetInfo` (see the `dart_code_asset` rule).""",
+            providers = [DartCodeAssetInfo],
+        ),
         "_tool": attr.label(
             default = "//dart/private/tools:test_runner",
             executable = True,
             cfg = "exec",
         ),
-    }, **WINDOWS_CONSTRAINT_ATTR),
+    }, **dict(WINDOWS_CONSTRAINT_ATTR, **DART_ABI_CONSTRAINT_ATTRS)),
     test = True,
     toolchains = ["//dart:toolchain_type"],
     doc = "Runs a Dart test file using the Dart VM.",

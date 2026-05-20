@@ -1,7 +1,17 @@
 """Implementation of the dart_binary rule."""
 
-load("//dart:providers.bzl", "DartCompileInfo", "DartInfo")
-load("//dart/private:common.bzl", "collect_packages", "collect_transitive_srcs", "generate_package_config")
+load("//dart:providers.bzl", "DartCodeAssetInfo", "DartCompileInfo", "DartInfo")
+load(
+    "//dart/private:common.bzl",
+    "DART_ABI_CONSTRAINT_ATTRS",
+    "collect_packages",
+    "collect_transitive_srcs",
+    "gen_kernel_native_assets_action",
+    "generate_native_assets_yaml",
+    "generate_package_config",
+    "relative_path",
+    "target_dart_abi",
+)
 load("//dart/private:dart_compile.bzl", "dart_compile_action")
 
 def _generate_package_config(ctx, deps, all_srcs):
@@ -36,14 +46,50 @@ def _dart_binary_impl(ctx):
     else:
         fail("Unknown compile_mode: %s" % compile_mode)
 
+    # By default compile the source main directly. With native code assets,
+    # first run gen_kernel with the asset mapping embedded (its `relative`
+    # paths resolve against the final executable at runtime), then compile the
+    # resulting kernel — `dart compile` accepts a `.dill` input and the
+    # metadata flows through into the snapshot.
+    compile_main = ctx.file.main
+    compile_srcs = all_srcs
+    compile_package_config = package_config
+    code_asset_libs = []
+
+    if ctx.attr.code_assets:
+        abi = target_dart_abi(ctx)
+        entries = []
+        for dep in ctx.attr.code_assets:
+            info = dep[DartCodeAssetInfo]
+            entries.append((info.asset_id, relative_path(output.dirname, info.dynamic_library.path)))
+            code_asset_libs.append(info.dynamic_library)
+        native_assets_yaml = ctx.actions.declare_file(ctx.label.name + ".native_assets.yaml")
+        ctx.actions.write(
+            output = native_assets_yaml,
+            content = generate_native_assets_yaml(abi, entries),
+        )
+        dill = ctx.actions.declare_file(ctx.label.name + ".na.dill")
+        gen_kernel_native_assets_action(
+            ctx = ctx,
+            dart_sdk_info = dart_sdk_info,
+            main = ctx.file.main,
+            transitive_srcs = depset(all_srcs),
+            package_config = package_config,
+            native_assets_yaml = native_assets_yaml,
+            output_dill = dill,
+        )
+        compile_main = dill
+        compile_srcs = []
+        compile_package_config = None
+
     # Run dart compile
     dart_compile_action(
         ctx = ctx,
         dart_bin = dart_sdk_info.dart,
         sdk_files = dart_sdk_info.tool_files,
-        main = ctx.file.main,
-        srcs = all_srcs,
-        package_config = package_config,
+        main = compile_main,
+        srcs = compile_srcs,
+        package_config = compile_package_config,
         output = output,
         compile_mode = compile_mode,
         target_os = dart_sdk_info.target_os,
@@ -52,7 +98,7 @@ def _dart_binary_impl(ctx):
         defines = ctx.attr.defines,
     )
 
-    runfiles = ctx.runfiles(files = ctx.files.data).merge_all(
+    runfiles = ctx.runfiles(files = ctx.files.data + code_asset_libs).merge_all(
         [dep[DefaultInfo].default_runfiles for dep in ctx.attr.data],
     )
 
@@ -70,7 +116,7 @@ def _dart_binary_impl(ctx):
 
 dart_binary = rule(
     implementation = _dart_binary_impl,
-    attrs = {
+    attrs = dict({
         "main": attr.label(
             doc = "The Dart entrypoint file containing a top-level `main()` function.",
             mandatory = True,
@@ -87,6 +133,14 @@ dart_binary = rule(
         "data": attr.label_list(
             doc = "Additional files needed at runtime. These are added to runfiles so they can be found via the runfiles tree when using `bazel run`.",
             allow_files = True,
+        ),
+        "code_assets": attr.label_list(
+            doc = """Native code assets (e.g. `//dart/ext/sqlite3:code_asset`) the binary's \
+`@Native` FFI bindings resolve against. When set, the main is compiled to a kernel with the \
+code-asset mapping embedded (`gen_kernel --native-assets`) before the snapshot/exe is produced, \
+and the libraries are staged in runfiles so the Dart VM resolves them relative to the executable \
+at runtime. Each entry must provide `DartCodeAssetInfo` (see the `dart_code_asset` rule).""",
+            providers = [DartCodeAssetInfo],
         ),
         "compile_mode": attr.string(
             doc = """\
@@ -106,7 +160,7 @@ The `dart compile` mode. Determines the output format:
         "defines": attr.string_list(
             doc = "Dart environment declarations (`key=value`). Each entry becomes a `-Dkey=value` flag.",
         ),
-    },
+    }, **DART_ABI_CONSTRAINT_ATTRS),
     executable = True,
     toolchains = ["//dart:toolchain_type"],
     doc = "Compiles a Dart application using `dart compile`.",

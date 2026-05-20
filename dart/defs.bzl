@@ -12,11 +12,14 @@ Load this file from your BUILD files to access the following rules:
 - `dart_codegen`: Runs a Dart code generator on source files, producing generated .dart outputs.
 - `dart_aggregate_codegen`: Runs a package-level aggregate code generator over all sources.
 - `dart_sqlcodegen`: Like `dart_codegen` but accepts non-Dart inputs (e.g. `.drift` files).
+- `dart_code_asset`: Binds a Bazel-built native dynamic library to a Dart code-asset id, for use in `dart_test`/`dart_binary` `code_assets`.
 """
 
+load("//dart:providers.bzl", _DartCodeAssetInfo = "DartCodeAssetInfo")
 load("//dart/private:dart_aggregate_codegen.bzl", _dart_aggregate_codegen = "dart_aggregate_codegen")
 load("//dart/private:dart_analyze.bzl", _dart_analyze_test = "dart_analyze_test")
 load("//dart/private:dart_binary.bzl", _dart_binary = "dart_binary")
+load("//dart/private:dart_code_asset.bzl", _dart_code_asset = "dart_code_asset")
 load("//dart/private:dart_codegen.bzl", _dart_codegen = "dart_codegen")
 load("//dart/private:dart_format_test.bzl", _dart_format_test = "dart_format_test")
 load("//dart/private:dart_library.bzl", _dart_library = "dart_library")
@@ -34,3 +37,5 @@ dart_wasm_binary = _dart_wasm_binary
 dart_codegen = _dart_codegen
 dart_aggregate_codegen = _dart_aggregate_codegen
 dart_sqlcodegen = _dart_sqlcodegen
+dart_code_asset = _dart_code_asset
+DartCodeAssetInfo = _DartCodeAssetInfo

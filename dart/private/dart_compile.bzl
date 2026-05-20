@@ -55,7 +55,12 @@ def dart_compile_action(
     args = ctx.actions.args()
     args.add("compile")
     args.add(compile_mode)
-    args.add("--packages", package_config)
+
+    # `package_config` is None when `main` is a pre-built kernel (`.dill`),
+    # which already has package resolution baked in (e.g. the code_assets
+    # path that runs gen_kernel first).
+    if package_config != None:
+        args.add("--packages", package_config)
 
     # Cross-compilation flags (only valid for exe and aot-snapshot modes)
     if target_os and (compile_mode == "exe" or compile_mode == "aot-snapshot"):
@@ -87,11 +92,14 @@ def dart_compile_action(
     else:
         env = {"HOME": "/tmp"}
 
+    direct = [main] + srcs
+    if package_config != None:
+        direct.append(package_config)
     ctx.actions.run(
         executable = dart_bin,
         arguments = [args],
         inputs = depset(
-            direct = [main, package_config] + srcs,
+            direct = direct,
             transitive = [depset(sdk_files)],
         ),
         outputs = [output],
