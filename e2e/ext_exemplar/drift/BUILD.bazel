@@ -1,6 +1,6 @@
-load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("@rules_dart//dart:defs.bzl", "dart_test")
 load("@rules_dart//dart/ext/drift:defs.bzl", "drift_library")
+load("@rules_dart//dart/ext/sqlite3:defs.bzl", "sqlite3_code_asset")
 
 # Comprehensive e2e for drift:
 #  - .drift file include (todos + `AS Todo` data class + `allTodos` query)
@@ -23,30 +23,17 @@ drift_library(
     visibility = ["//visibility:public"],
 )
 
-# Hermetic libsqlite3 for the database_test: a Bazel-built shared library
-# from the official SQLite C amalgamation (via the BCR sqlite3 module).
-# The test DynamicLibrary.open()s it in setUpAll so package:sqlite3's
-# process-lookup fallback finds the symbols (macOS happens to ship a
-# usable libsqlite3; Linux/Windows runners do not have one on the Bazel
-# sandbox's library search path).
-cc_shared_library(
-    name = "libsqlite3",
-    shared_lib_name = select({
-        "@platforms//os:macos": "libsqlite3.dylib",
-        "@platforms//os:windows": "sqlite3.dll",
-        "//conditions:default": "libsqlite3.so",
-    }),
-    deps = ["@sqlite3"],
-)
-
+# drift's NativeDatabase uses package:sqlite3, whose @Native bindings need a
+# libsqlite3 at runtime. `code_assets` builds it hermetically (Bazel, via the
+# BCR sqlite3 module) and embeds the mapping into the test kernel — the test
+# source stays plain `NativeDatabase.memory()`, no dart:ffi.
 dart_test(
     name = "database_test",
-    data = [":libsqlite3"],
+    code_assets = [sqlite3_code_asset()],
     main = "test/database_test.dart",
     deps = [
         ":drift_fixture",
         "@pub_deps//:drift",
         "@pub_deps//:test",
-        "@rules_dart//dart/runfiles",
     ],
 )

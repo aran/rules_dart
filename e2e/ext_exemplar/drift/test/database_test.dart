@@ -1,33 +1,15 @@
-import 'dart:ffi';
-import 'dart:io';
-
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:drift_fixture/database.dart';
 import 'package:drift_fixture/posts_dao.dart';
-import 'package:runfiles/runfiles.dart';
 import 'package:test/test.dart';
 
-/// Load a Bazel-built libsqlite3 into the process so `package:sqlite3`'s
-/// FFI bindings (which fall back to `DynamicLibrary.process()` lookup when
-/// no native asset is registered) find the symbols. The .so/.dylib/.dll is
-/// produced by `//drift:libsqlite3` and staged into runfiles via the test's
-/// `data` attribute — hermetic on every platform without relying on a
-/// system libsqlite3 (Linux/Windows runners don't have one on the Bazel
-/// sandbox's library search path).
-void _loadVendoredSqlite3() {
-  final libName = Platform.isMacOS
-      ? 'libsqlite3.dylib'
-      : Platform.isWindows
-          ? 'sqlite3.dll'
-          : 'libsqlite3.so';
-  final libPath = Runfiles.create().rlocation('_main/drift/$libName');
-  DynamicLibrary.open(libPath);
-}
+// No FFI ceremony: the BUILD's `code_assets = [sqlite3_code_asset()]` embeds
+// the Bazel-built libsqlite3 into the test kernel as a code asset, so
+// `package:sqlite3`'s `@Native` bindings resolve against it. This source is
+// identical to a plain (non-Bazel) drift test.
 
 void main() {
-  setUpAll(_loadVendoredSqlite3);
-
   late AppDatabase db;
 
   setUp(() {
@@ -61,9 +43,9 @@ void main() {
       final userId = await db
           .into(db.users)
           .insert(UsersCompanion.insert(name: 'Aria'));
-      await db.into(db.posts).insert(
-            PostsCompanion.insert(userId: userId, title: 'Welcome'),
-          );
+      await db
+          .into(db.posts)
+          .insert(PostsCompanion.insert(userId: userId, title: 'Welcome'));
 
       final post = await db.select(db.posts).getSingle();
       expect(post.userId, userId);
@@ -76,7 +58,9 @@ void main() {
       final userId = await db
           .into(db.users)
           .insert(UsersCompanion.insert(name: 'Aria'));
-      await db.into(db.posts).insert(
+      await db
+          .into(db.posts)
+          .insert(
             PostsCompanion.insert(
               userId: userId,
               title: 'Welcome',
@@ -103,19 +87,25 @@ void main() {
           .into(db.users)
           .insert(UsersCompanion.insert(name: 'Bob'));
 
-      await db.into(db.posts).insert(
+      await db
+          .into(db.posts)
+          .insert(
             PostsCompanion.insert(userId: aliceId, title: "Alice's first"),
           );
-      await db.into(db.posts).insert(
+      await db
+          .into(db.posts)
+          .insert(
             PostsCompanion.insert(userId: aliceId, title: "Alice's second"),
           );
-      await db.into(db.posts).insert(
-            PostsCompanion.insert(userId: bobId, title: "Bob's note"),
-          );
+      await db
+          .into(db.posts)
+          .insert(PostsCompanion.insert(userId: bobId, title: "Bob's note"));
 
       final alices = await db.postsDao.forUser(aliceId);
-      expect(alices.map((p) => p.title).toSet(),
-          equals({"Alice's first", "Alice's second"}));
+      expect(
+        alices.map((p) => p.title).toSet(),
+        equals({"Alice's first", "Alice's second"}),
+      );
 
       final bobs = await db.postsDao.forUser(bobId);
       expect(bobs, hasLength(1));
@@ -124,44 +114,50 @@ void main() {
   });
 
   group('multi-table join via DAO DSL', () {
-    test('postsWithAuthor returns each post paired with its author name',
-        () async {
-      final aliceId = await db
-          .into(db.users)
-          .insert(UsersCompanion.insert(name: 'Alice'));
-      await db.into(db.posts).insert(
-            PostsCompanion.insert(userId: aliceId, title: 'Hello'),
-          );
-      await db.into(db.posts).insert(
-            PostsCompanion.insert(userId: aliceId, title: 'World'),
-          );
+    test(
+      'postsWithAuthor returns each post paired with its author name',
+      () async {
+        final aliceId = await db
+            .into(db.users)
+            .insert(UsersCompanion.insert(name: 'Alice'));
+        await db
+            .into(db.posts)
+            .insert(PostsCompanion.insert(userId: aliceId, title: 'Hello'));
+        await db
+            .into(db.posts)
+            .insert(PostsCompanion.insert(userId: aliceId, title: 'World'));
 
-      final rows = await db.postsDao.postsWithAuthor(aliceId);
-      expect(rows, hasLength(2));
-      expect(rows.every((r) => r.author == 'Alice'), isTrue);
-      expect(rows.map((r) => r.post.title).toSet(),
-          equals({'Hello', 'World'}));
-    });
+        final rows = await db.postsDao.postsWithAuthor(aliceId);
+        expect(rows, hasLength(2));
+        expect(rows.every((r) => r.author == 'Alice'), isTrue);
+        expect(
+          rows.map((r) => r.post.title).toSet(),
+          equals({'Hello', 'World'}),
+        );
+      },
+    );
   });
 
   group('multi-table join via .drift named query', () {
-    test('postsByUser joins posts with users.name via the .drift SELECT',
-        () async {
-      final aliceId = await db
-          .into(db.users)
-          .insert(UsersCompanion.insert(name: 'Alice'));
-      await db.into(db.posts).insert(
-            PostsCompanion.insert(userId: aliceId, title: 'Hello'),
-          );
+    test(
+      'postsByUser joins posts with users.name via the .drift SELECT',
+      () async {
+        final aliceId = await db
+            .into(db.users)
+            .insert(UsersCompanion.insert(name: 'Alice'));
+        await db
+            .into(db.posts)
+            .insert(PostsCompanion.insert(userId: aliceId, title: 'Hello'));
 
-      // `postsByUser` is defined in database.drift. It references
-      // Dart-declared Users / Posts tables via the `.drift` file's
-      // `import 'database.dart';` directive. drift_dev must cross the
-      // Dart ↔ .drift boundary to emit the generated query method.
-      final rows = await db.postsByUser(aliceId).get();
-      expect(rows, hasLength(1));
-      expect(rows.first.author, 'Alice');
-      expect(rows.first.title, 'Hello');
-    });
+        // `postsByUser` is defined in database.drift. It references
+        // Dart-declared Users / Posts tables via the `.drift` file's
+        // `import 'database.dart';` directive. drift_dev must cross the
+        // Dart ↔ .drift boundary to emit the generated query method.
+        final rows = await db.postsByUser(aliceId).get();
+        expect(rows, hasLength(1));
+        expect(rows.first.author, 'Alice');
+        expect(rows.first.title, 'Hello');
+      },
+    );
   });
 }

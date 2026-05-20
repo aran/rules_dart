@@ -1,0 +1,24 @@
+load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_test")
+load("@rules_dart//dart/ext/sqlite3:defs.bzl", "sqlite3_code_asset")
+
+# Exemplar of the dart_binary code_assets path (AOT): a plain package:sqlite3
+# program with the Bazel-built libsqlite3 bound as a code asset. No dart:ffi
+# in the source.
+dart_binary(
+    name = "app",
+    code_assets = [sqlite3_code_asset()],
+    main = "bin/main.dart",
+    deps = ["@pub_deps//:sqlite3"],
+)
+
+# Runs the compiled binary and asserts it resolves sqlite3 at runtime — the
+# acceptance for AOT native-asset resolution on each platform.
+dart_test(
+    name = "app_run_test",
+    data = [":app"],
+    main = "test/run_test.dart",
+    deps = [
+        "@pub_deps//:test",
+        "@rules_dart//dart/runfiles",
+    ],
+)
