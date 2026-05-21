@@ -14,6 +14,35 @@ load(
 )
 load("//dart/private:dart_compile.bzl", "dart_compile_action")
 
+def binary_output_basename(name, compile_mode, is_windows):
+    """Returns a `dart_binary`'s output filename with the platform exe extension.
+
+    Includes the platform-appropriate executable extension.
+
+    A native `exe` gets a `.exe` suffix on Windows so it is launchable and
+    discoverable by the conventional name (e.g. via runfiles
+    `rlocation("…/app.exe")`). Without it the output is a bare `app`, and a
+    consumer looking up `app.exe` misses — falling through to a non-existent
+    path. The snapshot modes use fixed extensions on every platform.
+
+    Args:
+      name: The target name (`ctx.label.name`).
+      compile_mode: One of `exe`, `aot-snapshot`, `kernel`, `jit-snapshot`.
+      is_windows: Whether the target platform is Windows.
+
+    Returns:
+      The output filename string.
+    """
+    if compile_mode == "exe":
+        return name + (".exe" if is_windows else "")
+    elif compile_mode == "aot-snapshot":
+        return name + ".aot"
+    elif compile_mode == "kernel":
+        return name + ".dill"
+    elif compile_mode == "jit-snapshot":
+        return name + ".jit"
+    fail("Unknown compile_mode: %s" % compile_mode)
+
 def _generate_package_config(ctx, deps, all_srcs):
     """Generate a package_config.json from the transitive DartInfo deps."""
     packages = collect_packages(deps)
@@ -33,18 +62,15 @@ def _dart_binary_impl(ctx):
     # Generate package_config.json
     package_config = _generate_package_config(ctx, ctx.attr.deps, all_srcs)
 
-    # Determine output filename
+    # Determine output filename (Windows gets the `.exe` extension — see
+    # `binary_output_basename`).
     compile_mode = ctx.attr.compile_mode
-    if compile_mode == "exe":
-        output = ctx.actions.declare_file(ctx.label.name)
-    elif compile_mode == "aot-snapshot":
-        output = ctx.actions.declare_file(ctx.label.name + ".aot")
-    elif compile_mode == "kernel":
-        output = ctx.actions.declare_file(ctx.label.name + ".dill")
-    elif compile_mode == "jit-snapshot":
-        output = ctx.actions.declare_file(ctx.label.name + ".jit")
-    else:
-        fail("Unknown compile_mode: %s" % compile_mode)
+    is_windows = ctx.target_platform_has_constraint(
+        ctx.attr._os_windows[platform_common.ConstraintValueInfo],
+    )
+    output = ctx.actions.declare_file(
+        binary_output_basename(ctx.label.name, compile_mode, is_windows),
+    )
 
     # By default compile the source main directly. With native code assets,
     # first run gen_kernel with the asset mapping embedded (its `relative`

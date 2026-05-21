@@ -10,6 +10,17 @@ load("//dart:defs.bzl", "dart_code_asset")
 
 cc_shared_library(
     name = "libsqlite3",
+    # On Windows a DLL exports nothing unless told to, and the BCR `@sqlite3`
+    # amalgamation is compiled as a static lib (no `__declspec(dllexport)`).
+    # This feature has Bazel generate the export table from the linked object
+    # files, so `package:sqlite3`'s `@Native` bindings (`sqlite3_initialize`,
+    # …) resolve against our DLL. It reuses `@sqlite3`'s compilation — no
+    # recompile and no hand-maintained `.def`. (The feature omits `extern`
+    # *variables*, which the sqlite3 Dart bindings don't bind to.)
+    features = select({
+        "@platforms//os:windows": ["windows_export_all_symbols"],
+        "//conditions:default": [],
+    }),
     shared_lib_name = select({
         "@platforms//os:macos": "libsqlite3.dylib",
         "@platforms//os:windows": "sqlite3.dll",

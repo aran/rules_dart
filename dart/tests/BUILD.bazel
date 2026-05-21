@@ -1,5 +1,6 @@
 load(":codegen_test.bzl", "codegen_test_suite")
 load(":common_test.bzl", "common_test_suite")
+load(":dart_binary_test.bzl", "dart_binary_test_suite")
 load(":dart_test_test.bzl", "dart_test_test_suite")
 load(":language_version_test.bzl", "language_version_test_suite")
 load(":library_test.bzl", "library_test_suite")
@@ -11,6 +12,8 @@ load(":yaml_parser_test.bzl", "yaml_parser_test_suite")
 versions_test_suite(name = "versions_test")
 
 common_test_suite(name = "common_test")
+
+dart_binary_test_suite(name = "dart_binary_test")
 
 native_assets_test_suite(name = "native_assets_test")
 

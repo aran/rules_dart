@@ -22,3 +22,16 @@ dart_test(
         "@rules_dart//dart/runfiles",
     ],
 )
+
+# Exemplar of the dart_test code_assets path (test-time gen_kernel): a plain
+# package:sqlite3 program with no codegen, so it isolates code-asset .so
+# resolution (via absolute rlocation) from any source co-location concern.
+dart_test(
+    name = "direct_test",
+    code_assets = [sqlite3_code_asset()],
+    main = "test/direct_test.dart",
+    deps = [
+        "@pub_deps//:sqlite3",
+        "@pub_deps//:test",
+    ],
+)
