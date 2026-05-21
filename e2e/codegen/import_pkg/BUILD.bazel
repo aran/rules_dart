@@ -1,0 +1,60 @@
+load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_codegen", "dart_library", "dart_test")
+
+# Bazel-generated standalone libraries consumed via `package:` and relative
+# imports (not `part`), feeding a runnable program and a test.
+
+dart_codegen(
+    name = "via_package_gen",
+    package_name = "import_fixture",
+    src = "lib/via_package.dart",
+    generator = "//tools:lib_gen.dart",
+    language_version = "3.11",
+    output_suffixes = [".g.dart"],
+)
+
+dart_codegen(
+    name = "via_relative_gen",
+    package_name = "import_fixture",
+    src = "lib/via_relative.dart",
+    generator = "//tools:lib_gen.dart",
+    language_version = "3.11",
+    output_suffixes = [".g.dart"],
+)
+
+dart_library(
+    name = "import_fixture",
+    package_name = "import_fixture",
+    srcs = [
+        "lib/via_package.dart",
+        "lib/via_relative.dart",
+        ":via_package_gen",
+        ":via_relative_gen",
+    ],
+    language_version = "3.11",
+    visibility = ["//visibility:public"],
+)
+
+dart_binary(
+    name = "app",
+    main = "bin/main.dart",
+    deps = [":import_fixture"],
+)
+
+dart_test(
+    name = "lib_test",
+    main = "test/lib_test.dart",
+    deps = [
+        ":import_fixture",
+        "@pub_deps//:test",
+    ],
+)
+
+dart_test(
+    name = "app_run_test",
+    data = [":app"],
+    main = "test/run_test.dart",
+    deps = [
+        "@pub_deps//:test",
+        "@rules_dart//dart/runfiles",
+    ],
+)

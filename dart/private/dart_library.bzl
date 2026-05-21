@@ -1,6 +1,8 @@
 """Implementation of the dart_library rule."""
 
+load("@bazel_lib//lib:copy_to_bin.bzl", "COPY_FILE_TO_BIN_TOOLCHAINS", "copy_files_to_bin_actions")
 load("//dart:providers.bzl", "DartInfo", "DartPackageInfo")
+load("//dart/private:common.bzl", "is_mixed_package")
 
 def derive_package_name(package_name_attr, label_package, label_name):
     """Derive the Dart package name from rule attributes and label.
@@ -88,9 +90,18 @@ def _dart_library_impl(ctx):
     if err != None:
         fail(err)
 
+    # If this package mixes source-tree files with generated (bazel-out) files,
+    # copy the sources into bin so the whole package shares one real directory —
+    # then `part`/`import` resolve as filesystem siblings at compile and test
+    # time, on all platforms. Generated files already in bin pass through.
+    if is_mixed_package(ctx.files.srcs):
+        own_srcs = copy_files_to_bin_actions(ctx, ctx.files.srcs)
+    else:
+        own_srcs = ctx.files.srcs
+
     # Collect transitive sources
     transitive_srcs = depset(
-        direct = ctx.files.srcs,
+        direct = own_srcs,
         transitive = [dep[DartInfo].transitive_srcs for dep in ctx.attr.deps],
     )
 
@@ -109,8 +120,8 @@ def _dart_library_impl(ctx):
 
     return [
         DefaultInfo(
-            files = depset(ctx.files.srcs),
-            runfiles = ctx.runfiles(files = ctx.files.srcs),
+            files = depset(own_srcs),
+            runfiles = ctx.runfiles(files = own_srcs),
         ),
         DartInfo(
             package_name = package_name,
@@ -139,5 +150,6 @@ dart_library = rule(
             doc = "Dart language version implied by the package's `environment.sdk` constraint, in `<major>.<minor>` form. Emitted as `languageVersion` in generated `package_config.json` entries. For pub packages this is set automatically by `pub.from_lock()`; for hand-written `dart_library` targets, set it from your workspace's `pubspec.yaml` if you want analyzer behaviour to match.",
         ),
     },
+    toolchains = COPY_FILE_TO_BIN_TOOLCHAINS,
     doc = "Collects Dart sources and propagates dependency information via `DartInfo`. Does not compile.",
 )

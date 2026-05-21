@@ -38,10 +38,14 @@ bazel_dep(name = "rules_go", version = "0.60.0", repo_name = "io_bazel_rules_go"
 bazel_dep(name = "rules_cc", version = "0.2.16")
 bazel_dep(name = "sqlite3", version = "3.51.2.bcr.1")
 
+# Used by `dart_library` for copy-to-bin co-location of generated sources.
+# Regular (not dev) dep so downstream modules get it; self-registers its
+# coreutils toolchain.
+bazel_dep(name = "bazel_lib", version = "3.3.1")
+
 bazel_dep(name = "rules_multitool", version = "1.11.1", dev_dependency = True)
 bazel_dep(name = "rules_shell", version = "0.8.0", dev_dependency = True)
 bazel_dep(name = "bazel_skylib_gazelle_plugin", version = "1.9.0", dev_dependency = True)
-bazel_dep(name = "bazel_lib", version = "3.3.1", dev_dependency = True)
 bazel_dep(name = "buildifier_prebuilt", version = "8.5.1.2", dev_dependency = True)
 
 bazel_dep(name = "bazelrc-preset.bzl", version = "1.9.2")

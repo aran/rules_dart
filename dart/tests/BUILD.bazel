@@ -1,4 +1,5 @@
 load(":codegen_test.bzl", "codegen_test_suite")
+load(":colocation_test.bzl", "colocation_test_suite")
 load(":common_test.bzl", "common_test_suite")
 load(":dart_binary_test.bzl", "dart_binary_test_suite")
 load(":dart_test_test.bzl", "dart_test_test_suite")
@@ -20,6 +21,8 @@ native_assets_test_suite(name = "native_assets_test")
 yaml_parser_test_suite(name = "yaml_parser_test")
 
 codegen_test_suite(name = "codegen_test")
+
+colocation_test_suite(name = "colocation_test")
 
 dart_test_test_suite(name = "dart_test_test")
 

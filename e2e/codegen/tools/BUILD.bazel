@@ -1,0 +1,10 @@
+# Trivial in-tree generators shared by the fixtures. The choice of generator is
+# incidental to what's under test (generated-input co-location), so these are
+# hand-written, not real codegen packages.
+exports_files(
+    [
+        "part_gen.dart",
+        "lib_gen.dart",
+    ],
+    visibility = ["//visibility:public"],
+)
