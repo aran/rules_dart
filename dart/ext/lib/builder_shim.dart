@@ -73,66 +73,89 @@ class ShimArgs {
   factory ShimArgs.parse(List<String> argv) {
     final parser = ArgParser()
       ..addOption('input', help: 'Input file exec-root path.', mandatory: true)
-      ..addMultiOption('output',
-          help: 'Declared output file path (repeatable). Each builder-'
-              'produced asset is routed to the declared output whose '
-              'basename shares the input stem + matching suffix. At least '
-              'one `--output` is required.')
-      ..addOption('input-asset',
-          help: 'Asset path for the input within its package, relative to the '
-              "package root (e.g. `lib/src/models/user.dart`). Preserves "
-              "subdirectory structure that `p.basename(--input)` would drop. "
-              "Required.",
-          mandatory: true)
-      ..addOption('package',
-          help: 'Owning Dart package name (matches consumer pubspec `name:`). '
-              'Required — the shim builds AssetIds from this.',
-          mandatory: true)
-      ..addMultiOption('dep',
-          help:
-              'Additional source file visible to the Resolver. '
-              'Format: `<exec_path>|<asset_path>` (asset path is the path '
-              'within the owning package, e.g. `lib/base.dart`). Repeatable.')
-      ..addMultiOption('input-asset-extra',
-          help:
-              'Extra aggregate inputs beyond the primary `--input`. Same '
-              '`<exec>|<asset>` form as `--dep`, but these are exposed to '
-              'the Builder as primary asset inputs (used by aggregate / '
-              'PackageBuilder-style shims). Repeatable.')
-      ..addOption('config',
-          help: 'Builder options as JSON. Defaults to "{}".',
-          defaultsTo: '{}')
-      ..addOption('package-config',
-          help:
-              'Path to package_config.json for third-party import resolution. '
-              "Defaults to the running process's package_config.",
-          defaultsTo: '')
-      ..addOption('root-language-version',
-          help:
-              'Dart language version (in `<major>.<minor>` form) for the '
-              'root package, propagated from the consuming dart_library. '
-              'Required — no default.',
-          mandatory: true)
-      ..addOption('sdk-path',
-          help:
-              'Path to the Dart SDK installation root (the directory '
-              'containing `lib/_internal/libraries.dart`). Required when '
-              "the shim runs as an AOT-compiled binary so the analyzer's "
-              "context collection can locate the SDK's libraries. The "
-              "rules_dart codegen rules pass this from the toolchain.",
-          defaultsTo: '');
+      ..addMultiOption(
+        'output',
+        help:
+            'Declared output file path (repeatable). Each builder-'
+            'produced asset is routed to the declared output whose '
+            'basename shares the input stem + matching suffix. At least '
+            'one `--output` is required.',
+      )
+      ..addOption(
+        'input-asset',
+        help:
+            'Asset path for the input within its package, relative to the '
+            "package root (e.g. `lib/src/models/user.dart`). Preserves "
+            "subdirectory structure that `p.basename(--input)` would drop. "
+            "Required.",
+        mandatory: true,
+      )
+      ..addOption(
+        'package',
+        help:
+            'Owning Dart package name (matches consumer pubspec `name:`). '
+            'Required — the shim builds AssetIds from this.',
+        mandatory: true,
+      )
+      ..addMultiOption(
+        'dep',
+        help:
+            'Additional source file visible to the Resolver. '
+            'Format: `<exec_path>|<asset_path>` (asset path is the path '
+            'within the owning package, e.g. `lib/base.dart`). Repeatable.',
+      )
+      ..addMultiOption(
+        'input-asset-extra',
+        help:
+            'Extra aggregate inputs beyond the primary `--input`. Same '
+            '`<exec>|<asset>` form as `--dep`, but these are exposed to '
+            'the Builder as primary asset inputs (used by aggregate / '
+            'PackageBuilder-style shims). Repeatable.',
+      )
+      ..addOption(
+        'config',
+        help: 'Builder options as JSON. Defaults to "{}".',
+        defaultsTo: '{}',
+      )
+      ..addOption(
+        'package-config',
+        help:
+            'Path to package_config.json for third-party import resolution. '
+            "Defaults to the running process's package_config.",
+        defaultsTo: '',
+      )
+      ..addOption(
+        'root-language-version',
+        help:
+            'Dart language version (in `<major>.<minor>` form) for the '
+            'root package, propagated from the consuming dart_library. '
+            'Required — no default.',
+        mandatory: true,
+      )
+      ..addOption(
+        'sdk-path',
+        help:
+            'Path to the Dart SDK installation root (the directory '
+            'containing `lib/_internal/libraries.dart`). Required when '
+            "the shim runs as an AOT-compiled binary so the analyzer's "
+            "context collection can locate the SDK's libraries. The "
+            "rules_dart codegen rules pass this from the toolchain.",
+        defaultsTo: '',
+      );
 
     final ArgResults parsed;
     try {
       parsed = parser.parse(argv);
     } on ArgParserException catch (e) {
       throw FormatException(
-          'Invalid shim arguments: ${e.message}\n${parser.usage}');
+        'Invalid shim arguments: ${e.message}\n${parser.usage}',
+      );
     }
 
     if (parsed.rest.isNotEmpty) {
       throw FormatException(
-          'Unexpected positional arguments: ${parsed.rest}\n${parser.usage}');
+        'Unexpected positional arguments: ${parsed.rest}\n${parser.usage}',
+      );
     }
 
     // Mandatory options in the `args` package throw ArgumentError on read
@@ -154,17 +177,20 @@ class ShimArgs {
     }
     if (outputs.isEmpty) {
       throw FormatException(
-          'At least one --output is required.\n${parser.usage}');
+        'At least one --output is required.\n${parser.usage}',
+      );
     }
     final deps = <({String exec, String asset})>[];
     ({String exec, String asset}) parsePipe(String raw, String flag) {
       final sep = raw.indexOf('|');
       if (sep < 0) {
         throw FormatException(
-            '$flag must be `<exec_path>|<asset_path>`; got "$raw"');
+          '$flag must be `<exec_path>|<asset_path>`; got "$raw"',
+        );
       }
       return (exec: raw.substring(0, sep), asset: raw.substring(sep + 1));
     }
+
     for (final d in (parsed['dep'] as List).cast<String>()) {
       deps.add(parsePipe(d, '--dep'));
     }
@@ -179,8 +205,9 @@ class ShimArgs {
     final rootLvParts = rootLvRaw.split('.');
     if (rootLvParts.length != 2) {
       throw FormatException(
-          '--root-language-version must be `<major>.<minor>`, got '
-          '"$rootLvRaw"');
+        '--root-language-version must be `<major>.<minor>`, got '
+        '"$rootLvRaw"',
+      );
     }
     final rootLvMajor = int.tryParse(rootLvParts[0]);
     final rootLvMinor = int.tryParse(rootLvParts[1]);
@@ -189,8 +216,9 @@ class ShimArgs {
         rootLvMajor < 0 ||
         rootLvMinor < 0) {
       throw FormatException(
-          '--root-language-version components must be non-negative ints, '
-          'got "$rootLvRaw"');
+        '--root-language-version components must be non-negative ints, '
+        'got "$rootLvRaw"',
+      );
     }
     final rootLv = LanguageVersion(rootLvMajor, rootLvMinor);
 
@@ -204,11 +232,13 @@ class ShimArgs {
         decoded = jsonDecode(configJson);
       } on FormatException catch (e) {
         throw FormatException(
-            '--config must be a JSON object string. Parse error: ${e.message}');
+          '--config must be a JSON object string. Parse error: ${e.message}',
+        );
       }
       if (decoded is! Map) {
         throw FormatException(
-            '--config must be a JSON object (got ${decoded.runtimeType}).');
+          '--config must be a JSON object (got ${decoded.runtimeType}).',
+        );
       }
       config = decoded.map((k, v) => MapEntry(k.toString(), v));
     }
@@ -231,8 +261,8 @@ class ShimArgs {
 /// a declared Bazel output when the Builder emitted nothing (e.g. the
 /// source carried no matching annotations). The default is an empty file;
 /// injectable's metadata shim returns `[]` (the empty-array JSON).
-typedef EmptyOutputHook = FutureOr<List<int>> Function(
-    AssetId inputId, String outputExtension);
+typedef EmptyOutputHook =
+    FutureOr<List<int>> Function(AssetId inputId, String outputExtension);
 
 /// Type alias for a `package:build` Builder factory — a function that
 /// constructs a Builder given its BuilderOptions.
@@ -277,8 +307,9 @@ Future<void> runShim(
   }
   try {
     final absArgs = _absoluteArgs(args);
-    final stagingDir = await (stagingRoot ?? Directory.systemTemp)
-        .createTemp('shim_${args.packageName}_');
+    final stagingDir = await (stagingRoot ?? Directory.systemTemp).createTemp(
+      'shim_${args.packageName}_',
+    );
     final originalCwd = Directory.current;
     try {
       await prepareSourceGenCwd(
@@ -320,8 +351,9 @@ List<BuilderFactory> _normaliseFactories(Object factoryOrFactories) {
     return factoryOrFactories.cast<BuilderFactory>();
   }
   throw ArgumentError(
-      'runShim expects a BuilderFactory or List<BuilderFactory>, got '
-      '${factoryOrFactories.runtimeType}');
+    'runShim expects a BuilderFactory or List<BuilderFactory>, got '
+    '${factoryOrFactories.runtimeType}',
+  );
 }
 
 /// Writes a `pubspec.yaml` in [baseDir] and chdirs into it, so `source_gen`'s
@@ -341,11 +373,12 @@ Future<void> prepareSourceGenCwd({
   required String packageName,
 }) async {
   await baseDir.create(recursive: true);
-  await File(p.join(baseDir.absolute.path, 'pubspec.yaml')).writeAsString(
-    'name: $packageName\nenvironment:\n  sdk: ^3.0.0\n',
-  );
-  await File(p.join(baseDir.absolute.path, 'stacked.json'))
-      .writeAsString('{}\n');
+  await File(
+    p.join(baseDir.absolute.path, 'pubspec.yaml'),
+  ).writeAsString('name: $packageName\nenvironment:\n  sdk: ^3.0.0\n');
+  await File(
+    p.join(baseDir.absolute.path, 'stacked.json'),
+  ).writeAsString('{}\n');
   Directory.current = baseDir;
 }
 
@@ -361,8 +394,9 @@ Future<void> runShimWithArgs(
   // everything up-front here; after chdir, any still-relative path would
   // resolve against the staging dir and break.
   final absArgs = _absoluteArgs(args);
-  final stagingDir =
-      await Directory.systemTemp.createTemp('shim_${args.packageName}_');
+  final stagingDir = await Directory.systemTemp.createTemp(
+    'shim_${args.packageName}_',
+  );
   final originalCwd = Directory.current;
   try {
     await prepareSourceGenCwd(
@@ -392,21 +426,21 @@ Future<void> runShimWithArgs(
 String _absAndNormalize(String path) => p.normalize(p.absolute(path));
 
 ShimArgs _absoluteArgs(ShimArgs a) => ShimArgs(
-      inputPath: _absAndNormalize(a.inputPath),
-      inputAssetPath: a.inputAssetPath,
-      outputPaths: [for (final o in a.outputPaths) _absAndNormalize(o)],
-      packageName: a.packageName,
-      depPaths: [
-        for (final d in a.depPaths)
-          (exec: _absAndNormalize(d.exec), asset: d.asset),
-      ],
-      config: a.config,
-      packageConfigUri: a.packageConfigUri != null
-          ? _absAndNormalize(a.packageConfigUri!)
-          : null,
-      sdkPath: a.sdkPath != null ? _absAndNormalize(a.sdkPath!) : null,
-      rootLanguageVersion: a.rootLanguageVersion,
-    );
+  inputPath: _absAndNormalize(a.inputPath),
+  inputAssetPath: a.inputAssetPath,
+  outputPaths: [for (final o in a.outputPaths) _absAndNormalize(o)],
+  packageName: a.packageName,
+  depPaths: [
+    for (final d in a.depPaths)
+      (exec: _absAndNormalize(d.exec), asset: d.asset),
+  ],
+  config: a.config,
+  packageConfigUri: a.packageConfigUri != null
+      ? _absAndNormalize(a.packageConfigUri!)
+      : null,
+  sdkPath: a.sdkPath != null ? _absAndNormalize(a.sdkPath!) : null,
+  rootLanguageVersion: a.rootLanguageVersion,
+);
 
 /// Extracts the value of a `--<flag>` argument from a raw argv list (or
 /// null if absent). Useful for shim entrypoints that wrap [runShim] and
@@ -424,19 +458,17 @@ String? extractShimFlag(List<String> argv, String flag) {
 /// Signature of a function that returns an [AnalysisContextCollection]
 /// for the given inclusion + SDK settings. Tests can inject a stub; the
 /// shim's default is [_defaultBuildAnalysisContext].
-typedef AnalysisContextBuilder = Future<AnalysisContextCollection> Function({
-  required List<String> includedPaths,
-  required String? sdkPath,
-});
+typedef AnalysisContextBuilder =
+    Future<AnalysisContextCollection> Function({
+      required List<String> includedPaths,
+      required String? sdkPath,
+    });
 
 Future<AnalysisContextCollection> _defaultBuildAnalysisContext({
   required List<String> includedPaths,
   required String? sdkPath,
 }) async =>
-    AnalysisContextCollection(
-      includedPaths: includedPaths,
-      sdkPath: sdkPath,
-    );
+    AnalysisContextCollection(includedPaths: includedPaths, sdkPath: sdkPath);
 
 Future<void> _runWithStaging(
   ShimArgs args,
@@ -452,23 +484,29 @@ Future<void> _runWithStaging(
   final absOutputPaths = args.outputPaths;
   final absInputExec = args.inputPath;
 
-  final assetIdToPath = <AssetId, String>{};
-  Future<AssetId> stage(String srcExec, String assetPath) async {
-    final id = AssetId(args.packageName, assetPath);
-    final dest = p.join(stagingPath, assetPath);
-    await Directory(p.dirname(dest)).create(recursive: true);
-    await File(srcExec).copy(dest);
-    assetIdToPath[id] = dest;
-    return id;
+  // Dedup by asset path before staging. The same logical file can arrive via
+  // more than one exec path — the input is also listed among the deps (e.g.
+  // drift passes the `.drift` src in `asset_deps`), and a co-located package
+  // may surface a file both as a source and as its bazel-out copy. Staging the
+  // same asset twice races to one dest: a harmless overwrite on POSIX, but a
+  // hard error on Windows (`File.copy` won't overwrite). The input asset wins.
+  final execByAsset = <String, String>{args.inputAssetPath: absInputExec};
+  for (final dep in args.depPaths) {
+    execByAsset.putIfAbsent(dep.asset, () => dep.exec);
   }
 
   // Same-package deps land in the synthetic root; cross-package deps need
   // a PackageConfig entry (currently unsupported).
-  final staged = await Future.wait([
-    stage(absInputExec, args.inputAssetPath),
-    for (final dep in args.depPaths) stage(dep.exec, dep.asset),
-  ]);
-  final inputId = staged.first;
+  final assetIdToPath = <AssetId, String>{};
+  await Future.wait(
+    execByAsset.entries.map((entry) async {
+      final dest = p.join(stagingPath, entry.key);
+      await Directory(p.dirname(dest)).create(recursive: true);
+      await File(entry.value).copy(dest);
+      assetIdToPath[AssetId(args.packageName, entry.key)] = dest;
+    }),
+  );
+  final inputId = AssetId(args.packageName, args.inputAssetPath);
 
   // Build a PackageConfig that maps the synthetic root package to the
   // staging dir, and merges in every package from the upstream config so
@@ -488,9 +526,9 @@ Future<void> _runWithStaging(
   // that reads `pubspec.yaml` from CWD) — the workerEntry pre-writes this
   // file at startup via [prepareSourceGenCwd] so the cache is populated
   // before any Builder observes it.
-  await File(p.join(stagingPath, 'pubspec.yaml')).writeAsString(
-    'name: ${args.packageName}\nenvironment:\n  sdk: ^3.0.0\n',
-  );
+  await File(
+    p.join(stagingPath, 'pubspec.yaml'),
+  ).writeAsString('name: ${args.packageName}\nenvironment:\n  sdk: ^3.0.0\n');
 
   // Include ONLY the staging dir. Cross-package imports (`package:drift/...`,
   // `package:json_annotation/...`, …) are resolved through the
@@ -518,8 +556,11 @@ Future<void> _runWithStaging(
   // entry pre-populates it via [prepareSourceGenCwd].
   final writer = _ShimAssetWriter();
   final reader = _ShimAssetReader(assetIdToPath, packageConfig, writer);
-  final resolver =
-      _ShimAnalyzerResolver(collection, assetIdToPath, packageConfig);
+  final resolver = _ShimAnalyzerResolver(
+    collection,
+    assetIdToPath,
+    packageConfig,
+  );
 
   // The last Builder's allowedOutputs are derived from the rule-declared
   // `--output` paths (one AssetId per declared file, placed in the input's
@@ -535,10 +576,13 @@ Future<void> _runWithStaging(
   // Earlier Builders in multi-stage pipelines keep their own
   // `buildExtensions`-derived allowedOutputs so findAssets sees
   // intermediate writes.
-  final builders =
-      builderFactories.map((f) => f(BuilderOptions(args.config))).toList();
-  final allowedOutputs =
-      _allowedOutputsFromDeclaredPaths(inputId, absOutputPaths);
+  final builders = builderFactories
+      .map((f) => f(BuilderOptions(args.config)))
+      .toList();
+  final allowedOutputs = _allowedOutputsFromDeclaredPaths(
+    inputId,
+    absOutputPaths,
+  );
 
   // Wire a Logger listener so Builder-emitted warnings/errors reach the
   // diagnostic sink; without this, `package:build`'s `log` sinks into a
@@ -546,9 +590,11 @@ Future<void> _runWithStaging(
   final originalLevel = Logger.root.level;
   final logger = Logger('rules_dart_ext');
   final logSub = Logger.root.onRecord.listen((rec) {
-    writeDiagnostic('[${rec.level.name}] ${rec.loggerName}: ${rec.message}'
-        '${rec.error != null ? " error=${rec.error}" : ""}'
-        '${rec.stackTrace != null ? "\n${rec.stackTrace}" : ""}');
+    writeDiagnostic(
+      '[${rec.level.name}] ${rec.loggerName}: ${rec.message}'
+      '${rec.error != null ? " error=${rec.error}" : ""}'
+      '${rec.stackTrace != null ? "\n${rec.stackTrace}" : ""}',
+    );
   });
   // Track every _ShimBuildStep so multi-stage pipelines dispose each
   // stage's ResourceManager (not just the last one) on completion.
@@ -577,8 +623,10 @@ Future<void> _runWithStaging(
       // Run each Builder in a zone where `package:build`'s `log` resolves
       // to our listener-equipped Logger (see the `logKey` constant in
       // `package:build/src/logging.dart`).
-      await runZoned(() => builder.build(step),
-          zoneValues: {#buildLog: logger});
+      await runZoned(
+        () => builder.build(step),
+        zoneValues: {#buildLog: logger},
+      );
     }
   } finally {
     // Drain any Resources a Builder held via `fetchResource` so they don't
@@ -661,8 +709,10 @@ AssetId? _matchEmittedAssetFor(
   final inputStem = p.basenameWithoutExtension(inputId.path);
   if (declaredBasename.startsWith('$inputStem.')) {
     final suffix = declaredBasename.substring(inputStem.length);
-    final inputPathStem = inputId.path
-        .substring(0, inputId.path.length - p.extension(inputId.path).length);
+    final inputPathStem = inputId.path.substring(
+      0,
+      inputId.path.length - p.extension(inputId.path).length,
+    );
     final candidate = AssetId(inputId.package, '$inputPathStem$suffix');
     if (emitted.containsKey(candidate) && !claimed.contains(candidate)) {
       return candidate;
@@ -717,8 +767,10 @@ Iterable<AssetId> _expectedOutputsFor(
   for (final entry in buildExtensions.entries) {
     final inputExt = entry.key;
     if (!inputId.path.endsWith(inputExt)) continue;
-    final stem =
-        inputId.path.substring(0, inputId.path.length - inputExt.length);
+    final stem = inputId.path.substring(
+      0,
+      inputId.path.length - inputExt.length,
+    );
     for (final outExt in entry.value) {
       outputs.add(AssetId(inputId.package, '$stem$outExt'));
     }
@@ -727,7 +779,9 @@ Iterable<AssetId> _expectedOutputsFor(
 }
 
 Future<PackageConfig> _buildPackageConfig(
-    ShimArgs args, Directory stagingDir) async {
+  ShimArgs args,
+  Directory stagingDir,
+) async {
   // packageConfigUri may be relative to Bazel's exec root; resolve while
   // we still have the original CWD.
   final upstreamUri = args.packageConfigUri != null
@@ -790,10 +844,9 @@ String _serializePackageConfig(PackageConfig config) {
     }
     entries.add(entry);
   }
-  return const JsonEncoder.withIndent('  ').convert({
-    'configVersion': 2,
-    'packages': entries,
-  });
+  return const JsonEncoder.withIndent(
+    '  ',
+  ).convert({'configVersion': 2, 'packages': entries});
 }
 
 // ---------------------------------------------------------------------------
@@ -893,8 +946,11 @@ class _ShimAssetWriter implements AssetWriter {
   }
 
   @override
-  Future<void> writeAsString(AssetId id, FutureOr<String> contents,
-      {Encoding encoding = utf8}) async {
+  Future<void> writeAsString(
+    AssetId id,
+    FutureOr<String> contents, {
+    Encoding encoding = utf8,
+  }) async {
     assets[id] = encoding.encode(await contents);
   }
 }
@@ -913,11 +969,11 @@ class _ShimBuildStep implements BuildStep {
     required _ShimAnalyzerResolver resolver,
     required Iterable<AssetId> allowedOutputsValue,
     required PackageConfig packageConfig,
-  })  : _reader = reader,
-        _writer = writer,
-        _resolver = resolver,
-        _allowedOutputs = allowedOutputsValue,
-        _packageConfig = packageConfig;
+  }) : _reader = reader,
+       _writer = writer,
+       _resolver = resolver,
+       _allowedOutputs = allowedOutputsValue,
+       _packageConfig = packageConfig;
 
   @override
   final AssetId inputId;
@@ -958,9 +1014,11 @@ class _ShimBuildStep implements BuildStep {
       _writer.writeAsBytes(id, bytes);
 
   @override
-  Future<void> writeAsString(AssetId id, FutureOr<String> contents,
-          {Encoding encoding = utf8}) =>
-      _writer.writeAsString(id, contents, encoding: encoding);
+  Future<void> writeAsString(
+    AssetId id,
+    FutureOr<String> contents, {
+    Encoding encoding = utf8,
+  }) => _writer.writeAsString(id, contents, encoding: encoding);
 
   // Per-invocation Resource cache. build_runner uses fetchResource to share
   // state across builders within one build session; per shim invocation we
@@ -974,9 +1032,11 @@ class _ShimBuildStep implements BuildStep {
       _resourceManager.fetch(resource);
 
   @override
-  T trackStage<T>(String label, T Function() action,
-          {bool isExternal = false}) =>
-      action();
+  T trackStage<T>(
+    String label,
+    T Function() action, {
+    bool isExternal = false,
+  }) => action();
 
   @override
   void reportUnusedAssets(Iterable<AssetId> ids) {}
@@ -994,7 +1054,10 @@ class _ShimBuildStep implements BuildStep {
 /// resolves `package:` imports from the staging dir's package_config.
 class _ShimAnalyzerResolver implements Resolver {
   _ShimAnalyzerResolver(
-      this._collection, this._assetIdToPath, this._packageConfig);
+    this._collection,
+    this._assetIdToPath,
+    this._packageConfig,
+  );
 
   final AnalysisContextCollection _collection;
   final Map<AssetId, String> _assetIdToPath;
@@ -1157,12 +1220,14 @@ class _ShimAnalyzerResolver implements Resolver {
         final rootDir = p.normalize(p.fromUri(pkg.root));
         if (p.isWithin(libRoot, filePath) || p.equals(libRoot, filePath)) {
           final rel = p.posix.joinAll(
-              p.split(p.relative(filePath, from: libRoot)));
+            p.split(p.relative(filePath, from: libRoot)),
+          );
           return AssetId(pkg.name, p.posix.join('lib', rel));
         }
         if (p.isWithin(rootDir, filePath) || p.equals(rootDir, filePath)) {
           final rel = p.posix.joinAll(
-              p.split(p.relative(filePath, from: rootDir)));
+            p.split(p.relative(filePath, from: rootDir)),
+          );
           return AssetId(pkg.name, rel);
         }
       }
@@ -1193,8 +1258,9 @@ class _ShimAnalyzerResolver implements Resolver {
     if (libFragment == null) return null;
     final library = libFragment.element;
     if (resolve) {
-      final libResult =
-          await library.session.getResolvedLibraryByElement(library);
+      final libResult = await library.session.getResolvedLibraryByElement(
+        library,
+      );
       if (libResult is! ResolvedLibraryResult) return null;
       if (identical(fragment, libFragment)) {
         final path = libFragment.source.fullName;
