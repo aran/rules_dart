@@ -28,6 +28,7 @@ const _ciFolders = [
   'e2e/analysis',
   'e2e/dart_test',
   'e2e/dart_test_pkg',
+  'e2e/codegen',
   'e2e/pub_deps',
   'e2e/pub_lock',
   'e2e/web_app',
