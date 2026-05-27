@@ -425,6 +425,17 @@ Future<void> runShimWithArgs(
 /// `p.normalize` is a no-op for already-clean paths.
 String _absAndNormalize(String path) => p.normalize(p.absolute(path));
 
+/// Native on-disk path for a POSIX `AssetId` path under a native staging dir.
+///
+/// `assetPath` is a `package:build` `AssetId` path — always `/`-separated. The
+/// staging dir is native. The correct url→native conversion splits the asset in
+/// the posix context and re-joins the segments in [ctx] (the platform context in
+/// production): a plain `p.join(nativeDir, posixPath)` leaves the asset's inner
+/// `/` untouched, yielding a mixed-separator path the analyzer rejects on Windows
+/// (`NotPathOfUriResult`). [ctx] is injected so this is host-testable per platform.
+String stagedPath(p.Context ctx, String stagingDir, String assetPath) =>
+    ctx.joinAll([stagingDir, ...p.posix.split(assetPath)]);
+
 ShimArgs _absoluteArgs(ShimArgs a) => ShimArgs(
   inputPath: _absAndNormalize(a.inputPath),
   inputAssetPath: a.inputAssetPath,
@@ -500,7 +511,7 @@ Future<void> _runWithStaging(
   final assetIdToPath = <AssetId, String>{};
   await Future.wait(
     execByAsset.entries.map((entry) async {
-      final dest = p.join(stagingPath, entry.key);
+      final dest = stagedPath(p.context, stagingPath, entry.key);
       await Directory(p.dirname(dest)).create(recursive: true);
       await File(entry.value).copy(dest);
       assetIdToPath[AssetId(args.packageName, entry.key)] = dest;

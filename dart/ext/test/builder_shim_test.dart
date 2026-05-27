@@ -52,6 +52,39 @@ ShimArgs _shimArgs({
     );
 
 void main() {
+  group('stagedPath', () {
+    test('joins a POSIX asset under a native Windows dir, no mixed separators',
+        () {
+      final dest =
+          stagedPath(p.windows, r'C:\tmp\shim_x', 'test/nice_mock_test.dart');
+      expect(dest, r'C:\tmp\shim_x\test\nice_mock_test.dart');
+      expect(dest, isNot(contains('/')));
+    });
+
+    test('handles a nested lib/ asset under a native Windows dir', () {
+      expect(
+        stagedPath(p.windows, r'C:\s', 'lib/src/models/user.dart'),
+        r'C:\s\lib\src\models\user.dart',
+      );
+    });
+
+    test('is a plain join in the posix context', () {
+      expect(
+        stagedPath(p.posix, '/tmp/shim_x', 'lib/src/a.dart'),
+        '/tmp/shim_x/lib/src/a.dart',
+      );
+    });
+
+    test('the naive p.join leaves the mixed separators we must avoid', () {
+      // platform-context join inserts `\` but does not transcode the asset
+      // path's inner `/`, producing the mixed path the analyzer rejects.
+      expect(
+        p.windows.join(r'C:\tmp\shim_x', 'test/nice_mock_test.dart'),
+        r'C:\tmp\shim_x\test/nice_mock_test.dart',
+      );
+    });
+  });
+
   group('ShimArgs.parse', () {
     test('parses the minimal required arg set', () {
       final args = ShimArgs.parse(_baseArgs());
