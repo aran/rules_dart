@@ -1,0 +1,38 @@
+load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library", "dart_source_set", "dart_test")
+
+# A package assembled explicitly via dart_source_set and consumed via srcs_dir
+# (the pre-assembled single-directory path through the consumer's co-location).
+
+dart_codegen(
+    name = "message_part",
+    package_name = "source_set_fixture",
+    src = "lib/message.dart",
+    generator = "//tools:part_gen.dart",
+    language_version = "3.11",
+    output_suffixes = [".g.dart"],
+)
+
+dart_source_set(
+    name = "srcs",
+    srcs = [
+        "lib/message.dart",
+        ":message_part",
+    ],
+)
+
+dart_library(
+    name = "source_set_fixture",
+    package_name = "source_set_fixture",
+    language_version = "3.11",
+    srcs_dir = ":srcs",
+    visibility = ["//visibility:public"],
+)
+
+dart_test(
+    name = "lib_test",
+    main = "test/lib_test.dart",
+    deps = [
+        ":source_set_fixture",
+        "@pub_deps//:test",
+    ],
+)

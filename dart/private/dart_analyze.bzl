@@ -37,8 +37,14 @@ def _dart_analyze_test_impl(ctx):
         sp = src.short_path
         if sp not in seen_paths:
             seen_paths[sp] = True
+
+            # An assembled package directory (a `dart_source_set` / a library
+            # with generated members) arrives as one tree-artifact dir; copy it
+            # recursively so the analyzer sees the package's whole `lib/` tree.
+            cp = "cp -R" if src.is_directory else "cp"
             symlink_cmds.append(
-                'mkdir -p "$PROJ/$(dirname {dest})" && cp "$(pwd)/{src}" "$PROJ/{dest}"'.format(
+                'mkdir -p "$PROJ/$(dirname {dest})" && {cp} "$(pwd)/{src}" "$PROJ/{dest}"'.format(
+                    cp = cp,
                     src = src.path,
                     dest = sp,
                 ),

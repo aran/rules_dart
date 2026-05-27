@@ -13,6 +13,7 @@ load(
     "target_dart_abi",
 )
 load("//dart/private:dart_compile.bzl", "dart_compile_action")
+load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS", "colocate_entrypoint", "colocate_packages")
 
 def binary_output_basename(name, compile_mode, is_windows):
     """Returns a `dart_binary`'s output filename with the platform exe extension.
@@ -43,24 +44,23 @@ def binary_output_basename(name, compile_mode, is_windows):
         return name + ".jit"
     fail("Unknown compile_mode: %s" % compile_mode)
 
-def _generate_package_config(ctx, deps, all_srcs):
-    """Generate a package_config.json from the transitive DartInfo deps."""
-    packages = collect_packages(deps)
-    package_config = ctx.actions.declare_file(ctx.label.name + ".package_config.json")
-
-    content = generate_package_config(packages, all_srcs, package_config)
-    ctx.actions.write(output = package_config, content = content)
-    return package_config
-
 def _dart_binary_impl(ctx):
     toolchain = ctx.toolchains["//dart:toolchain_type"]
     dart_sdk_info = toolchain.dart_sdk_info
 
-    # Collect all transitive sources from deps
-    all_srcs = list(ctx.files.srcs) + collect_transitive_srcs(ctx.attr.deps)
+    # Co-locate each dep package's source+generated (and split-across-targets)
+    # files into one real directory, and the binary's own `main` with any
+    # generated sibling sources, so the compile resolves everything.
+    packages = collect_packages(ctx.attr.deps)
+    packages, dep_srcs = colocate_packages(ctx, packages, collect_transitive_srcs(ctx.attr.deps))
+    main_input, main_arg, own_inputs = colocate_entrypoint(ctx, ctx.file.main, ctx.files.srcs)
+    all_srcs = dep_srcs + own_inputs
 
-    # Generate package_config.json
-    package_config = _generate_package_config(ctx, ctx.attr.deps, all_srcs)
+    package_config = ctx.actions.declare_file(ctx.label.name + ".package_config.json")
+    ctx.actions.write(
+        output = package_config,
+        content = generate_package_config(packages, dep_srcs, package_config),
+    )
 
     # Determine output filename (Windows gets the `.exe` extension — see
     # `binary_output_basename`).
@@ -77,7 +77,8 @@ def _dart_binary_impl(ctx):
     # paths resolve against the final executable at runtime), then compile the
     # resulting kernel — `dart compile` accepts a `.dill` input and the
     # metadata flows through into the snapshot.
-    compile_main = ctx.file.main
+    compile_main = main_input
+    compile_main_arg = main_arg
     compile_srcs = all_srcs
     compile_package_config = package_config
     code_asset_libs = []
@@ -98,13 +99,15 @@ def _dart_binary_impl(ctx):
         gen_kernel_native_assets_action(
             ctx = ctx,
             dart_sdk_info = dart_sdk_info,
-            main = ctx.file.main,
+            main = main_input,
             transitive_srcs = depset(all_srcs),
             package_config = package_config,
             native_assets_yaml = native_assets_yaml,
             output_dill = dill,
+            main_path = main_arg,
         )
         compile_main = dill
+        compile_main_arg = None
         compile_srcs = []
         compile_package_config = None
 
@@ -114,6 +117,7 @@ def _dart_binary_impl(ctx):
         dart_bin = dart_sdk_info.dart,
         sdk_files = dart_sdk_info.tool_files,
         main = compile_main,
+        main_path = compile_main_arg,
         srcs = compile_srcs,
         package_config = compile_package_config,
         output = output,
@@ -188,6 +192,6 @@ The `dart compile` mode. Determines the output format:
         ),
     }, **DART_ABI_CONSTRAINT_ATTRS),
     executable = True,
-    toolchains = ["//dart:toolchain_type"],
+    toolchains = ["//dart:toolchain_type"] + COPY_TO_DIRECTORY_TOOLCHAINS,
     doc = "Compiles a Dart application using `dart compile`.",
 )

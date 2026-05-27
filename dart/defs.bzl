@@ -3,6 +3,7 @@
 Load this file from your BUILD files to access the following rules:
 
 - `dart_library`: Collects Dart sources and propagates dependency information. Does not compile.
+- `dart_source_set`: Assembles Dart sources (hand-written + generated) into one directory.
 - `dart_binary`: Compiles a Dart application (`exe`, `aot-snapshot`, `kernel`, or `jit-snapshot`).
 - `dart_test`: Runs a Dart test file using the Dart VM.
 - `dart_analyze_test`: Runs `dart analyze` on a library as a build-time action.
@@ -26,8 +27,10 @@ load("//dart/private:dart_library.bzl", _dart_library = "dart_library")
 load("//dart/private:dart_sqlcodegen.bzl", _dart_sqlcodegen = "dart_sqlcodegen")
 load("//dart/private:dart_test.bzl", _dart_test = "dart_test")
 load("//dart/private:dart_web_application.bzl", _dart_js_binary = "dart_js_binary", _dart_wasm_binary = "dart_wasm_binary")
+load("//dart/private:source_set.bzl", _dart_source_set = "dart_source_set")
 
 dart_library = _dart_library
+dart_source_set = _dart_source_set
 dart_binary = _dart_binary
 dart_test = _dart_test
 dart_analyze_test = _dart_analyze_test

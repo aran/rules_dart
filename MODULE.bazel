@@ -38,9 +38,9 @@ bazel_dep(name = "rules_go", version = "0.60.0", repo_name = "io_bazel_rules_go"
 bazel_dep(name = "rules_cc", version = "0.2.16")
 bazel_dep(name = "sqlite3", version = "3.51.2.bcr.1")
 
-# Used by `dart_library` for copy-to-bin co-location of generated sources.
-# Regular (not dev) dep so downstream modules get it; self-registers its
-# coreutils toolchain.
+# Used by `dart_library`/`dart_source_set` to assemble generated + hand-written
+# sources into one directory (copy_to_directory). Regular (not dev) dep so
+# downstream modules get it; self-registers its copy toolchains.
 bazel_dep(name = "bazel_lib", version = "3.3.1")
 
 bazel_dep(name = "rules_multitool", version = "1.11.1", dev_dependency = True)

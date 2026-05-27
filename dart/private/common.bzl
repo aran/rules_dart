@@ -283,29 +283,6 @@ def collect_transitive_srcs(deps):
         srcs.extend(dep[DartInfo].transitive_srcs.to_list())
     return srcs
 
-def is_mixed_package(srcs):
-    """Whether `srcs` contains both a source-tree File and a generated File.
-
-    The gate for copy-to-bin co-location: only a mixed package needs staging
-    (pure-source and fully-generated packages already share one real directory).
-
-    Args:
-      srcs: A list of File objects (a rule's own `ctx.files.srcs`).
-
-    Returns:
-      True iff at least one `f.is_source` and at least one not.
-    """
-    has_source = False
-    has_generated = False
-    for f in srcs:
-        if f.is_source:
-            has_source = True
-        else:
-            has_generated = True
-        if has_source and has_generated:
-            return True
-    return False
-
 def sdk_path_from_dart(dart_file):
     """Returns the SDK installation root by stripping `/bin/dart` from a dart File path.
 
@@ -464,7 +441,8 @@ def gen_kernel_native_assets_action(
         transitive_srcs,
         package_config,
         native_assets_yaml,
-        output_dill):
+        output_dill,
+        main_path = None):
     """Runs `gen_kernel --native-assets=<yaml>` to produce a kernel `.dill`.
 
     Invokes `dartaotruntime gen_kernel_aot.dart.snapshot --platform <dill>
@@ -481,6 +459,8 @@ def gen_kernel_native_assets_action(
       package_config: The build-time `package_config.json` File (or None).
       native_assets_yaml: The generated native_assets.yaml File.
       output_dill: The output `.dill` File to produce.
+      main_path: Optional path string to compile instead of `main.path` (e.g. a
+        path inside an assembled `main` directory).
     """
     tools = find_sdk_kernel_tools(dart_sdk_info)
 
@@ -491,7 +471,7 @@ def gen_kernel_native_assets_action(
         args.add("--packages", package_config)
     args.add("--native-assets", native_assets_yaml)
     args.add("-o", output_dill)
-    args.add(main)
+    args.add(main_path if main_path != None else main)
 
     direct = [main, native_assets_yaml]
     if package_config != None:

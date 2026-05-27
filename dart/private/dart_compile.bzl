@@ -35,14 +35,16 @@ def dart_compile_action(
         target_os = "",
         target_arch = "",
         extra_flags = [],
-        defines = []):
+        defines = [],
+        main_path = None):
     """Creates a Dart compile action.
 
     Args:
         ctx: The rule context.
         dart_bin: The dart executable File.
         sdk_files: All SDK files needed for the toolchain.
-        main: The main .dart source File.
+        main: The main File to add to action inputs. Usually the entrypoint
+            `.dart` File; an assembled directory when `main_path` points inside it.
         srcs: List of all source Files needed for compilation (direct + transitive).
         package_config: The package_config.json File.
         output: The output File to produce.
@@ -51,6 +53,8 @@ def dart_compile_action(
         target_arch: Cross-compilation target architecture (e.g. "x64"). Empty for native.
         extra_flags: Additional compiler flags (from dart_compile_flags attribute).
         defines: Environment declarations; each entry becomes a -D flag.
+        main_path: Optional path string to pass as the compile target instead of
+            `main.path` (e.g. a path inside an assembled `main` directory).
     """
     args = ctx.actions.args()
     args.add("compile")
@@ -80,7 +84,7 @@ def dart_compile_action(
     args.add_all(extra_flags)
 
     args.add("-o", output)
-    args.add(main)
+    args.add(main_path if main_path != None else main)
 
     # On Windows, native dart.exe receives /tmp literally (not MSYS2-translated),
     # which crashes the analysis server. Use output.dirname as a valid writable path.

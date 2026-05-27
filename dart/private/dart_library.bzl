@@ -1,8 +1,6 @@
 """Implementation of the dart_library rule."""
 
-load("@bazel_lib//lib:copy_to_bin.bzl", "COPY_FILE_TO_BIN_TOOLCHAINS", "copy_files_to_bin_actions")
 load("//dart:providers.bzl", "DartInfo", "DartPackageInfo")
-load("//dart/private:common.bzl", "is_mixed_package")
 
 def derive_package_name(package_name_attr, label_package, label_name):
     """Derive the Dart package name from rule attributes and label.
@@ -84,35 +82,37 @@ def _dart_library_impl(ctx):
         ctx.label.package,
         ctx.label.name,
     )
-    lib_root = derive_lib_root(ctx.label.workspace_root, ctx.label.package)
 
-    err = check_no_duplicate_srcs(ctx.label, ctx.files.srcs)
-    if err != None:
-        fail(err)
-
-    # If this package mixes source-tree files with generated (bazel-out) files,
-    # copy the sources into bin so the whole package shares one real directory —
-    # then `part`/`import` resolve as filesystem siblings at compile and test
-    # time, on all platforms. Generated files already in bin pass through.
-    if is_mixed_package(ctx.files.srcs):
-        own_srcs = copy_files_to_bin_actions(ctx, ctx.files.srcs)
+    if ctx.attr.srcs_dir:
+        # Sources arrive pre-assembled as one directory (a `dart_source_set`);
+        # the directory itself is the package root.
+        if ctx.files.srcs:
+            fail("%s: set either `srcs` or `srcs_dir`, not both." % ctx.label)
+        own_srcs = ctx.files.srcs_dir
+        lib_root = own_srcs[0].short_path
     else:
+        # `srcs` may be empty: a `dart_library` with only `deps` is a valid
+        # aggregate façade that re-exports its dependencies.
+        err = check_no_duplicate_srcs(ctx.label, ctx.files.srcs)
+        if err != None:
+            fail(err)
         own_srcs = ctx.files.srcs
+        lib_root = derive_lib_root(ctx.label.workspace_root, ctx.label.package)
 
-    # Collect transitive sources
+    # `dart_library` is a pure collector: it propagates its sources (source-tree
+    # and/or generated) and package metadata unchanged. Co-location of a
+    # package's split-across-targets / source+generated files into one real
+    # directory happens in the *consumer* (`dart_binary`/`dart_test`), which is
+    # the only place that sees the package's complete file set.
     transitive_srcs = depset(
         direct = own_srcs,
         transitive = [dep[DartInfo].transitive_srcs for dep in ctx.attr.deps],
     )
-
-    # Build a DartPackageInfo for this package
     this_pkg = DartPackageInfo(
         package_name = package_name,
         lib_root = lib_root,
         language_version = ctx.attr.language_version,
     )
-
-    # Collect transitive packages
     transitive_packages = depset(
         direct = [this_pkg],
         transitive = [dep[DartInfo].transitive_packages for dep in ctx.attr.deps],
@@ -135,9 +135,12 @@ dart_library = rule(
     implementation = _dart_library_impl,
     attrs = {
         "srcs": attr.label_list(
-            doc = "Dart source files (`.dart`) for this library. Typically `glob([\"lib/**/*.dart\"])`.",
+            doc = "Dart source files (`.dart`), source-tree or generated. Typically `glob([\"lib/**/*.dart\"])`, optionally plus `dart_codegen` outputs. Generated members are co-located with the rest of the package by the consuming `dart_binary`/`dart_test`. Mutually exclusive with `srcs_dir`.",
             allow_files = [".dart"],
-            mandatory = True,
+        ),
+        "srcs_dir": attr.label(
+            doc = "A pre-assembled source directory (a `dart_source_set`) to use as this library's package root, instead of `srcs`. For reuse/composition; usually you just list files in `srcs`.",
+            allow_files = True,
         ),
         "deps": attr.label_list(
             doc = "Other `dart_library` targets this library depends on. Their sources and package metadata are propagated transitively.",
@@ -150,6 +153,5 @@ dart_library = rule(
             doc = "Dart language version implied by the package's `environment.sdk` constraint, in `<major>.<minor>` form. Emitted as `languageVersion` in generated `package_config.json` entries. For pub packages this is set automatically by `pub.from_lock()`; for hand-written `dart_library` targets, set it from your workspace's `pubspec.yaml` if you want analyzer behaviour to match.",
         ),
     },
-    toolchains = COPY_FILE_TO_BIN_TOOLCHAINS,
-    doc = "Collects Dart sources and propagates dependency information via `DartInfo`. Does not compile.",
+    doc = "Collects Dart sources and propagates dependency information via `DartInfo`. Does not compile or assemble; consumers co-locate generated sources.",
 )
