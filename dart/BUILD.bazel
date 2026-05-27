@@ -81,5 +81,6 @@ bzl_library(
     deps = [
         "//dart/private:common",
         "//dart/private:dart_library",
+        "//dart/private:source_set",
     ],
 )
