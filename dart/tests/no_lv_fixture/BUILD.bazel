@@ -1,0 +1,38 @@
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("//dart:defs.bzl", "dart_binary", "dart_test")
+load(":no_lv_rules.bzl", "no_lv_dart_library")
+
+# Generated `.dart` forces `colocate_packages`'s assembly branch.
+genrule(
+    name = "gen_lib_src",
+    outs = ["lib/no_lv_lib.dart"],
+    cmd = "printf '%s\\n' '// generated' > $@",
+)
+
+no_lv_dart_library(
+    name = "no_lv_lib",
+    package_name = "no_lv_lib",
+    srcs = [":gen_lib_src"],
+)
+
+dart_binary(
+    name = "no_lv_binary",
+    main = "main.dart",
+    deps = [":no_lv_lib"],
+)
+
+dart_test(
+    name = "no_lv_dart_test",
+    main = "test.dart",
+    deps = [":no_lv_lib"],
+)
+
+build_test(
+    name = "no_lv_binary_build_test",
+    targets = [":no_lv_binary"],
+)
+
+build_test(
+    name = "no_lv_dart_test_build_test",
+    targets = [":no_lv_dart_test"],
+)

@@ -94,6 +94,22 @@ def package_for(short_path, packages):
                 best_len = len(lr)
     return best_name
 
+def assembled_package_for(p, assembled_short_path):
+    """Returns a `DartPackageInfo`-shaped struct with `lib_root` rewritten to `assembled_short_path`.
+
+    Args:
+      p: A `DartPackageInfo` or struct.
+      assembled_short_path: The assembled directory's `short_path`.
+
+    Returns:
+      A struct with `package_name`, `lib_root`, `language_version` (`""` when `p` has no `language_version`).
+    """
+    return struct(
+        package_name = p.package_name,
+        lib_root = assembled_short_path,
+        language_version = p.language_version if hasattr(p, "language_version") else "",
+    )
+
 def colocate_packages(ctx, packages, all_srcs):
     """Co-locates each package's split source/generated files into one directory.
 
@@ -144,11 +160,7 @@ def colocate_packages(ctx, packages, all_srcs):
                 files,
                 root_paths = [p.lib_root] if p.lib_root else ["."],
             )
-            packages2.append(struct(
-                package_name = p.package_name,
-                lib_root = assembled.short_path,
-                language_version = p.language_version,
-            ))
+            packages2.append(assembled_package_for(p, assembled.short_path))
             srcs2.append(assembled)
         else:
             packages2.append(p)

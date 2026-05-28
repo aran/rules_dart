@@ -13,9 +13,9 @@ DartInfo = provider(
 DartPackageInfo = provider(
     doc = "Metadata about a single Dart package, carried in depsets within DartInfo.",
     fields = {
-        "package_name": "str: The Dart package name.",
-        "lib_root": "str: The short_path-based path to the package root directory (parent of `lib/`). Configuration-independent.",
-        "language_version": "str: Dart language version implied by the package's `environment.sdk` constraint, in `<major>.<minor>` form. Empty string when unknown (no field emitted in package_config.json).",
+        "package_name": "str: The Dart package name. Required.",
+        "lib_root": "str: The short_path-based path to the package root directory (parent of `lib/`). Configuration-independent. Required; empty string for the root package.",
+        "language_version": "str: Dart language version implied by the package's `environment.sdk` constraint, in `<major>.<minor>` form. Optional; empty string when unknown.",
     },
 )
 

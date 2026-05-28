@@ -1,7 +1,7 @@
 """Unit tests for the source-assembly helpers (`needs_source_assembly`, `package_for`)."""
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
-load("//dart/private:source_set.bzl", "colocate_packages", "needs_source_assembly", "package_for")
+load("//dart/private:source_set.bzl", "assembled_package_for", "colocate_packages", "needs_source_assembly", "package_for")
 
 def _fake_file(is_source):
     # needs_source_assembly only inspects File.is_source.
@@ -81,6 +81,26 @@ def _colocate_loose_passthrough_test_impl(ctx):
     asserts.equals(env, "myapp", packages2[0].package_name)
     return unittest.end(env)
 
+def _assembled_package_for_with_language_version_test_impl(ctx):
+    env = unittest.begin(ctx)
+    p = struct(package_name = "pkg", lib_root = "old/root", language_version = "2.12")
+    out = assembled_package_for(p, "bazel-out/k8/bin/app.pkg.pkgsrcs")
+    asserts.equals(env, "pkg", out.package_name)
+    asserts.equals(env, "bazel-out/k8/bin/app.pkg.pkgsrcs", out.lib_root)
+    asserts.equals(env, "2.12", out.language_version)
+    return unittest.end(env)
+
+def _assembled_package_for_without_language_version_test_impl(ctx):
+    env = unittest.begin(ctx)
+    p = struct(package_name = "pkg", lib_root = "old/root")
+    out = assembled_package_for(p, "bazel-out/k8/bin/app.pkg.pkgsrcs")
+    asserts.equals(env, "pkg", out.package_name)
+    asserts.equals(env, "bazel-out/k8/bin/app.pkg.pkgsrcs", out.lib_root)
+    asserts.equals(env, "", out.language_version)
+    return unittest.end(env)
+
+_assembled_with_lv_test = unittest.make(_assembled_package_for_with_language_version_test_impl)
+_assembled_without_lv_test = unittest.make(_assembled_package_for_without_language_version_test_impl)
 _all_source_test = unittest.make(_all_source_no_assembly_test_impl)
 _any_generated_test = unittest.make(_any_generated_needs_assembly_test_impl)
 _empty_test = unittest.make(_empty_no_assembly_test_impl)
@@ -104,6 +124,8 @@ def source_set_test_suite(name):
     _exact_dir_test(name = "source_set_package_for_exact_dir_test")
     _external_nomatch_test(name = "source_set_package_for_external_test")
     _colocate_loose_test(name = "source_set_colocate_loose_test")
+    _assembled_with_lv_test(name = "source_set_assembled_with_lv_test")
+    _assembled_without_lv_test(name = "source_set_assembled_without_lv_test")
     native.test_suite(
         name = name,
         tests = [
@@ -115,5 +137,7 @@ def source_set_test_suite(name):
             ":source_set_package_for_exact_dir_test",
             ":source_set_package_for_external_test",
             ":source_set_colocate_loose_test",
+            ":source_set_assembled_with_lv_test",
+            ":source_set_assembled_without_lv_test",
         ],
     )
