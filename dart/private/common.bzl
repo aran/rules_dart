@@ -213,14 +213,18 @@ def generate_package_config(packages, all_srcs, config_file):
             # Root package with no sources found — fall back to depth-based
             root_uri = relative_path(config_dir, "")
         else:
-            fail(
-                ("generate_package_config: no source files found in " +
-                 "the transitive `DartInfo` for package %r (lib_root " +
-                 "%r). The analyzer would fail to resolve `package:%s/…` " +
-                 "imports from this package_config. Verify the Dart " +
-                 "library target actually has `srcs`.") %
-                (pkg.package_name, pkg.lib_root, pkg.package_name),
-            )
+            # Package contributes no .dart sources to the transitive closure.
+            # Two legitimate cases hit this:
+            #   1. asset/font-only pub deps (e.g. `cupertino_icons`) pulled
+            #      into a Flutter app — assets ride through other providers,
+            #      not `package:` URIs;
+            #   2. an aggregate `dart_library(srcs = [])` façade that exists
+            #      only to re-export its deps.
+            # Either way no consumer needs a `rootUri` for this package. If
+            # anything *does* import `package:<name>/…`, the Dart frontend
+            # reports a localized URI-not-found at the import — clearer than
+            # failing the whole package_config build here.
+            continue
         lv = ""
         if hasattr(pkg, "language_version") and pkg.language_version:
             lv = ', "languageVersion": "{lv}"'.format(lv = pkg.language_version)

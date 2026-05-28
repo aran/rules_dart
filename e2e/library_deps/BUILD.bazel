@@ -6,3 +6,13 @@ dart_binary(
     main = "main.dart",
     deps = ["//greeter"],
 )
+
+# Regression check: depending on a source-less aggregate `dart_library`
+# (`//facade`, which re-exports `//utils`) used to fail at analysis with
+# `generate_package_config: no source files found …`. Build verifies the
+# fix; `bazel test //...` covers it via the `[ $? -eq 4 ]` build-only path.
+dart_binary(
+    name = "app_via_facade",
+    main = "facade_main.dart",
+    deps = ["//facade"],
+)

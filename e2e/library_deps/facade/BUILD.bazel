@@ -1,0 +1,18 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+# Aggregate `dart_library` with no `srcs` of its own — exists only to
+# re-export `//utils`. `dart/private/dart_library.bzl` blesses this pattern
+# ("srcs may be empty: a dart_library with only deps is a valid aggregate
+# façade that re-exports its dependencies").
+#
+# Regression: building a `dart_binary` that depends on this used to fail at
+# analysis with `generate_package_config: no source files found for package
+# "facade"`. The fix in `dart/private/common.bzl` skips the entry rather
+# than failing — no consumer needs a `rootUri` when there are no sources
+# to resolve under it.
+dart_library(
+    name = "facade",
+    srcs = [],
+    visibility = ["//visibility:public"],
+    deps = ["//utils"],
+)
