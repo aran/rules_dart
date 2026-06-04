@@ -1,6 +1,7 @@
 """Shared utilities for Dart rules."""
 
 load("//dart:providers.bzl", "DartInfo")
+load("//dart/private:source_set.bzl", "needs_source_assembly", "package_for")
 
 # Official Bazel bash runfiles v3 initialization boilerplate.
 # Sources runfiles.bash which provides rlocation() for cross-platform
@@ -237,6 +238,155 @@ def generate_package_config(packages, all_srcs, config_file):
         )
     return '{{\n  "configVersion": 2,\n  "packages": [\n{packages}\n  ]\n}}\n'.format(
         packages = ",\n".join(entries),
+    )
+
+def _exec_root_of(f):
+    """Returns the exec-root-relative dir that, prepended to `f.short_path`, yields `f.path`.
+
+    For a source-tree file this is `""` (the exec root itself); for a generated
+    file it is its `bazel-out/<cfg>/bin`-style output dir.
+    """
+    p = f.path
+    sp = f.short_path
+    root = p[:len(p) - len(sp)] if sp and p.endswith(sp) else p
+    if root.endswith("/"):
+        root = root[:-1]
+    return root
+
+def generate_dev_package_config(packages, all_srcs, config_file, scheme = "org-dartlang-app"):
+    """`generate_package_config` variant for live hot reload of codegen apps.
+
+    A package whose hand-written and generated sources straddle the source tree
+    and `bazel-out` would, under the normal generator, get a `rootUri` pointing
+    at the frozen assembled (`*.pkgsrcs`) directory — so a dev tool reading it
+    sees stale generated output and never sees live source edits. Instead, this
+    emits a `<scheme>:///<lib_root>` `rootUri` for each such package and reports
+    the filesystem roots the frontend_server must search (`--filesystem-root`,
+    `--filesystem-scheme`) to resolve those scheme URIs across BOTH the live
+    source tree and the generated `bazel-out` outputs. Non-assembled packages
+    (pub deps, pure source packages) keep their normal relative `rootUri` —
+    the frontend_server resolves a mix of scheme and relative `rootUri`s.
+
+    Args:
+        packages: List of DartPackageInfo providers (pre-colocation, so the app
+            package still has its real `lib_root`).
+        all_srcs: List of File objects (pre-colocation, so `is_source` is intact).
+        config_file: The output File for the dev package_config.json (for dirname).
+        scheme: Filesystem scheme for assembled packages' rootUris.
+
+    Returns:
+        struct(content, filesystem_roots, scheme, generated_source_paths, generated_source_uris, source_packages):
+          content: package_config.json text.
+          filesystem_roots: deduped exec-root-relative dirs for `--filesystem-root`
+            (source roots first, then generated roots); empty when nothing needed
+            assembly (then the config equals the normal one and no scheme is used).
+          scheme: the filesystem scheme (meaningful only when roots are non-empty).
+          generated_source_paths: exec-root-relative paths of the generated files
+            in assembled packages — the dev tool re-stats these after a rebuild to
+            add changed ones to the reload invalidation set.
+          generated_source_uris: the `package:` URI for each entry in
+            generated_source_paths, index-aligned, so the dev tool can map a
+            changed file straight to the URI to invalidate without re-deriving it.
+          source_packages: (name, lib_root) for each package contributing a
+            first-party (editable, main-repo) source file — the dev tool's
+            path->package: map for live edits. Excludes pub/external deps and
+            generated-only packages.
+    """
+    if not packages:
+        return struct(
+            content = '{"configVersion": 2, "packages": []}\n',
+            filesystem_roots = [],
+            scheme = scheme,
+            generated_source_paths = [],
+            generated_source_uris = [],
+            source_packages = [],
+        )
+
+    by_pkg = {}
+    for f in all_srcs:
+        name = package_for(f.short_path, packages)
+        if name == None:
+            continue
+        by_pkg.setdefault(name, []).append(f)
+
+    exec_roots = resolve_package_roots(packages, all_srcs)
+    config_dir = config_file.dirname
+
+    # First-party source packages (name, lib_root) the dev tool can map a live
+    # edit back to: any package contributing an `is_source` file that lives in
+    # the main repo (short_path not under `external/` or `../<repo>`). Excludes
+    # pub/external deps (not editable, never watched) and generated-only
+    # packages. `lib_root` is short_path-relative, i.e. workspace-relative, so
+    # the dev tool resolves a path to `package:<name>/<rel>` without inverting
+    # rootUris — see the dev tool's PackageUriResolver.
+    source_packages = []
+    for pkg in packages:
+        for f in by_pkg.get(pkg.package_name, []):
+            if (f.is_source and
+                not f.short_path.startswith("external/") and
+                not f.short_path.startswith("../")):
+                source_packages.append((pkg.package_name, pkg.lib_root))
+                break
+
+    source_roots = []
+    generated_roots = []
+    generated_source_paths = []
+    generated_source_uris = []
+    entries = []
+    for pkg in packages:
+        files = by_pkg.get(pkg.package_name, [])
+        if needs_source_assembly(files):
+            root_uri = "{scheme}:///{lib_root}".format(
+                scheme = scheme,
+                lib_root = pkg.lib_root,
+            )
+            lib_prefix = (pkg.lib_root + "/lib/") if pkg.lib_root else "lib/"
+            for f in files:
+                er = _exec_root_of(f)
+                if f.is_source:
+                    if er not in source_roots:
+                        source_roots.append(er)
+                else:
+                    if er not in generated_roots:
+                        generated_roots.append(er)
+
+                    # Pair each generated file's exec path with its `package:`
+                    # URI so the dev tool can invalidate it on reload after a
+                    # rebuild — no path→URI inference needed downstream.
+                    if f.short_path.startswith(lib_prefix):
+                        generated_source_paths.append(f.path)
+                        generated_source_uris.append("package:{name}/{rel}".format(
+                            name = pkg.package_name,
+                            rel = f.short_path[len(lib_prefix):],
+                        ))
+        else:
+            exec_root = exec_roots.get(pkg.package_name)
+            if exec_root != None:
+                root_uri = relative_path(config_dir, exec_root)
+            elif not pkg.lib_root:
+                root_uri = relative_path(config_dir, "")
+            else:
+                continue
+        lv = ""
+        if hasattr(pkg, "language_version") and pkg.language_version:
+            lv = ', "languageVersion": "{lv}"'.format(lv = pkg.language_version)
+        entries.append(
+            '    {{"name": "{name}", "rootUri": "{root_uri}", "packageUri": "lib/"{lv}}}'.format(
+                name = pkg.package_name,
+                root_uri = root_uri,
+                lv = lv,
+            ),
+        )
+    content = '{{\n  "configVersion": 2,\n  "packages": [\n{packages}\n  ]\n}}\n'.format(
+        packages = ",\n".join(entries),
+    )
+    return struct(
+        content = content,
+        filesystem_roots = source_roots + generated_roots,
+        scheme = scheme,
+        generated_source_paths = generated_source_paths,
+        generated_source_uris = generated_source_uris,
+        source_packages = source_packages,
     )
 
 def generate_package_config_content(packages, prefix):
