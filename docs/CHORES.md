@@ -27,6 +27,9 @@ file at runtime — keep file lists current as the repo evolves.
 - `e2e/pub_lock_cross_module/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
 - `e2e/pub_lock_dedup/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
 - `e2e/pub_lock_upgrade/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
+- `e2e/codegen/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
+- `e2e/dual_build/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
+- `e2e/ext_exemplar/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
 - `README.md` — `dart.toolchain(dart_version = "...")` in installation snippet
 - `dart/tests/versions_test.bzl` — asserted version key in `_smoke_test_impl`
 - `dart/runfiles/pubspec.yaml` — `environment.sdk` constraint (published to
@@ -72,6 +75,7 @@ file at runtime — keep file lists current as the repo evolves.
 - `e2e/pub_lock_cross_module/.bazelversion`
 - `e2e/pub_lock_dedup/.bazelversion`
 - `e2e/pub_lock_upgrade/.bazelversion`
+- `e2e/codegen/.bazelversion`
 - `.bcr/presubmit.yml` — `bazel:` matrix value (if major version changes)
 - `docs/ARCHITECTURE.md` — prose mentioning "Bazel 8.x" (if major version changes)
 
@@ -136,6 +140,9 @@ file at runtime — keep file lists current as the repo evolves.
 - `e2e/pub_lock_cross_module`
 - `e2e/pub_lock_dedup`
 - `e2e/pub_lock_upgrade`
+- `e2e/codegen`
+- `e2e/dual_build`
+- `e2e/ext_exemplar`
 
 **Procedure**: Run `dart run tool/refresh_locks.dart`. This both refreshes
 Bazel lock files (pulling fresh registry data, keeping MODULE.bazel
