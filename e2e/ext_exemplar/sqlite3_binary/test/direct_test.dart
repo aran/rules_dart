@@ -16,7 +16,7 @@ void main() {
     expect(rows.single['name'], 'hello');
     // The BCR-vendored version — proves we resolved *our* Bazel-built lib,
     // not a system libsqlite3 that happens to be present on the host.
-    expect(sqlite3.version.libVersion, '3.51.2');
+    expect(sqlite3.version.libVersion, '3.53.2');
     db.dispose();
   });
 }

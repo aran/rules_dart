@@ -8,8 +8,8 @@ local_path_override(
 
 # Gazelle plugin support so users can `bazel run //:gazelle` to regenerate
 # BUILD files from annotated sources.
-bazel_dep(name = "gazelle", version = "0.51.0")
-bazel_dep(name = "rules_go", version = "0.60.0")
+bazel_dep(name = "gazelle", version = "0.51.3")
+bazel_dep(name = "rules_go", version = "0.61.1")
 
 # SQLite native lib for the drift exemplar's database_test: drift's
 # NativeDatabase calls into package:sqlite3 which dlopen's libsqlite3 at
@@ -18,8 +18,8 @@ bazel_dep(name = "rules_go", version = "0.60.0")
 # wrap it in cc_shared_library for a loadable .so/.dylib/.dll, and bind
 # it into the test via package:sqlite3's open override. rules_cc is needed
 # for the cc_shared_library load.
-bazel_dep(name = "sqlite3", version = "3.51.2.bcr.1")
-bazel_dep(name = "rules_cc", version = "0.2.16")
+bazel_dep(name = "sqlite3", version = "3.53.2")
+bazel_dep(name = "rules_cc", version = "0.2.19")
 bazel_dep(name = "platforms", version = "1.1.0")
 
 dart = use_extension("@rules_dart//dart:extensions.bzl", "dart")

@@ -2,7 +2,7 @@ module(name = "gazelle_e2e")
 
 bazel_dep(name = "rules_dart", version = "0.0.0")
 bazel_dep(name = "bazel_skylib", version = "1.9.0")
-bazel_dep(name = "gazelle", version = "0.51.0")
+bazel_dep(name = "gazelle", version = "0.51.3")
 bazel_dep(name = "rules_shell", version = "0.8.0")
 
 local_path_override(
