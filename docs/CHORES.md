@@ -76,6 +76,8 @@ file at runtime — keep file lists current as the repo evolves.
 - `e2e/pub_lock_dedup/.bazelversion`
 - `e2e/pub_lock_upgrade/.bazelversion`
 - `e2e/codegen/.bazelversion`
+- `e2e/dual_build/.bazelversion`
+- `e2e/ext_exemplar/.bazelversion`
 - `.bcr/presubmit.yml` — `bazel:` matrix value (if major version changes)
 - `docs/ARCHITECTURE.md` — prose mentioning "Bazel 8.x" (if major version changes)
 
