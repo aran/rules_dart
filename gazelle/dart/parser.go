@@ -431,6 +431,45 @@ func ParseDartAnnotations(path string) ([]string, error) {
 	return out, nil
 }
 
+// builtInterfaceRe detects idiomatic built_value classes, which carry no
+// annotation: the codegen trigger is an `implements`/`with` clause naming
+// `Built<T, TBuilder>` (two type arguments). Applied to comment/string-
+// stripped source; `[^{;]*` lets the clause span newlines but stops at the
+// class body so `BuiltList<...>` fields can't false-positive. `\b` rejects
+// identifiers that merely end in "Built" (e.g. `RebuiltThing`, `NotBuilt`).
+var builtInterfaceRe = regexp.MustCompile(
+	`(?:implements|with)[^{;]*\bBuilt\s*<\s*[A-Za-z_$][A-Za-z0-9_$]*\s*,\s*[A-Za-z_$][A-Za-z0-9_$]*\s*>`)
+
+// ParseDartCodegenTriggers returns every codegen trigger in the file at
+// path: all annotations (as ParseDartAnnotations) plus a synthetic
+// "BuiltValue" entry when the source implements `Built<T, B>` — idiomatic
+// built_value classes are annotation-free. The synthetic entry is only
+// appended when "BuiltValue" isn't already present as a real annotation.
+func ParseDartCodegenTriggers(path string) ([]string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	stripped := stripCommentsAndStrings(string(data))
+	var out []string
+	for _, m := range annotationRe.FindAllStringSubmatch(stripped, -1) {
+		out = append(out, m[1])
+	}
+	if builtInterfaceRe.MatchString(stripped) {
+		seen := false
+		for _, a := range out {
+			if a == "BuiltValue" {
+				seen = true
+				break
+			}
+		}
+		if !seen {
+			out = append(out, "BuiltValue")
+		}
+	}
+	return out, nil
+}
+
 // partRe matches `part '<uri>';` directives (NOT `part of`). The
 // negative-lookahead-style filtering for `part of` is done at scan time.
 var partRe = regexp.MustCompile(`^\s*part\s+['"]([^'"]+)['"]\s*;`)

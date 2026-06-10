@@ -288,6 +288,126 @@ class A {}`,
 	}
 }
 
+func TestParseDartCodegenTriggers(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  []string
+	}{
+		{
+			// Mirrors e2e/ext_exemplar/built_value/lib/user.dart: idiomatic
+			// built_value carries NO annotation — the trigger is the
+			// `implements Built<T, TBuilder>` clause.
+			name: "BuiltInterfaceImplements",
+			input: `import 'package:built_value/built_value.dart';
+
+part 'user.g.dart';
+
+abstract class User implements Built<User, UserBuilder> {
+  String get id;
+
+  User._();
+  factory User([void Function(UserBuilder) updates]) = _$User;
+}`,
+			want: []string{"BuiltValue"},
+		},
+		{
+			// Multi-line implements clause crossing newlines before the
+			// Built<...> mention.
+			name: "BuiltInterfaceMultilineImplements",
+			input: `abstract class Profile
+    implements
+        Comparable<Profile>,
+        Built<Profile, ProfileBuilder> {
+  String get name;
+}`,
+			want: []string{"BuiltValue"},
+		},
+		{
+			name:  "BuiltViaWithClause",
+			input: `abstract class Mixed extends Base with Built<Mixed, MixedBuilder> {}`,
+			want:  []string{"BuiltValue"},
+		},
+		{
+			// BuiltList<String> fields (and other Built*-prefixed types)
+			// must not false-positive; class-body mentions are behind `{`.
+			name: "BuiltListFieldIsNotBuiltValue",
+			input: `abstract class Plain implements Comparable<Plain> {
+  BuiltList<String> get tags;
+}`,
+			want: nil,
+		},
+		{
+			name:  "RebuiltIdentifierIsNotBuilt",
+			input: `class Thing implements RebuiltThing<Thing, ThingBuilder> {}`,
+			want:  nil,
+		},
+		{
+			name:  "SingleTypeArgIsNotBuiltValue",
+			input: `class Thing implements Built<Thing> {}`,
+			want:  nil,
+		},
+		{
+			name:  "ExtendsNotBuiltIsNotBuiltValue",
+			input: `class Thing extends NotBuilt<Thing, ThingBuilder> {}`,
+			want:  nil,
+		},
+		{
+			name:  "BuiltMentionInStringIgnored",
+			input: `final s = 'implements Built<User, UserBuilder>';`,
+			want:  nil,
+		},
+		{
+			name: "BuiltMentionInCommentIgnored",
+			input: `// implements Built<User, UserBuilder>
+class A {}`,
+			want: nil,
+		},
+		{
+			// Annotations still come through, in source order, with the
+			// synthetic BuiltValue appended.
+			name: "AnnotationsPlusBuiltInterface",
+			input: `@SomeAnnotation()
+abstract class User implements Built<User, UserBuilder> {}`,
+			want: []string{"SomeAnnotation", "BuiltValue"},
+		},
+		{
+			// An explicit @BuiltValue annotation must not be duplicated by
+			// the interface detection.
+			name: "ExplicitBuiltValueAnnotationNotDuplicated",
+			input: `@BuiltValue(instantiable: false)
+abstract class User implements Built<User, UserBuilder> {}`,
+			want: []string{"BuiltValue"},
+		},
+		{
+			// @SerializersFor is annotation-driven (no Built<> clause);
+			// it must pass through untouched.
+			name: "SerializersForPassesThrough",
+			input: `@SerializersFor([Profile])
+final Serializers serializers = _$serializers;`,
+			want: []string{"SerializersFor"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := writeTempDart(t, tt.input)
+			got, err := ParseDartCodegenTriggers(path)
+			if err != nil {
+				t.Fatalf("ParseDartCodegenTriggers() error = %v", err)
+			}
+			if len(got) != len(tt.want) {
+				t.Fatalf("ParseDartCodegenTriggers() returned %d, want %d\ngot:  %v\nwant: %v", len(got), len(tt.want), got, tt.want)
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Errorf("trigger[%d] = %q, want %q", i, got[i], tt.want[i])
+				}
+			}
+		})
+	}
+}
+
 // TestParseDartAnnotationsReadError verifies that a missing file surfaces
 // as a non-nil error rather than being conflated with "no annotations" —
 // callers in generate.go rely on this distinction to log a warning.

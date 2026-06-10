@@ -1,0 +1,11 @@
+load("@rules_dart//dart/ext/built_value:defs.bzl", "built_value_library")
+
+# gazelle:dart_package_name built_value_fixture
+
+built_value_library(
+    name = "user",
+    package_name = "built_value_fixture",
+    srcs = ["user.dart"],
+    visibility = ["//visibility:public"],
+    deps = ["@built_value"],
+)

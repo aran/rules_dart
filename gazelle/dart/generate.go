@@ -74,7 +74,7 @@ func (d *dartLang) GenerateRules(args language.GenerateArgs) language.GenerateRe
 	injectableInitFiles := []string{}
 	for _, f := range libFiles {
 		annPath := filepath.Join(args.Dir, f.Path)
-		anns, err := ParseDartAnnotations(annPath)
+		anns, err := ParseDartCodegenTriggers(annPath)
 		if err != nil {
 			log.Printf("dart: %s: annotation parse failed: %v", annPath, err)
 			continue

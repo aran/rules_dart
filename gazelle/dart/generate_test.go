@@ -103,11 +103,22 @@ func TestDefaultBuildersIncludesShipped(t *testing.T) {
 	for _, want := range []string{
 		"JsonSerializable", "freezed", "Freezed", "CopyWith",
 		"GenerateMocks", "TypedGoRoute", "InjectableInit",
-		"DriftDatabase", "StackedApp", "FormView",
+		"DriftDatabase", "StackedApp", "FormView", "SerializersFor",
 	} {
 		if r.lookup(want) == nil {
 			t.Errorf("default registry missing %s", want)
 		}
+	}
+	// @SerializersFor is the annotation-driven entry point to built_value
+	// (e.g. serializers.dart in the e2e exemplar); it must map onto the
+	// same built_value builder as the synthetic BuiltValue trigger.
+	sfor := r.lookup("SerializersFor")
+	bval := r.lookup("BuiltValue")
+	if len(sfor) != 1 || len(bval) != 1 {
+		t.Fatalf("SerializersFor/BuiltValue should each register exactly one builder, got %d/%d", len(sfor), len(bval))
+	}
+	if sfor[0].ShimLabel != bval[0].ShimLabel || sfor[0].Macro != bval[0].Macro {
+		t.Errorf("SerializersFor should share built_value's shim/macro, got %+v", sfor[0])
 	}
 	// @StackedApp must fan out to exactly five builders (router, locator,
 	// logger, dialog, bottomsheet — form uses @FormView separately).

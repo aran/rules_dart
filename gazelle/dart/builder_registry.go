@@ -149,7 +149,23 @@ func defaultBuilders() []*builderInfo {
 			RuntimeDep: "@pub_deps//:json_annotation",
 		},
 		{
+			// Synthetic trigger: idiomatic built_value classes carry no
+			// annotation; ParseDartCodegenTriggers emits "BuiltValue" when
+			// a class implements `Built<T, B>`. The explicit @BuiltValue
+			// annotation maps here too.
 			Annotation: "BuiltValue",
+			ShimLabel:  "@rules_dart//dart/ext/built_value:shim",
+			Macro:      "@rules_dart//dart/ext/built_value:defs.bzl%built_value_library",
+			Produces:   []string{".built_value.g.part"},
+			Consumes:   []string{".dart"},
+			SharedPart: true,
+			RuntimeDep: "@pub_deps//:built_value",
+		},
+		{
+			// `@SerializersFor([...])` drives built_value_generator's
+			// serializer aggregation (see the e2e exemplar's
+			// serializers.dart); same builder as BuiltValue.
+			Annotation: "SerializersFor",
 			ShimLabel:  "@rules_dart//dart/ext/built_value:shim",
 			Macro:      "@rules_dart//dart/ext/built_value:defs.bzl%built_value_library",
 			Produces:   []string{".built_value.g.part"},
