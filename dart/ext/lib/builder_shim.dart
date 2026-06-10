@@ -572,6 +572,11 @@ Future<void> _runWithStaging(
     assetIdToPath,
     packageConfig,
   );
+  // One ResourceManager per shim invocation, shared by every pipeline
+  // stage — mirrors build_runner, which shares one manager per build
+  // session so a Resource fetched in stage 1 is the same instance in
+  // stage 2. Disposed once after the whole pipeline (see finally below).
+  final resourceManager = ResourceManager();
 
   // The last Builder's allowedOutputs are derived from the rule-declared
   // `--output` paths (one AssetId per declared file, placed in the input's
@@ -607,9 +612,6 @@ Future<void> _runWithStaging(
       '${rec.stackTrace != null ? "\n${rec.stackTrace}" : ""}',
     );
   });
-  // Track every _ShimBuildStep so multi-stage pipelines dispose each
-  // stage's ResourceManager (not just the last one) on completion.
-  final steps = <_ShimBuildStep>[];
   final lastIndex = builders.length - 1;
   try {
     // Set the level inside the try so the `finally` below always
@@ -629,8 +631,8 @@ Future<void> _runWithStaging(
         resolver: resolver,
         allowedOutputsValue: allowedForThisStep,
         packageConfig: packageConfig,
+        resourceManager: resourceManager,
       );
-      steps.add(step);
       // Run each Builder in a zone where `package:build`'s `log` resolves
       // to our listener-equipped Logger (see the `logKey` constant in
       // `package:build/src/logging.dart`).
@@ -641,14 +643,13 @@ Future<void> _runWithStaging(
     }
   } finally {
     // Drain any Resources a Builder held via `fetchResource` so they don't
-    // leak across sequential worker requests. Disposal-phase log records
-    // still flow to the listener because we cancel *after* disposal.
-    for (final step in steps) {
-      try {
-        await step._resourceManager.disposeAll();
-      } catch (e, st) {
-        writeDiagnostic('ResourceManager.disposeAll failed: $e\n$st');
-      }
+    // leak across sequential worker requests. One disposeAll for the whole
+    // pipeline — the manager is shared across stages. Disposal-phase log
+    // records still flow to the listener because we cancel *after* disposal.
+    try {
+      await resourceManager.disposeAll();
+    } catch (e, st) {
+      writeDiagnostic('ResourceManager.disposeAll failed: $e\n$st');
     }
     await logSub.cancel();
     Logger.root.level = originalLevel;
@@ -996,11 +997,13 @@ class _ShimBuildStep implements BuildStep {
     required _ShimAnalyzerResolver resolver,
     required Iterable<AssetId> allowedOutputsValue,
     required PackageConfig packageConfig,
+    required ResourceManager resourceManager,
   }) : _reader = reader,
        _writer = writer,
        _resolver = resolver,
        _allowedOutputs = allowedOutputsValue,
-       _packageConfig = packageConfig;
+       _packageConfig = packageConfig,
+       _resourceManager = resourceManager;
 
   @override
   final AssetId inputId;
@@ -1047,12 +1050,13 @@ class _ShimBuildStep implements BuildStep {
     Encoding encoding = utf8,
   }) => _writer.writeAsString(id, contents, encoding: encoding);
 
-  // Per-invocation Resource cache. build_runner uses fetchResource to share
-  // state across builders within one build session; per shim invocation we
-  // start with a fresh cache, so cross-action sharing isn't possible — but
-  // within a single invocation a Builder may legitimately fetchResource
-  // multiple times for the same Resource and expect the same instance back.
-  final ResourceManager _resourceManager = ResourceManager();
+  // Session-shared Resource cache, injected by `_runWithStaging`: every
+  // pipeline stage in one shim invocation sees the same manager, so a
+  // Resource fetched in stage 1 is the same instance in stage 2 — matching
+  // build_runner's one-manager-per-build-session semantics. The owner
+  // disposes it once after the whole pipeline; cross-invocation sharing
+  // still isn't possible (each invocation builds a fresh manager).
+  final ResourceManager _resourceManager;
 
   @override
   Future<T> fetchResource<T>(Resource<T> resource) =>

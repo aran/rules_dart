@@ -648,6 +648,83 @@ void main() {
     });
   });
 
+  group('fetchResource across pipeline stages', () {
+    // build_runner shares one ResourceManager per build session, so a
+    // Resource fetched by stage 1 and stage 2 of the same pipeline is the
+    // same instance (drift's shared analysis state relies on this). The
+    // shim mirrors that: one manager per runShim invocation, disposed once
+    // after the whole pipeline.
+    late Directory tmp;
+    setUp(() async {
+      tmp = await Directory.systemTemp.createTemp('shim_resource_');
+    });
+    tearDown(() async {
+      if (await tmp.exists()) await tmp.delete(recursive: true);
+    });
+
+    test('stages observe the same Resource instance and state', () async {
+      final input = File(p.join(tmp.path, 'src.dart'))
+        ..writeAsStringSync('class Foo {}');
+      final output = File(p.join(tmp.path, 'src.g.dart'));
+
+      final resource = Resource<List<String>>(() => <String>[]);
+      List<String>? stage1Instance;
+      List<String>? stage2Instance;
+
+      await runShimWithArgs(
+        _shimArgs(
+            inputPath: input.path,
+            inputAssetPath: 'lib/src.dart',
+            outputPath: output.path),
+        [
+          (_) => _CapturingBuilder((step) async {
+                stage1Instance = await step.fetchResource(resource);
+                stage1Instance!.add('stage1');
+              }),
+          (_) => _CapturingBuilder((step) async {
+                stage2Instance = await step.fetchResource(resource);
+              }),
+        ],
+      );
+
+      expect(identical(stage1Instance, stage2Instance), isTrue,
+          reason: 'both stages must fetch the same Resource instance');
+      expect(stage2Instance, ['stage1']);
+    });
+
+    test('Resource dispose runs exactly once after the pipeline', () async {
+      final input = File(p.join(tmp.path, 'src.dart'))
+        ..writeAsStringSync('class Foo {}');
+      final output = File(p.join(tmp.path, 'src.g.dart'));
+
+      var disposeCount = 0;
+      final resource = Resource<Object>(
+        () => Object(),
+        dispose: (_) {
+          disposeCount++;
+        },
+      );
+
+      await runShimWithArgs(
+        _shimArgs(
+            inputPath: input.path,
+            inputAssetPath: 'lib/src.dart',
+            outputPath: output.path),
+        [
+          (_) => _CapturingBuilder((step) async {
+                await step.fetchResource(resource);
+              }),
+          (_) => _CapturingBuilder((step) async {
+                await step.fetchResource(resource);
+              }),
+        ],
+      );
+
+      expect(disposeCount, 1,
+          reason: 'one shared manager disposes the Resource once');
+    });
+  });
+
   group('intermediate-stage buildExtensions validation', () {
     // `_expectedOutputsFor` derives intermediate AssetIds by suffix
     // replacement. An empty-string key (PackageBuilder pattern) makes
