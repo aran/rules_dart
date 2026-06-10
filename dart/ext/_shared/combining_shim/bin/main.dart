@@ -8,9 +8,12 @@
 ///   --output <out.g.dart>   Where to write the combined file.
 ///   --part <shard.g.part>   Repeatable. Path to a SharedPartBuilder shard.
 ///
-/// Shards are concatenated in lexicographic order for determinism. Any
-/// leading `part of '…';` directive on a shard is stripped before
-/// concatenation (the combining shim re-emits a single header).
+/// Shards are concatenated in lexicographic order for determinism. A
+/// `part of` directive at the very start of a shard — URI form
+/// (`part of '…';`) or legacy identifier form (`part of lib.name;`) — is
+/// stripped before concatenation (the combining shim re-emits a single
+/// header). `part of` text appearing later in a shard (e.g. inside a
+/// string literal) is preserved verbatim.
 ///
 /// Worker mode: dispatches on `--persistent_worker`. Each WorkRequest is
 /// handled as an independent combine invocation — no cross-request state.
@@ -28,9 +31,11 @@ const _header = '''
 // GENERATED CODE - DO NOT MODIFY BY HAND
 ''';
 
+// Anchored to the start of the shard (leading whitespace tolerated) so
+// `part of` text mid-shard (e.g. inside a string literal at column 0) is
+// never stripped. Accepts the URI form and the legacy identifier form.
 final _partOfRe = RegExp(
-    r'''^\s*part of (?:'[^']+'|"[^"]+");\s*''',
-    multiLine: true);
+    r'''^\s*part of (?:'[^']+'|"[^"]+"|[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*);\s*''');
 
 Future<void> main(List<String> argv) async {
   if (argv.contains('--persistent_worker')) {
