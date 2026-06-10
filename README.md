@@ -267,3 +267,8 @@ The [`e2e/`](e2e/) directory contains complete working examples:
 | [`pub_lock_upgrade`](e2e/pub_lock_upgrade/)           | Version conflict resolution with `on_version_conflict = "upgrade"`                   |
 | [`pub_lock_conflict`](e2e/pub_lock_conflict/)         | Version conflict detection across lock files                                         |
 | [`pub_lock_cross_module`](e2e/pub_lock_cross_module/) | `pub.from_lock()` across Bazel module boundaries                                     |
+
+> **Note**: Only the `exe` and `aot-snapshot` compile modes cross-compile via
+> `--platforms`. `kernel` and `jit-snapshot` are VM formats that ignore target
+> flags, and `dart_test` always runs on the host. See
+> [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for details.

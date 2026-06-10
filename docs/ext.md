@@ -101,6 +101,28 @@ in how they compose inputs/outputs:
 - `dart_sqlcodegen(src, output_suffixes = [...])` — like `dart_codegen`
   but the input file extension is arbitrary (`.drift`, `.moor`).
 
+### Builder options (`config`)
+
+The `config` attribute on all three codegen rules (and the `config = "{...}"`
+argument every builder macro forwards) is a JSON **object** string, passed to
+the shim verbatim as `--config`:
+
+- An empty string or `{}` means no options: builder factories receive a
+  `BuilderOptions` wrapping an empty map.
+- A string that fails to parse as JSON, or parses to a non-object (array,
+  string, number), is a hard build error — `ShimArgs.parse` rejects it
+  before any Builder runs.
+- The decoded map is passed unmodified as `BuilderOptions(config)` to
+  **every** stage's builder factory in the target's pipeline; multi-stage
+  shims (drift's sub-builders, injectable's metadata + config stages) all
+  see the same options.
+- Keys and values are builder-defined — the same names the builder accepts
+  under `options:` in `build.yaml`. rules_dart does not read `build.yaml`
+  (see [Dual-build coexistence](#dual-build-coexistence)); `config` is the
+  per-target replacement, and the
+  `# gazelle:dart_builder_config <Annotation> <json-string>` directive (see
+  [Directives](#directives)) is the per-directory one.
+
 ## Execution modes
 
 ### One-shot
