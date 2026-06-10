@@ -85,15 +85,16 @@ def _pub_impl(ctx):
 
             hub_packages.setdefault(hub_name, [])
 
+            # Only hosted packages can be fetched from a pub registry. Collect
+            # every non-hosted package and report once per lock file — Flutter
+            # locks routinely list many sdk-source packages, so a per-package
+            # print would drown the useful signal.
+            skipped_by_source = {}
+
             for name, info in lock_pkgs.items():
                 source = info.get("source", "unknown")
-                if source == "hosted":
-                    pass
-                elif source == "sdk":
-                    continue
-                else:
-                    # buildifier: disable=print
-                    print("pub.from_lock: skipping package \"%s\" (source: %s). Only hosted packages are supported." % (name, source))  # noqa: E501
+                if source != "hosted":
+                    skipped_by_source.setdefault(source, []).append(name)
                     continue
 
                 if name in explicit:
@@ -122,6 +123,30 @@ def _pub_impl(ctx):
                             "  - %s (from \"%s\")\n" % (url, hub_name),
                         )
                     registry[name] = struct(url = existing.url, entries = existing.entries + [entry])
+
+            if skipped_by_source:
+                details = []
+                for source in sorted(skipped_by_source.keys()):
+                    if source == "sdk":
+                        remedy = "provided by the Dart/Flutter SDK, not fetched by pub"
+                    else:
+                        remedy = "declare via pub.package() or a local dart_library"
+                    details.append("  - %s (%s): %s" % (
+                        source,
+                        remedy,
+                        ", ".join(sorted(skipped_by_source[source])),
+                    ))
+
+                # buildifier: disable=print
+                print(
+                    ("pub.from_lock(%s): %s lists non-hosted packages; no repository " +
+                     "is created for them, so `package:` imports of these packages " +
+                     "will fail to resolve unless they are provided another way:\n%s") % (
+                        hub_name,
+                        lock_tag.lock,
+                        "\n".join(details),
+                    ),
+                )
 
     # Resolve each package to a single version
     resolved = {}  # pkg_name -> {version, sha256, url}
