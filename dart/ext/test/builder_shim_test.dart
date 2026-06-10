@@ -648,6 +648,102 @@ void main() {
     });
   });
 
+  group('intermediate-stage buildExtensions validation', () {
+    // `_expectedOutputsFor` derives intermediate AssetIds by suffix
+    // replacement. An empty-string key (PackageBuilder pattern) makes
+    // `endsWith('')` always true and a `$lib$`/`$package$` placeholder key
+    // never matches a real path suffix — both silently corrupt the derived
+    // AssetId. The shim must reject them loudly for non-final stages.
+    late Directory tmp;
+    setUp(() async {
+      tmp = await Directory.systemTemp.createTemp('build_ext_keys_');
+    });
+    tearDown(() async {
+      if (await tmp.exists()) await tmp.delete(recursive: true);
+    });
+
+    test('empty-string key in a non-final stage throws StateError', () async {
+      final input = File(p.join(tmp.path, 'src.dart'))
+        ..writeAsStringSync('class Foo {}');
+      final output = File(p.join(tmp.path, 'src.g.dart'));
+
+      await expectLater(
+        runShimWithArgs(
+          _shimArgs(
+              inputPath: input.path,
+              inputAssetPath: 'lib/src.dart',
+              outputPath: output.path),
+          [
+            (_) => _ExtensionMapBuilder(const {
+                  '': ['.meta'],
+                }),
+            (_) => _NoopBuilder(),
+          ],
+        ),
+        throwsA(isA<StateError>().having(
+          (e) => e.message,
+          'message',
+          contains('unsupported for intermediate pipeline stages'),
+        )),
+      );
+    });
+
+    test(r'$-placeholder key in a non-final stage throws StateError',
+        () async {
+      final input = File(p.join(tmp.path, 'src.dart'))
+        ..writeAsStringSync('class Foo {}');
+      final output = File(p.join(tmp.path, 'src.g.dart'));
+
+      await expectLater(
+        runShimWithArgs(
+          _shimArgs(
+              inputPath: input.path,
+              inputAssetPath: 'lib/src.dart',
+              outputPath: output.path),
+          [
+            (_) => _ExtensionMapBuilder(const {
+                  r'$lib$': ['lib/gen.dart'],
+                }),
+            (_) => _NoopBuilder(),
+          ],
+        ),
+        throwsA(isA<StateError>().having(
+          (e) => e.message,
+          'message',
+          contains('unsupported for intermediate pipeline stages'),
+        )),
+      );
+    });
+
+    test('empty-string key is fine when the builder is the final/only stage',
+        () async {
+      // Final-stage allowedOutputs come from the rule-declared --output
+      // paths, so the buildExtensions map is never consulted for AssetId
+      // derivation and the PackageBuilder pattern works.
+      final input = File(p.join(tmp.path, 'src.dart'))
+        ..writeAsStringSync('class Foo {}');
+      final output = File(p.join(tmp.path, 'src.g.dart'));
+
+      await runShimWithArgs(
+        _shimArgs(
+            inputPath: input.path,
+            inputAssetPath: 'lib/src.dart',
+            outputPath: output.path),
+        (_) => _ExtensionMapBuilder(
+          const {
+            '': ['.meta'],
+          },
+          write: (step) async {
+            await step.writeAsString(
+                step.inputId.changeExtension('.g.dart'), '// final stage\n');
+          },
+        ),
+      );
+
+      expect(output.readAsStringSync(), '// final stage\n');
+    });
+  });
+
   group('ShimWorkerLoop.performRequest', () {
     // Covers the production hot path (Bazel's persistent-worker protocol).
     // We call performRequest directly — the AsyncWorkerLoop stdin/stdout
@@ -858,6 +954,22 @@ class _MultiDotExtensionBuilder implements Builder {
   Future<void> build(BuildStep step) async {
     final outId = step.inputId.changeExtension('.foo.bar.baz');
     await step.writeAsString(outId, '// multi-dot payload\n');
+  }
+}
+
+/// Builder with a caller-supplied `buildExtensions` map and an optional
+/// write callback. Used to exercise the shim's validation of unsupported
+/// buildExtensions key shapes (empty string, `$lib$`/`$package$`).
+class _ExtensionMapBuilder implements Builder {
+  _ExtensionMapBuilder(this.buildExtensions, {this.write});
+
+  @override
+  final Map<String, List<String>> buildExtensions;
+  final Future<void> Function(BuildStep)? write;
+
+  @override
+  Future<void> build(BuildStep step) async {
+    await write?.call(step);
   }
 }
 

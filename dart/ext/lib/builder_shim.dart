@@ -770,6 +770,13 @@ Iterable<AssetId> _allowedOutputsFromDeclaredPaths(
   ];
 }
 
+/// Derives intermediate AssetIds for a NON-final pipeline stage from the
+/// Builder's own `buildExtensions` (final-stage outputs are rule-declared;
+/// see `_allowedOutputsFromDeclaredPaths`). Only plain suffix keys are
+/// supported: an empty-string key (the PackageBuilder pattern) makes
+/// `endsWith('')` always true, and `$lib$`/`$package$` placeholder keys
+/// never match a real path suffix — both would silently corrupt the
+/// derived AssetId, so they are rejected loudly.
 Iterable<AssetId> _expectedOutputsFor(
   AssetId inputId,
   Map<String, List<String>> buildExtensions,
@@ -777,6 +784,15 @@ Iterable<AssetId> _expectedOutputsFor(
   final outputs = <AssetId>[];
   for (final entry in buildExtensions.entries) {
     final inputExt = entry.key;
+    if (inputExt.isEmpty || inputExt.contains(r'$')) {
+      throw StateError(
+        'buildExtensions key "$inputExt" is unsupported for intermediate '
+        'pipeline stages: empty-string keys and \$-placeholder keys '
+        '(\$lib\$, \$package\$) cannot be mapped onto an input-relative '
+        'AssetId. Final-stage outputs are rule-declared and unaffected; '
+        'make this builder the final stage or give it a plain suffix key.',
+      );
+    }
     if (!inputId.path.endsWith(inputExt)) continue;
     final stem = inputId.path.substring(
       0,
