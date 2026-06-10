@@ -63,6 +63,15 @@ jobs:
           fi
           bazel build //:app 2>&1 | grep -q "conflicting versions across lock files"
           echo "OK: expected conflict error detected"
+      - name: analysis_failure — expect analyzer diagnostics to fail the build
+        working-directory: e2e/analysis_failure
+        run: |
+          if bazel build //:analyze_bad 2>/dev/null; then
+            echo "ERROR: build should have failed with analyzer diagnostics"
+            exit 1
+          fi
+          bazel build //:analyze_bad 2>&1 | grep -q "unused_local_variable"
+          echo "OK: expected analyzer failure detected"
   pre-commit:
     runs-on: ubuntu-latest
     steps:

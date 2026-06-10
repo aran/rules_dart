@@ -10,8 +10,9 @@
 /// pass, as do build-only folders). Prints a per-folder PASS/FAIL summary and
 /// exits non-zero if any folder failed.
 ///
-/// The Linux-only `pub_lock_conflict` workspace is an *expected failure*: its
-/// build must fail with a specific error. It is checked separately on Linux.
+/// The Linux-only *expected failure* workspaces (`pub_lock_conflict`,
+/// `analysis_failure`) must fail to build with a specific error; they are
+/// checked separately on Linux.
 library;
 
 import 'dart:async';
@@ -124,20 +125,25 @@ Future<void> main(List<String> args) async {
     }
   }
 
-  // 4. Expected-failure check (Linux only, mirrors ci.yaml).
-  _FolderResult? conflict;
+  // 4. Expected-failure checks (Linux only, mirrors ci.yaml).
+  final expectedFailures = <_FolderResult>[];
   if (!isWindows && foldersArg.isEmpty) {
-    stdout.writeln('\n=== e2e/pub_lock_conflict (expected failure) ===');
-    conflict = await _runExpectedFailure(vmName);
-    stdout.writeln(
-      '${conflict.pass ? "PASS" : "FAIL"} e2e/pub_lock_conflict '
-      '(exit ${conflict.exitCode})',
-    );
+    for (final check in _expectedFailureChecks) {
+      stdout.writeln('\n=== ${check.folder} (expected failure) ===');
+      final r = await _runExpectedFailure(vmName, check);
+      expectedFailures.add(r);
+      stdout.writeln(
+        '${r.pass ? "PASS" : "FAIL"} ${check.folder} '
+        '(exit ${r.exitCode})',
+      );
+    }
   }
 
   // 5. Summary.
-  final all = [...results, if (conflict != null) conflict];
-  stdout.writeln('\n========== SUMMARY (${isWindows ? "windows" : "linux"}) ==========');
+  final all = [...results, ...expectedFailures];
+  stdout.writeln(
+    '\n========== SUMMARY (${isWindows ? "windows" : "linux"}) ==========',
+  );
   for (final r in all) {
     stdout.writeln('  ${r.pass ? "PASS" : "FAIL"}  ${r.folder}');
   }
@@ -194,21 +200,49 @@ Future<_FolderResult> _runFolder(
   return _FolderResult(folder, exitCode, pass, _tail(combined));
 }
 
-/// Checks `e2e/pub_lock_conflict`: the build must fail with the cross-lockfile
-/// conflict error (mirrors the `expected-failure` job in ci.yaml).
-Future<_FolderResult> _runExpectedFailure(String vmName) async {
-  const dir = '\$HOME/rd/rules_dart/e2e/pub_lock_conflict';
+/// A workspace that must FAIL to build with a specific error message.
+class _ExpectedFailure {
+  const _ExpectedFailure(this.folder, this.target, this.expectedError);
+
+  final String folder;
+  final String target;
+  final String expectedError;
+}
+
+const _expectedFailureChecks = [
+  _ExpectedFailure(
+    'e2e/pub_lock_conflict',
+    '//:app',
+    'conflicting versions across lock files',
+  ),
+  _ExpectedFailure(
+    'e2e/analysis_failure',
+    '//:analyze_bad',
+    'unused_local_variable',
+  ),
+];
+
+/// Checks an expected-failure workspace: the build must FAIL (a successful
+/// build means the error path regressed, e.g. a swallowed exit code) AND its
+/// output must carry the expected error (mirrors the `expected-failure` job
+/// in ci.yaml).
+Future<_FolderResult> _runExpectedFailure(
+  String vmName,
+  _ExpectedFailure check,
+) async {
+  final dir = '\$HOME/rd/rules_dart/${check.folder}';
   final command =
       "bash -lc 'cd $dir && "
-      "bazel build //:app > /tmp/conflict.out 2>&1; "
-      "if grep -q \"conflicting versions across lock files\" /tmp/conflict.out; "
+      "if bazel build ${check.target} > /tmp/expected_failure.out 2>&1; "
+      "then echo BUILD_UNEXPECTEDLY_PASSED; echo RD_EXIT=2; "
+      "elif grep -q \"${check.expectedError}\" /tmp/expected_failure.out; "
       "then echo RD_EXIT=0; else echo RD_EXIT=1; fi'";
   final ProcessResult result;
   try {
     result = await sshExec(vmName, command).timeout(_folderTimeout);
   } on TimeoutException {
     return _FolderResult(
-      'e2e/pub_lock_conflict',
+      check.folder,
       -2,
       false,
       'TIMEOUT after $_folderTimeout',
@@ -216,7 +250,7 @@ Future<_FolderResult> _runExpectedFailure(String vmName) async {
   }
   final exitCode = _parseRdExit(result.stdout.toString());
   return _FolderResult(
-    'e2e/pub_lock_conflict',
+    check.folder,
     exitCode,
     exitCode == 0,
     _tail('${result.stdout}\n${result.stderr}'),
@@ -236,15 +270,11 @@ Future<void> _waitForToolchain(String vmName, {required bool isWindows}) async {
         vmName,
         'cmd /c "type C:\\startup_complete.txt && where bazel"',
       );
-      if (r.exitCode == 0 &&
-          r.stdout.toString().contains('STARTUP_COMPLETE')) {
+      if (r.exitCode == 0 && r.stdout.toString().contains('STARTUP_COMPLETE')) {
         return;
       }
     } else {
-      r = await sshExec(
-        vmName,
-        'bash -lc "command -v bazel && command -v cc"',
-      );
+      r = await sshExec(vmName, 'bash -lc "command -v bazel && command -v cc"');
       if (r.exitCode == 0) return;
     }
     stdout.writeln('  toolchain not ready yet; waiting ...');

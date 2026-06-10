@@ -1,0 +1,16 @@
+load("@rules_dart//dart:defs.bzl", "dart_analyze_test", "dart_library")
+
+# This workspace should FAIL to build: bad.dart carries an
+# unused_local_variable diagnostic and dart_analyze_test runs the analyzer
+# with --fatal-infos. Exercised by the expected-failure CI job — it guards
+# the analyze action's error path (diagnostics must fail the build, not be
+# swallowed by the runner).
+dart_library(
+    name = "bad_lib",
+    srcs = ["lib/bad.dart"],
+)
+
+dart_analyze_test(
+    name = "analyze_bad",
+    lib = ":bad_lib",
+)
