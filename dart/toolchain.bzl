@@ -6,7 +6,7 @@ DartSdkInfo = provider(
         "dart": "File: The `dart` executable.",
         "sdk_root": "Target: The root directory of the SDK, containing `lib/` and `bin/`.",
         "version": "str: The SDK version string (e.g. `3.11.0`).",
-        "tool_files": "list[File]: All files needed to run the SDK (for use in action inputs and runfiles).",
+        "tool_files": "depset[File]: All files needed to run the SDK. Pass as a `transitive` entry to action inputs / `ctx.runfiles(transitive_files = ...)`; flatten only to inspect paths.",
         "target_os": "str: Cross-compilation target OS (`macos`, `linux`, `windows`), or empty for native.",
         "target_arch": "str: Cross-compilation target architecture (`x64`, `arm64`), or empty for native.",
     },
@@ -14,7 +14,7 @@ DartSdkInfo = provider(
 
 def _dart_toolchain_impl(ctx):
     sdk_root = ctx.attr.sdk_root
-    tool_files = ctx.attr.sdk_root.files.to_list()
+    tool_files = ctx.attr.sdk_root.files
 
     dart_sdk_info = DartSdkInfo(
         dart = ctx.file.dart,
@@ -29,8 +29,8 @@ def _dart_toolchain_impl(ctx):
         "DART_BIN": ctx.file.dart.path,
     })
     default = DefaultInfo(
-        files = depset(tool_files),
-        runfiles = ctx.runfiles(files = tool_files),
+        files = tool_files,
+        runfiles = ctx.runfiles(transitive_files = tool_files),
     )
 
     toolchain_info = platform_common.ToolchainInfo(

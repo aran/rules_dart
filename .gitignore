@@ -15,3 +15,6 @@ e2e/library_deps/pubspec.lock
 e2e/gazelle/pubspec.lock
 e2e/pub_deps/pubspec.lock
 e2e/web_app/pubspec.lock
+
+# Claude Code session state (agent worktrees live here).
+.claude/

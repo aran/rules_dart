@@ -27,6 +27,9 @@ load(
 )
 
 collect_packages = _collect_packages
+
+# Returns a depset[File]; pass it to action inputs / runfiles directly and
+# flatten (once) only where per-file paths are inspected.
 collect_transitive_srcs = _collect_transitive_srcs
 
 # The exec-root-relative package_config generator: resolves each package's

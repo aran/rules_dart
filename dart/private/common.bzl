@@ -95,6 +95,10 @@ def create_test_executable(ctx, tool, env):
 def collect_packages(deps):
     """Collect unique DartPackageInfo providers from transitive deps.
 
+    Flattens the merged transitive depset exactly once (package metadata is
+    inspected per-entry for dedup, so a flatten is unavoidable here — but it
+    is bounded by the package count, not the source-file count).
+
     Args:
         deps: List of targets providing DartInfo.
 
@@ -103,12 +107,11 @@ def collect_packages(deps):
     """
     packages = []
     seen = {}
-    for dep in deps:
-        info = dep[DartInfo]
-        for pkg in info.transitive_packages.to_list():
-            if pkg.package_name not in seen:
-                seen[pkg.package_name] = True
-                packages.append(pkg)
+    merged = depset(transitive = [dep[DartInfo].transitive_packages for dep in deps])
+    for pkg in merged.to_list():
+        if pkg.package_name not in seen:
+            seen[pkg.package_name] = True
+            packages.append(pkg)
     return packages
 
 def relative_path(from_dir, to_dir):
@@ -426,16 +429,18 @@ def generate_package_config_content(packages, prefix):
 def collect_transitive_srcs(deps):
     """Collect all transitive source files from DartInfo deps.
 
+    Returns a depset so consumers can feed action inputs / runfiles without
+    flattening. Callers that genuinely inspect per-file paths (package
+    colocation, package_config root resolution) call `.to_list()` exactly
+    once at that point.
+
     Args:
         deps: List of targets providing DartInfo.
 
     Returns:
-        List of Files from the transitive source closure.
+        Depset of Files from the transitive source closure.
     """
-    srcs = []
-    for dep in deps:
-        srcs.extend(dep[DartInfo].transitive_srcs.to_list())
-    return srcs
+    return depset(transitive = [dep[DartInfo].transitive_srcs for dep in deps])
 
 def sdk_path_from_dart(dart_file):
     """Returns the SDK installation root by stripping `/bin/dart` from a dart File path.
@@ -470,10 +475,7 @@ def synth_package_config(ctx, library_deps):
     if not library_deps:
         return None, None
     packages = collect_packages(library_deps)
-    transitive_srcs = depset(transitive = [
-        dep[DartInfo].transitive_srcs
-        for dep in library_deps
-    ])
+    transitive_srcs = collect_transitive_srcs(library_deps)
     package_config = ctx.actions.declare_file(
         ctx.label.name + ".package_config.json",
     )
@@ -548,7 +550,9 @@ def find_sdk_kernel_tools(dart_sdk_info):
         "platform_dill": [sdk_root + "/lib/_internal/vm_platform_strong.dill"],
     }
     found = {}
-    for f in dart_sdk_info.tool_files:
+
+    # Analysis-time path probe for 3 files; a legitimate one-time flatten.
+    for f in dart_sdk_info.tool_files.to_list():
         for key, paths in wanted.items():
             if f.path in paths:
                 found[key] = f
@@ -630,7 +634,7 @@ def gen_kernel_native_assets_action(
     direct = [main, native_assets_yaml]
     if package_config != None:
         direct.append(package_config)
-    transitive = [depset(dart_sdk_info.tool_files)]
+    transitive = [dart_sdk_info.tool_files]
     if transitive_srcs != None:
         transitive.append(transitive_srcs)
 
@@ -706,10 +710,10 @@ def dart_lib_root_for_package(deps, package_name):
       The lib_root string (possibly `""` for the root workspace package),
       or `None` when no matching package is found.
     """
-    for dep in deps:
-        for pkg in dep[DartInfo].transitive_packages.to_list():
-            if pkg.package_name == package_name:
-                return pkg.lib_root
+    merged = depset(transitive = [dep[DartInfo].transitive_packages for dep in deps])
+    for pkg in merged.to_list():
+        if pkg.package_name == package_name:
+            return pkg.lib_root
     return None
 
 def same_package_library_dep_files(deps, package_name, exclude_paths = None):
@@ -738,16 +742,15 @@ def same_package_library_dep_files(deps, package_name, exclude_paths = None):
     excluded = {p: True for p in exclude_paths}
     seen = {}
     out = []
-    for dep in deps:
-        for src in dep[DartInfo].transitive_srcs.to_list():
-            if src.path in excluded:
-                continue
-            if src.short_path in seen:
-                continue
-            if not src.short_path.startswith(prefix):
-                continue
-            seen[src.short_path] = True
-            out.append(src)
+    for src in collect_transitive_srcs(deps).to_list():
+        if src.path in excluded:
+            continue
+        if src.short_path in seen:
+            continue
+        if not src.short_path.startswith(prefix):
+            continue
+        seen[src.short_path] = True
+        out.append(src)
     return out, lib_root
 
 def add_shim_contract_args(

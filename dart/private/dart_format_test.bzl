@@ -29,7 +29,7 @@ def _dart_format_test_impl(ctx):
         },
     )
 
-    runfiles = ctx.runfiles(files = list(srcs) + [manifest] + dart_sdk_info.tool_files)
+    runfiles = ctx.runfiles(files = list(srcs) + [manifest], transitive_files = dart_sdk_info.tool_files)
     runfiles = runfiles.merge(tool_runfiles)
 
     return [

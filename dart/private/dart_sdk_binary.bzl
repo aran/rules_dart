@@ -36,7 +36,7 @@ exec "$DART" "$@"
         is_executable = True,
     )
 
-    runfiles = ctx.runfiles(files = dart_sdk_info.tool_files)
+    runfiles = ctx.runfiles(transitive_files = dart_sdk_info.tool_files)
     runfiles = runfiles.merge(ctx.attr._runfiles_lib[DefaultInfo].default_runfiles)
 
     return [DefaultInfo(

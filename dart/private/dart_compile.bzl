@@ -42,7 +42,7 @@ def dart_compile_action(
     Args:
         ctx: The rule context.
         dart_bin: The dart executable File.
-        sdk_files: All SDK files needed for the toolchain.
+        sdk_files: Depset of all SDK files needed for the toolchain.
         main: The main File to add to action inputs. Usually the entrypoint
             `.dart` File; an assembled directory when `main_path` points inside it.
         srcs: List of all source Files needed for compilation (direct + transitive).
@@ -104,7 +104,7 @@ def dart_compile_action(
         arguments = [args],
         inputs = depset(
             direct = direct,
-            transitive = [depset(sdk_files)],
+            transitive = [sdk_files],
         ),
         outputs = [output],
         mnemonic = "DartCompile",

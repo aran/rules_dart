@@ -52,7 +52,9 @@ def _dart_binary_impl(ctx):
     # files into one real directory, and the binary's own `main` with any
     # generated sibling sources, so the compile resolves everything.
     packages = collect_packages(ctx.attr.deps)
-    packages, dep_srcs = colocate_packages(ctx, packages, collect_transitive_srcs(ctx.attr.deps))
+
+    # The one flatten per rule: colocation inspects per-file paths.
+    packages, dep_srcs = colocate_packages(ctx, packages, collect_transitive_srcs(ctx.attr.deps).to_list())
     main_input, main_arg, own_inputs = colocate_entrypoint(ctx, ctx.file.main, ctx.files.srcs)
     all_srcs = dep_srcs + own_inputs
 

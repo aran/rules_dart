@@ -36,7 +36,9 @@ def _dart_test_impl(ctx):
     # sibling sources (e.g. a `.mocks.dart`), so the build-time compile resolves
     # everything.
     packages = collect_packages(ctx.attr.deps)
-    packages, dep_srcs = colocate_packages(ctx, packages, collect_transitive_srcs(ctx.attr.deps))
+
+    # The one flatten per rule: colocation inspects per-file paths.
+    packages, dep_srcs = colocate_packages(ctx, packages, collect_transitive_srcs(ctx.attr.deps).to_list())
     main_input, main_arg, own_inputs = colocate_entrypoint(ctx, ctx.file.main, ctx.files.srcs)
     compile_srcs = dep_srcs + own_inputs
 
@@ -100,7 +102,8 @@ def _dart_test_impl(ctx):
     )
 
     runfiles = ctx.runfiles(
-        files = [dill] + runtime_libs + ctx.files.data + dart_sdk_info.tool_files,
+        files = [dill] + runtime_libs + ctx.files.data,
+        transitive_files = dart_sdk_info.tool_files,
     )
     runfiles = runfiles.merge(tool_runfiles)
     for data_dep in ctx.attr.data:

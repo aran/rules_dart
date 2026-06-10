@@ -48,7 +48,7 @@ def _dart_web_compile(ctx, compile_mode):
     dart_sdk_info = toolchain.dart_sdk_info
 
     # Collect all transitive sources and packages
-    all_srcs = list(ctx.files.srcs) + collect_transitive_srcs(ctx.attr.deps)
+    all_srcs = list(ctx.files.srcs) + collect_transitive_srcs(ctx.attr.deps).to_list()
     packages = collect_packages(ctx.attr.deps)
 
     # Generate package_config.json with rootUri relative to .dart_tool/
@@ -130,7 +130,10 @@ cp "$PROJ/output{ext}" "{output}"
 
     ctx.actions.run_shell(
         command = cmd,
-        inputs = [package_config, ctx.file.main, dart_sdk_info.dart] + all_srcs + list(dart_sdk_info.tool_files),
+        inputs = depset(
+            direct = [package_config, ctx.file.main, dart_sdk_info.dart] + all_srcs,
+            transitive = [dart_sdk_info.tool_files],
+        ),
         outputs = [output],
         mnemonic = "DartCompileWeb",
         progress_message = "Compiling Dart %s %s" % (compile_mode, ctx.label),

@@ -116,7 +116,7 @@ def _dart_aggregate_codegen_impl(ctx):
 
     direct_inputs = list(ctx.files.srcs) + extra_inputs
     transitive = [transitive_srcs] if transitive_srcs != None else []
-    transitive.append(depset(dart_sdk_info.tool_files))
+    transitive.append(dart_sdk_info.tool_files)
 
     if ctx.executable.generator_bin:
         ctx.actions.run(

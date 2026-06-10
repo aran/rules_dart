@@ -81,13 +81,13 @@ touch "{stamp}"
         symlinks = "\n".join(symlink_cmds),
     )
 
-    inputs = [package_config, dart_sdk_info.dart] + all_srcs + list(dart_sdk_info.tool_files)
+    direct_inputs = [package_config, dart_sdk_info.dart] + all_srcs
     if ctx.attr.options:
-        inputs.append(ctx.file.options)
+        direct_inputs.append(ctx.file.options)
 
     ctx.actions.run_shell(
         command = cmd,
-        inputs = inputs,
+        inputs = depset(direct = direct_inputs, transitive = [dart_sdk_info.tool_files]),
         outputs = [stamp],
         mnemonic = "DartAnalyze",
         progress_message = "Analyzing Dart library %s" % ctx.label,

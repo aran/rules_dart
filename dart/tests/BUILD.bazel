@@ -1,9 +1,12 @@
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("//dart:defs.bzl", "dart_library")
 load(":codegen_test.bzl", "codegen_test_suite")
 load(":common_test.bzl", "common_test_suite")
 load(":dart_binary_test.bzl", "dart_binary_test_suite")
 load(":language_version_test.bzl", "language_version_test_suite")
 load(":library_test.bzl", "library_test_suite")
 load(":native_assets_test.bzl", "native_assets_test_suite")
+load(":provider_shape_test.bzl", "provider_shape_probe")
 load(":semver_test.bzl", "semver_test_suite")
 load(":source_set_test.bzl", "source_set_test_suite")
 load(":versions_test.bzl", "versions_test_suite")
@@ -28,3 +31,19 @@ language_version_test_suite(name = "language_version_test")
 library_test_suite(name = "library_test")
 
 semver_test_suite(name = "semver_test")
+
+dart_library(
+    name = "shape_fixture_lib",
+    package_name = "shape_fixture",
+    srcs = ["shape_fixture/lib/shape.dart"],
+)
+
+provider_shape_probe(
+    name = "provider_shape_probe_target",
+    deps = [":shape_fixture_lib"],
+)
+
+build_test(
+    name = "provider_shape_test",
+    targets = [":provider_shape_probe_target"],
+)

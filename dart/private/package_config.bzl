@@ -10,7 +10,7 @@ load("//dart/private:common.bzl", "collect_packages", "collect_transitive_srcs",
 
 def _generate_package_config_impl(ctx):
     packages = collect_packages(ctx.attr.deps)
-    all_srcs = collect_transitive_srcs(ctx.attr.deps)
+    all_srcs = collect_transitive_srcs(ctx.attr.deps).to_list()
 
     out = ctx.actions.declare_file(ctx.attr.name + ".package_config.json")
     content = generate_package_config_fn(packages, all_srcs, out)

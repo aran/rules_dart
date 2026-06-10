@@ -135,7 +135,7 @@ def _dart_codegen_impl(ctx):
     ]
 
     args = ctx.actions.args()
-    direct_inputs = list(sdk_files) + [src] + list(ctx.files.data)
+    direct_inputs = [src] + list(ctx.files.data)
 
     if ctx.executable.generator_bin:
         # Worker mode requires a single `@flagfile` / `--flagfile=` arg; the
@@ -162,7 +162,7 @@ def _dart_codegen_impl(ctx):
             arguments = [args],
             inputs = depset(
                 direct = direct_inputs,
-                transitive = _transitive(library_dep_srcs),
+                transitive = _transitive(library_dep_srcs) + [sdk_files],
             ),
             outputs = outputs,
             mnemonic = "DartCodegen",
@@ -199,7 +199,7 @@ def _dart_codegen_impl(ctx):
             arguments = [args],
             inputs = depset(
                 direct = direct_inputs,
-                transitive = _transitive(library_dep_srcs),
+                transitive = _transitive(library_dep_srcs) + [sdk_files],
             ),
             outputs = outputs,
             mnemonic = "DartCodegen",

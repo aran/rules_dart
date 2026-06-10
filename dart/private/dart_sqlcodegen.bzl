@@ -82,7 +82,7 @@ def _dart_sqlcodegen_impl(ctx):
     for output in outputs:
         args.add("--output", output.path)
 
-    direct = list(sdk_files) + [src] + list(ctx.files.data)
+    direct = [src] + list(ctx.files.data)
     direct.extend(add_shim_contract_args(
         args,
         ctx,
@@ -93,7 +93,7 @@ def _dart_sqlcodegen_impl(ctx):
     ))
     args.add_all(ctx.attr.generator_args)
 
-    transitive = [lib_dep_srcs] if lib_dep_srcs != None else []
+    transitive = ([lib_dep_srcs] if lib_dep_srcs != None else []) + [sdk_files]
 
     ctx.actions.run(
         executable = ctx.executable.generator_bin,
