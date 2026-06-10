@@ -42,7 +42,7 @@ def drift_library(
         name,
         srcs,
         package_name,
-        language_version,
+        language_version = "",
         drift_srcs = [],
         deps = [],
         annotation_dep = "@pub_deps//:drift",

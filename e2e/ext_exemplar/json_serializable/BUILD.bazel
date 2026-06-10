@@ -43,11 +43,13 @@ dart_library(
     language_version = "3.11",
 )
 
+# NOTE: deliberately omits language_version — Gazelle only emits the attr
+# when one is derivable (directive or pubspec), so the macro must tolerate
+# its absence (the rule layer applies a safe default).
 json_serializable_library(
     name = "cross_user_lib",
     package_name = "json_serializable_fixture",
     srcs = ["lib/cross_user.dart"],
-    language_version = "3.11",
     deps = [":base"],
 )
 

@@ -12,7 +12,7 @@ def mockito_library(
         name,
         srcs,
         package_name,
-        language_version,
+        language_version = "",
         deps = [],
         annotation_dep = "@pub_deps//:mockito",
         config = "",

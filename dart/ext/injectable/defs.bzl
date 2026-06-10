@@ -17,8 +17,11 @@ def injectable_library(
         name,
         srcs,
         package_name,
-        language_version,
-        init_src,
+        language_version = "",
+        # init_src is logically required, but Starlark forbids a required
+        # parameter after an optional one (language_version); enforced via
+        # fail() below instead.
+        init_src = "",
         deps = [],
         annotation_dep = "@pub_deps//:injectable",
         config = "",
@@ -40,6 +43,8 @@ def injectable_library(
       config: Optional builder options as a JSON string.
       **kwargs: Forwarded to the wrapping `dart_library`.
     """
+    if not init_src:
+        fail("injectable_library %s: init_src is required" % name)
     if init_src not in srcs:
         fail("injectable_library {}: init_src {} must be listed in srcs.".format(
             name,
