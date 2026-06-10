@@ -5,6 +5,8 @@ exports_files(
     [
         "part_gen.dart",
         "lib_gen.dart",
+        "shard_gen.dart",
+        "aggregate_gen.dart",
     ],
     visibility = ["//visibility:public"],
 )

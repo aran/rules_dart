@@ -1,0 +1,19 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+# Dart package root. The codegen targets consuming this library live in the
+# SIBLING Bazel package `../gen/` — generated shards' short_paths sit under
+# `sibling_aggregate_pkg/gen/`, entirely outside this package's lib_root
+# (`sibling_aggregate_pkg/app`).
+
+exports_files(
+    ["lib/item.dart"],
+    visibility = ["//sibling_aggregate_pkg/gen:__pkg__"],
+)
+
+dart_library(
+    name = "item_lib",
+    package_name = "sibling_aggregate_fixture",
+    srcs = ["lib/item.dart"],
+    language_version = "3.11",
+    visibility = ["//sibling_aggregate_pkg/gen:__pkg__"],
+)

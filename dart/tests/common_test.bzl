@@ -3,6 +3,7 @@
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
 load(
     "//dart/private:common.bzl",
+    "asset_path_for",
     "check_single_root_package",
     "generate_dev_package_config",
     "generate_package_config",
@@ -101,6 +102,19 @@ def _fake_src(short_path, path = None, is_directory = False):
         short_path = short_path,
         path = path if path != None else short_path,
         is_directory = is_directory,
+        is_source = True,
+        owner = struct(package = ""),
+    )
+
+def _fake_gen(short_path, owner_package):
+    # Generated File: short_path = owner.package + "/" + declare_file path,
+    # exec path carries the configuration prefix.
+    return struct(
+        short_path = short_path,
+        path = "bazel-out/k8-fastbuild/bin/" + short_path,
+        is_directory = False,
+        is_source = False,
+        owner = struct(package = owner_package),
     )
 
 def _fake_config(dirname):
@@ -342,6 +356,64 @@ def _check_single_root_conflict_test_impl(ctx):
     asserts.true(env, "one root package" in err)
     return unittest.end(env)
 
+# --- asset_path_for tests ---
+
+def _apf_source_under_lib_root_test_impl(ctx):
+    env = unittest.begin(ctx)
+    src = _fake_src("pkg/lib/a.dart")
+    asserts.equals(env, "lib/a.dart", asset_path_for(src, "pkg"))
+    return unittest.end(env)
+
+def _apf_empty_lib_root_test_impl(ctx):
+    env = unittest.begin(ctx)
+    src = _fake_src("lib/a.dart")
+    asserts.equals(env, "lib/a.dart", asset_path_for(src, ""))
+    return unittest.end(env)
+
+def _apf_generated_colocated_test_impl(ctx):
+    # Codegen target in the same BUILD as the Dart package root: declared
+    # path is already package-root-relative; the lib_root strip applies.
+    env = unittest.begin(ctx)
+    gen = _fake_gen("pkg/lib/a.g.dart", owner_package = "pkg")
+    asserts.equals(env, "lib/a.g.dart", asset_path_for(gen, "pkg"))
+    return unittest.end(env)
+
+def _apf_generated_nested_package_test_impl(ctx):
+    # Codegen target in a Bazel package NESTED below the Dart package root
+    # with a cross-package src: dart_codegen declares the output at the
+    # src's full short_path, so the generated short_path embeds it after
+    # the owning package. The naive lib_root strip would return the wrong
+    # `gen/pkg/lib/a.shard.json`.
+    env = unittest.begin(ctx)
+    gen = _fake_gen(
+        "pkg/gen/pkg/lib/a.shard.json",
+        owner_package = "pkg/gen",
+    )
+    asserts.equals(env, "lib/a.shard.json", asset_path_for(gen, "pkg"))
+    return unittest.end(env)
+
+def _apf_generated_sibling_package_test_impl(ctx):
+    # Codegen target in a SIBLING Bazel package of the Dart package root:
+    # the generated short_path is entirely outside lib_root (previously a
+    # hard fail()); the owning package + declared path recover the asset.
+    env = unittest.begin(ctx)
+    gen = _fake_gen(
+        "pkg/gen/pkg/app/lib/a.shard.json",
+        owner_package = "pkg/gen",
+    )
+    asserts.equals(env, "lib/a.shard.json", asset_path_for(gen, "pkg/app"))
+    return unittest.end(env)
+
+def _apf_generated_deeper_build_test_impl(ctx):
+    # Codegen target at `pkg/lib/BUILD` for Dart package root `pkg` with a
+    # same-package src: dart_codegen strips its own package from the src's
+    # short_path, so the generated short_path mirrors a source file's and
+    # the standard lib_root strip stays correct.
+    env = unittest.begin(ctx)
+    gen = _fake_gen("pkg/lib/model.g.dart", owner_package = "pkg/lib")
+    asserts.equals(env, "lib/model.g.dart", asset_path_for(gen, "pkg"))
+    return unittest.end(env)
+
 _t0_test = unittest.make(_empty_packages_test_impl)
 _t1_test = unittest.make(_single_package_test_impl)
 _t2_test = unittest.make(_multiple_packages_test_impl)
@@ -365,6 +437,12 @@ _t19_test = unittest.make(_gdpc_source_packages_excludes_generated_only_test_imp
 _t20_test = unittest.make(_gdpc_source_packages_includes_assembled_test_impl)
 _t21_test = unittest.make(_check_single_root_ok_test_impl)
 _t22_test = unittest.make(_check_single_root_conflict_test_impl)
+_t23_test = unittest.make(_apf_source_under_lib_root_test_impl)
+_t24_test = unittest.make(_apf_empty_lib_root_test_impl)
+_t25_test = unittest.make(_apf_generated_colocated_test_impl)
+_t26_test = unittest.make(_apf_generated_nested_package_test_impl)
+_t27_test = unittest.make(_apf_generated_sibling_package_test_impl)
+_t28_test = unittest.make(_apf_generated_deeper_build_test_impl)
 
 def common_test_suite(name):
     unittest.suite(
@@ -392,4 +470,10 @@ def common_test_suite(name):
         _t20_test,
         _t21_test,
         _t22_test,
+        _t23_test,
+        _t24_test,
+        _t25_test,
+        _t26_test,
+        _t27_test,
+        _t28_test,
     )

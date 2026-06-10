@@ -1,0 +1,42 @@
+load("@rules_dart//dart:defs.bzl", "dart_aggregate_codegen", "dart_codegen", "dart_test")
+
+# Codegen targets in a Bazel package that is a SIBLING of the Dart package
+# root. The shard generated here has short_path
+# `sibling_aggregate_pkg/gen/sibling_aggregate_pkg/app/lib/item.shard.json`,
+# which does not start with the lib_root `sibling_aggregate_pkg/app` at all;
+# the aggregate stage must recover `lib/item.shard.json` from the owning
+# package + declared path.
+
+dart_codegen(
+    name = "item_shard",
+    package_name = "sibling_aggregate_fixture",
+    src = "//sibling_aggregate_pkg/app:lib/item.dart",
+    generator = "//tools:shard_gen.dart",
+    language_version = "3.11",
+    output_suffixes = [".shard.json"],
+    deps = ["//sibling_aggregate_pkg/app:item_lib"],
+)
+
+dart_aggregate_codegen(
+    name = "aggregate",
+    package_name = "sibling_aggregate_fixture",
+    srcs = [
+        # do not sort: the first entry is the primary `--input`.
+        "//sibling_aggregate_pkg/app:lib/item.dart",
+        ":item_shard",
+    ],
+    generator_script = "//tools:aggregate_gen.dart",
+    language_version = "3.11",
+    outputs = ["lib/item.agg.dart"],
+    deps = ["//sibling_aggregate_pkg/app:item_lib"],
+)
+
+dart_test(
+    name = "aggregate_content_test",
+    data = [":aggregate"],
+    main = "test/aggregate_content_test.dart",
+    deps = [
+        "@pub_deps//:test",
+        "@rules_dart//dart/runfiles",
+    ],
+)

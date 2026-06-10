@@ -679,11 +679,23 @@ def asset_path_for(file, lib_root):
     `lib_root` is empty the short_path is returned unchanged — that's the
     root-package case and the file's short_path IS its asset path.
 
-    Fails loudly when `lib_root` is set but the file's short_path does
-    not start with it. Previously this silently returned the unmatched
-    short_path, which produced `--input-asset` / `--dep` values that
-    couldn't be resolved to any `package:` URI — the builder would then
-    produce no output or emit an unhelpful `AssetNotFoundException`.
+    Generated files need one extra step first: `declare_file` paths are
+    relative to the *producing rule's* Bazel package, so when a codegen
+    target lives in a different Bazel package than the Dart package root,
+    the generated short_path is `owner.package + "/" + declared_path`
+    where `declared_path` embeds the source's short_path (`dart_codegen`
+    declares outputs source-relative). Stripping `owner.package` and then
+    `lib_root` recovers the in-package asset path. When the declared path
+    does not start with `lib_root` (the codegen target's package is at or
+    below the Dart package root with a same-package src), the generated
+    short_path mirrors a source file's and the plain `lib_root` strip
+    below stays correct.
+
+    Fails loudly when neither derivation matches. Previously this
+    silently returned the unmatched short_path, which produced
+    `--input-asset` / `--dep` values that couldn't be resolved to any
+    `package:` URI — the builder would then produce no output or emit an
+    unhelpful `AssetNotFoundException`.
 
     Args:
       file: The File to compute the asset path for.
@@ -697,6 +709,12 @@ def asset_path_for(file, lib_root):
     rel = file.short_path
     if not lib_root:
         return rel
+    if not file.is_source and file.owner != None:
+        pkg_prefix = file.owner.package + "/" if file.owner.package else ""
+        if pkg_prefix and rel.startswith(pkg_prefix):
+            declared = rel[len(pkg_prefix):]
+            if declared.startswith(lib_root + "/"):
+                return declared[len(lib_root) + 1:]
     if rel.startswith(lib_root + "/"):
         return rel[len(lib_root) + 1:]
     fail(
@@ -704,7 +722,10 @@ def asset_path_for(file, lib_root):
          "lib_root %r. Every codegen input / asset_dep must live inside " +
          "the Dart package's lib_root — check that the owning " +
          "`dart_library` target for this file has the correct " +
-         "`package_name`, or pass the file through `deps` instead.") %
+         "`package_name`, or pass the file through `deps` instead. For " +
+         "generated files, declare the producing codegen target in a " +
+         "BUILD file at (or below) the Dart package root so its declared " +
+         "output path resolves inside the package.") %
         (file.path, rel, lib_root),
     )
 
