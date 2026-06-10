@@ -236,7 +236,51 @@ func (d *dartLang) GenerateRules(args language.GenerateArgs) language.GenerateRe
 	return language.GenerateResult{
 		Gen:     gen,
 		Imports: imports,
+		Empty:   staleCodegenRules(args.File, gen),
 	}
+}
+
+// deletableKinds is the set of rule kinds Gazelle may delete when a
+// previously generated rule is no longer produced (e.g. an annotation was
+// removed from the source). Deliberately limited to the convenience-macro
+// kinds and the codegen primitives Gazelle synthesizes itself:
+// dart_library / dart_binary / dart_test are NEVER deleted so hand-written
+// targets (e.g. srcs=[] aggregator libraries) survive regeneration.
+// `# keep` remains the escape hatch for hand-written codegen rules.
+var deletableKinds = func() map[string]bool {
+	m := map[string]bool{
+		"dart_codegen":           true,
+		"dart_aggregate_codegen": true,
+		"dart_sqlcodegen":        true,
+	}
+	for _, k := range macroKinds {
+		m[k] = true
+	}
+	return m
+}()
+
+// staleCodegenRules returns empty-rule markers for every existing rule of
+// a deletable kind whose name was not regenerated this pass; Gazelle's
+// merger deletes the matching rules from the BUILD file.
+func staleCodegenRules(f *rule.File, gen []*rule.Rule) []*rule.Rule {
+	if f == nil {
+		return nil
+	}
+	generated := make(map[string]struct{}, len(gen))
+	for _, r := range gen {
+		generated[r.Name()] = struct{}{}
+	}
+	var empty []*rule.Rule
+	for _, existing := range f.Rules {
+		if !deletableKinds[existing.Kind()] {
+			continue
+		}
+		if _, ok := generated[existing.Name()]; ok {
+			continue
+		}
+		empty = append(empty, rule.NewRule(existing.Kind(), existing.Name()))
+	}
+	return empty
 }
 
 // filterOutGeneratedFiles drops every file whose name ends in any

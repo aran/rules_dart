@@ -1,0 +1,7 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+dart_library(
+    name = "event",
+    srcs = ["event.dart"],
+    visibility = ["//visibility:public"],
+)
