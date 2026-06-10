@@ -197,10 +197,13 @@ def _gdpc_no_assembly_matches_normal_test_impl(ctx):
     # No generated files anywhere → no scheme, no filesystem roots, and the
     # rootUris are the ordinary relative ones (behaves like the normal config).
     env = unittest.begin(ctx)
-    pkgs = [_fake_pkg("app", ""), _fake_pkg("dep", "external/dep")]
+
+    # `dep` is an external repo: under bzlmod its files use the `../<repo>`
+    # short_path convention while their exec `path` stays under `external/`.
+    pkgs = [_fake_pkg("app", ""), _fake_pkg("dep", "../dep")]
     srcs = [
         _fake_dev_src("lib/main.dart", "lib/main.dart", True),
-        _fake_dev_src("external/dep/lib/d.dart", "external/dep/lib/d.dart", True),
+        _fake_dev_src("../dep/lib/d.dart", "external/dep/lib/d.dart", True),
     ]
     res = generate_dev_package_config(pkgs, srcs, _fake_config("bazel-out/k8/bin"))
     asserts.equals(env, [], res.filesystem_roots)
@@ -216,12 +219,12 @@ def _gdpc_assembled_app_uses_scheme_and_roots_test_impl(ctx):
     # source exec root ("") and the generated exec root ("bazel-out/k8/bin")
     # are reported, source first. The pub dep stays relative.
     env = unittest.begin(ctx)
-    pkgs = [_fake_pkg("app", ""), _fake_pkg("dep", "external/dep")]
+    pkgs = [_fake_pkg("app", ""), _fake_pkg("dep", "../dep")]
     srcs = [
         _fake_dev_src("lib/main.dart", "lib/main.dart", True),
         _fake_dev_src("lib/user.dart", "lib/user.dart", True),
         _fake_dev_src("lib/user.g.dart", "bazel-out/k8/bin/lib/user.g.dart", False),
-        _fake_dev_src("external/dep/lib/d.dart", "external/dep/lib/d.dart", True),
+        _fake_dev_src("../dep/lib/d.dart", "external/dep/lib/d.dart", True),
     ]
     res = generate_dev_package_config(pkgs, srcs, _fake_config("bazel-out/k8/bin"))
     asserts.equals(env, "org-dartlang-app", res.scheme)
@@ -230,7 +233,7 @@ def _gdpc_assembled_app_uses_scheme_and_roots_test_impl(ctx):
         '"name": "app", "rootUri": "org-dartlang-app:///"' in res.content,
         "assembled app package gets a scheme rootUri",
     )
-    asserts.false(env, "org-dartlang-app:///external" in res.content, "dep keeps relative rootUri")
+    asserts.false(env, "org-dartlang-app:///.." in res.content, "external dep keeps relative rootUri")
     asserts.true(env, '"name": "dep"' in res.content)
 
     # Source root first ("" = execroot), then the generated bazel-out dir.
@@ -261,15 +264,19 @@ def _gdpc_source_packages_lists_first_party_test_impl(ctx):
     # Pub/external deps are excluded (not editable, never watched). Order follows
     # `packages`.
     env = unittest.begin(ctx)
+
+    # `pubdep` is external: its files carry the real `../<repo>` short_path, so
+    # this exercises the `../`-prefix arm of the first-party exclusion (an
+    # `external/`-prefixed short_path never occurs under bzlmod).
     pkgs = [
         _fake_pkg("app", ""),
         _fake_pkg("dep", "pkgs/dep"),
-        _fake_pkg("pubdep", "external/pubdep"),
+        _fake_pkg("pubdep", "../pubdep"),
     ]
     srcs = [
         _fake_dev_src("lib/main.dart", "lib/main.dart", True),
         _fake_dev_src("pkgs/dep/lib/d.dart", "pkgs/dep/lib/d.dart", True),
-        _fake_dev_src("external/pubdep/lib/p.dart", "external/pubdep/lib/p.dart", True),
+        _fake_dev_src("../pubdep/lib/p.dart", "external/pubdep/lib/p.dart", True),
     ]
     res = generate_dev_package_config(pkgs, srcs, _fake_config("bazel-out/k8/bin"))
     asserts.equals(env, [("app", ""), ("dep", "pkgs/dep")], res.source_packages)
