@@ -3,6 +3,7 @@
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
 load(
     "//dart/private:common.bzl",
+    "check_single_root_package",
     "generate_dev_package_config",
     "generate_package_config",
     "generate_package_config_content",
@@ -315,6 +316,32 @@ def _gdpc_source_packages_includes_assembled_test_impl(ctx):
     asserts.equals(env, [("sub", "pkgs/sub")], res.source_packages)
     return unittest.end(env)
 
+def _check_single_root_ok_test_impl(ctx):
+    # One root package (or none) is fine — no error.
+    env = unittest.begin(ctx)
+    asserts.equals(env, None, check_single_root_package([
+        struct(package_name = "app", lib_root = ""),
+        struct(package_name = "sub", lib_root = "pkgs/sub"),
+    ]))
+    asserts.equals(env, None, check_single_root_package([]))
+    return unittest.end(env)
+
+def _check_single_root_conflict_test_impl(ctx):
+    # Two empty-lib_root packages must produce a diagnostic NAMING BOTH
+    # packages. Regression: the old inline fail() applied `%` to a
+    # placeholder-free fragment ("+" bound looser than "%"), so hitting the
+    # condition crashed on the fail-message itself instead of reporting it.
+    env = unittest.begin(ctx)
+    err = check_single_root_package([
+        struct(package_name = "app_a", lib_root = ""),
+        struct(package_name = "app_b", lib_root = ""),
+    ])
+    asserts.true(env, err != None)
+    asserts.true(env, "app_a" in err)
+    asserts.true(env, "app_b" in err)
+    asserts.true(env, "one root package" in err)
+    return unittest.end(env)
+
 _t0_test = unittest.make(_empty_packages_test_impl)
 _t1_test = unittest.make(_single_package_test_impl)
 _t2_test = unittest.make(_multiple_packages_test_impl)
@@ -336,6 +363,8 @@ _t17_test = unittest.make(_gdpc_non_root_assembled_package_test_impl)
 _t18_test = unittest.make(_gdpc_source_packages_lists_first_party_test_impl)
 _t19_test = unittest.make(_gdpc_source_packages_excludes_generated_only_test_impl)
 _t20_test = unittest.make(_gdpc_source_packages_includes_assembled_test_impl)
+_t21_test = unittest.make(_check_single_root_ok_test_impl)
+_t22_test = unittest.make(_check_single_root_conflict_test_impl)
 
 def common_test_suite(name):
     unittest.suite(
@@ -361,4 +390,6 @@ def common_test_suite(name):
         _t18_test,
         _t19_test,
         _t20_test,
+        _t21_test,
+        _t22_test,
     )

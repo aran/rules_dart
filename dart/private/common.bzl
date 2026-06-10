@@ -141,6 +141,28 @@ def relative_path(from_dir, to_dir):
     parts = [".."] * ups + remaining
     return "/".join(parts) if parts else "."
 
+def check_single_root_package(packages):
+    """Checks that at most one package claims the empty (root) `lib_root`.
+
+    Two or more empty-lib_root packages are ambiguous: the empty-prefix match
+    would race to claim any `lib/`-prefixed source.
+
+    Args:
+        packages: List of DartPackageInfo providers.
+
+    Returns:
+        An error message string when more than one package has an empty
+        `lib_root`, else `None`.
+    """
+    root_names = [pkg.package_name for pkg in packages if not pkg.lib_root]
+    if len(root_names) > 1:
+        return (
+            "Multiple packages declare an empty `lib_root`: %s. Each " +
+            "Bazel build graph can only attribute `lib/...` sources to " +
+            "one root package."
+        ) % ", ".join(root_names)
+    return None
+
 def resolve_package_roots(packages, all_srcs):
     """Match packages to source files, returning exec-root-relative roots.
 
@@ -159,14 +181,9 @@ def resolve_package_roots(packages, all_srcs):
     Returns:
         Dict mapping package_name to exec-root-relative package root path.
     """
-    root_pkgs = [pkg for pkg in packages if not pkg.lib_root]
-    if len(root_pkgs) > 1:
-        fail(
-            "Multiple packages declare an empty `lib_root`: %s. Each " +
-            "Bazel build graph can only attribute `lib/...` sources to " +
-            "one root package." %
-            ", ".join([pkg.package_name for pkg in root_pkgs]),
-        )
+    err = check_single_root_package(packages)
+    if err:
+        fail(err)
 
     roots = {}
     for src in all_srcs:
