@@ -334,8 +334,7 @@ and typos to keep CI and local hooks in sync.
 **Dependencies** (all `uses:` references across workflows):
 
 - Actions: `actions/checkout`, `amannn/action-semantic-pull-request`,
-  `dart-lang/setup-dart`, `smlx/ccv`, `pre-commit/action`,
-  `technote-space/workflow-conclusion-action`
+  `dart-lang/setup-dart`, `smlx/ccv`, `pre-commit/action`
 - Reusable workflows: `bazel-contrib/.github` (CI + release),
   `bazel-contrib/publish-to-bcr`
 
