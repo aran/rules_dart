@@ -58,10 +58,13 @@ def _dart_binary_impl(ctx):
     main_input, main_arg, own_inputs = colocate_entrypoint(ctx, ctx.file.main, ctx.files.srcs)
     all_srcs = dep_srcs + own_inputs
 
+    # Root resolution must see the rule's own inputs too: a package whose
+    # metadata comes from a srcs-less façade library resolves only via the
+    # files this rule supplies itself.
     package_config = ctx.actions.declare_file(ctx.label.name + ".package_config.json")
     ctx.actions.write(
         output = package_config,
-        content = generate_package_config(packages, dep_srcs, package_config),
+        content = generate_package_config(packages, all_srcs, package_config),
     )
 
     # Determine output filename (Windows gets the `.exe` extension — see
