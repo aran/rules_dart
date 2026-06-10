@@ -37,7 +37,7 @@ def needs_source_assembly(srcs):
             return True
     return False
 
-def assemble_source_dir(ctx, name, srcs, root_paths = ["."], replace_prefixes = {}):
+def assemble_source_dir(ctx, name, srcs, root_paths = ["."], replace_prefixes = {}, include_external_repositories = []):
     """Assembles `srcs` into one tree-artifact directory and returns it.
 
     Source and generated files are copied into a single declared directory at
@@ -51,6 +51,9 @@ def assemble_source_dir(ctx, name, srcs, root_paths = ["."], replace_prefixes = 
       srcs: List of File objects (source and/or generated) to assemble.
       root_paths: `copy_to_directory` root paths; `"."` is the current package.
       replace_prefixes: `copy_to_directory` prefix rewrites for cross-package layout.
+      include_external_repositories: `copy_to_directory` external repo name
+        patterns; external files are excluded unless their repo matches, and
+        matching files are staged at their repo-relative paths.
 
     Returns:
       The assembled directory File (a tree artifact).
@@ -64,6 +67,7 @@ def assemble_source_dir(ctx, name, srcs, root_paths = ["."], replace_prefixes = 
         files = srcs,
         root_paths = root_paths,
         replace_prefixes = replace_prefixes,
+        include_external_repositories = include_external_repositories,
     )
     return dst
 

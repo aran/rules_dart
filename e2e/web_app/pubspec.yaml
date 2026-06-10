@@ -2,5 +2,6 @@ name: web_app
 environment:
   sdk: ^3.11.0
 dependencies:
+  characters: ^1.4.0
   greet:
     path: greet

@@ -1,15 +1,35 @@
-load("@rules_dart//dart:defs.bzl", "dart_js_binary", "dart_wasm_binary")
+load("@rules_dart//dart:defs.bzl", "dart_js_binary", "dart_library", "dart_wasm_binary")
+
+# Root package (empty lib_root): its lib/ sources must be staged for the web
+# compile like any other dep package.
+dart_library(
+    name = "rootlib",
+    package_name = "web_app",
+    srcs = ["lib/root_greet.dart"],
+    visibility = ["//visibility:public"],
+)
 
 dart_js_binary(
     name = "app",
     srcs = ["config.dart"],
+    # A define containing a space must survive intact (no shell splitting).
+    defines = ["banner=hello world"],
     main = "main.dart",
-    deps = ["//greet"],
+    deps = [
+        ":rootlib",
+        "//greet",
+        "@pub_deps//:characters",
+    ],
 )
 
 dart_wasm_binary(
     name = "app_wasm",
     srcs = ["config.dart"],
+    defines = ["banner=hello world"],
     main = "main.dart",
-    deps = ["//greet"],
+    deps = [
+        ":rootlib",
+        "//greet",
+        "@pub_deps//:characters",
+    ],
 )

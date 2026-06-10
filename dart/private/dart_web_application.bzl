@@ -1,12 +1,16 @@
 """Implementation of dart_js_binary and dart_wasm_binary rules.
 
 Compiles a Dart application to JavaScript or WebAssembly for use in a browser.
-Uses a staging directory with .dart_tool/package_config.json for package
-resolution, since `dart compile js/wasm` does not accept --packages.
+`dart compile js|wasm` accepts no `--packages` flag, so the compiler resolves
+packages by walking up from the entrypoint to a `.dart_tool/package_config.json`.
+The rules stage that layout hermetically from declared artifacts (see
+`project_staging.bzl`) and invoke the compiler directly — no shell, no mktemp.
 """
 
 load("//dart:providers.bzl", "DartInfo")
-load("//dart/private:common.bzl", "collect_packages", "collect_transitive_srcs", "generate_package_config_content", "resolve_package_roots")
+load("//dart/private:common.bzl", "collect_packages", "collect_transitive_srcs")
+load("//dart/private:project_staging.bzl", "stage_dart_project")
+load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS")
 
 def _get_web_compilation_mode_flags(ctx, compile_mode):
     """Returns compiler flags for the current Bazel compilation mode (web targets).
@@ -47,96 +51,49 @@ def _dart_web_compile(ctx, compile_mode):
     toolchain = ctx.toolchains["//dart:toolchain_type"]
     dart_sdk_info = toolchain.dart_sdk_info
 
-    # Collect all transitive sources and packages
-    all_srcs = list(ctx.files.srcs) + collect_transitive_srcs(ctx.attr.deps).to_list()
     packages = collect_packages(ctx.attr.deps)
+    all_srcs = [ctx.file.main] + list(ctx.files.srcs) + collect_transitive_srcs(ctx.attr.deps).to_list()
+    staged = stage_dart_project(ctx, packages, all_srcs)
 
-    # Generate package_config.json with rootUri relative to .dart_tool/
-    # (one level up from .dart_tool/ to project root, like dart_analyze)
-    config_content = generate_package_config_content(packages, "..")
-    package_config = ctx.actions.declare_file(ctx.label.name + ".web_config.json")
-    ctx.actions.write(output = package_config, content = config_content)
-
-    # Determine output extension
     if compile_mode == "js":
         output = ctx.actions.declare_file(ctx.label.name + ".js")
-        staging_ext = ".js"
     else:
         output = ctx.actions.declare_file(ctx.label.name + ".wasm")
-        staging_ext = ".wasm"
 
-    # Build symlink commands for dependency packages.
-    # Use resolve_package_roots to get exec-root paths for sources,
-    # and short_path lib_root for staging destinations.
-    exec_roots = resolve_package_roots(packages, all_srcs)
-    symlink_cmds = []
-    seen_roots = {}
-    for pkg in packages:
-        if pkg.lib_root and pkg.lib_root not in seen_roots:
-            exec_root = exec_roots.get(pkg.package_name)
-            if exec_root:
-                seen_roots[pkg.lib_root] = True
-                symlink_cmds.append(
-                    'mkdir -p "$PROJ/$(dirname {dest})" && cp -rL "$(pwd)/{src}" "$PROJ/{dest}"'.format(
-                        src = exec_root,
-                        dest = pkg.lib_root,
-                    ),
-                )
-
-    # Symlink additional source files (srcs) into the staging directory
-    for src in ctx.files.srcs:
-        src_short = src.short_path
-        symlink_cmds.append(
-            'mkdir -p "$PROJ/$(dirname {path})" && cp "$(pwd)/{src}" "$PROJ/{path}"'.format(
-                src = src.path,
-                path = src_short,
-            ),
-        )
-
-    # Build compilation flags
-    flags = _get_web_compilation_mode_flags(ctx, compile_mode)
+    args = ctx.actions.args()
+    args.add("compile")
+    args.add(compile_mode)
+    args.add_all(_get_web_compilation_mode_flags(ctx, compile_mode))
     for d in ctx.attr.defines:
-        flags.append("-D" + d)
-    flags.extend(ctx.attr.dart_compile_flags)
-    flags_str = " ".join(flags)
+        args.add("-D" + d)
+    args.add_all(ctx.attr.dart_compile_flags)
+    args.add("-o", output)
 
-    # Build the compilation command using a staging directory
-    main_short = ctx.file.main.short_path
+    # The entrypoint is compiled from inside the staged tree so the compiler's
+    # walk-up finds the sibling .dart_tool/package_config.json.
+    args.add(staged.src_tree.path + "/" + ctx.file.main.short_path)
 
-    cmd = """\
-set -e
-PROJ=$(mktemp -d)
-trap 'rm -rf "$PROJ"' EXIT
-export HOME="$PROJ"
-export LOCALAPPDATA="$PROJ"
-mkdir -p "$PROJ/.dart_tool"
-cp "{config}" "$PROJ/.dart_tool/package_config.json"
-{symlinks}
-mkdir -p "$PROJ/$(dirname {main_short})"
-cp "{main}" "$PROJ/{main_short}"
-"{dart}" compile {mode} {flags} -o "$PROJ/output{ext}" "$PROJ/{main_short}"
-cp "$PROJ/output{ext}" "{output}"
-""".format(
-        config = package_config.path,
-        dart = dart_sdk_info.dart.path,
-        mode = compile_mode,
-        flags = flags_str,
-        main = ctx.file.main.path,
-        main_short = main_short,
-        output = output.path,
-        ext = staging_ext,
-        symlinks = "\n".join(symlink_cmds),
-    )
+    # Mirror dart_compile.bzl's writable-home handling (Windows dart.exe
+    # receives /tmp literally and crashes).
+    if dart_sdk_info.dart.basename.endswith(".exe"):
+        env = {
+            "USERPROFILE": output.dirname,
+            "LOCALAPPDATA": output.dirname,
+        }
+    else:
+        env = {"HOME": "/tmp"}
 
-    ctx.actions.run_shell(
-        command = cmd,
+    ctx.actions.run(
+        executable = dart_sdk_info.dart,
+        arguments = [args],
         inputs = depset(
-            direct = [package_config, ctx.file.main, dart_sdk_info.dart] + all_srcs,
+            direct = staged.inputs,
             transitive = [dart_sdk_info.tool_files],
         ),
         outputs = [output],
         mnemonic = "DartCompileWeb",
         progress_message = "Compiling Dart %s %s" % (compile_mode, ctx.label),
+        env = env,
     )
 
     return [
@@ -176,13 +133,13 @@ _WEB_BINARY_ATTRS = {
 dart_js_binary = rule(
     implementation = _dart_js_binary_impl,
     attrs = _WEB_BINARY_ATTRS,
-    toolchains = ["//dart:toolchain_type"],
+    toolchains = ["//dart:toolchain_type"] + COPY_TO_DIRECTORY_TOOLCHAINS,
     doc = "Compiles a Dart web application to JavaScript via `dart compile js`.",
 )
 
 dart_wasm_binary = rule(
     implementation = _dart_wasm_binary_impl,
     attrs = _WEB_BINARY_ATTRS,
-    toolchains = ["//dart:toolchain_type"],
+    toolchains = ["//dart:toolchain_type"] + COPY_TO_DIRECTORY_TOOLCHAINS,
     doc = "Compiles a Dart web application to WebAssembly via `dart compile wasm`. Requires a browser with WasmGC support.",
 )
