@@ -1,96 +1,74 @@
 """Implementation of the dart_analyze_test rule.
 
 Runs `dart analyze` on a `dart_library` target as a Bazel test. The analysis
-runs at build time as an action — if analysis fails, the build fails.
-The test target itself is a trivial pass-through that always succeeds.
+runs at build time as an action — if analysis fails, the build fails. The test
+target itself is a trivial pass-through that always succeeds.
+
+The analyzer wants a project directory (pubspec.yaml, .dart_tool/, sources),
+which is staged hermetically from declared artifacts (see `project_staging.bzl`)
+and analyzed via the compiled `analyze_runner` tool — no shell, no mktemp.
+External (pub) dep sources sit in sibling `extpkgs` trees outside the analyzed
+directory: their `package:` imports resolve, but they are not themselves
+analyzed (pub packages aren't held to this target's `--fatal-infos` bar).
 """
 
 load("//dart:providers.bzl", "DartInfo")
-load("//dart/private:common.bzl", "WINDOWS_CONSTRAINT_ATTR", "collect_packages", "generate_package_config_content")
+load("//dart/private:common.bzl", "WINDOWS_CONSTRAINT_ATTR", "collect_packages")
+load("//dart/private:project_staging.bzl", "stage_dart_project")
+load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS")
+
+_PUBSPEC_STUB = 'name: __analyze__\nenvironment:\n  sdk: ">=3.0.0 <4.0.0"\n'
 
 def _dart_analyze_test_impl(ctx):
     toolchain = ctx.toolchains["//dart:toolchain_type"]
     dart_sdk_info = toolchain.dart_sdk_info
 
     lib_info = ctx.attr.lib[DartInfo]
-
-    # Collect all packages (including the target itself) for package_config
     packages = collect_packages([ctx.attr.lib])
 
-    # Generate package_config.json content with rootUri relative to .dart_tool/
-    # (one level up from .dart_tool/ to project root)
-    config_content = generate_package_config_content(packages, "..")
+    staged = stage_dart_project(
+        ctx,
+        packages,
+        lib_info.transitive_srcs.to_list(),
+        extra_proj_files = {"pubspec.yaml": _PUBSPEC_STUB},
+    )
 
-    # Write the package_config file
-    package_config = ctx.actions.declare_file(ctx.label.name + ".analyze_config.json")
-    ctx.actions.write(output = package_config, content = config_content)
-
-    # Collect all transitive sources
-    all_srcs = lib_info.transitive_srcs.to_list()
-
-    # Build symlink commands: link each source file into the staging dir.
-    # Use short_path for the staging layout so it matches lib_root (both
-    # are in the same short_path coordinate system).
-    symlink_cmds = []
-    seen_paths = {}
-    for src in all_srcs:
-        sp = src.short_path
-        if sp not in seen_paths:
-            seen_paths[sp] = True
-
-            # An assembled package directory (a `dart_source_set` / a library
-            # with generated members) arrives as one tree-artifact dir; copy it
-            # recursively so the analyzer sees the package's whole `lib/` tree.
-            cp = "cp -R" if src.is_directory else "cp"
-            symlink_cmds.append(
-                'mkdir -p "$PROJ/$(dirname {dest})" && {cp} "$(pwd)/{src}" "$PROJ/{dest}"'.format(
-                    cp = cp,
-                    src = src.path,
-                    dest = sp,
-                ),
-            )
-
-    # Copy analysis_options.yaml into the staging dir if provided.
-    # The analyzer discovers it from the project root automatically.
-    options_cmd = ""
+    inputs = list(staged.inputs)
     if ctx.attr.options:
-        options_cmd = 'cp "$(pwd)/{options}" "$PROJ/analysis_options.yaml"'.format(
-            options = ctx.file.options.path,
-        )
+        # The analyzer discovers analysis_options.yaml from the project root.
+        options = ctx.actions.declare_file(ctx.label.name + ".proj/analysis_options.yaml")
+        ctx.actions.symlink(output = options, target_file = ctx.file.options)
+        inputs.append(options)
 
     stamp = ctx.actions.declare_file(ctx.label.name + ".analyzed")
 
-    cmd = """\
-set -e
-PROJ=$(mktemp -d)
-trap 'rm -rf "$PROJ"' EXIT
-export HOME="$PROJ"
-export LOCALAPPDATA="$PROJ"
-mkdir -p "$PROJ/.dart_tool"
-cp "{config}" "$PROJ/.dart_tool/package_config.json"
-printf 'name: __analyze__\\nenvironment:\\n  sdk: ">=3.0.0 <4.0.0"\\n' > "$PROJ/pubspec.yaml"
-{options_cmd}
-{symlinks}
-"{dart}" analyze --fatal-infos "$PROJ"
-touch "{stamp}"
-""".format(
-        config = package_config.path,
-        dart = dart_sdk_info.dart.path,
-        stamp = stamp.path,
-        options_cmd = options_cmd,
-        symlinks = "\n".join(symlink_cmds),
-    )
+    args = ctx.actions.args()
+    args.add("--dart", dart_sdk_info.dart)
+    args.add("--project", staged.proj_path)
+    args.add("--stamp", stamp)
+    args.add("--fatal-infos")
 
-    direct_inputs = [package_config, dart_sdk_info.dart] + all_srcs
-    if ctx.attr.options:
-        direct_inputs.append(ctx.file.options)
+    # Mirror dart_compile.bzl's writable-home handling (Windows dart.exe
+    # receives /tmp literally and crashes).
+    if dart_sdk_info.dart.basename.endswith(".exe"):
+        env = {
+            "USERPROFILE": stamp.dirname,
+            "LOCALAPPDATA": stamp.dirname,
+        }
+    else:
+        env = {"HOME": "/tmp"}
 
-    ctx.actions.run_shell(
-        command = cmd,
-        inputs = depset(direct = direct_inputs, transitive = [dart_sdk_info.tool_files]),
+    ctx.actions.run(
+        executable = ctx.executable._analyze_tool,
+        arguments = [args],
+        inputs = depset(
+            direct = inputs + [dart_sdk_info.dart],
+            transitive = [dart_sdk_info.tool_files],
+        ),
         outputs = [stamp],
         mnemonic = "DartAnalyze",
         progress_message = "Analyzing Dart library %s" % ctx.label,
+        env = env,
     )
 
     # Symlink the noop binary as the test executable.
@@ -127,6 +105,11 @@ dart_analyze_test = rule(
             doc = "An `analysis_options.yaml` file. If omitted, the Dart SDK's default analysis options are used.",
             allow_single_file = [".yaml"],
         ),
+        "_analyze_tool": attr.label(
+            default = "//dart/private/tools:analyze_runner",
+            executable = True,
+            cfg = "exec",
+        ),
         "_tool": attr.label(
             default = "//dart/private/tools:noop",
             executable = True,
@@ -134,6 +117,6 @@ dart_analyze_test = rule(
         ),
     }, **WINDOWS_CONSTRAINT_ATTR),
     test = True,
-    toolchains = ["//dart:toolchain_type"],
+    toolchains = ["//dart:toolchain_type"] + COPY_TO_DIRECTORY_TOOLCHAINS,
     doc = "Runs `dart analyze` on a Dart library as a build-time action. Fails the build if any analysis issues are found.",
 )

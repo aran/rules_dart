@@ -1,5 +1,6 @@
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
-load("//dart:defs.bzl", "dart_library")
+load("//dart:defs.bzl", "dart_analyze_test", "dart_library")
+load(":analyze_test.bzl", "analyze_hermetic_test")
 load(":codegen_test.bzl", "codegen_test_suite")
 load(":common_test.bzl", "common_test_suite")
 load(":dart_binary_test.bzl", "dart_binary_test_suite")
@@ -46,4 +47,14 @@ provider_shape_probe(
 build_test(
     name = "provider_shape_test",
     targets = [":provider_shape_probe_target"],
+)
+
+dart_analyze_test(
+    name = "shape_fixture_analyze",
+    lib = ":shape_fixture_lib",
+)
+
+analyze_hermetic_test(
+    name = "analyze_hermetic_test",
+    target_under_test = ":shape_fixture_analyze",
 )

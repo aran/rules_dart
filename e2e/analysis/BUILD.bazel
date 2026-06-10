@@ -3,6 +3,7 @@ load("@rules_dart//dart:defs.bzl", "dart_analyze_test", "dart_format_test", "dar
 dart_library(
     name = "good_lib",
     srcs = glob(["lib/**/*.dart"]),
+    deps = ["//mylib"],
 )
 
 dart_analyze_test(
