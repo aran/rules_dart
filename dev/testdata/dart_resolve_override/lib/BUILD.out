@@ -1,0 +1,8 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+dart_library(
+    name = "lib",
+    srcs = ["server.dart"],
+    visibility = ["//visibility:public"],
+    deps = ["//third_party:shelf_custom"],
+)

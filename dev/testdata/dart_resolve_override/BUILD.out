@@ -1,0 +1,1 @@
+# gazelle:resolve dart shelf //third_party:shelf_custom

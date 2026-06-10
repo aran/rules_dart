@@ -165,9 +165,9 @@ Add directives as comments in a `BUILD.bazel` file to control generation:
 - **`# gazelle:dart_package_name my_app`** — explicitly sets the
   `package_name` attribute on the generated `dart_library` rule.
 
-- **`# gazelle:resolve dart package:foo/foo.dart //third_party:foo`** —
-  overrides automatic dependency resolution for a specific import, mapping
-  it to an explicit Bazel target.
+- **`# gazelle:resolve dart foo //third_party:foo`** — overrides
+  automatic dependency resolution for a Dart package (the `foo` of
+  `package:foo/...` imports), mapping it to an explicit Bazel target.
 
 #### pubspec.yaml auto-detection
 
