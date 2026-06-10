@@ -1,4 +1,4 @@
-load("@rules_dart//dart:defs.bzl", "dart_js_binary", "dart_library", "dart_wasm_binary")
+load("@rules_dart//dart:defs.bzl", "dart_js_binary", "dart_library", "dart_test", "dart_wasm_binary")
 
 # Root package (empty lib_root): its lib/ sources must be staged for the web
 # compile like any other dep package.
@@ -32,4 +32,11 @@ dart_wasm_binary(
         "//greet",
         "@pub_deps//:characters",
     ],
+)
+
+dart_test(
+    name = "js_output_test",
+    data = [":app"],
+    main = "test/js_output_test.dart",
+    deps = ["@rules_dart//dart/runfiles"],
 )
