@@ -349,6 +349,32 @@ part of 'whatever.dart';
 part 'event.g.dart';`,
 			want: []string{"event.freezed.dart", "event.g.dart"},
 		},
+		{
+			// Nested same-quote interpolation (valid Dart) puts the tail of
+			// an identifier ending in `r` ("Dr") immediately before a quote
+			// in the scanner's code position. Without the identifier-
+			// boundary guard the scanner flips into raw-string mode, stops
+			// skipping the `\'` escape, terminates the literal early, and
+			// the stray `/*` then swallows the part directive below.
+			name: "IdentifierEndingInRBeforeQuoteIsNotRaw",
+			input: `final msg = '${greet('Dr')} \' starts /* here';
+part 'user.g.dart';
+// ends */`,
+			want: []string{"user.g.dart"},
+		},
+		{
+			// True raw string: `\` is NOT an escape, so the literal ends at
+			// the very next quote and the `/*` after it is a real comment.
+			// If the scanner wrongly applied escape-skipping inside the raw
+			// string it would stay in string mode, never strip the block
+			// comment, and report the fake part directive inside it.
+			name: "RawStringBackslashIsNotEscape",
+			input: `final s = r'\'; /*
+part 'fake.g.dart';
+*/
+part 'real.g.dart';`,
+			want: []string{"real.g.dart"},
+		},
 	}
 
 	for _, tt := range tests {

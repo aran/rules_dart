@@ -491,7 +491,11 @@ func stripCommentsOnly(src string) string {
 			quote := c
 			b.WriteByte(quote)
 			i++
-			isRaw := i >= 2 && src[i-2] == 'r'
+			// Same identifier-boundary guard as stripCommentsAndStrings:
+			// a raw-string prefix is a *standalone* `r`, not the tail of
+			// an identifier that happens to precede a quote.
+			isRaw := i >= 2 && src[i-2] == 'r' &&
+				(i < 3 || !isIdentChar(src[i-3]))
 			for i < len(src) && src[i] != quote {
 				if src[i] == '\\' && !isRaw && i+1 < len(src) {
 					b.WriteByte(src[i])
