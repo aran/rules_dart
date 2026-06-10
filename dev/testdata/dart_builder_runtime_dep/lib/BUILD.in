@@ -1,0 +1,3 @@
+# gazelle:dart_package_name runtime_dep_fixture
+# gazelle:dart_language_version 3.11
+# gazelle:dart_builder_runtime_dep JsonSerializable @my_fork//:json_annotation

@@ -1,0 +1,3 @@
+# gazelle:dart_package_name builder_config_fixture
+# gazelle:dart_language_version 3.11
+# gazelle:dart_builder_config JsonSerializable {"field_rename": "snake"}

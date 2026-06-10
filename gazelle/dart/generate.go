@@ -458,6 +458,19 @@ func macroRuleKind(macro string) string {
 	return macro[pct+1:]
 }
 
+// defaultRuntimeDeps maps each shipped builder registration (keyed by
+// nodeKey) to its default RuntimeDep. Used to suppress redundant
+// `annotation_dep` attrs on emitted macros: the attr is only worth
+// emitting when a `dart_builder_runtime_dep` directive overrode the
+// default (the macro's own signature already carries the default).
+var defaultRuntimeDeps = func() map[string]string {
+	m := map[string]string{}
+	for _, b := range defaultBuilders() {
+		m[nodeKey(b)] = b.RuntimeDep
+	}
+	return m
+}()
+
 // buildMacroRule emits a single `<builder>_library(...)` rule call for a
 // one-annotation source. Returns nil if the builder's `Macro` field is
 // malformed.
@@ -478,6 +491,9 @@ func buildMacroRule(
 	r.SetAttr("package_name", pkgName)
 	if lv := resolvedLanguageVersion(args); lv != "" {
 		r.SetAttr("language_version", lv)
+	}
+	if info.RuntimeDep != "" && info.RuntimeDep != defaultRuntimeDeps[nodeKey(info)] {
+		r.SetAttr("annotation_dep", info.RuntimeDep)
 	}
 	if info.Config != "" {
 		r.SetAttr("config", info.Config)

@@ -1,0 +1,59 @@
+load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library")
+load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_library")
+
+# gazelle:dart_package_name runtime_dep_fixture
+# gazelle:dart_language_version 3.11
+# gazelle:dart_builder_runtime_dep JsonSerializable @my_fork//:json_annotation
+
+dart_codegen(
+    name = "_event_freezed_gen",
+    package_name = "runtime_dep_fixture",
+    src = "event.dart",
+    generator_bin = "@rules_dart//dart/ext/freezed:shim",
+    language_version = "3.11",
+    output_suffixes = [".freezed.dart"],
+    deps = ["@pub_deps//:freezed_annotation"],
+)
+
+dart_codegen(
+    name = "_event_json_serializable_gen",
+    package_name = "runtime_dep_fixture",
+    src = "event.dart",
+    generator_bin = "@rules_dart//dart/ext/json_serializable:shim",
+    language_version = "3.11",
+    output_suffixes = [".json_serializable.g.part"],
+    deps = ["@my_fork//:json_annotation"],
+)
+
+dart_codegen(
+    name = "_event_combined",
+    package_name = "runtime_dep_fixture",
+    src = "event.dart",
+    generator_bin = "@rules_dart//dart/ext/_shared/combining_shim:bin",
+    language_version = "3.11",
+    output_suffixes = [".g.dart"],
+    parts = [":_event_json_serializable_gen"],
+)
+
+dart_library(
+    name = "event",
+    package_name = "runtime_dep_fixture",
+    srcs = [
+        "event.dart",
+        ":_event_combined",
+        ":_event_freezed_gen",
+    ],
+    language_version = "3.11",
+    visibility = ["//visibility:public"],
+    deps = ["@freezed_annotation"],
+)
+
+json_serializable_library(
+    name = "user",
+    package_name = "runtime_dep_fixture",
+    srcs = ["user.dart"],
+    annotation_dep = "@my_fork//:json_annotation",
+    language_version = "3.11",
+    visibility = ["//visibility:public"],
+    deps = ["@json_annotation"],
+)
