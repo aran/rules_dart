@@ -39,11 +39,26 @@ var macroKinds = []string{
 	"stacked_form_library",
 }
 
+// injectableKindInfo extends the shared macro KindInfo with `init_src`
+// merging: the `@InjectableInit` file can move between sources, and a
+// re-run must rewrite the stale attr instead of keeping it. Kept as a
+// dedicated KindInfo so the other macros' attrs stay narrow.
+var injectableKindInfo = func() rule.KindInfo {
+	info := macroKindInfo
+	info.MergeableAttrs = map[string]bool{}
+	for k, v := range macroKindInfo.MergeableAttrs {
+		info.MergeableAttrs[k] = v
+	}
+	info.MergeableAttrs["init_src"] = true
+	return info
+}()
+
 var dartKinds = func() map[string]rule.KindInfo {
 	m := map[string]rule.KindInfo{}
 	for _, k := range macroKinds {
 		m[k] = macroKindInfo
 	}
+	m["injectable_library"] = injectableKindInfo
 	for k, v := range _primitiveDartKinds {
 		m[k] = v
 	}
