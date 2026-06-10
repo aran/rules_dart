@@ -376,7 +376,7 @@ func emitCodegenStages(
 		if pkgName := libraryName(args.Rel, args.Dir, args.Config); pkgName != "" {
 			r.SetAttr("package_name", pkgName)
 		}
-		if lv, ok := args.Config.Exts["dart_language_version"].(string); ok && lv != "" {
+		if lv := resolvedLanguageVersion(args); lv != "" {
 			r.SetAttr("language_version", lv)
 		}
 		rules = append(rules, r)
