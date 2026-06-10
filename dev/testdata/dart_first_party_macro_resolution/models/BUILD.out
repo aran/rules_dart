@@ -1,0 +1,9 @@
+load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_library")
+
+json_serializable_library(
+    name = "models",
+    package_name = "models",
+    srcs = ["models.dart"],
+    visibility = ["//visibility:public"],
+    deps = ["@json_annotation"],
+)
