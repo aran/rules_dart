@@ -1186,11 +1186,45 @@ class _ShimAnalyzerResolver implements Resolver {
 
   @override
   Stream<LibraryElement> get libraries async* {
+    // Yield same-package staged libraries first — the input + each
+    // `--dep` file the shim copies into the staging dir. These appear
+    // directly in _assetIdToPath.
+    final yielded = <Uri>{};
     for (final id in _assetIdToPath.keys) {
       try {
-        yield await libraryFor(id);
+        final lib = await libraryFor(id);
+        if (yielded.add(lib.firstFragment.source.uri)) yield lib;
       } on NonLibraryAssetException {
         // Skip non-library assets (e.g. plain text deps).
+      }
+    }
+
+    // Plus cross-package public re-export libraries — `package:<name>/<name>.dart`
+    // for every package in the synthesized PackageConfig. Without this, the
+    // stream is bounded by `_assetIdToPath` (same-package siblings only) and
+    // misses any third-party library the input transitively imports.
+    //
+    // build_runner's Resolver yields every library the analysis session has
+    // loaded, including the transitive import closure. Generators that walk
+    // `Resolver.libraries` to locate elements via their public re-exporting
+    // library (e.g. stacked_generator's ImportResolver) silently fail under
+    // the narrower set, either returning null for reachable elements or
+    // computing wrong import paths.
+    //
+    // Enumerating each package's conventional main library covers the
+    // re-export use case at negligible cost (libraryFor lazily materializes
+    // only the packages the consumer iterates).
+    for (final pkg in _packageConfig.packages) {
+      final id = AssetId(pkg.name, 'lib/${pkg.name}.dart');
+      try {
+        final lib = await libraryFor(id);
+        if (yielded.add(lib.firstFragment.source.uri)) yield lib;
+      } on NonLibraryAssetException {
+        // Package has no conventional main library (e.g. CLI-only tools
+        // shipping `bin/` only, packages with non-standard layouts).
+      } on AssetNotFoundException {
+        // Package declared in package_config but no file at the
+        // conventional path — e.g. workspace packages with custom layouts.
       }
     }
   }
