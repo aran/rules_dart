@@ -16,5 +16,8 @@ e2e/library_deps/pubspec.lock
 e2e/gazelle/pubspec.lock
 e2e/pub_deps/pubspec.lock
 
-# Claude Code session state (agent worktrees live here).
-.claude/
+# Claude Code: ignore local state (settings.local.json, agent worktrees) but
+# track checked-in automation under commands/ and skills/.
+.claude/*
+!.claude/commands/
+!.claude/skills/
