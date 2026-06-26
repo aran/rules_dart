@@ -14,12 +14,13 @@ failures.
 
 | Repo | Local clone | Releases to | Notes |
 |------|-------------|-------------|-------|
-| `rules_dart` | `/Users/aran/Projects/rules_dart` | BCR + pub.dev (`dart/runfiles`) | this repo |
-| `rules_dart_proto` | `/Users/aran/Projects/rules_dart_proto` | BCR | pins `rules_dart`; **version-aligned** with it |
-| `rules_flutter` | `/Users/aran/Projects/rules_flutter` | BCR | pins `rules_dart`; **currently held back** (see Phase 8) |
+| `rules_dart` | `$HOME/Projects/rules_dart` | BCR + pub.dev (`dart/runfiles`) | this repo |
+| `rules_dart_proto` | `$HOME/Projects/rules_dart_proto` | BCR | pins `rules_dart`; **version-aligned** with it |
+| `rules_flutter` | `$HOME/Projects/rules_flutter` | BCR | pins `rules_dart`; **currently held back** (see Phase 8) |
 
-All three publish to the BCR fork `aran/bazel-central-registry` → upstream
-`bazelbuild/bazel-central-registry`. A pushed `vX.Y.Z` tag triggers a release
+Paths above assume the three repos are **sibling clones under `~/Projects/`** — adjust if
+yours live elsewhere. All three publish to the BCR fork `aran/bazel-central-registry` →
+upstream `bazelbuild/bazel-central-registry`. A pushed `vX.Y.Z` tag triggers a release
 (`.github/workflows/release.yaml`), which opens a **draft** BCR PR; marking that PR
 "ready for review" triggers BCR auto-approval.
 
@@ -64,9 +65,12 @@ Goal: `main` is green, formatted, tidy, working tree clean. From this repo:
 4. **Lint**: `bazel run //.github/workflows:buildifier.check` clean (or
    `pre-commit run --all-files` to match the CI `pre-commit` job).
 5. **`bazel mod tidy`** in the root and every module dir
-   (`find . -path ./bazel-* -prune -o -name MODULE.bazel -print | grep -v bazel-`). After
-   tidying, `git status` must still be clean. If tidy changed anything, that's part of
-   the release: commit it (signed) and re-run the test surface.
+   (`find . -path ./bazel-* -prune -o -path ./references -prune -o -name MODULE.bazel -print | grep -v bazel-`).
+   After tidying, `git status` must still be clean. If tidy changed anything, that's part
+   of the release: commit it (signed) and re-run the test surface. Two fixtures can't be
+   tidied standalone and will error — that's expected, ignore them: `e2e/pub_lock_conflict`
+   (intentional cross-lock version conflict) and `e2e/pub_lock_cross_module/module_b` (a
+   sub-module resolved only within its parent). What matters is that the tree stays clean.
 6. **Locks committed**: no `MODULE.bazel.lock` dirty or untracked.
 
 Do not proceed until everything is green and `git status` is clean.
@@ -76,8 +80,8 @@ Do not proceed until everything is green and `git status` is clean.
 ## Phase 2 — Choose the target version
 
 1. Latest tags:
-   - `git -C /Users/aran/Projects/rules_dart tag --sort=-v:refname | head -1`
-   - `git -C /Users/aran/Projects/rules_dart_proto fetch --tags -q && git -C /Users/aran/Projects/rules_dart_proto tag --sort=-v:refname | head -1`
+   - `git -C $HOME/Projects/rules_dart tag --sort=-v:refname | head -1`
+   - `git -C $HOME/Projects/rules_dart_proto fetch --tags -q && git -C $HOME/Projects/rules_dart_proto tag --sort=-v:refname | head -1`
 2. `TARGET` = next version greater than the **max** of those two. Default = patch.
    Propose it (and the minor alternative) and **get the user's explicit confirmation**.
 3. This `TARGET` (e.g. `v0.4.5`) is used for **both** rules_dart and rules_dart_proto.
@@ -91,15 +95,34 @@ publishing. Use `--override_module` (the mechanism documented in `CONTRIBUTING.m
 their working trees stay clean. For **each** of `rules_dart_proto` and `rules_flutter`:
 
 1. `cd` into the clone; `git fetch origin`; clean tree on `main`, up to date.
-2. Read its `ci.yaml` `folders:` list. For each folder:
+2. Determine the folder list. rules_dart_proto has a `folders:` list in `ci.yaml`;
+   rules_flutter uses a **matrix** instead (root `.` plus the `e2e/*` workspaces under
+   `jobs.*.strategy.matrix.workspace`) — read whichever applies. For each folder:
    ```sh
    cd <folder>
    bazel test --test_output=errors //... \
-     --override_module=rules_dart=/Users/aran/Projects/rules_dart \
+     --override_module=rules_dart=$HOME/Projects/rules_dart \
+     --lockfile_mode=off \
      || [ $? -eq 4 ]
    ```
-   (rules_flutter e2e is a matrix; some modules are macOS/host-specific — run what's
-   runnable here and note any skipped.)
+   - **`--lockfile_mode=off` is required.** Overriding rules_dart changes its module
+     identity, so the downstream `MODULE.bazel.lock` looks stale under the default
+     (strict) mode → hard error; and the default mode would *rewrite* those locks,
+     dirtying the tree. `off` neither reads nor writes the lock. If an earlier run already
+     dirtied locks, restore with `git checkout -- .` before continuing.
+   - Pass the flags as **separate words** — don't stuff them in one shell variable, since
+     zsh won't word-split it and they'll merge into the override path.
+   - **rules_flutter only**: Android targets need `ANDROID_NDK_HOME`. Discover an
+     installed NDK rather than hardcoding a version or OS-specific path:
+     ```sh
+     SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-${HOME}/Library/Android/sdk}}"  # Linux: ~/Android/Sdk
+     export ANDROID_NDK_HOME="$SDK/ndk/$(ls "$SDK/ndk" | sort -V | tail -1)"
+     ```
+     Targets needing a full Android SDK *platform* (e.g. `plugin_example://:android_bundle_build_test`)
+     may still fail locally with a missing `core-for-system-modules-jar` — that's an
+     environment gap, not a rules_dart issue: exclude it with
+     `-- //... -//:android_bundle_build_test` and record it as skipped. The iOS / macOS /
+     web bundle build tests *do* run locally and are the meaningful cross-platform coverage.
 3. On failure, diagnose:
    - **rules_dart regression** → fix it **in rules_dart locally**, return to Phase 1,
      re-validate. This is the main reason this phase exists.
@@ -157,7 +180,7 @@ Proceed to the cascade only once BCR is serving `${TARGET#v}`.
 
 ## Phase 7 — Cascade to rules_dart_proto (same version)
 
-From `/Users/aran/Projects/rules_dart_proto`:
+From `$HOME/Projects/rules_dart_proto`:
 
 1. `git fetch origin`; clean tree on `main`.
 2. Bump the rules_dart pin to `${TARGET#v}` in the **root** `MODULE.bazel` **and every**
@@ -181,8 +204,8 @@ rules_flutter is **not** ready for a public release. Do **not** tag or release i
    remote tags and closing PRs is outward-facing and hard to reverse):
    - Delete the tag locally and on the remote, if present:
      ```sh
-     git -C /Users/aran/Projects/rules_flutter tag -d v0.0.1 2>/dev/null || true
-     git -C /Users/aran/Projects/rules_flutter push origin :refs/tags/v0.0.1 2>/dev/null || true
+     git -C $HOME/Projects/rules_flutter tag -d v0.0.1 2>/dev/null || true
+     git -C $HOME/Projects/rules_flutter push origin :refs/tags/v0.0.1 2>/dev/null || true
      ```
    - Leave any already-pushed GitHub releases **untagged** (don't re-tag them).
    - **Close any open rules_flutter BCR PR**:
