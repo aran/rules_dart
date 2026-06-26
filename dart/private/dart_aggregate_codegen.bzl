@@ -56,7 +56,7 @@ load(
 )
 
 def _dart_aggregate_codegen_impl(ctx):
-    toolchain = ctx.toolchains["//dart:toolchain_type"]
+    toolchain = ctx.toolchains["//dart:exec_tools_toolchain_type"]
     dart_sdk_info = toolchain.dart_sdk_info
 
     if ctx.file.generator_script and ctx.executable.generator_bin:
@@ -108,6 +108,7 @@ def _dart_aggregate_codegen_impl(ctx):
         args,
         ctx,
         synth_pc,
+        dart_sdk_info.dart,
         auto_stage_srcs = auto_staged,
         asset_deps = ctx.files.asset_deps,
         lib_root = lib_root,
@@ -224,7 +225,7 @@ dart_aggregate_codegen = rule(
             allow_files = True,
         ),
     },
-    toolchains = ["//dart:toolchain_type"],
+    toolchains = ["//dart:exec_tools_toolchain_type"],
     doc = "Runs a package-level aggregate Dart code generator, producing " +
           "one or more declared outputs per target.",
 )

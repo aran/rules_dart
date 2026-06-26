@@ -87,7 +87,7 @@ def compute_codegen_output_name(src_path, output_suffix):
     return base + output_suffix
 
 def _dart_codegen_impl(ctx):
-    toolchain = ctx.toolchains["//dart:toolchain_type"]
+    toolchain = ctx.toolchains["//dart:exec_tools_toolchain_type"]
     dart = toolchain.dart_sdk_info.dart
     sdk_files = toolchain.dart_sdk_info.tool_files
 
@@ -151,6 +151,7 @@ def _dart_codegen_impl(ctx):
             args,
             ctx,
             synth_pc,
+            dart,
             auto_stage_srcs = auto_staged,
             asset_deps = ctx.files.asset_deps,
             lib_root = lib_root,
@@ -187,6 +188,7 @@ def _dart_codegen_impl(ctx):
             args,
             ctx,
             synth_pc,
+            dart,
             auto_stage_srcs = auto_staged,
             asset_deps = ctx.files.asset_deps,
             lib_root = lib_root,
@@ -313,7 +315,7 @@ dart_codegen = rule(
             allow_files = True,
         ),
     },
-    toolchains = ["//dart:toolchain_type"],
+    toolchains = ["//dart:exec_tools_toolchain_type"],
     doc = "Runs a per-file Dart code generator, producing one or more " +
           "sibling outputs per input.",
 )

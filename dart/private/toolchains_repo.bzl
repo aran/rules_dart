@@ -98,6 +98,26 @@ toolchain(
             compatible_with = meta.compatible_with,
         )
 
+    # Exec-tools toolchains: the codegen rules run a generator on the exec/host
+    # machine and emit platform-agnostic Dart source, so SDK selection must not
+    # depend on the build's target platform. One per host platform with
+    # exec_compatible_with pinned and target_compatible_with omitted, so each
+    # matches any target platform (iOS, Android, …). Reuses the native
+    # dart_toolchain (the host SDK).
+    for [platform, meta] in PLATFORMS.items():
+        build_content += """
+toolchain(
+    name = "{platform}_exec_tools_toolchain",
+    exec_compatible_with = {compatible_with},
+    toolchain = "@{user_repository_name}_{platform}//:dart_toolchain",
+    toolchain_type = "@rules_dart//dart:exec_tools_toolchain_type",
+)
+""".format(
+            platform = platform,
+            user_repository_name = repository_ctx.attr.user_repository_name,
+            compatible_with = meta.compatible_with,
+        )
+
     # Cross-compilation toolchains: exec constraints = host, target constraints = cross target.
     for [exec_platform, targets] in CROSS_TARGETS.items():
         exec_meta = PLATFORMS[exec_platform]

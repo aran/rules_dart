@@ -10,6 +10,18 @@ toolchain_type(
     visibility = ["//visibility:public"],
 )
 
+# Build-time tools (the codegen rules) resolve their Dart SDK through this type
+# instead of `:toolchain_type`. Codegen runs on the exec/host machine and emits
+# platform-agnostic Dart source, so its toolchains are registered with
+# `exec_compatible_with` pinned and `target_compatible_with` omitted — i.e.
+# selection is independent of the build's target platform. This lets codegen
+# resolve under any target platform (iOS, Android, …), including ones rules_dart
+# registers no compile toolchain for.
+toolchain_type(
+    name = "exec_tools_toolchain_type",
+    visibility = ["//visibility:public"],
+)
+
 resolved_toolchain(
     name = "resolved_toolchain",
     # Marked manual so that `bazel test //...` passes

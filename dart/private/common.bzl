@@ -795,6 +795,7 @@ def add_shim_contract_args(
         args,
         ctx,
         synth_pc,
+        sdk_dart,
         auto_stage_srcs = [],
         asset_deps = [],
         lib_root = ""):
@@ -813,6 +814,9 @@ def add_shim_contract_args(
       synth_pc: The synthesised `package_config.json` File from
         `synth_package_config`, or `None` for targets without
         `library_deps`.
+      sdk_dart: The `dart` executable File (from the caller's resolved
+        toolchain) used to compute `--sdk-path`. Passed in so this helper
+        stays agnostic of which toolchain type the caller resolves.
       auto_stage_srcs: List of Files to emit as `--dep` with
         automatically-computed asset paths. The rule layer calls
         `same_package_library_dep_files` to compute this — users do not
@@ -864,6 +868,5 @@ def add_shim_contract_args(
     elif synth_pc != None:
         args.add("--package-config", synth_pc.path)
         extra_inputs.append(synth_pc)
-    toolchain = ctx.toolchains["//dart:toolchain_type"]
-    args.add("--sdk-path", sdk_path_from_dart(toolchain.dart_sdk_info.dart))
+    args.add("--sdk-path", sdk_path_from_dart(sdk_dart))
     return extra_inputs

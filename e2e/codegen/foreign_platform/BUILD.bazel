@@ -1,0 +1,48 @@
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("@rules_dart//dart:defs.bzl", "dart_codegen")
+load(":transition.bzl", "build_under_platform")
+
+# Regression guard for codegen toolchain resolution under a foreign target
+# platform. `dart_codegen` is a build-time generator that emits platform-
+# agnostic Dart source, so it must resolve its Dart SDK from the exec platform
+# regardless of the build's target platform. Here we force the codegen target
+# onto a fully synthetic platform that has NO registered Dart toolchain; the
+# build must still succeed because codegen resolves the exec-tools toolchain
+# type (whose registrations omit `target_compatible_with`).
+
+# Fully synthetic target platform: a lone made-up constraint, no os/cpu, so no
+# `//dart:toolchain_type` toolchain is `target_compatible_with` it.
+constraint_setting(name = "exotic_setting")
+
+constraint_value(
+    name = "exotic",
+    constraint_setting = ":exotic_setting",
+)
+
+platform(
+    name = "no_dart_toolchain_platform",
+    constraint_values = [":exotic"],
+)
+
+dart_codegen(
+    name = "gen",
+    package_name = "foreign_platform_fixture",
+    src = "lib/model.dart",
+    generator = "//tools:lib_gen.dart",
+    language_version = "3.11",
+    output_suffixes = [".g.dart"],
+)
+
+# Force the codegen target onto the toolchain-less platform.
+build_under_platform(
+    name = "gen_foreign",
+    platform = "//foreign_platform:no_dart_toolchain_platform",
+    target = [":gen"],
+)
+
+# Build ONLY the codegen output under the foreign platform — deliberately not a
+# dart_library/dart_binary, which legitimately needs a target Dart toolchain.
+build_test(
+    name = "codegen_foreign_platform_test",
+    targets = [":gen_foreign"],
+)

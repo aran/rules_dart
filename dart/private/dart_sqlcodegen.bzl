@@ -33,7 +33,7 @@ load(
 )
 
 def _dart_sqlcodegen_impl(ctx):
-    toolchain = ctx.toolchains["//dart:toolchain_type"]
+    toolchain = ctx.toolchains["//dart:exec_tools_toolchain_type"]
     sdk_files = toolchain.dart_sdk_info.tool_files
 
     if not ctx.attr.output_suffixes:
@@ -87,6 +87,7 @@ def _dart_sqlcodegen_impl(ctx):
         args,
         ctx,
         synth_pc,
+        toolchain.dart_sdk_info.dart,
         auto_stage_srcs = auto_staged,
         asset_deps = ctx.files.asset_deps,
         lib_root = lib_root,
@@ -179,7 +180,7 @@ dart_sqlcodegen = rule(
             allow_files = True,
         ),
     },
-    toolchains = ["//dart:toolchain_type"],
+    toolchains = ["//dart:exec_tools_toolchain_type"],
     doc = "Runs a Dart code generator over a non-Dart input (`.drift`, " +
           "`.moor`, …), producing one or more sibling outputs.",
 )
