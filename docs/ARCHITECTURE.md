@@ -100,11 +100,11 @@ rules_dart exposes **two** toolchain types, registered together by `dart_registe
 
 - **`//dart:toolchain_type`** — target-configuration. Used by the rules that produce target-platform artifacts: `dart_binary`, `dart_test`, `dart_js_binary`, `dart_wasm_binary`, plus the analyze/format test rules. Registered native (exec == target) and cross (exec = host, target = cross target) — so resolution depends on the build's target platform, which is correct for compilation.
 
-- **`//dart:exec_tools_toolchain_type`** — exec-configuration. Used only by the build-time code generators: `dart_codegen`, `dart_aggregate_codegen`, `dart_sqlcodegen`. These run a generator on the exec/host machine and emit **platform-agnostic Dart source**, so SDK selection must not depend on the target platform. Its toolchains are registered one per host platform with `exec_compatible_with` pinned and **`target_compatible_with` omitted**, so each matches *any* target platform. Both types reuse the same native `dart_toolchain` (the host SDK) — there is no separate SDK download.
+- **`//dart:exec_tools_toolchain_type`** — exec-configuration. Used only by the build-time code generators: `dart_codegen`, `dart_aggregate_codegen`, `dart_sqlcodegen`. These run a generator on the exec/host machine and emit **platform-agnostic Dart source**, so SDK selection must not depend on the target platform. Its toolchains are registered one per host platform with `exec_compatible_with` pinned and **`target_compatible_with` omitted**, so each matches _any_ target platform. Both types reuse the same native `dart_toolchain` (the host SDK) — there is no separate SDK download.
 
 This split is why codegen resolves even under a target platform rules_dart registers no compile toolchain for — e.g. a downstream Flutter build that puts the whole graph on `@platforms//os:ios` or `:android`. Were codegen on `//dart:toolchain_type`, it would fail with "No matching toolchains found" for those targets even though the generator runs fine on the host. (Regression-guarded by `e2e/codegen/foreign_platform`, which builds a codegen target under a synthetic toolchain-less platform.)
 
-> Migration note: modules that register via the `@dart_toolchains//:all` glob get both types automatically. A module that instead hand-registers *specific* dart toolchains must also register the `*_exec_tools_toolchain` targets, or codegen will fail to resolve.
+> Migration note: modules that register via the `@dart_toolchains//:all` glob get both types automatically. A module that instead hand-registers _specific_ dart toolchains must also register the `*_exec_tools_toolchain` targets, or codegen will fail to resolve.
 
 ---
 

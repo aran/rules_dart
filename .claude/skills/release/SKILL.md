@@ -12,11 +12,11 @@ failures.
 
 ## The repos
 
-| Repo | Local clone | Releases to | Notes |
-|------|-------------|-------------|-------|
-| `rules_dart` | `$HOME/Projects/rules_dart` | BCR + pub.dev (`dart/runfiles`) | this repo |
-| `rules_dart_proto` | `$HOME/Projects/rules_dart_proto` | BCR | pins `rules_dart`; **version-aligned** with it |
-| `rules_flutter` | `$HOME/Projects/rules_flutter` | BCR | pins `rules_dart`; **currently held back** (see Phase 8) |
+| Repo               | Local clone                       | Releases to                     | Notes                                                    |
+| ------------------ | --------------------------------- | ------------------------------- | -------------------------------------------------------- |
+| `rules_dart`       | `$HOME/Projects/rules_dart`       | BCR + pub.dev (`dart/runfiles`) | this repo                                                |
+| `rules_dart_proto` | `$HOME/Projects/rules_dart_proto` | BCR                             | pins `rules_dart`; **version-aligned** with it           |
+| `rules_flutter`    | `$HOME/Projects/rules_flutter`    | BCR                             | pins `rules_dart`; **currently held back** (see Phase 8) |
 
 Paths above assume the three repos are **sibling clones under `~/Projects/`** — adjust if
 yours live elsewhere. All three publish to the BCR fork `aran/bazel-central-registry` →
@@ -62,8 +62,14 @@ Goal: `main` is green, formatted, tidy, working tree clean. From this repo:
 3. **Expected-failure modules** (the `expected-failure` job in `ci.yaml`):
    `e2e/pub_lock_conflict` must fail to build with `conflicting versions across lock files`;
    `e2e/analysis_failure` must fail to build with `unused_local_variable`. Confirm both.
-4. **Lint**: `bazel run //.github/workflows:buildifier.check` clean (or
-   `pre-commit run --all-files` to match the CI `pre-commit` job).
+4. **Lint**: run the **full** `pre-commit` suite, not just buildifier — CI's `pre-commit`
+   job also runs `prettier` (markdown/yaml/json), `yamlfmt`, and `typos`, and buildifier
+   alone will let a prettier violation through and fail CI. Prefer
+   `pre-commit run --all-files` (install via `pipx install pre-commit` or
+   `brew install pre-commit` if absent). If pre-commit can't be installed, at minimum run
+   the same hook versions by hand on changed files, reading the pins from
+   `.pre-commit-config.yaml` — e.g. `npx --yes prettier@<rev> --write <files>` and
+   `bazel run //.github/workflows:buildifier.check`. The tree must be clean afterward.
 5. **`bazel mod tidy`** in the root and every module dir
    (`find . -path ./bazel-* -prune -o -path ./references -prune -o -name MODULE.bazel -print | grep -v bazel-`).
    After tidying, `git status` must still be clean. If tidy changed anything, that's part
@@ -105,9 +111,9 @@ their working trees stay clean. For **each** of `rules_dart_proto` and `rules_fl
      --lockfile_mode=off \
      || [ $? -eq 4 ]
    ```
-   - **`--lockfile_mode=off` is required.** Overriding rules_dart changes its module
+   - **`--lockfile_mode=off` is required.** Overriding `rules_dart` changes its module
      identity, so the downstream `MODULE.bazel.lock` looks stale under the default
-     (strict) mode → hard error; and the default mode would *rewrite* those locks,
+     (strict) mode → hard error; and the default mode would **rewrite** those locks,
      dirtying the tree. `off` neither reads nor writes the lock. If an earlier run already
      dirtied locks, restore with `git checkout -- .` before continuing.
    - Pass the flags as **separate words** — don't stuff them in one shell variable, since
@@ -118,11 +124,11 @@ their working trees stay clean. For **each** of `rules_dart_proto` and `rules_fl
      SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-${HOME}/Library/Android/sdk}}"  # Linux: ~/Android/Sdk
      export ANDROID_NDK_HOME="$SDK/ndk/$(ls "$SDK/ndk" | sort -V | tail -1)"
      ```
-     Targets needing a full Android SDK *platform* (e.g. `plugin_example://:android_bundle_build_test`)
+     Targets needing a full Android SDK _platform_ (e.g. `plugin_example://:android_bundle_build_test`)
      may still fail locally with a missing `core-for-system-modules-jar` — that's an
-     environment gap, not a rules_dart issue: exclude it with
+     environment gap, not a rules*dart issue: exclude it with
      `-- //... -//:android_bundle_build_test` and record it as skipped. The iOS / macOS /
-     web bundle build tests *do* run locally and are the meaningful cross-platform coverage.
+     web bundle build tests \_do* run locally and are the meaningful cross-platform coverage.
 3. On failure, diagnose:
    - **rules_dart regression** → fix it **in rules_dart locally**, return to Phase 1,
      re-validate. This is the main reason this phase exists.
@@ -168,7 +174,7 @@ be green against local WIP rules_dart before pushing.
 2. **Mark ready for review** (triggers auto-approval):
    `gh pr ready <number> --repo bazelbuild/bazel-central-registry`.
 3. **Poll until merged**: `gh pr view <number> --repo bazelbuild/bazel-central-registry
-   --json state,mergedAt` on an interval. If the bot/maintainer requests changes or a
+--json state,mergedAt` on an interval. If the bot/maintainer requests changes or a
    presubmit fails, surface it to the user.
 4. **Poll until BCR serves it**: live when `modules/rules_dart/${TARGET#v}/` exists
    upstream, or a fresh module resolves `bazel_dep(name="rules_dart", version="${TARGET#v}")`.
