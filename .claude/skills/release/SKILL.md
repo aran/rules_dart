@@ -190,13 +190,41 @@ From `$HOME/Projects/rules_dart_proto`:
 
 1. `git fetch origin`; clean tree on `main`.
 2. Bump the rules_dart pin to `${TARGET#v}` in the **root** `MODULE.bazel` **and every**
-   `e2e/*/MODULE.bazel`. `bazel mod tidy` everywhere; commit the lock updates.
-3. Run the **full test surface** (its `ci.yaml` folders + `buildifier.check`) with **no
-   override**, resolving the real published rules_dart, to prove BCR resolution works.
-4. Commit (conventional message, e.g. `chore: bump rules_dart to ${TARGET#v}`), signed,
+   `e2e/*/MODULE.bazel`.
+3. **Regenerate the locks — and verify them, because local caches will lie.** This is
+   the single most failure-prone step; a green local build is **not** proof the lock is
+   CI-correct. Two distinct traps, both masked by your warm caches:
+   - **Missing registry checksum.** The lock must record the BCR hash for the new
+     rules_dart version. Your machine has the registry file cached, so strict-mode
+     builds pass locally even when the hash is absent — but clean CI fails with
+     `Missing checksum for registry file .../rules_dart/<v>/MODULE.bazel not permitted
+with --lockfile_mode=error`. **Verify explicitly:**
+     `grep -c "modules/rules_dart/${TARGET#v}/MODULE.bazel" <module>/MODULE.bazel.lock`
+     must be ≥1 for **every** module (root + each e2e).
+   - **Stale extension state ("usages changed").** Bumping rules_dart changes its
+     `dart/pub` extension implementation, so the lock's recorded extension result is
+     stale. `bazel mod deps` resolves the module graph but does **not** re-evaluate
+     extensions — use `bazel mod tidy --lockfile_mode=refresh` (the command the repo's
+     `.bazelrc` documents) or an update-mode build so the pub extension is re-evaluated.
+     CI rejects a stale one with `MODULE.bazel.lock is no longer up-to-date because the
+usages of the extension '...%pub' have changed`.
+   - **Before regenerating, drop any Phase-3 override pollution.** The `--override_module`
+     runs can leave a local `rules_dart+` repo cached against the _working copy_, so the
+     pub-extension hash you generate reflects the local checkout, not the published
+     module. Regenerate in a clean output base (`bazel --output_base=$(mktemp -d) …`).
+   - **If you cannot produce a lock that a clean build accepts** (macOS host with warm
+     pub/registry/disk caches can deterministically generate a lock clean Linux CI
+     rejects), regenerate it in an environment that matches CI — a clean Linux container
+     with empty `PUB_CACHE` and no bazel disk cache — rather than hand-patching. Treat a
+     local pass as necessary-but-not-sufficient; CI is the real verifier.
+     Commit the lock updates (signed).
+4. Run the **full test surface** (its `ci.yaml` folders + `buildifier.check`) with **no
+   override**, resolving the real published rules*dart. Remember this only proves \_your*
+   cache resolves it — the lock verification in step 3 is what guards CI.
+5. Commit (conventional message, e.g. `chore: bump rules_dart to ${TARGET#v}`), signed,
    directly to `main`. Push. Watch CI green.
-5. Tag the **same** `$TARGET`: `git tag $TARGET origin/main && git push origin $TARGET`.
-6. Watch `release.yaml`, then repeat **Phase 6** for the rules_dart_proto BCR PR (find →
+6. Tag the **same** `$TARGET`: `git tag $TARGET origin/main && git push origin $TARGET`.
+7. Watch `release.yaml`, then repeat **Phase 6** for the rules_dart_proto BCR PR (find →
    `gh pr ready` → poll merged → poll served). rules_dart_proto does **not** publish to pub.dev.
 
 ---
