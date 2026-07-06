@@ -13,6 +13,11 @@ def get_compilation_mode_flags(ctx, compile_mode):
     bazel_mode = ctx.var["COMPILATION_MODE"]
 
     if bazel_mode == "dbg":
+        # `dart compile kernel` rejects `--enable-asserts`: a kernel file
+        # retains asserts and the invoking VM decides whether to enable them
+        # (dart_test's runner always passes `--enable-asserts` at runtime).
+        if compile_mode == "kernel":
+            return []
         return ["--enable-asserts"]
     elif bazel_mode == "opt":
         if compile_mode in ("exe", "aot-snapshot"):

@@ -24,3 +24,10 @@ dart_test(
     srcs = ["test_helpers.dart"],
     main = "test/helpers_test.dart",
 )
+
+# Asserts fire at runtime in every compilation mode — the runner always
+# enables them on the VM. CI also runs this package under `-c dbg`.
+dart_test(
+    name = "asserts_test",
+    main = "test/asserts_test.dart",
+)

@@ -72,6 +72,19 @@ jobs:
           fi
           bazel build //:analyze_bad 2>&1 | grep -q "unused_local_variable"
           echo "OK: expected analyzer failure detected"
+  # `dart compile kernel` rejects `--enable-asserts`, so dbg-mode flags are
+  # chosen per compile mode. hello_world builds all four dart_binary modes;
+  # dart_test exercises the kernel test path end-to-end.
+  dbg-mode:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: hello_world — build all compile modes under -c dbg
+        working-directory: e2e/hello_world
+        run: bazel build -c dbg //...
+      - name: dart_test — run tests under -c dbg
+        working-directory: e2e/dart_test
+        run: bazel test -c dbg --test_output=errors //...
   pre-commit:
     runs-on: ubuntu-latest
     steps:
@@ -80,7 +93,7 @@ jobs:
   # For branch protection settings, this job provides a "stable" name that can be used to gate PR merges
   # on "all matrix jobs were successful".
   conclusion:
-    needs: [test, expected-failure, pre-commit]
+    needs: [test, expected-failure, dbg-mode, pre-commit]
     runs-on: ubuntu-latest
     if: always()
     steps:
