@@ -181,6 +181,20 @@ be green against local WIP rules_dart before pushing.
 3. **Poll until merged**: `gh pr view <number> --repo bazelbuild/bazel-central-registry
 --json state,mergedAt` on an interval. If the bot/maintainer requests changes or a
    presubmit fails, surface it to the user.
+   - **`buildkite/bcr-presubmit` fails fast (~45s) with zero jobs → check
+     `metadata.json`, not the build.** BCR now requires `github_user_id` on every
+     maintainer, but `.bcr/metadata.template.json` in these repos historically omitted it
+     (a maintainer hand-added it to the published `metadata.json`). `publish-to-bcr`
+     regenerates `metadata.json` from the template, so it **drops** the field and
+     `BcrValidationResult.FAILED: ... invalid GitHub user ID for aran`. Fix in **two**
+     places: (a) permanently, add `"github_user_id": 5295` to the maintainer entry in
+     `.bcr/metadata.template.json` in the source repo (already done for all three as of
+     0.4.6 — verify it's still there); (b) to unblock the open PR whose metadata was
+     already generated wrong, re-add the field to `modules/<module>/metadata.json` on the
+     PR's fork branch (`aran:<module>-${TARGET}`) via the contents API, e.g.
+     `gh api -X PUT repos/aran/bazel-central-registry/contents/modules/<module>/metadata.json
+-f branch=<branch> -f sha=<blobsha> -f content=<base64> -f message=...`. Pushing that
+     commit re-triggers presubmit. The net PR diff should then touch only `versions`.
 4. **Poll until BCR serves it**: live when `modules/rules_dart/${TARGET#v}/` exists
    upstream, or a fresh module resolves `bazel_dep(name="rules_dart", version="${TARGET#v}")`.
 5. **Verify pub.dev**: the `dart/runfiles` package published at `${TARGET#v}`.
