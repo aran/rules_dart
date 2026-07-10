@@ -118,17 +118,22 @@ their working trees stay clean. For **each** of `rules_dart_proto` and `rules_fl
      dirtied locks, restore with `git checkout -- .` before continuing.
    - Pass the flags as **separate words** — don't stuff them in one shell variable, since
      zsh won't word-split it and they'll merge into the override path.
-   - **rules_flutter only**: Android targets need `ANDROID_NDK_HOME`. Discover an
-     installed NDK rather than hardcoding a version or OS-specific path:
+   - **rules_flutter only**: Android targets need **both** `ANDROID_HOME` and
+     `ANDROID_NDK_HOME`. Exporting only the NDK is the classic mistake — `rules_android`'s
+     `androidsdk` repo then generates a BUILD file with no `platform-tools/adb` target and
+     `plugin_example` dies in _analysis_ with
+     `no such target '...androidsdk//:platform-tools/adb'`, which looks like a rules_dart
+     regression but is not. Pass them as `--repo_env` too, so a stale `androidsdk` repo
+     generated under the wrong env is re-evaluated:
      ```sh
      SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-${HOME}/Library/Android/sdk}}"  # Linux: ~/Android/Sdk
+     export ANDROID_HOME="$SDK"
      export ANDROID_NDK_HOME="$SDK/ndk/$(ls "$SDK/ndk" | sort -V | tail -1)"
+     bazel test //... --repo_env=ANDROID_HOME="$SDK" --repo_env=ANDROID_NDK_HOME="$ANDROID_NDK_HOME"
      ```
-     Targets needing a full Android SDK _platform_ (e.g. `plugin_example://:android_bundle_build_test`)
-     may still fail locally with a missing `core-for-system-modules-jar` — that's an
-     environment gap, not a rules*dart issue: exclude it with
-     `-- //... -//:android_bundle_build_test` and record it as skipped. The iOS / macOS /
-     web bundle build tests \_do* run locally and are the meaningful cross-platform coverage.
+     With both set, the **whole** `plugin_example` suite passes locally on macOS, including
+     `//:android_bundle_build_test` and `//:verify_android_apk_test`. Only
+     `linux_bundle_build_test` / `windows_bundle_build_test` self-skip (wrong host).
 3. On failure, diagnose:
    - **rules_dart regression** → fix it **in rules_dart locally**, return to Phase 1,
      re-validate. This is the main reason this phase exists.
@@ -191,33 +196,39 @@ From `$HOME/Projects/rules_dart_proto`:
 1. `git fetch origin`; clean tree on `main`.
 2. Bump the rules_dart pin to `${TARGET#v}` in the **root** `MODULE.bazel` **and every**
    `e2e/*/MODULE.bazel`.
-3. **Regenerate the locks — and verify them, because local caches will lie.** This is
-   the single most failure-prone step; a green local build is **not** proof the lock is
-   CI-correct. Two distinct traps, both masked by your warm caches:
-   - **Missing registry checksum.** The lock must record the BCR hash for the new
-     rules_dart version. Your machine has the registry file cached, so strict-mode
-     builds pass locally even when the hash is absent — but clean CI fails with
-     `Missing checksum for registry file .../rules_dart/<v>/MODULE.bazel not permitted
-with --lockfile_mode=error`. **Verify explicitly:**
-     `grep -c "modules/rules_dart/${TARGET#v}/MODULE.bazel" <module>/MODULE.bazel.lock`
-     must be ≥1 for **every** module (root + each e2e).
-   - **Stale extension state ("usages changed").** Bumping rules_dart changes its
-     `dart/pub` extension implementation, so the lock's recorded extension result is
-     stale. `bazel mod deps` resolves the module graph but does **not** re-evaluate
-     extensions — use `bazel mod tidy --lockfile_mode=refresh` (the command the repo's
-     `.bazelrc` documents) or an update-mode build so the pub extension is re-evaluated.
-     CI rejects a stale one with `MODULE.bazel.lock is no longer up-to-date because the
-usages of the extension '...%pub' have changed`.
-   - **Before regenerating, drop any Phase-3 override pollution.** The `--override_module`
-     runs can leave a local `rules_dart+` repo cached against the _working copy_, so the
-     pub-extension hash you generate reflects the local checkout, not the published
-     module. Regenerate in a clean output base (`bazel --output_base=$(mktemp -d) …`).
-   - **If you cannot produce a lock that a clean build accepts** (macOS host with warm
-     pub/registry/disk caches can deterministically generate a lock clean Linux CI
-     rejects), regenerate it in an environment that matches CI — a clean Linux container
-     with empty `PUB_CACHE` and no bazel disk cache — rather than hand-patching. Treat a
-     local pass as necessary-but-not-sufficient; CI is the real verifier.
-     Commit the lock updates (signed).
+3. **Regenerate the locks — after removing `.bazelrc.user`.** This is the single most
+   failure-prone step, and it has exactly one root cause worth remembering.
+
+   `rules_dart_proto/.bazelrc.user` is **gitignored** (so `git status` stays clean) and
+   contains `common --override_module=rules_dart=$HOME/Projects/rules_dart`. `common`
+   applies to _every_ bazel command, `bazel mod tidy` included. Regenerating a lock while
+   it exists corrupts that lock in two ways at once, and CI rejects it:
+
+   - the overridden module is never fetched from the registry, so the lock omits
+     `modules/rules_dart/<v>/MODULE.bazel` → `Missing checksum for registry file ...
+not permitted with --lockfile_mode=error`;
+   - the override changes the pub extension's owning module identity, so its
+     `usagesDigest` differs → `usages of the extension '...%pub' have changed`.
+
+   Only the **root** lock is affected — `.bazelrc` does `try-import %workspace%/.bazelrc.user`,
+   and each `e2e/*` module is its own workspace. If only the root lock misbehaves, this is why.
+
+   So: move `.bazelrc.user` aside (or regenerate from a `git ls-files`-only copy of the
+   tree), then in **each** module run `bazel mod tidy --lockfile_mode=refresh` — `bazel mod
+deps` does **not** re-evaluate extensions. Restore `.bazelrc.user` afterwards.
+
+   **Verify explicitly**, for every module (root + each e2e):
+
+   ```sh
+   grep -c "modules/rules_dart/${TARGET#v}/MODULE.bazel" <module>/MODULE.bazel.lock  # must be >= 1
+   bazel build //... --lockfile_mode=error                                            # must pass
+   ```
+
+   The pub `usagesDigest` is **platform-independent** — clean macOS and clean Linux
+   produce byte-identical locks (verified during the 0.4.6 cascade). Do **not** spin up a
+   Linux VM for this; if a lock looks platform-specific, you left `.bazelrc.user` in place.
+   Commit the lock updates (signed).
+
 4. Run the **full test surface** (its `ci.yaml` folders + `buildifier.check`) with **no
    override**, resolving the real published rules*dart. Remember this only proves \_your*
    cache resolves it — the lock verification in step 3 is what guards CI.
@@ -232,24 +243,37 @@ usages of the extension '...%pub' have changed`.
 ## Phase 8 — rules_flutter (HELD BACK for now)
 
 rules_flutter is **not** ready for a public release. Do **not** tag or release it here.
+It **does** track the rules_dart pin, so bump it like rules_dart_proto — just stop before
+tagging.
 
 1. It was already validated against the WIP rules_dart in **Phase 3** — sufficient for now.
-2. **Clean up the premature `v0.0.1`** (confirm with the user before executing — deleting
-   remote tags and closing PRs is outward-facing and hard to reverse):
-   - Delete the tag locally and on the remote, if present:
-     ```sh
-     git -C $HOME/Projects/rules_flutter tag -d v0.0.1 2>/dev/null || true
-     git -C $HOME/Projects/rules_flutter push origin :refs/tags/v0.0.1 2>/dev/null || true
-     ```
-   - Leave any already-pushed GitHub releases **untagged** (don't re-tag them).
-   - **Close any open rules_flutter BCR PR**:
-     ```sh
-     gh pr list --repo bazelbuild/bazel-central-registry --search "rules_flutter in:title" --state open
-     gh pr close <number> --repo bazelbuild/bazel-central-registry --comment "rules_flutter not ready for release yet"
-     ```
-3. When rules_flutter IS ready later: it gets its **own** next version (own track, e.g.
-   `v0.0.2`), bumps its rules_dart pin to the current published version, then follows the
-   same per-repo flow (Phases 4–6).
+2. **Bump the pin** to `${TARGET#v}` in the root `MODULE.bazel` and every `e2e/*/MODULE.bazel`
+   (skip `e2e/_overlay_tests/native_assets_synthetic`, which pins `0.0.0` behind an override).
+   Regenerate each lock with `bazel mod tidy --lockfile_mode=refresh`, verify with
+   `--lockfile_mode=error`, commit (signed) to `main`, push, and watch CI.
+3. **Pushing to `main` does not open a BCR PR.** `release.yaml` (which calls `publish.yaml`
+   → BCR) fires only on a `v*.*.*` **tag push** or via `workflow_call` from `tag.yaml`.
+   `tag.yaml` — a daily `smlx/ccv` cron that would otherwise auto-tag and auto-release
+   conventional commits — is currently **`disabled_manually`**. Confirm before pushing:
+
+   ```sh
+   gh workflow list --all --repo aran/rules_flutter   # "Tag a Release" must be disabled
+   ```
+
+   If it is ever re-enabled, a pushed `fix:`/`feat:` commit will be auto-tagged within a
+   day and a BCR PR opened. Then: close the PR, delete the tag, and re-disable the workflow.
+
+4. **Sweep for auto-opened BCR PRs** after any push (outward-facing; confirm with the user
+   before closing):
+   ```sh
+   gh pr list --repo bazelbuild/bazel-central-registry --search "rules_flutter in:title" --state open
+   gh pr close <number> --repo bazelbuild/bazel-central-registry --comment "rules_flutter not ready for release yet"
+   ```
+   Leave any existing **draft** GitHub Releases (e.g. `v0.1.0`, `v0.2.0`) alone — a draft
+   release does not create a git tag, and the remote currently has **no** `v*` tags.
+5. When rules_flutter IS ready later: it gets its **own** next version (own track), bumps its
+   rules_dart pin to the current published version, re-enables `tag.yaml` if desired, then
+   follows the same per-repo flow (Phases 4–6).
 
 ---
 
