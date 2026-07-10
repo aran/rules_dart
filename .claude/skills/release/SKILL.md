@@ -182,19 +182,28 @@ be green against local WIP rules_dart before pushing.
 --json state,mergedAt` on an interval. If the bot/maintainer requests changes or a
    presubmit fails, surface it to the user.
    - **`buildkite/bcr-presubmit` fails fast (~45s) with zero jobs → check
-     `metadata.json`, not the build.** BCR now requires `github_user_id` on every
-     maintainer, but `.bcr/metadata.template.json` in these repos historically omitted it
-     (a maintainer hand-added it to the published `metadata.json`). `publish-to-bcr`
-     regenerates `metadata.json` from the template, so it **drops** the field and
-     `BcrValidationResult.FAILED: ... invalid GitHub user ID for aran`. Fix in **two**
-     places: (a) permanently, add `"github_user_id": 5295` to the maintainer entry in
-     `.bcr/metadata.template.json` in the source repo (already done for all three as of
-     0.4.6 — verify it's still there); (b) to unblock the open PR whose metadata was
-     already generated wrong, re-add the field to `modules/<module>/metadata.json` on the
-     PR's fork branch (`aran:<module>-${TARGET}`) via the contents API, e.g.
+     `metadata.json`, not the build.** The failure is `BcrValidationResult.FAILED: ...
+invalid GitHub user ID for aran` (aran's id is `5295`). Cause: `publish-to-bcr`
+     auto-populates each maintainer's `github_user_id` at publish time by resolving the
+     `github` handle against the GitHub API — it does **not** come from the template.
+     That lookup normally succeeds (which is why past releases shipped the field), but it
+     can **transiently fail** — the publish job log shows
+     `Warning: failed to fetch github user id for aran; not auto-populating ...` — leaving
+     the field out. This is a flaky API call, **not** a template regression, and it is
+     **unrelated** to any core-team "manual review" block on a rules_dart PR — don't
+     conflate them. Fix in **two** places: (a) hardening, pin
+     `"github_user_id": 5295` in the maintainer entry of `.bcr/metadata.template.json` so
+     the value never depends on the lookup (done for all three repos as of 0.4.6 — verify
+     it's still there); (b) to unblock the already-open PR whose publish run missed it,
+     re-add the field to `modules/<module>/metadata.json` on the PR's fork branch
+     (`aran:<module>-${TARGET}`) via the contents API, e.g.
      `gh api -X PUT repos/aran/bazel-central-registry/contents/modules/<module>/metadata.json
 -f branch=<branch> -f sha=<blobsha> -f content=<base64> -f message=...`. Pushing that
-     commit re-triggers presubmit. The net PR diff should then touch only `versions`.
+     commit re-triggers presubmit; the net PR diff should then touch only `versions`.
+     **Note**: adding `github_user_id` to the generated `metadata.json` is a change
+     _outside the versions array_, which the BCR bot flags as a "sensitive metadata
+     modification" needing manual maintainer review. Once the template carries the field,
+     future releases generate it in-place and the diff stays version-only (auto-approvable).
 4. **Poll until BCR serves it**: live when `modules/rules_dart/${TARGET#v}/` exists
    upstream, or a fresh module resolves `bazel_dep(name="rules_dart", version="${TARGET#v}")`.
 5. **Verify pub.dev**: the `dart/runfiles` package published at `${TARGET#v}`.
