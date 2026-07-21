@@ -190,7 +190,7 @@ invalid GitHub user ID for aran` (aran's id is `5295`). Cause: `publish-to-bcr`
      can **transiently fail** — the publish job log shows
      `Warning: failed to fetch github user id for aran; not auto-populating ...` — leaving
      the field out. This is a flaky API call, **not** a template regression, and it is
-     **unrelated** to any core-team "manual review" block on a rules_dart PR — don't
+     **unrelated** to any core-team "manual review" block on a `rules_dart` PR — don't
      conflate them. Fix in **two** places: (a) hardening, pin
      `"github_user_id": 5295` in the maintainer entry of `.bcr/metadata.template.json` so
      the value never depends on the lookup (done for all three repos as of 0.4.6 — verify
