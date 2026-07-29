@@ -1,0 +1,12 @@
+load("//dart:defs.bzl", "dart_library")
+
+# The middle of the diamond: depends on the asset-owning package, declares no
+# assets itself, and must still carry `prop_b`'s asset to its own consumers.
+
+dart_library(
+    name = "a",
+    package_name = "prop_a",
+    srcs = ["lib/a.dart"],
+    visibility = ["//dart/tests:__subpackages__"],
+    deps = ["//dart/tests/propagation_fixture/b"],
+)

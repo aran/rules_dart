@@ -1,6 +1,6 @@
 """Shared utilities for Dart rules."""
 
-load("//dart:providers.bzl", "CODE_ASSET_LINK_MODES", "DartInfo")
+load("//dart:providers.bzl", "CODE_ASSET_LINK_MODES", "DartInfo", "DartPackageInfo")
 load("//dart/private:source_set.bzl", "needs_source_assembly", "package_for")
 
 # Official Bazel bash runfiles v3 initialization boilerplate.
@@ -92,6 +92,52 @@ def create_test_executable(ctx, tool, env):
 
     return executable, env_info, tool_runfiles
 
+def package_code_assets(pkg):
+    """Code assets declared on a `DartPackageInfo`, tolerating older producers.
+
+    `code_assets` is optional in the same sense `language_version` is: rule
+    sets outside rules_dart construct `DartPackageInfo` themselves
+    (rules_flutter's `flutter_library` and `flutter_material_icons` do), and
+    those keep working — they simply contribute no assets until they opt in.
+
+    Args:
+      pkg: A `DartPackageInfo`.
+
+    Returns:
+      Tuple of `DartCodeAssetInfo`; empty when the field is absent.
+    """
+    return pkg.code_assets if hasattr(pkg, "code_assets") else ()
+
+def collect_code_asset_files(deps):
+    """Merges `DartInfo.transitive_code_asset_files` across deps.
+
+    Args:
+      deps: List of targets providing `DartInfo`.
+
+    Returns:
+      `depset[File]` of every transitive code asset's dynamic library.
+    """
+    return depset(transitive = [
+        dep[DartInfo].transitive_code_asset_files
+        for dep in deps
+        if hasattr(dep[DartInfo], "transitive_code_asset_files")
+    ])
+
+def collect_transitive_code_assets(deps):
+    """Collects `DartCodeAssetInfo` from every package reachable through deps.
+
+    Args:
+      deps: List of targets providing `DartInfo`.
+
+    Returns:
+      List of `DartCodeAssetInfo`, in dependency order, with duplicates from
+      diamonds left in place — callers dedup by asset id.
+    """
+    assets = []
+    for pkg in collect_packages(deps):
+        assets.extend(list(package_code_assets(pkg)))
+    return assets
+
 def collect_packages(deps):
     """Collect unique DartPackageInfo providers from transitive deps.
 
@@ -105,13 +151,53 @@ def collect_packages(deps):
     Returns:
         List of unique DartPackageInfo providers in dependency order.
     """
+    return merge_package_records(
+        depset(transitive = [dep[DartInfo].transitive_packages for dep in deps]).to_list(),
+    )
+
+def merge_package_records(merged):
+    """Dedups package records by name, unioning their code assets.
+
+    One `package_name` can legitimately appear with several `lib_root`s:
+
+      * a package split across `dart_library` targets — the case
+        `colocate_packages` exists to serve; and
+      * a package supplied independently by two pub hubs, e.g. rules_flutter's
+        `flutter.pub()` and rules_dart's `pub.from_lock()` both generating a
+        spoke for `ffi`.
+
+    So the first record wins for source resolution, as it always has. Code
+    assets are the exception: dropping a later record's assets would silently
+    lose a native library, and the failure would surface at runtime as an
+    unresolved `@Native` symbol. Union them instead, and let
+    `resolve_code_assets` fail later if — and only if — two assets genuinely
+    claim one id, which is the case the Dart VM cannot resolve either.
+
+    Split out from `collect_packages` because it is pure: everything here is a
+    function of the record list, which makes the dedup and union rules
+    directly testable without synthesising `DartInfo`-bearing targets.
+
+    Args:
+        merged: List of DartPackageInfo, with duplicates, in dependency order.
+
+    Returns:
+        List of unique DartPackageInfo providers in dependency order.
+    """
     packages = []
-    seen = {}
-    merged = depset(transitive = [dep[DartInfo].transitive_packages for dep in deps])
-    for pkg in merged.to_list():
-        if pkg.package_name not in seen:
-            seen[pkg.package_name] = True
+    index_by_name = {}
+    for pkg in merged:
+        index = index_by_name.get(pkg.package_name)
+        if index == None:
+            index_by_name[pkg.package_name] = len(packages)
             packages.append(pkg)
+        elif package_code_assets(pkg):
+            kept = packages[index]
+            packages[index] = DartPackageInfo(
+                package_name = kept.package_name,
+                lib_root = kept.lib_root,
+                language_version = kept.language_version if hasattr(kept, "language_version") else "",
+                code_assets = package_code_assets(kept) + package_code_assets(pkg),
+            )
     return packages
 
 def relative_path(from_dir, to_dir):
@@ -642,6 +728,47 @@ def native_assets_path_list(label, link_mode, relative_lib_path, system_uri):
     if payload == "system_uri":
         return [path_type, system_uri]
     return [path_type]
+
+def _asset_identity(asset):
+    """A configuration-independent identity for a code asset.
+
+    Compares the *producing target*, not the `File`: the same
+    `cc_shared_library` analysed in two configurations yields two different
+    `File`s, which is a diamond rather than a conflict.
+    """
+    owner = str(asset.dynamic_library.owner) if asset.dynamic_library != None else ""
+    return (asset.link_mode, asset.system_uri, owner)
+
+def resolve_code_assets(label, transitive_assets, explicit_assets):
+    """Unions transitively-propagated code assets with explicitly named ones.
+
+    An asset id may legitimately arrive many times — through a diamond, or
+    because the user named explicitly what a dependency already supplies. Those
+    collapse. Two *different* assets claiming one id do not: the Dart VM
+    resolves an id to exactly one library, so silently keeping either one would
+    pick a native library by graph-traversal order.
+
+    Args:
+      label: The consuming target's label, for error messages.
+      transitive_assets: `DartCodeAssetInfo` reached through `deps`.
+      explicit_assets: `DartCodeAssetInfo` named in the `code_assets` attr.
+
+    Returns:
+      List of `DartCodeAssetInfo`, one per asset id, in a stable order.
+    """
+    by_id = {}
+    order = []
+    for asset in list(transitive_assets) + list(explicit_assets):
+        previous = by_id.get(asset.asset_id)
+        if previous == None:
+            by_id[asset.asset_id] = asset
+            order.append(asset.asset_id)
+        elif _asset_identity(previous) != _asset_identity(asset):
+            fail(("%s: code asset id `%s` is claimed twice with different " +
+                  "definitions: %s and %s. The Dart VM resolves an asset id to " +
+                  "exactly one library, so drop one of the declarations.") %
+                 (label, asset.asset_id, _asset_identity(previous), _asset_identity(asset)))
+    return [by_id[asset_id] for asset_id in order]
 
 def code_asset_entries(label, assets, output_dir):
     """Builds manifest entries and the runfiles library list for code assets.

@@ -15,11 +15,13 @@ load(
     "WINDOWS_CONSTRAINT_ATTR",
     "code_asset_entries",
     "collect_packages",
+    "collect_transitive_code_assets",
     "collect_transitive_srcs",
     "create_test_executable",
     "gen_kernel_native_assets_action",
     "generate_native_assets_yaml",
     "generate_package_config",
+    "resolve_code_assets",
     "runfiles_path",
     "target_dart_abi",
 )
@@ -54,14 +56,22 @@ def _dart_test_impl(ctx):
     dill = ctx.actions.declare_file(ctx.label.name + ".dill")
     runtime_libs = []
 
-    if ctx.attr.code_assets:
+    # Transitively propagated assets plus any named outright — see the same
+    # comment in `dart_binary`.
+    resolved_assets = resolve_code_assets(
+        ctx.label,
+        collect_transitive_code_assets(ctx.attr.deps),
+        [dep[DartCodeAssetInfo] for dep in ctx.attr.code_assets],
+    )
+
+    if resolved_assets:
         # Embed the code-asset mapping in the kernel (`gen_kernel --native-assets`),
         # with `relative` paths resolved against the dill at runtime — the same
         # build-time path `dart_binary` uses. The `.so` libraries ship in runfiles.
         abi = target_dart_abi(ctx)
         entries, runtime_libs = code_asset_entries(
             ctx.label,
-            [dep[DartCodeAssetInfo] for dep in ctx.attr.code_assets],
+            resolved_assets,
             dill.dirname,
         )
         native_assets_yaml = ctx.actions.declare_file(ctx.label.name + ".native_assets.yaml")

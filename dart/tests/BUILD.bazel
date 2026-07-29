@@ -8,6 +8,7 @@ load(":dart_binary_test.bzl", "dart_binary_test_suite")
 load(":language_version_test.bzl", "language_version_test_suite")
 load(":library_test.bzl", "library_test_suite")
 load(":native_assets_test.bzl", "native_assets_test_suite")
+load(":propagation_test.bzl", "propagation_test_suite")
 load(":provider_shape_test.bzl", "provider_shape_probe")
 load(":semver_test.bzl", "semver_test_suite")
 load(":source_set_test.bzl", "source_set_test_suite")
@@ -23,6 +24,8 @@ dart_binary_test_suite(name = "dart_binary_test")
 native_assets_test_suite(name = "native_assets_test")
 
 code_asset_test_suite(name = "code_asset_test")
+
+propagation_test_suite(name = "propagation_test")
 
 yaml_parser_test_suite(name = "yaml_parser_test")
 

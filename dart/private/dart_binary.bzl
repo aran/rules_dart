@@ -6,10 +6,12 @@ load(
     "DART_ABI_CONSTRAINT_ATTRS",
     "code_asset_entries",
     "collect_packages",
+    "collect_transitive_code_assets",
     "collect_transitive_srcs",
     "gen_kernel_native_assets_action",
     "generate_native_assets_yaml",
     "generate_package_config",
+    "resolve_code_assets",
     "target_dart_abi",
 )
 load("//dart/private:dart_compile.bzl", "dart_compile_action")
@@ -88,11 +90,21 @@ def _dart_binary_impl(ctx):
     compile_package_config = package_config
     code_asset_libs = []
 
-    if ctx.attr.code_assets:
+    # Assets reach a binary two ways: propagated from any package in `deps`
+    # that owns one (the upstream semantics — depending on a package gets you
+    # its assets), or named outright. The explicit attr stays valid for
+    # hand-written cases; it is simply no longer the only mechanism.
+    resolved_assets = resolve_code_assets(
+        ctx.label,
+        collect_transitive_code_assets(ctx.attr.deps),
+        [dep[DartCodeAssetInfo] for dep in ctx.attr.code_assets],
+    )
+
+    if resolved_assets:
         abi = target_dart_abi(ctx)
         entries, code_asset_libs = code_asset_entries(
             ctx.label,
-            [dep[DartCodeAssetInfo] for dep in ctx.attr.code_assets],
+            resolved_assets,
             output.dirname,
         )
         native_assets_yaml = ctx.actions.declare_file(ctx.label.name + ".native_assets.yaml")

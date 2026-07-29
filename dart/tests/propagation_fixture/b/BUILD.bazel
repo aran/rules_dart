@@ -1,0 +1,29 @@
+load("//dart:defs.bzl", "dart_code_asset", "dart_library")
+
+# The far side of the diamond: the package that *owns* a native code asset.
+# Nothing downstream names this asset; it must arrive by propagation alone.
+
+dart_code_asset(
+    name = "code_asset",
+    asset_id = "package:prop_b/src/ffi/prop_b.g.dart",
+    shared_library = "//dart/tests/cc_fixture:empty_shared",
+    visibility = ["//dart/tests:__subpackages__"],
+)
+
+dart_library(
+    name = "b",
+    package_name = "prop_b",
+    srcs = ["lib/b.dart"],
+    code_assets = [":code_asset"],
+    visibility = ["//dart/tests:__subpackages__"],
+)
+
+# Same asset id, declared by a library claiming a different package. The id is
+# namespaced to `prop_b`, so this must fail the ownership check.
+dart_library(
+    name = "misowned",
+    package_name = "not_prop_b",
+    code_assets = [":code_asset"],
+    tags = ["manual"],
+    visibility = ["//dart/tests:__subpackages__"],
+)

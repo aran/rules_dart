@@ -1,0 +1,57 @@
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("//dart:defs.bzl", "dart_binary", "dart_code_asset")
+load("//dart/tests:propagation_test.bzl", "asset_conflict_test", "diamond_probe", "manifest_contains_test", "ownership_violation_test")
+
+# The near side of the diamond. `:app` names no `code_assets` at all — it
+# depends on `prop_a`, which depends on `prop_b`, which owns the asset.
+
+dart_binary(
+    name = "app",
+    main = "main.dart",
+    deps = ["//dart/tests/propagation_fixture/a"],
+)
+
+diamond_probe(
+    name = "diamond_probe_target",
+    expected_asset_ids = ["package:prop_b/src/ffi/prop_b.g.dart"],
+    expected_file_count = 1,
+    deps = ["//dart/tests/propagation_fixture/a"],
+)
+
+build_test(
+    name = "diamond_probe_test",
+    targets = [":diamond_probe_target"],
+)
+
+manifest_contains_test(
+    name = "propagated_asset_in_manifest_test",
+    expected_asset_ids = ["package:prop_b/src/ffi/prop_b.g.dart"],
+    target_under_test = ":app",
+)
+
+ownership_violation_test(
+    name = "ownership_violation_test",
+    target_under_test = "//dart/tests/propagation_fixture/b:misowned",
+)
+
+# Same asset id as the one `prop_b` propagates, but backed by a different
+# library. The Dart VM resolves an id to exactly one library, so taking either
+# silently would pick by graph-traversal order.
+dart_code_asset(
+    name = "conflicting_asset",
+    asset_id = "package:prop_b/src/ffi/prop_b.g.dart",
+    shared_library = "//dart/tests/cc_fixture:empty_shared_alt",
+)
+
+dart_binary(
+    name = "conflicting_app",
+    code_assets = [":conflicting_asset"],
+    main = "main.dart",
+    tags = ["manual"],
+    deps = ["//dart/tests/propagation_fixture/a"],
+)
+
+asset_conflict_test(
+    name = "asset_conflict_test",
+    target_under_test = ":conflicting_app",
+)

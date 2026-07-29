@@ -13,6 +13,23 @@ cc_library(
 
 cc_shared_library(
     name = "empty_shared",
-    visibility = ["//dart/tests:__pkg__"],
+    visibility = ["//dart/tests:__subpackages__"],
+    deps = [":empty"],
+)
+
+# A second, distinct shared library, so a test can have two `dart_code_asset`
+# targets claim one asset id with genuinely different definitions.
+cc_shared_library(
+    name = "empty_shared_alt",
+    shared_lib_name = select({
+        "@platforms//os:ios": "libempty_alt.dylib",
+        "@platforms//os:macos": "libempty_alt.dylib",
+        "@platforms//os:tvos": "libempty_alt.dylib",
+        "@platforms//os:visionos": "libempty_alt.dylib",
+        "@platforms//os:watchos": "libempty_alt.dylib",
+        "@platforms//os:windows": "empty_alt.dll",
+        "//conditions:default": "libempty_alt.so",
+    }),
+    visibility = ["//dart/tests:__subpackages__"],
     deps = [":empty"],
 )

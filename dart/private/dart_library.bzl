@@ -1,6 +1,37 @@
 """Implementation of the dart_library rule."""
 
-load("//dart:providers.bzl", "DartInfo", "DartPackageInfo")
+load("//dart:providers.bzl", "DartCodeAssetInfo", "DartInfo", "DartPackageInfo")
+load("//dart/private:common.bzl", "collect_code_asset_files")
+
+def check_code_asset_ownership(label, package_name, assets):
+    """Checks that every declared asset id is namespaced to this package.
+
+    Upstream requires `CodeAsset.id` to be `package:<package>/<name>` where
+    `<package>` is the package that owns the asset — "Code assets are
+    name-spaced in their own package to avoid naming conflicts". Since assets
+    ride `DartPackageInfo`, an id belonging to some other package would
+    propagate under the wrong owner and be impossible to trace back.
+
+    Args:
+      label: The owning rule's label (included in the error message).
+      package_name: The package name this `dart_library` declares.
+      assets: List of `DartCodeAssetInfo`.
+
+    Returns:
+      An error message string on the first mismatch, else `None`.
+    """
+    prefix = "package:%s/" % package_name
+    for asset in assets:
+        if not asset.asset_id.startswith(prefix):
+            return (
+                ("%s: code asset id `%s` is not namespaced to this package. " +
+                 "Expected it to start with `%s`, because a code asset is " +
+                 "owned by the package declaring it. Either set " +
+                 "`package_name = \"…\"` to the owning package, or move the " +
+                 "asset to that package's `dart_library`.") %
+                (label, asset.asset_id, prefix)
+            )
+    return None
 
 def derive_package_name(package_name_attr, label_package, label_name):
     """Derive the Dart package name from rule attributes and label.
@@ -108,14 +139,28 @@ def _dart_library_impl(ctx):
         direct = own_srcs,
         transitive = [dep[DartInfo].transitive_srcs for dep in ctx.attr.deps],
     )
+    own_assets = [dep[DartCodeAssetInfo] for dep in ctx.attr.code_assets]
+    err = check_code_asset_ownership(ctx.label, package_name, own_assets)
+    if err != None:
+        fail(err)
+
     this_pkg = DartPackageInfo(
         package_name = package_name,
         lib_root = lib_root,
         language_version = ctx.attr.language_version,
+        code_assets = tuple(own_assets),
     )
     transitive_packages = depset(
         direct = [this_pkg],
         transitive = [dep[DartInfo].transitive_packages for dep in ctx.attr.deps],
+    )
+
+    # The libraries travel alongside the package records rather than being
+    # recovered from them: a depset of providers cannot be flattened back into
+    # `File`s without losing the depset, and runfiles need the files.
+    transitive_code_asset_files = depset(
+        direct = [a.dynamic_library for a in own_assets if a.dynamic_library != None],
+        transitive = [collect_code_asset_files(ctx.attr.deps)],
     )
 
     return [
@@ -128,6 +173,7 @@ def _dart_library_impl(ctx):
             lib_root = lib_root,
             transitive_srcs = transitive_srcs,
             transitive_packages = transitive_packages,
+            transitive_code_asset_files = transitive_code_asset_files,
         ),
     ]
 
@@ -145,6 +191,13 @@ dart_library = rule(
         "deps": attr.label_list(
             doc = "Other `dart_library` targets this library depends on. Their sources and package metadata are propagated transitively.",
             providers = [DartInfo],
+        ),
+        "code_assets": attr.label_list(
+            doc = """Native code assets this package owns (see the `dart_code_asset` rule). \
+Assets declared here propagate to every `dart_binary`/`dart_test` that depends on this library, \
+directly or transitively — matching upstream, where depending on a package gets you its assets \
+with no opt-in. Each `asset_id` must be namespaced to this library's `package_name`.""",
+            providers = [DartCodeAssetInfo],
         ),
         "package_name": attr.string(
             doc = "The Dart package name used in `package:` imports. If omitted, defaults to the last component of the Bazel package path.",
