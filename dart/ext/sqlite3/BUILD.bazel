@@ -21,8 +21,16 @@ cc_shared_library(
         "@platforms//os:windows": ["windows_export_all_symbols"],
         "//conditions:default": [],
     }),
+    # Every Apple OS links Mach-O and wants `.dylib`, not just macOS: an iOS
+    # build that fell through to the `.so` default would hand Flutter's
+    # native-asset bundler a Mach-O named `libsqlite3.so`, which its
+    # `frameworkUri` sanitizer turns into `libsqlite3so.framework`.
     shared_lib_name = select({
+        "@platforms//os:ios": "libsqlite3.dylib",
         "@platforms//os:macos": "libsqlite3.dylib",
+        "@platforms//os:tvos": "libsqlite3.dylib",
+        "@platforms//os:visionos": "libsqlite3.dylib",
+        "@platforms//os:watchos": "libsqlite3.dylib",
         "@platforms//os:windows": "sqlite3.dll",
         "//conditions:default": "libsqlite3.so",
     }),
