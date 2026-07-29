@@ -1,6 +1,6 @@
 """Shared utilities for Dart rules."""
 
-load("//dart:providers.bzl", "DartInfo")
+load("//dart:providers.bzl", "CODE_ASSET_LINK_MODES", "DartInfo")
 load("//dart/private:source_set.bzl", "needs_source_assembly", "package_for")
 
 # Official Bazel bash runfiles v3 initialization boilerplate.
@@ -586,23 +586,109 @@ def find_sdk_kernel_tools(dart_sdk_info):
         platform_dill = found["platform_dill"],
     )
 
+# Code-asset link mode -> the Dart VM path type it maps to
+# (`runtime/vm/ffi/native_assets.cc`), and which value supplies the payload:
+# "" means the path type stands alone.
+#
+# `dynamic_loading_bundle` maps to `relative` because `dart_binary`/`dart_test`
+# stage the library in runfiles next to the dill. An application *bundler*
+# such as rules_flutter maps the same link mode to `absolute` against its own
+# bundle layout — the two are not interchangeable, which is why this table
+# lives here and not next to `CODE_ASSET_LINK_MODES`.
+_VM_PATH_TYPE = {
+    "dynamic_loading_bundle": ("relative", "library"),
+    "dynamic_loading_system": ("system", "system_uri"),
+    "dynamic_loading_executable": ("executable", ""),
+    "dynamic_loading_process": ("process", ""),
+}
+
+# Load-time completeness check: the table must cover the vocabulary exactly, so
+# a link mode cannot be accepted by `dart_code_asset` and then go unhandled
+# here. Without it the gap would surface at analysis time, in whichever
+# consumer first used the new mode.
+#
+# Written as an if-*expression* bound to a name because Starlark allows neither
+# a top-level `if` statement nor a top-level bare expression. The binding is
+# never read; evaluating it at load time is the entire point.
+_UNMAPPED_LINK_MODES = [m for m in CODE_ASSET_LINK_MODES if m not in _VM_PATH_TYPE]
+
+# buildifier: disable=unused-variable
+_VM_PATH_TYPE_IS_TOTAL = fail(
+    "common.bzl: _VM_PATH_TYPE has no entry for link mode(s) %s. Every mode in " %
+    ", ".join(_UNMAPPED_LINK_MODES) +
+    "CODE_ASSET_LINK_MODES must map to a Dart VM path type.",
+) if _UNMAPPED_LINK_MODES else True
+
+def native_assets_path_list(label, link_mode, relative_lib_path, system_uri):
+    """Returns the VM path-list for one code asset, per its link mode.
+
+    Args:
+      label: The consuming target's label, for error messages.
+      link_mode: One of `CODE_ASSET_LINK_MODES`.
+      relative_lib_path: Path to the library relative to the dill, for
+        `dynamic_loading_bundle`.
+      system_uri: The system library URI, for `dynamic_loading_system`.
+
+    Returns:
+      List of strings forming the asset's JSON path-list.
+    """
+    mapping = _VM_PATH_TYPE.get(link_mode)
+    if mapping == None:
+        fail("%s: unsupported code-asset link_mode %r. Expected one of: %s." %
+             (label, link_mode, ", ".join(CODE_ASSET_LINK_MODES)))
+    path_type, payload = mapping
+    if payload == "library":
+        return [path_type, relative_lib_path]
+    if payload == "system_uri":
+        return [path_type, system_uri]
+    return [path_type]
+
+def code_asset_entries(label, assets, output_dir):
+    """Builds manifest entries and the runfiles library list for code assets.
+
+    Args:
+      label: The consuming target's label, for error messages.
+      assets: List of `DartCodeAssetInfo`.
+      output_dir: Directory the manifest's `relative` paths resolve against
+        (the dill's `dirname`).
+
+    Returns:
+      `(entries, libraries)` — entries for `generate_native_assets_yaml`, and
+      the `File`s that must be staged in runfiles.
+    """
+    entries = []
+    libraries = []
+    for info in assets:
+        relative_lib_path = ""
+        if info.dynamic_library != None:
+            relative_lib_path = relative_path(output_dir, info.dynamic_library.path)
+            libraries.append(info.dynamic_library)
+        entries.append((
+            info.asset_id,
+            native_assets_path_list(label, info.link_mode, relative_lib_path, info.system_uri),
+        ))
+    return entries, libraries
+
 def generate_native_assets_yaml(abi, asset_entries):
     """Generates the `native_assets.yaml` content for `gen_kernel --native-assets`.
 
     Emits the documented format (JSON, which is valid YAML); the VM reads it
-    as `vm:ffi:native-assets` kernel metadata. Each asset uses the `relative`
-    path type, resolved at runtime against the dill/exe's real path.
+    as `vm:ffi:native-assets` kernel metadata.
 
     Args:
       abi: The `<os>_<arch>` ABI key (see `target_dart_abi`).
-      asset_entries: List of `(asset_id, relative_path)` tuples.
+      asset_entries: List of `(asset_id, path_list)` tuples, where `path_list`
+        comes from `native_assets_path_list`.
 
     Returns:
       String content of the native_assets.yaml file.
     """
     assets = ", ".join([
-        '"{id}": ["relative", "{path}"]'.format(id = asset_id, path = path)
-        for (asset_id, path) in asset_entries
+        '"{id}": [{path}]'.format(
+            id = asset_id,
+            path = ", ".join(['"%s"' % part for part in path_list]),
+        )
+        for (asset_id, path_list) in asset_entries
     ])
     return '{{"format-version": [1, 0, 0], "native-assets": {{"{abi}": {{{assets}}}}}}}\n'.format(
         abi = abi,

@@ -1,0 +1,18 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
+
+# A minimal `cc_shared_library` for `dart_code_asset`'s validation tests: they
+# need a target that really provides `CcSharedLibraryInfo`, and pointing at
+# `//dart/ext/sqlite3:libsqlite3` would both break its private visibility and
+# drag the SQLite amalgamation into the unit-test suite.
+
+cc_library(
+    name = "empty",
+    srcs = ["empty.cc"],
+)
+
+cc_shared_library(
+    name = "empty_shared",
+    visibility = ["//dart/tests:__pkg__"],
+    deps = [":empty"],
+)

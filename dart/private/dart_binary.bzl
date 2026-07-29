@@ -4,12 +4,12 @@ load("//dart:providers.bzl", "DartCodeAssetInfo", "DartCompileInfo", "DartInfo")
 load(
     "//dart/private:common.bzl",
     "DART_ABI_CONSTRAINT_ATTRS",
+    "code_asset_entries",
     "collect_packages",
     "collect_transitive_srcs",
     "gen_kernel_native_assets_action",
     "generate_native_assets_yaml",
     "generate_package_config",
-    "relative_path",
     "target_dart_abi",
 )
 load("//dart/private:dart_compile.bzl", "dart_compile_action")
@@ -90,11 +90,11 @@ def _dart_binary_impl(ctx):
 
     if ctx.attr.code_assets:
         abi = target_dart_abi(ctx)
-        entries = []
-        for dep in ctx.attr.code_assets:
-            info = dep[DartCodeAssetInfo]
-            entries.append((info.asset_id, relative_path(output.dirname, info.dynamic_library.path)))
-            code_asset_libs.append(info.dynamic_library)
+        entries, code_asset_libs = code_asset_entries(
+            ctx.label,
+            [dep[DartCodeAssetInfo] for dep in ctx.attr.code_assets],
+            output.dirname,
+        )
         native_assets_yaml = ctx.actions.declare_file(ctx.label.name + ".native_assets.yaml")
         ctx.actions.write(
             output = native_assets_yaml,

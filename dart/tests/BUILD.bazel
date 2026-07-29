@@ -1,6 +1,7 @@
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("//dart:defs.bzl", "dart_analyze_test", "dart_library")
 load(":analyze_test.bzl", "analyze_hermetic_test")
+load(":code_asset_test.bzl", "code_asset_test_suite")
 load(":codegen_test.bzl", "codegen_test_suite")
 load(":common_test.bzl", "common_test_suite")
 load(":dart_binary_test.bzl", "dart_binary_test_suite")
@@ -20,6 +21,8 @@ common_test_suite(name = "common_test")
 dart_binary_test_suite(name = "dart_binary_test")
 
 native_assets_test_suite(name = "native_assets_test")
+
+code_asset_test_suite(name = "code_asset_test")
 
 yaml_parser_test_suite(name = "yaml_parser_test")
 

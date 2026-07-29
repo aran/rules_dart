@@ -13,13 +13,13 @@ load(
     "//dart/private:common.bzl",
     "DART_ABI_CONSTRAINT_ATTRS",
     "WINDOWS_CONSTRAINT_ATTR",
+    "code_asset_entries",
     "collect_packages",
     "collect_transitive_srcs",
     "create_test_executable",
     "gen_kernel_native_assets_action",
     "generate_native_assets_yaml",
     "generate_package_config",
-    "relative_path",
     "runfiles_path",
     "target_dart_abi",
 )
@@ -59,11 +59,11 @@ def _dart_test_impl(ctx):
         # with `relative` paths resolved against the dill at runtime — the same
         # build-time path `dart_binary` uses. The `.so` libraries ship in runfiles.
         abi = target_dart_abi(ctx)
-        entries = []
-        for dep in ctx.attr.code_assets:
-            info = dep[DartCodeAssetInfo]
-            entries.append((info.asset_id, relative_path(dill.dirname, info.dynamic_library.path)))
-            runtime_libs.append(info.dynamic_library)
+        entries, runtime_libs = code_asset_entries(
+            ctx.label,
+            [dep[DartCodeAssetInfo] for dep in ctx.attr.code_assets],
+            dill.dirname,
+        )
         native_assets_yaml = ctx.actions.declare_file(ctx.label.name + ".native_assets.yaml")
         ctx.actions.write(
             output = native_assets_yaml,

@@ -1,5 +1,20 @@
 """Providers for Dart rules."""
 
+# The upstream `code_assets` link-mode vocabulary, verbatim (see
+# `code_assets/lib/src/code_assets/syntax.g.dart`). Declared here, next to the
+# provider whose field carries it, so that consumers in other rule sets —
+# rules_flutter builds its own bundling layer over `DartCodeAssetInfo` — share
+# one definition rather than keeping a copy that can drift.
+#
+# `static` is deliberately absent: upstream reserves it, but neither the Dart
+# VM nor the Flutter engine implements it (dart-lang/sdk#49418).
+CODE_ASSET_LINK_MODES = (
+    "dynamic_loading_bundle",
+    "dynamic_loading_system",
+    "dynamic_loading_executable",
+    "dynamic_loading_process",
+)
+
 DartInfo = provider(
     doc = "Information about a Dart library's sources and transitive dependencies.",
     fields = {
@@ -44,6 +59,8 @@ compiled kernel (`gen_kernel --native-assets`) so the Dart VM resolves the \
 package's `@Native` symbols against the Bazel-built library at runtime.""",
     fields = {
         "asset_id": "str: The code-asset id the owning package declares (its `@ffi.DefaultAsset` / `@Native(assetId:)`), e.g. `package:sqlite3/src/ffi/libsqlite3.g.dart`.",
-        "dynamic_library": "File: The dynamic library (`.so`/`.dylib`/`.dll`) the asset resolves to.",
+        "link_mode": "str: How the runtime loads the asset. One of `dynamic_loading_bundle`, `dynamic_loading_system`, `dynamic_loading_executable`, `dynamic_loading_process` — the upstream `code_assets` strings, verbatim.",
+        "dynamic_library": "File or None: The dynamic library (`.so`/`.dylib`/`.dll`) the asset resolves to. Set only for `dynamic_loading_bundle`; `None` otherwise.",
+        "system_uri": "str: System library URI (e.g. `libsqlite3.so.0`) for `dynamic_loading_system`. Empty string otherwise.",
     },
 )
