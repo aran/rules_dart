@@ -10,6 +10,7 @@ load("//dart:defs.bzl", "dart_binary")
 dart_binary(
     name = "shim_metadata",
     srcs = ["shim_metadata.dart"],
+    code_assets_from_deps = False,
     main = "shim_metadata.dart",
     visibility = ["//visibility:public"],
     deps = [
@@ -21,6 +22,7 @@ dart_binary(
 dart_binary(
     name = "shim_config",
     srcs = ["shim_config.dart"],
+    code_assets_from_deps = False,
     main = "shim_config.dart",
     visibility = ["//visibility:public"],
     deps = [

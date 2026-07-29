@@ -257,7 +257,7 @@
     },
     "@@rules_dart+//dart/pub:extensions.bzl%pub": {
       "general": {
-        "bzlTransitiveDigest": "JRys/SxjpOKWTRV+p/v6vbVhHtosN9MRQbC4BnvwLb8=",
+        "bzlTransitiveDigest": "sHgVKM2ZTgT10rYwLGB1Vzkxn08vEe62dLOalxytc7w=",
         "usagesDigest": "TNq5MxKOBJWOEk/RZg47u285IIJSnrRWfsEwWC15i7s=",
         "recordedInputs": [
           "REPO_MAPPING:rules_dart+,yaml.bzl yaml.bzl+",
@@ -366,7 +366,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__analyzer": {
@@ -470,7 +472,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__args": {
@@ -574,7 +578,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__async": {
@@ -678,7 +684,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__boolean_selector": {
@@ -782,7 +790,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__build": {
@@ -886,7 +896,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__built_collection": {
@@ -990,7 +1002,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__built_value": {
@@ -1094,7 +1108,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__cli_config": {
@@ -1198,7 +1214,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__code_assets": {
@@ -1302,7 +1320,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__code_builder": {
@@ -1406,7 +1426,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__collection": {
@@ -1510,7 +1532,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__convert": {
@@ -1614,7 +1638,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__copy_with_extension": {
@@ -1718,7 +1744,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__coverage": {
@@ -1822,7 +1850,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__crypto": {
@@ -1926,7 +1956,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__dart_style": {
@@ -2030,7 +2062,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__drift": {
@@ -2134,7 +2168,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__ffi": {
@@ -2238,7 +2274,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__file": {
@@ -2342,7 +2380,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__fixnum": {
@@ -2446,7 +2486,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__freezed_annotation": {
@@ -2550,7 +2592,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__frontend_server_client": {
@@ -2654,7 +2698,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__get_it": {
@@ -2758,7 +2804,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__glob": {
@@ -2862,7 +2910,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__hooks": {
@@ -2966,7 +3016,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__http_multi_server": {
@@ -3070,7 +3122,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__http_parser": {
@@ -3174,7 +3228,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__injectable": {
@@ -3278,7 +3334,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__io": {
@@ -3382,7 +3440,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__json_annotation": {
@@ -3486,7 +3546,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__logging": {
@@ -3590,7 +3652,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__matcher": {
@@ -3694,7 +3758,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__meta": {
@@ -3798,7 +3864,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__mime": {
@@ -3902,7 +3970,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__mockito": {
@@ -4006,7 +4076,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__native_toolchain_c": {
@@ -4110,7 +4182,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__node_preamble": {
@@ -4214,7 +4288,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__package_config": {
@@ -4318,7 +4394,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__path": {
@@ -4422,7 +4500,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__pool": {
@@ -4526,7 +4606,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__pub_semver": {
@@ -4630,7 +4712,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__shelf": {
@@ -4734,7 +4818,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__shelf_packages_handler": {
@@ -4838,7 +4924,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__shelf_static": {
@@ -4942,7 +5030,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__shelf_web_socket": {
@@ -5046,7 +5136,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__source_gen": {
@@ -5150,7 +5242,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__source_map_stack_trace": {
@@ -5254,7 +5348,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__source_maps": {
@@ -5358,7 +5454,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__source_span": {
@@ -5462,7 +5560,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__sqlite3": {
@@ -5566,7 +5666,11 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [
+                "@rules_dart//dart/ext/sqlite3:code_asset"
+              ],
+              "ignore_hook": false
             }
           },
           "dart_pub__stack_trace": {
@@ -5670,7 +5774,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__stacked_shared": {
@@ -5774,7 +5880,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__stream_channel": {
@@ -5878,7 +5986,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__string_scanner": {
@@ -5982,7 +6092,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__term_glyph": {
@@ -6086,7 +6198,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__test": {
@@ -6190,7 +6304,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__test_api": {
@@ -6294,7 +6410,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__test_core": {
@@ -6398,7 +6516,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__typed_data": {
@@ -6502,7 +6622,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__vm_service": {
@@ -6606,7 +6728,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__watcher": {
@@ -6710,7 +6834,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__web": {
@@ -6814,7 +6940,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__web_socket": {
@@ -6918,7 +7046,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__web_socket_channel": {
@@ -7022,7 +7152,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__webkit_inspection_protocol": {
@@ -7126,7 +7258,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__yaml": {
@@ -7230,7 +7364,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__ansicolor": {
@@ -7334,7 +7470,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__bazel_worker": {
@@ -7438,7 +7576,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__build_config": {
@@ -7542,7 +7682,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__built_value_generator": {
@@ -7646,7 +7788,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__charcode": {
@@ -7750,7 +7894,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__checked_yaml": {
@@ -7854,7 +8000,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__cli_util": {
@@ -7958,7 +8106,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__clock": {
@@ -8062,7 +8212,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__copy_with_extension_gen": {
@@ -8166,7 +8318,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__drift_dev": {
@@ -8270,7 +8424,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__freezed": {
@@ -8374,7 +8530,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__go_router_builder": {
@@ -8478,7 +8636,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__hotreloader": {
@@ -8582,7 +8742,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__injectable_generator": {
@@ -8686,7 +8848,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__json_serializable": {
@@ -8790,7 +8954,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__lean_builder": {
@@ -8894,7 +9060,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__logger": {
@@ -8998,7 +9166,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__protobuf": {
@@ -9102,7 +9272,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__pubspec_parse": {
@@ -9206,7 +9378,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__recase": {
@@ -9310,7 +9484,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__source_helper": {
@@ -9414,7 +9590,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__sqlparser": {
@@ -9518,7 +9696,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__stacked_generator": {
@@ -9622,7 +9802,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__stream_transform": {
@@ -9726,7 +9908,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "dart_pub__xxh3": {
@@ -9830,7 +10014,9 @@
                 "webkit_inspection_protocol",
                 "xxh3",
                 "yaml"
-              ]
+              ],
+              "code_assets": [],
+              "ignore_hook": false
             }
           },
           "pub_deps": {

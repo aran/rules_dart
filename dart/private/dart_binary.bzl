@@ -4,6 +4,7 @@ load("//dart:providers.bzl", "DartCodeAssetInfo", "DartCompileInfo", "DartInfo")
 load(
     "//dart/private:common.bzl",
     "DART_ABI_CONSTRAINT_ATTRS",
+    "check_unreplaced_hooks",
     "code_asset_entries",
     "collect_packages",
     "collect_transitive_code_assets",
@@ -55,6 +56,11 @@ def _dart_binary_impl(ctx):
     # generated sibling sources, so the compile resolves everything.
     packages = collect_packages(ctx.attr.deps)
 
+    if ctx.attr.code_assets_from_deps:
+        hook_err = check_unreplaced_hooks(ctx.label, packages)
+        if hook_err != None:
+            fail(hook_err)
+
     # The one flatten per rule: colocation inspects per-file paths.
     packages, dep_srcs = colocate_packages(ctx, packages, collect_transitive_srcs(ctx.attr.deps).to_list())
     main_input, main_arg, own_inputs = colocate_entrypoint(ctx, ctx.file.main, ctx.files.srcs)
@@ -96,7 +102,7 @@ def _dart_binary_impl(ctx):
     # hand-written cases; it is simply no longer the only mechanism.
     resolved_assets = resolve_code_assets(
         ctx.label,
-        collect_transitive_code_assets(ctx.attr.deps),
+        collect_transitive_code_assets(ctx.attr.deps) if ctx.attr.code_assets_from_deps else [],
         [dep[DartCodeAssetInfo] for dep in ctx.attr.code_assets],
     )
 
@@ -188,6 +194,20 @@ code-asset mapping embedded (`gen_kernel --native-assets`) before the snapshot/e
 and the libraries are staged in runfiles so the Dart VM resolves them relative to the executable \
 at runtime. Each entry must provide `DartCodeAssetInfo` (see the `dart_code_asset` rule).""",
             providers = [DartCodeAssetInfo],
+        ),
+        "code_assets_from_deps": attr.bool(
+            default = True,
+            doc = """Whether to pick up native code assets propagated through `deps`.
+
+Leave this on for a program that runs the packages it depends on. Turn it off for a `dart_binary` \
+used purely as a *build tool* — a code generator, a linter — which imports pub packages for their \
+Dart API but never loads their native libraries. Without the opt-out such a tool would build (and \
+in an exec configuration, cross-build) every native library anywhere in its dependency closure. \
+rules_dart's own `dart/ext` builder shims set this to `False`: `drift_dev` depends on \
+`package:sqlite3`, but generating code never calls into libsqlite3.
+
+Also suppresses the unreplaced-`hook/build.dart` diagnostic, on the same grounds — a tool that \
+never loads native code is unaffected by a package whose native code was not built.""",
         ),
         "compile_mode": attr.string(
             doc = """\

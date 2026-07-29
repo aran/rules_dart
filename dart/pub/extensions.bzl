@@ -1,5 +1,6 @@
 """Module extension for declaring pub.dev package dependencies."""
 
+load("//dart/ext:registry.bzl", "curated_code_assets")
 load("//dart/pub:pub_lock_hub.bzl", "pub_lock_hub")
 load("//dart/pub:pub_lock_package.bzl", "pub_lock_package")
 load("//dart/pub:yaml_parser.bzl", "parse_pubspec_lock")
@@ -40,6 +41,13 @@ _from_lock = tag_class(
             mandatory = True,
             allow_single_file = True,
         ),
+        "ignore_hooks": attr.string_list(
+            doc = "Pub package names whose `hook/build.dart` is knowingly irrelevant to this " +
+                  "build (its native code is never reached). Suppresses the unreplaced-hook " +
+                  "error for them. This is a declaration you make deliberately; it is never a " +
+                  "default.",
+            default = [],
+        ),
         "on_version_conflict": attr.string(
             doc = "What to do when another lock file provides a higher version of a package. " +
                   "'error' (default) fails the build. 'upgrade' accepts the higher version.",
@@ -50,6 +58,15 @@ _from_lock = tag_class(
 )
 
 def _pub_impl(ctx):
+    # Packages the user has declared hook-irrelevant, unioned across every
+    # from_lock call — a package is one repo regardless of how many locks
+    # mention it, so the flag cannot be per-lock.
+    ignore_hooks = {}
+    for mod in ctx.modules:
+        for lock_tag in mod.tags.from_lock:
+            for pkg_name in lock_tag.ignore_hooks:
+                ignore_hooks[pkg_name] = True
+
     # Handle individual package declarations — these take priority
     explicit = {}
     for mod in ctx.modules:
@@ -202,6 +219,8 @@ def _pub_impl(ctx):
             base_url = pkg.url,
             hub_name = _SPOKE_PREFIX,
             lock_packages = all_package_names,
+            code_assets = curated_code_assets(name, pkg.version),
+            ignore_hook = name in ignore_hooks,
         )
 
     # Create per-from_lock hub repos

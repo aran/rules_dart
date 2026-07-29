@@ -13,6 +13,7 @@ load(
     "//dart/private:common.bzl",
     "DART_ABI_CONSTRAINT_ATTRS",
     "WINDOWS_CONSTRAINT_ATTR",
+    "check_unreplaced_hooks",
     "code_asset_entries",
     "collect_packages",
     "collect_transitive_code_assets",
@@ -38,6 +39,10 @@ def _dart_test_impl(ctx):
     # sibling sources (e.g. a `.mocks.dart`), so the build-time compile resolves
     # everything.
     packages = collect_packages(ctx.attr.deps)
+
+    hook_err = check_unreplaced_hooks(ctx.label, packages)
+    if hook_err != None:
+        fail(hook_err)
 
     # The one flatten per rule: colocation inspects per-file paths.
     packages, dep_srcs = colocate_packages(ctx, packages, collect_transitive_srcs(ctx.attr.deps).to_list())

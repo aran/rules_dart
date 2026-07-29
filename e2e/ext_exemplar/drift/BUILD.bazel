@@ -1,6 +1,5 @@
 load("@rules_dart//dart:defs.bzl", "dart_test")
 load("@rules_dart//dart/ext/drift:defs.bzl", "drift_library")
-load("@rules_dart//dart/ext/sqlite3:defs.bzl", "sqlite3_code_asset")
 
 # Comprehensive e2e for drift:
 #  - .drift file include (todos + `AS Todo` data class + `allTodos` query)
@@ -24,12 +23,12 @@ drift_library(
 )
 
 # drift's NativeDatabase uses package:sqlite3, whose @Native bindings need a
-# libsqlite3 at runtime. `code_assets` builds it hermetically (Bazel, via the
-# BCR sqlite3 module) and embeds the mapping into the test kernel — the test
+# libsqlite3 at runtime. This test names NO code_assets: `pub.from_lock()`
+# attaches rules_dart's curated libsqlite3 to the `sqlite3` spoke itself, and
+# it propagates here through drift's dependency on it — the test
 # source stays plain `NativeDatabase.memory()`, no dart:ffi.
 dart_test(
     name = "database_test",
-    code_assets = [sqlite3_code_asset()],
     main = "test/database_test.dart",
     deps = [
         ":drift_fixture",

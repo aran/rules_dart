@@ -5,6 +5,7 @@ load(
     "//dart/private:common.bzl",
     "asset_path_for",
     "check_single_root_package",
+    "check_unreplaced_hooks",
     "generate_dev_package_config",
     "generate_package_config",
     "generate_package_config_content",
@@ -356,6 +357,35 @@ def _check_single_root_conflict_test_impl(ctx):
     asserts.true(env, "one root package" in err)
     return unittest.end(env)
 
+def _hooks_ok_test_impl(ctx):
+    # No hook, an empty hook string, and a producer that omits the field
+    # entirely must all pass.
+    env = unittest.begin(ctx)
+    asserts.equals(env, None, check_unreplaced_hooks("//a:b", [
+        struct(package_name = "fine", has_unreplaced_hook = ""),
+        struct(package_name = "legacy"),
+    ]))
+    asserts.equals(env, None, check_unreplaced_hooks("//a:b", []))
+    return unittest.end(env)
+
+def _hooks_offender_test_impl(ctx):
+    # Must name the target, each offending package, its hook path, and both
+    # remedies — this message is the only thing standing between the user and
+    # a runtime "couldn't resolve native function".
+    env = unittest.begin(ctx)
+    err = check_unreplaced_hooks("//app:bin", [
+        struct(package_name = "fine", has_unreplaced_hook = ""),
+        struct(package_name = "webcrypto", has_unreplaced_hook = "hook/build.dart"),
+    ])
+    asserts.true(env, err != None)
+    asserts.true(env, "//app:bin" in err)
+    asserts.true(env, "webcrypto" in err)
+    asserts.true(env, "hook/build.dart" in err)
+    asserts.true(env, "code_assets" in err)
+    asserts.true(env, "ignore_hooks" in err)
+    asserts.true(env, "fine" not in err)
+    return unittest.end(env)
+
 # --- asset_path_for tests ---
 
 def _apf_source_under_lib_root_test_impl(ctx):
@@ -443,6 +473,8 @@ _t25_test = unittest.make(_apf_generated_colocated_test_impl)
 _t26_test = unittest.make(_apf_generated_nested_package_test_impl)
 _t27_test = unittest.make(_apf_generated_sibling_package_test_impl)
 _t28_test = unittest.make(_apf_generated_deeper_build_test_impl)
+_t32_test = unittest.make(_hooks_ok_test_impl)
+_t33_test = unittest.make(_hooks_offender_test_impl)
 
 def common_test_suite(name):
     unittest.suite(
@@ -476,4 +508,6 @@ def common_test_suite(name):
         _t26_test,
         _t27_test,
         _t28_test,
+        _t32_test,
+        _t33_test,
     )

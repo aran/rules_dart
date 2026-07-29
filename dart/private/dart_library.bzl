@@ -149,6 +149,7 @@ def _dart_library_impl(ctx):
         lib_root = lib_root,
         language_version = ctx.attr.language_version,
         code_assets = tuple(own_assets),
+        has_unreplaced_hook = ctx.attr.has_unreplaced_hook,
     )
     transitive_packages = depset(
         direct = [this_pkg],
@@ -198,6 +199,13 @@ Assets declared here propagate to every `dart_binary`/`dart_test` that depends o
 directly or transitively — matching upstream, where depending on a package gets you its assets \
 with no opt-in. Each `asset_id` must be namespaced to this library's `package_name`.""",
             providers = [DartCodeAssetInfo],
+        ),
+        "has_unreplaced_hook": attr.string(
+            doc = """Path of a pub build hook (`hook/build.dart` / `hook/link.dart`) this \
+package ships that rules_dart has no replacement for. Set by `pub.from_lock()`; hand-written \
+`dart_library` targets leave it empty. A `dart_binary`/`dart_test` reaching such a package fails \
+with an explanation, rather than producing a binary whose `@Native` bindings silently fail to \
+resolve at runtime.""",
         ),
         "package_name": attr.string(
             doc = "The Dart package name used in `package:` imports. If omitted, defaults to the last component of the Bazel package path.",

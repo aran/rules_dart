@@ -197,6 +197,9 @@ def merge_package_records(merged):
                 lib_root = kept.lib_root,
                 language_version = kept.language_version if hasattr(kept, "language_version") else "",
                 code_assets = package_code_assets(kept) + package_code_assets(pkg),
+                has_unreplaced_hook = (
+                    kept.has_unreplaced_hook if hasattr(kept, "has_unreplaced_hook") else ""
+                ),
             )
     return packages
 
@@ -728,6 +731,49 @@ def native_assets_path_list(label, link_mode, relative_lib_path, system_uri):
     if payload == "system_uri":
         return [path_type, system_uri]
     return [path_type]
+
+def check_unreplaced_hooks(label, packages):
+    """Checks that no package in the closure has an unreplaced build hook.
+
+    A pub package shipping `hook/build.dart` builds native libraries at
+    `pub get` time. rules_dart cannot run that hook, so without a Bazel
+    replacement the package's `@Native` bindings resolve to nothing — the
+    manifest is simply missing an entry, and the failure surfaces at runtime
+    as "couldn't resolve native function", with nothing pointing at the cause.
+
+    Deliberately checked here rather than when the spoke repo is generated:
+    `pub.from_lock()` materialises the whole lock file, so failing at
+    generation would fail on packages nothing depends on and on platforms
+    where the hook is irrelevant. Only a package actually reached by a binary
+    or test is a problem, and only here is the depending target known.
+
+    Args:
+      label: The consuming target's label.
+      packages: List of `DartPackageInfo` in the transitive closure.
+
+    Returns:
+      An error message string, or `None`.
+    """
+    offenders = [
+        pkg
+        for pkg in packages
+        if hasattr(pkg, "has_unreplaced_hook") and pkg.has_unreplaced_hook
+    ]
+    if not offenders:
+        return None
+    lines = [
+        "  - %s (%s)" % (pkg.package_name, pkg.has_unreplaced_hook)
+        for pkg in offenders
+    ]
+    return (
+        ("%s depends on pub package(s) that build native code with a hook " +
+         "rules_dart cannot run:\n%s\n\n" +
+         "Their `@Native` bindings will not resolve at runtime. Either:\n" +
+         "  - name a `dart_code_asset` in this target's `code_assets`, or\n" +
+         "  - list the package in `pub.from_lock(ignore_hooks = [...])` if " +
+         "its native code is genuinely unused here.") %
+        (label, "\n".join(lines))
+    )
 
 def _asset_identity(asset):
     """A configuration-independent identity for a code asset.

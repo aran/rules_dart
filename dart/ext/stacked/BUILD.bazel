@@ -5,6 +5,7 @@ load("//dart:defs.bzl", "dart_binary")
 dart_binary(
     name = "shim_router",
     srcs = ["shim_router.dart"],
+    code_assets_from_deps = False,
     main = "shim_router.dart",
     visibility = ["//visibility:public"],
     deps = [
@@ -16,6 +17,7 @@ dart_binary(
 dart_binary(
     name = "shim_locator",
     srcs = ["shim_locator.dart"],
+    code_assets_from_deps = False,
     main = "shim_locator.dart",
     visibility = ["//visibility:public"],
     deps = [
@@ -27,6 +29,7 @@ dart_binary(
 dart_binary(
     name = "shim_form",
     srcs = ["shim_form.dart"],
+    code_assets_from_deps = False,
     main = "shim_form.dart",
     visibility = ["//visibility:public"],
     deps = [
@@ -38,6 +41,7 @@ dart_binary(
 dart_binary(
     name = "shim_logger",
     srcs = ["shim_logger.dart"],
+    code_assets_from_deps = False,
     main = "shim_logger.dart",
     visibility = ["//visibility:public"],
     deps = [
@@ -49,6 +53,7 @@ dart_binary(
 dart_binary(
     name = "shim_dialog",
     srcs = ["shim_dialog.dart"],
+    code_assets_from_deps = False,
     main = "shim_dialog.dart",
     visibility = ["//visibility:public"],
     deps = [
@@ -60,6 +65,7 @@ dart_binary(
 dart_binary(
     name = "shim_bottomsheet",
     srcs = ["shim_bottomsheet.dart"],
+    code_assets_from_deps = False,
     main = "shim_bottomsheet.dart",
     visibility = ["//visibility:public"],
     deps = [

@@ -6,6 +6,7 @@ load("//dart:defs.bzl", "dart_binary")
 dart_binary(
     name = "shim",
     srcs = ["shim.dart"],
+    code_assets_from_deps = False,
     main = "shim.dart",
     visibility = ["//visibility:public"],
     deps = [

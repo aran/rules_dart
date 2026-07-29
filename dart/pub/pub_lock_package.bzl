@@ -17,7 +17,7 @@ load("//dart/pub/private:language_version.bzl", _derive_language_version = "deri
 # buildifier's bzl-visibility check, so we expose it via this public file.
 derive_language_version = _derive_language_version
 
-def make_dart_library_build_content(name, deps, language_version):
+def make_dart_library_build_content(name, deps, language_version, code_assets = [], has_unreplaced_hook = ""):
     """Generate the BUILD.bazel content for a single `dart_library` spoke.
 
     The shape — `srcs = glob(["lib/**/*.dart"], allow_empty = True)`, a
@@ -33,6 +33,13 @@ def make_dart_library_build_content(name, deps, language_version):
         language_version: Dart language version string (e.g. `"3.0"`),
             usually derived from the package's pubspec SDK constraint via
             `derive_language_version`.
+        code_assets: List of `dart_code_asset` label strings replacing this
+            package's `hook/build.dart` output. Attaching them here rather
+            than at the consuming binary is what makes them propagate: they
+            become part of the package's own metadata.
+        has_unreplaced_hook: Path of a build hook this package ships that has
+            no replacement, or empty. Recorded so a consuming binary can fail
+            with an explanation instead of at runtime.
 
     Returns:
         BUILD.bazel content as a string.
@@ -42,19 +49,30 @@ def make_dart_library_build_content(name, deps, language_version):
         dep_lines = ['        "{}",'.format(dep) for dep in deps]
         deps_block = "    deps = [\n{}\n    ],\n".format("\n".join(dep_lines))
 
+    assets_block = ""
+    if code_assets:
+        asset_lines = ['        "{}",'.format(a) for a in code_assets]
+        assets_block = "    code_assets = [\n{}\n    ],\n".format("\n".join(asset_lines))
+
+    hook_block = ""
+    if has_unreplaced_hook:
+        hook_block = '    has_unreplaced_hook = "{}",\n'.format(has_unreplaced_hook)
+
     return """\
 load("@rules_dart//dart:defs.bzl", "dart_library")
 
 dart_library(
     name = "{name}",
     srcs = glob(["lib/**/*.dart"], allow_empty = True),
-{deps}    package_name = "{name}",
+{assets}{deps}{hook}    package_name = "{name}",
     language_version = "{language_version}",
     visibility = ["//visibility:public"],
 )
 """.format(
         name = name,
+        assets = assets_block,
         deps = deps_block,
+        hook = hook_block,
         language_version = language_version,
     )
 
@@ -109,10 +127,24 @@ def _pub_lock_package_impl(ctx):
         for dep in bazel_deps
     ]
 
+    # A package that builds native code declares a hook. rules_dart cannot run
+    # it, so unless a curated `dart_code_asset` replaces it — or the user has
+    # declared it irrelevant — record it for the consuming binary to complain
+    # about. Recording rather than failing here is deliberate: the whole lock
+    # is materialised, including packages nothing depends on.
+    unreplaced_hook = ""
+    if not ctx.attr.code_assets and not ctx.attr.ignore_hook:
+        for candidate in ["hook/build.dart", "hook/link.dart"]:
+            if ctx.path(candidate).exists:
+                unreplaced_hook = candidate
+                break
+
     build_content = make_dart_library_build_content(
         name = ctx.attr.package_name,
         deps = dep_labels,
         language_version = language_version,
+        code_assets = ctx.attr.code_assets,
+        has_unreplaced_hook = unreplaced_hook,
     )
 
     ctx.file("BUILD.bazel", build_content)
@@ -142,6 +174,18 @@ pub_lock_package = repository_rule(
         ),
         "lock_packages": attr.string_list(
             doc = "All hosted package names in the lock file (for dep filtering).",
+            default = [],
+        ),
+        "ignore_hook": attr.bool(
+            doc = "Suppress the unreplaced-hook diagnostic for this package. Set by " +
+                  "`pub.from_lock(ignore_hooks = [...])`; never a default.",
+            default = False,
+        ),
+        "code_assets": attr.string_list(
+            doc = "Labels of `dart_code_asset` targets replacing this package's " +
+                  "`hook/build.dart` output. Resolved by the `pub` extension from " +
+                  "rules_dart's curated registry; attached to the generated " +
+                  "`dart_library` so they propagate to every consumer.",
             default = [],
         ),
     },

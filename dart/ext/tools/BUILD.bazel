@@ -17,6 +17,7 @@ dart_library(
 dart_binary(
     name = "check_dual_build_collisions",
     srcs = ["bin/main.dart"],
+    code_assets_from_deps = False,
     data = ["//gazelle/dart:baseline_generated_extensions.txt"],
     main = "bin/main.dart",
     visibility = ["//visibility:public"],
