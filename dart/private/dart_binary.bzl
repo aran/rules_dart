@@ -1,6 +1,7 @@
 """Implementation of the dart_binary rule."""
 
 load("//dart:providers.bzl", "DartCodeAssetInfo", "DartCompileInfo", "DartInfo")
+load("//dart/private:build_settings.bzl", "EXTRA_DART_DEFINES_ATTR", "merge_dart_defines")
 load(
     "//dart/private:common.bzl",
     "DART_ABI_CONSTRAINT_ATTRS",
@@ -94,7 +95,7 @@ def _dart_binary_impl(ctx):
     compile_main_arg = main_arg
     compile_srcs = all_srcs
     compile_package_config = package_config
-    compile_defines = ctx.attr.defines
+    compile_defines = merge_dart_defines(ctx)
     code_asset_libs = []
 
     # Assets reach a binary two ways: propagated from any package in `deps`
@@ -129,7 +130,7 @@ def _dart_binary_impl(ctx):
             native_assets_yaml = native_assets_yaml,
             output_dill = dill,
             main_path = main_arg,
-            defines = ctx.attr.defines,
+            defines = compile_defines,
         )
         compile_main = dill
         compile_main_arg = None
@@ -233,7 +234,7 @@ The `dart compile` mode. Determines the output format:
         "defines": attr.string_list(
             doc = "Dart environment declarations (`key=value`). Each entry becomes a `-Dkey=value` flag.",
         ),
-    }, **DART_ABI_CONSTRAINT_ATTRS),
+    }, **dict(DART_ABI_CONSTRAINT_ATTRS, **EXTRA_DART_DEFINES_ATTR)),
     executable = True,
     toolchains = ["//dart:toolchain_type"] + COPY_TO_DIRECTORY_TOOLCHAINS,
     doc = "Compiles a Dart application using `dart compile`.",

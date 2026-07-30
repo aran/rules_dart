@@ -9,6 +9,7 @@ runfiles (Windows) are a non-issue.
 """
 
 load("//dart:providers.bzl", "DartCodeAssetInfo", "DartInfo")
+load("//dart/private:build_settings.bzl", "EXTRA_DART_DEFINES_ATTR", "merge_dart_defines")
 load(
     "//dart/private:common.bzl",
     "DART_ABI_CONSTRAINT_ATTRS",
@@ -59,6 +60,7 @@ def _dart_test_impl(ctx):
     )
 
     dill = ctx.actions.declare_file(ctx.label.name + ".dill")
+    defines = merge_dart_defines(ctx)
     runtime_libs = []
 
     # Transitively propagated assets plus any named outright — see the same
@@ -93,7 +95,7 @@ def _dart_test_impl(ctx):
             native_assets_yaml = native_assets_yaml,
             output_dill = dill,
             main_path = main_arg,
-            defines = ctx.attr.defines,
+            defines = defines,
         )
     else:
         dart_compile_action(
@@ -106,7 +108,7 @@ def _dart_test_impl(ctx):
             output = dill,
             compile_mode = "kernel",
             main_path = main_arg,
-            defines = ctx.attr.defines,
+            defines = defines,
         )
 
     # Thin launcher: run the self-contained dill with asserts enabled. The dill
@@ -173,7 +175,7 @@ must provide `DartCodeAssetInfo` (see the `dart_code_asset` rule).""",
             executable = True,
             cfg = "exec",
         ),
-    }, **dict(WINDOWS_CONSTRAINT_ATTR, **DART_ABI_CONSTRAINT_ATTRS)),
+    }, **dict(WINDOWS_CONSTRAINT_ATTR, **dict(DART_ABI_CONSTRAINT_ATTRS, **EXTRA_DART_DEFINES_ATTR))),
     test = True,
     toolchains = ["//dart:toolchain_type"] + COPY_TO_DIRECTORY_TOOLCHAINS,
     doc = "Compiles a Dart test to a kernel at build time and runs it with asserts enabled.",

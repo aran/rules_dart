@@ -9,6 +9,7 @@ evaporates, so these tests pin which stage receives the flag in each shape.
 """
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts", "unittest")
+load("//dart/private:build_settings.bzl", "dart_define_error")
 load("//dart/private:dart_compile.bzl", "defines_stage_error")
 load(":small_suite.bzl", "small_unittest_suite")
 
@@ -104,9 +105,37 @@ def _rejects_defines_on_kernel_input_test_impl(ctx):
     asserts.true(env, "A=1" in err, "the message should name the offending defines: %s" % err)
     return unittest.end(env)
 
+# --- dart_define_error ---
+
+def _accepts_usable_defines_test_impl(ctx):
+    # A bare KEY is a key with no value, which the Dart compilers accept, and a
+    # value may itself contain `=` — only the first one separates.
+    env = unittest.begin(ctx)
+    for define in ["KEY=value", "KEY", "KEY=a=b", "KEY=", "KEY=hello world"]:
+        asserts.equals(env, None, dart_define_error(define, "test"), "rejected %r" % define)
+    return unittest.end(env)
+
+def _rejects_empty_define_test_impl(ctx):
+    # An empty entry becomes a bare `-D`, which the compiler rejects outright —
+    # better to name the target than to surface an argument-parsing error.
+    env = unittest.begin(ctx)
+    err = dart_define_error("", "the `defines` attribute of //pkg:app")
+    asserts.true(env, err != None, "an empty define must be rejected")
+    asserts.true(env, "//pkg:app" in err, "the message should name the source: %s" % err)
+    return unittest.end(env)
+
+def _rejects_empty_key_test_impl(ctx):
+    env = unittest.begin(ctx)
+    err = dart_define_error("=value", "test")
+    asserts.true(env, err != None, "a define with no key must be rejected")
+    return unittest.end(env)
+
 _sound_source_test = unittest.make(_sound_when_compiling_source_test_impl)
 _sound_empty_test = unittest.make(_sound_when_no_defines_test_impl)
 _rejects_test = unittest.make(_rejects_defines_on_kernel_input_test_impl)
+_accepts_usable_test = unittest.make(_accepts_usable_defines_test_impl)
+_rejects_empty_test = unittest.make(_rejects_empty_define_test_impl)
+_rejects_empty_key_test = unittest.make(_rejects_empty_key_test_impl)
 
 def defines_test_suite(name):
     """Declares the `defines_stage_error` unit tests.
@@ -119,4 +148,7 @@ def defines_test_suite(name):
         _sound_source_test,
         _sound_empty_test,
         _rejects_test,
+        _accepts_usable_test,
+        _rejects_empty_test,
+        _rejects_empty_key_test,
     )

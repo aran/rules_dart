@@ -18,5 +18,22 @@ void main() {
     exit(1);
   }
 
+  // Set only by `--@rules_dart//dart:extra_dart_defines` in this workspace's
+  // .bazelrc — no target names it, which is the point of the flag.
+  const fromFlag = String.fromEnvironment('E2E_FLAG', defaultValue: 'UNSET');
+  if (fromFlag != 'from_flag') {
+    stderr.writeln('expected the extra_dart_defines flag to reach the compile, '
+        'got "$fromFlag"');
+    exit(1);
+  }
+
+  // Set by both the attr and the flag. Flag values are appended last and every
+  // Dart compiler takes the last `-D` for a repeated key, so the flag wins.
+  const winner = String.fromEnvironment('E2E_WINNER', defaultValue: 'UNSET');
+  if (winner != 'flag') {
+    stderr.writeln('expected the flag to win over the attr, got "$winner"');
+    exit(1);
+  }
+
   print('defines reached the compiled kernel: $greeting');
 }

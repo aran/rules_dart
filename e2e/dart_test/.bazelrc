@@ -1,0 +1,6 @@
+# Exercises the `--@rules_dart//dart:extra_dart_defines` command-line channel
+# the way a real config group would: one define this build sets only from the
+# flag, and one that collides with a target's own `defines` so the precedence
+# is observable. See `//:defines_test`.
+build --@rules_dart//dart:extra_dart_defines=E2E_FLAG=from_flag
+build --@rules_dart//dart:extra_dart_defines=E2E_WINNER=flag

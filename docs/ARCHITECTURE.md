@@ -151,6 +151,14 @@ Bazel's `-c` flag (`fastbuild`, `dbg`, `opt`) controls compiler flags automatica
 - **`dart_compile_flags`** (`string_list`): Extra flags appended after mode defaults. Appears last so user flags override defaults (e.g., `-O4` after `-O2` — dart2js uses last-wins).
 - **`defines`** (`string_list`): Entries in `key=value` format. Each becomes a `-Dkey=value` flag passed to the compiler. These are resolved by the front end during constant evaluation, so they must reach whichever action compiles source — with code assets that is `gen_kernel`, not the `dart compile` step that consumes its kernel.
 
+### Command-Line Defines
+
+`--@rules_dart//dart:extra_dart_defines=KEY=VALUE` appends environment declarations to every Dart compile, after any target-level `defines`. It is repeatable — one define per occurrence — so a `.bazelrc` config group can point a whole build at an environment without editing BUILD files, reaching binaries, tests, and web targets alike. On a key collision the flag wins, because every Dart compiler takes the last `-D` for a repeated key.
+
+No define keys are reserved. rules_dart maps compilation mode to `--enable-asserts` and gen-snapshot options only, and sets no define of its own, so there is nothing for a user value to collide with. (rules_flutter reserves `dart.vm.product` and friends because its build does set them.)
+
+One caveat, inherited from the Dart CLI and shared by the `defines` attribute: the VM front end (`dart compile exe|kernel`, `gen_kernel`) splits a define **value** on commas, so `-DA=x,y` yields `A=x`. `dart compile js` does not split. Values containing commas are therefore not portable across compile modes. The flag is declared `repeatable` so that Bazel itself never splits them — the limit is the compiler's, not the build system's.
+
 ---
 
 ## Testing

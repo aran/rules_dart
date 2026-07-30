@@ -8,6 +8,7 @@ The rules stage that layout hermetically from declared artifacts (see
 """
 
 load("//dart:providers.bzl", "DartInfo")
+load("//dart/private:build_settings.bzl", "EXTRA_DART_DEFINES_ATTR", "merge_dart_defines")
 load("//dart/private:common.bzl", "collect_packages", "collect_transitive_srcs")
 load("//dart/private:project_staging.bzl", "stage_dart_project")
 load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS")
@@ -64,7 +65,7 @@ def _dart_web_compile(ctx, compile_mode):
     args.add("compile")
     args.add(compile_mode)
     args.add_all(_get_web_compilation_mode_flags(ctx, compile_mode))
-    for d in ctx.attr.defines:
+    for d in merge_dart_defines(ctx):
         args.add("-D" + d)
     args.add_all(ctx.attr.dart_compile_flags)
     args.add("-o", output)
@@ -128,7 +129,7 @@ _WEB_BINARY_ATTRS = {
     "defines": attr.string_list(
         doc = "Dart environment declarations (`key=value`). Each entry becomes a `-Dkey=value` flag.",
     ),
-}
+} | EXTRA_DART_DEFINES_ATTR
 
 dart_js_binary = rule(
     implementation = _dart_js_binary_impl,

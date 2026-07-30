@@ -1,6 +1,16 @@
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("//dart/private:build_settings.bzl", "dart_defines_flag")
 load("//dart/private:dart_sdk_binary.bzl", "dart_sdk_binary")
 load("//dart/private:resolved_toolchain.bzl", "resolved_toolchain")
+
+# Dart environment declarations folded into every Dart compile, after any
+# target-level `defines`. Repeatable — one define per occurrence:
+#   bazel build //app --@rules_dart//dart:extra_dart_defines=FOO=bar
+dart_defines_flag(
+    name = "extra_dart_defines",
+    build_setting_default = [],
+    visibility = ["//visibility:public"],
+)
 
 # This is the target rule authors should put in their "toolchains"
 # attribute in order to get a runtime for the correct platform.
