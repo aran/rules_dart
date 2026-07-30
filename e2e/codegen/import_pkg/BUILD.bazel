@@ -42,6 +42,7 @@ dart_binary(
 
 dart_test(
     name = "lib_test",
+    size = "small",
     main = "test/lib_test.dart",
     deps = [
         ":import_fixture",
@@ -51,6 +52,7 @@ dart_test(
 
 dart_test(
     name = "app_run_test",
+    size = "small",
     data = [":app"],
     main = "test/run_test.dart",
     deps = [

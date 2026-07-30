@@ -29,6 +29,7 @@ drift_library(
 # source stays plain `NativeDatabase.memory()`, no dart:ffi.
 dart_test(
     name = "database_test",
+    size = "small",
     main = "test/database_test.dart",
     deps = [
         ":drift_fixture",

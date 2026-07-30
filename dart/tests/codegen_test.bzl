@@ -2,6 +2,7 @@
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
 load("//dart/private:dart_codegen.bzl", "compute_codegen_output_name")
+load(":small_suite.bzl", "small_unittest_suite")
 
 def _g_dart_suffix_test_impl(ctx):
     env = unittest.begin(ctx)
@@ -26,4 +27,4 @@ _t1_test = unittest.make(_freezed_suffix_with_dir_test_impl)
 _t2_test = unittest.make(_custom_suffix_test_impl)
 
 def codegen_test_suite(name):
-    unittest.suite(name, _t0_test, _t1_test, _t2_test)
+    small_unittest_suite(name, _t0_test, _t1_test, _t2_test)

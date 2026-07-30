@@ -8,6 +8,7 @@ dart_library(
 
 dart_test(
     name = "runfiles_test",
+    size = "small",
     main = "test/runfiles_test.dart",
     deps = [
         ":runfiles",

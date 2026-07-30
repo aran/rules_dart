@@ -8,10 +8,12 @@ dart_library(
 
 dart_analyze_test(
     name = "analyze_test",
+    size = "small",
     lib = ":mylib",
 )
 
 dart_format_test(
     name = "format_test",
+    size = "small",
     srcs = glob(["lib/**/*.dart"]),
 )

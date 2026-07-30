@@ -23,6 +23,7 @@ dart_binary(
 
 dart_test(
     name = "no_lv_dart_test",
+    size = "small",
     main = "test.dart",
     deps = [":no_lv_lib"],
 )

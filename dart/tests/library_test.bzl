@@ -67,9 +67,9 @@ _collision_test = unittest.make(_source_tree_vs_declared_output_collision_test_i
 def library_test_suite(name):
     # Instantiate each test with its own name so failures identify the
     # behaviour, not a positional index (`unittest.suite`'s default naming).
-    _clean_srcs_test(name = "library_clean_srcs_test")
-    _identical_file_test(name = "library_identical_file_test")
-    _collision_test(name = "library_collision_test")
+    _clean_srcs_test(name = "library_clean_srcs_test", size = "small")
+    _identical_file_test(name = "library_identical_file_test", size = "small")
+    _collision_test(name = "library_collision_test", size = "small")
     native.test_suite(
         name = name,
         tests = [

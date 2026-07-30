@@ -19,6 +19,7 @@ dart_binary(
 
 dart_test(
     name = "pc_test",
+    size = "small",
     srcs = ["lib/util.dart"],
     main = "test/main_test.dart",
     deps = [":pc_facade_lib"],
@@ -26,11 +27,13 @@ dart_test(
 
 package_config_own_srcs_test(
     name = "pc_binary_package_config_test",
+    size = "small",
     target_under_test = ":pc_binary",
 )
 
 package_config_own_srcs_test(
     name = "pc_test_package_config_test",
+    size = "small",
     target_under_test = ":pc_test",
 )
 
@@ -44,5 +47,6 @@ dart_js_binary(
 
 web_compile_hermetic_test(
     name = "web_compile_hermetic_test",
+    size = "small",
     target_under_test = ":pc_web",
 )

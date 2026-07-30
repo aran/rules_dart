@@ -45,6 +45,7 @@ def code_asset_test_suite(name):
     )
     _static_rejected_test(
         name = "static_rejected_test",
+        size = "small",
         target_under_test = ":ca_static",
     )
 
@@ -55,6 +56,7 @@ def code_asset_test_suite(name):
     )
     _bundle_needs_library_test(
         name = "bundle_needs_library_test",
+        size = "small",
         target_under_test = ":ca_bundle_no_library",
     )
 
@@ -67,6 +69,7 @@ def code_asset_test_suite(name):
     )
     _bundle_rejects_system_uri_test(
         name = "bundle_rejects_system_uri_test",
+        size = "small",
         target_under_test = ":ca_bundle_with_system_uri",
     )
 
@@ -78,6 +81,7 @@ def code_asset_test_suite(name):
     )
     _system_needs_uri_test(
         name = "system_needs_uri_test",
+        size = "small",
         target_under_test = ":ca_system_no_uri",
     )
 
@@ -91,6 +95,7 @@ def code_asset_test_suite(name):
     )
     _system_rejects_library_test(
         name = "system_rejects_library_test",
+        size = "small",
         target_under_test = ":ca_system_with_library",
     )
 
@@ -103,6 +108,7 @@ def code_asset_test_suite(name):
     )
     _process_rejects_library_test(
         name = "process_rejects_library_test",
+        size = "small",
         target_under_test = ":ca_process_with_library",
     )
 
@@ -115,6 +121,7 @@ def code_asset_test_suite(name):
     )
     _executable_rejects_system_uri_test(
         name = "executable_rejects_system_uri_test",
+        size = "small",
         target_under_test = ":ca_executable_with_system_uri",
     )
 

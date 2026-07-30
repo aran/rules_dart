@@ -25,12 +25,14 @@ build_test(
 
 manifest_contains_test(
     name = "propagated_asset_in_manifest_test",
+    size = "small",
     expected_asset_ids = ["package:prop_b/src/ffi/prop_b.g.dart"],
     target_under_test = ":app",
 )
 
 ownership_violation_test(
     name = "ownership_violation_test",
+    size = "small",
     target_under_test = "//dart/tests/propagation_fixture/b:misowned",
 )
 
@@ -53,5 +55,6 @@ dart_binary(
 
 asset_conflict_test(
     name = "asset_conflict_test",
+    size = "small",
     target_under_test = ":conflicting_app",
 )

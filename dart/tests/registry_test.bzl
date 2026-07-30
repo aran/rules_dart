@@ -2,6 +2,7 @@
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
 load("//dart/ext:registry.bzl", "curated_code_assets", "curated_packages")
+load(":small_suite.bzl", "small_unittest_suite")
 
 def _known_package_in_range_test_impl(ctx):
     env = unittest.begin(ctx)
@@ -48,4 +49,4 @@ def registry_test_suite(name):
     Args:
       name: Name of the generated `test_suite`.
     """
-    unittest.suite(name, _t0_test, _t1_test, _t2_test, _t3_test, _t4_test)
+    small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test, _t4_test)

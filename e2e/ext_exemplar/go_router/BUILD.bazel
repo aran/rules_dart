@@ -39,6 +39,7 @@ dart_codegen(
 
 dart_test(
     name = "app_router_test",
+    size = "small",
     data = [":_app_router_combined"],
     main = "test/app_router_test.dart",
     deps = [

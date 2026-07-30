@@ -110,6 +110,7 @@ dart_library(
 
 dart_test(
     name = "macro_injection_test",
+    size = "small",
     main = "test/macro_injection_test.dart",
     deps = [
         ":injectable_fixture",
@@ -121,6 +122,7 @@ dart_test(
 
 dart_test(
     name = "primitive_injection_test",
+    size = "small",
     main = "test/primitive_injection_test.dart",
     deps = [
         ":injectable_fixture",

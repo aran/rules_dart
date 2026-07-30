@@ -38,9 +38,9 @@ def dart_binary_test_suite(name):
     Args:
       name: Aggregating `test_suite` target name.
     """
-    _exe_windows_test(name = "dart_binary_exe_windows_test")
-    _exe_other_test(name = "dart_binary_exe_other_test")
-    _snapshot_test(name = "dart_binary_snapshot_test")
+    _exe_windows_test(name = "dart_binary_exe_windows_test", size = "small")
+    _exe_other_test(name = "dart_binary_exe_other_test", size = "small")
+    _snapshot_test(name = "dart_binary_snapshot_test", size = "small")
     native.test_suite(
         name = name,
         tests = [

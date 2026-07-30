@@ -9,6 +9,7 @@ gets you its assets with no opt-in.
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts", "unittest")
 load("//dart:providers.bzl", "DartCodeAssetInfo", "DartInfo", "DartPackageInfo")
 load("//dart/private:common.bzl", "merge_package_records", "package_code_assets", "resolve_code_assets")
+load(":small_suite.bzl", "small_unittest_suite")
 
 _L = "//pkg:consumer"
 
@@ -222,7 +223,7 @@ def propagation_test_suite(name):
     Args:
       name: Name of the generated `test_suite`.
     """
-    unittest.suite(
+    small_unittest_suite(
         name,
         _t0_test,
         _t1_test,

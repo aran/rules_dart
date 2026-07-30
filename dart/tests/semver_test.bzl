@@ -9,6 +9,7 @@ load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
 
 # buildifier: disable=bzl-visibility
 load("//dart/pub/private:version.bzl", "parse_semver", "semver_gt")
+load(":small_suite.bzl", "small_unittest_suite")
 
 def _basic_ordering_test_impl(ctx):
     env = unittest.begin(ctx)
@@ -61,4 +62,4 @@ _t2_test = unittest.make(_build_metadata_ordering_test_impl)
 _t3_test = unittest.make(_stable_vs_prerelease_test_impl)
 
 def semver_test_suite(name):
-    unittest.suite(name, _t0_test, _t1_test, _t2_test, _t3_test)
+    small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test)

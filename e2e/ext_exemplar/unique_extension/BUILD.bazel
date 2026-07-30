@@ -24,6 +24,7 @@ dart_library(
 
 dart_test(
     name = "event_test",
+    size = "small",
     main = "test/event_test.dart",
     deps = [
         ":unique_extension",

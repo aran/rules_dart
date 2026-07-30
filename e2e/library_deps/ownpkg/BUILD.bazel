@@ -12,6 +12,7 @@ dart_library(
 
 dart_test(
     name = "own_srcs_resolution_test",
+    size = "small",
     srcs = ["lib/own_util.dart"],
     main = "test/own_test.dart",
     deps = [":ownpkg_facade"],

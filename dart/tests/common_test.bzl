@@ -12,6 +12,7 @@ load(
     "relative_path",
     "resolve_package_roots",
 )
+load(":small_suite.bzl", "small_unittest_suite")
 
 # --- generate_package_config_content tests (prefix-based) ---
 
@@ -477,7 +478,7 @@ _t32_test = unittest.make(_hooks_ok_test_impl)
 _t33_test = unittest.make(_hooks_offender_test_impl)
 
 def common_test_suite(name):
-    unittest.suite(
+    small_unittest_suite(
         name,
         _t0_test,
         _t1_test,

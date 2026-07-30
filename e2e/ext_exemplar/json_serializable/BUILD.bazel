@@ -100,6 +100,7 @@ dart_library(
 
 dart_test(
     name = "primitive_user_test",
+    size = "small",
     main = "test/primitive_user_test.dart",
     deps = [
         ":json_serializable_fixture",
@@ -109,6 +110,7 @@ dart_test(
 
 dart_test(
     name = "cross_file_test",
+    size = "small",
     main = "test/cross_file_test.dart",
     deps = [
         ":json_serializable_fixture",
@@ -118,6 +120,7 @@ dart_test(
 
 dart_test(
     name = "user_test",
+    size = "small",
     main = "test/user_test.dart",
     deps = [
         ":json_serializable_fixture",
@@ -127,6 +130,7 @@ dart_test(
 
 dart_test(
     name = "wrapper_test",
+    size = "small",
     main = "test/wrapper_test.dart",
     deps = [
         ":json_serializable_fixture",

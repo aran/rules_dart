@@ -36,6 +36,7 @@ dart_wasm_binary(
 
 dart_test(
     name = "js_output_test",
+    size = "small",
     data = [":app"],
     main = "test/js_output_test.dart",
     deps = ["@rules_dart//dart/runfiles"],

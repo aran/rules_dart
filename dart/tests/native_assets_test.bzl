@@ -3,6 +3,7 @@
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
 load("//dart:providers.bzl", "CODE_ASSET_LINK_MODES")
 load("//dart/private:common.bzl", "generate_native_assets_yaml", "native_assets_path_list")
+load(":small_suite.bzl", "small_unittest_suite")
 
 _L = "//pkg:target"
 
@@ -115,7 +116,7 @@ _t7_test = unittest.make(_path_list_covers_vocabulary_test_impl)
 _t8_test = unittest.make(_manifest_mixed_link_modes_test_impl)
 
 def native_assets_test_suite(name):
-    unittest.suite(
+    small_unittest_suite(
         name,
         _t0_test,
         _t1_test,

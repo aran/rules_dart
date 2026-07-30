@@ -24,6 +24,7 @@ dart_library(
 
 dart_test(
     name = "api_test",
+    size = "small",
     main = "test/api_test.dart",
     deps = [
         ":reexport_fixture",

@@ -26,6 +26,7 @@ dart_binary(
 
 dart_test(
     name = "check_dual_build_collisions_test",
+    size = "small",
     data = ["//gazelle/dart:baseline_generated_extensions.txt"],
     main = "check_dual_build_collisions_test.dart",
     deps = [

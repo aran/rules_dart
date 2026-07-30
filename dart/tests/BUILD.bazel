@@ -60,10 +60,12 @@ build_test(
 
 dart_analyze_test(
     name = "shape_fixture_analyze",
+    size = "small",
     lib = ":shape_fixture_lib",
 )
 
 analyze_hermetic_test(
     name = "analyze_hermetic_test",
+    size = "small",
     target_under_test = ":shape_fixture_analyze",
 )

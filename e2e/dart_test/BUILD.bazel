@@ -2,17 +2,20 @@ load("@rules_dart//dart:defs.bzl", "dart_test")
 
 dart_test(
     name = "mathlib_test",
+    size = "small",
     main = "mathlib_test.dart",
     deps = ["//mathlib"],
 )
 
 dart_test(
     name = "simple_test",
+    size = "small",
     main = "test/simple_test.dart",
 )
 
 dart_test(
     name = "utils_test",
+    size = "small",
     main = "test/utils_test.dart",
     deps = ["//utils"],
 )
@@ -21,6 +24,7 @@ dart_test(
 # source file used by the test but not in a dart_library.
 dart_test(
     name = "helpers_test",
+    size = "small",
     srcs = ["test_helpers.dart"],
     main = "test/helpers_test.dart",
 )
@@ -29,5 +33,6 @@ dart_test(
 # enables them on the VM. CI also runs this package under `-c dbg`.
 dart_test(
     name = "asserts_test",
+    size = "small",
     main = "test/asserts_test.dart",
 )

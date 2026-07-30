@@ -18,6 +18,7 @@ dart_binary(
 
 dart_test(
     name = "combining_test",
+    size = "small",
     srcs = ["bin/main.dart"],
     main = "test/combining_test.dart",
     deps = [

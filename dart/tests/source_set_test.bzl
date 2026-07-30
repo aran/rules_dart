@@ -116,16 +116,16 @@ def source_set_test_suite(name):
     Args:
       name: Aggregating `test_suite` target name.
     """
-    _all_source_test(name = "source_set_all_source_test")
-    _any_generated_test(name = "source_set_any_generated_test")
-    _empty_test(name = "source_set_empty_test")
-    _root_pkg_test(name = "source_set_package_for_root_test")
-    _longest_prefix_test(name = "source_set_package_for_longest_test")
-    _exact_dir_test(name = "source_set_package_for_exact_dir_test")
-    _external_nomatch_test(name = "source_set_package_for_external_test")
-    _colocate_loose_test(name = "source_set_colocate_loose_test")
-    _assembled_with_lv_test(name = "source_set_assembled_with_lv_test")
-    _assembled_without_lv_test(name = "source_set_assembled_without_lv_test")
+    _all_source_test(name = "source_set_all_source_test", size = "small")
+    _any_generated_test(name = "source_set_any_generated_test", size = "small")
+    _empty_test(name = "source_set_empty_test", size = "small")
+    _root_pkg_test(name = "source_set_package_for_root_test", size = "small")
+    _longest_prefix_test(name = "source_set_package_for_longest_test", size = "small")
+    _exact_dir_test(name = "source_set_package_for_exact_dir_test", size = "small")
+    _external_nomatch_test(name = "source_set_package_for_external_test", size = "small")
+    _colocate_loose_test(name = "source_set_colocate_loose_test", size = "small")
+    _assembled_with_lv_test(name = "source_set_assembled_with_lv_test", size = "small")
+    _assembled_without_lv_test(name = "source_set_assembled_without_lv_test", size = "small")
     native.test_suite(
         name = name,
         tests = [

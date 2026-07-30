@@ -4,6 +4,7 @@ load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
 
 # buildifier: disable=bzl-visibility
 load("//dart/pub/private:language_version.bzl", "derive_language_version")
+load(":small_suite.bzl", "small_unittest_suite")
 
 # (constraint_string, expected_output, label)
 _CASES = [
@@ -45,4 +46,4 @@ def _table_driven_test_impl(ctx):
 _table_driven_test = unittest.make(_table_driven_test_impl)
 
 def language_version_test_suite(name):
-    unittest.suite(name, _table_driven_test)
+    small_unittest_suite(name, _table_driven_test)

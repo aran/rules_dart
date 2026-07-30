@@ -16,6 +16,7 @@ build_test(
 # Verify the dart SDK binary is runnable
 sh_test(
     name = "dart_version_test",
+    size = "small",
     srcs = ["dart_version_test.sh"],
     args = ["$(rlocationpath @rules_dart//dart)"],
     data = ["@rules_dart//dart"],

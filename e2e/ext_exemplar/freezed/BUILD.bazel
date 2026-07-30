@@ -19,6 +19,7 @@ freezed_library(
 
 dart_test(
     name = "event_test",
+    size = "small",
     main = "test/event_test.dart",
     deps = [
         ":freezed_fixture",
@@ -28,6 +29,7 @@ dart_test(
 
 dart_test(
     name = "network_result_test",
+    size = "small",
     main = "test/network_result_test.dart",
     deps = [
         ":freezed_fixture",

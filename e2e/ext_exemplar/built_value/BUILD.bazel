@@ -53,6 +53,7 @@ dart_library(
 
 dart_test(
     name = "user_test",
+    size = "small",
     main = "test/user_test.dart",
     deps = [
         ":built_value",
@@ -62,6 +63,7 @@ dart_test(
 
 dart_test(
     name = "profile_serializer_test",
+    size = "small",
     main = "test/profile_serializer_test.dart",
     deps = [
         ":built_value",

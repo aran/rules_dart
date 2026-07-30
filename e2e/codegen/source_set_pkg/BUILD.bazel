@@ -30,6 +30,7 @@ dart_library(
 
 dart_test(
     name = "lib_test",
+    size = "small",
     main = "test/lib_test.dart",
     deps = [
         ":source_set_fixture",

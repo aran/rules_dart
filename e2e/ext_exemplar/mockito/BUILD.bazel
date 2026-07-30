@@ -54,6 +54,7 @@ dart_codegen(
 
 dart_test(
     name = "api_test",
+    size = "small",
     srcs = [":_api_test_mocks_gen"],
     main = "test/api_test.dart",
     deps = [
@@ -65,6 +66,7 @@ dart_test(
 
 dart_test(
     name = "nice_mock_test",
+    size = "small",
     srcs = [":_nice_mock_test_mocks_gen"],
     main = "test/nice_mock_test.dart",
     deps = [

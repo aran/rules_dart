@@ -52,6 +52,7 @@ dart_library(
 
 dart_test(
     name = "user_test",
+    size = "small",
     main = "test/user_test.dart",
     deps = [
         ":multi_shard_combining",

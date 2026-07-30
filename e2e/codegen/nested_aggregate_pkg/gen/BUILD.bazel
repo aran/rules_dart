@@ -32,6 +32,7 @@ dart_aggregate_codegen(
 
 dart_test(
     name = "aggregate_content_test",
+    size = "small",
     data = [":aggregate"],
     main = "test/aggregate_content_test.dart",
     deps = [

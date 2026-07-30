@@ -15,6 +15,7 @@ dart_binary(
 # acceptance for AOT native-asset resolution on each platform.
 dart_test(
     name = "app_run_test",
+    size = "small",
     data = [":app"],
     main = "test/run_test.dart",
     deps = [
@@ -28,6 +29,7 @@ dart_test(
 # resolution (via absolute rlocation) from any source co-location concern.
 dart_test(
     name = "direct_test",
+    size = "small",
     code_assets = [sqlite3_code_asset()],
     main = "test/direct_test.dart",
     deps = [
