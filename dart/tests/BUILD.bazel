@@ -1,5 +1,5 @@
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
-load("//dart:defs.bzl", "dart_analyze_test", "dart_library")
+load("//dart:defs.bzl", "dart_analyze_test")
 load(":analyze_test.bzl", "analyze_hermetic_test")
 load(":code_asset_test.bzl", "code_asset_test_suite")
 load(":codegen_test.bzl", "codegen_test_suite")
@@ -45,15 +45,9 @@ library_test_suite(name = "library_test")
 
 semver_test_suite(name = "semver_test")
 
-dart_library(
-    name = "shape_fixture_lib",
-    package_name = "shape_fixture",
-    srcs = ["shape_fixture/lib/shape.dart"],
-)
-
 provider_shape_probe(
     name = "provider_shape_probe_target",
-    deps = [":shape_fixture_lib"],
+    deps = ["//dart/tests/shape_fixture:shape_fixture_lib"],
 )
 
 build_test(
@@ -64,7 +58,7 @@ build_test(
 dart_analyze_test(
     name = "shape_fixture_analyze",
     size = "small",
-    lib = ":shape_fixture_lib",
+    lib = "//dart/tests/shape_fixture:shape_fixture_lib",
 )
 
 analyze_hermetic_test(

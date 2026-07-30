@@ -78,6 +78,45 @@ def check_no_duplicate_srcs(label, srcs):
         seen[src.short_path] = src.path
     return None
 
+def check_srcs_under_lib_root(label, lib_root, srcs):
+    """Detects `srcs` entries that do not sit under the package's `lib/`.
+
+    A Dart package resolves `package:<name>/x.dart` to `<lib_root>/lib/x.dart`,
+    and the consumer stages a package by stripping `lib_root` from each file
+    (`colocate_packages`). A src outside `<lib_root>/lib/` therefore lands
+    outside `lib/` in the staged tree and resolves to nothing. Nothing fails
+    until the kernel compile, which reports only a missing path inside a
+    `.pkgsrcs` directory — no target name, no mention of `lib/`.
+
+    Generated sources are subject to the same rule: `declare_file` paths are
+    relative to the *producing* rule's Bazel package, so a codegen target
+    outside the Dart package root emits a path that no longer starts with
+    `lib_root`.
+
+    Args:
+      label: The owning rule's label (included in the error message).
+      lib_root: The package's library root, from `derive_lib_root`. Empty for a
+        root package, where sources sit at `lib/` directly.
+      srcs: The `srcs` list to inspect.
+
+    Returns:
+      An error message string for the first offending file, or `None`.
+    """
+    prefix = lib_root + "/lib/" if lib_root else "lib/"
+    for src in srcs:
+        if not src.short_path.startswith(prefix):
+            return (
+                ("%s: `%s` is not under `%s`, so it cannot be reached by a " +
+                 "`package:` import — a Dart package's sources live in its " +
+                 "`lib/` directory, and the compile stages them by stripping " +
+                 "`%s`. Either move the file under `%s`, or, if it is " +
+                 "generated, declare the producing codegen target in a BUILD " +
+                 "file at the Dart package root so its output path resolves " +
+                 "inside the package.") %
+                (label, src.short_path, prefix, lib_root if lib_root else ".", prefix)
+            )
+    return None
+
 def derive_lib_root(workspace_root, label_package):
     """Derive the library root path (short_path-based, without /lib suffix).
 
@@ -129,6 +168,9 @@ def _dart_library_impl(ctx):
             fail(err)
         own_srcs = ctx.files.srcs
         lib_root = derive_lib_root(ctx.label.workspace_root, ctx.label.package)
+        err = check_srcs_under_lib_root(ctx.label, lib_root, own_srcs)
+        if err != None:
+            fail(err)
 
     # `dart_library` is a pure collector: it propagates its sources (source-tree
     # and/or generated) and package metadata unchanged. Co-location of a

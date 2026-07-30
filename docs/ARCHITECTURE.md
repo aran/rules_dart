@@ -30,6 +30,9 @@ Unlike Go/Rust, Dart does not produce intermediate object files for libraries. T
 
 - `dart_library` is **source-only** — it collects sources and propagates `DartInfo`
 - Compilation happens in `dart_binary`, `dart_test`, `dart_js_binary`, `dart_wasm_binary`
+
+A `dart_library`'s `srcs` must live under `<lib_root>/lib/`, because `package:<name>/x.dart` resolves to `<lib_root>/lib/x.dart` and the consumer stages a package by stripping `lib_root`. This is checked at analysis time (`check_srcs_under_lib_root`); without it a stray file surfaces only as a missing path inside a `.pkgsrcs` directory at kernel-compile time, naming neither the target nor `lib/`. Generated sources obey the same rule: `declare_file` paths are relative to the _producing_ rule's package, so a codegen target outside the Dart package root emits a path that no longer starts with `lib_root`. Targets using `srcs_dir` are exempt — a `dart_source_set` is already assembled, and its directory is the package root.
+
 - `package_config.json` is generated at build time from the transitive `DartInfo` graph to bridge Bazel's dep model with Dart's `package:` URI resolution
 
 ---

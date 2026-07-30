@@ -1,0 +1,26 @@
+load("//dart:defs.bzl", "dart_library")
+load("//dart/tests:library_test.bzl", "stray_src_rejected_test")
+
+# A correctly-laid-out package, so the check is shown accepting the normal case
+# and not merely rejecting things.
+dart_library(
+    name = "ok",
+    package_name = "lib_root_fixture",
+    srcs = ["lib/ok.dart"],
+)
+
+# `stray.dart` sits beside `lib/`, so staging cannot place it under `lib/` and
+# no `package:` import resolves to it. Manual: it fails at analysis by design,
+# and is built only as this test's target_under_test.
+dart_library(
+    name = "stray",
+    package_name = "lib_root_fixture",
+    srcs = ["stray.dart"],
+    tags = ["manual"],
+)
+
+stray_src_rejected_test(
+    name = "stray_src_rejected_test",
+    size = "small",
+    target_under_test = ":stray",
+)
