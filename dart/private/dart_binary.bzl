@@ -94,6 +94,7 @@ def _dart_binary_impl(ctx):
     compile_main_arg = main_arg
     compile_srcs = all_srcs
     compile_package_config = package_config
+    compile_defines = ctx.attr.defines
     code_asset_libs = []
 
     # Assets reach a binary two ways: propagated from any package in `deps`
@@ -128,11 +129,16 @@ def _dart_binary_impl(ctx):
             native_assets_yaml = native_assets_yaml,
             output_dill = dill,
             main_path = main_arg,
+            defines = ctx.attr.defines,
         )
         compile_main = dill
         compile_main_arg = None
         compile_srcs = []
         compile_package_config = None
+
+        # gen_kernel ran the front end, so the defines are already resolved
+        # into `dill`. Repeating them here would be a silent no-op.
+        compile_defines = []
 
     # Run dart compile
     dart_compile_action(
@@ -148,7 +154,7 @@ def _dart_binary_impl(ctx):
         target_os = dart_sdk_info.target_os,
         target_arch = dart_sdk_info.target_arch,
         extra_flags = ctx.attr.dart_compile_flags,
-        defines = ctx.attr.defines,
+        defines = compile_defines,
     )
 
     runfiles = ctx.runfiles(files = ctx.files.data + code_asset_libs).merge_all(

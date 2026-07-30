@@ -1,5 +1,31 @@
 """Shared compilation action helpers for Dart."""
 
+def defines_stage_error(defines, package_config):
+    """Returns an error string if `defines` would reach the compiler too late.
+
+    `-D` values are consumed by the front end during constant evaluation —
+    `String.fromEnvironment` and friends resolve there, not at run time. When
+    `main` is a pre-built kernel (signalled by a `None` `package_config`) the
+    front end has already run, and `dart compile` accepts `-D` and silently
+    ignores it: no error, no warning, just the default value baked into the
+    output. Environment declarations for a kernel input have to go to whatever
+    action produced that kernel.
+
+    Args:
+        defines: Environment declarations destined for this action.
+        package_config: The `package_config.json` File, or None when `main` is
+            a pre-built `.dill`.
+
+    Returns:
+        An error string, or None when the combination is sound.
+    """
+    if defines and package_config == None:
+        return ("dart_compile_action: `defines` %s cannot be applied to a " +
+                "pre-built kernel — constant evaluation already happened in " +
+                "the action that produced it. Pass them to that action " +
+                "instead (e.g. `gen_kernel_native_assets_action`).") % defines
+    return None
+
 def get_compilation_mode_flags(ctx, compile_mode):
     """Returns compiler flags for the current Bazel compilation mode.
 
@@ -61,6 +87,10 @@ def dart_compile_action(
         main_path: Optional path string to pass as the compile target instead of
             `main.path` (e.g. a path inside an assembled `main` directory).
     """
+    stage_err = defines_stage_error(defines, package_config)
+    if stage_err != None:
+        fail(stage_err)
+
     args = ctx.actions.args()
     args.add("compile")
     args.add(compile_mode)

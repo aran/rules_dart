@@ -1,0 +1,39 @@
+load("//dart:defs.bzl", "dart_binary", "dart_code_asset")
+load("//dart/tests:defines_test.bzl", "direct_defines_test", "staged_defines_test")
+
+# Two `dart_binary` targets differing only in whether they carry a code asset,
+# which is what selects the one-action or two-action compile pipeline. Both
+# declare the same `defines`, so the tests below assert only on where it lands.
+
+dart_binary(
+    name = "plain",
+    defines = ["CHANNEL=direct"],
+    main = "main.dart",
+)
+
+direct_defines_test(
+    name = "direct_defines_test",
+    size = "small",
+    expected_define = "CHANNEL=direct",
+    target_under_test = ":plain",
+)
+
+dart_code_asset(
+    name = "asset",
+    asset_id = "package:defines_fixture/src/ffi/defines_fixture.g.dart",
+    shared_library = "//dart/tests/cc_fixture:empty_shared",
+)
+
+dart_binary(
+    name = "staged",
+    code_assets = [":asset"],
+    defines = ["CHANNEL=staged"],
+    main = "main.dart",
+)
+
+staged_defines_test(
+    name = "staged_defines_test",
+    size = "small",
+    expected_define = "CHANNEL=staged",
+    target_under_test = ":staged",
+)

@@ -20,4 +20,10 @@ void main() {
   stdout.writeln(
     'sqlite3 ok: $name (libVersion ${sqlite3.version.libVersion})',
   );
+
+  // `const` forces resolution during constant evaluation, which is the stage
+  // the code-asset pipeline runs in gen_kernel rather than in `dart compile`.
+  stdout.writeln(
+    'channel: ${const String.fromEnvironment('BUILD_CHANNEL', defaultValue: 'UNSET')}',
+  );
 }

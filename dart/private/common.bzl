@@ -876,7 +876,8 @@ def gen_kernel_native_assets_action(
         package_config,
         native_assets_yaml,
         output_dill,
-        main_path = None):
+        main_path = None,
+        defines = []):
     """Runs `gen_kernel --native-assets=<yaml>` to produce a kernel `.dill`.
 
     Invokes `dartaotruntime gen_kernel_aot.dart.snapshot --platform <dill>
@@ -895,6 +896,10 @@ def gen_kernel_native_assets_action(
       output_dill: The output `.dill` File to produce.
       main_path: Optional path string to compile instead of `main.path` (e.g. a
         path inside an assembled `main` directory).
+      defines: Environment declarations; each entry becomes a `-D` flag. This
+        action runs the front end, so it is the only stage where they can still
+        reach constant evaluation — `dart compile` on the resulting `.dill`
+        would accept them and silently do nothing.
     """
     tools = find_sdk_kernel_tools(dart_sdk_info)
 
@@ -904,6 +909,8 @@ def gen_kernel_native_assets_action(
     if package_config != None:
         args.add("--packages", package_config)
     args.add("--native-assets", native_assets_yaml)
+    for d in defines:
+        args.add("-D" + d)
     args.add("-o", output_dill)
     args.add(main_path if main_path != None else main)
 

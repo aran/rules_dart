@@ -7,6 +7,12 @@ load("@rules_dart//dart/ext/sqlite3:defs.bzl", "sqlite3_code_asset")
 dart_binary(
     name = "app",
     code_assets = [sqlite3_code_asset()],
+    # Code assets split compilation into gen_kernel + `dart compile`, and only
+    # the first stage runs the front end that resolves `-D`. The run test
+    # asserts this value reaches the binary, which it does not if the define
+    # is handed to the second stage — `dart compile` accepts it on a kernel
+    # input and silently drops it.
+    defines = ["BUILD_CHANNEL=bazel-e2e"],
     main = "bin/main.dart",
     deps = ["@pub_deps//:sqlite3"],
 )

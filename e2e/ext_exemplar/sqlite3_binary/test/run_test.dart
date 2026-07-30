@@ -25,4 +25,20 @@ void main() {
     );
     expect(result.stdout, contains('sqlite3 ok: hello'));
   });
+
+  test('a `defines` entry survives the code-asset compile pipeline', () {
+    final r = Runfiles.create();
+    final exeName = Platform.isWindows ? 'app.exe' : 'app';
+    final exe = r.rlocation('_main/sqlite3_binary/$exeName');
+    final result = Process.runSync(
+      exe,
+      [],
+      stdoutEncoding: systemEncoding,
+      stderrEncoding: systemEncoding,
+    );
+    // Regression: `defines` used to be passed to the kernel -> exe stage,
+    // where `dart compile` accepts `-D` and ignores it, so this printed
+    // `channel: UNSET` with no build-time diagnostic.
+    expect(result.stdout, contains('channel: bazel-e2e'));
+  });
 }
