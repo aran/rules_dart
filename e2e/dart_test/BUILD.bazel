@@ -36,3 +36,13 @@ dart_test(
     size = "small",
     main = "test/asserts_test.dart",
 )
+
+# Demonstrates `defines`. The value is resolved when the test's kernel is
+# compiled during the build, which is why it has to be declared here rather
+# than passed to the VM at run time.
+dart_test(
+    name = "defines_test",
+    size = "small",
+    defines = ["GREETING=hello from bazel"],
+    main = "test/defines_test.dart",
+)

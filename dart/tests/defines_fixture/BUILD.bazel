@@ -1,4 +1,4 @@
-load("//dart:defs.bzl", "dart_binary", "dart_code_asset")
+load("//dart:defs.bzl", "dart_binary", "dart_code_asset", "dart_test")
 load("//dart/tests:defines_test.bzl", "direct_defines_test", "staged_defines_test")
 
 # Two `dart_binary` targets differing only in whether they carry a code asset,
@@ -36,4 +36,23 @@ staged_defines_test(
     size = "small",
     expected_define = "CHANNEL=staged",
     target_under_test = ":staged",
+)
+
+# `dart_test`'s own `defines`, asserted where it actually matters: at run time.
+# Both of its compile shapes are covered, since code assets swap the action
+# that produces the kernel.
+
+dart_test(
+    name = "test_defines_test",
+    size = "small",
+    defines = ["CHANNEL=runtime"],
+    main = "assert_channel.dart",
+)
+
+dart_test(
+    name = "test_defines_with_code_asset_test",
+    size = "small",
+    code_assets = [":asset"],
+    defines = ["CHANNEL=runtime"],
+    main = "assert_channel.dart",
 )

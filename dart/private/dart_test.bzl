@@ -93,6 +93,7 @@ def _dart_test_impl(ctx):
             native_assets_yaml = native_assets_yaml,
             output_dill = dill,
             main_path = main_arg,
+            defines = ctx.attr.defines,
         )
     else:
         dart_compile_action(
@@ -105,6 +106,7 @@ def _dart_test_impl(ctx):
             output = dill,
             compile_mode = "kernel",
             main_path = main_arg,
+            defines = ctx.attr.defines,
         )
 
     # Thin launcher: run the self-contained dill with asserts enabled. The dill
@@ -151,6 +153,12 @@ dart_test = rule(
         "data": attr.label_list(
             doc = "Additional files needed at runtime. These are added to runfiles so they can be resolved via `Runfiles.rlocation()`.",
             allow_files = True,
+        ),
+        "defines": attr.string_list(
+            doc = """Dart environment declarations (`key=value`). Each entry becomes a `-Dkey=value` \
+flag on the build-time compile, so `String.fromEnvironment` resolves to it. Set these here rather \
+than at run time: the test's `main` is compiled to a kernel during the build, and environment \
+declarations are resolved by the front end at that point — the VM cannot supply them later.""",
         ),
         "code_assets": attr.label_list(
             doc = """Native code assets (e.g. `//dart/ext/sqlite3:code_asset`) the test's \

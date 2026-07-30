@@ -110,7 +110,7 @@ This split is why codegen resolves even under a target platform rules_dart regis
 
 ## Compilation Modes
 
-Bazel's `-c` flag (`fastbuild`, `dbg`, `opt`) controls compiler flags automatically. Rules read `ctx.var["COMPILATION_MODE"]` and map it to Dart compiler flags. Per-target overrides are available via `dart_compile_flags` and `defines` attributes on all compilation rules.
+Bazel's `-c` flag (`fastbuild`, `dbg`, `opt`) controls compiler flags automatically. Rules read `ctx.var["COMPILATION_MODE"]` and map it to Dart compiler flags. Per-target overrides are available via the `dart_compile_flags` and `defines` attributes; `dart_test` takes `defines` only, since its compile mode is fixed.
 
 ### Flag Mapping
 
@@ -149,7 +149,7 @@ Bazel's `-c` flag (`fastbuild`, `dbg`, `opt`) controls compiler flags automatica
 ### Per-Target Attributes
 
 - **`dart_compile_flags`** (`string_list`): Extra flags appended after mode defaults. Appears last so user flags override defaults (e.g., `-O4` after `-O2` — dart2js uses last-wins).
-- **`defines`** (`string_list`): Entries in `key=value` format. Each becomes a `-Dkey=value` flag passed to the compiler.
+- **`defines`** (`string_list`): Entries in `key=value` format. Each becomes a `-Dkey=value` flag passed to the compiler. These are resolved by the front end during constant evaluation, so they must reach whichever action compiles source — with code assets that is `gen_kernel`, not the `dart compile` step that consumes its kernel.
 
 ---
 
