@@ -13,12 +13,9 @@ Bump the Dart SDK to version $ARGUMENTS.
    - Root `MODULE.bazel`
    - All `e2e/*/MODULE.bazel` files that contain `dart.toolchain(dart_version = "...")`
 
-5. Update version references in:
+5. Update the `dart_version` in the `README.md` installation snippet.
 
-   - `README.md` — the installation snippet
-   - `docs/ARCHITECTURE.md` — the directory tree comment
-
-6. Update the SDK constraint in `dart/runfiles/pubspec.yaml` (`environment.sdk`) to `^$ARGUMENTS` and run `dart pub get` in `dart/runfiles/` to refresh the lock file.
+6. Leave `dart/runfiles/pubspec.yaml`'s `environment.sdk` alone unless the new SDK actually falls outside it. That package is published to pub.dev, so its lower bound stays as low as remains compatible rather than tracking the newest SDK (see CHORES.md).
 
 7. Update `dart/tests/versions_test.bzl`:
 

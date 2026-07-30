@@ -18,6 +18,7 @@ file at runtime — keep file lists current as the repo evolves.
 - `e2e/dart_test/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
 - `e2e/dart_test_pkg/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
 - `e2e/analysis/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
+- `e2e/analysis_failure/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
 - `e2e/web_app/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
 - `e2e/pub_deps/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
 - `e2e/pub_lock/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
