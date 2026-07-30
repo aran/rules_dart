@@ -1,6 +1,11 @@
 load("@rules_dart//dart:defs.bzl", "dart_binary")
+load(":registry_contract.bzl", "check_registry_contract")
 
 exports_files(["pubspec.lock"])
+
+# Asserts rules_dart's curated-registry resolver is loadable and usable from
+# another module, the way rules_flutter consumes it.
+check_registry_contract()
 
 dart_binary(
     name = "app",

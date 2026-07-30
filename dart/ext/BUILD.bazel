@@ -3,11 +3,23 @@
 # Each subdirectory hosts the shim binary + convenience macro for one
 # pub.dev builder (json_serializable, freezed, …). See docs/ext.md.
 
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("//dart:defs.bzl", "dart_library", "dart_test")
 
 exports_files(
     ["pubspec.lock"],
     visibility = ["//visibility:public"],
+)
+
+# The curated-registry resolver is supported API for other rule sets:
+# rules_flutter generates its own pub spokes and so cannot reach the registry
+# through `pub_lock_package`. Only the two functions are supported; `_ENTRIES`
+# stays private (see registry.bzl).
+bzl_library(
+    name = "registry",
+    srcs = ["registry.bzl"],
+    visibility = ["//visibility:public"],
+    deps = ["//dart/pub:defs"],
 )
 
 # Shim-runner library — used by every per-builder shim binary in dart/ext/<*>/.
