@@ -181,6 +181,7 @@ be green against local WIP rules_dart before pushing.
 3. **Poll until merged**: `gh pr view <number> --repo bazelbuild/bazel-central-registry
 --json state,mergedAt` on an interval. If the bot/maintainer requests changes or a
    presubmit fails, surface it to the user.
+
    - **`buildkite/bcr-presubmit` fails fast (~45s) with zero jobs → check
      `metadata.json`, not the build.** The failure is `BcrValidationResult.FAILED: ...
 invalid GitHub user ID for aran` (aran's id is `5295`). Cause: `publish-to-bcr`
@@ -202,8 +203,29 @@ invalid GitHub user ID for aran` (aran's id is `5295`). Cause: `publish-to-bcr`
      commit re-triggers presubmit; the net PR diff should then touch only `versions`.
      **Note**: adding `github_user_id` to the generated `metadata.json` is a change
      _outside the versions array_, which the BCR bot flags as a "sensitive metadata
-     modification" needing manual maintainer review. Once the template carries the field,
-     future releases generate it in-place and the diff stays version-only (auto-approvable).
+     modification" needing manual maintainer review.
+
+   - **Any diff outside the versions array blocks auto-approval — including a pure key
+     reorder.** Carrying `github_user_id` in the template is necessary but **not**
+     sufficient: `publish-to-bcr` regenerates `metadata.json` in _template key order_,
+     so if the template's maintainer keys are ordered differently from what upstream
+     already stores, the PR diff shows the reorder and `bazel-io` comments "modules with
+     sensitive metadata modifications (outside versions array) have been updated in this
+     PR. Manual reviews are necessary." Presubmit still spawns and goes green — that is a
+     **separate gate** from auto-approval, so a healthy platform matrix does not mean the
+     PR will merge itself. Observed on rules*dart 0.4.8: upstream stored
+     `… "name", "github_user_id"` (0.4.6 appended the field via the API lookup) while the
+     template listed `"github_user_id"` before `"name"`.
+     Fix: (a) reorder the maintainer keys in every `.bcr/metadata.template.json` to match
+     what upstream already stores, so future releases generate a byte-identical block;
+     (b) for the open PR, rewrite `modules/<module>/metadata.json` on the fork branch to
+     upstream's exact bytes plus the new version, via the contents API as above. Build it
+     by taking upstream's file and inserting the version string — don't re-serialize the
+     JSON, or you reintroduce ordering/formatting drift. Verify with
+     `gh pr diff <n>` that the only remaining hunk is the versions array.
+     Note the bot does **not** retract its comment once posted; a cleaned-up diff still
+     waits on a maintainer, so it is worth getting the ordering right \_before* tagging.
+
 4. **Poll until BCR serves it**: live when `modules/rules_dart/${TARGET#v}/` exists
    upstream, or a fresh module resolves `bazel_dep(name="rules_dart", version="${TARGET#v}")`.
 5. **Verify pub.dev**: the `dart/runfiles` package published at `${TARGET#v}`.
