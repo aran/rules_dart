@@ -14,11 +14,14 @@ Run a read-only audit of all maintenance chores. Do NOT make any changes — onl
 
    **CI folder list sync**: Glob `e2e/*/MODULE.bazel` to find all e2e workspaces. Read `.github/workflows/ci.yaml` and compare its `folders` array. Report any workspaces missing from CI or CI entries for non-existent workspaces.
 
-   **Documentation accuracy**: Read `docs/ARCHITECTURE.md` and check:
+   **Documentation accuracy**: Check:
 
-   - Does the directory tree match actual files? (spot check)
-   - Does the e2e list in the testing table match actual `e2e/` directories?
-   - Are version strings current?
+   - Does the examples table in `README.md` cover every `e2e/` directory that
+     demonstrates a user-facing feature? (`smoke` is the BCR test module and
+     `analysis_failure` is a negative CI fixture — both are correctly absent.)
+   - Are the version strings in the `README.md` installation snippet current?
+   - Does `docs/ARCHITECTURE.md` still describe the rules and providers that
+     exist? It carries prose and tables, not a directory tree or version pins.
 
    **GitHub workflow dependencies**: Grep all `.github/workflows/*.yaml` files for `uses:` lines. For each external dependency (actions and reusable workflows), check the repo's latest release/tag via `gh api repos/{owner}/{repo}/releases/latest` or `gh api repos/{owner}/{repo}/tags`. Report any that are outdated. Also flag inconsistencies (e.g. `actions/checkout` pinned to different versions across workflows).
 

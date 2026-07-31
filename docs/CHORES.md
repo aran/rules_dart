@@ -67,6 +67,7 @@ file at runtime — keep file lists current as the repo evolves.
 - `e2e/dart_test/.bazelversion`
 - `e2e/dart_test_pkg/.bazelversion`
 - `e2e/analysis/.bazelversion`
+- `e2e/analysis_failure/.bazelversion`
 - `e2e/web_app/.bazelversion`
 - `e2e/pub_deps/.bazelversion`
 - `e2e/pub_lock/.bazelversion`
@@ -103,9 +104,16 @@ file at runtime — keep file lists current as the repo evolves.
 
 - `MODULE.bazel` — `bazel_dep()` version strings
 - E2e workspaces that duplicate deps:
-  - `e2e/smoke/MODULE.bazel` — `bazel_skylib`
-  - `e2e/gazelle/MODULE.bazel` — `bazel_skylib`, `gazelle`, `rules_go`
-  - `e2e/cross_compile/MODULE.bazel` — `platforms`
+  - `e2e/smoke/MODULE.bazel` — `bazel_skylib`, `rules_shell`
+  - `e2e/codegen/MODULE.bazel` — `bazel_skylib`
+  - `e2e/gazelle/MODULE.bazel` — `bazel_skylib`, `gazelle`, `rules_shell`
+  - `e2e/cross_compile/MODULE.bazel` — `platforms`, `rules_platform`
+  - `e2e/dual_build/MODULE.bazel` — `rules_shell`
+  - `e2e/ext_exemplar/MODULE.bazel` — `gazelle`, `rules_go`, `sqlite3`,
+    `rules_cc`, `platforms`
+- `e2e/ext_exemplar/sqlite3_binary/test/direct_test.dart` — asserts the exact
+  `sqlite3.version.libVersion` string, so a `sqlite3` bump fails this test until
+  the literal is updated to match
 
 **Procedure**:
 
@@ -134,18 +142,24 @@ file at runtime — keep file lists current as the repo evolves.
 - `e2e/dart_test`
 - `e2e/dart_test_pkg`
 - `e2e/analysis`
+- `e2e/analysis_failure`
 - `e2e/web_app`
 - `e2e/pub_deps`
 - `e2e/pub_lock`
 - `e2e/gazelle`
 - `e2e/cross_compile`
-- `e2e/pub_lock_conflict`
 - `e2e/pub_lock_cross_module`
 - `e2e/pub_lock_dedup`
 - `e2e/pub_lock_upgrade`
 - `e2e/codegen`
 - `e2e/dual_build`
 - `e2e/ext_exemplar`
+
+Two workspaces are deliberately skipped by the tool (`_skipWorkspaces` in
+`tool/refresh_locks.dart`) because they don't resolve standalone:
+`e2e/pub_lock_conflict` (intentionally conflicting lock files) and
+`e2e/pub_lock_cross_module/module_b` (consumed only from its parent). Their
+locks still get updated as a side effect of building those workspaces.
 
 **Procedure**: Run `dart run tool/refresh_locks.dart`. This both refreshes
 Bazel lock files (pulling fresh registry data, keeping MODULE.bazel
