@@ -80,6 +80,9 @@ file at runtime — keep file lists current as the repo evolves.
 - `e2e/codegen/.bazelversion`
 - `e2e/dual_build/.bazelversion`
 - `e2e/ext_exemplar/.bazelversion`
+- `.github/workflows/ci.yaml` — `bazel_versions:` must match `.bazelversion`; the
+  reusable workflow sets `USE_BAZEL_VERSION` from it, so a stale value means CI
+  never tests the version developers run locally
 - `.bcr/presubmit.yml` — `bazel:` matrix value (if major version changes)
 - `docs/ARCHITECTURE.md` — prose mentioning "Bazel 8.x" (if major version changes)
 
