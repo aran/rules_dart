@@ -9,7 +9,7 @@ local_path_override(
 # For the //foreign_platform regression guard: a platform transition forces a
 # codegen target onto a target platform with no registered Dart toolchain, and
 # `build_test` asserts it still builds.
-bazel_dep(name = "bazel_skylib", version = "1.9.0")
+bazel_dep(name = "bazel_skylib", version = "1.9.2")
 
 dart = use_extension("@rules_dart//dart:extensions.bzl", "dart")
 dart.toolchain(dart_version = "3.12.2")
