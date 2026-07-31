@@ -332,11 +332,22 @@ and typos to keep CI and local hooks in sync.
 
 - `.pre-commit-config.yaml`
 
-**Procedure**: Handled automatically by Renovate (`:enablePreCommit` preset).
+**Procedure**: Run `pre-commit autoupdate`, then reconcile the revs that are
+pinned to something else in this repo:
 
-**Verification**: Renovate opens PRs; CI runs pre-commit checks.
+- `keith/pre-commit-buildifier` should track `buildifier_prebuilt` in
+  `MODULE.bazel`, so the hook and CI format identically.
+- `google/yamlfmt` and `crate-ci/typos` should track `multitool.lock.json`
+  (see § "Multitool Version Bumps").
+- `pre-commit/mirrors-prettier` is archived upstream; `v3.1.0` is the last
+  stable tag and is expected to stay pinned. Do not "upgrade" it to the
+  `v4.0.0-alpha` tags.
 
-**Automation**: Renovate — no manual action needed.
+**Verification**: `pre-commit run --all-files` passes.
+
+**Automation**: Manual. These were previously assumed to be handled by
+Renovate, but no Renovate config has ever existed in this repo, and the
+buildifier and commitizen revs silently drifted as a result.
 
 ---
 
