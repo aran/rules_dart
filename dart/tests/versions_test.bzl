@@ -11,19 +11,13 @@ def _smoke_test_impl(ctx):
     asserts.equals(env, "3.12.2", TOOL_VERSIONS.keys()[0])
     return unittest.end(env)
 
-def _platforms_test_impl(ctx):
-    env = unittest.begin(ctx)
-    versions = TOOL_VERSIONS["3.12.2"]
-    asserts.true(env, "macos-arm64" in versions)
-    asserts.true(env, "macos-x64" in versions)
-    asserts.true(env, "linux-x64" in versions)
-    asserts.true(env, "linux-arm64" in versions)
-    asserts.true(env, "windows-x64" in versions)
-    asserts.equals(env, 5, len(versions))
-    return unittest.end(env)
+# The per-platform checksum coverage that used to live here — a hand-listed set
+# plus `len(versions) == 5` — is now `toolchains_test.bzl`'s
+# `_checksums_cover_every_host_test`, which checks every pinned version against
+# `PLATFORMS` rather than one version against a literal count. A bare count
+# cannot catch a *wrong* key, and it broke on every platform change.
 
 _t0_test = unittest.make(_smoke_test_impl)
-_t1_test = unittest.make(_platforms_test_impl)
 
 def versions_test_suite(name):
-    small_unittest_suite(name, _t0_test, _t1_test)
+    small_unittest_suite(name, _t0_test)

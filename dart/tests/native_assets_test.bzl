@@ -105,6 +105,22 @@ def _manifest_mixed_link_modes_test_impl(ctx):
     asserts.true(env, '"proc": ["process"]' in result)
     return unittest.end(env)
 
+def _cross_only_abi_test_impl(ctx):
+    # The ABI keys for the cross-only targets. `generate_native_assets_yaml` is
+    # ABI-agnostic string interpolation, so this is formatter coverage, not
+    # proof of the constraint->ABI mapping — that lives in
+    # `//dart/tests/cross_fixture`, which drives a real cross-configured build.
+    env = unittest.begin(ctx)
+    for abi in ["linux_riscv64", "linux_arm"]:
+        result = generate_native_assets_yaml(abi, [("a", _bundle("liba.so"))])
+        asserts.equals(
+            env,
+            '{"format-version": [1, 0, 0], "native-assets": {"%s": ' % abi +
+            '{"a": ["relative", "liba.so"]}}}\n',
+            result,
+        )
+    return unittest.end(env)
+
 _t0_test = unittest.make(_single_asset_test_impl)
 _t1_test = unittest.make(_multi_asset_test_impl)
 _t2_test = unittest.make(_empty_assets_test_impl)
@@ -114,6 +130,7 @@ _t5_test = unittest.make(_path_list_executable_test_impl)
 _t6_test = unittest.make(_path_list_process_test_impl)
 _t7_test = unittest.make(_path_list_covers_vocabulary_test_impl)
 _t8_test = unittest.make(_manifest_mixed_link_modes_test_impl)
+_t9_test = unittest.make(_cross_only_abi_test_impl)
 
 def native_assets_test_suite(name):
     small_unittest_suite(
@@ -127,4 +144,5 @@ def native_assets_test_suite(name):
         _t6_test,
         _t7_test,
         _t8_test,
+        _t9_test,
     )

@@ -39,12 +39,19 @@ WINDOWS_CONSTRAINT_ATTR = {
 # time. `DartSdkInfo.target_os/target_arch` are empty for native/host
 # toolchains (the only ones a test runs under), so we probe constraints
 # directly — the idiomatic pattern in this repo (see WINDOWS_CONSTRAINT_ATTR).
+#
+# Attrs are named after the DART arch, not the Bazel constraint value: Dart's
+# `arm64` is Bazel's `aarch64`, its `x64` is `x86_64`, and its `arm` is `armv7`.
+# The set covers every CPU rules_dart registers a toolchain for, so a user who
+# brings their own cc toolchain for one of them is not blocked here.
 DART_ABI_CONSTRAINT_ATTRS = {
     "_os_macos": attr.label(default = "@platforms//os:macos"),
     "_os_linux": attr.label(default = "@platforms//os:linux"),
     "_os_windows": attr.label(default = "@platforms//os:windows"),
     "_cpu_arm64": attr.label(default = "@platforms//cpu:aarch64"),
     "_cpu_x64": attr.label(default = "@platforms//cpu:x86_64"),
+    "_cpu_riscv64": attr.label(default = "@platforms//cpu:riscv64"),
+    "_cpu_arm": attr.label(default = "@platforms//cpu:armv7"),
 }
 
 def runfiles_path(f, workspace_name):
@@ -606,9 +613,10 @@ def synth_package_config(ctx, library_deps):
 def target_dart_abi(ctx):
     """Returns the Dart code-asset ABI string for the target platform.
 
-    Format `<os>_<arch>` (e.g. `macos_arm64`, `linux_x64`, `windows_x64`),
-    matching `kTargetOperatingSystemName_kTargetArchitectureName` in the VM
-    (`runtime/vm/ffi/native_assets.cc`) and the `PLATFORMS` table in
+    Format `<os>_<arch>` (e.g. `macos_arm64`, `linux_x64`, `windows_x64`,
+    `linux_riscv64`, `linux_arm`), matching
+    `kTargetOperatingSystemName_kTargetArchitectureName` in the VM
+    (`runtime/vm/ffi/native_assets.cc`) and the `TARGET_PLATFORMS` table in
     `toolchains_repo.bzl`. Reads `DART_ABI_CONSTRAINT_ATTRS` constraints.
 
     Args:
@@ -629,8 +637,21 @@ def target_dart_abi(ctx):
         arch = "arm64"
     elif ctx.target_platform_has_constraint(ctx.attr._cpu_x64[platform_common.ConstraintValueInfo]):
         arch = "x64"
+    elif ctx.target_platform_has_constraint(ctx.attr._cpu_riscv64[platform_common.ConstraintValueInfo]):
+        arch = "riscv64"
+    elif ctx.target_platform_has_constraint(ctx.attr._cpu_arm[platform_common.ConstraintValueInfo]):
+        arch = "arm"
     else:
-        fail("%s: code_assets require an aarch64/x86_64 target CPU." % ctx.label)
+        fail(("%s: code_assets require an aarch64, x86_64, riscv64 or armv7 " +
+              "target CPU (Dart has no code-asset ABI name for others). Every " +
+              "CPU rules_dart registers a toolchain for is covered; this fires " +
+              "for a platform supplied by a downstream module.") % ctx.label)
+
+    # The OS and CPU probes are independent, so a user-declared platform can
+    # produce a combination Dart never ships (e.g. `macos_riscv64`). That hole
+    # predates the riscv64/armv7 entries — `macos_arm` was already reachable —
+    # and it surfaces as a `native_assets.yaml` key the VM never looks up
+    # rather than as a build error. Not worth a validity table.
     return os + "_" + arch
 
 def find_sdk_kernel_tools(dart_sdk_info):

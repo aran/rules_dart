@@ -1,0 +1,86 @@
+load("//dart:defs.bzl", "dart_binary", "dart_code_asset")
+load(
+    "//dart/tests:cross_target_test.bzl",
+    "armv7_abi_test",
+    "armv7_flags_test",
+    "native_has_no_target_flags_test",
+    "riscv64_abi_test",
+    "riscv64_flags_test",
+)
+
+# The two cross-only targets. `linux_arm` is armv7 hardfloat: note the
+# constraint is `armv7`, not `arm` — the latter aliases `aarch32` and would not
+# resolve the toolchain.
+platform(
+    name = "linux_riscv64",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:riscv64",
+    ],
+)
+
+platform(
+    name = "linux_arm",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:armv7",
+    ],
+)
+
+dart_binary(
+    name = "app",
+    main = "main.dart",
+)
+
+riscv64_flags_test(
+    name = "riscv64_flags_test",
+    size = "small",
+    expected_target_arch = "riscv64",
+    expected_target_os = "linux",
+    target_under_test = ":app",
+)
+
+armv7_flags_test(
+    name = "armv7_flags_test",
+    size = "small",
+    expected_target_arch = "arm",
+    expected_target_os = "linux",
+    target_under_test = ":app",
+)
+
+native_has_no_target_flags_test(
+    name = "native_has_no_target_flags_test",
+    size = "small",
+    target_under_test = ":app",
+)
+
+# A `dynamic_loading_system` asset names a library already present on the target
+# and takes no `shared_library`, so nothing here needs a cc toolchain for
+# riscv64/armv7 — which is what lets these tests reach `target_dart_abi`
+# instead of dying in cc toolchain resolution first.
+dart_code_asset(
+    name = "system_asset",
+    asset_id = "package:cross_fixture/src/ffi/cross.g.dart",
+    link_mode = "dynamic_loading_system",
+    system_uri = "libc.so.6",
+)
+
+dart_binary(
+    name = "app_with_asset",
+    code_assets = [":system_asset"],
+    main = "main.dart",
+)
+
+riscv64_abi_test(
+    name = "riscv64_abi_test",
+    size = "small",
+    expected_abi = "linux_riscv64",
+    target_under_test = ":app_with_asset",
+)
+
+armv7_abi_test(
+    name = "armv7_abi_test",
+    size = "small",
+    expected_abi = "linux_arm",
+    target_under_test = ":app_with_asset",
+)

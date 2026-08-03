@@ -1,23 +1,27 @@
 load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_test")
 load("@rules_platform//platform_data:defs.bzl", "platform_data")
 
-platform(
-    name = "linux_x64",
+# Every Linux target rules_dart can cross-compile to, paired with the
+# `@platforms//cpu` constraint that selects it. `linux_arm` is armv7 hardfloat:
+# `@platforms//cpu:arm` is an alias for `aarch32` and would NOT match.
+_TARGETS = {
+    "linux_x64": "@platforms//cpu:x86_64",
+    "linux_arm64": "@platforms//cpu:aarch64",
+    "linux_riscv64": "@platforms//cpu:riscv64",
+    "linux_arm": "@platforms//cpu:armv7",
+}
+
+[platform(
+    name = name,
     constraint_values = [
         "@platforms//os:linux",
-        "@platforms//cpu:x86_64",
+        cpu,
     ],
-)
+) for name, cpu in _TARGETS.items()]
 
 dart_binary(
     name = "app",
     main = "hello.dart",
-)
-
-platform_data(
-    name = "app_linux_x64",
-    platform = "//:linux_x64",
-    target = ":app",
 )
 
 dart_binary(
@@ -26,13 +30,32 @@ dart_binary(
     main = "hello.dart",
 )
 
-# Verifies the cross-compiled binary is ELF (Linux), not Mach-O (macOS).
-# On Linux hosts this is a no-op (native build produces ELF anyway),
-# but on macOS hosts it validates actual cross-compilation.
+# `exe` and `aot-snapshot` are the two modes `dart_compile.bzl` forwards
+# --target-os/--target-arch for, so both are exercised against every target.
+# `dart_binary` is `executable = True` in every mode, which `platform_data`
+# requires; each symlink is named after its own target, so the runfiles paths
+# are `_main/app_<t>` and `_main/app_aot_<t>` with no extension.
+[platform_data(
+    name = "app_%s" % name,
+    platform = ":%s" % name,
+    target = ":app",
+) for name in _TARGETS]
+
+[platform_data(
+    name = "app_aot_%s" % name,
+    platform = ":%s" % name,
+    target = ":app_aot",
+) for name in _TARGETS]
+
+# Reads each binary's ELF identification header and asserts the architecture it
+# was actually built for. The predecessor checked only the 4-byte ELF magic,
+# which every one of these would pass regardless of target — see the test's
+# docstring.
 dart_test(
     name = "cross_compile_test",
     size = "small",
-    data = [":app_linux_x64"],
+    data = ["app_%s" % n for n in _TARGETS] +
+           ["app_aot_%s" % n for n in _TARGETS],
     main = "cross_compile_test.dart",
     deps = ["@rules_dart//dart/runfiles"],
 )

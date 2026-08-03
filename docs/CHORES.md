@@ -179,18 +179,54 @@ formatting canonical) and runs `dart pub get` in any in-repo Dart packages
 
 **Trigger**: Dart SDK adds support for a new platform (rare).
 
+There are two distinct procedures. Pick by asking whether the platform can be a
+**host** — i.e. whether Bazel itself publishes a release for that OS/CPU. If it
+cannot, it is a cross-only target and costs no checksums.
+
+### A new cross-only target (the common case)
+
 **Files**:
 
-- `dart/private/toolchains_repo.bzl` — `PLATFORMS` dict, possibly `CROSS_TARGETS`
-- `dart/private/versions.bzl` — add platform key to each version entry
-- `tool/fetch_sdk_hashes.dart` — add platform to `platforms` list
-- `dart/tests/versions_test.bzl` — update platform count assertion
-- `.bcr/presubmit.yml` — add platform to matrix if applicable
-- `docs/ARCHITECTURE.md` — update platform list and cross-compilation matrix
+- `dart/private/toolchains_repo.bzl` — add to `TARGET_ONLY_PLATFORMS`, then add
+  it to each `CROSS_TARGETS` value it is reachable from
+- `e2e/cross_compile/BUILD.bazel` — add to `_TARGETS`
+- `e2e/cross_compile/cross_compile_test.dart` — add its expected `EI_CLASS` and
+  `e_machine` to the table; the suite asserts the architectures are pairwise
+  distinct, so a new target must bring a new `e_machine`
+- `dart/tests/cross_fixture/BUILD.bazel` — a `platform()` plus flag/ABI tests
+- `dart/private/common.bzl` — extend `DART_ABI_CONSTRAINT_ATTRS` and
+  `target_dart_abi` if the CPU is new, so code assets are not blocked for users
+  who bring their own cc toolchain
+- `docs/ARCHITECTURE.md` — platform list, toolchain counts, cross matrix
 
-**Procedure**: Add the platform to all files above, fetch hashes, update tests.
+Explicitly **not** needed: `versions.bzl`, `tool/fetch_sdk_hashes.dart`, and
+`.bcr/presubmit.yml`. A cross toolchain reuses the host SDK's `dart` binary, so
+no SDK is downloaded for the target and no checksum exists to fetch. BCR CI has
+no runner for these CPUs either.
 
-**Verification**: `bazel test //dart/tests/...` passes.
+Before hard-coding the ELF table, confirm the real header bytes:
+
+```sh
+dart compile exe          -o /tmp/x hello.dart --target-os linux --target-arch <arch>
+dart compile aot-snapshot -o /tmp/x.aot hello.dart --target-os linux --target-arch <arch>
+file /tmp/x /tmp/x.aot
+```
+
+### A new host platform
+
+**Files**: everything above, plus
+
+- `dart/private/toolchains_repo.bzl` — `PLATFORMS` rather than `TARGET_ONLY_PLATFORMS`
+- `dart/private/versions.bzl` — add the platform key to **every** version entry;
+  `repositories.bzl` hard-errors on a missing key
+- `tool/fetch_sdk_hashes.dart` — add to the `platforms` list, then re-run it for
+  every pinned version
+- `.bcr/presubmit.yml` — add to the matrix if BCR has a runner
+
+**Verification**: `bazel test //dart/tests/...` — `toolchains_test.bzl` asserts
+the table invariants, including that every pinned version's checksum set matches
+`PLATFORMS` exactly. Then `cd e2e/cross_compile && bazel test //...` for the
+byte-level architecture check.
 
 **Automation**: Manual — too rare and requires design decisions.
 

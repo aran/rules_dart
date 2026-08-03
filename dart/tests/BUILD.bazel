@@ -14,10 +14,13 @@ load(":provider_shape_test.bzl", "provider_shape_probe")
 load(":registry_test.bzl", "registry_test_suite")
 load(":semver_test.bzl", "semver_test_suite")
 load(":source_set_test.bzl", "source_set_test_suite")
+load(":toolchains_test.bzl", "toolchains_test_suite")
 load(":versions_test.bzl", "versions_test_suite")
 load(":yaml_parser_test.bzl", "yaml_parser_test_suite")
 
 versions_test_suite(name = "versions_test")
+
+toolchains_test_suite(name = "toolchains_test")
 
 common_test_suite(name = "common_test")
 

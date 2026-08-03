@@ -17,8 +17,12 @@ This guidance tells us how to avoid that: we put the toolchain targets in the al
 with only the toolchain attribute pointing into the platform-specific repositories.
 """
 
-# Dart SDK platform strings as used in the download URL:
+# HOST platforms: those we download an SDK for and can run a build on. Each key
+# is both the download-URL slug and the `versions.bzl` checksum key:
 # https://storage.googleapis.com/dart-archive/channels/stable/release/{version}/sdk/dartsdk-{platform}-release.zip
+# Every entry costs one SHA-256 per pinned version, so add one only for a
+# platform Bazel itself ships a release for. Cross-compilation destinations go
+# in `TARGET_ONLY_PLATFORMS` instead.
 PLATFORMS = {
     "macos-arm64": struct(
         compatible_with = [
@@ -62,15 +66,52 @@ PLATFORMS = {
     ),
 }
 
+# Cross-compilation destinations with no SDK download and no host support.
+# `dart compile exe/aot-snapshot` reuses the HOST SDK's `dart` binary with
+# --target-os/--target-arch, so no `dartsdk-<key>-release.zip` is fetched and no
+# `versions.bzl` checksum is needed. Keys are still real SDK slugs, so promoting
+# one to a full `PLATFORMS` entry later is a move plus its checksums.
+#
+# Neither is a host: Bazel publishes no riscv64 or armv7 release, so neither CPU
+# can ever be an exec platform.
+TARGET_ONLY_PLATFORMS = {
+    "linux-riscv64": struct(
+        compatible_with = [
+            "@platforms//os:linux",
+            "@platforms//cpu:riscv64",
+        ],
+        dart_os = "linux",
+        dart_arch = "riscv64",
+    ),
+    # Dart's `linux-arm` is armv7 hardfloat. NOTE: `@platforms//cpu:arm` is an
+    # ALIAS for `aarch32` — a different constraint value — and constraint
+    # matching has no subtyping, so a user platform declaring `:arm` will NOT
+    # resolve this toolchain. It must declare `:armv7`.
+    "linux-arm": struct(
+        compatible_with = [
+            "@platforms//os:linux",
+            "@platforms//cpu:armv7",
+        ],
+        dart_os = "linux",
+        dart_arch = "arm",
+    ),
+}
+
+# Every platform usable as a cross-compilation TARGET: hosts plus target-only.
+TARGET_PLATFORMS = dict(PLATFORMS)
+
+TARGET_PLATFORMS.update(TARGET_ONLY_PLATFORMS)
+
 # Known-working cross-compilation pairs: exec platform -> list of target platforms.
 # Dart's AOT compiler can cross-compile exe and aot-snapshot to these targets
-# using --target-os and --target-arch flags.
+# using --target-os and --target-arch flags. Keys must be `PLATFORMS` (an exec
+# platform needs an SDK); values must be `TARGET_PLATFORMS`.
 CROSS_TARGETS = {
-    "macos-arm64": ["linux-x64", "linux-arm64"],
-    "macos-x64": ["linux-x64", "linux-arm64"],
-    "linux-x64": ["linux-arm64"],
-    "linux-arm64": ["linux-x64"],
-    "windows-x64": ["linux-x64", "linux-arm64"],
+    "macos-arm64": ["linux-x64", "linux-arm64", "linux-riscv64", "linux-arm"],
+    "macos-x64": ["linux-x64", "linux-arm64", "linux-riscv64", "linux-arm"],
+    "linux-x64": ["linux-arm64", "linux-riscv64", "linux-arm"],
+    "linux-arm64": ["linux-x64", "linux-riscv64", "linux-arm"],
+    "windows-x64": ["linux-x64", "linux-arm64", "linux-riscv64", "linux-arm"],
 }
 
 def _toolchains_repo_impl(repository_ctx):
@@ -122,7 +163,7 @@ toolchain(
     for [exec_platform, targets] in CROSS_TARGETS.items():
         exec_meta = PLATFORMS[exec_platform]
         for target_platform in targets:
-            target_meta = PLATFORMS[target_platform]
+            target_meta = TARGET_PLATFORMS[target_platform]
             cross_name = exec_platform + "_cross_" + target_platform
             build_content += """
 toolchain(

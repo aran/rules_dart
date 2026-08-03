@@ -40,7 +40,7 @@ A `dart_library`'s `srcs` must live under `<lib_root>/lib/`, because `package:<n
 ## Design Decisions
 
 1. **Bazel version**: Bazel 9.x only. bzlmod required.
-2. **Platforms**: macos-arm64, macos-x64, linux-x64, linux-arm64, windows-x64.
+2. **Platforms**: five **hosts**, for which an SDK is downloaded and a build can run — macos-arm64, macos-x64, linux-x64, linux-arm64, windows-x64 — plus two **cross-only targets** that can be built _for_ but not _on_: linux-riscv64 and linux-arm (armv7). See [Cross-Compilation](#cross-compilation).
 3. **Compilation modes**: `dart compile exe` (default), `aot-snapshot`, `kernel`, `jit-snapshot`, plus `dart_js_binary` (JS) and `dart_wasm_binary` (WASM) for web.
 4. **pub.from_lock**: Only `hosted` packages are resolved. `git`/`path` sources produce a warning and are skipped. `sdk` sources are silently skipped (provided by the toolchain).
 5. **Gazelle plugin**: `rules_go` and `gazelle` are non-dev dependencies so `//gazelle/dart` is loadable from downstream modules. See the comment in `MODULE.bazel` for the full rationale. The Go SDK is only fetched if a target in `//gazelle/...` is actually built. Supports `gazelle:resolve` directive for explicit dependency overrides.
@@ -57,20 +57,24 @@ Dart's AOT compiler supports cross-compilation via `--target-os` and `--target-a
 Each SDK repository generates both a **native** `dart_toolchain` target (no `target_os`/`target_arch`) and **cross** `dart_toolchain_cross_{target}` targets for each supported cross-compilation pair. The toolchains repository registers:
 
 - **Native toolchains** (5): `exec_compatible_with` and `target_compatible_with` match the same platform
-- **Cross toolchains** (8): `exec_compatible_with` = host, `target_compatible_with` = cross target
+- **Cross toolchains** (18): `exec_compatible_with` = host, `target_compatible_with` = cross target
 - **Exec-tools toolchains** (5): `exec_compatible_with` = host, `target_compatible_with` omitted — for the codegen rules (see [Toolchain Types](#toolchain-types))
 
 When `--platforms` is set, Bazel's toolchain resolution picks the cross toolchain. `DartSdkInfo` carries `target_os`/`target_arch`, which `dart_compile_action` passes as `--target-os`/`--target-arch` flags.
 
+Two tables in `dart/private/toolchains_repo.bzl` drive this. `PLATFORMS` holds the hosts: each entry downloads an SDK, so each costs one SHA-256 per pinned version in `versions.bzl`. `TARGET_ONLY_PLATFORMS` holds destinations that are never built _on_ — a cross toolchain reuses the **host** SDK's `dart` binary, so no SDK is fetched for the target and no checksum is needed. `TARGET_PLATFORMS` is the union and is what a cross target is looked up in. `linux-riscv64` and `linux-arm` are target-only because Bazel publishes no release for either CPU, so neither can ever be an exec platform.
+
 ### Supported Cross-Compilation Matrix
 
-| Host (exec) | Target                 |
-| ----------- | ---------------------- |
-| macOS arm64 | linux-x64, linux-arm64 |
-| macOS x64   | linux-x64, linux-arm64 |
-| Linux x64   | linux-arm64            |
-| Linux arm64 | linux-x64              |
-| Windows x64 | linux-x64, linux-arm64 |
+| Host (exec) | Target                                           |
+| ----------- | ------------------------------------------------ |
+| macOS arm64 | linux-x64, linux-arm64, linux-riscv64, linux-arm |
+| macOS x64   | linux-x64, linux-arm64, linux-riscv64, linux-arm |
+| Linux x64   | linux-arm64, linux-riscv64, linux-arm            |
+| Linux arm64 | linux-x64, linux-riscv64, linux-arm              |
+| Windows x64 | linux-x64, linux-arm64, linux-riscv64, linux-arm |
+
+`linux-arm` is Dart's armv7 hardfloat target and is selected by `@platforms//cpu:armv7`. Note `@platforms//cpu:arm` is an **alias for `aarch32`** — a different constraint value — and constraint matching has no subtyping, so a platform declaring `:arm` will not resolve the toolchain.
 
 ### Usage
 
@@ -96,6 +100,8 @@ bazel build //:my_binary --platforms=//:linux_x64
 - Only `exe` and `aot-snapshot` compile modes support cross-compilation. `kernel` and `jit-snapshot` are VM formats and ignore target flags.
 - `dart_js_binary` and `dart_wasm_binary` output is platform-independent — no cross-compilation needed.
 - `dart_test` runs on the host — cross-compiled tests are not supported.
+- **Cross-compiling requires network access at action time.** `dart compile` downloads the pair-specific `gen_snapshot_{host}_{target}` and, for `exe`, `dartaotruntime_{target}` into `$HOME/.dart/dartdev/sdk_cache/{version}` (`HOME` is pinned to `/tmp` by `dart_compile.bzl`). This is not new to the riscv64/armv7 targets — it already applied to linux-x64 and linux-arm64 — but it does mean a sandbox that denies network cannot run a cross-compile action.
+- Native **code assets** on linux-riscv64 and linux-arm work only if you supply a cc toolchain for that CPU; rules_dart ships none. The ABI mapping is in place (`linux_riscv64`, `linux_arm`), so rules_dart itself will not block you — an unresolvable cc toolchain surfaces as Bazel's own error.
 
 ## Toolchain Types
 

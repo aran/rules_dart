@@ -4,7 +4,7 @@ These are needed for local dev, and users must install them as well.
 See https://docs.bazel.build/versions/main/skylark/deploying.html#dependencies
 """
 
-load("//dart/private:toolchains_repo.bzl", "CROSS_TARGETS", "PLATFORMS", "toolchains_repo")
+load("//dart/private:toolchains_repo.bzl", "CROSS_TARGETS", "PLATFORMS", "TARGET_PLATFORMS", "toolchains_repo")
 load("//dart/private:versions.bzl", "TOOL_VERSIONS")
 
 ########
@@ -18,7 +18,10 @@ _ATTRS = {
         values = TOOL_VERSIONS.keys(),
     ),
     "platform": attr.string(
-        doc = "The target platform (e.g. `macos-arm64`, `linux-x64`). Must match a key in `PLATFORMS`.",
+        doc = "The host platform whose SDK this repository downloads (e.g. " +
+              "`macos-arm64`, `linux-x64`). Must match a key in `PLATFORMS` — " +
+              "cross-only targets have no SDK of their own, so they are not " +
+              "valid here.",
         mandatory = True,
         values = PLATFORMS.keys(),
     ),
@@ -65,10 +68,12 @@ dart_toolchain(
         version = version,
     )
 
-    # Generate cross-compilation toolchain targets for this SDK.
+    # Generate cross-compilation toolchain targets for this SDK. These reuse
+    # this host SDK's `dart` binary — the target's own SDK is never fetched —
+    # so a target needs only its metadata, not a `PLATFORMS` entry.
     cross_targets = CROSS_TARGETS.get(platform, [])
     for target_platform in cross_targets:
-        target_meta = PLATFORMS[target_platform]
+        target_meta = TARGET_PLATFORMS[target_platform]
         build_content += """
 dart_toolchain(
     name = "dart_toolchain_cross_{target_platform}",
