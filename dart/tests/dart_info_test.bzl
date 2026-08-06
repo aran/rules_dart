@@ -15,13 +15,14 @@ load("//dart/private:dart_info.bzl", "dart_info")
 
 def _wrapper_library_impl(ctx):
     return [
-        DefaultInfo(files = depset(ctx.files.srcs)),
+        DefaultInfo(files = depset(ctx.files.srcs + ctx.files.resources)),
         dart_info(
             label = ctx.label,
             package_name = ctx.attr.package_name,
             lib_root = ctx.label.package,
             deps = ctx.attr.deps,
             srcs = ctx.files.srcs,
+            resources = ctx.files.resources,
             code_assets = ctx.attr.code_assets,
         ),
     ]
@@ -30,6 +31,7 @@ wrapper_library = rule(
     implementation = _wrapper_library_impl,
     attrs = {
         "srcs": attr.label_list(allow_files = [".dart"]),
+        "resources": attr.label_list(allow_files = True),
         "deps": attr.label_list(providers = [DartInfo]),
         "code_assets": attr.label_list(providers = [DartCodeAssetInfo]),
         "package_name": attr.string(mandatory = True),
@@ -44,8 +46,11 @@ def _forwards_closures_test_impl(ctx):
     env = analysistest.begin(ctx)
     info = analysistest.target_under_test(env)[DartInfo]
 
-    # Sources: the wrapper's own plus every dependency's.
+    # Sources and resources: the wrapper's own plus every dependency's, and the
+    # two kept apart — a resource that leaked into `transitive_srcs` would be
+    # handed to the compiler.
     srcs = _short_paths(info.transitive_srcs)
+    resources = _short_paths(info.transitive_resources)
     asserts.true(
         env,
         [p for p in srcs if p.endswith("/lib/wrapped.dart")] != [],
@@ -55,6 +60,16 @@ def _forwards_closures_test_impl(ctx):
         env,
         [p for p in srcs if p.endswith("/lib/dep.dart")] != [],
         "dependency's source missing from transitive_srcs: %s" % srcs,
+    )
+    asserts.true(
+        env,
+        [p for p in resources if p.endswith("/lib/dep.yaml")] != [],
+        "dependency's resource missing from transitive_resources: %s" % resources,
+    )
+    asserts.true(
+        env,
+        [p for p in srcs if p.endswith(".yaml")] == [],
+        "a resource leaked into transitive_srcs: %s" % srcs,
     )
 
     # Package records: the wrapper's own and the dependency's.

@@ -15,6 +15,7 @@ dart_library(
     package_name = "info_dep",
     srcs = ["lib/dep.dart"],
     code_assets = [":dep_asset"],
+    resources = ["lib/dep.yaml"],
 )
 
 wrapper_library(

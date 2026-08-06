@@ -48,17 +48,17 @@ def check_no_duplicate_srcs(label, srcs):
         seen[src.short_path] = src.path
     return None
 
-def check_srcs_under_lib_root(label, lib_root, srcs):
-    """Detects `srcs` entries that do not sit under the package's `lib/`.
+def check_files_under_lib_root(label, lib_root, files, attr_name = "srcs"):
+    """Detects `srcs`/`resources` entries that do not sit under the package's `lib/`.
 
     A Dart package resolves `package:<name>/x.dart` to `<lib_root>/lib/x.dart`,
     and the consumer stages a package by stripping `lib_root` from each file
-    (`colocate_packages`). A src outside `<lib_root>/lib/` therefore lands
+    (`colocate_packages`). A file outside `<lib_root>/lib/` therefore lands
     outside `lib/` in the staged tree and resolves to nothing. Nothing fails
     until the kernel compile, which reports only a missing path inside a
     `.pkgsrcs` directory — no target name, no mention of `lib/`.
 
-    Generated sources are subject to the same rule: `declare_file` paths are
+    Generated files are subject to the same rule: `declare_file` paths are
     relative to the *producing* rule's Bazel package, so a codegen target
     outside the Dart package root emits a path that no longer starts with
     `lib_root`.
@@ -66,24 +66,25 @@ def check_srcs_under_lib_root(label, lib_root, srcs):
     Args:
       label: The owning rule's label (included in the error message).
       lib_root: The package's library root, from `derive_lib_root`. Empty for a
-        root package, where sources sit at `lib/` directly.
-      srcs: The `srcs` list to inspect.
+        root package, where files sit at `lib/` directly.
+      files: The file list to inspect.
+      attr_name: Attribute the list came from, named in the error message.
 
     Returns:
       An error message string for the first offending file, or `None`.
     """
     prefix = lib_root + "/lib/" if lib_root else "lib/"
-    for src in srcs:
-        if not src.short_path.startswith(prefix):
+    for f in files:
+        if not f.short_path.startswith(prefix):
             return (
-                ("%s: `%s` is not under `%s`, so it cannot be reached by a " +
-                 "`package:` import — a Dart package's sources live in its " +
-                 "`lib/` directory, and the compile stages them by stripping " +
-                 "`%s`. Either move the file under `%s`, or, if it is " +
-                 "generated, declare the producing codegen target in a BUILD " +
-                 "file at the Dart package root so its output path resolves " +
-                 "inside the package.") %
-                (label, src.short_path, prefix, lib_root if lib_root else ".", prefix)
+                ("%s: `%s` in `%s` is not under `%s`, so it cannot be reached " +
+                 "by a `package:` URI — a Dart package's files live in its " +
+                 "`lib/` directory, and staging strips `%s`. Either move the " +
+                 "file under `%s`, or, if it is generated, declare the " +
+                 "producing codegen target in a BUILD file at the Dart " +
+                 "package root so its output path resolves inside the " +
+                 "package.") %
+                (label, f.short_path, attr_name, prefix, lib_root if lib_root else ".", prefix)
             )
     return None
 
@@ -123,22 +124,41 @@ def _dart_library_impl(ctx):
         ctx.label.name,
     )
 
+    own_resources = ctx.files.resources
+    for f in own_resources:
+        if f.extension == "dart":
+            fail(
+                ("%s: `%s` is a Dart source in `resources`. `resources` names " +
+                 "the files the compiler never reads; a `.dart` file listed " +
+                 "there would be staged for the analyzer and withheld from " +
+                 "the compile. Move it to `srcs`.") % (ctx.label, f.short_path),
+            )
+
     if ctx.attr.srcs_dir:
         # Sources arrive pre-assembled as one directory (a `dart_source_set`);
         # the directory itself is the package root.
         if ctx.files.srcs:
             fail("%s: set either `srcs` or `srcs_dir`, not both." % ctx.label)
+        if own_resources:
+            fail(
+                ("%s: set either `resources` or `srcs_dir`, not both. A " +
+                 "pre-assembled directory is opaque — it already carries " +
+                 "every file of the package, non-Dart ones included.") % ctx.label,
+            )
         own_srcs = ctx.files.srcs_dir
         lib_root = own_srcs[0].short_path
     else:
         # `srcs` may be empty: a `dart_library` with only `deps` is a valid
         # aggregate façade that re-exports its dependencies.
-        err = check_no_duplicate_srcs(ctx.label, ctx.files.srcs)
+        err = check_no_duplicate_srcs(ctx.label, ctx.files.srcs + own_resources)
         if err != None:
             fail(err)
         own_srcs = ctx.files.srcs
         lib_root = derive_lib_root(ctx.label.workspace_root, ctx.label.package)
-        err = check_srcs_under_lib_root(ctx.label, lib_root, own_srcs)
+        err = check_files_under_lib_root(ctx.label, lib_root, own_srcs)
+        if err != None:
+            fail(err)
+        err = check_files_under_lib_root(ctx.label, lib_root, own_resources, "resources")
         if err != None:
             fail(err)
 
@@ -149,8 +169,8 @@ def _dart_library_impl(ctx):
     # the only place that sees the package's complete file set.
     return [
         DefaultInfo(
-            files = depset(own_srcs),
-            runfiles = ctx.runfiles(files = own_srcs),
+            files = depset(own_srcs + own_resources),
+            runfiles = ctx.runfiles(files = own_srcs + own_resources),
         ),
         dart_info(
             label = ctx.label,
@@ -158,6 +178,7 @@ def _dart_library_impl(ctx):
             lib_root = lib_root,
             deps = ctx.attr.deps,
             srcs = own_srcs,
+            resources = own_resources,
             code_assets = ctx.attr.code_assets,
             language_version = ctx.attr.language_version,
             has_unreplaced_hook = ctx.attr.has_unreplaced_hook,
@@ -171,8 +192,21 @@ dart_library = rule(
             doc = "Dart source files (`.dart`), source-tree or generated. Typically `glob([\"lib/**/*.dart\"])`, optionally plus `dart_codegen` outputs. Generated members are co-located with the rest of the package by the consuming `dart_binary`/`dart_test`. Mutually exclusive with `srcs_dir`.",
             allow_files = [".dart"],
         ),
+        "resources": attr.label_list(
+            doc = """Non-Dart files this package ships inside `lib/` — part of its published \
+surface, but never compiled. `package:sky_engine`'s `lib/_embedder.yaml`, which the analyzer \
+reads to resolve `dart:ui`, and `package:dwds`'s `lib/src/injected/client.js`, which it serves \
+to the browser, are both this. Anything under `lib/` is addressable as `package:<name>/<path>` \
+whatever its extension, so these are members of the package, not a consumer's `data`. \
+They are staged wherever the package itself is staged — the analyzer's hermetic project tree — \
+and ride the runfiles of every `dart_binary`/`dart_test` that depends on this library, mirroring \
+pub, where the package directory exists whole on disk at run time. They are never compile inputs. \
+`.dart` files belong in `srcs`; files outside `lib/` have no `package:` URI and belong in a \
+consumer's `data`.""",
+            allow_files = True,
+        ),
         "srcs_dir": attr.label(
-            doc = "A pre-assembled source directory (a `dart_source_set`) to use as this library's package root, instead of `srcs`. For reuse/composition; usually you just list files in `srcs`.",
+            doc = "A pre-assembled source directory (a `dart_source_set`) to use as this library's package root, instead of `srcs`. The directory is opaque and carries the package's non-Dart files too, so `resources` is rejected alongside it. For reuse/composition; usually you just list files in `srcs`.",
             allow_files = True,
         ),
         "deps": attr.label_list(

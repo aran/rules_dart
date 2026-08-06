@@ -9,7 +9,7 @@ The rules stage that layout hermetically from declared artifacts (see
 
 load("//dart:providers.bzl", "DartInfo")
 load("//dart/private:build_settings.bzl", "EXTRA_DART_DEFINES_ATTR", "merge_dart_defines")
-load("//dart/private:common.bzl", "collect_packages", "collect_transitive_srcs")
+load("//dart/private:common.bzl", "collect_packages", "collect_transitive_resources", "collect_transitive_srcs")
 load("//dart/private:project_staging.bzl", "stage_dart_project")
 load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS")
 
@@ -53,7 +53,14 @@ def _dart_web_compile(ctx, compile_mode):
     dart_sdk_info = toolchain.dart_sdk_info
 
     packages = collect_packages(ctx.attr.deps)
-    all_srcs = [ctx.file.main] + list(ctx.files.srcs) + collect_transitive_srcs(ctx.attr.deps).to_list()
+
+    # Resources join the staged project for the same reason they join the
+    # analyzer's: a package staged without them is not the package. They are
+    # not compile inputs — `dart compile js|wasm` reads `main` and follows
+    # imports — but the tree they are staged into has to be complete.
+    all_srcs = ([ctx.file.main] + list(ctx.files.srcs) +
+                collect_transitive_srcs(ctx.attr.deps).to_list() +
+                collect_transitive_resources(ctx.attr.deps).to_list())
     staged = stage_dart_project(ctx, packages, all_srcs)
 
     if compile_mode == "js":

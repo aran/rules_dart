@@ -61,6 +61,7 @@ def dart_info(
         lib_root,
         deps = [],
         srcs = [],
+        resources = [],
         code_assets = [],
         language_version = "",
         has_unreplaced_hook = ""):
@@ -84,6 +85,7 @@ def dart_info(
         Empty string for the root package.
       deps: Targets providing `DartInfo` whose closures are merged in.
       srcs: This target's own Dart sources (or its source directory).
+      resources: This target's own non-Dart files under `lib/`.
       code_assets: Targets providing `DartCodeAssetInfo` that this package owns.
       language_version: Dart language version in `<major>.<minor>` form, or "".
       has_unreplaced_hook: Path of a pub build hook with no Bazel replacement,
@@ -114,6 +116,14 @@ def dart_info(
             direct = srcs,
             transitive = [info.transitive_srcs for info in dep_infos],
         ),
+        # Beside `transitive_srcs`, never inside it: the two lists are routed to
+        # different places. Everything that stages a whole package — the
+        # analyzer's project tree, a binary's runfiles — wants both; everything
+        # that feeds the compiler wants only the first.
+        transitive_resources = depset(
+            direct = resources,
+            transitive = [info.transitive_resources for info in dep_infos],
+        ),
         transitive_packages = depset(
             direct = [this_pkg],
             transitive = [info.transitive_packages for info in dep_infos],
@@ -122,10 +132,10 @@ def dart_info(
         # recovered from them: a depset of providers cannot be flattened back
         # into `File`s without losing the depset, and runfiles need the files.
         #
-        # Alone among the three, this one tolerates a dependency that omits it.
+        # Alone among the four, this one tolerates a dependency that omits it.
         # That is the documented contract for the field (see
         # `collect_code_asset_files`), and dropping the guard would break
-        # providers built before it existed. The other two are read
+        # providers built before it existed. The other three are read
         # unguarded: a missing one is a dependency that forgot to forward, and
         # failing loudly is the whole point.
         transitive_code_asset_files = depset(

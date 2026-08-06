@@ -1,0 +1,9 @@
+# Shipped inside this package's `lib/`, so it is reachable as
+# `package:resource_fixture/strict.yaml` — the shape `package:lints/*.yaml` uses
+# and, more to the point, the shape `package:sky_engine/_embedder.yaml` uses.
+# The consumer's `analysis_options.yaml` includes it; if the file does not reach
+# the staged project, the include dangles and the suppression below stops
+# happening. That is the whole assertion.
+analyzer:
+  errors:
+    unused_local_variable: ignore

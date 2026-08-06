@@ -1,0 +1,10 @@
+load("//dart:defs.bzl", "dart_library")
+
+# A package that ships a non-Dart file inside `lib/`, the way `sky_engine`
+# ships `lib/_embedder.yaml` and `dwds` ships `lib/src/injected/client.js`.
+dart_library(
+    name = "resource_fixture_lib",
+    srcs = ["lib/marker.dart"],
+    resources = ["lib/strict.yaml"],
+    visibility = ["//dart/tests:__subpackages__"],
+)

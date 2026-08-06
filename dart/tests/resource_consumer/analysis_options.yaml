@@ -1,0 +1,3 @@
+# Resolved through the package_config of the staged project, so this line only
+# works if `resource_fixture`'s `resources` reached the staging tree.
+include: package:resource_fixture/strict.yaml

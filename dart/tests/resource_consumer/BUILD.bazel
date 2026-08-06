@@ -1,0 +1,39 @@
+load("//dart:defs.bzl", "dart_analyze_test", "dart_library", "dart_test")
+
+dart_library(
+    name = "resource_consumer_lib",
+    srcs = ["lib/uses_suppression.dart"],
+    deps = ["//dart/tests/resource_fixture:resource_fixture_lib"],
+)
+
+# Behavioural proof that `resources` reach the analyzer's staged project.
+#
+# The analyzer resolves this target's `analysis_options.yaml` `include:` through
+# the staged package_config, so it reads a dependency's non-Dart `lib/` file by
+# `package:` URI — the same path by which it reads
+# `package:sky_engine/_embedder.yaml` to resolve `dart:ui`, which is the case
+# this mechanism exists for and the one that cannot be tested here without
+# shipping a Flutter engine artifact.
+#
+# Stop staging resources and this fails twice over: the include dangles
+# (`include_file_not_found`) and the diagnostic it was suppressing comes back
+# (`unused_local_variable`, fatal under `--fatal-infos`).
+dart_analyze_test(
+    name = "resource_staged_for_analyzer_test",
+    size = "small",
+    lib = ":resource_consumer_lib",
+    options = "analysis_options.yaml",
+)
+
+# The run-time half: a dependency's resources have to survive into runfiles,
+# because a compiled program has no other way back to a file its package
+# shipped.
+dart_test(
+    name = "resource_in_runfiles_test",
+    size = "small",
+    main = "resource_runfiles_test.dart",
+    deps = [
+        ":resource_consumer_lib",
+        "//dart/runfiles",
+    ],
+)

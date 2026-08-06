@@ -26,10 +26,16 @@ def _dart_analyze_test_impl(ctx):
     lib_info = ctx.attr.lib[DartInfo]
     packages = collect_packages([ctx.attr.lib])
 
+    # Resources are staged beside the sources because the analyzer reads some of
+    # them. `package:sky_engine`'s `lib/_embedder.yaml` is the whole of how it
+    # resolves `dart:ui`, and it finds that file only by following the
+    # package_config to the package root. Staged is not analyzed: external
+    # packages land in the sibling `extpkgs` trees, outside the analyzed
+    # directory, exactly as their sources do.
     staged = stage_dart_project(
         ctx,
         packages,
-        lib_info.transitive_srcs.to_list(),
+        lib_info.transitive_srcs.to_list() + lib_info.transitive_resources.to_list(),
         extra_proj_files = {"pubspec.yaml": _PUBSPEC_STUB},
     )
 

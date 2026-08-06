@@ -18,6 +18,7 @@ load(
     "code_asset_entries",
     "collect_packages",
     "collect_transitive_code_assets",
+    "collect_transitive_resources",
     "collect_transitive_srcs",
     "create_test_executable",
     "gen_kernel_native_assets_action",
@@ -123,9 +124,17 @@ def _dart_test_impl(ctx):
         },
     )
 
+    # A dep's `lib/**` non-Dart files are part of the package at run time under
+    # pub, and the dill carries only compiled code — so they come in here, the
+    # same way `dart_binary` stages them, and are reached with `rlocation`.
     runfiles = ctx.runfiles(
         files = [dill] + runtime_libs + ctx.files.data,
-        transitive_files = dart_sdk_info.tool_files,
+        transitive_files = depset(
+            transitive = [
+                dart_sdk_info.tool_files,
+                collect_transitive_resources(ctx.attr.deps),
+            ],
+        ),
     )
     runfiles = runfiles.merge(tool_runfiles)
     for data_dep in ctx.attr.data:

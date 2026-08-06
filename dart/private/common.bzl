@@ -555,6 +555,22 @@ def collect_transitive_srcs(deps):
     """
     return depset(transitive = [dep[DartInfo].transitive_srcs for dep in deps])
 
+def collect_transitive_resources(deps):
+    """Collect all transitive `resources` files from DartInfo deps.
+
+    The sibling of `collect_transitive_srcs`, for the non-Dart files a package
+    ships inside `lib/`. Kept a separate call rather than folded into that one
+    so every consumer has to say which of the two it means: staging a package
+    whole wants both, feeding the compiler wants only the sources.
+
+    Args:
+        deps: List of targets providing DartInfo.
+
+    Returns:
+        Depset of Files from the transitive resource closure.
+    """
+    return depset(transitive = [dep[DartInfo].transitive_resources for dep in deps])
+
 def sdk_path_from_dart(dart_file):
     """Returns the SDK installation root by stripping `/bin/dart` from a dart File path.
 

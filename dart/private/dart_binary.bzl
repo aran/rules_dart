@@ -9,6 +9,7 @@ load(
     "code_asset_entries",
     "collect_packages",
     "collect_transitive_code_assets",
+    "collect_transitive_resources",
     "collect_transitive_srcs",
     "gen_kernel_native_assets_action",
     "generate_native_assets_yaml",
@@ -158,7 +159,16 @@ def _dart_binary_impl(ctx):
         defines = compile_defines,
     )
 
-    runfiles = ctx.runfiles(files = ctx.files.data + code_asset_libs).merge_all(
+    # Resources ride the runfiles, not the compile. A dep's `lib/**` non-Dart
+    # files are part of the package at run time under pub, and the compiled
+    # binary is the one place that cannot recover them: `Isolate.resolvePackageUri`
+    # returns null in an AOT binary with no package_config above it, so a
+    # package cannot read its own shipped files back out. Staging them here is
+    # what makes `rlocation` work for them.
+    runfiles = ctx.runfiles(
+        files = ctx.files.data + code_asset_libs,
+        transitive_files = collect_transitive_resources(ctx.attr.deps),
+    ).merge_all(
         [dep[DefaultInfo].default_runfiles for dep in ctx.attr.data],
     )
 

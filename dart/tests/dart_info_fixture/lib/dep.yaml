@@ -1,0 +1,3 @@
+# Non-Dart member of the dependency's `lib/`, reachable as
+# `package:info_dep/dep.yaml`.
+marker: dep

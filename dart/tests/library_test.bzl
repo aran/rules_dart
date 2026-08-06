@@ -1,7 +1,7 @@
 """Unit tests for dart_library.bzl helpers."""
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts", "unittest")
-load("//dart/private:dart_library.bzl", "check_no_duplicate_srcs", "check_srcs_under_lib_root")
+load("//dart/private:dart_library.bzl", "check_files_under_lib_root", "check_no_duplicate_srcs")
 
 def _stray_src_rejected_test_impl(ctx):
     # The helper is unit-tested below; this asserts `dart_library` actually
@@ -75,7 +75,7 @@ def _source_tree_vs_declared_output_collision_test_impl(ctx):
 
 def _lib_root_accepts_lib_sources_test_impl(ctx):
     env = unittest.begin(ctx)
-    err = check_srcs_under_lib_root(
+    err = check_files_under_lib_root(
         "//pkg:lib",
         "pkg",
         [
@@ -90,14 +90,14 @@ def _lib_root_accepts_root_package_test_impl(ctx):
     # A root package has an empty lib_root; its sources sit at `lib/` directly.
     # Every e2e workspace's `//:rootlib` is this shape.
     env = unittest.begin(ctx)
-    err = check_srcs_under_lib_root("//:lib", "", [_fake_file("lib/a.dart", "lib/a.dart")])
+    err = check_files_under_lib_root("//:lib", "", [_fake_file("lib/a.dart", "lib/a.dart")])
     asserts.equals(env, None, err)
     return unittest.end(env)
 
 def _lib_root_accepts_external_repo_test_impl(ctx):
     # pub spokes: `derive_lib_root` yields `../<repo>` to match short_path.
     env = unittest.begin(ctx)
-    err = check_srcs_under_lib_root(
+    err = check_files_under_lib_root(
         "@dart_pub__path//:path",
         "../+pub+dart_pub__path",
         [_fake_file("x", "../+pub+dart_pub__path/lib/path.dart")],
@@ -110,7 +110,7 @@ def _lib_root_rejects_source_outside_lib_test_impl(ctx):
     # strips lib_root, so it lands outside `lib/` and no `package:` URI reaches
     # it — previously surfacing only as a missing path at kernel-compile time.
     env = unittest.begin(ctx)
-    err = check_srcs_under_lib_root(
+    err = check_files_under_lib_root(
         "//pkg:lib",
         "pkg",
         [_fake_file("pkg/config.g.dart", "pkg/config.g.dart")],
@@ -124,7 +124,7 @@ def _lib_root_rejects_foreign_codegen_output_test_impl(ctx):
     # A codegen target outside the Dart package root declares outputs relative
     # to its own package, so the path keeps that prefix and never resolves.
     env = unittest.begin(ctx)
-    err = check_srcs_under_lib_root(
+    err = check_files_under_lib_root(
         "//pkg:lib",
         "pkg",
         [_fake_file("x", "pkg/gen/pkg/lib/item.g.dart")],

@@ -12,17 +12,17 @@
 
 ## Provider Design
 
-| Provider                | Level        | Purpose                                                               |
-| ----------------------- | ------------ | --------------------------------------------------------------------- |
-| `DartSdkInfo`           | Toolchain    | SDK binaries (`dart`, `dartaotruntime`), SDK root, version, tool_files |
-| `DartInfo`              | Library      | Package name, lib_root, transitive_srcs, transitive_packages          |
-| `DartPackageInfo`       | Metadata     | Single package's name + lib_root (carried in DartInfo depsets)        |
-| `DartPackageConfigInfo` | Build action | Generated package_config.json file                                    |
-| `DartCompileInfo`       | Binary       | Compiled output file, compile_mode string                             |
+| Provider                | Level        | Purpose                                                                            |
+| ----------------------- | ------------ | ---------------------------------------------------------------------------------- |
+| `DartSdkInfo`           | Toolchain    | SDK binaries (`dart`, `dartaotruntime`), SDK root, version, tool_files             |
+| `DartInfo`              | Library      | Package name, lib_root, transitive_srcs, transitive_resources, transitive_packages |
+| `DartPackageInfo`       | Metadata     | Single package's name + lib_root (carried in DartInfo depsets)                     |
+| `DartPackageConfigInfo` | Build action | Generated package_config.json file                                                 |
+| `DartCompileInfo`       | Binary       | Compiled output file, compile_mode string                                          |
 
 **DartInfo contains zero Flutter concepts.** A future `rules_flutter` wraps/extends, never modifies.
 
-**Read `DartInfo` directly; build it through `dart_info()`** (`//dart:utils.bzl`). Rule sets outside rules_dart produce `DartInfo` too — `rules_flutter`'s `flutter_library`, `rules_dart_proto`'s `dart_proto_library` — and constructing it by hand means enumerating every field and merging every transitive depset one at a time. That makes each added field a breaking change for all of them, and leaves each to work out independently how the new field merges. `dart_info()` takes what a target contributes itself and merges its dependencies' closures internally, so a new field is a change to one function. It also removes a failure that is invisible in review: a missing field's correct fix (forward the dependencies' values) and its tempting fix (declare it `depset()`) look identical in a diff, and the second silently drops every dependency's contribution at that boundary. A provider that deliberately carries no package of its own — `flutter_material_icons` ships a font and no Dart — has nothing to merge and constructs `DartInfo` directly.
+**Read `DartInfo` directly; build it through `dart_info()`** (`//dart:utils.bzl`). Rule sets outside rules_dart produce `DartInfo` too — `rules_flutter`'s `flutter_library`, `rules_dart_proto`'s `dart_proto_library` — and constructing it by hand means enumerating every field and merging every transitive depset one at a time. That made each added field a breaking change for all of them, and left each to work out independently how the new field merges. `dart_info()` takes what a target contributes itself and merges its dependencies' closures internally, so a new field is a change to one function. It also removes a failure that is invisible in review: a missing field's correct fix (forward the dependencies' values) and its tempting fix (declare it `depset()`) look identical in a diff, and the second silently drops every dependency's contribution at that boundary. A provider that deliberately carries no package of its own — `flutter_material_icons` ships a font and no Dart — has nothing to merge and constructs `DartInfo` directly.
 
 ---
 
@@ -33,7 +33,7 @@ Unlike Go/Rust, Dart does not produce intermediate object files for libraries. T
 - `dart_library` is **source-only** — it collects sources and propagates `DartInfo`
 - Compilation happens in `dart_binary`, `dart_test`, `dart_js_binary`, `dart_wasm_binary`
 
-A `dart_library`'s `srcs` must live under `<lib_root>/lib/`, because `package:<name>/x.dart` resolves to `<lib_root>/lib/x.dart` and the consumer stages a package by stripping `lib_root`. This is checked at analysis time (`check_srcs_under_lib_root`); without it a stray file surfaces only as a missing path inside a `.pkgsrcs` directory at kernel-compile time, naming neither the target nor `lib/`. Generated sources obey the same rule: `declare_file` paths are relative to the _producing_ rule's package, so a codegen target outside the Dart package root emits a path that no longer starts with `lib_root`. Targets using `srcs_dir` are exempt — a `dart_source_set` is already assembled, and its directory is the package root.
+A `dart_library`'s `srcs` must live under `<lib_root>/lib/`, because `package:<name>/x.dart` resolves to `<lib_root>/lib/x.dart` and the consumer stages a package by stripping `lib_root`. This is checked at analysis time (`check_files_under_lib_root`); without it a stray file surfaces only as a missing path inside a `.pkgsrcs` directory at kernel-compile time, naming neither the target nor `lib/`. Generated sources obey the same rule: `declare_file` paths are relative to the _producing_ rule's package, so a codegen target outside the Dart package root emits a path that no longer starts with `lib_root`. Targets using `srcs_dir` are exempt — a `dart_source_set` is already assembled, and its directory is the package root.
 
 - `package_config.json` is generated at build time from the transitive `DartInfo` graph to bridge Bazel's dep model with Dart's `package:` URI resolution
 
