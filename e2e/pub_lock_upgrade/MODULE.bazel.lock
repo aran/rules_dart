@@ -236,7 +236,7 @@
   "moduleExtensions": {
     "@@rules_dart+//dart/pub:extensions.bzl%pub": {
       "general": {
-        "bzlTransitiveDigest": "FoKC/hIS0ATIazu0Fsb7V03sri3G46UhGbDjU+y8Lxw=",
+        "bzlTransitiveDigest": "Dy+0LtzsRyyu1ST807rM12LiHpFmDYaIoewjLOiyNr0=",
         "usagesDigest": "EJ69+CJHboy/0Ueg9PMatrgSSh+o+9rt3naNXC65KqY=",
         "recordedInputs": [
           "REPO_MAPPING:rules_dart+,yaml.bzl yaml.bzl+",

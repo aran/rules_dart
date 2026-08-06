@@ -134,7 +134,12 @@ file at runtime — keep file lists current as the repo evolves.
 
 ## Lock File Refresh
 
-**Trigger**: After any change to `MODULE.bazel` files or their transitive deps.
+**Trigger**: After any change to `MODULE.bazel` files or their transitive deps —
+and after any change to a `.bzl` file reachable from a module extension. A lock
+records each extension's `bzlTransitiveDigest`, so editing (or merely adding a
+load to) anything in `dart/pub/extensions.bzl`'s closure invalidates the lock of
+**every** workspace using it, not just the one whose `MODULE.bazel` moved. Under
+`--lockfile_mode=error`, which `.bazelrc` sets, that is a hard CI failure.
 
 **Workspaces** (directories containing `MODULE.bazel`):
 
