@@ -20,11 +20,20 @@ derive_language_version = _derive_language_version
 def make_dart_library_build_content(name, deps, language_version, code_assets = [], has_unreplaced_hook = ""):
     """Generate the BUILD.bazel content for a single `dart_library` spoke.
 
-    The shape — `srcs = glob(["lib/**/*.dart"], allow_empty = True)`, a
-    `package_name` matching the target name, public visibility, optional
-    deps block — is the canonical pub-spoke layout. Resource-only and
-    Swift-only/Kotlin-only Flutter platform packages produce empty source
-    globs but must still resolve as labels, hence `allow_empty`.
+    The shape — `srcs = glob(["lib/**/*.dart"], allow_empty = True)`, the
+    non-Dart remainder of `lib/` as `resources`, a `package_name` matching the
+    target name, public visibility, optional deps block — is the canonical
+    pub-spoke layout. Resource-only and Swift-only/Kotlin-only Flutter platform
+    packages produce empty source globs but must still resolve as labels, hence
+    `allow_empty`.
+
+    The two globs partition `lib/` rather than covering only the Dart half of
+    it. A published package's `lib/` is addressable as `package:<name>/<path>`
+    whatever the extension, so a spoke that keeps only `*.dart` is a package
+    with pieces missing — `dwds` without the client JavaScript it serves,
+    `lints` without the YAML every `analysis_options.yaml` includes. Whatever
+    a future package ships lands in one of the two globs, so nothing is
+    dropped for being unanticipated.
 
     Args:
         name: Target name (also the `package_name` for the dart_library).
@@ -65,6 +74,11 @@ dart_library(
     name = "{name}",
     srcs = glob(["lib/**/*.dart"], allow_empty = True),
 {assets}{deps}{hook}    package_name = "{name}",
+    resources = glob(
+        ["lib/**"],
+        exclude = ["lib/**/*.dart"],
+        allow_empty = True,
+    ),
     language_version = "{language_version}",
     visibility = ["//visibility:public"],
 )
