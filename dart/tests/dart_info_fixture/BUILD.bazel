@@ -1,0 +1,46 @@
+load("//dart:defs.bzl", "dart_code_asset", "dart_library")
+load("//dart/tests:dart_info_test.bzl", "forwards_closures_test", "misowned_asset_test", "wrapper_library")
+
+# The dependency carries one of each thing `DartInfo` propagates, so a wrapper
+# that forgets any single merge loses something observable.
+
+dart_code_asset(
+    name = "dep_asset",
+    asset_id = "package:info_dep/src/ffi/dep.g.dart",
+    shared_library = "//dart/tests/cc_fixture:empty_shared",
+)
+
+dart_library(
+    name = "dep",
+    package_name = "info_dep",
+    srcs = ["lib/dep.dart"],
+    code_assets = [":dep_asset"],
+)
+
+wrapper_library(
+    name = "wrapper",
+    package_name = "wrapper_pkg",
+    srcs = ["lib/wrapped.dart"],
+    deps = [":dep"],
+)
+
+forwards_closures_test(
+    name = "forwards_closures_test",
+    size = "small",
+    target_under_test = ":wrapper",
+)
+
+# The asset id is namespaced to `info_dep`; a wrapper claiming a different
+# package must be refused by the constructor, not by `dart_library`.
+wrapper_library(
+    name = "misowned_wrapper",
+    package_name = "not_info_dep",
+    code_assets = [":dep_asset"],
+    tags = ["manual"],
+)
+
+misowned_asset_test(
+    name = "misowned_asset_test",
+    size = "small",
+    target_under_test = ":misowned_wrapper",
+)

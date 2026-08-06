@@ -1,37 +1,7 @@
 """Implementation of the dart_library rule."""
 
-load("//dart:providers.bzl", "DartCodeAssetInfo", "DartInfo", "DartPackageInfo")
-load("//dart/private:common.bzl", "collect_code_asset_files")
-
-def check_code_asset_ownership(label, package_name, assets):
-    """Checks that every declared asset id is namespaced to this package.
-
-    Upstream requires `CodeAsset.id` to be `package:<package>/<name>` where
-    `<package>` is the package that owns the asset — "Code assets are
-    name-spaced in their own package to avoid naming conflicts". Since assets
-    ride `DartPackageInfo`, an id belonging to some other package would
-    propagate under the wrong owner and be impossible to trace back.
-
-    Args:
-      label: The owning rule's label (included in the error message).
-      package_name: The package name this `dart_library` declares.
-      assets: List of `DartCodeAssetInfo`.
-
-    Returns:
-      An error message string on the first mismatch, else `None`.
-    """
-    prefix = "package:%s/" % package_name
-    for asset in assets:
-        if not asset.asset_id.startswith(prefix):
-            return (
-                ("%s: code asset id `%s` is not namespaced to this package. " +
-                 "Expected it to start with `%s`, because a code asset is " +
-                 "owned by the package declaring it. Either set " +
-                 "`package_name = \"…\"` to the owning package, or move the " +
-                 "asset to that package's `dart_library`.") %
-                (label, asset.asset_id, prefix)
-            )
-    return None
+load("//dart:providers.bzl", "DartCodeAssetInfo", "DartInfo")
+load("//dart/private:dart_info.bzl", "dart_info")
 
 def derive_package_name(package_name_attr, label_package, label_name):
     """Derive the Dart package name from rule attributes and label.
@@ -177,46 +147,20 @@ def _dart_library_impl(ctx):
     # package's split-across-targets / source+generated files into one real
     # directory happens in the *consumer* (`dart_binary`/`dart_test`), which is
     # the only place that sees the package's complete file set.
-    transitive_srcs = depset(
-        direct = own_srcs,
-        transitive = [dep[DartInfo].transitive_srcs for dep in ctx.attr.deps],
-    )
-    own_assets = [dep[DartCodeAssetInfo] for dep in ctx.attr.code_assets]
-    err = check_code_asset_ownership(ctx.label, package_name, own_assets)
-    if err != None:
-        fail(err)
-
-    this_pkg = DartPackageInfo(
-        package_name = package_name,
-        lib_root = lib_root,
-        language_version = ctx.attr.language_version,
-        code_assets = tuple(own_assets),
-        has_unreplaced_hook = ctx.attr.has_unreplaced_hook,
-    )
-    transitive_packages = depset(
-        direct = [this_pkg],
-        transitive = [dep[DartInfo].transitive_packages for dep in ctx.attr.deps],
-    )
-
-    # The libraries travel alongside the package records rather than being
-    # recovered from them: a depset of providers cannot be flattened back into
-    # `File`s without losing the depset, and runfiles need the files.
-    transitive_code_asset_files = depset(
-        direct = [a.dynamic_library for a in own_assets if a.dynamic_library != None],
-        transitive = [collect_code_asset_files(ctx.attr.deps)],
-    )
-
     return [
         DefaultInfo(
             files = depset(own_srcs),
             runfiles = ctx.runfiles(files = own_srcs),
         ),
-        DartInfo(
+        dart_info(
+            label = ctx.label,
             package_name = package_name,
             lib_root = lib_root,
-            transitive_srcs = transitive_srcs,
-            transitive_packages = transitive_packages,
-            transitive_code_asset_files = transitive_code_asset_files,
+            deps = ctx.attr.deps,
+            srcs = own_srcs,
+            code_assets = ctx.attr.code_assets,
+            language_version = ctx.attr.language_version,
+            has_unreplaced_hook = ctx.attr.has_unreplaced_hook,
         ),
     ]
 

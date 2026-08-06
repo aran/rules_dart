@@ -33,10 +33,20 @@ bzl_library(
 )
 
 bzl_library(
+    name = "dart_info",
+    srcs = ["dart_info.bzl"],
+    visibility = ["//dart:__subpackages__"],
+    deps = ["//dart:providers"],
+)
+
+bzl_library(
     name = "dart_library",
     srcs = ["dart_library.bzl"],
     visibility = ["//dart:__subpackages__"],
-    deps = ["//dart:providers"],
+    deps = [
+        ":dart_info",
+        "//dart:providers",
+    ],
 )
 
 bzl_library(

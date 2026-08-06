@@ -12,15 +12,17 @@
 
 ## Provider Design
 
-| Provider                | Level        | Purpose                                                                |
-| ----------------------- | ------------ | ---------------------------------------------------------------------- |
+| Provider                | Level        | Purpose                                                               |
+| ----------------------- | ------------ | --------------------------------------------------------------------- |
 | `DartSdkInfo`           | Toolchain    | SDK binaries (`dart`, `dartaotruntime`), SDK root, version, tool_files |
-| `DartInfo`              | Library      | Package name, lib_root, transitive_srcs, transitive_packages           |
-| `DartPackageInfo`       | Metadata     | Single package's name + lib_root (carried in DartInfo depsets)         |
-| `DartPackageConfigInfo` | Build action | Generated package_config.json file                                     |
-| `DartCompileInfo`       | Binary       | Compiled output file, compile_mode string                              |
+| `DartInfo`              | Library      | Package name, lib_root, transitive_srcs, transitive_packages          |
+| `DartPackageInfo`       | Metadata     | Single package's name + lib_root (carried in DartInfo depsets)        |
+| `DartPackageConfigInfo` | Build action | Generated package_config.json file                                    |
+| `DartCompileInfo`       | Binary       | Compiled output file, compile_mode string                             |
 
 **DartInfo contains zero Flutter concepts.** A future `rules_flutter` wraps/extends, never modifies.
+
+**Read `DartInfo` directly; build it through `dart_info()`** (`//dart:utils.bzl`). Rule sets outside rules_dart produce `DartInfo` too — `rules_flutter`'s `flutter_library`, `rules_dart_proto`'s `dart_proto_library` — and constructing it by hand means enumerating every field and merging every transitive depset one at a time. That makes each added field a breaking change for all of them, and leaves each to work out independently how the new field merges. `dart_info()` takes what a target contributes itself and merges its dependencies' closures internally, so a new field is a change to one function. It also removes a failure that is invisible in review: a missing field's correct fix (forward the dependencies' values) and its tempting fix (declare it `depset()`) look identical in a diff, and the second silently drops every dependency's contribution at that boundary. A provider that deliberately carries no package of its own — `flutter_material_icons` ships a font and no Dart — has nothing to merge and constructs `DartInfo` directly.
 
 ---
 

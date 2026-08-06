@@ -15,6 +15,10 @@ load(
     _runfiles_path = "runfiles_path",
 )
 load(
+    "//dart/private:dart_info.bzl",
+    _dart_info = "dart_info",
+)
+load(
     "//dart/private:dart_library.bzl",
     _derive_lib_root = "derive_lib_root",
     _derive_package_name = "derive_package_name",
@@ -25,6 +29,14 @@ load(
     _colocate_entrypoint = "colocate_entrypoint",
     _colocate_packages = "colocate_packages",
 )
+
+# Build a `DartInfo` from what a target contributes itself, merging every
+# dependency's closure internally. Any rule set that wraps Dart libraries should
+# construct through this rather than calling `DartInfo(...)`: a field added to
+# the provider is then a change here and nowhere else, and no caller can silence
+# a missing field by declaring it empty and dropping its dependencies' values.
+# Reading stays direct — `DartInfo` is indexed off targets as before.
+dart_info = _dart_info
 
 collect_packages = _collect_packages
 
