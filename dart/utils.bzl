@@ -8,6 +8,7 @@ co-location. These are used by both rules_dart and rules_flutter.
 load(
     "//dart/private:common.bzl",
     _collect_packages = "collect_packages",
+    _collect_transitive_resources = "collect_transitive_resources",
     _collect_transitive_srcs = "collect_transitive_srcs",
     _generate_dev_package_config = "generate_dev_package_config",
     _generate_package_config = "generate_package_config",
@@ -43,6 +44,12 @@ collect_packages = _collect_packages
 # Returns a depset[File]; pass it to action inputs / runfiles directly and
 # flatten (once) only where per-file paths are inspected.
 collect_transitive_srcs = _collect_transitive_srcs
+
+# The sibling of [collect_transitive_srcs], for the non-Dart files a package
+# ships in `lib/`. For consumers that stage a package whole — a bundler reading
+# a dependency's files — rather than for producers, which get the same merge
+# from [dart_info] without having to know the field exists.
+collect_transitive_resources = _collect_transitive_resources
 
 # The exec-root-relative package_config generator: resolves each package's
 # actual exec-root location from its source Files and computes `rootUri` as a

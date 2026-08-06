@@ -21,15 +21,22 @@ def derive_package_name(package_name_attr, label_package, label_name):
     else:
         return label_name
 
-def check_no_duplicate_srcs(label, srcs):
-    """Detects two `srcs` entries that resolve to the same package-relative path.
+def check_no_duplicate_srcs(label, srcs, attr_name = "srcs"):
+    """Detects two entries that resolve to the same package-relative path.
 
     Typically fires when a stale `build_runner`-generated file is listed in
     the source tree alongside a codegen target producing the same output.
 
     Args:
       label: The owning rule's label (included in the error message).
-      srcs: The `srcs` list to inspect.
+      srcs: The files to inspect.
+      attr_name: The attribute the files came from, named in the message so a
+        collision between two `resources` does not send the reader searching
+        `srcs`. A caller passing srcs and resources together keeps the default:
+        a src-vs-resource collision is unreachable, because identical short
+        paths imply identical extensions and a `.dart` file in `resources` is
+        refused before this runs — so a mixed list can only collide inside
+        `srcs`.
 
     Returns:
       An error message string if a collision is found, or `None` otherwise.
@@ -39,11 +46,11 @@ def check_no_duplicate_srcs(label, srcs):
         prev = seen.get(src.short_path)
         if prev != None and prev != src.path:
             return (
-                ("%s: `srcs` contains two files that resolve to the same " +
+                ("%s: `%s` contains two files that resolve to the same " +
                  "package-relative path `%s` — typically a stale " +
                  "`build_runner`-generated file in the source tree listed " +
                  "alongside a codegen target producing the same output. " +
-                 "First: %s. Second: %s.") % (label, src.short_path, prev, src.path)
+                 "First: %s. Second: %s.") % (label, attr_name, src.short_path, prev, src.path)
             )
         seen[src.short_path] = src.path
     return None
@@ -150,7 +157,14 @@ def _dart_library_impl(ctx):
     else:
         # `srcs` may be empty: a `dart_library` with only `deps` is a valid
         # aggregate façade that re-exports its dependencies.
-        err = check_no_duplicate_srcs(ctx.label, ctx.files.srcs + own_resources)
+        # Checked per attribute rather than over the concatenation, so the
+        # message names the list the reader has to go and look at. The two
+        # cannot collide with each other — identical short paths imply
+        # identical extensions, and a `.dart` file in `resources` is refused
+        # above — so nothing is lost by checking them apart.
+        err = check_no_duplicate_srcs(ctx.label, ctx.files.srcs)
+        if err == None:
+            err = check_no_duplicate_srcs(ctx.label, own_resources, "resources")
         if err != None:
             fail(err)
         own_srcs = ctx.files.srcs
