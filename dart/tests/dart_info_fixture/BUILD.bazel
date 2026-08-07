@@ -1,5 +1,13 @@
 load("//dart:defs.bzl", "dart_code_asset", "dart_library")
-load("//dart/tests:dart_info_test.bzl", "forwards_closures_test", "misowned_asset_test", "wrapper_library")
+load(
+    "//dart/tests:dart_info_test.bzl",
+    "facade_library",
+    "forwards_closures_test",
+    "misowned_asset_test",
+    "no_package_empty_test",
+    "no_package_test",
+    "wrapper_library",
+)
 
 # The dependency carries one of each thing `DartInfo` propagates, so a wrapper
 # that forgets any single merge loses something observable.
@@ -29,6 +37,32 @@ forwards_closures_test(
     name = "forwards_closures_test",
     size = "small",
     target_under_test = ":wrapper",
+)
+
+# A facade over the same dependency: forwards everything, contributes no
+# package record of its own.
+facade_library(
+    name = "facade",
+    deps = [":dep"],
+)
+
+no_package_test(
+    name = "no_package_test",
+    size = "small",
+    target_under_test = ":facade",
+)
+
+# The production shape: a non-Dart file and no deps at all, the way
+# `flutter_material_icons` carries a font.
+facade_library(
+    name = "font_only_facade",
+    data = ["lib/dep.yaml"],
+)
+
+no_package_empty_test(
+    name = "no_package_empty_test",
+    size = "small",
+    target_under_test = ":font_only_facade",
 )
 
 # The asset id is namespaced to `info_dep`; a wrapper claiming a different

@@ -14,13 +14,25 @@ silently drops every dependency's contribution at that boundary. Handing the
 merge to one function makes that mistake unrepresentable rather than merely
 warned against.
 
-So construction goes through here and reading does not: `DartInfo` stays public
-and is indexed directly by every consumer.
+Two constructors cover every `DartInfo` a build produces. `dart_info()` is for a
+target that *contributes a package* — it always records one `DartPackageInfo` of
+its own. `dart_info_no_package()` is for one that deliberately carries none:
+`flutter_material_icons` ships a font and no Dart, and provides `DartInfo` only
+because `flutter_application(deps = ...)` requires one on every dep. Neither
+takes a field list, and the enumeration they share lives in `_merged_dart_info`
+below, so a field added to `DartInfo` is a change to this file and nowhere else.
 
-This constructor is for a target that *contributes a package* — it always
-records one `DartPackageInfo` of its own. A provider that deliberately carries
-no package (`flutter_material_icons` ships a font and no Dart) is a degenerate
-case with nothing to merge, and builds `DartInfo` directly.
+The narrow signature is the point for the second one. A target with no package
+can have no `srcs`, no `lib_root`, and no `code_assets` — assets ride
+`DartPackageInfo`, which it does not have — so leaving them out makes the
+degeneracy structural rather than a convention a caller has to honour.
+
+So construction goes through here and reading does not: `DartInfo` stays public
+and is indexed directly by every consumer. The one deliberate exception is
+`//dart/tests/no_lv_fixture`, which hand-builds a provider missing
+`language_version` precisely to prove the tolerance for pre-existing shapes
+still holds; a fixture asserting that older producers keep working cannot be
+written through a constructor that makes them current.
 """
 
 load("//dart:providers.bzl", "DartCodeAssetInfo", "DartInfo", "DartPackageInfo")
@@ -69,7 +81,7 @@ def dart_info(
 
     The caller supplies only what this target contributes itself; everything
     transitive is merged here. Adding a field to `DartInfo` is therefore a
-    change to this function and nothing else.
+    change to this file and nothing else.
 
     Attribute hygiene stays with the calling rule — whether `srcs` and
     `srcs_dir` are mutually exclusive, whether a file sits under the package's
@@ -109,6 +121,83 @@ def dart_info(
         has_unreplaced_hook = has_unreplaced_hook,
     )
 
+    return _merged_dart_info(
+        dep_infos = dep_infos,
+        package_name = package_name,
+        lib_root = lib_root,
+        srcs = srcs,
+        resources = resources,
+        packages = [this_pkg],
+        code_asset_files = [
+            a.dynamic_library
+            for a in own_assets
+            if a.dynamic_library != None
+        ],
+    )
+
+def dart_info_no_package(deps = []):
+    """Builds a `DartInfo` for a target that contributes no Dart package.
+
+    For a target that has to be listed in a `deps` attribute requiring
+    `DartInfo` but ships no Dart: `flutter_material_icons` provides a font, and
+    wants the provider present, not contributing. It records no
+    `DartPackageInfo`, so nothing it is listed on gains a `package_config.json`
+    entry or a source to compile.
+
+    There is deliberately no `package_name`, `lib_root`, `srcs`, `resources` or
+    `code_assets` here. `DartInfo.package_name` and `.lib_root` describe the
+    package a target contributes, and no consumer reads them off the provider —
+    package identity is read from `transitive_packages` — so a no-package target
+    reports the empty string for both rather than inventing a name with no
+    record behind it. Code assets are owned by a `DartPackageInfo`, which this
+    target does not have.
+
+    `deps` exists because a facade that groups other libraries is still a
+    coherent no-package target, and forwarding their closures is then the whole
+    job.
+
+    Args:
+      deps: Targets providing `DartInfo` whose closures are merged in.
+
+    Returns:
+      A `DartInfo` carrying its dependencies' closures and nothing else.
+    """
+    return _merged_dart_info(
+        dep_infos = [dep[DartInfo] for dep in deps],
+        package_name = "",
+        lib_root = "",
+        srcs = [],
+        resources = [],
+        packages = [],
+        code_asset_files = [],
+    )
+
+def _merged_dart_info(
+        dep_infos,
+        package_name,
+        lib_root,
+        srcs,
+        resources,
+        packages,
+        code_asset_files):
+    """Merges a target's own contributions with its dependencies' closures.
+
+    The single place `DartInfo`'s fields are enumerated. Both public
+    constructors route through here, so neither has to be touched when a field
+    is added — and neither can be the one that forgets to forward it.
+
+    Args:
+      dep_infos: The `DartInfo` of each dependency.
+      package_name: Value for `DartInfo.package_name`.
+      lib_root: Value for `DartInfo.lib_root`.
+      srcs: This target's own Dart sources.
+      resources: This target's own non-Dart files under `lib/`.
+      packages: This target's own `DartPackageInfo` records (zero or one).
+      code_asset_files: This target's own code-asset dynamic libraries.
+
+    Returns:
+      A `DartInfo`.
+    """
     return DartInfo(
         package_name = package_name,
         lib_root = lib_root,
@@ -125,7 +214,7 @@ def dart_info(
             transitive = [info.transitive_resources for info in dep_infos],
         ),
         transitive_packages = depset(
-            direct = [this_pkg],
+            direct = packages,
             transitive = [info.transitive_packages for info in dep_infos],
         ),
         # The libraries travel alongside the package records rather than being
@@ -139,7 +228,7 @@ def dart_info(
         # unguarded: a missing one is a dependency that forgot to forward, and
         # failing loudly is the whole point.
         transitive_code_asset_files = depset(
-            direct = [a.dynamic_library for a in own_assets if a.dynamic_library != None],
+            direct = code_asset_files,
             transitive = [
                 info.transitive_code_asset_files
                 for info in dep_infos

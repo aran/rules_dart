@@ -18,6 +18,7 @@ load(
 load(
     "//dart/private:dart_info.bzl",
     _dart_info = "dart_info",
+    _dart_info_no_package = "dart_info_no_package",
 )
 load(
     "//dart/private:dart_library.bzl",
@@ -38,6 +39,13 @@ load(
 # a missing field by declaring it empty and dropping its dependencies' values.
 # Reading stays direct — `DartInfo` is indexed off targets as before.
 dart_info = _dart_info
+
+# The other constructor, for a target that ships no Dart package at all and
+# provides `DartInfo` only to satisfy a `deps` attribute that requires one (a
+# font-only target, a facade grouping other libraries). Takes `deps` and nothing
+# else: with no package there is no `package_name`, no `lib_root`, no sources,
+# and no code assets to declare, and the signature says so.
+dart_info_no_package = _dart_info_no_package
 
 collect_packages = _collect_packages
 

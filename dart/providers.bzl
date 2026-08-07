@@ -19,12 +19,14 @@ DartInfo = provider(
     doc = """Information about a Dart library's sources and transitive dependencies.
 
 Read this directly off any target that provides it. To *build* one, call \
-`dart_info()` from `//dart:utils.bzl` rather than this constructor: it takes \
-what a target contributes itself and merges every dependency's closure \
-internally, so a field added here needs no change in the rule sets that \
-produce `DartInfo` — rules_flutter and rules_dart_proto both do. Constructing \
-it here means enumerating and merging each field by hand, and a field left \
-empty rather than forwarded silently discards every dependency's values.""",
+`dart_info()` from `//dart:utils.bzl` rather than this constructor — or \
+`dart_info_no_package()` when the target ships no Dart package and provides \
+`DartInfo` only to satisfy a `deps` attribute requiring one. Either takes what \
+a target contributes itself and merges every dependency's closure internally, \
+so a field added here needs no change in the rule sets that produce `DartInfo` \
+— rules_flutter and rules_dart_proto both do. Constructing it here means \
+enumerating and merging each field by hand, and a field left empty rather than \
+forwarded silently discards every dependency's values.""",
     fields = {
         "package_name": "str: The Dart package name for this library.",
         "lib_root": "str: The short_path-based path to the package root directory (parent of `lib/`). Configuration-independent; consumers derive exec-root paths from source File objects.",
