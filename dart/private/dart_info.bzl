@@ -1,4 +1,4 @@
-"""The `DartInfo` constructor.
+"""Construction of `DartInfo` and the `DartPackageInfo` records it carries.
 
 `DartInfo` is read by everything and built by more than rules_dart: a rule set
 that wraps Dart libraries — `flutter_library`, `dart_proto_library` — has to
@@ -26,6 +26,17 @@ The narrow signature is the point for the second one. A target with no package
 can have no `srcs`, no `lib_root`, and no `code_assets` — assets ride
 `DartPackageInfo`, which it does not have — so leaving them out makes the
 degeneracy structural rather than a convention a caller has to honour.
+
+`DartPackageInfo` — the record `transitive_packages` carries — has a second
+construction shape that needed the same treatment: *derivation*.
+`colocate_packages` rewrites a package's `lib_root` to its assembled directory
+and `merge_package_records` unions two records' code assets; each builds a
+record from an existing one. Hand-written, those sites re-list the fields they
+carry, and a field one of them forgets is dropped from *that record only* — so
+the loss is conditional on which build shape reached which site (a package that
+happened to need source assembly loses it, a pure-source package keeps it),
+which is worse to diagnose than losing it everywhere. `derived_package_info()`
+carries every field through and overrides only what is named.
 
 So construction goes through here and reading does not: `DartInfo` stays public
 and is indexed directly by every consumer. The one deliberate exception is
@@ -170,6 +181,45 @@ def dart_info_no_package(deps = []):
         resources = [],
         packages = [],
         code_asset_files = [],
+    )
+
+def derived_package_info(pkg, lib_root = None, code_assets = None):
+    """Copies `pkg`, overriding the named fields and carrying the rest through.
+
+    Deriving one package record from another — `colocate_packages` rewriting
+    `lib_root` to an assembled directory, `merge_package_records` unioning two
+    records' assets — is a copy, not a construction, and the caller has an
+    opinion about one or two fields at most. Passing the rest through by
+    default means a field added to `DartPackageInfo` reaches every derived
+    record without those sites being touched, and means neither of them can be
+    the one that quietly drops it.
+
+    Reads are tolerant (`getattr` with a default) for the same reason
+    `package_code_assets` is: a `DartPackageInfo` built by an older producer,
+    or by `//dart/tests/no_lv_fixture`, legitimately omits the later fields,
+    and a derived copy of such a record should be as complete as the original
+    rather than failing on it.
+
+    Args:
+      pkg: The `DartPackageInfo` (or `DartPackageInfo`-shaped struct) to copy.
+      lib_root: Replacement `lib_root`, or `None` to keep `pkg`'s.
+      code_assets: Replacement `code_assets` tuple, or `None` to keep `pkg`'s.
+
+    Returns:
+      A `DartPackageInfo`.
+    """
+
+    # Paired with the `DartPackageInfo(...)` in `dart_info()` above: one builds
+    # a record from a rule's attributes, this one from an existing record.
+    # Those are the only two places the fields are named, and both are here.
+    return DartPackageInfo(
+        package_name = pkg.package_name,
+        lib_root = pkg.lib_root if lib_root == None else lib_root,
+        language_version = getattr(pkg, "language_version", ""),
+        code_assets = (
+            getattr(pkg, "code_assets", ()) if code_assets == None else code_assets
+        ),
+        has_unreplaced_hook = getattr(pkg, "has_unreplaced_hook", ""),
     )
 
 def _merged_dart_info(

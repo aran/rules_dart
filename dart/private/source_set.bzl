@@ -16,6 +16,7 @@ same assembly as a standalone, package-agnostic primitive (consumed via
 """
 
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory_bin_action")
+load("//dart/private:dart_info.bzl", "derived_package_info")
 
 COPY_TO_DIRECTORY_TOOLCHAINS = ["@bazel_lib//lib:copy_to_directory_toolchain_type"]
 
@@ -98,22 +99,6 @@ def package_for(short_path, packages):
                 best_len = len(lr)
     return best_name
 
-def assembled_package_for(p, assembled_short_path):
-    """Returns a `DartPackageInfo`-shaped struct with `lib_root` rewritten to `assembled_short_path`.
-
-    Args:
-      p: A `DartPackageInfo` or struct.
-      assembled_short_path: The assembled directory's `short_path`.
-
-    Returns:
-      A struct with `package_name`, `lib_root`, `language_version` (`""` when `p` has no `language_version`).
-    """
-    return struct(
-        package_name = p.package_name,
-        lib_root = assembled_short_path,
-        language_version = p.language_version if hasattr(p, "language_version") else "",
-    )
-
 def colocate_packages(ctx, packages, all_srcs):
     """Co-locates each package's split source/generated files into one directory.
 
@@ -164,7 +149,12 @@ def colocate_packages(ctx, packages, all_srcs):
                 files,
                 root_paths = [p.lib_root] if p.lib_root else ["."],
             )
-            packages2.append(assembled_package_for(p, assembled.short_path))
+
+            # Only `lib_root` changes. Everything else the record carries —
+            # its language version, the code assets the package owns — is as
+            # true of the assembled copy as of the original, and is carried
+            # through rather than re-listed here.
+            packages2.append(derived_package_info(p, lib_root = assembled.short_path))
             srcs2.append(assembled)
         else:
             packages2.append(p)

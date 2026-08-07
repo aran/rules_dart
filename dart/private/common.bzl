@@ -1,6 +1,7 @@
 """Shared utilities for Dart rules."""
 
-load("//dart:providers.bzl", "CODE_ASSET_LINK_MODES", "DartInfo", "DartPackageInfo")
+load("//dart:providers.bzl", "CODE_ASSET_LINK_MODES", "DartInfo")
+load("//dart/private:dart_info.bzl", "derived_package_info")
 load("//dart/private:source_set.bzl", "needs_source_assembly", "package_for")
 
 # Official Bazel bash runfiles v3 initialization boilerplate.
@@ -102,10 +103,11 @@ def create_test_executable(ctx, tool, env):
 def package_code_assets(pkg):
     """Code assets declared on a `DartPackageInfo`, tolerating older producers.
 
-    `code_assets` is optional in the same sense `language_version` is: rule
-    sets outside rules_dart construct `DartPackageInfo` themselves
-    (rules_flutter's `flutter_library` and `flutter_material_icons` do), and
-    those keep working — they simply contribute no assets until they opt in.
+    `code_assets` is optional in the same sense `language_version` is: a
+    `DartPackageInfo` built against a rules_dart that predates the field omits
+    it, and such a record keeps working — it simply contributes no assets.
+    `//dart/tests/no_lv_fixture` pins that tolerance, emitting a record with
+    only `package_name` and `lib_root`.
 
     Args:
       pkg: A `DartPackageInfo`.
@@ -199,14 +201,16 @@ def merge_package_records(merged):
             packages.append(pkg)
         elif package_code_assets(pkg):
             kept = packages[index]
-            packages[index] = DartPackageInfo(
-                package_name = kept.package_name,
-                lib_root = kept.lib_root,
-                language_version = kept.language_version if hasattr(kept, "language_version") else "",
+
+            # Only the assets merge; every other field stays the kept record's.
+            # That includes `has_unreplaced_hook`, so two hubs supplying one
+            # package can disagree about whether the hook was replaced and
+            # dependency order decides which answer survives. Recorded rather
+            # than quietly changed: picking the other one is a semantic call
+            # about what a replaced hook means for a package reached twice.
+            packages[index] = derived_package_info(
+                kept,
                 code_assets = package_code_assets(kept) + package_code_assets(pkg),
-                has_unreplaced_hook = (
-                    kept.has_unreplaced_hook if hasattr(kept, "has_unreplaced_hook") else ""
-                ),
             )
     return packages
 

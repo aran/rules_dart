@@ -1,0 +1,47 @@
+"""A package that both needs source assembly and owns a code asset.
+
+Those two facts have to hold at once for the regression to be reachable:
+`colocate_packages` rebuilds the package record only for packages it
+assembles, so a package with no generated source never exercises the copy,
+and a package with no code asset has nothing to lose in it.
+"""
+
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("//dart:defs.bzl", "dart_code_asset", "dart_library")
+load("//dart/tests:source_set_test.bzl", "colocate_probe")
+
+# The generated half of the package. A genrule stands in for `dart_codegen`
+# here — colocation keys off `File.is_source`, not off which rule produced it.
+genrule(
+    name = "gen_src",
+    outs = ["lib/generated.dart"],
+    cmd = "echo \"String get generated => 'generated';\" > $@",
+)
+
+dart_code_asset(
+    name = "code_asset",
+    asset_id = "package:colo_pkg/src/ffi/colo.g.dart",
+    shared_library = "//dart/tests/cc_fixture:empty_shared",
+)
+
+dart_library(
+    name = "colo_pkg",
+    package_name = "colo_pkg",
+    srcs = [
+        "lib/hand.dart",
+        ":gen_src",
+    ],
+    code_assets = [":code_asset"],
+)
+
+colocate_probe(
+    name = "colocate_keeps_code_assets",
+    package_name = "colo_pkg",
+    expected_asset_ids = ["package:colo_pkg/src/ffi/colo.g.dart"],
+    deps = [":colo_pkg"],
+)
+
+build_test(
+    name = "colocate_keeps_code_assets_test",
+    targets = [":colocate_keeps_code_assets"],
+)

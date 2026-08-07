@@ -1,7 +1,16 @@
-"""Unit tests for the source-assembly helpers (`needs_source_assembly`, `package_for`)."""
+"""Unit tests for the source-assembly helpers (`needs_source_assembly`, `package_for`).
+
+Also covers `derived_package_info`, which `colocate_packages` uses to rewrite an
+assembled package's `lib_root`. That helper is the single place a
+`DartPackageInfo` is copied, so the tests below pin what a copy carries — not
+just the field the caller overrode.
+"""
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
-load("//dart/private:source_set.bzl", "assembled_package_for", "colocate_packages", "needs_source_assembly", "package_for")
+load("//dart:providers.bzl", "DartInfo", "DartPackageInfo")
+load("//dart/private:common.bzl", "collect_packages", "collect_transitive_srcs", "package_code_assets")
+load("//dart/private:dart_info.bzl", "derived_package_info")
+load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS", "colocate_packages", "needs_source_assembly", "package_for")
 
 def _fake_file(is_source):
     # needs_source_assembly only inspects File.is_source.
@@ -81,26 +90,113 @@ def _colocate_loose_passthrough_test_impl(ctx):
     asserts.equals(env, "myapp", packages2[0].package_name)
     return unittest.end(env)
 
-def _assembled_package_for_with_language_version_test_impl(ctx):
+def _fake_asset(asset_id):
+    # derived_package_info only moves these around; it never reads inside one.
+    return struct(asset_id = asset_id)
+
+def _derive_carries_every_field_test_impl(ctx):
+    # The point of the helper: overriding `lib_root` must not cost the record
+    # anything else it was carrying. A field dropped here is dropped only for
+    # packages that happened to need assembly, which is the hardest shape of
+    # this bug to notice.
     env = unittest.begin(ctx)
-    p = struct(package_name = "pkg", lib_root = "old/root", language_version = "2.12")
-    out = assembled_package_for(p, "bazel-out/k8/bin/app.pkg.pkgsrcs")
+    p = DartPackageInfo(
+        package_name = "pkg",
+        lib_root = "old/root",
+        language_version = "2.12",
+        code_assets = (_fake_asset("package:pkg/a.g.dart"),),
+        has_unreplaced_hook = "hook/build.dart",
+    )
+    out = derived_package_info(p, lib_root = "bazel-out/k8/bin/app.pkg.pkgsrcs")
     asserts.equals(env, "pkg", out.package_name)
     asserts.equals(env, "bazel-out/k8/bin/app.pkg.pkgsrcs", out.lib_root)
     asserts.equals(env, "2.12", out.language_version)
+    asserts.equals(env, ["package:pkg/a.g.dart"], [a.asset_id for a in out.code_assets])
+    asserts.equals(env, "hook/build.dart", out.has_unreplaced_hook)
     return unittest.end(env)
 
-def _assembled_package_for_without_language_version_test_impl(ctx):
+def _derive_defaults_absent_fields_test_impl(ctx):
+    # A record from a producer predating the later fields — the `no_lv_fixture`
+    # shape — copies to a complete record rather than failing on the read.
     env = unittest.begin(ctx)
-    p = struct(package_name = "pkg", lib_root = "old/root")
-    out = assembled_package_for(p, "bazel-out/k8/bin/app.pkg.pkgsrcs")
+    p = DartPackageInfo(package_name = "pkg", lib_root = "old/root")
+    out = derived_package_info(p, lib_root = "bazel-out/k8/bin/app.pkg.pkgsrcs")
     asserts.equals(env, "pkg", out.package_name)
     asserts.equals(env, "bazel-out/k8/bin/app.pkg.pkgsrcs", out.lib_root)
     asserts.equals(env, "", out.language_version)
+    asserts.equals(env, (), out.code_assets)
+    asserts.equals(env, "", out.has_unreplaced_hook)
     return unittest.end(env)
 
-_assembled_with_lv_test = unittest.make(_assembled_package_for_with_language_version_test_impl)
-_assembled_without_lv_test = unittest.make(_assembled_package_for_without_language_version_test_impl)
+def _derive_overrides_only_named_test_impl(ctx):
+    # Overriding `code_assets` leaves `lib_root` alone, and vice versa — the
+    # two call sites each name exactly one field.
+    env = unittest.begin(ctx)
+    p = DartPackageInfo(
+        package_name = "pkg",
+        lib_root = "keep/me",
+        language_version = "3.0",
+        code_assets = (_fake_asset("package:pkg/a.g.dart"),),
+        has_unreplaced_hook = "",
+    )
+    out = derived_package_info(p, code_assets = (_fake_asset("package:pkg/b.g.dart"),))
+    asserts.equals(env, "keep/me", out.lib_root)
+    asserts.equals(env, "3.0", out.language_version)
+    asserts.equals(env, ["package:pkg/b.g.dart"], [a.asset_id for a in out.code_assets])
+
+    # An empty override is an override, not "keep what was there".
+    emptied = derived_package_info(p, code_assets = ())
+    asserts.equals(env, (), emptied.code_assets)
+    return unittest.end(env)
+
+_derive_carries_test = unittest.make(_derive_carries_every_field_test_impl)
+_derive_defaults_test = unittest.make(_derive_defaults_absent_fields_test_impl)
+_derive_overrides_test = unittest.make(_derive_overrides_only_named_test_impl)
+
+# --- colocate_packages end-to-end -------------------------------------------
+#
+# The unit tests above pin the helper. This one pins the path that motivated
+# it: a package with a generated source gets assembled, and the assembled
+# record must still own the package's code assets. Before the helper, this
+# list held a three-field struct for assembled packages and a full record for
+# every other one — so assets went missing for exactly the packages that
+# happened to use codegen.
+
+def _colocate_probe_impl(ctx):
+    packages = collect_packages(ctx.attr.deps)
+    packages2, _ = colocate_packages(
+        ctx,
+        packages,
+        collect_transitive_srcs(ctx.attr.deps).to_list(),
+    )
+
+    matches = [p for p in packages2 if p.package_name == ctx.attr.package_name]
+    if len(matches) != 1:
+        fail("%s: expected one %r record after colocation, got %d" %
+             (ctx.label, ctx.attr.package_name, len(matches)))
+    pkg = matches[0]
+
+    if not pkg.lib_root.endswith(".pkgsrcs"):
+        fail(("%s: %r was not assembled (lib_root %r) — this fixture must " +
+              "contain a generated source, or it proves nothing.") %
+             (ctx.label, ctx.attr.package_name, pkg.lib_root))
+
+    ids = sorted([a.asset_id for a in package_code_assets(pkg)])
+    if ids != sorted(ctx.attr.expected_asset_ids):
+        fail("%s: assembled %r carries assets %s, expected %s" %
+             (ctx.label, ctx.attr.package_name, ids, sorted(ctx.attr.expected_asset_ids)))
+    return [DefaultInfo(files = depset())]
+
+colocate_probe = rule(
+    implementation = _colocate_probe_impl,
+    attrs = {
+        "deps": attr.label_list(providers = [DartInfo]),
+        "expected_asset_ids": attr.string_list(),
+        "package_name": attr.string(mandatory = True),
+    },
+    toolchains = COPY_TO_DIRECTORY_TOOLCHAINS,
+    doc = "Asserts an assembled package keeps its code assets through colocation.",
+)
 _all_source_test = unittest.make(_all_source_no_assembly_test_impl)
 _any_generated_test = unittest.make(_any_generated_needs_assembly_test_impl)
 _empty_test = unittest.make(_empty_no_assembly_test_impl)
@@ -124,8 +220,9 @@ def source_set_test_suite(name):
     _exact_dir_test(name = "source_set_package_for_exact_dir_test", size = "small")
     _external_nomatch_test(name = "source_set_package_for_external_test", size = "small")
     _colocate_loose_test(name = "source_set_colocate_loose_test", size = "small")
-    _assembled_with_lv_test(name = "source_set_assembled_with_lv_test", size = "small")
-    _assembled_without_lv_test(name = "source_set_assembled_without_lv_test", size = "small")
+    _derive_carries_test(name = "source_set_derive_carries_test", size = "small")
+    _derive_defaults_test(name = "source_set_derive_defaults_test", size = "small")
+    _derive_overrides_test(name = "source_set_derive_overrides_test", size = "small")
     native.test_suite(
         name = name,
         tests = [
@@ -137,7 +234,8 @@ def source_set_test_suite(name):
             ":source_set_package_for_exact_dir_test",
             ":source_set_package_for_external_test",
             ":source_set_colocate_loose_test",
-            ":source_set_assembled_with_lv_test",
-            ":source_set_assembled_without_lv_test",
+            ":source_set_derive_carries_test",
+            ":source_set_derive_defaults_test",
+            ":source_set_derive_overrides_test",
         ],
     )

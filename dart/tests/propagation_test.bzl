@@ -126,6 +126,35 @@ def _collect_unions_same_root_assets_test_impl(ctx):
     asserts.equals(env, ["package:shared/a.g.dart", "package:shared/b.g.dart"], ids)
     return unittest.end(env)
 
+def _union_keeps_other_fields_test_impl(ctx):
+    # The union branch rebuilds the kept record. Everything it was carrying
+    # besides the assets has to survive that rebuild — `language_version`
+    # wrong means a package compiles under the wrong Dart semantics, and a
+    # lost `has_unreplaced_hook` means the build stops warning about a native
+    # library that will not be there at runtime.
+    env = unittest.begin(ctx)
+    kept = DartPackageInfo(
+        package_name = "dual",
+        lib_root = "first/dual",
+        language_version = "3.4",
+        code_assets = (_asset("package:dual/a.g.dart"),),
+        has_unreplaced_hook = "hook/build.dart",
+    )
+    packages = merge_package_records([
+        kept,
+        _pkg("dual", "second/dual", (_asset("package:dual/b.g.dart", "libb.so"),)),
+    ])
+    asserts.equals(env, 1, len(packages))
+    asserts.equals(env, "first/dual", packages[0].lib_root)
+    asserts.equals(env, "3.4", packages[0].language_version)
+    asserts.equals(env, "hook/build.dart", packages[0].has_unreplaced_hook)
+    asserts.equals(
+        env,
+        ["package:dual/a.g.dart", "package:dual/b.g.dart"],
+        [a.asset_id for a in package_code_assets(packages[0])],
+    )
+    return unittest.end(env)
+
 def _collect_tolerates_missing_field_test_impl(ctx):
     # DartPackageInfo produced outside rules_dart (rules_flutter builds its
     # own) omits `code_assets`; that must not crash the collector.
@@ -216,6 +245,7 @@ _t4_test = unittest.make(_collect_unions_same_root_assets_test_impl)
 _t5_test = unittest.make(_collect_tolerates_missing_field_test_impl)
 _t6_test = unittest.make(_two_hubs_supply_one_package_test_impl)
 _t7_test = unittest.make(_unions_assets_across_differing_roots_test_impl)
+_t8_test = unittest.make(_union_keeps_other_fields_test_impl)
 
 def propagation_test_suite(name):
     """Declares the code-asset propagation unit tests.
@@ -233,4 +263,5 @@ def propagation_test_suite(name):
         _t5_test,
         _t6_test,
         _t7_test,
+        _t8_test,
     )
