@@ -22,14 +22,21 @@ bzl_library(
     name = "common",
     srcs = ["common.bzl"],
     visibility = ["//dart:__subpackages__"],
-    deps = ["//dart:providers"],
+    deps = [
+        ":dart_info",
+        ":source_set",
+        "//dart:providers",
+    ],
 )
 
 bzl_library(
     name = "source_set",
     srcs = ["source_set.bzl"],
     visibility = ["//dart:__subpackages__"],
-    deps = ["@bazel_lib//lib:copy_to_directory"],
+    deps = [
+        ":dart_info",
+        "@bazel_lib//lib:copy_to_directory",
+    ],
 )
 
 bzl_library(
