@@ -51,6 +51,7 @@ dart_test(
     main = "test/builder_shim_test.dart",
     deps = [
         ":builder_shim",
+        "@ext_pub_deps//:analyzer",
         "@ext_pub_deps//:build",
         "@ext_pub_deps//:path",
         "@ext_pub_deps//:test",

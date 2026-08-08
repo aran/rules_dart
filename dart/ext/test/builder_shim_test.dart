@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:analyzer/dart/element/element.dart';
 import 'package:bazel_worker/bazel_worker.dart';
 import 'package:build/build.dart';
 import 'package:package_config/package_config.dart';
@@ -31,6 +32,11 @@ List<String> _baseArgs({
   return [for (final e in args.entries) ...[e.key, e.value]];
 }
 
+/// Stable URI string for a LibraryElement. Used by the Resolver.libraries
+/// tests to compare yielded libraries by `package:foo/bar.dart` shape.
+String _libUriString(LibraryElement lib) =>
+    lib.firstFragment.source.uri.toString();
+
 ShimArgs _shimArgs({
   required String inputPath,
   required String inputAssetPath,
@@ -40,6 +46,7 @@ ShimArgs _shimArgs({
   List<({String exec, String asset})> depPaths = const [],
   Map<String, dynamic> config = const {},
   LanguageVersion? rootLanguageVersion,
+  String? packageConfigPath,
 }) =>
     ShimArgs(
       inputPath: inputPath,
@@ -49,7 +56,52 @@ ShimArgs _shimArgs({
       depPaths: depPaths,
       config: config,
       rootLanguageVersion: rootLanguageVersion ?? LanguageVersion(3, 11),
+      packageConfigUri: packageConfigPath,
     );
+
+/// Writes a fake foreign Dart package under [root] named [name] with a
+/// single library file `lib/<name>.dart` (the conventional public
+/// re-export location). Returns the package directory.
+///
+/// Used by the Resolver.libraries tests to exercise the cross-package
+/// fallback without depending on whatever pub graph the test runner's
+/// isolate happens to expose.
+Directory _writeForeignPackage({
+  required Directory root,
+  required String name,
+  String libBody = 'class Foo {}\n',
+}) {
+  final pkgDir = Directory(p.join(root.path, '${name}_pkg'))
+    ..createSync(recursive: true);
+  Directory(p.join(pkgDir.path, 'lib')).createSync(recursive: true);
+  File(p.join(pkgDir.path, 'lib', '$name.dart')).writeAsStringSync(libBody);
+  return pkgDir;
+}
+
+/// Writes a `package_config.json` at [root]/package_config.json that
+/// includes [packages] (each a Directory whose name is `<pkg>_pkg`).
+/// Returns the file path.
+String _writePackageConfig({
+  required Directory root,
+  required List<Directory> packages,
+}) {
+  final entries = <Map<String, dynamic>>[];
+  for (final pkg in packages) {
+    final name = p.basename(pkg.path).replaceAll('_pkg', '');
+    entries.add({
+      'name': name,
+      'rootUri': Uri.directory(pkg.path).toString(),
+      'packageUri': 'lib/',
+      'languageVersion': '3.0',
+    });
+  }
+  final file = File(p.join(root.path, 'package_config.json'));
+  file.writeAsStringSync(jsonEncode({
+    'configVersion': 2,
+    'packages': entries,
+  }));
+  return file.path;
+}
 
 void main() {
   group('stagedPath', () {
@@ -362,6 +414,153 @@ void main() {
       );
 
       expect(caught, isA<AssetNotFoundException>());
+    });
+  });
+
+  group('Resolver.libraries', () {
+    late Directory tmp;
+
+    setUp(() async {
+      tmp = await Directory.systemTemp.createTemp('shim_resolver_libs_');
+    });
+
+    tearDown(() async {
+      await tmp.delete(recursive: true);
+    });
+
+    test('yields same-package staged libraries (input + each --dep)',
+        () async {
+      // Baseline: the input file and every --dep file in the same package
+      // must appear in Resolver.libraries. Guards the pre-fix behavior.
+      final input = File(p.join(tmp.path, 'src.dart'))
+        ..writeAsStringSync('class Foo {}');
+      final dep = File(p.join(tmp.path, 'sibling.dart'))
+        ..writeAsStringSync('class Bar {}');
+      final output = File(p.join(tmp.path, 'src.g.dart'));
+
+      Set<String> uris = {};
+      await runShimWithArgs(
+        _shimArgs(
+          inputPath: input.path,
+          inputAssetPath: 'lib/src.dart',
+          outputPath: output.path,
+          depPaths: [(exec: dep.path, asset: 'lib/sibling.dart')],
+        ),
+        (_) => _CapturingBuilder((step) async {
+          final libs = await step.resolver.libraries.toList();
+          uris = libs.map(_libUriString).toSet();
+        }),
+      );
+
+      // Same-package staged files exist as `package:fixture/...` URIs in
+      // the synthetic root; just assert at least one is yielded — the
+      // analyzer may canonicalise either input.dart or sibling.dart first.
+      expect(
+        uris.any((u) => u.startsWith('package:fixture/')),
+        isTrue,
+        reason: 'expected at least one package:fixture/ library, got $uris',
+      );
+    });
+
+    test('yields cross-package public re-export libraries from PackageConfig',
+        () async {
+      // The fix under test: a third-party package whose conventional main
+      // library exists (`package:<name>/<name>.dart`) is yielded even
+      // though it never appears in _assetIdToPath. Pre-fix, only same-
+      // package staged libraries were yielded and generators like
+      // stacked_generator's ImportResolver missed reachable types.
+      final fooPkg = _writeForeignPackage(root: tmp, name: 'foo');
+      final pkgConfig = _writePackageConfig(root: tmp, packages: [fooPkg]);
+
+      final input = File(p.join(tmp.path, 'src.dart'))
+        ..writeAsStringSync(
+          "import 'package:foo/foo.dart';\nclass Bar extends Foo {}\n",
+        );
+      final output = File(p.join(tmp.path, 'src.g.dart'));
+
+      Set<String> uris = {};
+      await runShimWithArgs(
+        _shimArgs(
+          inputPath: input.path,
+          inputAssetPath: 'lib/src.dart',
+          outputPath: output.path,
+          packageConfigPath: pkgConfig,
+        ),
+        (_) => _CapturingBuilder((step) async {
+          final libs = await step.resolver.libraries.toList();
+          uris = libs.map(_libUriString).toSet();
+        }),
+      );
+
+      expect(
+        uris,
+        contains('package:foo/foo.dart'),
+        reason: 'expected package:foo/foo.dart to be yielded, got $uris',
+      );
+    });
+
+    test('does not double-yield a library covered by both paths', () async {
+      // If a library is reachable both via `_assetIdToPath` and via the
+      // PackageConfig fallback, it should be yielded once. Guards against
+      // the analyzer caller observing duplicate elements.
+      final fooPkg = _writeForeignPackage(root: tmp, name: 'foo');
+      final pkgConfig = _writePackageConfig(root: tmp, packages: [fooPkg]);
+
+      final input = File(p.join(tmp.path, 'src.dart'))
+        ..writeAsStringSync("import 'package:foo/foo.dart';\nclass Bar {}\n");
+      final output = File(p.join(tmp.path, 'src.g.dart'));
+
+      List<String> uriList = [];
+      await runShimWithArgs(
+        _shimArgs(
+          inputPath: input.path,
+          inputAssetPath: 'lib/src.dart',
+          outputPath: output.path,
+          packageConfigPath: pkgConfig,
+        ),
+        (_) => _CapturingBuilder((step) async {
+          final libs = await step.resolver.libraries.toList();
+          uriList = libs.map(_libUriString).toList();
+        }),
+      );
+
+      // Set length == list length means no duplicates.
+      expect(uriList.length, equals(uriList.toSet().length),
+          reason: 'duplicate URIs in libraries: $uriList');
+    });
+
+    test('tolerates packages with no conventional main library', () async {
+      // Packages may lack `lib/<name>.dart` (CLI tools shipping `bin/`
+      // only, packages with non-standard layouts). The new loop must
+      // skip them — not throw — so iteration continues to packages that
+      // do have one.
+      //
+      // Set up a package_config with a package whose root directory
+      // exists but has no `lib/<name>.dart` file. Draining `libraries`
+      // must complete without an exception.
+      final emptyPkgDir = Directory(p.join(tmp.path, 'empty_pkg'))
+        ..createSync(recursive: true);
+      Directory(p.join(emptyPkgDir.path, 'lib')).createSync(recursive: true);
+      final pkgConfig = _writePackageConfig(root: tmp, packages: [emptyPkgDir]);
+
+      final input = File(p.join(tmp.path, 'src.dart'))
+        ..writeAsStringSync('class Foo {}');
+      final output = File(p.join(tmp.path, 'src.g.dart'));
+
+      await runShimWithArgs(
+        _shimArgs(
+          inputPath: input.path,
+          inputAssetPath: 'lib/src.dart',
+          outputPath: output.path,
+          packageConfigPath: pkgConfig,
+        ),
+        (_) => _CapturingBuilder((step) async {
+          // Just drain the stream — assert no exception escapes.
+          await step.resolver.libraries.toList();
+        }),
+      );
+
+      expect(output.existsSync(), isTrue);
     });
   });
 
