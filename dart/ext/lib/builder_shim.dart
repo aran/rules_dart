@@ -1191,11 +1191,17 @@ class _ShimAnalyzerResolver implements Resolver {
     // directly in _assetIdToPath.
     final yielded = <Uri>{};
     for (final id in _assetIdToPath.keys) {
+      // Filter by extension rather than relying on `libraryFor` to reject
+      // non-Dart assets: it does not. The analyzer parses whatever bytes it
+      // is handed, so a staged `lib/data.txt` comes back as a real (empty,
+      // error-riddled) LibraryElement and lands in a stream whose element
+      // type promises Dart libraries. The catch below never fired for it.
+      if (!id.path.endsWith('.dart')) continue;
       try {
         final lib = await libraryFor(id);
         if (yielded.add(lib.firstFragment.source.uri)) yield lib;
       } on NonLibraryAssetException {
-        // Skip non-library assets (e.g. plain text deps).
+        // A `.dart` asset that is a `part of`, or that fails to resolve.
       }
     }
 
@@ -1220,11 +1226,14 @@ class _ShimAnalyzerResolver implements Resolver {
         final lib = await libraryFor(id);
         if (yielded.add(lib.firstFragment.source.uri)) yield lib;
       } on NonLibraryAssetException {
-        // Package has no conventional main library (e.g. CLI-only tools
-        // shipping `bin/` only, packages with non-standard layouts).
-      } on AssetNotFoundException {
-        // Package declared in package_config but no file at the
-        // conventional path — e.g. workspace packages with custom layouts.
+        // The file at the conventional path is a `part of`, or the URI does
+        // not resolve — skip and keep going, so one oddly-laid-out package
+        // does not truncate the stream for the packages after it.
+        //
+        // Only this exception needs catching: `libraryFor` throws nothing
+        // else. A package declared in the config with no file at all does
+        // not land here — the analyzer answers with an empty library and it
+        // is yielded (pinned by the test of that name).
       }
     }
   }

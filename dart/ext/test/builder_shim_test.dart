@@ -499,15 +499,62 @@ void main() {
       );
     });
 
+    test('skips a staged non-Dart dep, and keeps going', () async {
+      // The staged loop has always claimed to skip non-library assets such
+      // as plain-text deps, but nothing staged one, so deleting its catch
+      // broke no test. Predates the cross-package change; covered here
+      // because the same drain now reaches further and an escaping
+      // exception would take the whole stream with it.
+      //
+      // The `.txt` sorts before `src.dart` in the staged map, so an escape
+      // aborts the drain before any library is yielded.
+      final data = File(p.join(tmp.path, 'data.txt'))
+        ..writeAsStringSync('not dart at all\n');
+      final input = File(p.join(tmp.path, 'src.dart'))
+        ..writeAsStringSync('class Foo {}\n');
+      final output = File(p.join(tmp.path, 'src.g.dart'));
+
+      Set<String> uris = {};
+      await runShimWithArgs(
+        _shimArgs(
+          inputPath: input.path,
+          inputAssetPath: 'lib/src.dart',
+          outputPath: output.path,
+          depPaths: [(exec: data.path, asset: 'lib/data.txt')],
+        ),
+        (_) => _CapturingBuilder((step) async {
+          uris = (await step.resolver.libraries.toList())
+              .map(_libUriString)
+              .toSet();
+        }),
+      );
+
+      expect(
+        uris,
+        contains('package:fixture/src.dart'),
+        reason: 'the staged .txt aborted the drain, got $uris',
+      );
+      expect(uris, isNot(contains('package:fixture/data.txt')));
+    });
+
     test('does not double-yield a library covered by both paths', () async {
       // If a library is reachable both via `_assetIdToPath` and via the
       // PackageConfig fallback, it should be yielded once. Guards against
       // the analyzer caller observing duplicate elements.
+      //
+      // The collision has to be constructed deliberately. `_buildPackageConfig`
+      // puts a synthetic entry for the root package (`fixture`) into the
+      // config, so the fallback loop asks for `package:fixture/fixture.dart`.
+      // Staging a `--dep` at exactly that asset path is what makes one library
+      // reachable both ways; without it the two loops cover disjoint URIs and
+      // this test passes whether or not the dedup exists.
       final fooPkg = _writeForeignPackage(root: tmp, name: 'foo');
       final pkgConfig = _writePackageConfig(root: tmp, packages: [fooPkg]);
 
       final input = File(p.join(tmp.path, 'src.dart'))
         ..writeAsStringSync("import 'package:foo/foo.dart';\nclass Bar {}\n");
+      final collide = File(p.join(tmp.path, 'fixture.dart'))
+        ..writeAsStringSync('class Collide {}\n');
       final output = File(p.join(tmp.path, 'src.g.dart'));
 
       List<String> uriList = [];
@@ -516,6 +563,7 @@ void main() {
           inputPath: input.path,
           inputAssetPath: 'lib/src.dart',
           outputPath: output.path,
+          depPaths: [(exec: collide.path, asset: 'lib/fixture.dart')],
           packageConfigPath: pkgConfig,
         ),
         (_) => _CapturingBuilder((step) async {
@@ -524,20 +572,80 @@ void main() {
         }),
       );
 
+      // Assert the collision actually got set up: if this URI stops being
+      // reachable both ways, the no-duplicates check below goes vacuous and
+      // would keep passing with the dedup deleted.
+      expect(
+        uriList,
+        contains('package:fixture/fixture.dart'),
+        reason: 'fixture no longer collides across both paths, got $uriList',
+      );
+
       // Set length == list length means no duplicates.
       expect(uriList.length, equals(uriList.toSet().length),
           reason: 'duplicate URIs in libraries: $uriList');
     });
 
-    test('tolerates packages with no conventional main library', () async {
-      // Packages may lack `lib/<name>.dart` (CLI tools shipping `bin/`
-      // only, packages with non-standard layouts). The new loop must
-      // skip them — not throw — so iteration continues to packages that
-      // do have one.
+    test('skips a package whose main library is a part, and keeps going',
+        () async {
+      // `libraryFor` throws `NonLibraryAssetException` when the file at the
+      // conventional path parses as a `part of` rather than a library. The
+      // loop must swallow that and continue, or one oddly-laid-out package
+      // truncates the stream for every package after it.
       //
-      // Set up a package_config with a package whose root directory
-      // exists but has no `lib/<name>.dart` file. Draining `libraries`
-      // must complete without an exception.
+      // Ordering is the whole point: `partpkg` sorts before `zfoo`, so if the
+      // catch is removed the exception escapes before `zfoo` is ever reached
+      // and the assertion below fails. A fixture with only the bad package
+      // would still pass with no catch at all, since nothing would follow it.
+      final partPkg = Directory(p.join(tmp.path, 'partpkg_pkg'))
+        ..createSync(recursive: true);
+      Directory(p.join(partPkg.path, 'lib')).createSync(recursive: true);
+      File(p.join(partPkg.path, 'lib', 'partpkg.dart'))
+          .writeAsStringSync("part of 'somewhere.dart';\n");
+      final zfooPkg = _writeForeignPackage(root: tmp, name: 'zfoo');
+      final pkgConfig =
+          _writePackageConfig(root: tmp, packages: [partPkg, zfooPkg]);
+
+      final input = File(p.join(tmp.path, 'src.dart'))
+        ..writeAsStringSync('class Foo {}');
+      final output = File(p.join(tmp.path, 'src.g.dart'));
+
+      Set<String> uris = {};
+      await runShimWithArgs(
+        _shimArgs(
+          inputPath: input.path,
+          inputAssetPath: 'lib/src.dart',
+          outputPath: output.path,
+          packageConfigPath: pkgConfig,
+        ),
+        (_) => _CapturingBuilder((step) async {
+          uris = (await step.resolver.libraries.toList())
+              .map(_libUriString)
+              .toSet();
+        }),
+      );
+
+      expect(
+        uris,
+        contains('package:zfoo/zfoo.dart'),
+        reason: 'iteration stopped at the part-only package, got $uris',
+      );
+      expect(uris, isNot(contains('package:partpkg/partpkg.dart')));
+      expect(output.existsSync(), isTrue);
+    });
+
+    test('yields a synthetic empty library for a missing main library',
+        () async {
+      // A package declared in the config with no `lib/<name>.dart` on disk
+      // does NOT throw, and so is not skipped: the analyzer answers
+      // `getLibraryByUri` for a nonexistent file with an empty library, and
+      // the loop yields it. Recorded because it is the opposite of what the
+      // surrounding comments would lead you to expect, and because it is
+      // what makes both `catch` arms unreachable for this shape.
+      //
+      // Harmless in practice — an empty library contributes no elements to a
+      // generator walking the stream for types — so this pins the behavior
+      // rather than asserting it is the behavior we would have chosen.
       final emptyPkgDir = Directory(p.join(tmp.path, 'empty_pkg'))
         ..createSync(recursive: true);
       Directory(p.join(emptyPkgDir.path, 'lib')).createSync(recursive: true);
@@ -547,6 +655,7 @@ void main() {
         ..writeAsStringSync('class Foo {}');
       final output = File(p.join(tmp.path, 'src.g.dart'));
 
+      Set<String> uris = {};
       await runShimWithArgs(
         _shimArgs(
           inputPath: input.path,
@@ -555,11 +664,13 @@ void main() {
           packageConfigPath: pkgConfig,
         ),
         (_) => _CapturingBuilder((step) async {
-          // Just drain the stream — assert no exception escapes.
-          await step.resolver.libraries.toList();
+          uris = (await step.resolver.libraries.toList())
+              .map(_libUriString)
+              .toSet();
         }),
       );
 
+      expect(uris, contains('package:empty/empty.dart'));
       expect(output.existsSync(), isTrue);
     });
   });
