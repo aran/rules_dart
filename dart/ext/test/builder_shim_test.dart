@@ -87,7 +87,12 @@ String _writePackageConfig({
 }) {
   final entries = <Map<String, dynamic>>[];
   for (final pkg in packages) {
-    final name = p.basename(pkg.path).replaceAll('_pkg', '');
+    // Strip the trailing marker only — `replaceAll` would also eat it out of
+    // the middle of a package name that happens to contain `_pkg`.
+    final dirName = p.basename(pkg.path);
+    final name = dirName.endsWith('_pkg')
+        ? dirName.substring(0, dirName.length - '_pkg'.length)
+        : dirName;
     entries.add({
       'name': name,
       'rootUri': Uri.directory(pkg.path).toString(),
@@ -452,10 +457,17 @@ void main() {
         }),
       );
 
+      // Both staged files, by name. `any(startsWith('package:fixture/'))`
+      // would also be satisfied by the synthetic `package:fixture/fixture.dart`
+      // the config loop yields for the root package, so it would pass with the
+      // staged loop removed entirely.
       expect(
-        uris.any((u) => u.startsWith('package:fixture/')),
-        isTrue,
-        reason: 'expected at least one package:fixture/ library, got $uris',
+        uris,
+        containsAll(<String>[
+          'package:fixture/src.dart',
+          'package:fixture/sibling.dart',
+        ]),
+        reason: 'expected both staged libraries, got $uris',
       );
     });
 
