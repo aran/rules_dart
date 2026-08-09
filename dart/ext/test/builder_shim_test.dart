@@ -431,7 +431,7 @@ void main() {
     test('yields same-package staged libraries (input + each --dep)',
         () async {
       // Baseline: the input file and every --dep file in the same package
-      // must appear in Resolver.libraries. Guards the pre-fix behavior.
+      // must appear in Resolver.libraries.
       final input = File(p.join(tmp.path, 'src.dart'))
         ..writeAsStringSync('class Foo {}');
       final dep = File(p.join(tmp.path, 'sibling.dart'))
@@ -452,9 +452,6 @@ void main() {
         }),
       );
 
-      // Same-package staged files exist as `package:fixture/...` URIs in
-      // the synthetic root; just assert at least one is yielded — the
-      // analyzer may canonicalise either input.dart or sibling.dart first.
       expect(
         uris.any((u) => u.startsWith('package:fixture/')),
         isTrue,
@@ -464,11 +461,9 @@ void main() {
 
     test('yields cross-package public re-export libraries from PackageConfig',
         () async {
-      // The fix under test: a third-party package whose conventional main
-      // library exists (`package:<name>/<name>.dart`) is yielded even
-      // though it never appears in _assetIdToPath. Pre-fix, only same-
-      // package staged libraries were yielded and generators like
-      // stacked_generator's ImportResolver missed reachable types.
+      // A third-party package whose conventional main library exists
+      // (`package:<name>/<name>.dart`) is yielded even though it never
+      // appears in _assetIdToPath.
       final fooPkg = _writeForeignPackage(root: tmp, name: 'foo');
       final pkgConfig = _writePackageConfig(root: tmp, packages: [fooPkg]);
 

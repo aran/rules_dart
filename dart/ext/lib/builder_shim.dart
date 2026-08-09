@@ -1195,7 +1195,7 @@ class _ShimAnalyzerResolver implements Resolver {
       // non-Dart assets: it does not. The analyzer parses whatever bytes it
       // is handed, so a staged `lib/data.txt` comes back as a real (empty,
       // error-riddled) LibraryElement and lands in a stream whose element
-      // type promises Dart libraries. The catch below never fired for it.
+      // type promises Dart libraries.
       if (!id.path.endsWith('.dart')) continue;
       try {
         final lib = await libraryFor(id);
