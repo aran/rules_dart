@@ -96,6 +96,40 @@ def staged_package_config_content(packages, ext_staged, proj_name):
         packages = ",\n".join(entries),
     )
 
+def pubspec_stub(packages):
+    """Builds the `pubspec.yaml` the staged project is analyzed against.
+
+    The analyzer resolves imports through `package_config.json`, never through
+    this file — but lint rules read it, so it has to be a *valid* pubspec, not
+    just a parseable one. A placeholder name trips `package_names`, and every
+    cross-package import trips `depend_on_referenced_packages` unless the
+    package is listed here. Both fire on the harness rather than on the code
+    under analysis, so a strict ruleset would blame the user for rules_dart's
+    staging. Dependencies are sorted because `sort_pub_dependencies` would be
+    the next one.
+
+    Constraints are `any`: nothing resolves them, and a real constraint here
+    would be a second place to keep a version in sync.
+
+    Shared by `dart_analyze_test` and `dart_fix` rather than written out in
+    each: fixes are driven by the lints a project reports, so the two staging
+    the same project is what lets `bazel run :fix` turn a red analyze green.
+
+    Args:
+      packages: List of DartPackageInfo (from `collect_packages`) — every
+        package the staged `package_config.json` will carry.
+
+    Returns:
+      The pubspec file's contents, as a string.
+    """
+    lines = ["name: analyze_stub", "environment:", '  sdk: ">=3.0.0 <4.0.0"']
+    names = sorted([p.package_name for p in packages if p.package_name])
+    if names:
+        lines.append("dependencies:")
+        for name in names:
+            lines.append("  %s: any" % name)
+    return "\n".join(lines) + "\n"
+
 def stage_dart_project(ctx, packages, all_srcs, extra_proj_files = {}):
     """Stages packages and sources into a hermetic Dart project layout.
 

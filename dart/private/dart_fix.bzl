@@ -26,7 +26,7 @@ Both are needed because `dart fix`'s own built-in generated-file skip matches
 
 load("//dart:providers.bzl", "DartAnalysisOptionsInfo", "DartInfo")
 load("//dart/private:common.bzl", "WINDOWS_CONSTRAINT_ATTR", "collect_packages", "merge_package_records")
-load("//dart/private:project_staging.bzl", "stage_dart_project")
+load("//dart/private:project_staging.bzl", "pubspec_stub", "stage_dart_project")
 load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS")
 
 def _wrapper_options(has_user_options, excluded):
@@ -90,6 +90,12 @@ def _dart_fix_impl(ctx):
         packages,
         staged_files,
         extra_proj_files = {
+            # The same stub `dart_analyze_test` stages. Without it the two rules
+            # analyze different projects, and any pubspec-reading lint reports in
+            # analyze while `dart fix` never proposes its fix — breaking the
+            # invariant that sharing `options` makes `bazel run` turn the analyze
+            # test green.
+            "pubspec.yaml": pubspec_stub(packages),
             "analysis_options.yaml": _wrapper_options(
                 ctx.attr.options != None,
                 sorted(excluded),
