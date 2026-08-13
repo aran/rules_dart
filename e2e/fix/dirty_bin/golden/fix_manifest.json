@@ -1,0 +1,9 @@
+{
+  "fixed": [
+    {
+      "staged": "src/dirty_bin/main.dart",
+      "workspace": "dirty_bin/main.dart"
+    }
+  ],
+  "dropped": []
+}

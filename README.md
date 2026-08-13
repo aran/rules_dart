@@ -216,7 +216,7 @@ load("@rules_dart//dart:defs.bzl", "dart_analyze_test", "dart_format_test")
 
 dart_analyze_test(
     name = "analyze",
-    lib = ":greeter",
+    target = ":greeter",
 )
 
 dart_format_test(
@@ -224,6 +224,12 @@ dart_format_test(
     srcs = glob(["lib/**/*.dart"]),
 )
 ```
+
+`target` takes a `dart_library` or an executable — `dart_binary`, `dart_test`,
+`dart_js_binary`, `dart_wasm_binary`. Pointing it at an executable is how you
+lint an entrypoint: a `main.dart` sits outside any package's `lib/`, so no
+`dart_library` will accept it, and it would otherwise be the one file in a
+project nothing checks.
 
 `dart_fix` applies the analyzer's automated fixes — the same quick-fixes an IDE
 offers, driven by the lints your `analysis_options.yaml` enables. Give it the same
@@ -235,7 +241,7 @@ load("@rules_dart//dart:defs.bzl", "dart_fix")
 
 dart_fix(
     name = "fix",
-    lib = ":greeter",
+    target = ":greeter",
     options = ":analysis_options",
 )
 ```

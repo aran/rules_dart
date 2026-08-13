@@ -21,8 +21,8 @@ dart_library(
 dart_analyze_test(
     name = "resource_staged_for_analyzer_test",
     size = "small",
-    lib = ":resource_consumer_lib",
     options = "analysis_options.yaml",
+    target = ":resource_consumer_lib",
 )
 
 # The run-time half: a dependency's resources have to survive into runfiles,

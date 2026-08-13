@@ -1,6 +1,6 @@
 """Shared utilities for Dart rules."""
 
-load("//dart:providers.bzl", "CODE_ASSET_LINK_MODES", "DartInfo")
+load("//dart:providers.bzl", "CODE_ASSET_LINK_MODES", "DartAnalyzableInfo", "DartInfo")
 load("//dart/private:dart_info.bzl", "derived_package_info")
 load("//dart/private:source_set.bzl", "needs_source_assembly", "package_for")
 
@@ -213,6 +213,55 @@ def merge_package_records(merged):
                 code_assets = package_code_assets(kept) + package_code_assets(pkg),
             )
     return packages
+
+def analyze_operand(ctx):
+    """Returns the target a `dart_analyze_test` / `dart_fix` was pointed at.
+
+    Both rules name the operand `target` and still answer to the older `lib`.
+    Neither attribute can be `mandatory` while the other exists, so the
+    missing-attribute error Bazel used to raise for `lib` has to be raised here
+    instead — and with it the both-set case, where picking one silently would
+    analyze something the BUILD file did not ask for.
+
+    Args:
+      ctx: The rule context (must declare both `target` and `lib`).
+
+    Returns:
+      The chosen target.
+    """
+    if ctx.attr.target and ctx.attr.lib:
+        fail(("%s: set either `target` or `lib`, not both. `lib` is the " +
+              "deprecated spelling of `target`; drop it.") % ctx.label)
+    if ctx.attr.target:
+        return ctx.attr.target
+    if ctx.attr.lib:
+        return ctx.attr.lib
+    fail(("%s: missing `target` — name the `dart_library`, `dart_binary` or " +
+          "`dart_test` whose Dart sources to analyze.") % ctx.label)
+
+def analyzable_closure(target):
+    """Normalizes an analyze/fix operand to the closure and the loose sources.
+
+    `dart_analyze_test` and `dart_fix` accept either provider — `DartInfo` from
+    a library, `DartAnalyzableInfo` from an executable — and this is the single
+    place that OR is resolved, so neither rule has to branch and the two cannot
+    drift into disagreeing about what "the sources to analyze" means.
+
+    Args:
+      target: A target providing `DartAnalyzableInfo` or `DartInfo`.
+
+    Returns:
+      `struct(dart_info, srcs)` — the dependency closure, and the target's own
+      package-less entrypoint sources (empty for a library, whose every source
+      is already inside the closure).
+    """
+    if DartAnalyzableInfo in target:
+        analyzable = target[DartAnalyzableInfo]
+        return struct(
+            dart_info = analyzable.dart_info,
+            srcs = analyzable.srcs.to_list(),
+        )
+    return struct(dart_info = target[DartInfo], srcs = [])
 
 def relative_path(from_dir, to_dir):
     """Compute the relative path from one directory to another.

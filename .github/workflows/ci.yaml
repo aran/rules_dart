@@ -22,7 +22,7 @@ jobs:
     with:
       bazel_versions: '["9.2.0"]'
       # Exit code 4 means "build succeeded but no test targets found", which is
-      # expected for build-only e2e folders like hello_world and web_app.
+      # expected for build-only e2e folders like web_app and pub_deps.
       # Wrapped in bash -c because the reusable workflow uses the runner's
       # default shell (PowerShell on Windows) where [ $? -eq 4 ] is invalid.
       # Inner single quotes prevent the outer shell from expanding $?.
@@ -72,6 +72,15 @@ jobs:
             exit 1
           fi
           bazel build //:analyze_bad 2>&1 | grep -q "unused_local_variable"
+          echo "OK: expected analyzer failure detected"
+      - name: analysis_failure — expect a binary's entrypoint to be analyzed too
+        working-directory: e2e/analysis_failure
+        run: |
+          if bazel build //:analyze_bad_bin 2>/dev/null; then
+            echo "ERROR: build should have failed with analyzer diagnostics"
+            exit 1
+          fi
+          bazel build //:analyze_bad_bin 2>&1 | grep -q "unused_import"
           echo "OK: expected analyzer failure detected"
   # `dart compile kernel` rejects `--enable-asserts`, so dbg-mode flags are
   # chosen per compile mode. hello_world builds all four dart_binary modes;

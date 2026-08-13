@@ -1,4 +1,4 @@
-load("@rules_dart//dart:defs.bzl", "dart_test")
+load("@rules_dart//dart:defs.bzl", "dart_analyze_test", "dart_test")
 
 exports_files(["pubspec.lock"])
 
@@ -7,4 +7,16 @@ dart_test(
     size = "small",
     main = "test/example_test.dart",
     deps = ["@pub_deps//:test"],
+)
+
+# The demanding half of the entrypoint case: the `main` is under `test/` rather
+# than beside `lib/`, and its only import comes from a pub hub. So this is what
+# says the `extpkgs` staging and the synthesized pubspec are enough for an
+# entrypoint too — `depend_on_referenced_packages` is satisfied by the stub the
+# same way it is for a library, even though nothing in `package_config.json`
+# covers the file being analyzed.
+dart_analyze_test(
+    name = "analyze_example_test",
+    size = "small",
+    target = ":example_test",
 )

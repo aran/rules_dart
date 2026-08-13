@@ -1,8 +1,19 @@
-load("@rules_dart//dart:defs.bzl", "dart_binary")
+load("@rules_dart//dart:defs.bzl", "dart_analyze_test", "dart_binary")
 
 dart_binary(
     name = "hello",
     main = "hello.dart",
+)
+
+# The headline case for `DartAnalyzableInfo`: `hello.dart` is under no `lib/`,
+# so no `dart_library` will take it and nothing could lint it until
+# `dart_analyze_test` learned to accept an executable. The binary has no deps at
+# all, which makes it the degenerate shape too — the staged project's
+# `package_config.json` names no package, and the entrypoint is still analyzed.
+dart_analyze_test(
+    name = "analyze_hello",
+    size = "small",
+    target = ":hello",
 )
 
 # Alternative compile modes — same source, different output formats.

@@ -44,8 +44,8 @@ dart_library(
 
 dart_fix(
     name = "fix",
-    lib = ":lib",
     options = "//:options",
+    target = ":lib",
 )
 
 filegroup(

@@ -17,6 +17,7 @@ load(
 )
 load(
     "//dart/private:dart_info.bzl",
+    _dart_analyzable_info = "dart_analyzable_info",
     _dart_info = "dart_info",
     _dart_info_no_package = "dart_info_no_package",
 )
@@ -46,6 +47,13 @@ dart_info = _dart_info
 # else: with no package there is no `package_name`, no `lib_root`, no sources,
 # and no code assets to declare, and the signature says so.
 dart_info_no_package = _dart_info_no_package
+
+# For an executable rule — a binary, a test — whose entrypoint belongs to no
+# package's `lib/` and so can appear in no `DartInfo`. Returns the wrapper
+# `dart_analyze_test`/`dart_fix` accept, nesting a `dart_info_no_package()`
+# closure beside those sources. Deliberately not what an executable returns for
+# `deps` to see: `deps` requires `DartInfo`, and a binary is not a dependency.
+dart_analyzable_info = _dart_analyzable_info
 
 collect_packages = _collect_packages
 

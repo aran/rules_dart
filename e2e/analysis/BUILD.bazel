@@ -9,15 +9,15 @@ dart_library(
 dart_analyze_test(
     name = "analyze",
     size = "small",
-    lib = ":good_lib",
+    target = ":good_lib",
 )
 
 # Same library analyzed with stricter custom options.
 dart_analyze_test(
     name = "analyze_strict",
     size = "small",
-    lib = ":good_lib",
     options = "analysis_options.yaml",
+    target = ":good_lib",
 )
 
 dart_format_test(
@@ -34,8 +34,8 @@ dart_format_test(
 dart_analyze_test(
     name = "analyze_vga",
     size = "small",
-    lib = ":good_lib",
     options = ":vga",
+    target = ":good_lib",
 )
 
 # The ruleset is a pub package whose yaml the options file includes by

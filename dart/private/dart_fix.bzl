@@ -24,8 +24,14 @@ Both are needed because `dart fix`'s own built-in generated-file skip matches
 `*.g.dart` and nothing else — a `.freezed.dart` part gets rewritten.
 """
 
-load("//dart:providers.bzl", "DartAnalysisOptionsInfo", "DartInfo")
-load("//dart/private:common.bzl", "WINDOWS_CONSTRAINT_ATTR", "collect_packages", "merge_package_records")
+load("//dart:providers.bzl", "DartAnalysisOptionsInfo", "DartAnalyzableInfo", "DartInfo")
+load(
+    "//dart/private:common.bzl",
+    "WINDOWS_CONSTRAINT_ATTR",
+    "analyzable_closure",
+    "analyze_operand",
+    "merge_package_records",
+)
 load("//dart/private:project_staging.bzl", "pubspec_stub", "stage_dart_project")
 load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS")
 
@@ -51,8 +57,9 @@ def _dart_fix_impl(ctx):
     toolchain = ctx.toolchains["//dart:toolchain_type"]
     dart_sdk_info = toolchain.dart_sdk_info
 
-    lib_info = ctx.attr.lib[DartInfo]
-    packages = collect_packages([ctx.attr.lib])
+    closure = analyzable_closure(analyze_operand(ctx))
+    lib_info = closure.dart_info
+    packages = merge_package_records(lib_info.transitive_packages.to_list())
 
     # Same as `dart_analyze_test`: an options target may carry the packages its
     # `include:` directives resolve against. They are staged for resolution
@@ -65,9 +72,14 @@ def _dart_fix_impl(ctx):
             opts.transitive_srcs.to_list() + opts.transitive_resources.to_list()
         )
 
+    # An executable's entrypoint arrives via `closure.srcs` (no package's `lib/`
+    # holds it, so no `DartInfo` can). Folding it in here rather than at the
+    # staging call is what makes it fixable and not merely resolvable: the
+    # eligibility loop below is what decides write-back, and an entrypoint is
+    # `is_source` like any hand-written file.
     staged_files = (
         lib_info.transitive_srcs.to_list() +
-        lib_info.transitive_resources.to_list() + options_files
+        lib_info.transitive_resources.to_list() + closure.srcs + options_files
     )
 
     # Eligibility is decided here, at analysis time, from Bazel's own record of
@@ -199,9 +211,8 @@ dart_fix = rule(
     implementation = _dart_fix_impl,
     attrs = dict({
         "lib": attr.label(
-            doc = "The `dart_library` target to fix. Its whole transitive closure is considered, matching `dart_analyze_test`.",
-            mandatory = True,
-            providers = [DartInfo],
+            doc = "Deprecated alias for `target`. Set one or the other, never both.",
+            providers = [[DartInfo], [DartAnalyzableInfo]],
         ),
         "options": attr.label(
             doc = (
@@ -212,6 +223,15 @@ dart_fix = rule(
                 "cannot turn the analyze test green."
             ),
             allow_single_file = [".yaml"],
+        ),
+        "target": attr.label(
+            doc = (
+                "The target whose Dart sources to fix — a `dart_library`, or a " +
+                "`dart_binary`/`dart_test`/web binary, whose entrypoint is " +
+                "fixed too. Its whole transitive closure is considered, " +
+                "matching `dart_analyze_test`."
+            ),
+            providers = [[DartInfo], [DartAnalyzableInfo]],
         ),
         "_fix_runner": attr.label(
             default = "//dart/private/tools:fix_runner",
@@ -227,7 +247,7 @@ dart_fix = rule(
     executable = True,
     toolchains = ["//dart:toolchain_type"] + COPY_TO_DIRECTORY_TOOLCHAINS,
     doc = (
-        "Applies `dart fix` to a Dart library's sources. `bazel run` writes " +
+        "Applies `dart fix` to a Dart target's sources. `bazel run` writes " +
         "the fixes into the workspace; `bazel run ... -- --dry-run` prints " +
         "them instead. Generated files are never written.\n" +
         "\n" +

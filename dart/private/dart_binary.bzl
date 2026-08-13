@@ -18,6 +18,7 @@ load(
     "target_dart_abi",
 )
 load("//dart/private:dart_compile.bzl", "dart_compile_action")
+load("//dart/private:dart_info.bzl", "dart_analyzable_info")
 load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS", "colocate_entrypoint", "colocate_packages")
 
 def binary_output_basename(name, compile_mode, is_windows):
@@ -181,6 +182,14 @@ def _dart_binary_impl(ctx):
         DartCompileInfo(
             executable = output,
             compile_mode = compile_mode,
+        ),
+        # What makes `dart_analyze_test(target = ":bin")` / `dart_fix` possible
+        # without making this target a legal `deps` entry. The pre-colocation
+        # `ctx.file.main` on purpose: those rules stage by `short_path`, and a
+        # colocated copy's is inside the assembled directory.
+        dart_analyzable_info(
+            deps = ctx.attr.deps,
+            srcs = [ctx.file.main] + ctx.files.srcs,
         ),
     ]
 

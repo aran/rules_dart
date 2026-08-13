@@ -37,14 +37,14 @@ dart_library(
 dart_analyze_test(
     name = "analyze",
     size = "small",
-    lib = ":lib",
     options = "//:options",
+    target = ":lib",
 )
 
 dart_fix(
     name = "fix",
-    lib = ":lib",
     options = "//:options",
+    target = ":lib",
 )
 
 filegroup(

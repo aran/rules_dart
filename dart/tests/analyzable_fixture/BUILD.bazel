@@ -1,0 +1,94 @@
+load("//dart:defs.bzl", "dart_analyze_test", "dart_binary", "dart_library")
+load(
+    "//dart/tests:analyze_test.bzl",
+    "analyzable_provider_test",
+    "binary_not_a_dep_test",
+    "both_operands_test",
+    "no_operand_test",
+    "stages_entrypoint_test",
+)
+
+# A binary whose `main` sits beside `lib/`, importing a library inside it: the
+# shape nine of this repo's e2e workspaces have, and the one nothing could
+# analyze until `dart_analyze_test` learned to take an executable.
+
+dart_library(
+    name = "dep",
+    package_name = "analyzable_dep",
+    srcs = ["lib/dep.dart"],
+)
+
+dart_binary(
+    name = "bin",
+    main = "main.dart",
+    deps = [":dep"],
+)
+
+analyzable_provider_test(
+    name = "analyzable_provider_test",
+    size = "small",
+    target_under_test = ":bin",
+)
+
+dart_analyze_test(
+    name = "analyze_bin",
+    size = "small",
+    target = ":bin",
+)
+
+stages_entrypoint_test(
+    name = "stages_entrypoint_test",
+    size = "small",
+    target_under_test = ":analyze_bin",
+)
+
+# The one target still spelling the operand `lib`, and the only reason it
+# exists: rules_flutter has nine `dart_analyze_test(lib = ...)` call sites, and
+# every in-repo one moved to `target`. Without this, the alias could stop
+# working and nothing here would notice until a downstream bump.
+dart_analyze_test(
+    name = "analyze_via_lib_alias",
+    size = "small",
+    lib = ":dep",
+)
+
+# `manual` on every negative fixture below: each is expected to fail analysis,
+# and a `//dart/tests/...` wildcard that built them would fail the build before
+# any test ran. The `*_test` targets next to them are what actually assert the
+# failure.
+
+dart_library(
+    name = "bad",
+    tags = ["manual"],
+    deps = [":bin"],
+)
+
+binary_not_a_dep_test(
+    name = "binary_not_a_dep_test",
+    size = "small",
+    target_under_test = ":bad",
+)
+
+dart_analyze_test(
+    name = "both_operands",
+    lib = ":dep",
+    tags = ["manual"],
+    target = ":dep",
+)
+
+both_operands_test(
+    name = "both_operands_test",
+    size = "small",
+    target_under_test = ":both_operands",
+)
+
+dart_analyze_test(
+    name = "no_operand",
+    tags = ["manual"],
+)
+
+no_operand_test(
+    name = "no_operand_test",
+    size = "small",
+    target_under_test = ":no_operand",
+)

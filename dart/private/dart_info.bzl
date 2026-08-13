@@ -38,6 +38,13 @@ happened to need source assembly loses it, a pure-source package keeps it),
 which is worse to diagnose than losing it everywhere. `derived_package_info()`
 carries every field through and overrides only what is named.
 
+`DartAnalyzableInfo` is built here for the same reason rather than beside the
+rules that provide it: it is a `DartInfo` plus an entrypoint's package-less
+sources, and the tempting alternative — a provider with its own `transitive_*`
+fields — is precisely the second enumeration point everything above exists to
+prevent. `dart_analyzable_info()` therefore nests the `DartInfo` a constructor
+built instead of restating any part of it.
+
 So construction goes through here and reading does not: `DartInfo` stays public
 and is indexed directly by every consumer. The one deliberate exception is
 `//dart/tests/no_lv_fixture`, which hand-builds a provider missing
@@ -46,7 +53,7 @@ still holds; a fixture asserting that older producers keep working cannot be
 written through a constructor that makes them current.
 """
 
-load("//dart:providers.bzl", "DartCodeAssetInfo", "DartInfo", "DartPackageInfo")
+load("//dart:providers.bzl", "DartAnalyzableInfo", "DartCodeAssetInfo", "DartInfo", "DartPackageInfo")
 
 def check_code_asset_ownership(label, package_name, assets):
     """Checks that every declared asset id is namespaced to this package.
@@ -181,6 +188,35 @@ def dart_info_no_package(deps = []):
         resources = [],
         packages = [],
         code_asset_files = [],
+    )
+
+def dart_analyzable_info(deps = [], srcs = []):
+    """Builds a `DartAnalyzableInfo` for an executable target.
+
+    The third constructor, and the one place `DartAnalyzableInfo` is built. It
+    adds no depset of its own beyond `srcs`: the closure is the `DartInfo` that
+    `dart_info_no_package()` already knows how to merge, carried whole rather
+    than re-enumerated field by field — which is the mistake this file exists to
+    prevent, and which a provider with its own `transitive_*` fields would
+    reintroduce one merge at a time.
+
+    `srcs` is the one thing that `DartInfo` genuinely cannot carry. An
+    entrypoint contributes no package (under pub it belongs to the root package
+    but lives outside its `lib/`), so no `DartPackageInfo` can name it and no
+    `package:` URI reaches it — but the analyzer still has to see it.
+
+    Args:
+      deps: Targets providing `DartInfo` whose closures the entrypoint reaches.
+      srcs: The target's own entrypoint sources (its `main` and `srcs`). Pass
+        the rule's own `File`s, before any colocation copy: consumers stage by
+        `short_path`, and a colocated copy's is the assembled directory's.
+
+    Returns:
+      A `DartAnalyzableInfo`.
+    """
+    return DartAnalyzableInfo(
+        dart_info = dart_info_no_package(deps = deps),
+        srcs = depset(srcs),
     )
 
 def derived_package_info(pkg, lib_root = None, code_assets = None):

@@ -84,6 +84,7 @@ bzl_library(
         ":build_settings",
         ":common",
         ":dart_compile",
+        ":dart_info",
         ":source_set",
         "//dart:providers",
     ],
@@ -97,6 +98,7 @@ bzl_library(
         ":build_settings",
         ":common",
         ":dart_compile",
+        ":dart_info",
         ":source_set",
         "//dart:providers",
     ],
@@ -157,6 +159,9 @@ bzl_library(
     deps = [
         ":build_settings",
         ":common",
+        ":dart_info",
+        ":project_staging",
+        ":source_set",
         "//dart:providers",
     ],
 )

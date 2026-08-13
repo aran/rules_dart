@@ -1,0 +1,82 @@
+load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
+load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
+load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_fix", "dart_library")
+
+# The entrypoint counterpart of //dirty. A `dart_binary`'s `main` is under no
+# package's `lib/`, so it reaches `dart_fix` through `DartAnalyzableInfo` rather
+# than through any `DartInfo` — and it is `is_source`, which is what makes it
+# write-back eligible once it is staged at all. Both halves have to hold: staged
+# but ineligible would compute the fix and drop it; eligible but unstaged would
+# never compute one.
+#
+# The violation is load-bearing, so do not `bazel run //dirty_bin:fix` — it
+# would rewrite the fixture and take the assertion with it.
+
+dart_library(
+    name = "dep",
+    package_name = "fix_bin_dep",
+    srcs = ["lib/dep.dart"],
+)
+
+dart_binary(
+    name = "bin",
+    main = "main.dart",
+    deps = [":dep"],
+)
+
+dart_fix(
+    name = "fix",
+    options = "//:options",
+    target = ":bin",
+)
+
+filegroup(
+    name = "manifest",
+    srcs = [":fix"],
+    output_group = "dart_fix_manifest",
+)
+
+filegroup(
+    name = "fixes",
+    srcs = [":fix"],
+    output_group = "dart_fix_fixes",
+)
+
+# One entry, and it is the entrypoint. `lib/dep.dart` is staged and eligible but
+# clean, so its absence is what distinguishes "fixed the entrypoint" from "fixed
+# everything in the closure".
+diff_test(
+    name = "manifest_test",
+    size = "small",
+    file1 = ":manifest",
+    file2 = "golden/fix_manifest.json",
+)
+
+# The `--content` list is the whole assertion and it is exhaustive: an extra
+# file in the tree fails the build.
+#
+# Not a `diff_test` against the tree: `diff_test` runs a bare `diff` with no
+# `-r`, which on two directories prints "Common subdirectories" and exits 0.
+run_binary(
+    name = "main_fixed",
+    srcs = [":fixes"],
+    outs = ["main_fixed.dart"],
+    args = [
+        "--fixes",
+        "$(execpath :fixes)",
+        "--out",
+        "$(execpath main_fixed.dart)",
+        "--content",
+        "dirty_bin/main.dart",
+        "--path",
+        "dirty_bin/main.dart",
+    ],
+    tool = "//tools:check_fixes",
+)
+
+diff_test(
+    name = "main_fixed_test",
+    size = "small",
+    file1 = ":main_fixed.dart",
+    file2 = "golden/main.dart",
+)

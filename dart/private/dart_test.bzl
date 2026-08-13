@@ -29,6 +29,7 @@ load(
     "target_dart_abi",
 )
 load("//dart/private:dart_compile.bzl", "dart_compile_action")
+load("//dart/private:dart_info.bzl", "dart_analyzable_info")
 load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS", "colocate_entrypoint", "colocate_packages")
 
 def _dart_test_impl(ctx):
@@ -143,6 +144,13 @@ def _dart_test_impl(ctx):
     return [
         DefaultInfo(executable = executable, runfiles = runfiles),
         env_info,
+        # See `dart_binary`: analyzable and fixable without becoming a valid
+        # `deps` entry. `ctx.file.main` is the pre-colocation file, because the
+        # analyze/fix rules stage by `short_path`.
+        dart_analyzable_info(
+            deps = ctx.attr.deps,
+            srcs = [ctx.file.main] + ctx.files.srcs,
+        ),
     ]
 
 dart_test = rule(

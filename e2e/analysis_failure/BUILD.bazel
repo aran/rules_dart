@@ -1,4 +1,4 @@
-load("@rules_dart//dart:defs.bzl", "dart_analyze_test", "dart_library")
+load("@rules_dart//dart:defs.bzl", "dart_analyze_test", "dart_binary", "dart_library")
 
 # This workspace should FAIL to build: bad.dart carries an
 # unused_local_variable diagnostic and dart_analyze_test runs the analyzer
@@ -12,5 +12,20 @@ dart_library(
 
 dart_analyze_test(
     name = "analyze_bad",
-    lib = ":bad_lib",
+    target = ":bad_lib",
+)
+
+# The same guard for an entrypoint. A `dart_binary`'s `main` is under no `lib/`,
+# so it is staged for analysis from `DartAnalyzableInfo` rather than from any
+# package's sources — and a diagnostic in it must fail the build exactly as one
+# in a library does. Without this, staging that quietly dropped the entrypoint
+# would leave the analyzer reporting "No issues found" on a file it never read.
+dart_binary(
+    name = "bad_bin",
+    main = "bad_main.dart",
+)
+
+dart_analyze_test(
+    name = "analyze_bad_bin",
+    target = ":bad_bin",
 )

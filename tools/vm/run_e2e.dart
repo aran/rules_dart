@@ -220,6 +220,14 @@ const _expectedFailureChecks = [
     '//:analyze_bad',
     'unused_local_variable',
   ),
+  // The entrypoint half: a `dart_binary`'s `main` reaches the analyzer through
+  // `DartAnalyzableInfo`, and a diagnostic in it must fail the build too. Its
+  // own error string, so a grep hit cannot be the library target's.
+  _ExpectedFailure(
+    'e2e/analysis_failure',
+    '//:analyze_bad_bin',
+    'unused_import',
+  ),
 ];
 
 /// Checks an expected-failure workspace: the build must FAIL (a successful

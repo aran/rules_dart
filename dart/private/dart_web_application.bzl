@@ -10,6 +10,7 @@ The rules stage that layout hermetically from declared artifacts (see
 load("//dart:providers.bzl", "DartInfo")
 load("//dart/private:build_settings.bzl", "EXTRA_DART_DEFINES_ATTR", "merge_dart_defines")
 load("//dart/private:common.bzl", "collect_packages", "collect_transitive_resources", "collect_transitive_srcs")
+load("//dart/private:dart_info.bzl", "dart_analyzable_info")
 load("//dart/private:project_staging.bzl", "stage_dart_project")
 load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS")
 
@@ -107,6 +108,12 @@ def _dart_web_compile(ctx, compile_mode):
     return [
         DefaultInfo(
             files = depset([output]),
+        ),
+        # See `dart_binary`: a web entrypoint is as analyzable as a VM one, and
+        # as invalid a `deps` entry.
+        dart_analyzable_info(
+            deps = ctx.attr.deps,
+            srcs = [ctx.file.main] + ctx.files.srcs,
         ),
     ]
 

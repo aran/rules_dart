@@ -9,7 +9,7 @@ dart_library(
 dart_analyze_test(
     name = "analyze_test",
     size = "small",
-    lib = ":mylib",
+    target = ":mylib",
 )
 
 dart_format_test(

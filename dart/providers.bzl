@@ -48,6 +48,35 @@ DartPackageInfo = provider(
     },
 )
 
+DartAnalyzableInfo = provider(
+    doc = """An executable target's analyzable closure: everything \
+`dart_analyze_test` / `dart_fix` need to stage a project around its entrypoint.
+
+Provided by executable rules only — `dart_binary`, `dart_test`, \
+`dart_js_binary`, `dart_wasm_binary`. A library needs nothing extra: for it \
+`DartInfo` *is* the analyzable closure, and `dart_analyze_test`/`dart_fix` \
+accept either provider, which is what keeps `flutter_library` and \
+`dart_proto_library` analyzable without adopting anything.
+
+The separation is what makes an entrypoint analyzable without making it a valid \
+dependency. Every `deps` attribute in this rule set and downstream ones gates on \
+`providers = [DartInfo]`, so an executable returning `DartInfo` would make \
+`dart_library(deps = [":some_binary"])` legal — and Bazel has no way to express \
+"provides it but is not a dep", `attr.label(providers = ...)` being require-only. \
+A distinct outer provider that *nests* the `DartInfo` says the same thing \
+structurally: consumable by whoever asks for it, invisible to whoever asks for \
+`DartInfo`.
+
+Build one with `dart_analyzable_info()` from `//dart:utils.bzl`, which builds the \
+nested `DartInfo` through `dart_info_no_package()` — an entrypoint contributes no \
+package, since under pub it belongs to the root package but sits outside its \
+`lib/`.""",
+    fields = {
+        "dart_info": "DartInfo: the dependency closure, as `dart_info_no_package()` builds it.",
+        "srcs": "depset[File]: the target's own sources — its `main` and `srcs` — which belong to no package's `lib/` and so can appear in no `DartInfo`.",
+    },
+)
+
 DartPackageConfigInfo = provider(
     doc = "A generated `package_config.json` file that maps `package:` URIs to source locations.",
     fields = {

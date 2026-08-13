@@ -61,7 +61,7 @@ build_test(
 dart_analyze_test(
     name = "shape_fixture_analyze",
     size = "small",
-    lib = "//dart/tests/shape_fixture:shape_fixture_lib",
+    target = "//dart/tests/shape_fixture:shape_fixture_lib",
 )
 
 analyze_hermetic_test(
