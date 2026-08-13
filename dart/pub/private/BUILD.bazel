@@ -1,9 +1,16 @@
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 
 bzl_library(
+    name = "build_content",
+    srcs = ["build_content.bzl"],
+    visibility = ["//dart/pub:__subpackages__"],
+)
+
+bzl_library(
     name = "pub_repository",
     srcs = ["pub_repository.bzl"],
     visibility = ["//dart/pub:__subpackages__"],
+    deps = [":build_content"],
 )
 
 bzl_library(

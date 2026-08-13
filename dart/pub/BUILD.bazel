@@ -10,7 +10,10 @@ bzl_library(
     name = "pub_lock_package",
     srcs = ["pub_lock_package.bzl"],
     visibility = ["//visibility:public"],
-    deps = [":yaml_parser"],
+    deps = [
+        ":yaml_parser",
+        "//dart/pub/private:build_content",
+    ],
 )
 
 bzl_library(

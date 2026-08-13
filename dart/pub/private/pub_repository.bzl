@@ -1,6 +1,7 @@
 """Repository rule for downloading a single pub.dev package."""
 
 load("//dart/pub:yaml_parser.bzl", "parse_pubspec_sdk_constraint")
+load("//dart/pub/private:build_content.bzl", "make_dart_library_build_content")
 load("//dart/pub/private:language_version.bzl", "derive_language_version")
 
 def _pub_package_impl(ctx):
@@ -23,32 +24,11 @@ def _pub_package_impl(ctx):
     sdk_constraint = parse_pubspec_sdk_constraint(pubspec_content)
     language_version = derive_language_version(sdk_constraint)
 
-    # Generate BUILD.bazel with a dart_library target
-    dep_labels = ['        "@{dep}",'.format(dep = dep) for dep in ctx.attr.deps]
-    deps_block = ""
-    if dep_labels:
-        deps_block = "    deps = [\n{deps}\n    ],\n".format(
-            deps = "\n".join(dep_labels),
-        )
-
-    build_content = """\
-load("@rules_dart//dart:defs.bzl", "dart_library")
-
-dart_library(
-    name = "{name}",
-    srcs = glob(["lib/**/*.dart"], allow_empty = True),
-{deps}    package_name = "{name}",
-    resources = glob(
-        ["lib/**"],
-        exclude = ["lib/**/*.dart"],
-        allow_empty = True,
-    ),
-    language_version = "{language_version}",
-    visibility = ["//visibility:public"],
-)
-""".format(
+    # Generate BUILD.bazel with a dart_library target. `deps` here names sibling
+    # repositories, whose default target carries the repo's own name.
+    build_content = make_dart_library_build_content(
         name = ctx.attr.package_name,
-        deps = deps_block,
+        deps = ["@{dep}".format(dep = dep) for dep in ctx.attr.deps],
         language_version = language_version,
     )
 
