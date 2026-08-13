@@ -1,4 +1,5 @@
-load("//dart:defs.bzl", "dart_analyze_test", "dart_binary", "dart_library")
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("//dart:defs.bzl", "dart_analyze_test", "dart_binary", "dart_fix", "dart_js_binary", "dart_library")
 load(
     "//dart/tests:analyze_test.bzl",
     "analyzable_provider_test",
@@ -42,14 +43,28 @@ stages_entrypoint_test(
     target_under_test = ":analyze_bin",
 )
 
-# The one target still spelling the operand `lib`, and the only reason it
-# exists: rules_flutter has nine `dart_analyze_test(lib = ...)` call sites, and
-# every in-repo one moved to `target`. Without this, the alias could stop
+# The only targets still spelling the operand `lib`, and the only reason they
+# exist: rules_flutter has 15 `dart_analyze_test(lib = ...)` call sites, and
+# every in-repo one moved to `target`. Without these, the alias could stop
 # working and nothing here would notice until a downstream bump.
+#
+# Both rules are pinned even though they share `analyze_operand`, because the
+# attribute declaration each carries is exactly the part they do not share.
 dart_analyze_test(
     name = "analyze_via_lib_alias",
     size = "small",
     lib = ":dep",
+)
+
+dart_fix(
+    name = "fix_via_lib_alias",
+    lib = ":dep",
+)
+
+build_test(
+    name = "fix_via_lib_alias_test",
+    size = "small",
+    targets = [":fix_via_lib_alias"],
 )
 
 # `manual` on every negative fixture below: each is expected to fail analysis,
@@ -91,4 +106,19 @@ no_operand_test(
     name = "no_operand_test",
     size = "small",
     target_under_test = ":no_operand",
+)
+
+# `dart_js_binary` and `dart_wasm_binary` share `_dart_web_compile`'s provider
+# list, so they carry `DartAnalyzableInfo` too — untested until now, which meant
+# the web rules could stop providing it without a failure anywhere.
+dart_js_binary(
+    name = "web_bin",
+    main = "main.dart",
+    deps = [":dep"],
+)
+
+dart_analyze_test(
+    name = "analyze_web_bin",
+    size = "small",
+    target = ":web_bin",
 )
