@@ -1,0 +1,15 @@
+load("@rules_dart//dart:defs.bzl", "dart_binary")
+
+# Run as a plain script by `dart_codegen`, so it ships as a source file.
+exports_files(
+    ["part_gen.dart"],
+    visibility = ["//visibility:public"],
+)
+
+# Runs as an action executable, which a source file cannot be.
+dart_binary(
+    name = "check_fixes",
+    compile_mode = "exe",
+    main = "check_fixes.dart",
+    visibility = ["//visibility:public"],
+)

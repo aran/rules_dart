@@ -1,0 +1,9 @@
+{
+  "fixed": [
+    {
+      "staged": "src/suffixes/lib/thing.freezed.dart",
+      "workspace": "suffixes/lib/thing.freezed.dart"
+    }
+  ],
+  "dropped": []
+}

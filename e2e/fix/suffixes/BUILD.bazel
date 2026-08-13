@@ -1,0 +1,52 @@
+load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
+load("@rules_dart//dart:defs.bzl", "dart_fix", "dart_library")
+load("//:fix_outputs.bzl", "fix_manifest", "fixed_file")
+
+# Pins the heuristic `dart_fix` cannot rely on. `dart fix` skips files called
+# `*.g.dart` and no other name, so a `.freezed.dart` part is rewritten like any
+# other source. Everything here is hand-written and therefore eligible, which
+# leaves the file name as the only variable.
+#
+# The violations are load-bearing, so do not `bazel run //suffixes:fix` — it
+# would rewrite the fixture and take the assertion with it.
+dart_library(
+    name = "lib",
+    package_name = "fix_suffixes",
+    srcs = [
+        "lib/thing.dart",
+        "lib/thing.freezed.dart",
+        "lib/thing.g.dart",
+    ],
+)
+
+dart_fix(
+    name = "fix",
+    lib = ":lib",
+    options = "//:options",
+)
+
+fix_manifest(
+    name = "manifest",
+    fix = ":fix",
+)
+
+diff_test(
+    name = "manifest_test",
+    size = "small",
+    file1 = ":manifest",
+    file2 = "golden/fix_manifest.json",
+)
+
+fixed_file(
+    name = "thing_fixed.dart",
+    fix = ":fix",
+    path = "suffixes/lib/thing.freezed.dart",
+    tree_contents = ["suffixes/lib/thing.freezed.dart"],
+)
+
+diff_test(
+    name = "thing_fixed_test",
+    size = "small",
+    file1 = ":thing_fixed.dart",
+    file2 = "golden/thing.freezed.dart",
+)

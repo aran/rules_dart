@@ -1,0 +1,11 @@
+load("@rules_dart//dart:defs.bzl", "dart_analysis_options")
+
+# One options target for the whole workspace. `dart_fix` and `dart_analyze_test`
+# have to be given the same one: fixes are driven by whatever lints are enabled,
+# so a `dart_fix` on a different options file cannot turn its analyze test
+# green. Every fixture below points both rules here.
+dart_analysis_options(
+    name = "options",
+    src = "analysis_options.yaml",
+    visibility = ["//visibility:public"],
+)

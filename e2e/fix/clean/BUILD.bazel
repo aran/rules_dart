@@ -1,0 +1,77 @@
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
+load("@rules_dart//dart:defs.bzl", "dart_analyze_test", "dart_codegen", "dart_fix", "dart_library")
+load("//:fix_outputs.bzl", "fix_manifest", "fixed_file")
+
+# The green end of the red/green pair. //dirty holds the same library with two
+# violations in it; this one is what `bazel run //dirty:fix` must produce, and
+# `:analyze` is the proof that what it produces passes the analyzer.
+exports_files(["lib/model.dart"])
+
+dart_codegen(
+    name = "model_g",
+    package_name = "fix_clean",
+    src = "lib/model.dart",
+    generator = "//tools:part_gen.dart",
+    output_suffixes = [".g.dart"],
+)
+
+dart_codegen(
+    name = "model_freezed",
+    package_name = "fix_clean",
+    src = "lib/model.dart",
+    generator = "//tools:part_gen.dart",
+    output_suffixes = [".freezed.dart"],
+)
+
+dart_library(
+    name = "lib",
+    package_name = "fix_clean",
+    srcs = [
+        "lib/model.dart",
+        ":model_freezed",
+        ":model_g",
+    ],
+)
+
+dart_analyze_test(
+    name = "analyze",
+    size = "small",
+    lib = ":lib",
+    options = "//:options",
+)
+
+dart_fix(
+    name = "fix",
+    lib = ":lib",
+    options = "//:options",
+)
+
+fix_manifest(
+    name = "manifest",
+    fix = ":fix",
+)
+
+# Nothing left to fix, which is the other half of "red before, green after":
+# the sources that analyze clean are exactly the sources `dart fix` leaves
+# alone. An empty `dropped` says the generated parts were never proposed
+# either — the rule's exclusions kept `dart fix` off them rather than the
+# eligibility check discarding fixes after the fact.
+diff_test(
+    name = "manifest_test",
+    size = "small",
+    file1 = ":manifest",
+    file2 = "golden/fix_manifest.json",
+)
+
+fixed_file(
+    name = "no_fixes",
+    fix = ":fix",
+    tree_contents = [],
+)
+
+build_test(
+    name = "no_fixes_test",
+    size = "small",
+    targets = [":no_fixes"],
+)

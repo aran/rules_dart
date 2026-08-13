@@ -31,6 +31,7 @@ file at runtime — keep file lists current as the repo evolves.
 - `e2e/codegen/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
 - `e2e/dual_build/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
 - `e2e/ext_exemplar/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
+- `e2e/fix/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
 - `README.md` — `dart.toolchain(dart_version = "...")` in installation snippet
 - `dart/tests/versions_test.bzl` — asserted version key in `_smoke_test_impl`
 - `dart/runfiles/pubspec.yaml` — `environment.sdk` constraint (published to
@@ -80,6 +81,7 @@ file at runtime — keep file lists current as the repo evolves.
 - `e2e/codegen/.bazelversion`
 - `e2e/dual_build/.bazelversion`
 - `e2e/ext_exemplar/.bazelversion`
+- `e2e/fix/.bazelversion`
 - `.github/workflows/ci.yaml` — `bazel_versions:` must match `.bazelversion`; the
   reusable workflow sets `USE_BAZEL_VERSION` from it, so a stale value means CI
   never tests the version developers run locally
@@ -114,6 +116,7 @@ file at runtime — keep file lists current as the repo evolves.
   - `e2e/dual_build/MODULE.bazel` — `rules_shell`
   - `e2e/ext_exemplar/MODULE.bazel` — `gazelle`, `rules_go`, `sqlite3`,
     `rules_cc`, `platforms`
+  - `e2e/fix/MODULE.bazel` — `bazel_skylib`
 - `e2e/ext_exemplar/sqlite3_binary/test/direct_test.dart` — asserts the exact
   `sqlite3.version.libVersion` string, so a `sqlite3` bump fails this test until
   the literal is updated to match
@@ -162,6 +165,7 @@ load to) anything in `dart/pub/extensions.bzl`'s closure invalidates the lock of
 - `e2e/codegen`
 - `e2e/dual_build`
 - `e2e/ext_exemplar`
+- `e2e/fix`
 
 Two workspaces are deliberately skipped by the tool (`_skipWorkspaces` in
 `tool/refresh_locks.dart`) because they don't resolve standalone:

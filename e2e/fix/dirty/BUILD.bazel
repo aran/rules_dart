@@ -1,0 +1,97 @@
+load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
+load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_fix", "dart_library", "dart_test")
+load("//:fix_outputs.bzl", "fix_manifest", "fixed_file")
+
+# The red end of the red/green pair, and the fixture the whole workspace exists
+# for. Both generated parts carry the same `prefer_final_locals` violation as
+# the hand-written library:
+#
+#   * `dart fix` skips `model.g.dart` on its own, by name.
+#   * `model.freezed.dart` it would happily rewrite. Only the rule stops it —
+#     first by excluding it from the analysis, then by refusing to write back
+#     anything that was not `is_source`.
+#
+# No `dart_analyze_test` here: the violations left in the generated parts are
+# permanent (they can only be fixed in the generator), so this library never
+# analyzes clean. //clean is where the analyze test lives.
+dart_codegen(
+    name = "model_g",
+    package_name = "fix_dirty",
+    src = "lib/model.dart",
+    generator = "//tools:part_gen.dart",
+    generator_args = ["--violation"],
+    output_suffixes = [".g.dart"],
+)
+
+dart_codegen(
+    name = "model_freezed",
+    package_name = "fix_dirty",
+    src = "lib/model.dart",
+    generator = "//tools:part_gen.dart",
+    generator_args = ["--violation"],
+    output_suffixes = [".freezed.dart"],
+)
+
+dart_library(
+    name = "lib",
+    package_name = "fix_dirty",
+    srcs = [
+        "lib/model.dart",
+        ":model_freezed",
+        ":model_g",
+    ],
+)
+
+dart_fix(
+    name = "fix",
+    lib = ":lib",
+    options = "//:options",
+)
+
+fix_manifest(
+    name = "manifest",
+    fix = ":fix",
+)
+
+# One hand-written file fixed, nothing dropped. A generated file appearing in
+# `fixed` would mean the eligibility check let it through; appearing in
+# `dropped` would mean `dart fix` was still allowed to propose a fix for it.
+diff_test(
+    name = "manifest_test",
+    size = "small",
+    file1 = ":manifest",
+    file2 = "golden/fix_manifest.json",
+)
+
+fixed_file(
+    name = "model_fixed.dart",
+    fix = ":fix",
+    path = "dirty/lib/model.dart",
+    tree_contents = ["dirty/lib/model.dart"],
+)
+
+# The golden is //clean's source rather than a checked-in copy, so this asserts
+# the two things that matter at once: the fix output is byte-correct, and what
+# it is byte-correct against is a library with a passing `dart_analyze_test`.
+# The `@override` in it is also the proof that the excluded parts still
+# resolved — the analyzer cannot propose it without the supertype.
+diff_test(
+    name = "model_fixed_test",
+    size = "small",
+    file1 = ":model_fixed.dart",
+    file2 = "//clean:lib/model.dart",
+)
+
+# The tests above stop at the build action; this one runs the executable half,
+# pointed at a scratch tree instead of this workspace.
+dart_test(
+    name = "write_back_test",
+    size = "small",
+    data = [
+        "lib/model.dart",
+        ":fix",
+        "//clean:lib/model.dart",
+    ],
+    main = "test/write_back_test.dart",
+    deps = ["@rules_dart//dart/runfiles"],
+)

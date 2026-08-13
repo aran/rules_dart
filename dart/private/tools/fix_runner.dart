@@ -150,7 +150,7 @@ void _absolutizePackageConfig(String project, String scratch) {
   try {
     decoded = jsonDecode(file.readAsStringSync());
   } on FormatException catch (e) {
-    stderr.writeln('fix_runner: ignoring unparseable ${file.path}: $e');
+    stderr.writeln('fix_runner: ignoring unparsable ${file.path}: $e');
     return;
   }
   if (decoded is! Map || decoded['packages'] is! List) return;
