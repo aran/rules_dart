@@ -65,9 +65,11 @@ bzl_library(
     visibility = ["//visibility:public"],
     deps = [
         "//dart/private:dart_aggregate_codegen",
+        "//dart/private:dart_analysis_options",
         "//dart/private:dart_analyze",
         "//dart/private:dart_binary",
         "//dart/private:dart_codegen",
+        "//dart/private:dart_fix",
         "//dart/private:dart_format_test",
         "//dart/private:dart_library",
         "//dart/private:dart_test",

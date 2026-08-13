@@ -113,11 +113,32 @@ bzl_library(
 )
 
 bzl_library(
+    name = "project_staging",
+    srcs = ["project_staging.bzl"],
+    visibility = ["//dart:__subpackages__"],
+    deps = [":source_set"],
+)
+
+bzl_library(
+    name = "dart_fix",
+    srcs = ["dart_fix.bzl"],
+    visibility = ["//dart:__subpackages__"],
+    deps = [
+        ":common",
+        ":project_staging",
+        ":source_set",
+        "//dart:providers",
+    ],
+)
+
+bzl_library(
     name = "dart_analyze",
     srcs = ["dart_analyze.bzl"],
     visibility = ["//dart:__subpackages__"],
     deps = [
         ":common",
+        ":project_staging",
+        ":source_set",
         "//dart:providers",
     ],
 )

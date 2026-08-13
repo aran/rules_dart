@@ -15,6 +15,20 @@ dart_binary(
 )
 
 dart_binary(
+    name = "fix_runner",
+    compile_mode = "exe",
+    main = "fix_runner.dart",
+    visibility = ["//dart:__subpackages__"],
+)
+
+dart_binary(
+    name = "fix_applier",
+    compile_mode = "exe",
+    main = "fix_applier.dart",
+    visibility = ["//dart:__subpackages__"],
+)
+
+dart_binary(
     name = "test_runner",
     compile_mode = "exe",
     main = "test_runner.dart",
