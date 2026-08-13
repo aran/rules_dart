@@ -12,8 +12,8 @@ directory: their `package:` imports resolve, but they are not themselves
 analyzed (pub packages aren't held to this target's `--fatal-infos` bar).
 """
 
-load("//dart:providers.bzl", "DartInfo")
-load("//dart/private:common.bzl", "WINDOWS_CONSTRAINT_ATTR", "collect_packages")
+load("//dart:providers.bzl", "DartAnalysisOptionsInfo", "DartInfo")
+load("//dart/private:common.bzl", "WINDOWS_CONSTRAINT_ATTR", "collect_packages", "merge_package_records")
 load("//dart/private:project_staging.bzl", "stage_dart_project")
 load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS")
 
@@ -47,6 +47,21 @@ def _dart_analyze_test_impl(ctx):
     lib_info = ctx.attr.lib[DartInfo]
     packages = collect_packages([ctx.attr.lib])
 
+    # An options file may `include:` a ruleset by `package:` URI, which resolves
+    # through this project's package_config like any import. Those packages are
+    # staged for that resolution only: they join `packages` (so package_config
+    # names them) and the staged file list, but come from the options target
+    # rather than from `lib`, so they never enter the analyzed library's own
+    # `DartInfo`. Every one of them is external, so `stage_dart_project` files
+    # them under `extpkgs` — resolvable, not analyzed.
+    options_files = []
+    if ctx.attr.options and DartAnalysisOptionsInfo in ctx.attr.options:
+        opts = ctx.attr.options[DartAnalysisOptionsInfo]
+        packages = merge_package_records(packages + opts.packages)
+        options_files = (
+            opts.transitive_srcs.to_list() + opts.transitive_resources.to_list()
+        )
+
     # Resources are staged beside the sources because the analyzer reads some of
     # them. `package:sky_engine`'s `lib/_embedder.yaml` is the whole of how it
     # resolves `dart:ui`, and it finds that file only by following the
@@ -56,7 +71,8 @@ def _dart_analyze_test_impl(ctx):
     staged = stage_dart_project(
         ctx,
         packages,
-        lib_info.transitive_srcs.to_list() + lib_info.transitive_resources.to_list(),
+        lib_info.transitive_srcs.to_list() +
+        lib_info.transitive_resources.to_list() + options_files,
         extra_proj_files = {"pubspec.yaml": _pubspec_stub(packages)},
     )
 

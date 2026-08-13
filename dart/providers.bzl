@@ -78,3 +78,26 @@ package's `@Native` symbols against the Bazel-built library at runtime.""",
         "system_uri": "str: System library URI (e.g. `libsqlite3.so.0`) for `dynamic_loading_system`. Empty string otherwise.",
     },
 )
+
+DartAnalysisOptionsInfo = provider(
+    doc = """An `analysis_options.yaml` together with the packages its \
+`include:` directives resolve against.
+
+A shared lint ruleset is published as a pub package and pulled in by \
+`package:` URI, which the analyzer resolves through the staged project's \
+`package_config.json`. So an options file can carry package dependencies, and \
+the only alternative — adding the ruleset to the analyzed library's own `deps` \
+— leaks a lint-only package into that library's `DartInfo`, and from there \
+into every binary and test downstream of it.
+
+Produced by `dart_analysis_options` and consumed by `dart_analyze_test`'s \
+`options` attribute, which stages these packages for options resolution alone: \
+they are resolvable from the project, never themselves analyzed, and never \
+merged into the analyzed target's provider.""",
+    fields = {
+        "file": "File: The `analysis_options.yaml`.",
+        "packages": "list[DartPackageInfo]: Package metadata for every package the includes may reference.",
+        "transitive_srcs": "depset[File]: Dart sources of those packages.",
+        "transitive_resources": "depset[File]: Non-Dart `lib/` files of those packages — where a published ruleset's yaml actually lives.",
+    },
+)

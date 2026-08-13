@@ -103,6 +103,16 @@ bzl_library(
 )
 
 bzl_library(
+    name = "dart_analysis_options",
+    srcs = ["dart_analysis_options.bzl"],
+    visibility = ["//dart:__subpackages__"],
+    deps = [
+        ":common",
+        "//dart:providers",
+    ],
+)
+
+bzl_library(
     name = "dart_analyze",
     srcs = ["dart_analyze.bzl"],
     visibility = ["//dart:__subpackages__"],

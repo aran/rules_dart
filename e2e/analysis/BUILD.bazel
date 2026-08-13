@@ -1,12 +1,9 @@
-load("@rules_dart//dart:defs.bzl", "dart_analyze_test", "dart_format_test", "dart_library")
+load("@rules_dart//dart:defs.bzl", "dart_analysis_options", "dart_analyze_test", "dart_format_test", "dart_library")
 
 dart_library(
     name = "good_lib",
     srcs = glob(["lib/**/*.dart"]),
-    deps = [
-        "//mylib",
-        "@very_good_analysis",
-    ],
+    deps = ["//mylib"],
 )
 
 dart_analyze_test(
@@ -38,5 +35,15 @@ dart_analyze_test(
     name = "analyze_vga",
     size = "small",
     lib = ":good_lib",
-    options = "vga_options.yaml",
+    options = ":vga",
+)
+
+# The ruleset is a pub package whose yaml the options file includes by
+# `package:` URI. Naming it here rather than in `good_lib`'s deps is the point:
+# a lint ruleset is not a dependency of the code it lints, and listing it there
+# would carry it into the `DartInfo` of every binary and test downstream.
+dart_analysis_options(
+    name = "vga",
+    src = "vga_options.yaml",
+    deps = ["@very_good_analysis"],
 )
