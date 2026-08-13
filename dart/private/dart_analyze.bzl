@@ -17,7 +17,28 @@ load("//dart/private:common.bzl", "WINDOWS_CONSTRAINT_ATTR", "collect_packages")
 load("//dart/private:project_staging.bzl", "stage_dart_project")
 load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS")
 
-_PUBSPEC_STUB = 'name: __analyze__\nenvironment:\n  sdk: ">=3.0.0 <4.0.0"\n'
+def _pubspec_stub(packages):
+    """Builds the `pubspec.yaml` the staged project is analyzed against.
+
+    The analyzer resolves imports through `package_config.json`, never through
+    this file — but lint rules read it, so it has to be a *valid* pubspec, not
+    just a parseable one. A placeholder name trips `package_names`, and every
+    cross-package import trips `depend_on_referenced_packages` unless the
+    package is listed here. Both fire on the harness rather than on the code
+    under analysis, so a strict ruleset would blame the user for rules_dart's
+    staging. Dependencies are sorted because `sort_pub_dependencies` would be
+    the next one.
+
+    Constraints are `any`: nothing resolves them, and a real constraint here
+    would be a second place to keep a version in sync.
+    """
+    lines = ["name: analyze_stub", "environment:", '  sdk: ">=3.0.0 <4.0.0"']
+    names = sorted([p.package_name for p in packages if p.package_name])
+    if names:
+        lines.append("dependencies:")
+        for name in names:
+            lines.append("  %s: any" % name)
+    return "\n".join(lines) + "\n"
 
 def _dart_analyze_test_impl(ctx):
     toolchain = ctx.toolchains["//dart:toolchain_type"]
@@ -36,7 +57,7 @@ def _dart_analyze_test_impl(ctx):
         ctx,
         packages,
         lib_info.transitive_srcs.to_list() + lib_info.transitive_resources.to_list(),
-        extra_proj_files = {"pubspec.yaml": _PUBSPEC_STUB},
+        extra_proj_files = {"pubspec.yaml": _pubspec_stub(packages)},
     )
 
     inputs = list(staged.inputs)

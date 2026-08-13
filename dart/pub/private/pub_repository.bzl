@@ -36,8 +36,14 @@ load("@rules_dart//dart:defs.bzl", "dart_library")
 
 dart_library(
     name = "{name}",
-    srcs = glob(["lib/**/*.dart"]),
-{deps}    language_version = "{language_version}",
+    srcs = glob(["lib/**/*.dart"], allow_empty = True),
+{deps}    package_name = "{name}",
+    resources = glob(
+        ["lib/**"],
+        exclude = ["lib/**/*.dart"],
+        allow_empty = True,
+    ),
+    language_version = "{language_version}",
     visibility = ["//visibility:public"],
 )
 """.format(

@@ -249,7 +249,7 @@
   "moduleExtensions": {
     "//dart/pub:extensions.bzl%pub": {
       "general": {
-        "bzlTransitiveDigest": "Dy+0LtzsRyyu1ST807rM12LiHpFmDYaIoewjLOiyNr0=",
+        "bzlTransitiveDigest": "uiTFuuNOY8Oef64zzpyVnO1LmF6mqYTk8bCyOoRhAug=",
         "usagesDigest": "S1U8voKxlLw9MJ2o8dWiE/YkYaZUEKfIyu7KbdXd3UE=",
         "recordedInputs": [
           "REPO_MAPPING:,yaml.bzl yaml.bzl+",
