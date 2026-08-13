@@ -1,6 +1,6 @@
 load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
+load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
 load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_fix", "dart_library", "dart_test")
-load("//:fix_outputs.bzl", "fix_manifest", "fixed_file")
 
 # The red end of the red/green pair, and the fixture the whole workspace exists
 # for. Both generated parts carry the same `prefer_final_locals` violation as
@@ -48,9 +48,16 @@ dart_fix(
     options = "//:options",
 )
 
-fix_manifest(
+filegroup(
     name = "manifest",
-    fix = ":fix",
+    srcs = [":fix"],
+    output_group = "dart_fix_manifest",
+)
+
+filegroup(
+    name = "fixes",
+    srcs = [":fix"],
+    output_group = "dart_fix_fixes",
 )
 
 # One hand-written file fixed, nothing dropped. A generated file appearing in
@@ -63,11 +70,28 @@ diff_test(
     file2 = "golden/fix_manifest.json",
 )
 
-fixed_file(
-    name = "model_fixed.dart",
-    fix = ":fix",
-    path = "dirty/lib/model.dart",
-    tree_contents = ["dirty/lib/model.dart"],
+# The `--content` list is the whole assertion and it is exhaustive: an extra
+# file in the tree fails the build. That is what says a generated file was never
+# written back — a check that only looked for the files it expected would pass
+# just as happily with a stray `.freezed.dart` beside them.
+#
+# Not a `diff_test` against the tree: `diff_test` runs a bare `diff` with no
+# `-r`, which on two directories prints "Common subdirectories" and exits 0.
+run_binary(
+    name = "model_fixed",
+    srcs = [":fixes"],
+    outs = ["model_fixed.dart"],
+    args = [
+        "--fixes",
+        "$(execpath :fixes)",
+        "--out",
+        "$(execpath model_fixed.dart)",
+        "--content",
+        "dirty/lib/model.dart",
+        "--path",
+        "dirty/lib/model.dart",
+    ],
+    tool = "//tools:check_fixes",
 )
 
 # The golden is //clean's source rather than a checked-in copy, so this asserts

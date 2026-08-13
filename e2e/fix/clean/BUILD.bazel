@@ -1,7 +1,7 @@
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
+load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
 load("@rules_dart//dart:defs.bzl", "dart_analyze_test", "dart_codegen", "dart_fix", "dart_library")
-load("//:fix_outputs.bzl", "fix_manifest", "fixed_file")
 
 # The green end of the red/green pair. //dirty holds the same library with two
 # violations in it; this one is what `bazel run //dirty:fix` must produce, and
@@ -47,9 +47,16 @@ dart_fix(
     options = "//:options",
 )
 
-fix_manifest(
+filegroup(
     name = "manifest",
-    fix = ":fix",
+    srcs = [":fix"],
+    output_group = "dart_fix_manifest",
+)
+
+filegroup(
+    name = "fixes",
+    srcs = [":fix"],
+    output_group = "dart_fix_fixes",
 )
 
 # Nothing left to fix, which is the other half of "red before, green after":
@@ -64,10 +71,25 @@ diff_test(
     file2 = "golden/fix_manifest.json",
 )
 
-fixed_file(
+# The `--content` list is the whole assertion and it is exhaustive: an extra
+# file in the tree fails the build. That is what says a generated file was never
+# written back — a check that only looked for the files it expected would pass
+# just as happily with a stray `.freezed.dart` beside them. Here the list is
+# empty, so the assertion is "the tree holds nothing".
+#
+# Not a `diff_test` against the tree: `diff_test` runs a bare `diff` with no
+# `-r`, which on two directories prints "Common subdirectories" and exits 0.
+run_binary(
     name = "no_fixes",
-    fix = ":fix",
-    tree_contents = [],
+    srcs = [":fixes"],
+    outs = ["no_fixes.stamp"],
+    args = [
+        "--fixes",
+        "$(execpath :fixes)",
+        "--out",
+        "$(execpath no_fixes.stamp)",
+    ],
+    tool = "//tools:check_fixes",
 )
 
 build_test(

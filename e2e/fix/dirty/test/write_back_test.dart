@@ -28,8 +28,17 @@ void main() {
   // The fixes tree is a directory, and a directory has no runfiles entry of its
   // own in manifest mode. Locating the one file inside it and walking back up
   // gets the root in either mode.
-  final staged = r.rlocation('_main/dirty/fix.fixes/$_fixedRelative');
-  final fixes = File(staged).parent.parent.parent.path;
+  //
+  // The number of hops is derived from the path rather than written out, so
+  // moving the fixture a directory deeper cannot silently point the applier at
+  // the wrong root.
+  var fixesDir = File(
+    r.rlocation('_main/dirty/fix.fixes/$_fixedRelative'),
+  ).parent;
+  for (var i = 1; i < _fixedRelative.split('/').length; i++) {
+    fixesDir = fixesDir.parent;
+  }
+  final fixes = fixesDir.path;
 
   final before = File(r.rlocation('_main/$_fixedRelative')).readAsStringSync();
   final after = File(

@@ -170,6 +170,21 @@ def _dart_fix_impl(ctx):
 
     return [
         DefaultInfo(executable = executable, runfiles = runfiles),
+        # Neither product is a predeclared output, so neither has a label of its
+        # own. These groups are how a BUILD file names them —
+        # `filegroup(srcs = [":fix"], output_group = ...)` — and how
+        # `--output_groups=+dart_fix_manifest` materialises one from the command
+        # line without running a tool that rewrites sources.
+        #
+        # Two singleton groups rather than one group of two: `$(execpath)` and
+        # `allow_single_file` both reject a label that expands to more than one
+        # file. `scratch` is absent deliberately — it is the action's working
+        # directory, not a product, and its contents are the internal shape of
+        # `stage_dart_project`.
+        OutputGroupInfo(
+            dart_fix_fixes = depset([fixes]),
+            dart_fix_manifest = depset([manifest]),
+        ),
         # `bazel run //pkg:fix -- --dry-run` forwards only the user's arguments,
         # so the applier learns where its inputs are through the environment
         # rather than through a shell wrapper this repo would have to keep
@@ -214,6 +229,16 @@ dart_fix = rule(
     doc = (
         "Applies `dart fix` to a Dart library's sources. `bazel run` writes " +
         "the fixes into the workspace; `bazel run ... -- --dry-run` prints " +
-        "them instead. Generated files are never written."
+        "them instead. Generated files are never written.\n" +
+        "\n" +
+        "Output Groups:\n" +
+        "  dart_fix_fixes: A directory of the changed files, at their " +
+        "workspace-relative paths.\n" +
+        "  dart_fix_manifest: JSON recording which files were fixed and " +
+        "which changes were discarded as ineligible.\n" +
+        "\n" +
+        "Build either directly to inspect what a run would do without " +
+        "rewriting anything, e.g. " +
+        "`bazel build //pkg:fix --output_groups=+dart_fix_manifest`."
     ),
 )

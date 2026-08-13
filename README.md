@@ -225,6 +225,36 @@ dart_format_test(
 )
 ```
 
+`dart_fix` applies the analyzer's automated fixes — the same quick-fixes an IDE
+offers, driven by the lints your `analysis_options.yaml` enables. Give it the same
+`options` target as `dart_analyze_test`, or `bazel run` cannot turn a red analysis
+green.
+
+```starlark
+load("@rules_dart//dart:defs.bzl", "dart_fix")
+
+dart_fix(
+    name = "fix",
+    lib = ":greeter",
+    options = ":analysis_options",
+)
+```
+
+```sh
+bazel run //:fix              # write the fixes into your sources
+bazel run //:fix -- --dry-run # print them as a diff, change nothing
+```
+
+Generated files are never rewritten: only files Bazel records as sources are
+eligible, so codegen output stays resolvable to its importers without being
+edited. To inspect what a run would do without applying anything, build the
+outputs directly:
+
+```sh
+bazel build //:fix --output_groups=+dart_fix_manifest  # what was fixed, and what was skipped
+bazel build //:fix --output_groups=+dart_fix_fixes     # the fixed files themselves
+```
+
 ### Web compilation
 
 `dart_js_binary` compiles a Dart entrypoint to JavaScript via `dart compile js`.
@@ -257,6 +287,7 @@ The [`e2e/`](e2e/) directory contains complete working examples:
 | [`library_deps`](e2e/library_deps/)                   | Transitive `dart_library` dependencies, `srcs` attribute                             |
 | [`dart_test`](e2e/dart_test/)                         | Tests with and without deps, `srcs` for test helpers                                 |
 | [`analysis`](e2e/analysis/)                           | `dart_analyze_test` with custom `analysis_options.yaml`, `dart_format_test`          |
+| [`fix`](e2e/fix/)                                     | `dart_fix` write-back, and that generated files are never rewritten                  |
 | [`web_app`](e2e/web_app/)                             | JavaScript and WebAssembly compilation with library deps                             |
 | [`pub_deps`](e2e/pub_deps/)                           | Single pub.dev package via `pub.package()`                                           |
 | [`pub_lock`](e2e/pub_lock/)                           | Multiple packages from `pubspec.lock` via `pub.from_lock()`                          |
