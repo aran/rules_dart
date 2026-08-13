@@ -1,3 +1,15 @@
 # Resolved through the package_config of the staged project, so this line only
 # works if `resource_fixture`'s `resources` reached the staging tree.
 include: package:resource_fixture/strict.yaml
+# Both of these judge the synthesized pubspec rather than the sources, and both
+# fired on every rules_dart consumer before the stub was generated from the
+# staged package set: `package_names` on a placeholder name, and
+# `depend_on_referenced_packages` on every `package:` import, since under Bazel
+# deps arrive through package_config and a pubspec stub that lists none makes
+# all of them look undeclared. Downstream could only silence them repo-wide,
+# which costs the lint on real code too. Enabled here so a regression is a test
+# failure rather than a report from a consumer.
+linter:
+  rules:
+    - depend_on_referenced_packages
+    - package_names
