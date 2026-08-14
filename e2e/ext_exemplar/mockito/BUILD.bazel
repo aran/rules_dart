@@ -82,12 +82,12 @@ dart_test(
     ],
 )
 
-# `:api` and `:api_test` are deliberately not analyzed. `Api` is a one-method
-# abstract class, which `one_member_abstracts` wants turned into a top-level
-# function — and a function is not something `@GenerateMocks` can mock, so
-# taking the lint's advice would delete the fixture. The rule is left on rather
-# than switched off for the workspace, and `:clock` / `:nice_mock_test` keep
-# the mockito builder under analysis.
+# `Api` carries an inline `one_member_abstracts` ignore rather than this package
+# opting out of analysis. The lint wants a one-method abstract class turned into
+# a top-level function, and a function is not something `@GenerateMocks` can
+# mock — so the advice would delete the fixture. Suppressing it at the one
+# declaration keeps everything else here analyzed, including `api_test.dart`,
+# which is where the actual test logic lives.
 
 dart_analyze_test(
     name = "analyze_clock",
@@ -101,4 +101,18 @@ dart_analyze_test(
     size = "small",
     options = "//:options",
     target = ":nice_mock_test",
+)
+
+dart_analyze_test(
+    name = "analyze_api",
+    size = "small",
+    options = "//:options",
+    target = ":api",
+)
+
+dart_analyze_test(
+    name = "analyze_api_test",
+    size = "small",
+    options = "//:options",
+    target = ":api_test",
 )

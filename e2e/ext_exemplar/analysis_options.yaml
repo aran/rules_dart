@@ -1,5 +1,4 @@
 include: package:very_good_analysis/analysis_options.yaml
-
 analyzer:
   # Every subpackage here exists to exercise a code generator, so generated
   # sources dominate the analyzed closure. They stay resolvable — their
