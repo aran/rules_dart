@@ -35,5 +35,5 @@ void main() {
     exit(1);
   }
 
-  print('defines reached the compiled kernel: $greeting');
+  stdout.writeln('defines reached the compiled kernel: $greeting');
 }

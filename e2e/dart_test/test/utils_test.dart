@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:utils/math_utils.dart';
 
 void main() {
@@ -17,5 +19,5 @@ void main() {
   assert(isPrime(7), '7 is prime');
   assert(!isPrime(9), '9 is not prime');
 
-  print('All utils tests passed!');
+  stdout.writeln('All utils tests passed!');
 }

@@ -1,4 +1,4 @@
-load("@rules_dart//dart:defs.bzl", "dart_analyze_test", "dart_binary")
+load("@rules_dart//dart:defs.bzl", "dart_analysis_options", "dart_analyze_test", "dart_binary")
 
 dart_binary(
     name = "hello",
@@ -34,4 +34,47 @@ dart_binary(
     name = "hello_jit",
     compile_mode = "jit-snapshot",
     main = "hello.dart",
+)
+
+# The same entrypoint under a published lint ruleset. This is a second target
+# rather than an `options` attribute on `analyze_hello`: the staged
+# `package_config.json` names the target's own closure plus the options deps, and
+# `:hello` has no deps, so an options target here is precisely what would stop
+# that config from being empty — which is the thing `analyze_hello` exists to
+# prove. The two shapes cannot be the same target.
+dart_analysis_options(
+    name = "options",
+    src = "analysis_options.yaml",
+    deps = ["@very_good_analysis"],
+)
+
+dart_analyze_test(
+    name = "analyze_hello_vga",
+    size = "small",
+    options = ":options",
+    target = ":hello",
+)
+
+# Analysis reads the entrypoint, so all four compile modes see identical
+# diagnostics. Covering each anyway pins that `DartAnalyzableInfo` survives every
+# `compile_mode`, not just the default.
+dart_analyze_test(
+    name = "analyze_hello_aot",
+    size = "small",
+    options = ":options",
+    target = ":hello_aot",
+)
+
+dart_analyze_test(
+    name = "analyze_hello_kernel",
+    size = "small",
+    options = ":options",
+    target = ":hello_kernel",
+)
+
+dart_analyze_test(
+    name = "analyze_hello_jit",
+    size = "small",
+    options = ":options",
+    target = ":hello_jit",
 )

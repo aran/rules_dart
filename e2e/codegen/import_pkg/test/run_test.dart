@@ -10,12 +10,7 @@ void main() {
     final r = Runfiles.create();
     final exeName = Platform.isWindows ? 'app.exe' : 'app';
     final exe = r.rlocation('_main/import_pkg/$exeName');
-    final result = Process.runSync(
-      exe,
-      [],
-      stdoutEncoding: systemEncoding,
-      stderrEncoding: systemEncoding,
-    );
+    final result = Process.runSync(exe, []);
     expect(
       result.exitCode,
       0,

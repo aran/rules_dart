@@ -1,4 +1,10 @@
-load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library", "dart_test")
+load(
+    "@rules_dart//dart:defs.bzl",
+    "dart_analyze_test",
+    "dart_codegen",
+    "dart_library",
+    "dart_test",
+)
 load(
     "@rules_dart//dart/ext/json_serializable:defs.bzl",
     "json_serializable_library",
@@ -65,6 +71,9 @@ dart_library(
         "lib/role.dart",
     ],
     language_version = "3.11",
+    # custom_id.dart is `@immutable` — it defines ==/hashCode, and the
+    # analyzer only accepts that on a class it can prove immutable.
+    deps = ["@pub_deps//:meta"],
 )
 
 json_serializable_library(
@@ -77,7 +86,10 @@ json_serializable_library(
         "lib/wrapper.dart",
     ],
     language_version = "3.11",
-    deps = [":_advanced_sources"],
+    deps = [
+        ":_advanced_sources",
+        "@pub_deps//:meta",
+    ],
 )
 
 # Aggregate library used by tests — pulls in every flavor.
@@ -136,4 +148,60 @@ dart_test(
         ":json_serializable_fixture",
         "@pub_deps//:test",
     ],
+)
+
+dart_analyze_test(
+    name = "analyze_base",
+    size = "small",
+    options = "//:options",
+    target = ":base",
+)
+
+dart_analyze_test(
+    name = "analyze_cross_user_lib",
+    size = "small",
+    options = "//:options",
+    target = ":cross_user_lib",
+)
+
+dart_analyze_test(
+    name = "analyze_advanced",
+    size = "small",
+    options = "//:options",
+    target = ":advanced",
+)
+
+dart_analyze_test(
+    name = "analyze_json_serializable_fixture",
+    size = "small",
+    options = "//:options",
+    target = ":json_serializable_fixture",
+)
+
+dart_analyze_test(
+    name = "analyze_primitive_user_test",
+    size = "small",
+    options = "//:options",
+    target = ":primitive_user_test",
+)
+
+dart_analyze_test(
+    name = "analyze_cross_file_test",
+    size = "small",
+    options = "//:options",
+    target = ":cross_file_test",
+)
+
+dart_analyze_test(
+    name = "analyze_user_test",
+    size = "small",
+    options = "//:options",
+    target = ":user_test",
+)
+
+dart_analyze_test(
+    name = "analyze_wrapper_test",
+    size = "small",
+    options = "//:options",
+    target = ":wrapper_test",
 )

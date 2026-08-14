@@ -23,4 +23,13 @@ pub.from_lock(
     name = "deps_a",
     lock = "//:lock_a.lock",
 )
-use_repo(pub, "deps_a")
+
+# The lint ruleset is named explicitly rather than through a lock. It appears in
+# neither lock, so it cannot shadow a lock entry and leaves the cross-module
+# dedup this fixture exercises untouched.
+pub.package(
+    name = "very_good_analysis",
+    sha256 = "481af67ab5877af20325251dc215a4ebac7666a1c8cf09198ffd457bc612b33d",
+    version = "10.3.0",
+)
+use_repo(pub, "deps_a", "very_good_analysis")

@@ -1,4 +1,4 @@
-load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_codegen", "dart_library", "dart_test")
+load("@rules_dart//dart:defs.bzl", "dart_analyze_test", "dart_binary", "dart_codegen", "dart_library", "dart_test")
 
 # Bazel-generated standalone libraries consumed via `package:` and relative
 # imports (not `part`), feeding a runnable program and a test.
@@ -59,4 +59,35 @@ dart_test(
         "@pub_deps//:test",
         "@rules_dart//dart/runfiles",
     ],
+)
+
+# Both generated libraries are excluded from reporting by
+# `//:analysis_options.yaml` but stay resolvable, so the `package:` and the
+# relative importer both analyze with `generatedValue()` in scope.
+dart_analyze_test(
+    name = "analyze_lib",
+    size = "small",
+    options = "//:options",
+    target = ":import_fixture",
+)
+
+dart_analyze_test(
+    name = "analyze_app",
+    size = "small",
+    options = "//:options",
+    target = ":app",
+)
+
+dart_analyze_test(
+    name = "analyze_lib_test",
+    size = "small",
+    options = "//:options",
+    target = ":lib_test",
+)
+
+dart_analyze_test(
+    name = "analyze_app_run_test",
+    size = "small",
+    options = "//:options",
+    target = ":app_run_test",
 )

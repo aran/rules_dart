@@ -55,7 +55,9 @@ class Posts extends Table {
   include: {'database.drift'},
 )
 class AppDatabase extends _$AppDatabase {
-  AppDatabase(super.executor);
+  // The parameter name mirrors the generated `_$AppDatabase(QueryExecutor e)`
+  // it forwards to; a super-parameter has to match the name upstream.
+  AppDatabase(super.e);
 
   @override
   int get schemaVersion => 1;

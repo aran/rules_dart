@@ -18,7 +18,7 @@ class PostWithAuthor {
 // `db.postsDao.postsWithAuthor(id)`.
 @DriftAccessor(tables: [Posts, Users])
 class PostsDao extends DatabaseAccessor<AppDatabase> with _$PostsDaoMixin {
-  PostsDao(super.db);
+  PostsDao(super.attachedDatabase);
 
   Future<List<Post>> forUser(int userId) {
     return (select(posts)..where((t) => t.userId.equals(userId))).get();

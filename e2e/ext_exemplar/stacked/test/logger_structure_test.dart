@@ -6,6 +6,7 @@
 /// top-level helper name so the default ('getLogger') wouldn't match.
 /// Asserting the custom name proves the shim plumbed the annotation
 /// parameters through to the builder.
+library;
 
 import 'dart:io';
 

@@ -24,8 +24,11 @@ import 'services.dart';
     MaterialRoute(page: DetailsView, path: '/details/:id'),
   ],
   dependencies: [
-    LazySingleton(classType: GreetingService),
-    LazySingleton(classType: CounterService),
+    // The type argument is inert to stacked_generator, which reads
+    // `classType`; it is spelled out because the annotation is a constructor
+    // call and nothing else can infer `T`.
+    LazySingleton<GreetingService>(classType: GreetingService),
+    LazySingleton<CounterService>(classType: CounterService),
   ],
   dialogs: [
     StackedDialog(classType: InfoDialog),

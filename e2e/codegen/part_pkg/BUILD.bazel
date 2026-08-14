@@ -1,4 +1,4 @@
-load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_codegen", "dart_library", "dart_test")
+load("@rules_dart//dart:defs.bzl", "dart_analyze_test", "dart_binary", "dart_codegen", "dart_library", "dart_test")
 
 # A Bazel-generated `part` file feeding a runnable program and a test.
 
@@ -47,4 +47,35 @@ dart_test(
         "@pub_deps//:test",
         "@rules_dart//dart/runfiles",
     ],
+)
+
+# The generated `part` is excluded from reporting by `//:analysis_options.yaml`
+# but stays resolvable, so `lib/message.dart` analyzes with `generatedMessage()`
+# in scope.
+dart_analyze_test(
+    name = "analyze_lib",
+    size = "small",
+    options = "//:options",
+    target = ":part_pkg_fixture",
+)
+
+dart_analyze_test(
+    name = "analyze_app",
+    size = "small",
+    options = "//:options",
+    target = ":app",
+)
+
+dart_analyze_test(
+    name = "analyze_lib_test",
+    size = "small",
+    options = "//:options",
+    target = ":lib_test",
+)
+
+dart_analyze_test(
+    name = "analyze_app_run_test",
+    size = "small",
+    options = "//:options",
+    target = ":app_run_test",
 )

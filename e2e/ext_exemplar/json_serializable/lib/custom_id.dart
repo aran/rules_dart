@@ -1,9 +1,11 @@
 import 'package:json_annotation/json_annotation.dart';
+import 'package:meta/meta.dart';
 
 // CustomId wraps a raw int; exposed via the @JsonConverter attached to
 // the User class. Used by the fieldRename/converter test to prove that
 // per-field JsonConverter adapters run correctly during the shim's
 // generated fromJson/toJson roundtrip.
+@immutable
 class CustomId {
   const CustomId(this.raw);
   final int raw;

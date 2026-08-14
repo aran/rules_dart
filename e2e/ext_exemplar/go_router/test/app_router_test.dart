@@ -15,6 +15,7 @@
 /// If go_router_builder's output shape changes, update assertions to
 /// match; any regression that drops one of these symbols indicates the
 /// builder silently produced less than it should.
+library;
 
 import 'dart:io';
 
@@ -39,7 +40,7 @@ void main() {
       expect(generatedSource, contains("part of 'app_router.dart'"));
     });
 
-    test('emits a top-level \$appRoutes list with the root route', () {
+    test(r'emits a top-level $appRoutes list with the root route', () {
       // go_router_builder exposes discovered @TypedGoRoute roots via a
       // top-level `$appRoutes` (camelCase). HomeRoute is the root; its
       // nested DetailsRoute appears inside HomeRoute's routes list below.
@@ -66,7 +67,8 @@ void main() {
       expect(generatedSource, contains(RegExp(r'mixin \$DetailsRoute on GoRouteData')));
       expect(generatedSource, contains('String get location =>'));
       expect(generatedSource, contains('void go(BuildContext context)'));
-      expect(generatedSource, contains('Future<T?> push<T>(BuildContext context)'));
+      expect(generatedSource,
+          contains('Future<T?> push<T>(BuildContext context)'));
     });
 
     test('derives DetailsRoute from GoRouterState to reconstruct its id field',
@@ -74,7 +76,7 @@ void main() {
       // `_fromState` factory methods parse path/query params out of a
       // GoRouterState. A regression in path-param parsing would drop
       // the `state.pathParameters['id']` access.
-      expect(generatedSource, contains(r'_fromState'));
+      expect(generatedSource, contains('_fromState'));
       expect(generatedSource, contains("state.pathParameters['id']"));
     });
   });

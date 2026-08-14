@@ -2,7 +2,8 @@
 // TypeChecker.fromUrl(...). Only the names and declared type parameters
 // matter to the generator — it never invokes methods on these classes.
 
-/// Annotation marking a type-safe route. Applied to subclasses of [GoRouteData].
+/// Annotation marking a type-safe route. Applied to subclasses of
+/// [GoRouteData].
 class TypedGoRoute<T extends GoRouteData> {
   const TypedGoRoute({
     required this.path,

@@ -1,4 +1,4 @@
-load("@rules_dart//dart:defs.bzl", "dart_binary")
+load("@rules_dart//dart:defs.bzl", "dart_analysis_options", "dart_analyze_test", "dart_binary")
 
 exports_files([
     "lock_a.lock",
@@ -14,4 +14,20 @@ dart_binary(
         "@deps_a//:path",
         "@deps_b//:collection",
     ],
+)
+
+# The ruleset is a dep of the options file, not of `app`: a lint ruleset is not
+# a dependency of the code it lints, and listing it in `app`'s deps would carry
+# it into the `DartInfo` of everything downstream.
+dart_analysis_options(
+    name = "options",
+    src = "analysis_options.yaml",
+    deps = ["@very_good_analysis"],
+)
+
+dart_analyze_test(
+    name = "analyze_app",
+    size = "small",
+    options = ":options",
+    target = ":app",
 )

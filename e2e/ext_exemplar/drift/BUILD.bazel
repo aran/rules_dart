@@ -1,4 +1,8 @@
-load("@rules_dart//dart:defs.bzl", "dart_test")
+load(
+    "@rules_dart//dart:defs.bzl",
+    "dart_analyze_test",
+    "dart_test",
+)
 load("@rules_dart//dart/ext/drift:defs.bzl", "drift_library")
 
 # Comprehensive e2e for drift:
@@ -36,4 +40,18 @@ dart_test(
         "@pub_deps//:drift",
         "@pub_deps//:test",
     ],
+)
+
+dart_analyze_test(
+    name = "analyze_drift_fixture",
+    size = "small",
+    options = "//:options",
+    target = ":drift_fixture",
+)
+
+dart_analyze_test(
+    name = "analyze_database_test",
+    size = "small",
+    options = "//:options",
+    target = ":database_test",
 )

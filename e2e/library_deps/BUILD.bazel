@@ -1,4 +1,15 @@
-load("@rules_dart//dart:defs.bzl", "dart_binary")
+load("@rules_dart//dart:defs.bzl", "dart_analysis_options", "dart_analyze_test", "dart_binary")
+
+# One options target for the whole workspace, named by every `dart_analyze_test`
+# here and in the sub-packages. The ruleset is a dep of *this* target rather than
+# of the libraries it lints: naming it in a `dart_library`'s `deps` would carry a
+# lint-only package into the `DartInfo` of every binary downstream.
+dart_analysis_options(
+    name = "options",
+    src = "analysis_options.yaml",
+    visibility = ["//visibility:public"],
+    deps = ["@very_good_analysis"],
+)
 
 dart_binary(
     name = "app",
@@ -15,4 +26,20 @@ dart_binary(
     name = "app_via_facade",
     main = "facade_main.dart",
     deps = ["//facade"],
+)
+
+dart_analyze_test(
+    name = "analyze_app",
+    size = "small",
+    options = ":options",
+    target = ":app",
+)
+
+# Analyzing the binary, not a library, is what puts `facade_main.dart` under the
+# ruleset at all — an entrypoint belongs to no package's `lib/`.
+dart_analyze_test(
+    name = "analyze_app_via_facade",
+    size = "small",
+    options = ":options",
+    target = ":app_via_facade",
 )

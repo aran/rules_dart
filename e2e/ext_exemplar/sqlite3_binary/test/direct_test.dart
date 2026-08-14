@@ -9,14 +9,14 @@ import 'package:test/test.dart';
 /// using an absolute `rlocation` path — from any codegen co-location concern.
 void main() {
   test('sqlite3 round-trips via the Bazel-bundled libsqlite3', () {
-    final db = sqlite3.openInMemory();
-    db.execute('CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT);');
-    db.execute("INSERT INTO t (id, name) VALUES (1, 'hello');");
+    final db = sqlite3.openInMemory()
+      ..execute('CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT);')
+      ..execute("INSERT INTO t (id, name) VALUES (1, 'hello');");
     final rows = db.select('SELECT name FROM t WHERE id = ?;', [1]);
     expect(rows.single['name'], 'hello');
     // The BCR-vendored version — proves we resolved *our* Bazel-built lib,
     // not a system libsqlite3 that happens to be present on the host.
     expect(sqlite3.version.libVersion, '3.53.3');
-    db.dispose();
+    db.close();
   });
 }

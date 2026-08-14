@@ -1,4 +1,9 @@
-load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_test")
+load(
+    "@rules_dart//dart:defs.bzl",
+    "dart_analyze_test",
+    "dart_binary",
+    "dart_test",
+)
 load("@rules_dart//dart/ext/sqlite3:defs.bzl", "sqlite3_code_asset")
 
 # Exemplar of the dart_binary code_assets path (AOT): a plain package:sqlite3
@@ -42,4 +47,25 @@ dart_test(
         "@pub_deps//:sqlite3",
         "@pub_deps//:test",
     ],
+)
+
+dart_analyze_test(
+    name = "analyze_app",
+    size = "small",
+    options = "//:options",
+    target = ":app",
+)
+
+dart_analyze_test(
+    name = "analyze_app_run_test",
+    size = "small",
+    options = "//:options",
+    target = ":app_run_test",
+)
+
+dart_analyze_test(
+    name = "analyze_direct_test",
+    size = "small",
+    options = "//:options",
+    target = ":direct_test",
 )

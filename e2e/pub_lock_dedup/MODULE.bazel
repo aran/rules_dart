@@ -21,4 +21,12 @@ pub.from_lock(
     name = "deps_b",
     lock = "//:lock_b.lock",
 )
-use_repo(pub, "deps_a", "deps_b")
+
+# A standalone spoke on the same extension: the lint ruleset must not perturb
+# the two-hub dedup this module exists to exercise.
+pub.package(
+    name = "very_good_analysis",
+    sha256 = "481af67ab5877af20325251dc215a4ebac7666a1c8cf09198ffd457bc612b33d",
+    version = "10.3.0",
+)
+use_repo(pub, "deps_a", "deps_b", "very_good_analysis")

@@ -10,10 +10,11 @@ part 'primitive_user.g.dart';
 class PrimitiveUser {
   PrimitiveUser({required this.id, required this.name});
 
+  factory PrimitiveUser.fromJson(Map<String, dynamic> json) =>
+      _$PrimitiveUserFromJson(json);
+
   final int id;
   final String name;
 
-  factory PrimitiveUser.fromJson(Map<String, dynamic> json) =>
-      _$PrimitiveUserFromJson(json);
   Map<String, dynamic> toJson() => _$PrimitiveUserToJson(this);
 }

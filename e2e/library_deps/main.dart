@@ -1,8 +1,12 @@
+import 'dart:io';
+
 import 'package:greeter/greeter.dart';
+
 import 'version.dart';
 
 void main() {
-  print('library_deps v$version');
-  print(greet('world'));
-  print(greet('dart'));
+  stdout
+    ..writeln('library_deps v$version')
+    ..writeln(greet('world'))
+    ..writeln(greet('dart'));
 }

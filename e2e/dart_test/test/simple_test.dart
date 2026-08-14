@@ -1,3 +1,5 @@
+import 'dart:io';
+
 void main() {
   // Basic arithmetic
   assert(1 + 1 == 2, 'Expected 1 + 1 to equal 2');
@@ -5,9 +7,9 @@ void main() {
   assert(10 ~/ 3 == 3, 'Expected 10 ~/ 3 to equal 3');
 
   // String operations
-  assert('hello'.toUpperCase() == 'HELLO');
-  assert('Hello World'.contains('World'));
-  assert('dart'.length == 4);
+  assert('hello'.toUpperCase() == 'HELLO', "Expected 'hello' to upcase");
+  assert('Hello World'.contains('World'), "Expected 'World' to be contained");
+  assert('dart'.length == 4, "Expected 'dart' to be 4 characters");
 
-  print('All simple tests passed!');
+  stdout.writeln('All simple tests passed!');
 }

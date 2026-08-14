@@ -1,4 +1,4 @@
-load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library", "dart_test")
+load("@rules_dart//dart:defs.bzl", "dart_analyze_test", "dart_codegen", "dart_library", "dart_test")
 
 # A dart_library that re-exports a Bazel-generated standalone library.
 
@@ -30,4 +30,18 @@ dart_test(
         ":reexport_fixture",
         "@pub_deps//:test",
     ],
+)
+
+dart_analyze_test(
+    name = "analyze_lib",
+    size = "small",
+    options = "//:options",
+    target = ":reexport_fixture",
+)
+
+dart_analyze_test(
+    name = "analyze_api_test",
+    size = "small",
+    options = "//:options",
+    target = ":api_test",
 )

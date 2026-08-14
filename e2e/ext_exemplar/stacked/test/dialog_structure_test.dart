@@ -2,6 +2,7 @@
 /// `app.dialogs.dart` via runfiles and asserts it contains the
 /// DialogService scaffolding for each `StackedDialog(classType: ...)`
 /// registration.
+library;
 
 import 'dart:io';
 

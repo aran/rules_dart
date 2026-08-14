@@ -1,4 +1,8 @@
-load("@rules_dart//dart:defs.bzl", "dart_test")
+load(
+    "@rules_dart//dart:defs.bzl",
+    "dart_analyze_test",
+    "dart_test",
+)
 load("@rules_dart//dart/ext/copy_with_extension_gen:defs.bzl", "copy_with_library")
 
 copy_with_library(
@@ -17,4 +21,18 @@ dart_test(
         ":copy_with",
         "@pub_deps//:test",
     ],
+)
+
+dart_analyze_test(
+    name = "analyze_copy_with",
+    size = "small",
+    options = "//:options",
+    target = ":copy_with",
+)
+
+dart_analyze_test(
+    name = "analyze_user_test",
+    size = "small",
+    options = "//:options",
+    target = ":user_test",
 )

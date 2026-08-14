@@ -8,6 +8,7 @@
 # gazelle:dart_pub_deps_repo pub_deps
 
 load("@gazelle//:def.bzl", "gazelle", "gazelle_binary")
+load("@rules_dart//dart:defs.bzl", "dart_analysis_options")
 
 gazelle_binary(
     name = "gazelle_bin",
@@ -20,3 +21,14 @@ gazelle(
 )
 
 exports_files(["pubspec.lock"])
+
+# One ruleset shared by every subpackage's `dart_analyze_test`. The ruleset is
+# named here rather than in any `dart_library`'s `deps`: it is a lint-time
+# input, and listing it as a dependency would carry it into the `DartInfo` of
+# every binary and test downstream.
+dart_analysis_options(
+    name = "options",
+    src = "analysis_options.yaml",
+    visibility = ["//visibility:public"],
+    deps = ["@very_good_analysis"],
+)

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:mathlib/mathlib.dart';
 
 void main() {
@@ -7,12 +9,14 @@ void main() {
   assert(factorial(5) == 120, 'factorial(5) should be 120');
   assert(factorial(10) == 3628800, 'factorial(10) should be 3628800');
 
-  // Test negative input throws
-  bool threw = false;
+  // Test negative input throws. Caught as `Object` and narrowed after the
+  // fact: an `on ArgumentError` clause would trip `avoid_catching_errors`,
+  // and anything else thrown here leaves `threw` false, which still fails.
+  var threw = false;
   try {
     factorial(-1);
-  } on ArgumentError {
-    threw = true;
+  } on Object catch (e) {
+    threw = e is ArgumentError;
   }
   assert(threw, 'factorial(-1) should throw ArgumentError');
 
@@ -26,5 +30,5 @@ void main() {
   assert(isPrime(97), '97 is prime');
   assert(!isPrime(100), '100 is not prime');
 
-  print('All tests passed!');
+  stdout.writeln('All tests passed!');
 }

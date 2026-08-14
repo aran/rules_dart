@@ -17,4 +17,12 @@ pub.from_lock(
     name = "pub_deps",
     lock = "//:pubspec.lock",
 )
-use_repo(pub, "pub_deps")
+
+# Lint-only: reached through //:options, never through pubspec.lock, so it does
+# not become a dependency of anything that compiles.
+pub.package(
+    name = "very_good_analysis",
+    sha256 = "481af67ab5877af20325251dc215a4ebac7666a1c8cf09198ffd457bc612b33d",
+    version = "10.3.0",
+)
+use_repo(pub, "pub_deps", "very_good_analysis")

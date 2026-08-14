@@ -1,4 +1,4 @@
-load("@rules_dart//dart:defs.bzl", "dart_aggregate_codegen", "dart_codegen", "dart_test")
+load("@rules_dart//dart:defs.bzl", "dart_aggregate_codegen", "dart_analyze_test", "dart_codegen", "dart_test")
 
 # Codegen targets in a Bazel package that is a SIBLING of the Dart package
 # root. The shard generated here has short_path
@@ -40,4 +40,11 @@ dart_test(
         "@pub_deps//:test",
         "@rules_dart//dart/runfiles",
     ],
+)
+
+dart_analyze_test(
+    name = "analyze_aggregate_content_test",
+    size = "small",
+    options = "//:options",
+    target = ":aggregate_content_test",
 )

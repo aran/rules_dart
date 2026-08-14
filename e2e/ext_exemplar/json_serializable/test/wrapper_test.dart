@@ -25,7 +25,7 @@ void main() {
 
     final back = Wrapper<User>.fromJson(
       json,
-      (o) => User.fromJson(o as Map<String, dynamic>),
+      (o) => User.fromJson(o! as Map<String, dynamic>),
     );
     expect(back.data.firstName, 'G');
     expect(back.data.role, Role.viewer);

@@ -237,13 +237,22 @@
     "@@rules_dart+//dart/pub:extensions.bzl%pub": {
       "general": {
         "bzlTransitiveDigest": "aVikHpidUv4vuZO4AOqv0wk9amf0ZLBP+IwkZn97eko=",
-        "usagesDigest": "KfGGyaqv+38QGwA4TlyzB5sIM8sOJ93WxbI5BnsygwA=",
+        "usagesDigest": "aZ7z3cFWvK5/JUFN3C6bK0Pu1J7bkt7v6TQbR6ACMLg=",
         "recordedInputs": [
           "REPO_MAPPING:rules_dart+,yaml.bzl yaml.bzl+",
           "FILE:@@//pubspec.lock feb2b45b16ac32e45bd2d7b0426aafdbf5fdc0aa418ea70410f1bfe3581a3666",
           "FILE:@@rules_dart+//dart/ext/pubspec.lock 28e000b20347deb967ebba4e315d45fb8d7c57c2cdcfc9c4351d62e1d48d0309"
         ],
         "generatedRepoSpecs": {
+          "very_good_analysis": {
+            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_repository.bzl%pub_package",
+            "attributes": {
+              "package_name": "very_good_analysis",
+              "version": "10.3.0",
+              "sha256": "481af67ab5877af20325251dc215a4ebac7666a1c8cf09198ffd457bc612b33d",
+              "deps": []
+            }
+          },
           "dart_pub__characters": {
             "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
             "attributes": {
@@ -10311,6 +10320,7 @@
         },
         "moduleExtensionMetadata": {
           "explicitRootModuleDirectDeps": [
+            "very_good_analysis",
             "pub_deps"
           ],
           "explicitRootModuleDirectDevDeps": [],

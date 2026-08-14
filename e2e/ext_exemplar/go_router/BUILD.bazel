@@ -1,5 +1,6 @@
 load(
     "@rules_dart//dart:defs.bzl",
+    "dart_analyze_test",
     "dart_codegen",
     "dart_test",
 )
@@ -46,4 +47,11 @@ dart_test(
         "@pub_deps//:test",
         "@rules_dart//dart/runfiles",
     ],
+)
+
+dart_analyze_test(
+    name = "analyze_app_router_test",
+    size = "small",
+    options = "//:options",
+    target = ":app_router_test",
 )

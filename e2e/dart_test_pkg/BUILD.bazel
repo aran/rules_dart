@@ -1,4 +1,4 @@
-load("@rules_dart//dart:defs.bzl", "dart_analyze_test", "dart_test")
+load("@rules_dart//dart:defs.bzl", "dart_analysis_options", "dart_analyze_test", "dart_test")
 
 exports_files(["pubspec.lock"])
 
@@ -18,5 +18,26 @@ dart_test(
 dart_analyze_test(
     name = "analyze_example_test",
     size = "small",
+    target = ":example_test",
+)
+
+# The ruleset is named here rather than in `example_test`'s deps: a lint ruleset
+# is not a dependency of the code it lints, and listing it there would carry it
+# into the `DartInfo` of every downstream consumer.
+dart_analysis_options(
+    name = "options",
+    src = "analysis_options.yaml",
+    deps = ["@very_good_analysis"],
+)
+
+# A second analysis of the same entrypoint rather than `options` on the one
+# above, because that one's whole point is the options-less path — the SDK
+# defaults applied to a `main` under `test/`. This adds the other half: an
+# options file whose `include:` has to resolve by `package:` URI against a
+# project whose package_config covers nothing but the pub hub.
+dart_analyze_test(
+    name = "analyze_example_test_vga",
+    size = "small",
+    options = ":options",
     target = ":example_test",
 )

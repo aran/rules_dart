@@ -1,4 +1,4 @@
-load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library", "dart_source_set", "dart_test")
+load("@rules_dart//dart:defs.bzl", "dart_analyze_test", "dart_codegen", "dart_library", "dart_source_set", "dart_test")
 
 # A package assembled explicitly via dart_source_set and consumed via srcs_dir
 # (the pre-assembled single-directory path through the consumer's co-location).
@@ -36,4 +36,20 @@ dart_test(
         ":source_set_fixture",
         "@pub_deps//:test",
     ],
+)
+
+# Analysis reaches these sources through `srcs_dir`/`dart_source_set` rather
+# than `srcs` — the assembled directory is what gets staged and analyzed.
+dart_analyze_test(
+    name = "analyze_lib",
+    size = "small",
+    options = "//:options",
+    target = ":source_set_fixture",
+)
+
+dart_analyze_test(
+    name = "analyze_lib_test",
+    size = "small",
+    options = "//:options",
+    target = ":lib_test",
 )

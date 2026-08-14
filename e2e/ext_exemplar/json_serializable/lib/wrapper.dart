@@ -11,13 +11,13 @@ part 'wrapper.g.dart';
 class Wrapper<T> {
   Wrapper({required this.data});
 
-  final T data;
-
   factory Wrapper.fromJson(
     Map<String, dynamic> json,
     T Function(Object? json) fromJsonT,
   ) =>
       _$WrapperFromJson(json, fromJsonT);
+
+  final T data;
 
   Map<String, dynamic> toJson(Object? Function(T value) toJsonT) =>
       _$WrapperToJson(this, toJsonT);

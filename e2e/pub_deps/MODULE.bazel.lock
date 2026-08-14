@@ -237,7 +237,7 @@
     "@@rules_dart+//dart/pub:extensions.bzl%pub": {
       "general": {
         "bzlTransitiveDigest": "aVikHpidUv4vuZO4AOqv0wk9amf0ZLBP+IwkZn97eko=",
-        "usagesDigest": "OA3KB2PdOWsQL2uktZeUp12PdbyA+Pp4ALLEfZ6YX+M=",
+        "usagesDigest": "G7LJNcKF5bz0cXQpXwFkfmm8afrXRAeTF8UIIEQ6MbY=",
         "recordedInputs": [
           "REPO_MAPPING:rules_dart+,yaml.bzl yaml.bzl+",
           "FILE:@@rules_dart+//dart/ext/pubspec.lock 28e000b20347deb967ebba4e315d45fb8d7c57c2cdcfc9c4351d62e1d48d0309"
@@ -249,6 +249,15 @@
               "package_name": "path",
               "version": "1.9.1",
               "sha256": "75cca69d1490965be98c73ceaea117e8a04dd21217b37b292c9ddbec0d955bc5",
+              "deps": []
+            }
+          },
+          "very_good_analysis": {
+            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_repository.bzl%pub_package",
+            "attributes": {
+              "package_name": "very_good_analysis",
+              "version": "10.3.0",
+              "sha256": "481af67ab5877af20325251dc215a4ebac7666a1c8cf09198ffd457bc612b33d",
               "deps": []
             }
           },
@@ -9912,7 +9921,8 @@
         },
         "moduleExtensionMetadata": {
           "explicitRootModuleDirectDeps": [
-            "path"
+            "path",
+            "very_good_analysis"
           ],
           "explicitRootModuleDirectDevDeps": [],
           "useAllRepos": "NO",

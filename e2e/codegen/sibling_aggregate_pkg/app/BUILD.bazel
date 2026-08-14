@@ -1,4 +1,4 @@
-load("@rules_dart//dart:defs.bzl", "dart_library")
+load("@rules_dart//dart:defs.bzl", "dart_analyze_test", "dart_library")
 
 # Dart package root. The codegen targets consuming this library live in the
 # SIBLING Bazel package `../gen/` — generated shards' short_paths sit under
@@ -16,4 +16,12 @@ dart_library(
     srcs = ["lib/item.dart"],
     language_version = "3.11",
     visibility = ["//sibling_aggregate_pkg/gen:__pkg__"],
+)
+
+# In this package rather than `../gen/`: `item_lib` is not visible outside it.
+dart_analyze_test(
+    name = "analyze_item_lib",
+    size = "small",
+    options = "//:options",
+    target = ":item_lib",
 )

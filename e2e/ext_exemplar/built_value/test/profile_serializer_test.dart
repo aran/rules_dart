@@ -15,7 +15,7 @@ void main() {
       final json =
           standardSerializers.serializeWith(Profile.serializer, profile);
       expect(json, isA<Map<String, Object?>>());
-      final map = json as Map<String, Object?>;
+      final map = json! as Map<String, Object?>;
       expect(map['name'], 'Aria');
       expect(map['age'], 30);
       expect(map['bio'], 'likes dart');
@@ -36,12 +36,12 @@ void main() {
 
       final json =
           standardSerializers.serializeWith(Profile.serializer, profile);
-      final map = json as Map<String, Object?>;
+      final map = json! as Map<String, Object?>;
       expect(map.containsKey('bio'), isFalse,
           reason: 'StandardJsonPlugin should omit unset nullable fields');
 
-      final roundTripped = standardSerializers
-          .deserializeWith(Profile.serializer, json) as Profile;
+      final roundTripped =
+          standardSerializers.deserializeWith(Profile.serializer, json)!;
       expect(roundTripped, equals(profile));
       expect(roundTripped.bio, isNull);
     });
@@ -53,11 +53,11 @@ void main() {
         ..tags.replace(<String>['c', 'b', 'a']));
 
       final json = standardSerializers.serializeWith(
-          Profile.serializer, profile) as Map;
+          Profile.serializer, profile)! as Map<String, Object?>;
       expect(json['tags'], orderedEquals(<String>['c', 'b', 'a']));
 
-      final roundTripped = standardSerializers
-          .deserializeWith(Profile.serializer, json) as Profile;
+      final roundTripped =
+          standardSerializers.deserializeWith(Profile.serializer, json)!;
       expect(
           roundTripped.tags, orderedEquals(BuiltList<String>(['c', 'b', 'a'])));
     });

@@ -1,4 +1,10 @@
-load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library", "dart_test")
+load(
+    "@rules_dart//dart:defs.bzl",
+    "dart_analyze_test",
+    "dart_codegen",
+    "dart_library",
+    "dart_test",
+)
 
 # Comprehensive stacked exemplar covering all six sub-builders:
 #
@@ -169,4 +175,60 @@ dart_test(
         "@pub_deps//:test",
         "@rules_dart//dart/runfiles",
     ],
+)
+
+dart_analyze_test(
+    name = "analyze_services",
+    size = "small",
+    options = "//:options",
+    target = ":services",
+)
+
+dart_analyze_test(
+    name = "analyze_app_library",
+    size = "small",
+    options = "//:options",
+    target = ":app_library",
+)
+
+dart_analyze_test(
+    name = "analyze_locator_test",
+    size = "small",
+    options = "//:options",
+    target = ":locator_test",
+)
+
+dart_analyze_test(
+    name = "analyze_router_structure_test",
+    size = "small",
+    options = "//:options",
+    target = ":router_structure_test",
+)
+
+dart_analyze_test(
+    name = "analyze_dialog_structure_test",
+    size = "small",
+    options = "//:options",
+    target = ":dialog_structure_test",
+)
+
+dart_analyze_test(
+    name = "analyze_bottomsheet_structure_test",
+    size = "small",
+    options = "//:options",
+    target = ":bottomsheet_structure_test",
+)
+
+dart_analyze_test(
+    name = "analyze_logger_structure_test",
+    size = "small",
+    options = "//:options",
+    target = ":logger_structure_test",
+)
+
+dart_analyze_test(
+    name = "analyze_form_structure_test",
+    size = "small",
+    options = "//:options",
+    target = ":form_structure_test",
 )

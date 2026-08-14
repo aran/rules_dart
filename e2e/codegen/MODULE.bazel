@@ -22,4 +22,12 @@ pub.from_lock(
     name = "pub_deps",
     lock = "//:pubspec.lock",
 )
-use_repo(pub, "pub_deps")
+
+# The lint ruleset the fixtures are analyzed under. Deliberately outside
+# `pubspec.lock`: it is a dependency of `//:options`, not of any fixture's code.
+pub.package(
+    name = "very_good_analysis",
+    sha256 = "481af67ab5877af20325251dc215a4ebac7666a1c8cf09198ffd457bc612b33d",
+    version = "10.3.0",
+)
+use_repo(pub, "pub_deps", "very_good_analysis")

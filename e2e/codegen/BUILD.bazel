@@ -1,1 +1,14 @@
+load("@rules_dart//dart:defs.bzl", "dart_analysis_options")
+
 exports_files(["pubspec.lock"])
+
+# One ruleset for every fixture package. The ruleset is named here rather than
+# in any `dart_library`'s `deps`: a lint ruleset is not a dependency of the code
+# it lints, and listing it there would carry it into the `DartInfo` of every
+# binary and test downstream.
+dart_analysis_options(
+    name = "options",
+    src = "analysis_options.yaml",
+    visibility = ["//visibility:public"],
+    deps = ["@very_good_analysis"],
+)

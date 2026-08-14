@@ -1,7 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:drift_fixture/database.dart';
-import 'package:drift_fixture/posts_dao.dart';
 import 'package:test/test.dart';
 
 // No FFI ceremony: the BUILD's `code_assets = [sqlite3_code_asset()]` embeds

@@ -37,4 +37,13 @@ pub.from_lock(
     # resolution isn't supported across modules, so accept the upgrade.
     on_version_conflict = "upgrade",
 )
-use_repo(pub, "pub_deps")
+
+# Lint ruleset for the analyze tests. Declared as its own spoke rather than
+# added to pubspec.yaml: it is never imported by any source here, and putting
+# it in the lock would make it a runtime dep of every `pub_deps` consumer.
+pub.package(
+    name = "very_good_analysis",
+    sha256 = "481af67ab5877af20325251dc215a4ebac7666a1c8cf09198ffd457bc612b33d",
+    version = "10.3.0",
+)
+use_repo(pub, "pub_deps", "very_good_analysis")

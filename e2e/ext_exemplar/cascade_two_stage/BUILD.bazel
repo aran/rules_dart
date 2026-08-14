@@ -3,7 +3,13 @@
 # generated file is wrapped in a tiny `dart_library` so it flows through
 # `deps` like any other Dart source.
 
-load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library", "dart_test")
+load(
+    "@rules_dart//dart:defs.bzl",
+    "dart_analyze_test",
+    "dart_codegen",
+    "dart_library",
+    "dart_test",
+)
 
 _ANN_DEPS = [
     "@pub_deps//:freezed_annotation",
@@ -72,4 +78,18 @@ dart_test(
         ":cascade_two_stage",
         "@pub_deps//:test",
     ],
+)
+
+dart_analyze_test(
+    name = "analyze_cascade_two_stage",
+    size = "small",
+    options = "//:options",
+    target = ":cascade_two_stage",
+)
+
+dart_analyze_test(
+    name = "analyze_event_test",
+    size = "small",
+    options = "//:options",
+    target = ":event_test",
 )

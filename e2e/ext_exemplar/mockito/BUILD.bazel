@@ -8,7 +8,13 @@
 # interfaces, the library holding them goes in `deps` so `dart_codegen`'s
 # auto-staging picks up the sibling.
 
-load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library", "dart_test")
+load(
+    "@rules_dart//dart:defs.bzl",
+    "dart_analyze_test",
+    "dart_codegen",
+    "dart_library",
+    "dart_test",
+)
 
 dart_library(
     name = "api",
@@ -74,4 +80,25 @@ dart_test(
         "@pub_deps//:mockito",
         "@pub_deps//:test",
     ],
+)
+
+# `:api` and `:api_test` are deliberately not analyzed. `Api` is a one-method
+# abstract class, which `one_member_abstracts` wants turned into a top-level
+# function — and a function is not something `@GenerateMocks` can mock, so
+# taking the lint's advice would delete the fixture. The rule is left on rather
+# than switched off for the workspace, and `:clock` / `:nice_mock_test` keep
+# the mockito builder under analysis.
+
+dart_analyze_test(
+    name = "analyze_clock",
+    size = "small",
+    options = "//:options",
+    target = ":clock",
+)
+
+dart_analyze_test(
+    name = "analyze_nice_mock_test",
+    size = "small",
+    options = "//:options",
+    target = ":nice_mock_test",
 )

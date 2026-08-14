@@ -1,4 +1,10 @@
-load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_test")
+load(
+    "@rules_dart//dart:defs.bzl",
+    "dart_analysis_options",
+    "dart_analyze_test",
+    "dart_binary",
+    "dart_test",
+)
 load("@rules_platform//platform_data:defs.bzl", "platform_data")
 
 # Every Linux target rules_dart can cross-compile to, paired with the
@@ -58,4 +64,29 @@ dart_test(
            ["app_aot_%s" % n for n in _TARGETS],
     main = "cross_compile_test.dart",
     deps = ["@rules_dart//dart/runfiles"],
+)
+
+# The ruleset is named here, not in any `dart_binary`/`dart_test` deps: a lint
+# ruleset is not a dependency of the code it lints, and listing it there would
+# carry it into the `DartInfo` of everything downstream.
+dart_analysis_options(
+    name = "options",
+    src = "analysis_options.yaml",
+    deps = ["@very_good_analysis"],
+)
+
+# `:app_aot` compiles the same `hello.dart`, so this one test covers the
+# sources of both binaries.
+dart_analyze_test(
+    name = "analyze_app",
+    size = "small",
+    options = ":options",
+    target = ":app",
+)
+
+dart_analyze_test(
+    name = "analyze_cross_compile_test",
+    size = "small",
+    options = ":options",
+    target = ":cross_compile_test",
 )

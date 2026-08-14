@@ -1,0 +1,12 @@
+include: package:very_good_analysis/analysis_options.yaml
+
+analyzer:
+  exclude:
+    # Bazel-generated sources. The `//tools` generators are deliberately
+    # trivial — their choice is incidental to what these fixtures test — so
+    # their output is not held to this ruleset's bar. `exclude` suppresses
+    # diagnostics without unresolving the file, so the hand-written libraries
+    # that `part`, import and re-export these still analyze, which is the
+    # property the fixtures exist to prove. Nothing is suppressed today; this
+    # is here so a generator tweak fails its own tests rather than analysis.
+    - "**/*.g.dart"

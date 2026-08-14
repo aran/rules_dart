@@ -25,6 +25,8 @@ class User {
     required this.createdAt,
   });
 
+  factory User.fromJson(Map<String, dynamic> json) => _$UserFromJson(json);
+
   @JsonKey(name: 'user_id')
   final int id;
   final String firstName;
@@ -35,7 +37,6 @@ class User {
   @JsonKey(toJson: _isoToJson, fromJson: _isoFromJson)
   final DateTime createdAt;
 
-  factory User.fromJson(Map<String, dynamic> json) => _$UserFromJson(json);
   Map<String, dynamic> toJson() => _$UserToJson(this);
 }
 

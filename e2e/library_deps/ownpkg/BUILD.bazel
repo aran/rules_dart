@@ -1,4 +1,4 @@
-load("@rules_dart//dart:defs.bzl", "dart_library", "dart_test")
+load("@rules_dart//dart:defs.bzl", "dart_analyze_test", "dart_library", "dart_test")
 
 # Regression check: a package whose metadata comes from a srcs-less façade
 # library while the files arrive via the consuming rule's own `srcs` must
@@ -16,4 +16,22 @@ dart_test(
     srcs = ["lib/own_util.dart"],
     main = "test/own_test.dart",
     deps = [":ownpkg_facade"],
+)
+
+# The facade carries no sources of its own, so this analyzes an otherwise empty
+# project — the degenerate end of the same regression `//facade` covers.
+dart_analyze_test(
+    name = "analyze_ownpkg_facade",
+    size = "small",
+    options = "//:options",
+    target = ":ownpkg_facade",
+)
+
+# `lib/own_util.dart` reaches the analyzer through the test's own `srcs`, so
+# this is where the resolution the `dart_test` proves gets linted.
+dart_analyze_test(
+    name = "analyze_own_srcs_resolution_test",
+    size = "small",
+    options = "//:options",
+    target = ":own_srcs_resolution_test",
 )

@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:runfiles/runfiles.dart';
 
@@ -10,7 +9,8 @@ import 'package:runfiles/runfiles.dart';
 /// tell architectures apart: an x86-64, AArch64, RISC-V and ARM binary all pass
 /// it identically, as would a miswired toolchain that silently emitted host
 /// architecture for every target. `e_machine` is the field that distinguishes
-/// them, and `EI_CLASS` is what proves the 32-bit ARMv7 target is really 32-bit.
+/// them, and `EI_CLASS` is what proves the 32-bit ARMv7 target is really
+/// 32-bit.
 ///
 /// Known limit: `e_machine` is `EM_ARM` for both ARMv7 and ARMv6, so the armv7
 /// claim rests on Dart's documented `linux-arm` target being armv7 hardfloat,
@@ -71,7 +71,7 @@ void main() {
       }
 
       // 20 bytes covers e_ident (16) through e_machine (0x12..0x13).
-      final Uint8List header = file.openSync().readSync(20);
+      final header = file.openSync().readSync(20);
       if (header.length < 20) {
         failures.add('$name: only ${header.length} bytes, not an ELF header');
         continue;
@@ -109,7 +109,7 @@ void main() {
           '(${want.label}) — built for the wrong architecture',
         );
       }
-      seenMachines['$name'] = machine;
+      seenMachines[name] = machine;
     }
   }
 
@@ -136,6 +136,8 @@ void main() {
     exit(1);
   }
 
-  print('PASS: ${seenMachines.length} binaries, each ELF for its target '
-      'architecture (${_targets.values.map((e) => e.label).join(', ')})');
+  stdout.writeln(
+    'PASS: ${seenMachines.length} binaries, each ELF for its target '
+    'architecture (${_targets.values.map((e) => e.label).join(', ')})',
+  );
 }

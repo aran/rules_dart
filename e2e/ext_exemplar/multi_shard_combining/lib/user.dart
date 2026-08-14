@@ -8,9 +8,10 @@ part 'user.g.dart';
 class User {
   User({required this.id, required this.name});
 
+  factory User.fromJson(Map<String, dynamic> json) => _$UserFromJson(json);
+
   final int id;
   final String name;
 
-  factory User.fromJson(Map<String, dynamic> json) => _$UserFromJson(json);
   Map<String, dynamic> toJson() => _$UserToJson(this);
 }

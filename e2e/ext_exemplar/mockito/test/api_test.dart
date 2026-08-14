@@ -1,6 +1,6 @@
-import 'package:mockito_fixture/api.dart';
 import 'package:mockito/annotations.dart';
 import 'package:mockito/mockito.dart';
+import 'package:mockito_fixture/api.dart';
 import 'package:test/test.dart';
 
 import 'api_test.mocks.dart';

@@ -1,6 +1,12 @@
 # Non-SharedPart builder emitting a unique output extension; no combining.
 
-load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library", "dart_test")
+load(
+    "@rules_dart//dart:defs.bzl",
+    "dart_analyze_test",
+    "dart_codegen",
+    "dart_library",
+    "dart_test",
+)
 
 dart_codegen(
     name = "_event_freezed_gen",
@@ -30,4 +36,18 @@ dart_test(
         ":unique_extension",
         "@pub_deps//:test",
     ],
+)
+
+dart_analyze_test(
+    name = "analyze_unique_extension",
+    size = "small",
+    options = "//:options",
+    target = ":unique_extension",
+)
+
+dart_analyze_test(
+    name = "analyze_event_test",
+    size = "small",
+    options = "//:options",
+    target = ":event_test",
 )

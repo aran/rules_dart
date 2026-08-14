@@ -1,4 +1,4 @@
-load("@rules_dart//dart:defs.bzl", "dart_binary")
+load("@rules_dart//dart:defs.bzl", "dart_analysis_options", "dart_analyze_test", "dart_binary")
 load(":registry_contract.bzl", "check_registry_contract")
 
 exports_files(["pubspec.lock"])
@@ -14,4 +14,20 @@ dart_binary(
         "@pub_deps//:collection",
         "@pub_deps//:path",
     ],
+)
+
+# The ruleset is named here rather than in `app`'s deps: a lint ruleset is not a
+# dependency of the code it lints, and listing it there would carry it into the
+# `DartInfo` of every downstream consumer.
+dart_analysis_options(
+    name = "options",
+    src = "analysis_options.yaml",
+    deps = ["@very_good_analysis"],
+)
+
+dart_analyze_test(
+    name = "analyze_app",
+    size = "small",
+    options = ":options",
+    target = ":app",
 )

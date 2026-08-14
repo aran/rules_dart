@@ -1,4 +1,15 @@
-load("@rules_dart//dart:defs.bzl", "dart_test")
+load("@rules_dart//dart:defs.bzl", "dart_analysis_options", "dart_analyze_test", "dart_test")
+
+# One options target for the whole workspace, including the two subpackages.
+# The ruleset is named here rather than in any library's `deps` because a lint
+# ruleset is not a dependency of the code it lints — listing it there would
+# carry it into the `DartInfo` of every test below.
+dart_analysis_options(
+    name = "options",
+    src = "analysis_options.yaml",
+    visibility = ["//visibility:public"],
+    deps = ["@very_good_analysis"],
+)
 
 dart_test(
     name = "mathlib_test",
@@ -7,10 +18,27 @@ dart_test(
     deps = ["//mathlib"],
 )
 
+# `dart_analyze_test` takes the executables directly: each test's `main` lives
+# outside any package's `lib/`, so analyzing the libraries alone would leave
+# every entrypoint in this workspace unanalyzed.
+dart_analyze_test(
+    name = "analyze_mathlib_test",
+    size = "small",
+    options = ":options",
+    target = ":mathlib_test",
+)
+
 dart_test(
     name = "simple_test",
     size = "small",
     main = "test/simple_test.dart",
+)
+
+dart_analyze_test(
+    name = "analyze_simple_test",
+    size = "small",
+    options = ":options",
+    target = ":simple_test",
 )
 
 dart_test(
@@ -18,6 +46,13 @@ dart_test(
     size = "small",
     main = "test/utils_test.dart",
     deps = ["//utils"],
+)
+
+dart_analyze_test(
+    name = "analyze_utils_test",
+    size = "small",
+    options = ":options",
+    target = ":utils_test",
 )
 
 # Demonstrates the srcs attribute — test_helpers.dart is a local
@@ -29,12 +64,28 @@ dart_test(
     main = "test/helpers_test.dart",
 )
 
+# `srcs` files are analyzed too, so this covers test_helpers.dart — which
+# belongs to no package and is reachable only through this test.
+dart_analyze_test(
+    name = "analyze_helpers_test",
+    size = "small",
+    options = ":options",
+    target = ":helpers_test",
+)
+
 # Asserts fire at runtime in every compilation mode — the runner always
 # enables them on the VM. CI also runs this package under `-c dbg`.
 dart_test(
     name = "asserts_test",
     size = "small",
     main = "test/asserts_test.dart",
+)
+
+dart_analyze_test(
+    name = "analyze_asserts_test",
+    size = "small",
+    options = ":options",
+    target = ":asserts_test",
 )
 
 # Demonstrates `defines`. The value is resolved when the test's kernel is
@@ -51,4 +102,11 @@ dart_test(
         "GREETING=hello from bazel",
     ],
     main = "test/defines_test.dart",
+)
+
+dart_analyze_test(
+    name = "analyze_defines_test",
+    size = "small",
+    options = ":options",
+    target = ":defines_test",
 )

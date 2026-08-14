@@ -1,4 +1,12 @@
-load("@rules_dart//dart:defs.bzl", "dart_js_binary", "dart_library", "dart_test", "dart_wasm_binary")
+load(
+    "@rules_dart//dart:defs.bzl",
+    "dart_analysis_options",
+    "dart_analyze_test",
+    "dart_js_binary",
+    "dart_library",
+    "dart_test",
+    "dart_wasm_binary",
+)
 
 # Root package (empty lib_root): its lib/ sources must be staged for the web
 # compile like any other dep package.
@@ -40,4 +48,44 @@ dart_test(
     data = [":app"],
     main = "test/js_output_test.dart",
     deps = ["@rules_dart//dart/runfiles"],
+)
+
+# The lint ruleset is a pub package the options file includes by `package:`
+# URI. It belongs here rather than in any library's `deps`: naming it there
+# would carry a lint-only package into the `DartInfo` of both web binaries.
+dart_analysis_options(
+    name = "options",
+    src = "analysis_options.yaml",
+    visibility = ["//greet:__pkg__"],
+    deps = ["@very_good_analysis"],
+)
+
+dart_analyze_test(
+    name = "analyze_rootlib",
+    size = "small",
+    options = ":options",
+    target = ":rootlib",
+)
+
+# The web binaries carry the root-level `main.dart`/`config.dart`, which no
+# `dart_library` owns; analyzing the binaries is the only way to reach them.
+dart_analyze_test(
+    name = "analyze_app",
+    size = "small",
+    options = ":options",
+    target = ":app",
+)
+
+dart_analyze_test(
+    name = "analyze_app_wasm",
+    size = "small",
+    options = ":options",
+    target = ":app_wasm",
+)
+
+dart_analyze_test(
+    name = "analyze_js_output_test",
+    size = "small",
+    options = ":options",
+    target = ":js_output_test",
 )

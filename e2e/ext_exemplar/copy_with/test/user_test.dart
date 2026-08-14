@@ -41,8 +41,10 @@ void main() {
       expect(cleared.createdAt, 100);
     });
 
-    test('copyWithNull(bio: false) is a no-op for that field', () {
-      final untouched = sample.copyWithNull(bio: false);
+    test('a field not named in copyWithNull keeps its value', () {
+      // `false` is the generated default for every flag, so omitting `bio`
+      // runs the same generated branch as passing `bio: false`.
+      final untouched = sample.copyWithNull();
       expect(untouched.bio, 'likes dart');
     });
   });

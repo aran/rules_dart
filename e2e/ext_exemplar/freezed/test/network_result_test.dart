@@ -19,7 +19,7 @@ void main() {
     });
 
     test('.map dispatches on the variant constructor', () {
-      final r = const NetworkResult<String>.success('hello');
+      const r = NetworkResult<String>.success('hello');
       final label = r.map(
         success: (s) => 'success(${s.data})',
         failure: (f) => 'failure',

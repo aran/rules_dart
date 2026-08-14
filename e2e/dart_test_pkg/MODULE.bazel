@@ -17,4 +17,13 @@ pub.from_lock(
     name = "pub_deps",
     lock = "//:pubspec.lock",
 )
-use_repo(pub, "pub_deps")
+
+# The lint ruleset is declared with pub.package rather than added to
+# pubspec.lock: the lock is this workspace's fixture input, and a lint-only
+# package is not a dependency of the code it lints.
+pub.package(
+    name = "very_good_analysis",
+    sha256 = "481af67ab5877af20325251dc215a4ebac7666a1c8cf09198ffd457bc612b33d",
+    version = "10.3.0",
+)
+use_repo(pub, "pub_deps", "very_good_analysis")

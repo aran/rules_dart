@@ -12,6 +12,17 @@ dart_analyze_test(
     target = ":mylib",
 )
 
+# The same library under `package:very_good_analysis`, via the options target in
+# the root package. Proves a `dart_analysis_options` is reusable across
+# packages: the ruleset it carries resolves against whichever target is being
+# analyzed, not against the package that declared it.
+dart_analyze_test(
+    name = "analyze_vga",
+    size = "small",
+    options = "//:vga",
+    target = ":mylib",
+)
+
 dart_format_test(
     name = "format_test",
     size = "small",

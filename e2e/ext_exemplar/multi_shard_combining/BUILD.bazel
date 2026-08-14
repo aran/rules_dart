@@ -1,6 +1,12 @@
 # Two SharedPartBuilders fan into the combining shim for one `.g.dart`.
 
-load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library", "dart_test")
+load(
+    "@rules_dart//dart:defs.bzl",
+    "dart_analyze_test",
+    "dart_codegen",
+    "dart_library",
+    "dart_test",
+)
 
 _ANN_DEPS = [
     "@pub_deps//:copy_with_extension",
@@ -58,4 +64,18 @@ dart_test(
         ":multi_shard_combining",
         "@pub_deps//:test",
     ],
+)
+
+dart_analyze_test(
+    name = "analyze_multi_shard_combining",
+    size = "small",
+    options = "//:options",
+    target = ":multi_shard_combining",
+)
+
+dart_analyze_test(
+    name = "analyze_user_test",
+    size = "small",
+    options = "//:options",
+    target = ":user_test",
 )

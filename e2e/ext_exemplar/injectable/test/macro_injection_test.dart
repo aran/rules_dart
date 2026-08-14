@@ -29,8 +29,7 @@ void main() {
 
   test('@singleton returns the identical instance across gets', () {
     configureInjection();
-    final d1 = GetIt.instance.get<DatabaseService>();
-    d1.pings = 3;
+    final d1 = GetIt.instance.get<DatabaseService>()..pings = 3;
     final d2 = GetIt.instance.get<DatabaseService>();
     expect(identical(d1, d2), isTrue);
     expect(d2.pings, 3);
@@ -51,9 +50,8 @@ void main() {
 
   test('@module + @Named exposes a third-party-value registration', () {
     configureInjection();
-    final t =
-        GetIt.instance.get<DateTime>(instanceName: 'build-time');
-    expect(t, DateTime.utc(2024, 1, 1));
+    final t = GetIt.instance.get<DateTime>(instanceName: 'build-time');
+    expect(t, DateTime.utc(2024));
   });
 
   test('@Environment filters which implementation registers', () {

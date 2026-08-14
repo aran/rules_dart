@@ -11,6 +11,7 @@
 /// iteration, a dropped annotation config, a shim-side config-passing
 /// regression, or a broken ResourceManager would drop a field's
 /// constants / controller / value getter and flip one of these checks.
+library;
 
 import 'dart:io';
 
@@ -59,10 +60,14 @@ void main() {
       // addTextEditingControllersForTextFields generates one getter per
       // text field — and only for text fields. A FormDropdownField /
       // FormDateField must not produce a controller getter.
-      expect(generatedSource, contains('TextEditingController get emailController'));
-      expect(generatedSource, contains('TextEditingController get passwordController'));
-      expect(generatedSource, isNot(contains('TextEditingController get birthdayController')));
-      expect(generatedSource, isNot(contains('TextEditingController get countryController')));
+      expect(generatedSource,
+          contains('TextEditingController get emailController'));
+      expect(generatedSource,
+          contains('TextEditingController get passwordController'));
+      expect(generatedSource,
+          isNot(contains('TextEditingController get birthdayController')));
+      expect(generatedSource,
+          isNot(contains('TextEditingController get countryController')));
     });
 
     test('emits a FocusNode getter per text field', () {
@@ -77,7 +82,8 @@ void main() {
       expect(generatedSource, contains(RegExp(r'mixin\s+\$LoginView\b')));
     });
 
-    test('emits a ValueProperties extension with a typed value getter per field',
+    test(
+        'emits a ValueProperties extension with a typed value getter per field',
         () {
       // One getter per @FormView field. Return type is derived from the
       // field kind: text → String?, date → DateTime?, dropdown → String?.

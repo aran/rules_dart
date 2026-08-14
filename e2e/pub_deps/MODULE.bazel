@@ -18,4 +18,11 @@ pub.package(
     sha256 = "75cca69d1490965be98c73ceaea117e8a04dd21217b37b292c9ddbec0d955bc5",
     version = "1.9.1",
 )
-use_repo(pub, "path")
+
+# Lint-only: named by `:options`, never by `:app`'s deps.
+pub.package(
+    name = "very_good_analysis",
+    sha256 = "481af67ab5877af20325251dc215a4ebac7666a1c8cf09198ffd457bc612b33d",
+    version = "10.3.0",
+)
+use_repo(pub, "path", "very_good_analysis")

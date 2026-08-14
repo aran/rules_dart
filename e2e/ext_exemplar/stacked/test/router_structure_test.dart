@@ -5,6 +5,7 @@
 /// Tracks the stacked_generator 2.0 router-v2 output shape. If the
 /// generator drops a route, mistypes path literals, or regresses the
 /// `$appRoutes`/`RouteDef` scaffolding, one of these assertions fires.
+library;
 
 import 'dart:io';
 
@@ -40,8 +41,8 @@ void main() {
     // Routes.detailsView      → a helper producing '/details/<id>'
     expect(generated, contains('class Routes'));
     expect(generated, contains("homeView = '/'"));
-    expect(generated, contains("detailsView"));
-    expect(generated, contains(r'/details/:id'));
+    expect(generated, contains('detailsView'));
+    expect(generated, contains('/details/:id'));
   });
 
   test('registers both HomeView and DetailsView in the RouteDef list', () {

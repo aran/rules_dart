@@ -21,5 +21,5 @@ void main() {
     'empty-lib_root dep package must be staged',
   );
   expectContains('flag count:', 'external pub package code must compile in');
-  print('PASS');
+  stdout.writeln('PASS');
 }

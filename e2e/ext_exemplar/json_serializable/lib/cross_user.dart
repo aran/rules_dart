@@ -15,11 +15,12 @@ part 'cross_user.g.dart';
 class CrossUser implements Identifiable {
   CrossUser({required this.id, required this.name});
 
+  factory CrossUser.fromJson(Map<String, dynamic> json) =>
+      _$CrossUserFromJson(json);
+
   @override
   final String id;
   final String name;
 
-  factory CrossUser.fromJson(Map<String, dynamic> json) =>
-      _$CrossUserFromJson(json);
   Map<String, dynamic> toJson() => _$CrossUserToJson(this);
 }

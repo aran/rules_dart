@@ -1,0 +1,13 @@
+include: package:very_good_analysis/analysis_options.yaml
+
+analyzer:
+  # Every subpackage here exists to exercise a code generator, so generated
+  # sources dominate the analyzed closure. They stay resolvable — their
+  # importers need them — but the generators, not this repo, own their style.
+  exclude:
+    - "**/*.config.dart"
+    - "**/*.freezed.dart"
+    - "**/*.g.dart"
+    - "**/*.locator.dart"
+    - "**/*.mocks.dart"
+    - "**/*.module.dart"

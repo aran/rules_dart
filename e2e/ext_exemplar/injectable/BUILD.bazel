@@ -1,6 +1,7 @@
 load(
     "@rules_dart//dart:defs.bzl",
     "dart_aggregate_codegen",
+    "dart_analyze_test",
     "dart_codegen",
     "dart_library",
     "dart_test",
@@ -130,4 +131,39 @@ dart_test(
         "@pub_deps//:injectable",
         "@pub_deps//:test",
     ],
+)
+
+dart_analyze_test(
+    name = "analyze_injectable_fixture_macro",
+    size = "small",
+    options = "//:options",
+    target = ":injectable_fixture_macro",
+)
+
+dart_analyze_test(
+    name = "analyze_injectable_fixture_primitive",
+    size = "small",
+    options = "//:options",
+    target = ":injectable_fixture_primitive",
+)
+
+dart_analyze_test(
+    name = "analyze_injectable_fixture",
+    size = "small",
+    options = "//:options",
+    target = ":injectable_fixture",
+)
+
+dart_analyze_test(
+    name = "analyze_macro_injection_test",
+    size = "small",
+    options = "//:options",
+    target = ":macro_injection_test",
+)
+
+dart_analyze_test(
+    name = "analyze_primitive_injection_test",
+    size = "small",
+    options = "//:options",
+    target = ":primitive_injection_test",
 )

@@ -45,5 +45,8 @@ dart_analyze_test(
 dart_analysis_options(
     name = "vga",
     src = "vga_options.yaml",
+    # Shared with //mylib so the workspace has one canonical ruleset target
+    # rather than a duplicate declaration in every package that lints.
+    visibility = ["//mylib:__pkg__"],
     deps = ["@very_good_analysis"],
 )

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 void main() {
-  print('Hello from cross-compiled binary!');
+  stdout.writeln('Hello from cross-compiled binary!');
 }

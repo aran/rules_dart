@@ -1,5 +1,6 @@
 /// Structural test for `shim_bottomsheet` — reads the generated
 /// `app.bottomsheets.dart` via runfiles.
+library;
 
 import 'dart:io';
 

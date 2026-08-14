@@ -9,5 +9,5 @@ import 'package:injectable/injectable.dart';
 abstract class AppModule {
   @singleton
   @Named('build-time')
-  DateTime get startTime => DateTime.utc(2024, 1, 1);
+  DateTime get startTime => DateTime.utc(2024);
 }

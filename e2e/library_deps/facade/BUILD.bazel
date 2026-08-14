@@ -1,4 +1,4 @@
-load("@rules_dart//dart:defs.bzl", "dart_library")
+load("@rules_dart//dart:defs.bzl", "dart_analyze_test", "dart_library")
 
 # Aggregate `dart_library` with no `srcs` of its own — exists only to
 # re-export `//utils`. `dart/private/dart_library.bzl` blesses this pattern
@@ -15,4 +15,14 @@ dart_library(
     srcs = [],
     visibility = ["//visibility:public"],
     deps = ["//utils"],
+)
+
+# Extends the regression to the analyzer: staging a project in which `facade`
+# names a package that contributes zero sources is the same shape that broke
+# `generate_package_config`, and `dart analyze` reads the same config.
+dart_analyze_test(
+    name = "analyze_facade",
+    size = "small",
+    options = "//:options",
+    target = ":facade",
 )
