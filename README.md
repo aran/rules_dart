@@ -185,21 +185,58 @@ generators like auto_route or injectable that need a whole-package view).
 ```starlark
 load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_aggregate_codegen")
 
+# One target per input file; outputs are the input's stem plus each suffix.
 dart_codegen(
-    name = "models_generated",
-    srcs = ["user.dart", "order.dart"],
-    generator = "//tools:my_generator.dart",
-    output_suffix = ".g.dart",
+    name = "user_g",
+    src = "lib/user.dart",
+    package_name = "my_pkg",
+    generator_bin = "@rules_dart//dart/ext/json_serializable:shim",
+    output_suffixes = [".json_serializable.g.part"],
+    deps = [
+        ":models",                      # same-package siblings
+        "@pub_deps//:json_annotation",  # import source
+    ],
 )
 
 dart_aggregate_codegen(
     name = "routes",
     srcs = glob(["lib/**/*.dart"]),
+    package_name = "my_pkg",
+    generator_bin = "//tools:route_shim",
+    outputs = ["lib/router.gr.dart"],
     deps = [":my_lib"],
-    generator = "//tools:auto_route_generator",
-    output = "lib/router.gr.dart",
 )
 ```
+
+Both rules take the generator either way. `generator_bin` is a target: a
+`dart_binary` speaking the shim CLI contract, run as a persistent worker (see
+[`docs/ext.md`](./docs/ext.md)). `generator`/`generator_script` is a bare
+`.dart` file run as `dart <script>` with no package resolution of its own, so it
+can import `dart:` core libraries and nothing else — fine for a throwaway
+emitter, insufficient for anything with dependencies.
+
+That distinction is also what analyzing a generator comes down to. A
+`generator_bin` is already a target, and every executable rule hands out
+`DartAnalyzableInfo`, so it is an ordinary `dart_analyze_test` operand:
+
+```starlark
+dart_analyze_test(name = "analyze_shim", target = "//tools:route_shim")
+```
+
+A bare script has no target to point at. Declare a `dart_binary` over the same
+source as an analysis handle — it needs no wiring into the `dart_codegen` call,
+which keeps running the script exactly as before:
+
+```starlark
+dart_binary(name = "my_generator", main = "my_generator.dart")
+
+dart_analyze_test(name = "analyze_my_generator", target = ":my_generator")
+```
+
+Do not promote a script to `generator_bin` just to analyze it: that path runs
+its executable as a persistent worker, which a plain `dart_binary` does not
+speak. The model files a generator reads need nothing special — they belong to
+the `dart_library` targets in `deps`, which are analyzable already.
 
 For first-party builders (`json_serializable`, `freezed`, `built_value`,
 `mockito`, `go_router`, `copy_with_extension_gen`, `injectable`, `stacked`,

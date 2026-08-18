@@ -165,6 +165,32 @@ driver threads or file-watching handles. Dart-VM startup is still
 amortised across the worker's lifetime — that's the latency win from
 worker mode, not analyzer-context reuse.
 
+### Analyzing generators
+
+A shim is an ordinary `dart_binary`, and every executable rule hands out
+`DartAnalyzableInfo`, so a generator is an ordinary `dart_analyze_test`
+operand — no separate mechanism, and nothing for `dart_codegen` to
+propagate:
+
+```starlark
+dart_analyze_test(name = "analyze_shim", size = "small", target = ":shim")
+```
+
+rules_dart analyzes its own shims this way; every `dart/ext/<builder>/`
+package carries one such target beside its binary, and they are what would
+catch a type error in a shim at its source rather than downstream in
+whatever the generated output does wrong.
+
+The path a generator takes to the rule decides what there is to analyze.
+`generator_bin` is already a target, so the same label serves both. A bare
+`generator`/`generator_script` resolves to a file, and the script runs as
+`dart <script>` with no package resolution of its own — `dart:` core
+imports only, and no providers for an analysis rule to read. Declare a
+`dart_binary` over that source as an analysis handle and leave the codegen
+call alone: promoting the script to `generator_bin` to gain a target would
+enlist it in the worker protocol above, which a plain `dart_binary` does
+not speak. `e2e/codegen/tools/BUILD.bazel` is the worked example.
+
 ## The Resolver
 
 `_ShimAnalyzerResolver` in `builder_shim.dart` implements the
