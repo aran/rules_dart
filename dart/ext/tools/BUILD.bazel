@@ -35,11 +35,12 @@ dart_test(
     ],
 )
 
-# A shim is an ordinary `dart_binary`, so it is an ordinary `dart_analyze_test`
-# operand: the executable rules hand out `DartAnalyzableInfo`, and that is the
-# whole of what analyzing a code generator takes. Worth having on generators
-# specifically because a type error in one surfaces downstream as whatever the
-# generated output does wrong, rather than as an error in the generator.
+# The checker is an ordinary `dart_binary`, so it is an ordinary
+# `dart_analyze_test` operand: the executable rules hand out
+# `DartAnalyzableInfo`, and that is the whole of what analyzing one takes. It
+# generates nothing itself — it is the dual-build migration checker — but a
+# build-time tool is exactly where a type error is cheapest to catch and
+# hardest to notice.
 
 dart_analyze_test(
     name = "analyze_check_dual_build_collisions",

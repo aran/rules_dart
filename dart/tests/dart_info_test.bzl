@@ -85,6 +85,7 @@ def _wrapper_executable_impl(ctx):
             srcs = ctx.files.srcs,
             package_srcs = ctx.files.package_srcs,
             resources = ctx.files.resources,
+            code_assets = ctx.attr.code_assets,
             language_version = ctx.attr.language_version,
         ),
     ]
@@ -96,6 +97,7 @@ wrapper_executable = rule(
         "package_srcs": attr.label_list(allow_files = [".dart"]),
         "resources": attr.label_list(allow_files = True),
         "deps": attr.label_list(providers = [DartInfo]),
+        "code_assets": attr.label_list(providers = [DartCodeAssetInfo]),
         "package_name": attr.string(mandatory = True),
         "language_version": attr.string(),
     },
@@ -247,6 +249,17 @@ def _analyzable_with_package_test_impl(ctx):
     )
     asserts.equals(env, "3.11", own[0].language_version)
 
+    # The asset the executable's own package owns, on its own record. Every
+    # parameter this constructor forwards is a line someone could delete without
+    # a test noticing, and a dropped `code_assets` would strand the native
+    # library the package ships.
+    asserts.equals(
+        env,
+        ["package:exec_pkg/src/ffi/owned.g.dart"],
+        sorted([a.asset_id for a in package_code_assets(own[0])]),
+    )
+    asserts.equals(env, 2, len(info.transitive_code_asset_files.to_list()))
+
     # And the dependency's record beside it: a package of its own must not cost
     # the merge that `dart_analyzable_info()` already did.
     names = sorted([p.package_name for p in info.transitive_packages.to_list()])
@@ -262,6 +275,11 @@ def _analyzable_with_package_test_impl(ctx):
         env,
         [p for p in srcs if p.endswith("/lib/owned.dart")] != [],
         "the package's own lib/ source is missing from transitive_srcs: %s" % srcs,
+    )
+    asserts.true(
+        env,
+        [p for p in resources if p.endswith("/lib/owned.yaml")] != [],
+        "the package's own resource is missing from transitive_resources: %s" % resources,
     )
     asserts.true(
         env,

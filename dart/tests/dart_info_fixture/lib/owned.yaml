@@ -1,0 +1,3 @@
+# Non-Dart member of the executable's own package `lib/`, reachable as
+# `package:exec_pkg/owned.yaml`.
+marker: owned

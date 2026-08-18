@@ -72,12 +72,28 @@ no_package_empty_test(
 # package's, `entry.dart` is the entrypoint outside it. The two lists are what
 # the constructor keeps apart, and the fixture supplies one of each so a
 # collapse in either direction is observable.
+#
+# It carries a resource and a code asset of its own for the same reason the
+# `dep` above does: every parameter this constructor forwards is a line that
+# could be dropped without a test noticing, and the record it forwards them
+# onto is this target's own rather than a dependency's.
+dart_code_asset(
+    name = "exec_asset",
+    asset_id = "package:exec_pkg/src/ffi/owned.g.dart",
+    # A different library from `dep_asset`'s: the two records would dedupe to a
+    # single file otherwise, and the flat-depset assertion could not tell a
+    # forwarded asset from a dropped one.
+    shared_library = "//dart/tests/cc_fixture:empty_shared_alt",
+)
+
 wrapper_executable(
     name = "exec",
     package_name = "exec_pkg",
     srcs = ["entry.dart"],
+    code_assets = [":exec_asset"],
     language_version = "3.11",
     package_srcs = ["lib/owned.dart"],
+    resources = ["lib/owned.yaml"],
     deps = [":dep"],
 )
 
