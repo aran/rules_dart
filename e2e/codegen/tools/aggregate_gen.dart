@@ -8,8 +8,8 @@ import 'dart:io';
 /// than the Dart package root.
 ///
 /// Contract (subset of the shim contract):
-///   --input <path> --input-asset <asset> --output <path>
-///   --input-asset-extra <exec>|<asset>   (repeatable)
+/// - `--input <path> --input-asset <asset> --output <path>`
+/// - `--input-asset-extra <exec>|<asset>` (repeatable)
 void main(List<String> args) {
   String? inputAsset;
   String? output;

@@ -1,4 +1,4 @@
-load("//dart:defs.bzl", "dart_binary")
+load("//dart:defs.bzl", "dart_analyze_test", "dart_binary")
 
 # drift_dev's modern path is a 4-stage pipeline:
 #   prep → discover → analyzer → driftBuilder (SharedPart) → combining
@@ -52,4 +52,34 @@ dart_binary(
         "//dart/ext:builder_shim",
         "@ext_pub_deps//:drift_dev",
     ],
+)
+
+# A shim is an ordinary `dart_binary`, so it is an ordinary `dart_analyze_test`
+# operand: the executable rules hand out `DartAnalyzableInfo`, and that is the
+# whole of what analyzing a code generator takes. Worth having on generators
+# specifically because a type error in one surfaces downstream as whatever the
+# generated output does wrong, rather than as an error in the generator.
+
+dart_analyze_test(
+    name = "analyze_shim_prep",
+    size = "small",
+    target = ":shim_prep",
+)
+
+dart_analyze_test(
+    name = "analyze_shim_discover",
+    size = "small",
+    target = ":shim_discover",
+)
+
+dart_analyze_test(
+    name = "analyze_shim_analyzer",
+    size = "small",
+    target = ":shim_analyzer",
+)
+
+dart_analyze_test(
+    name = "analyze_shim_drift",
+    size = "small",
+    target = ":shim_drift",
 )

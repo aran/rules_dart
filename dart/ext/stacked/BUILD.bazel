@@ -1,4 +1,4 @@
-load("//dart:defs.bzl", "dart_binary")
+load("//dart:defs.bzl", "dart_analyze_test", "dart_binary")
 
 # Six independent shim binaries, one per stacked_generator LibraryBuilder.
 
@@ -72,4 +72,46 @@ dart_binary(
         "//dart/ext:builder_shim",
         "@ext_pub_deps//:stacked_generator",
     ],
+)
+
+# A shim is an ordinary `dart_binary`, so it is an ordinary `dart_analyze_test`
+# operand: the executable rules hand out `DartAnalyzableInfo`, and that is the
+# whole of what analyzing a code generator takes. Worth having on generators
+# specifically because a type error in one surfaces downstream as whatever the
+# generated output does wrong, rather than as an error in the generator.
+
+dart_analyze_test(
+    name = "analyze_shim_router",
+    size = "small",
+    target = ":shim_router",
+)
+
+dart_analyze_test(
+    name = "analyze_shim_locator",
+    size = "small",
+    target = ":shim_locator",
+)
+
+dart_analyze_test(
+    name = "analyze_shim_form",
+    size = "small",
+    target = ":shim_form",
+)
+
+dart_analyze_test(
+    name = "analyze_shim_logger",
+    size = "small",
+    target = ":shim_logger",
+)
+
+dart_analyze_test(
+    name = "analyze_shim_dialog",
+    size = "small",
+    target = ":shim_dialog",
+)
+
+dart_analyze_test(
+    name = "analyze_shim_bottomsheet",
+    size = "small",
+    target = ":shim_bottomsheet",
 )

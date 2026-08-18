@@ -1,7 +1,7 @@
 # Dual-build collision checker. Migration scaffolding for users adopting
 # rules_dart while build_runner is still producing committed files.
 
-load("//dart:defs.bzl", "dart_binary", "dart_library", "dart_test")
+load("//dart:defs.bzl", "dart_analyze_test", "dart_binary", "dart_library", "dart_test")
 
 dart_library(
     name = "check_dual_build_collisions_lib",
@@ -33,4 +33,16 @@ dart_test(
         ":check_dual_build_collisions_lib",
         "@ext_pub_deps//:test",
     ],
+)
+
+# A shim is an ordinary `dart_binary`, so it is an ordinary `dart_analyze_test`
+# operand: the executable rules hand out `DartAnalyzableInfo`, and that is the
+# whole of what analyzing a code generator takes. Worth having on generators
+# specifically because a type error in one surfaces downstream as whatever the
+# generated output does wrong, rather than as an error in the generator.
+
+dart_analyze_test(
+    name = "analyze_check_dual_build_collisions",
+    size = "small",
+    target = ":check_dual_build_collisions",
 )

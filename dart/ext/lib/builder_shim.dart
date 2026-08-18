@@ -691,7 +691,7 @@ Future<void> _runWithStaging(
       // file to exist.
       final outExt = _outputExtensionFor(inputId, outPath);
       bytes = emptyOutput != null
-          ? await emptyOutput(inputId, outExt) as List<int>
+          ? await emptyOutput(inputId, outExt)
           : const <int>[];
     }
     await File(outPath).writeAsBytes(bytes);

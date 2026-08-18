@@ -1,4 +1,4 @@
-load("//dart:defs.bzl", "dart_binary")
+load("//dart:defs.bzl", "dart_analyze_test", "dart_binary")
 
 # Shim binary for the go_router_builder Builder. SharedPartBuilder; produces
 # .go_router.g.part shards.
@@ -12,4 +12,16 @@ dart_binary(
         "//dart/ext:builder_shim",
         "@ext_pub_deps//:go_router_builder",
     ],
+)
+
+# A shim is an ordinary `dart_binary`, so it is an ordinary `dart_analyze_test`
+# operand: the executable rules hand out `DartAnalyzableInfo`, and that is the
+# whole of what analyzing a code generator takes. Worth having on generators
+# specifically because a type error in one surfaces downstream as whatever the
+# generated output does wrong, rather than as an error in the generator.
+
+dart_analyze_test(
+    name = "analyze_shim",
+    size = "small",
+    target = ":shim",
 )

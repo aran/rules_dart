@@ -1,3 +1,5 @@
+load("@rules_dart//dart:defs.bzl", "dart_analyze_test", "dart_binary")
+
 # Trivial in-tree generators shared by the fixtures. The choice of generator is
 # incidental to what's under test (generated-input co-location), so these are
 # hand-written, not real codegen packages.
@@ -9,4 +11,64 @@ exports_files(
         "aggregate_gen.dart",
     ],
     visibility = ["//visibility:public"],
+)
+
+# Analysis handles for the exported scripts, and the worked example of how a
+# generator gets analyzed at all.
+#
+# The call sites pass these by bare `generator = "//tools:<x>.dart"`, which
+# resolves to a file: the script runs as `dart <script>` with no package
+# resolution of its own, so it can import `dart:` core libraries and nothing
+# else, and there is no target for an analysis rule to take. A `dart_binary`
+# over the same source supplies one. It is not wired into any `dart_codegen` —
+# `generator_bin` runs its executable as a persistent worker, which these
+# scripts do not speak — so it exists purely to be analyzed, which is the point:
+# nothing about executing a generator has to change for it to be covered.
+
+dart_binary(
+    name = "part_gen",
+    main = "part_gen.dart",
+)
+
+dart_analyze_test(
+    name = "analyze_part_gen",
+    size = "small",
+    options = "//:options",
+    target = ":part_gen",
+)
+
+dart_binary(
+    name = "lib_gen",
+    main = "lib_gen.dart",
+)
+
+dart_analyze_test(
+    name = "analyze_lib_gen",
+    size = "small",
+    options = "//:options",
+    target = ":lib_gen",
+)
+
+dart_binary(
+    name = "shard_gen",
+    main = "shard_gen.dart",
+)
+
+dart_analyze_test(
+    name = "analyze_shard_gen",
+    size = "small",
+    options = "//:options",
+    target = ":shard_gen",
+)
+
+dart_binary(
+    name = "aggregate_gen",
+    main = "aggregate_gen.dart",
+)
+
+dart_analyze_test(
+    name = "analyze_aggregate_gen",
+    size = "small",
+    options = "//:options",
+    target = ":aggregate_gen",
 )

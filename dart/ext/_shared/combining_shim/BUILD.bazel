@@ -1,4 +1,4 @@
-load("//dart:defs.bzl", "dart_binary", "dart_test")
+load("//dart:defs.bzl", "dart_analyze_test", "dart_binary", "dart_test")
 
 # Combining shim — concatenates SharedPartBuilder .g.part shards into one
 # .g.dart per source. Used after one or more SharedPartBuilder shims for
@@ -27,4 +27,16 @@ dart_test(
         "@ext_pub_deps//:path",
         "@ext_pub_deps//:test",
     ],
+)
+
+# A shim is an ordinary `dart_binary`, so it is an ordinary `dart_analyze_test`
+# operand: the executable rules hand out `DartAnalyzableInfo`, and that is the
+# whole of what analyzing a code generator takes. Worth having on generators
+# specifically because a type error in one surfaces downstream as whatever the
+# generated output does wrong, rather than as an error in the generator.
+
+dart_analyze_test(
+    name = "analyze_bin",
+    size = "small",
+    target = ":bin",
 )

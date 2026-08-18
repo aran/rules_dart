@@ -2,7 +2,7 @@ import 'dart:io';
 
 /// Emits a one-line metadata shard for the input source — the stand-in for
 /// a per-file metadata stage (e.g. injectable's `.injectable.json` shards).
-/// Contract: dart shard_gen.dart --input <src> --output <path> [...]
+/// Contract: `dart shard_gen.dart --input <src> --output <path> [...]`
 void main(List<String> args) {
   String? input;
   String? output;

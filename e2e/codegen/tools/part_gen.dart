@@ -1,7 +1,8 @@
 import 'dart:io';
 
 /// Emits a `part of` companion defining `generatedMessage()`.
-/// Contract: dart part_gen.dart --input <src> --output <path> [--input-asset ...]
+/// Contract: `dart part_gen.dart --input <src> --output <path>`,
+/// optionally `--input-asset <asset>`.
 void main(List<String> args) {
   String? input;
   String? output;

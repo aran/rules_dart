@@ -18,7 +18,6 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:bazel_worker/bazel_worker.dart';
-import 'package:build/build.dart';
 
 import 'builder_shim.dart';
 

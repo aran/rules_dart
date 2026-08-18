@@ -1,4 +1,4 @@
-load("//dart:defs.bzl", "dart_binary")
+load("//dart:defs.bzl", "dart_analyze_test", "dart_binary")
 
 # Two-stage pipeline (matches injectable_generator's build.yaml):
 #   shim_metadata → .injectable.json (per-class metadata, LibraryBuilder)
@@ -29,4 +29,22 @@ dart_binary(
         "//dart/ext:builder_shim",
         "@ext_pub_deps//:injectable_generator",
     ],
+)
+
+# A shim is an ordinary `dart_binary`, so it is an ordinary `dart_analyze_test`
+# operand: the executable rules hand out `DartAnalyzableInfo`, and that is the
+# whole of what analyzing a code generator takes. Worth having on generators
+# specifically because a type error in one surfaces downstream as whatever the
+# generated output does wrong, rather than as an error in the generator.
+
+dart_analyze_test(
+    name = "analyze_shim_metadata",
+    size = "small",
+    target = ":shim_metadata",
+)
+
+dart_analyze_test(
+    name = "analyze_shim_config",
+    size = "small",
+    target = ":shim_config",
 )
