@@ -18,6 +18,7 @@ load(
 load(
     "//dart/private:dart_info.bzl",
     _dart_analyzable_info = "dart_analyzable_info",
+    _dart_analyzable_info_with_package = "dart_analyzable_info_with_package",
     _dart_info = "dart_info",
     _dart_info_no_package = "dart_info_no_package",
 )
@@ -54,6 +55,15 @@ dart_info_no_package = _dart_info_no_package
 # closure beside those sources. Deliberately not what an executable returns for
 # `deps` to see: `deps` requires `DartInfo`, and a binary is not a dependency.
 dart_analyzable_info = _dart_analyzable_info
+
+# The same wrapper for an executable that *also* contributes a package — a
+# downstream test rule whose `srcs` are its package's `lib/` files plus an
+# entrypoint outside them. Routes the package through [dart_info], so the
+# target's own `package:<self>/…` imports resolve under `dart_analyze_test` /
+# `dart_fix` rather than reporting `uri_does_not_exist`. The source split is the
+# thing to get right: `srcs` stays the package-less entrypoint, `package_srcs`
+# the package's own files.
+dart_analyzable_info_with_package = _dart_analyzable_info_with_package
 
 collect_packages = _collect_packages
 

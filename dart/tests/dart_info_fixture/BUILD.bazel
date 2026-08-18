@@ -1,11 +1,14 @@
 load("//dart:defs.bzl", "dart_code_asset", "dart_library")
 load(
     "//dart/tests:dart_info_test.bzl",
+    "analyzable_with_package_test",
     "facade_library",
     "forwards_closures_test",
     "misowned_asset_test",
     "no_package_empty_test",
+    "no_package_name_test",
     "no_package_test",
+    "wrapper_executable",
     "wrapper_library",
 )
 
@@ -63,6 +66,40 @@ no_package_empty_test(
     name = "no_package_empty_test",
     size = "small",
     target_under_test = ":font_only_facade",
+)
+
+# An executable that also contributes a package: `lib/owned.dart` is the
+# package's, `entry.dart` is the entrypoint outside it. The two lists are what
+# the constructor keeps apart, and the fixture supplies one of each so a
+# collapse in either direction is observable.
+wrapper_executable(
+    name = "exec",
+    package_name = "exec_pkg",
+    srcs = ["entry.dart"],
+    language_version = "3.11",
+    package_srcs = ["lib/owned.dart"],
+    deps = [":dep"],
+)
+
+analyzable_with_package_test(
+    name = "analyzable_with_package_test",
+    size = "small",
+    target_under_test = ":exec",
+)
+
+# No package name means the caller wanted the other constructor. `dart_info()`
+# would build a nameless package record instead of saying so.
+wrapper_executable(
+    name = "unnamed_exec",
+    package_name = "",
+    srcs = ["entry.dart"],
+    tags = ["manual"],
+)
+
+no_package_name_test(
+    name = "no_package_name_test",
+    size = "small",
+    target_under_test = ":unnamed_exec",
 )
 
 # The asset id is namespaced to `info_dep`; a wrapper claiming a different

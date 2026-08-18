@@ -1,0 +1,36 @@
+load("@rules_dart//dart:defs.bzl", "dart_analyze_test", "dart_format_test")
+load(":rules.bzl", "pkg_executable")
+
+# An executable that also contributes a package, declared by a rule outside
+# rules_dart. Two things are under test here that the in-repo fixtures cannot
+# reach: that `dart_analyzable_info_with_package` is genuinely public — loaded
+# through `@rules_dart//dart:utils.bzl` from a separate module — and that the
+# closure it builds survives `package:very_good_analysis`, where an unresolved
+# import is one of many ways to fail rather than the only one.
+
+pkg_executable(
+    name = "exec",
+    package_name = "analysis_exec",
+    srcs = ["main.dart"],
+    package_srcs = glob(["lib/**/*.dart"]),
+    deps = ["//mylib"],
+)
+
+dart_analyze_test(
+    name = "analyze",
+    size = "small",
+    target = ":exec",
+)
+
+dart_analyze_test(
+    name = "analyze_vga",
+    size = "small",
+    options = "//:vga",
+    target = ":exec",
+)
+
+dart_format_test(
+    name = "format_test",
+    size = "small",
+    srcs = glob(["**/*.dart"]),
+)

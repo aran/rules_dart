@@ -52,11 +52,13 @@ DartAnalyzableInfo = provider(
     doc = """An executable target's analyzable closure: everything \
 `dart_analyze_test` / `dart_fix` need to stage a project around its entrypoint.
 
-Provided by executable rules only — `dart_binary`, `dart_test`, \
-`dart_js_binary`, `dart_wasm_binary`. A library needs nothing extra: for it \
-`DartInfo` *is* the analyzable closure, and `dart_analyze_test`/`dart_fix` \
-accept either provider, which is what keeps `flutter_library` and \
-`dart_proto_library` analyzable without adopting anything.
+Provided by executable rules — `dart_binary`, `dart_test`, `dart_js_binary`, \
+`dart_wasm_binary` here, and downstream by rules whose target is an executable \
+that *also* contributes a package (a `flutter_test` whose `srcs` are its own \
+package's `lib/` files). A library needs nothing extra: for it `DartInfo` *is* \
+the analyzable closure, and `dart_analyze_test`/`dart_fix` accept either \
+provider, which is what keeps `flutter_library` and `dart_proto_library` \
+analyzable without adopting anything.
 
 The separation is what makes an entrypoint analyzable without making it a valid \
 dependency. Every `deps` attribute in this rule set and downstream ones gates on \
@@ -67,13 +69,17 @@ A distinct outer provider that *nests* the `DartInfo` says the same thing \
 structurally: consumable by whoever asks for it, invisible to whoever asks for \
 `DartInfo`.
 
-Build one with `dart_analyzable_info()` from `//dart:utils.bzl`, which builds the \
-nested `DartInfo` through `dart_info_no_package()` — an entrypoint contributes no \
-package, since under pub it belongs to the root package but sits outside its \
-`lib/`.""",
+Build one with either constructor in `//dart:utils.bzl`, never by hand. \
+`dart_analyzable_info()` builds the nested `DartInfo` through \
+`dart_info_no_package()`, for an entrypoint that contributes no package — under \
+pub it belongs to the root package but sits outside its `lib/`. \
+`dart_analyzable_info_with_package()` builds it through `dart_info()`, for a \
+target whose sources *are* a package: without that record its own \
+`package:<self>/…` imports resolve against nothing and every one of them \
+reports `uri_does_not_exist`.""",
     fields = {
-        "dart_info": "DartInfo: the dependency closure, as `dart_info_no_package()` builds it.",
-        "srcs": "depset[File]: the target's own sources — its `main` and `srcs` — which belong to no package's `lib/` and so can appear in no `DartInfo`.",
+        "dart_info": "DartInfo: the dependency closure, as the `dart_analyzable_info*()` constructors build it — package-less, or carrying this target's own package record.",
+        "srcs": "depset[File]: the target's own sources that belong to no package's `lib/` — its `main`, a `test/` entrypoint — and which therefore no `DartPackageInfo` can name. Sources that *are* a package's `lib/` files ride the nested `DartInfo` instead.",
     },
 )
 

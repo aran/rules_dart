@@ -12,12 +12,26 @@ Dart at all and provides `DartInfo` only because the `deps` attribute it gets
 listed in requires one. The claims under test are the same closure forwarding
 plus the thing that makes it degenerate — that it adds no package record of its
 own, so listing it changes no consumer's `package_config.json`.
+
+`wrapper_executable` stands in for a downstream `flutter_test`: an executable
+that also contributes a package, its sources being that package's `lib/` files
+plus an entrypoint outside them. The claim under test is the one that made this
+shape reach past the public constructors — that the package record really does
+reach the nested `DartInfo`, since without it the target's own
+`package:<self>/…` imports resolve against nothing — plus the claim that gaining
+a package costs it none of the separation: it stays analyzable and stays an
+invalid `deps` entry.
 """
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts")
-load("//dart:providers.bzl", "DartCodeAssetInfo", "DartInfo")
+load("//dart:providers.bzl", "DartAnalyzableInfo", "DartCodeAssetInfo", "DartInfo")
 load("//dart/private:common.bzl", "package_code_assets")
-load("//dart/private:dart_info.bzl", "dart_info", "dart_info_no_package")
+load(
+    "//dart/private:dart_info.bzl",
+    "dart_analyzable_info_with_package",
+    "dart_info",
+    "dart_info_no_package",
+)
 
 def _wrapper_library_impl(ctx):
     return [
@@ -58,6 +72,35 @@ facade_library = rule(
         "deps": attr.label_list(providers = [DartInfo]),
     },
     doc = "A target shipping no Dart package, built through `dart_info_no_package()`.",
+)
+
+def _wrapper_executable_impl(ctx):
+    return [
+        DefaultInfo(files = depset(ctx.files.srcs + ctx.files.package_srcs)),
+        dart_analyzable_info_with_package(
+            label = ctx.label,
+            package_name = ctx.attr.package_name,
+            lib_root = ctx.label.package,
+            deps = ctx.attr.deps,
+            srcs = ctx.files.srcs,
+            package_srcs = ctx.files.package_srcs,
+            resources = ctx.files.resources,
+            language_version = ctx.attr.language_version,
+        ),
+    ]
+
+wrapper_executable = rule(
+    implementation = _wrapper_executable_impl,
+    attrs = {
+        "srcs": attr.label_list(allow_files = [".dart"]),
+        "package_srcs": attr.label_list(allow_files = [".dart"]),
+        "resources": attr.label_list(allow_files = True),
+        "deps": attr.label_list(providers = [DartInfo]),
+        "package_name": attr.string(mandatory = True),
+        "language_version": attr.string(),
+    },
+    doc = "An executable that also contributes a package, built through " +
+          "`dart_analyzable_info_with_package()`.",
 )
 
 def _short_paths(dep):
@@ -159,6 +202,111 @@ def _no_package_empty_test_impl(ctx):
     return analysistest.end(env)
 
 no_package_empty_test = analysistest.make(_no_package_empty_test_impl)
+
+def _analyzable_with_package_test_impl(ctx):
+    env = analysistest.begin(ctx)
+    target = analysistest.target_under_test(env)
+
+    # Gaining a package costs none of the separation. `DartAnalyzableInfo`
+    # exists so an executable is analyzable without becoming a legal `deps`
+    # entry, and that has to survive the constructor that gives it a package —
+    # otherwise the fix for `uri_does_not_exist` would quietly make every one of
+    # these targets depable.
+    asserts.true(
+        env,
+        DartAnalyzableInfo in target,
+        "a package-contributing executable must provide DartAnalyzableInfo",
+    )
+    asserts.false(
+        env,
+        DartInfo in target,
+        "it must NOT provide DartInfo — that is what `deps` requires",
+    )
+    if DartAnalyzableInfo not in target:
+        return analysistest.end(env)
+
+    analyzable = target[DartAnalyzableInfo]
+    info = analyzable.dart_info
+
+    # The whole point: the target's own package record reaches the nested
+    # `DartInfo`. Without it nothing names `exec_pkg`, so `package:exec_pkg/…`
+    # resolves against nothing and the analyzer reports `uri_does_not_exist` —
+    # the symptom that sent a downstream rule set past these constructors.
+    own = [
+        p
+        for p in info.transitive_packages.to_list()
+        if p.package_name == "exec_pkg"
+    ]
+    asserts.equals(env, 1, len(own), "expected exactly one `exec_pkg` record")
+    if len(own) != 1:
+        return analysistest.end(env)
+    asserts.true(
+        env,
+        own[0].lib_root.endswith("dart_info_fixture"),
+        "the package record's lib_root is wrong: %s" % own[0].lib_root,
+    )
+    asserts.equals(env, "3.11", own[0].language_version)
+
+    # And the dependency's record beside it: a package of its own must not cost
+    # the merge that `dart_analyzable_info()` already did.
+    names = sorted([p.package_name for p in info.transitive_packages.to_list()])
+    asserts.equals(env, ["exec_pkg", "info_dep"], names)
+
+    # The source split, which is the part a caller can get backwards silently.
+    # The package's `lib/` file rides the nested `DartInfo`, where a
+    # `package:` URI can reach it; the entrypoint rides the outer `srcs`, where
+    # nothing needs to.
+    srcs = _short_paths(info.transitive_srcs)
+    resources = _short_paths(info.transitive_resources)
+    asserts.true(
+        env,
+        [p for p in srcs if p.endswith("/lib/owned.dart")] != [],
+        "the package's own lib/ source is missing from transitive_srcs: %s" % srcs,
+    )
+    asserts.true(
+        env,
+        [p for p in srcs if p.endswith("/lib/dep.dart")] != [],
+        "dependency's source missing from transitive_srcs: %s" % srcs,
+    )
+    asserts.true(
+        env,
+        [p for p in resources if p.endswith("/lib/dep.yaml")] != [],
+        "dependency's resource missing from transitive_resources: %s" % resources,
+    )
+
+    # The entrypoint is in the outer field and *only* there: it belongs to no
+    # package's `lib/`, so a `DartInfo` carrying it would be claiming a
+    # `package:` URI reaches it.
+    entry = sorted([f.short_path for f in analyzable.srcs.to_list()])
+    asserts.equals(env, 1, len(entry), "expected exactly one entrypoint: %s" % entry)
+    asserts.true(
+        env,
+        entry[0].endswith("/entry.dart"),
+        "the entrypoint is missing from DartAnalyzableInfo.srcs: %s" % entry,
+    )
+    asserts.true(
+        env,
+        [p for p in srcs if p.endswith("/entry.dart")] == [],
+        "the entrypoint leaked into transitive_srcs: %s" % srcs,
+    )
+
+    return analysistest.end(env)
+
+analyzable_with_package_test = analysistest.make(_analyzable_with_package_test_impl)
+
+def _no_package_name_test_impl(ctx):
+    env = analysistest.begin(ctx)
+    asserts.expect_failure(env, "`package_name` is empty")
+    return analysistest.end(env)
+
+# The redirect that keeps the two constructors from collapsing into one. An
+# empty `package_name` means the caller wanted `dart_analyzable_info()`, and
+# saying so is cheaper than the package record with no name that `dart_info()`
+# would otherwise build.
+no_package_name_test = analysistest.make(
+    _no_package_name_test_impl,
+    expect_failure = True,
+)
 
 def _misowned_asset_test_impl(ctx):
     env = analysistest.begin(ctx)
