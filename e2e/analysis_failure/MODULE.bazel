@@ -11,3 +11,13 @@ dart.toolchain(dart_version = "3.12.2")
 use_repo(dart, "dart_toolchains")
 
 register_toolchains("@dart_toolchains//:all")
+
+# The lint ruleset `vga_options.yaml` includes. Version and hash match
+# `e2e/analysis`, which exercises the same package on its green path.
+pub = use_extension("@rules_dart//dart/pub:extensions.bzl", "pub")
+pub.package(
+    name = "very_good_analysis",
+    sha256 = "481af67ab5877af20325251dc215a4ebac7666a1c8cf09198ffd457bc612b33d",
+    version = "10.3.0",
+)
+use_repo(pub, "very_good_analysis")

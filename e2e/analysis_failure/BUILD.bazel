@@ -1,4 +1,10 @@
-load("@rules_dart//dart:defs.bzl", "dart_analyze_test", "dart_binary", "dart_library")
+load(
+    "@rules_dart//dart:defs.bzl",
+    "dart_analysis_options",
+    "dart_analyze_test",
+    "dart_binary",
+    "dart_library",
+)
 
 # This workspace should FAIL to build: bad.dart carries an
 # unused_local_variable diagnostic and dart_analyze_test runs the analyzer
@@ -28,4 +34,53 @@ dart_binary(
 dart_analyze_test(
     name = "analyze_bad_bin",
     target = ":bad_bin",
+)
+
+# A lint ruleset reaches the analyzer through an `include:` that resolves like
+# any other `package:` URI. When it does not resolve, the analyzer applies no
+# rules — so a configuration mistake and a clean codebase would look identical
+# unless something says so out loud. The next two targets pin the two halves of
+# that: an include that fails is reported, and an include that succeeds really
+# does bring its lints to bear.
+
+# Half one. `unresolved_ruleset_options.yaml` names a package this workspace
+# does not have, and `clean.dart` has nothing else wrong with it, so
+# `include_file_not_found` is the only thing that can fail this build. If a
+# future SDK demotes that diagnostic below the analyzer's fatal threshold, this
+# target goes green and CI catches it.
+dart_library(
+    name = "clean_lib",
+    srcs = ["lib/clean.dart"],
+)
+
+dart_analyze_test(
+    name = "analyze_unresolved_ruleset",
+    options = "unresolved_ruleset_options.yaml",
+    target = ":clean_lib",
+)
+
+# Half two. Here the include does resolve, and the assertion is that its lints
+# actually reach the code: `double_quoted.dart` violates `prefer_single_quotes`,
+# which very_good_analysis enables and the SDK defaults do not. A green path
+# cannot prove this — a clean library stays clean whether or not the ruleset
+# loaded, which is exactly why `e2e/analysis`'s passing `analyze_vga` would not
+# have noticed the ruleset going missing. The proof has to be a red path.
+#
+# The lint is also info-level, so this target only fails because the rule runs
+# the analyzer with `--fatal-infos`; dropping that flag turns it green too.
+dart_library(
+    name = "double_quoted_lib",
+    srcs = ["lib/double_quoted.dart"],
+)
+
+dart_analysis_options(
+    name = "vga",
+    src = "vga_options.yaml",
+    deps = ["@very_good_analysis"],
+)
+
+dart_analyze_test(
+    name = "analyze_ruleset_applied",
+    options = ":vga",
+    target = ":double_quoted_lib",
 )

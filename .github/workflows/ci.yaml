@@ -82,6 +82,29 @@ jobs:
           fi
           bazel build //:analyze_bad_bin 2>&1 | grep -q "unused_import"
           echo "OK: expected analyzer failure detected"
+      # An `include:` that does not resolve makes the analyzer apply no rules at
+      # all, so without a diagnostic a misconfigured ruleset and a clean
+      # codebase look identical. These two steps pin both halves: a broken
+      # include is reported, and a working one really does bring its lints to
+      # bear. Both are SDK behaviour that nothing else here asserts.
+      - name: analysis_failure — expect an unresolvable ruleset include to fail
+        working-directory: e2e/analysis_failure
+        run: |
+          if bazel build //:analyze_unresolved_ruleset 2>/dev/null; then
+            echo "ERROR: build should have failed with an unresolved include"
+            exit 1
+          fi
+          bazel build //:analyze_unresolved_ruleset 2>&1 | grep -q "include_file_not_found"
+          echo "OK: expected unresolved include detected"
+      - name: analysis_failure — expect an included ruleset's lints to be applied
+        working-directory: e2e/analysis_failure
+        run: |
+          if bazel build //:analyze_ruleset_applied 2>/dev/null; then
+            echo "ERROR: build should have failed with a very_good_analysis lint"
+            exit 1
+          fi
+          bazel build //:analyze_ruleset_applied 2>&1 | grep -q "prefer_single_quotes"
+          echo "OK: included ruleset's lints reached the code"
   # `dart compile kernel` rejects `--enable-asserts`, so dbg-mode flags are
   # chosen per compile mode. hello_world builds all four dart_binary modes;
   # dart_test exercises the kernel test path end-to-end.

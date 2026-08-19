@@ -1,0 +1,4 @@
+# The package is deliberately absent from this workspace. An `include:` whose
+# `package:` URI does not resolve must be reported, not silently skipped —
+# see `//:analyze_unresolved_ruleset`.
+include: package:no_such_ruleset/analysis_options.yaml
