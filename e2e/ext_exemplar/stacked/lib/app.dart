@@ -1,6 +1,5 @@
+import 'package:stacked_fixture/services.dart';
 import 'package:stacked_shared/stacked_shared.dart';
-
-import 'services.dart';
 
 // Populated @StackedApp touching every sub-builder:
 //   - routes: two MaterialRoute entries (root + nested path param)
@@ -38,12 +37,17 @@ import 'services.dart';
   ],
   logger: StackedLogger(logHelperName: 'getFixtureLogger'),
 )
+/// The @StackedApp anchor class; only the annotation matters.
 class App {}
 
+/// Stub view for the initial route.
 class HomeView {}
 
+/// Stub view for the path-parameter route.
 class DetailsView {}
 
+/// Stub dialog registration target.
 class InfoDialog {}
 
+/// Stub bottomsheet registration target.
 class ConfirmSheet {}

@@ -32,7 +32,12 @@ load(
     "analyze_operand",
     "merge_package_records",
 )
-load("//dart/private:project_staging.bzl", "pubspec_stub", "stage_dart_project")
+load(
+    "//dart/private:project_staging.bzl",
+    "pubspec_stub",
+    "stage_dart_project",
+    "staged_pubspec_paths",
+)
 load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS")
 
 def _wrapper_options(has_user_options, excluded):
@@ -96,6 +101,12 @@ def _dart_fix_impl(ctx):
             eligible.append((staged_path, f.short_path))
         else:
             excluded.append(staged_path)
+
+    # The per-package stub pubspecs staging writes are excluded like any other
+    # generated file — never fix the harness. Package-root discovery is a
+    # filesystem walk, not analysis, so an excluded pubspec still anchors its
+    # package (the lints it enables keep firing on the package's sources).
+    excluded.extend(staged_pubspec_paths(packages))
 
     staged = stage_dart_project(
         ctx,

@@ -4,7 +4,10 @@ import 'package:injectable/injectable.dart';
 // `configureInjection(environment: '...')` matches the annotation. With
 // two env-gated implementations of the same abstract class, switching
 // the configured env swaps which concrete class GetIt resolves.
+
+/// The interface both environment-gated configs implement.
 abstract class AppConfig {
+  /// A label identifying which implementation resolved.
   String get label;
 }
 
@@ -12,6 +15,8 @@ abstract class AppConfig {
 // AppConfig interface type so `GetIt.get<AppConfig>()` resolves the
 // environment-matching implementation. Without `as:`, the class would
 // only be retrievable by its concrete type.
+
+/// The `dev`-environment [AppConfig].
 @Environment('dev')
 @Injectable(as: AppConfig)
 class DevConfig implements AppConfig {
@@ -19,6 +24,7 @@ class DevConfig implements AppConfig {
   String get label => 'dev-config';
 }
 
+/// The `prod`-environment [AppConfig].
 @Environment('prod')
 @Injectable(as: AppConfig)
 class ProdConfig implements AppConfig {

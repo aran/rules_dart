@@ -5,9 +5,14 @@ import 'package:meta/meta.dart';
 // the User class. Used by the fieldRename/converter test to prove that
 // per-field JsonConverter adapters run correctly during the shim's
 // generated fromJson/toJson roundtrip.
+
+/// A value type wrapping a raw int id.
 @immutable
 class CustomId {
+  /// Wraps [raw].
   const CustomId(this.raw);
+
+  /// The wrapped raw id.
   final int raw;
 
   @override
@@ -20,7 +25,9 @@ class CustomId {
   String toString() => 'CustomId($raw)';
 }
 
+/// Converts [CustomId] to and from its raw int JSON form.
 class CustomIdConverter implements JsonConverter<CustomId, int> {
+  /// Const-constructible for use in annotations.
   const CustomIdConverter();
 
   @override

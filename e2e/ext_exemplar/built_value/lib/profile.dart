@@ -11,15 +11,27 @@ part 'profile.g.dart';
 //
 // Paired with serializers.dart / standardSerializers, this proves the
 // full JSON-over-built_value path works end-to-end.
+
+/// A built_value model exercising nullable and collection fields.
 abstract class Profile implements Built<Profile, ProfileBuilder> {
+  /// Creates a [Profile] from builder [updates].
   factory Profile([void Function(ProfileBuilder) updates]) = _$Profile;
   Profile._();
 
+  /// The generated serializer for [Profile].
   static Serializer<Profile> get serializer => _$profileSerializer;
 
   // Getter order drives the generated serializer's field order; keep it.
+
+  /// The profile's display name.
   String get name;
+
+  /// The profile's age in years.
   int get age;
+
+  /// An optional free-form bio.
   String? get bio;
+
+  /// Tags attached to the profile.
   BuiltList<String> get tags;
 }

@@ -9,12 +9,16 @@ part 'event.g.dart';
 // `/.../rules_dart++pub+dart_pub__json_annotation/...`, so the startsWith
 // check misses — freezed can't be patched per project policy. Declare the
 // JSON methods explicitly so the generator emits them regardless.
+
+/// A freezed event with explicit JSON support.
 @Freezed(fromJson: true, toJson: true)
 abstract class Event with _$Event {
+  /// Creates an event of [type] at [sequence].
   const factory Event({
     required String type,
     required int sequence,
   }) = _Event;
 
+  /// Deserializes an [Event] from [json].
   factory Event.fromJson(Map<String, Object?> json) => _$EventFromJson(json);
 }

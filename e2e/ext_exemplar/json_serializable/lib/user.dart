@@ -1,7 +1,6 @@
 import 'package:json_annotation/json_annotation.dart';
-
-import 'custom_id.dart';
-import 'role.dart';
+import 'package:json_serializable_fixture/custom_id.dart';
+import 'package:json_serializable_fixture/role.dart';
 
 part 'user.g.dart';
 
@@ -14,8 +13,11 @@ part 'user.g.dart';
 //     custom per-field adapters (DateTime ↔ ISO-8601 string)
 //   - @CustomIdConverter() registers a reusable JsonConverter<T, S>
 //   - @JsonEnum-annotated Role uses `code` instead of the enum name
+
+/// A user exercising the full json_serializable annotation surface.
 @JsonSerializable(fieldRename: FieldRename.snake)
 class User {
+  /// Creates a user.
   User({
     required this.id,
     required this.firstName,
@@ -25,18 +27,31 @@ class User {
     required this.createdAt,
   });
 
+  /// Deserializes a [User] from [json].
   factory User.fromJson(Map<String, dynamic> json) => _$UserFromJson(json);
 
+  /// The user's id, renamed to `user_id` on the wire.
   @JsonKey(name: 'user_id')
   final int id;
+
+  /// The user's first name.
   final String firstName;
+
+  /// The user's last name.
   final String lastName;
+
+  /// The user's auth id, via [CustomIdConverter].
   @CustomIdConverter()
   final CustomId authId;
+
+  /// The user's role.
   final Role role;
+
+  /// Creation time, serialized as an ISO-8601 string.
   @JsonKey(toJson: _isoToJson, fromJson: _isoFromJson)
   final DateTime createdAt;
 
+  /// Serializes this user to JSON.
   Map<String, dynamic> toJson() => _$UserToJson(this);
 }
 

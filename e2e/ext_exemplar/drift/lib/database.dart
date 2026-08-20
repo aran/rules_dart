@@ -1,6 +1,5 @@
 import 'package:drift/drift.dart';
-
-import 'posts_dao.dart';
+import 'package:drift_fixture/posts_dao.dart';
 
 part 'database.g.dart';
 
@@ -25,9 +24,20 @@ part 'database.g.dart';
 // driftBuilder) in both cross-file modes: Dart ↔ .drift and Dart ↔ Dart.
 
 /// Persisted as its `.name` via [PostKindConverter].
-enum PostKind { announcement, discussion, question }
+enum PostKind {
+  /// A broadcast announcement.
+  announcement,
 
+  /// An open discussion.
+  discussion,
+
+  /// A question awaiting answers.
+  question,
+}
+
+/// Converts [PostKind] to and from its SQL string form.
 class PostKindConverter extends TypeConverter<PostKind, String> {
+  /// Const-constructible so `.map()` can constant-evaluate it.
   const PostKindConverter();
 
   @override
@@ -37,18 +47,31 @@ class PostKindConverter extends TypeConverter<PostKind, String> {
   String toSql(PostKind value) => value.name;
 }
 
+/// The users table (schema-in-Dart).
 class Users extends Table {
+  /// Auto-incrementing primary key.
   IntColumn get id => integer().autoIncrement()();
+
+  /// The user's name.
   TextColumn get name => text()();
 }
 
+/// The posts table, with a FK to [Users] and a converter column.
 class Posts extends Table {
+  /// Auto-incrementing primary key.
   IntColumn get id => integer().autoIncrement()();
+
+  /// The authoring user's id.
   IntColumn get userId => integer().references(Users, #id)();
+
+  /// The post's title.
   TextColumn get title => text()();
+
+  /// The post's kind, stored via [PostKindConverter].
   TextColumn get kind => text().nullable().map(const PostKindConverter())();
 }
 
+/// The exemplar database over Dart- and SQL-defined tables.
 @DriftDatabase(
   tables: [Users, Posts],
   daos: [PostsDao],
@@ -57,6 +80,8 @@ class Posts extends Table {
 class AppDatabase extends _$AppDatabase {
   // The parameter name mirrors the generated `_$AppDatabase(QueryExecutor e)`
   // it forwards to; a super-parameter has to match the name upstream.
+
+  /// Opens the database on executor [e].
   AppDatabase(super.e);
 
   @override

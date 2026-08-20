@@ -84,3 +84,21 @@ dart_analyze_test(
     options = ":vga",
     target = ":double_quoted_lib",
 )
+
+# The layout-gated half of ruleset delivery. `public_member_api_docs` fires
+# only when the analyzer attributes the file to a package whose `lib/`
+# contains it — an attribution that walks up to the nearest pubspec.yaml. The
+# per-package stub pubspec `stage_dart_project` writes is what makes that walk
+# land on the package root instead of the project root; if it ever goes
+# missing, this lint (and every other `isInLibDir`-gated rule) silently
+# declines and this expected-red build turns green for CI to catch.
+dart_library(
+    name = "undocumented_lib",
+    srcs = ["lib/undocumented.dart"],
+)
+
+dart_analyze_test(
+    name = "analyze_lib_lint_applied",
+    options = ":vga",
+    target = ":undocumented_lib",
+)

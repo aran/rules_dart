@@ -105,6 +105,19 @@ jobs:
           fi
           bazel build //:analyze_ruleset_applied 2>&1 | grep -q "prefer_single_quotes"
           echo "OK: included ruleset's lints reached the code"
+      # The layout-gated half: `public_member_api_docs` only fires when the
+      # nearest-pubspec walk roots the file's package at its true lib_root,
+      # which the per-package stub pubspecs staged by `stage_dart_project`
+      # provide. If they go missing this build silently turns green.
+      - name: analysis_failure — expect package-root-gated lints to be applied
+        working-directory: e2e/analysis_failure
+        run: |
+          if bazel build //:analyze_lib_lint_applied 2>/dev/null; then
+            echo "ERROR: build should have failed with public_member_api_docs"
+            exit 1
+          fi
+          bazel build //:analyze_lib_lint_applied 2>&1 | grep -q "public_member_api_docs"
+          echo "OK: package-root-gated lint reached the code"
   # `dart compile kernel` rejects `--enable-asserts`, so dbg-mode flags are
   # chosen per compile mode. hello_world builds all four dart_binary modes;
   # dart_test exercises the kernel test path end-to-end.

@@ -1,6 +1,9 @@
 // Pure-Dart stubs mirroring the classes go_router_builder reads via
 // TypeChecker.fromUrl(...). Only the names and declared type parameters
 // matter to the generator — it never invokes methods on these classes.
+// Docs on a fake API surface would be fabrications; the real package
+// documents these members.
+// ignore_for_file: public_member_api_docs
 
 /// Annotation marking a type-safe route. Applied to subclasses of
 /// [GoRouteData].

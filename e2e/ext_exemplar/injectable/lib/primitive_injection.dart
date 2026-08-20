@@ -1,7 +1,6 @@
 import 'package:get_it/get_it.dart';
 import 'package:injectable/injectable.dart';
-
-import 'primitive_injection.config.dart';
+import 'package:injectable_fixture/primitive_injection.config.dart';
 
 // Primitive-form @InjectableInit. Drives a separate GetIt registration
 // entry point from the macro form so both pipelines can coexist in this
@@ -10,6 +9,8 @@ import 'primitive_injection.config.dart';
 // dart_codegen + dart_aggregate_codegen pair still wire up a working
 // GetIt; the comprehensive annotation coverage is in the macro-form
 // test.
+
+/// Registers the primitive-form pipeline's types with GetIt.
 @InjectableInit(initializerName: r'$initPrimitiveGetIt')
 void configurePrimitiveInjection() =>
     GetIt.instance.$initPrimitiveGetIt();
