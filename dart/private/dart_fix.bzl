@@ -32,6 +32,7 @@ load(
     "analyzable_closure",
     "analyze_operand",
     "merge_package_records",
+    "writable_home_env",
 )
 load(
     "//dart/private:project_staging.bzl",
@@ -155,11 +156,7 @@ def _dart_fix_impl(ctx):
     args.add("--manifest", manifest)
     args.add("--eligible", eligible_list)
 
-    # Mirrors dart_analyze.bzl: Windows `dart.exe` takes `/tmp` literally.
-    if dart_sdk_info.dart.basename.endswith(".exe"):
-        env = {"USERPROFILE": manifest.dirname, "LOCALAPPDATA": manifest.dirname}
-    else:
-        env = {"HOME": "/tmp"}
+    env = writable_home_env(dart_sdk_info.dart, manifest)
 
     ctx.actions.run(
         executable = ctx.executable._fix_runner,

@@ -9,7 +9,7 @@ The rules stage that layout hermetically from declared artifacts (see
 
 load("//dart:providers.bzl", "DartInfo")
 load("//dart/private:build_settings.bzl", "EXTRA_DART_DEFINES_ATTR", "merge_dart_defines")
-load("//dart/private:common.bzl", "collect_packages", "collect_transitive_resources", "collect_transitive_srcs")
+load("//dart/private:common.bzl", "collect_packages", "collect_transitive_resources", "collect_transitive_srcs", "writable_home_env")
 load("//dart/private:dart_info.bzl", "dart_analyzable_info")
 load("//dart/private:project_staging.bzl", "stage_dart_project")
 load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS")
@@ -82,15 +82,7 @@ def _dart_web_compile(ctx, compile_mode):
     # walk-up finds the sibling .dart_tool/package_config.json.
     args.add(staged.src_tree.path + "/" + ctx.file.main.short_path)
 
-    # Mirror dart_compile.bzl's writable-home handling (Windows dart.exe
-    # receives /tmp literally and crashes).
-    if dart_sdk_info.dart.basename.endswith(".exe"):
-        env = {
-            "USERPROFILE": output.dirname,
-            "LOCALAPPDATA": output.dirname,
-        }
-    else:
-        env = {"HOME": "/tmp"}
+    env = writable_home_env(dart_sdk_info.dart, output)
 
     ctx.actions.run(
         executable = dart_sdk_info.dart,

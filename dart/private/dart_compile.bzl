@@ -1,5 +1,7 @@
 """Shared compilation action helpers for Dart."""
 
+load("//dart/private:common.bzl", "writable_home_env")
+
 def defines_stage_error(defines, package_config):
     """Returns an error string if `defines` would reach the compiler too late.
 
@@ -121,15 +123,7 @@ def dart_compile_action(
     args.add("-o", output)
     args.add(main_path if main_path != None else main)
 
-    # On Windows, native dart.exe receives /tmp literally (not MSYS2-translated),
-    # which crashes the analysis server. Use output.dirname as a valid writable path.
-    if dart_bin.basename.endswith(".exe"):
-        env = {
-            "USERPROFILE": output.dirname,
-            "LOCALAPPDATA": output.dirname,
-        }
-    else:
-        env = {"HOME": "/tmp"}
+    env = writable_home_env(dart_bin, output)
 
     direct = [main] + srcs
     if package_config != None:

@@ -1091,12 +1091,7 @@ def gen_kernel_native_assets_action(
     if transitive_srcs != None:
         transitive.append(transitive_srcs)
 
-    # Mirror dart_compile.bzl's HOME handling so the frontend has a writable
-    # home (Windows native dart receives /tmp literally and crashes).
-    if dart_sdk_info.dart.basename.endswith(".exe"):
-        env = {"USERPROFILE": output_dill.dirname, "LOCALAPPDATA": output_dill.dirname}
-    else:
-        env = {"HOME": "/tmp"}
+    env = writable_home_env(dart_sdk_info.dart, output_dill)
 
     ctx.actions.run(
         executable = tools.dartaotruntime,

@@ -67,6 +67,7 @@ bzl_library(
     name = "dart_compile",
     srcs = ["dart_compile.bzl"],
     visibility = ["//dart:__subpackages__"],
+    deps = [":common"],
 )
 
 bzl_library(
