@@ -541,6 +541,17 @@ Future<void> _runWithStaging(
     p.join(stagingPath, 'pubspec.yaml'),
   ).writeAsString('name: ${args.packageName}\nenvironment:\n  sdk: ^3.0.0\n');
 
+  // Bound the analyzer's options discovery at the staging root. It finds
+  // `analysis_options.yaml` by walking up from the files it analyses, and this
+  // directory lives under the system temp dir — so without a file of its own,
+  // whichever stray options file happens to sit in a temp ancestor would
+  // silently configure codegen, differently on different machines. An empty
+  // options file is equivalent to no file at all when nothing above interferes,
+  // so this changes nothing except the ancestor read.
+  await File(
+    p.join(stagingPath, 'analysis_options.yaml'),
+  ).writeAsString('# rules_dart: bounds analysis_options.yaml discovery\n');
+
   // Include ONLY the staging dir. Cross-package imports (`package:drift/...`,
   // `package:json_annotation/...`, …) are resolved through the
   // package_config.json we wrote above — the analyzer loads pub-cache

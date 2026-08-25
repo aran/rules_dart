@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:analyzer/dart/analysis/analysis_context_collection.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:bazel_worker/bazel_worker.dart';
 import 'package:build/build.dart';
@@ -702,6 +703,61 @@ void main() {
       expect(captured, isNotEmpty);
       expect(captured.join('\n'), contains('--input'));
       exitCode = 0;
+    });
+
+    test('staging root bounds analysis-options discovery', () async {
+      // The staging dir is created under a temp root, so its ancestors are
+      // whatever the machine happens to have there. Without an options file of
+      // its own the analyzer's walk-up reaches them, and codegen would be
+      // configured by a stray file — differently on different machines. The
+      // stub written at the staging root is what ends that walk.
+      //
+      // `exclude: '**'` is planted above deliberately: it is the ancestor
+      // setting most likely to change generation if it were ever consulted.
+      final stage = await Directory(p.join(tmp.path, 'stage')).create();
+      File(
+        p.join(tmp.path, 'analysis_options.yaml'),
+      ).writeAsStringSync('analyzer:\n  exclude:\n    - "**"\n');
+
+      final input = File(p.join(tmp.path, 'a.dart'))
+        ..writeAsStringSync('class Foo {}');
+      final out = p.join(tmp.path, 'a.g.dart');
+
+      var stagedOptions = false;
+      await runShim(
+        [
+          '--input', input.path,
+          '--input-asset', 'lib/a.dart',
+          '--output', out,
+          '--package', 'p',
+          '--root-language-version', '3.11',
+        ],
+        (_) => _FixedOutputBuilder('// generated'),
+        stagingRoot: stage,
+        buildAnalysisContext: ({
+          required List<String> includedPaths,
+          required String? sdkPath,
+        }) async {
+          // Checked here rather than after the run: the staging dir is deleted
+          // as soon as `runShim` returns.
+          stagedOptions = File(
+            p.join(includedPaths.single, 'analysis_options.yaml'),
+          ).existsSync();
+          return AnalysisContextCollection(
+            includedPaths: includedPaths,
+            sdkPath: sdkPath,
+          );
+        },
+      );
+
+      expect(
+        stagedOptions,
+        isTrue,
+        reason: 'no analysis_options.yaml at the staging root, so the '
+            'analyzer walks up into the system temp dir',
+      );
+      expect(File(out).existsSync(), isTrue);
+      expect(File(out).readAsStringSync(), contains('// generated'));
     });
 
     test('builder throw routes message + stack trace to sink', () async {
