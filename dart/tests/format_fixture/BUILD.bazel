@@ -1,8 +1,16 @@
-load("//dart:defs.bzl", "dart_analysis_options", "dart_format_test")
+load(
+    "//dart:defs.bzl",
+    "dart_analysis_options",
+    "dart_format_test",
+    "dart_library",
+    "dart_source_set",
+)
 load(
     "//dart/tests:format_test.bzl",
+    "format_bad_operand_test",
     "format_external_src_test",
     "format_hermetic_test",
+    "format_language_version_test",
     "format_options_closure_test",
     "format_stages_root_options_test",
 )
@@ -62,4 +70,138 @@ format_external_src_test(
     name = "format_external_src_test",
     size = "small",
     target_under_test = ":external_srcs",
+)
+
+# The language version selects the formatting style — short below 3.7, tall
+# from 3.7 on — so it has to reach the formatter from whichever attribute
+# named the code. These three fixtures are the three answers: a library's own
+# declaration, this rule's own attribute, and nothing at all.
+dart_library(
+    name = "versioned_lib",
+    srcs = ["lib/formatted.dart"],
+    language_version = "3.6",
+)
+
+dart_format_test(
+    name = "target_format",
+    size = "small",
+    target = ":versioned_lib",
+)
+
+dart_format_test(
+    name = "srcs_version_format",
+    size = "small",
+    srcs = ["lib/formatted.dart"],
+    language_version = "3.9",
+)
+
+format_language_version_test(
+    name = "format_target_version_test",
+    size = "small",
+    expected_version = "3.6",
+    target_under_test = ":target_format",
+)
+
+format_language_version_test(
+    name = "format_srcs_version_test",
+    size = "small",
+    expected_version = "3.9",
+    target_under_test = ":srcs_version_format",
+)
+
+# Nothing declares one, so the rule says `latest` rather than leaving the
+# formatter to infer it from a staged config that names no entry for these
+# files.
+format_language_version_test(
+    name = "format_default_version_test",
+    size = "small",
+    expected_version = "latest",
+    target_under_test = ":plain_format",
+)
+
+# The three operand mistakes. `manual` on each: they are expected to fail at
+# analysis time, so a `//dart/tests/...` wildcard that configured them would
+# fail the build before any test ran.
+dart_format_test(
+    name = "target_and_version",
+    language_version = "3.6",
+    tags = ["manual"],
+    target = ":versioned_lib",
+)
+
+dart_format_test(
+    name = "srcs_and_target",
+    srcs = ["lib/formatted.dart"],
+    tags = ["manual"],
+    target = ":versioned_lib",
+)
+
+dart_format_test(
+    name = "no_operand",
+    tags = ["manual"],
+)
+
+format_bad_operand_test(
+    name = "format_target_and_version_test",
+    size = "small",
+    expected_error = "`language_version` cannot be set alongside `target`",
+    target_under_test = ":target_and_version",
+)
+
+format_bad_operand_test(
+    name = "format_srcs_and_target_test",
+    size = "small",
+    expected_error = "set either `srcs` or `target`, not both",
+    target_under_test = ":srcs_and_target",
+)
+
+format_bad_operand_test(
+    name = "format_no_operand_test",
+    size = "small",
+    expected_error = "set `target`",
+    target_under_test = ":no_operand",
+)
+
+# The two `target` shapes that carry no list of files to format. Both would
+# otherwise format nothing and report green, which is the failure this rule
+# exists to prevent, so both are refused by name.
+dart_source_set(
+    name = "fixture_srcs",
+    srcs = ["lib/formatted.dart"],
+)
+
+dart_library(
+    name = "srcs_dir_lib",
+    srcs_dir = ":fixture_srcs",
+)
+
+dart_format_test(
+    name = "srcs_dir_target",
+    tags = ["manual"],
+    target = ":srcs_dir_lib",
+)
+
+dart_library(
+    name = "facade_lib",
+    deps = [":versioned_lib"],
+)
+
+dart_format_test(
+    name = "facade_target",
+    tags = ["manual"],
+    target = ":facade_lib",
+)
+
+format_bad_operand_test(
+    name = "format_srcs_dir_target_test",
+    size = "small",
+    expected_error = "backed by `srcs_dir`",
+    target_under_test = ":srcs_dir_target",
+)
+
+format_bad_operand_test(
+    name = "format_facade_target_test",
+    size = "small",
+    expected_error = "declares no Dart sources of its own",
+    target_under_test = ":facade_target",
 )

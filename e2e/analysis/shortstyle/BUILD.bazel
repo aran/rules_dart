@@ -1,0 +1,22 @@
+load("@rules_dart//dart:defs.bzl", "dart_format_test", "dart_library")
+
+# The language version selects the formatting style, and nothing in a staged
+# project tells the formatter what it is: the rule stages no package_config
+# entry for the files it formats, so an inferred version is always the SDK's
+# newest. This package declares 3.6, whose short style is not what any later
+# version produces, so `short.dart` is formatted correctly here and a violation
+# at the default. A green `format_short_style` means the version reached the
+# formatter from the library; before `dart_format_test` grew `target`, this
+# same file failed with no edit available that could fix it — `dart format` on
+# the developer's machine writes exactly what is checked in.
+dart_library(
+    name = "shortstyle",
+    srcs = ["lib/short.dart"],
+    language_version = "3.6",
+)
+
+dart_format_test(
+    name = "format_short_style",
+    size = "small",
+    target = ":shortstyle",
+)

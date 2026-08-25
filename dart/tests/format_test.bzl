@@ -147,3 +147,53 @@ format_external_src_test = analysistest.make(
     _format_external_src_test_impl,
     expect_failure = True,
 )
+
+def _format_language_version_test_impl(ctx):
+    env = analysistest.begin(ctx)
+    action = _format_action(env)
+    asserts.true(env, action != None, "expected a DartFormat action")
+    if action == None:
+        return analysistest.end(env)
+
+    # The version has to reach the formatter on the command line. It cannot be
+    # inferred: the staged project holds no `package_config.json` entry for the
+    # files this rule formats, so an inferred version is always the SDK's
+    # newest — which is a different formatting *style* from the one the code
+    # was written in whenever the package declares anything below 3.7.
+    argv = action.argv
+    asserts.true(
+        env,
+        "--language-version" in argv,
+        "the language version is not passed to the formatter: %s" % argv,
+    )
+    if "--language-version" not in argv:
+        return analysistest.end(env)
+    asserts.equals(
+        env,
+        ctx.attr.expected_version,
+        argv[argv.index("--language-version") + 1],
+        "wrong language version passed to the formatter",
+    )
+    return analysistest.end(env)
+
+format_language_version_test = analysistest.make(
+    _format_language_version_test_impl,
+    attrs = {"expected_version": attr.string(mandatory = True)},
+)
+
+def _format_bad_operand_test_impl(ctx):
+    env = analysistest.begin(ctx)
+    asserts.expect_failure(env, ctx.attr.expected_error)
+    return analysistest.end(env)
+
+# `srcs` and `target` are two ways to name the same thing, and `target` already
+# carries the language version that `language_version` would set — so each of
+# these combinations has no meaning to pick, only meanings to guess between.
+# The rule refuses rather than choosing; these pin the refusals, and the
+# messages, because a build error a user cannot act on is barely better than
+# the silent default this attribute exists to remove.
+format_bad_operand_test = analysistest.make(
+    _format_bad_operand_test_impl,
+    attrs = {"expected_error": attr.string(mandatory = True)},
+    expect_failure = True,
+)

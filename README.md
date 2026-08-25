@@ -258,7 +258,7 @@ dart_analyze_test(
 
 dart_format_test(
     name = "format_test",
-    srcs = glob(["lib/**/*.dart"]),
+    target = ":greeter",
     options = "analysis_options.yaml",
 )
 ```
@@ -267,7 +267,10 @@ dart_format_test(
 `dart_js_binary`, `dart_wasm_binary`. Pointing it at an executable is how you
 lint an entrypoint: a `main.dart` sits outside any package's `lib/`, so no
 `dart_library` will accept it, and it would otherwise be the one file in a
-project nothing checks.
+project nothing checks. `dart_format_test`'s `target` is the exception — it
+takes a `dart_library` only, and formats the sources that library declares.
+An executable's `DefaultInfo` is the program it compiles rather than the code
+it was built from, so name an entrypoint in `srcs` instead.
 
 Both rules take `options`, and both compute their verdict while building rather
 than while testing — a violation fails `bazel build` of the target. Formatting
@@ -284,6 +287,17 @@ Use the `dart_analysis_options` target form when the file `include`s a shared
 ruleset by `package:` URI, so the packages it resolves against are staged with
 it. Sources from external repositories are rejected: a formatting violation in a
 module you do not own is a red build no edit in your repo can fix.
+
+Prefer `target` over `srcs` on `dart_format_test`, because the language version
+comes with the library — and the language version is what selects the
+formatting _style_: below `3.7`, `dart format` writes the old short style, and
+from `3.7` on the tall one. Nothing in a staged project can tell the formatter
+which applies, so a check that does not carry the version runs at the newest
+one the SDK knows, and a package declaring an older version gets told to adopt
+a style its own `dart format` will never produce — a red build with no edit
+that fixes it. For loose `srcs` that belong to no library, set
+`language_version` on the check itself. Setting it alongside `target` is an
+error: the library has already answered, and two answers can only disagree.
 
 `dart_fix` applies the analyzer's automated fixes — the same quick-fixes an IDE
 offers, driven by the lints your `analysis_options.yaml` enables. Give it the same
@@ -341,26 +355,26 @@ dart_wasm_binary(
 
 The [`e2e/`](e2e/) directory contains complete working examples:
 
-| Example                                               | What it demonstrates                                                                 |
-| ----------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| [`hello_world`](e2e/hello_world/)                     | Minimal binary + all compile modes (`exe`, `aot-snapshot`, `kernel`, `jit-snapshot`) |
-| [`library_deps`](e2e/library_deps/)                   | Transitive `dart_library` dependencies, `srcs` attribute                             |
-| [`dart_test`](e2e/dart_test/)                         | Tests with and without deps, `srcs` for test helpers                                 |
+| Example                                               | What it demonstrates                                                                   |
+| ----------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| [`hello_world`](e2e/hello_world/)                     | Minimal binary + all compile modes (`exe`, `aot-snapshot`, `kernel`, `jit-snapshot`)   |
+| [`library_deps`](e2e/library_deps/)                   | Transitive `dart_library` dependencies, `srcs` attribute                               |
+| [`dart_test`](e2e/dart_test/)                         | Tests with and without deps, `srcs` for test helpers                                   |
 | [`analysis`](e2e/analysis/)                           | `dart_analyze_test` and `dart_format_test` with custom and `package:`-included options |
-| [`fix`](e2e/fix/)                                     | `dart_fix` write-back, and that generated files are never rewritten                  |
-| [`web_app`](e2e/web_app/)                             | JavaScript and WebAssembly compilation with library deps                             |
-| [`pub_deps`](e2e/pub_deps/)                           | Single pub.dev package via `pub.package()`                                           |
-| [`pub_lock`](e2e/pub_lock/)                           | Multiple packages from `pubspec.lock` via `pub.from_lock()`                          |
-| [`gazelle`](e2e/gazelle/)                             | Automatic BUILD file generation with Gazelle                                         |
-| [`cross_compile`](e2e/cross_compile/)                 | Cross-compilation to other platforms via `platform_data` transition                  |
-| [`dart_test_pkg`](e2e/dart_test_pkg/)                 | `dart_test` with pub dependencies via `pub.from_lock()`                              |
-| [`pub_lock_dedup`](e2e/pub_lock_dedup/)               | Cross-lock-file package deduplication                                                |
-| [`pub_lock_upgrade`](e2e/pub_lock_upgrade/)           | Version conflict resolution with `on_version_conflict = "upgrade"`                   |
-| [`pub_lock_conflict`](e2e/pub_lock_conflict/)         | Version conflict detection across lock files                                         |
-| [`pub_lock_cross_module`](e2e/pub_lock_cross_module/) | `pub.from_lock()` across Bazel module boundaries                                     |
-| [`codegen`](e2e/codegen/)                             | `dart_codegen`/`dart_aggregate_codegen` over parts, re-exports and source sets       |
-| [`ext_exemplar`](e2e/ext_exemplar/)                   | One package per bundled `dart/ext` builder, plus native `code_assets` via sqlite3    |
-| [`dual_build`](e2e/dual_build/)                       | Collision detection between Bazel-generated and `build_runner`-generated sources     |
+| [`fix`](e2e/fix/)                                     | `dart_fix` write-back, and that generated files are never rewritten                    |
+| [`web_app`](e2e/web_app/)                             | JavaScript and WebAssembly compilation with library deps                               |
+| [`pub_deps`](e2e/pub_deps/)                           | Single pub.dev package via `pub.package()`                                             |
+| [`pub_lock`](e2e/pub_lock/)                           | Multiple packages from `pubspec.lock` via `pub.from_lock()`                            |
+| [`gazelle`](e2e/gazelle/)                             | Automatic BUILD file generation with Gazelle                                           |
+| [`cross_compile`](e2e/cross_compile/)                 | Cross-compilation to other platforms via `platform_data` transition                    |
+| [`dart_test_pkg`](e2e/dart_test_pkg/)                 | `dart_test` with pub dependencies via `pub.from_lock()`                                |
+| [`pub_lock_dedup`](e2e/pub_lock_dedup/)               | Cross-lock-file package deduplication                                                  |
+| [`pub_lock_upgrade`](e2e/pub_lock_upgrade/)           | Version conflict resolution with `on_version_conflict = "upgrade"`                     |
+| [`pub_lock_conflict`](e2e/pub_lock_conflict/)         | Version conflict detection across lock files                                           |
+| [`pub_lock_cross_module`](e2e/pub_lock_cross_module/) | `pub.from_lock()` across Bazel module boundaries                                       |
+| [`codegen`](e2e/codegen/)                             | `dart_codegen`/`dart_aggregate_codegen` over parts, re-exports and source sets         |
+| [`ext_exemplar`](e2e/ext_exemplar/)                   | One package per bundled `dart/ext` builder, plus native `code_assets` via sqlite3      |
+| [`dual_build`](e2e/dual_build/)                       | Collision detection between Bazel-generated and `build_runner`-generated sources       |
 
 > **Note**: Only the `exe` and `aot-snapshot` compile modes cross-compile via
 > `--platforms`. `kernel` and `jit-snapshot` are VM formats that ignore target

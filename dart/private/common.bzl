@@ -147,6 +147,31 @@ def collect_transitive_code_assets(deps):
         assets.extend(list(package_code_assets(pkg)))
     return assets
 
+def own_package_record(info):
+    """Returns the `DartPackageInfo` for the package a `DartInfo` itself owns.
+
+    A `DartInfo` names its own package by `package_name`/`lib_root` but does
+    not carry that package's record: the record sits in `transitive_packages`
+    beside every dependency's. Both fields are the key, not the name alone —
+    one `package_name` legitimately maps to several `lib_root`s (a package
+    split across targets; two pub hubs each supplying `meta`), so matching on
+    the name would sometimes return a dependency's record instead of this
+    target's, and with it a dependency's language version.
+
+    Args:
+      info: A `DartInfo`.
+
+    Returns:
+      The matching `DartPackageInfo`, or `None` when the target contributes no
+      package of its own (`dart_info_no_package`) or no record matches.
+    """
+    if not info.package_name:
+        return None
+    for pkg in info.transitive_packages.to_list():
+        if pkg.package_name == info.package_name and pkg.lib_root == info.lib_root:
+            return pkg
+    return None
+
 def collect_packages(deps):
     """Collect unique DartPackageInfo providers from transitive deps.
 

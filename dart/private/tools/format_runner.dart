@@ -14,7 +14,9 @@ import 'dart:io';
 
 /// Characters of joined argv per `dart format` invocation. Windows caps a
 /// command line near 32k; a staged path is long and a `srcs` glob can be
-/// large, so the file list is split to stay well clear of it.
+/// large, so the file list is split to stay well clear of it. The budget
+/// covers the file list alone — the fixed flags in front of it are a few dozen
+/// characters, and the margin to 32k absorbs them many times over.
 const _argvBudget = 8000;
 
 void main(List<String> args) {
@@ -22,6 +24,7 @@ void main(List<String> args) {
   String? project;
   String? manifest;
   String? stamp;
+  String? languageVersion;
   for (var i = 0; i < args.length; i++) {
     switch (args[i]) {
       case '--dart':
@@ -32,14 +35,21 @@ void main(List<String> args) {
         manifest = args[++i];
       case '--stamp':
         stamp = args[++i];
+      case '--language-version':
+        languageVersion = args[++i];
       default:
         stderr.writeln('format_runner: unknown argument ${args[i]}');
         exit(64);
     }
   }
-  if (dart == null || project == null || manifest == null || stamp == null) {
+  if (dart == null ||
+      project == null ||
+      manifest == null ||
+      stamp == null ||
+      languageVersion == null) {
     stderr.writeln(
-      'format_runner: --dart, --project, --manifest, and --stamp are required',
+      'format_runner: --dart, --project, --manifest, --stamp, and '
+      '--language-version are required',
     );
     exit(64);
   }
@@ -54,7 +64,18 @@ void main(List<String> args) {
   for (final chunk in _chunks(files)) {
     final result = Process.runSync(
       dart,
-      ['format', '--output=none', '--set-exit-if-changed', ...chunk],
+      [
+        'format',
+        '--output=none',
+        '--set-exit-if-changed',
+        // Passed in every case, `latest` included. The formatter would
+        // otherwise take the version from whatever package_config.json entry
+        // happens to cover the staged file — and the rule stages no entry for
+        // the files it formats, so that would always mean the SDK's newest,
+        // whatever the code declares. See dart_format_test.bzl.
+        '--language-version=$languageVersion',
+        ...chunk,
+      ],
       stdoutEncoding: systemEncoding,
       stderrEncoding: systemEncoding,
     );

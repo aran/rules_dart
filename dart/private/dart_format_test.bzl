@@ -29,17 +29,109 @@ pubspec is a measured non-input here. The per-package stub pubspecs
 handed — here the options target's `deps`, never the formatted sources — and
 the formatter's options walk-up does not stop at a pubspec (measured on Dart
 3.12.2), so one above a formatted file changes no verdict.
+
+The language version is passed on the command line, never inferred. It selects
+the formatting *style* — below 3.7 `dart format` emits the old short style,
+from 3.7 on the tall one — and the formatter takes it from a
+`package_config.json` entry covering the file, falling back to the newest
+version the SDK knows when no entry claims it. The staged config never has an
+entry for the files this rule formats: they arrive as loose `srcs`, or as the
+sources of one `dart_library`, and neither is a package the project has to
+resolve. Left inferred, then, every check would run at the SDK's newest version
+whatever the code declares, and a package below 3.7 would be told to adopt a
+style its own `dart format` will never produce — a red build no edit can fix.
+`--language-version` settles it from the target instead: `dart_library`'s
+`language_version` when `target` names one, this rule's own when it is handed
+loose `srcs`, and `latest` when neither says. Passing it even in that last case
+is deliberate; it keeps the verdict off the staged config, which an options
+target's own package deps do write into.
 """
 
+load("//dart:providers.bzl", "DartInfo")
 load(
     "//dart/private:common.bzl",
     "WINDOWS_CONSTRAINT_ATTR",
     "analysis_options_closure",
     "noop_test_executable",
+    "own_package_record",
     "writable_home_env",
 )
 load("//dart/private:project_staging.bzl", "stage_dart_project", "stage_root_options")
 load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS")
+
+def _format_operand(ctx):
+    """Resolves `srcs`/`target` to the files to format and their language version.
+
+    The two forms differ in where the language version can come from, and that
+    is the whole reason they are told apart here. A `dart_library` already
+    declares one, so taking a second answer from this rule could only introduce
+    a way for the two to disagree — hence the `fail` rather than a precedence
+    rule. Loose `srcs` belong to no target that could declare it, so for them
+    the attribute is the only channel there is.
+
+    Args:
+      ctx: The rule context.
+
+    Returns:
+      `struct(srcs, language_version)` — the files to format, and the version
+      to format them at (empty when nothing declares one).
+    """
+    if ctx.attr.target and ctx.files.srcs:
+        fail(
+            ("%s: set either `srcs` or `target`, not both. `target` formats " +
+             "the sources of one `dart_library`; `srcs` formats a list of " +
+             "files.") % ctx.label,
+        )
+    if not ctx.attr.target and not ctx.files.srcs:
+        fail(
+            ("%s: set `target` (a `dart_library` whose sources to format) or " +
+             "`srcs` (the files to format).") % ctx.label,
+        )
+
+    if not ctx.attr.target:
+        return struct(
+            srcs = ctx.files.srcs,
+            language_version = ctx.attr.language_version,
+        )
+
+    if ctx.attr.language_version:
+        fail(
+            ("%s: `language_version` cannot be set alongside `target`. The " +
+             "version is the library's to declare — set " +
+             "`language_version` on %s instead.") % (
+                ctx.label,
+                ctx.attr.target.label,
+            ),
+        )
+
+    # A library's own files, not its closure: `DefaultInfo` carries exactly the
+    # sources and resources it declared, where `DartInfo.transitive_srcs` would
+    # sweep in every dependency's. Formatting is a claim about code you own.
+    own_files = ctx.attr.target[DefaultInfo].files.to_list()
+    for f in own_files:
+        if f.is_directory:
+            fail(
+                ("%s: `target` %s is backed by `srcs_dir`, whose contents are " +
+                 "one opaque directory. `dart_format_test` names each file it " +
+                 "formats, and the members of a tree artifact are not known " +
+                 "when that list is built.") % (ctx.label, ctx.attr.target.label),
+            )
+    srcs = [f for f in own_files if f.extension == "dart"]
+    if not srcs:
+        fail(
+            ("%s: `target` %s declares no Dart sources of its own — a " +
+             "deps-only facade has nothing to format, and a check over no " +
+             "files would pass without looking at anything.") % (
+                ctx.label,
+                ctx.attr.target.label,
+            ),
+        )
+
+    pkg = own_package_record(ctx.attr.target[DartInfo])
+    return struct(
+        srcs = srcs,
+        language_version = pkg.language_version if pkg else "",
+    )
 
 def _dart_format_test_impl(ctx):
     toolchain = ctx.toolchains["//dart:toolchain_type"]
@@ -51,6 +143,7 @@ def _dart_format_test_impl(ctx):
     # for nothing else — they are never themselves formatted, because the
     # manifest below names only this target's own sources.
     opts = analysis_options_closure(ctx.attr.options)
+    operand = _format_operand(ctx)
 
     # External sources are refused rather than staged. `stage_dart_project`
     # keeps an external file only when it belongs to a known external package,
@@ -58,8 +151,10 @@ def _dart_format_test_impl(ctx):
     # dropped from the staged tree, leaving the manifest naming a path that
     # does not exist. Failing here instead is also the honest answer to what
     # the check could mean: a formatting violation in a module you do not own
-    # is a red build with no edit in this repo that can turn it green.
-    for src in ctx.files.srcs:
+    # is a red build with no edit in this repo that can turn it green. Checked
+    # on the resolved list, so a `target` in another module is refused on the
+    # same terms as a loose external file.
+    for src in operand.srcs:
         if src.short_path.startswith("../"):
             fail(
                 ("dart_format_test cannot format sources from external " +
@@ -70,7 +165,7 @@ def _dart_format_test_impl(ctx):
     staged = stage_dart_project(
         ctx,
         opts.packages,
-        ctx.files.srcs + opts.files,
+        operand.srcs + opts.files,
     )
 
     # The one file that stops the formatter's walk-up inside the staged tree.
@@ -85,7 +180,7 @@ def _dart_format_test_impl(ctx):
         output = manifest,
         content = "".join([
             "src/%s\n" % src.short_path
-            for src in ctx.files.srcs
+            for src in operand.srcs
         ]),
     )
 
@@ -96,6 +191,10 @@ def _dart_format_test_impl(ctx):
     args.add("--project", staged.proj_path)
     args.add("--manifest", manifest)
     args.add("--stamp", stamp)
+
+    # Always explicit — `latest` is what the formatter would have inferred with
+    # nothing to go on, said out loud so no staged config can answer instead.
+    args.add("--language-version", operand.language_version or "latest")
 
     ctx.actions.run(
         executable = ctx.executable._format_runner,
@@ -123,14 +222,34 @@ def _dart_format_test_impl(ctx):
 dart_format_test = rule(
     implementation = _dart_format_test_impl,
     attrs = dict({
+        "language_version": attr.string(
+            doc = (
+                "The Dart language version to format `srcs` at, as " +
+                "`<major>.<minor>`. It selects the style — below `3.7` the " +
+                "old short style, from `3.7` on the tall one — so a check " +
+                "over a package that declares an older version needs it to " +
+                "agree with what `dart format` does on the same files " +
+                "outside Bazel. Defaults to the newest version the SDK " +
+                "knows. Rejected alongside `target`, which declares its own."
+            ),
+        ),
         "srcs": attr.label_list(
             doc = (
                 "Dart source files (`.dart`) to check. Typically " +
                 "`glob([\"lib/**/*.dart\"])`. Files from external " +
-                "repositories are rejected."
+                "repositories are rejected. Set this or `target`, not both."
             ),
             allow_files = [".dart"],
-            mandatory = True,
+        ),
+        "target": attr.label(
+            doc = (
+                "A `dart_library` whose own sources to check — the files it " +
+                "declares, never its dependencies'. Preferred over `srcs` " +
+                "when the files are already a library: the language version " +
+                "comes with it, so the check and the library cannot drift " +
+                "apart. Set this or `srcs`, not both."
+            ),
+            providers = [DartInfo],
         ),
         "options": attr.label(
             doc = (
