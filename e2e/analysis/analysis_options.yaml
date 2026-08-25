@@ -5,7 +5,6 @@ analyzer:
     strict-casts: true
     strict-inference: true
     strict-raw-types: true
-
 # A canary, not a preference. `dart format` discovers its configuration by an
 # unbounded walk up from each file it is given, so a page width this extreme is
 # what proves the staged project bounds that walk: every dart_format_test here
