@@ -17,10 +17,11 @@ directory: their `package:` imports resolve, but they are not themselves
 analyzed (pub packages aren't held to this target's `--fatal-infos` bar).
 """
 
-load("//dart:providers.bzl", "DartAnalysisOptionsInfo", "DartAnalyzableInfo", "DartInfo")
+load("//dart:providers.bzl", "DartAnalyzableInfo", "DartInfo")
 load(
     "//dart/private:common.bzl",
     "WINDOWS_CONSTRAINT_ATTR",
+    "analysis_options_closure",
     "analyzable_closure",
     "analyze_operand",
     "merge_package_records",
@@ -43,13 +44,9 @@ def _dart_analyze_test_impl(ctx):
     # rather than from the analyzed target, so they never enter its own
     # `DartInfo`. Every one of them is external, so `stage_dart_project` files
     # them under `extpkgs` — resolvable, not analyzed.
-    options_files = []
-    if ctx.attr.options and DartAnalysisOptionsInfo in ctx.attr.options:
-        opts = ctx.attr.options[DartAnalysisOptionsInfo]
-        packages = merge_package_records(packages + opts.packages)
-        options_files = (
-            opts.transitive_srcs.to_list() + opts.transitive_resources.to_list()
-        )
+    opts = analysis_options_closure(ctx.attr.options)
+    packages = merge_package_records(packages + opts.packages)
+    options_files = opts.files
 
     # Resources are staged beside the sources because the analyzer reads some of
     # them. `package:sky_engine`'s `lib/_embedder.yaml` is the whole of how it

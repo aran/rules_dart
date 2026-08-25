@@ -1,6 +1,6 @@
 """Shared utilities for Dart rules."""
 
-load("//dart:providers.bzl", "CODE_ASSET_LINK_MODES", "DartAnalyzableInfo", "DartInfo")
+load("//dart:providers.bzl", "CODE_ASSET_LINK_MODES", "DartAnalysisOptionsInfo", "DartAnalyzableInfo", "DartInfo")
 load("//dart/private:dart_info.bzl", "derived_package_info")
 load("//dart/private:source_set.bzl", "needs_source_assembly", "package_for")
 
@@ -262,6 +262,38 @@ def analyzable_closure(target):
             srcs = analyzable.srcs.to_list(),
         )
     return struct(dart_info = target[DartInfo], srcs = [])
+
+def analysis_options_closure(options_attr):
+    """Normalizes an `options` attribute to the closure its `include:`s need.
+
+    Every rule that stages a project for an SDK tool — `dart_analyze_test`,
+    `dart_fix`, `dart_format_test` — accepts the same three shapes: unset, a
+    bare `.yaml` label, and a `dart_analysis_options` target. Only the third
+    carries packages, because only a `package:` URI needs resolving; this is
+    the single place that distinction is made, so the rules cannot drift into
+    staging different closures for the same options file.
+
+    The packages are for resolution alone. Callers merge them into the list
+    that builds `package_config.json` and stage the files, but they never enter
+    the analyzed target's own `DartInfo` — see `dart_analysis_options`.
+
+    Args:
+      options_attr: The rule's `ctx.attr.options` (may be `None`).
+
+    Returns:
+      `struct(packages, files)` — `DartPackageInfo` records the includes may
+      reference, and the files of those packages to stage. Both empty unless
+      the attribute is a `dart_analysis_options` target.
+    """
+    if not options_attr or DartAnalysisOptionsInfo not in options_attr:
+        return struct(packages = [], files = [])
+    opts = options_attr[DartAnalysisOptionsInfo]
+    return struct(
+        packages = opts.packages,
+        files = (
+            opts.transitive_srcs.to_list() + opts.transitive_resources.to_list()
+        ),
+    )
 
 def relative_path(from_dir, to_dir):
     """Compute the relative path from one directory to another.

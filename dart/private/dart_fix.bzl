@@ -24,10 +24,11 @@ Both are needed because `dart fix`'s own built-in generated-file skip matches
 `*.g.dart` and nothing else — a `.freezed.dart` part gets rewritten.
 """
 
-load("//dart:providers.bzl", "DartAnalysisOptionsInfo", "DartAnalyzableInfo", "DartInfo")
+load("//dart:providers.bzl", "DartAnalyzableInfo", "DartInfo")
 load(
     "//dart/private:common.bzl",
     "WINDOWS_CONSTRAINT_ATTR",
+    "analysis_options_closure",
     "analyzable_closure",
     "analyze_operand",
     "merge_package_records",
@@ -69,13 +70,9 @@ def _dart_fix_impl(ctx):
     # Same as `dart_analyze_test`: an options target may carry the packages its
     # `include:` directives resolve against. They are staged for resolution
     # only and never enter the analyzed library's own provider.
-    options_files = []
-    if ctx.attr.options and DartAnalysisOptionsInfo in ctx.attr.options:
-        opts = ctx.attr.options[DartAnalysisOptionsInfo]
-        packages = merge_package_records(packages + opts.packages)
-        options_files = (
-            opts.transitive_srcs.to_list() + opts.transitive_resources.to_list()
-        )
+    opts = analysis_options_closure(ctx.attr.options)
+    packages = merge_package_records(packages + opts.packages)
+    options_files = opts.files
 
     # An executable's entrypoint arrives via `closure.srcs` (no package's `lib/`
     # holds it, so no `DartInfo` can). Folding it in here rather than at the
