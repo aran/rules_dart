@@ -40,6 +40,7 @@ const _ciFolders = [
   'e2e/pub_lock_upgrade',
   'e2e/ext_exemplar',
   'e2e/dual_build',
+  'e2e/fix',
 ];
 
 /// Per-folder timeout. The first folder pays for the hermetic Dart SDK
