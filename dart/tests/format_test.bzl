@@ -17,6 +17,14 @@ def _format_action(env):
             return a
     return None
 
+def _root_options_action(env):
+    """The action producing `<name>.proj/analysis_options.yaml`, or None."""
+    for a in analysistest.target_actions(env):
+        for out in a.outputs.to_list():
+            if out.short_path.endswith(".proj/analysis_options.yaml"):
+                return a
+    return None
+
 def _format_is_hermetic_test_impl(ctx):
     env = analysistest.begin(ctx)
     action = _format_action(env)
@@ -77,10 +85,31 @@ def _format_options_closure_test_impl(ctx):
     inputs = [f.short_path for f in action.inputs.to_list()]
 
     # The options file itself, staged where the formatter will discover it.
+    # Presence alone proves nothing: `stage_root_options` declares that path in
+    # every case and writes a comment-only stub when `options` is unset, so a
+    # rule that silently dropped the user's file would still leave a file
+    # there — and the check would run at stock defaults with nothing saying so.
+    # Provenance is what separates the two cases, so provenance is what is
+    # asserted: the staged file must derive from the fixture's `options.yaml`.
+    # The stub is written from a string and has no inputs at all.
+    root_options = _root_options_action(env)
     asserts.true(
         env,
-        [p for p in inputs if p.endswith(".proj/analysis_options.yaml")] != [],
-        "the options file is not staged at the project root: %s" % inputs,
+        root_options != None,
+        "nothing produces the staged project-root analysis_options.yaml",
+    )
+    if root_options == None:
+        return analysistest.end(env)
+    asserts.true(
+        env,
+        [
+            f
+            for f in root_options.inputs.to_list()
+            if f.short_path.endswith("format_fixture/options.yaml")
+        ] != [],
+        "the staged project-root analysis_options.yaml does not come from " +
+        "the options target's file, so the check runs at stock defaults: %s" %
+        [f.short_path for f in root_options.inputs.to_list()],
     )
 
     # And the closure its `include:` directives resolve against. An options
