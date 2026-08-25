@@ -259,6 +259,7 @@ dart_analyze_test(
 dart_format_test(
     name = "format_test",
     srcs = glob(["lib/**/*.dart"]),
+    options = "analysis_options.yaml",
 )
 ```
 
@@ -267,6 +268,22 @@ dart_format_test(
 lint an entrypoint: a `main.dart` sits outside any package's `lib/`, so no
 `dart_library` will accept it, and it would otherwise be the one file in a
 project nothing checks.
+
+Both rules take `options`, and both compute their verdict while building rather
+than while testing — a violation fails `bazel build` of the target. Formatting
+is configured by the `formatter:` section of an `analysis_options.yaml`
+(`page_width`, `trailing_commas`), and `dart_format_test` honours it only when
+you name it: the file is not discovered from the surrounding directory, because
+the check runs against a staged copy of your sources rather than the sources
+themselves. That is deliberate. `dart format` finds its configuration by walking
+up from each file it is given, which under Bazel would mean reading files no
+target declared and reaching different answers under different sandboxing
+settings. Passing `options` is how you opt in; omitting it pins stock defaults.
+
+Use the `dart_analysis_options` target form when the file `include`s a shared
+ruleset by `package:` URI, so the packages it resolves against are staged with
+it. Sources from external repositories are rejected: a formatting violation in a
+module you do not own is a red build no edit in your repo can fix.
 
 `dart_fix` applies the analyzer's automated fixes — the same quick-fixes an IDE
 offers, driven by the lints your `analysis_options.yaml` enables. Give it the same
@@ -329,7 +346,7 @@ The [`e2e/`](e2e/) directory contains complete working examples:
 | [`hello_world`](e2e/hello_world/)                     | Minimal binary + all compile modes (`exe`, `aot-snapshot`, `kernel`, `jit-snapshot`) |
 | [`library_deps`](e2e/library_deps/)                   | Transitive `dart_library` dependencies, `srcs` attribute                             |
 | [`dart_test`](e2e/dart_test/)                         | Tests with and without deps, `srcs` for test helpers                                 |
-| [`analysis`](e2e/analysis/)                           | `dart_analyze_test` with custom `analysis_options.yaml`, `dart_format_test`          |
+| [`analysis`](e2e/analysis/)                           | `dart_analyze_test` and `dart_format_test` with custom and `package:`-included options |
 | [`fix`](e2e/fix/)                                     | `dart_fix` write-back, and that generated files are never rewritten                  |
 | [`web_app`](e2e/web_app/)                             | JavaScript and WebAssembly compilation with library deps                             |
 | [`pub_deps`](e2e/pub_deps/)                           | Single pub.dev package via `pub.package()`                                           |
