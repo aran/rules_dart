@@ -108,7 +108,14 @@ dart_analyze_test = rule(
             providers = [[DartInfo], [DartAnalyzableInfo]],
         ),
         "options": attr.label(
-            doc = "An `analysis_options.yaml` file. If omitted, the Dart SDK's default analysis options are used.",
+            doc = (
+                "A `dart_analysis_options` target, or a bare " +
+                "`analysis_options.yaml`. Use the target form when the file " +
+                "`include`s a ruleset by `package:` URI. If omitted, the Dart " +
+                "SDK's default analysis options are used, and are pinned " +
+                "hermetically rather than left to whatever file happens to " +
+                "sit above the staged sources."
+            ),
             allow_single_file = [".yaml"],
         ),
         "target": attr.label(
