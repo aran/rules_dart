@@ -1,0 +1,4 @@
+# A lint/format ruleset shipped inside a package's lib/, the way a published
+# one is. Reached as `package:fmt_ruleset/opts.yaml`.
+formatter:
+  page_width: 100

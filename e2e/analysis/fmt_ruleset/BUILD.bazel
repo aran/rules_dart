@@ -1,0 +1,9 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+# A ruleset package carries no Dart at all — the yaml is the whole payload, and
+# `resources` is what makes it addressable as `package:fmt_ruleset/opts.yaml`.
+dart_library(
+    name = "fmt_ruleset",
+    resources = ["lib/opts.yaml"],
+    visibility = ["//visibility:public"],
+)

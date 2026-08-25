@@ -53,3 +53,30 @@ dart_analysis_options(
     ],
     deps = ["@very_good_analysis"],
 )
+
+# `options` honoured directly: the source is formatted for a 100-column page,
+# so it is stable under these options and would be rewritten at the stock 80.
+# A green here means the formatter: section reached the check.
+dart_format_test(
+    name = "format_options",
+    size = "small",
+    srcs = ["wide/lib/wide.dart"],
+    options = "wide/wide_options.yaml",
+)
+
+# The same source and the same width, reached through an `include:` by
+# `package:` URI instead. Pins the whole chain: the options target's `deps`
+# become package_config entries in the staged project, which is what lets the
+# formatter resolve the URI and apply the width it finds.
+dart_format_test(
+    name = "format_pkg_include",
+    size = "small",
+    srcs = ["wide/lib/wide.dart"],
+    options = ":pkg_include_options",
+)
+
+dart_analysis_options(
+    name = "pkg_include_options",
+    src = "pkg_include_options.yaml",
+    deps = ["//fmt_ruleset"],
+)

@@ -3,6 +3,7 @@ load(
     "dart_analysis_options",
     "dart_analyze_test",
     "dart_binary",
+    "dart_format_test",
     "dart_library",
 )
 
@@ -101,4 +102,28 @@ dart_analyze_test(
     name = "analyze_lib_lint_applied",
     options = ":vga",
     target = ":undocumented_lib",
+)
+
+# The format check's three red paths. A formatting violation must fail the
+# build, and — the reason the other two exist — a *broken options file* must
+# fail it too. `dart format` treats an unresolvable `include:` as a warning,
+# exits 0, and silently formats at stock defaults, so without the runner's
+# escalation a misconfigured ruleset and a correctly formatted codebase would
+# look identical. That is the same silent-wrong-verdict the rule was rewritten
+# to eliminate, so it gets the same red-path proof the analyzer's include has.
+dart_format_test(
+    name = "format_bad",
+    srcs = ["fmt/misformatted.dart"],
+)
+
+dart_format_test(
+    name = "format_unresolved_ruleset",
+    srcs = ["lib/clean.dart"],
+    options = "unresolved_format_options.yaml",
+)
+
+dart_format_test(
+    name = "format_missing_include",
+    srcs = ["lib/clean.dart"],
+    options = "missing_include_options.yaml",
 )

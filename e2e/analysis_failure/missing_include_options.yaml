@@ -1,0 +1,4 @@
+# A relative include with nothing behind it. `dart_analysis_options` carries a
+# file and its package deps, not sibling files, so this cannot resolve — and it
+# must say so rather than quietly formatting at stock defaults.
+include: not_staged.yaml

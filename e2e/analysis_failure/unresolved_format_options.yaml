@@ -1,0 +1,4 @@
+# Names a package this workspace does not have. `dart format` warns and falls
+# back to stock defaults rather than failing, which is the silent degradation
+# the runner escalates.
+include: package:nonexistent_ruleset/opts.yaml

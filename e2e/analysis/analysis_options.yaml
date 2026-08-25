@@ -6,5 +6,11 @@ analyzer:
     strict-inference: true
     strict-raw-types: true
 
+# A canary, not a preference. `dart format` discovers its configuration by an
+# unbounded walk up from each file it is given, so a page width this extreme is
+# what proves the staged project bounds that walk: every dart_format_test here
+# uses stock 80 or its own `options`, and any of them turning red means the
+# walk escaped and reached this file. Running `dart format` by hand inside this
+# fixture workspace will produce 20-column output — that is the cost of the pin.
 formatter:
   page_width: 20

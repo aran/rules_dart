@@ -49,6 +49,45 @@ jobs:
           "e2e/dual_build",
           "e2e/fix"
         ]
+  # `dart format` and `dart analyze` find their configuration by walking up from
+  # the file they are given, and that walk does not stop at the project root. It
+  # used to escape: under a sandbox it found nothing (so a repo's configured
+  # page width was silently ignored), and unsandboxed it climbed into the
+  # execroot — or, in manifest runfiles mode, ran against the source tree
+  # outright. Which of those happened decided the verdict, so the same code
+  # passed or failed depending on the flags.
+  #
+  # Staging the project bounds the walk, and `e2e/analysis`'s root
+  # analysis_options.yaml carries a deliberately absurd `page_width: 20` canary
+  # so this job can prove it. Every dart_format_test there uses stock 80 or its
+  # own `options`, so if the walk ever escapes again it reaches the canary and
+  # these cells disagree. All four must agree; before the fix, the two local
+  # cells failed.
+  format-hermeticity:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: forest runfiles, sandboxed
+            flags: ""
+          - name: forest runfiles, local
+            flags: "--spawn_strategy=standalone"
+          - name: manifest runfiles, sandboxed
+            flags: "--noenable_runfiles"
+          - name: manifest runfiles, local
+            flags: "--noenable_runfiles --spawn_strategy=standalone"
+    steps:
+      - uses: actions/checkout@v7
+      - name: analysis — ${{ matrix.name }}
+        working-directory: e2e/analysis
+        # The analyze target is built first on purpose: it is what materialises
+        # the canary's execroot symlink, and within a single invocation the
+        # ordering against the format actions is up to the scheduler. Without
+        # it a regression could pass by luck.
+        run: |
+          bazel build ${{ matrix.flags }} //:analyze_strict
+          bazel test ${{ matrix.flags }} --test_output=errors //...
   # Workspaces that are expected to fail at module resolution.
   # Validates that rules_dart produces the correct error messages.
   expected-failure:
@@ -118,6 +157,39 @@ jobs:
           fi
           bazel build //:analyze_lib_lint_applied 2>&1 | grep -q "public_member_api_docs"
           echo "OK: package-root-gated lint reached the code"
+      # The format check's red paths. The first is the obvious one; the other
+      # two exist because `dart format` treats an unresolvable `include:` as a
+      # warning, exits 0, and silently formats at stock defaults — so a broken
+      # options file and a correctly formatted codebase look identical unless
+      # the runner escalates. These also pin the SDK's warning text, which that
+      # escalation matches on.
+      - name: analysis_failure — expect a formatting violation to fail
+        working-directory: e2e/analysis_failure
+        run: |
+          if bazel build //:format_bad 2>/dev/null; then
+            echo "ERROR: build should have failed with a formatting violation"
+            exit 1
+          fi
+          bazel build //:format_bad 2>&1 | grep -q "Changed fmt/misformatted.dart"
+          echo "OK: expected formatting failure detected, at the workspace path"
+      - name: analysis_failure — expect an unresolvable format ruleset to fail
+        working-directory: e2e/analysis_failure
+        run: |
+          if bazel build //:format_unresolved_ruleset 2>/dev/null; then
+            echo "ERROR: build should have failed with an unresolved include"
+            exit 1
+          fi
+          bazel build //:format_unresolved_ruleset 2>&1 | grep -q "Failed to resolve package URI"
+          echo "OK: silently-degraded format options rejected"
+      - name: analysis_failure — expect a missing format include to fail
+        working-directory: e2e/analysis_failure
+        run: |
+          if bazel build //:format_missing_include 2>/dev/null; then
+            echo "ERROR: build should have failed with an unreadable include"
+            exit 1
+          fi
+          bazel build //:format_missing_include 2>&1 | grep -q "Couldn't read file"
+          echo "OK: unreadable format include rejected"
   # `dart compile kernel` rejects `--enable-asserts`, so dbg-mode flags are
   # chosen per compile mode. hello_world builds all four dart_binary modes;
   # dart_test exercises the kernel test path end-to-end.

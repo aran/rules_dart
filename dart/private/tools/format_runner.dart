@@ -58,8 +58,11 @@ void main(List<String> args) {
       stdoutEncoding: systemEncoding,
       stderrEncoding: systemEncoding,
     );
-    stdout.write(result.stdout);
-    stderr.write(result.stderr);
+    // Reported at the path the user can act on. The formatter names the file
+    // it was handed, which is inside the staged tree — an output path nobody
+    // can edit, and one that buries the workspace path it was copied from.
+    stdout.write(_unstage(result.stdout as String, project));
+    stderr.write(_unstage(result.stderr as String, project));
     if (result.exitCode != 0) {
       failed = true;
     }
@@ -84,6 +87,11 @@ void main(List<String> args) {
   }
   File(stamp).writeAsStringSync('formatted\n');
 }
+
+/// Rewrites staged paths in the formatter's output back to the workspace paths
+/// they were copied from, so a violation names a file the user can open.
+String _unstage(String out, String project) =>
+    out.replaceAll('${project.replaceAll(r'\', '/')}/src/', '');
 
 /// Whether the formatter reported a non-fatal problem reading its options.
 bool _warned(String err) =>

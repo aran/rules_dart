@@ -1,0 +1,3 @@
+# The point of the fixture: a page width the stock default disagrees with.
+formatter:
+  page_width: 100

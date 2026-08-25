@@ -1,0 +1,4 @@
+# Resolved through the staged project's package_config, exactly as a published
+# ruleset would be. The `deps` of the dart_analysis_options target are what put
+# `fmt_ruleset` in that config.
+include: package:fmt_ruleset/opts.yaml
