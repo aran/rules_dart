@@ -19,11 +19,15 @@ what terminates it.
 The staged project is deliberately thinner than the analyzer's: formatting is
 purely syntactic, so no import has to resolve. Only an options file that
 `include`s a ruleset by `package:` URI needs a `package_config.json`, and that
-is exactly what `dart_analysis_options` carries. No stub `pubspec.yaml` is
-staged either: at Dart 3.12.2 the language version no longer selects a
-formatting style (short style is gone), so a pubspec is a measured non-input,
-and writing one could only start pinning a language version the user did not ask
-for.
+is exactly what `dart_analysis_options` carries. No project-root `pubspec.yaml`
+is written either, as `dart_analyze_test` writes one: at Dart 3.12.2 the
+language version no longer selects a formatting style (short style is gone), so
+a pubspec is a measured non-input, and writing one could only start pinning a
+language version the user did not ask for. The per-package stub pubspecs
+`stage_dart_project` writes still appear, but only for the packages it is
+handed — here the options target's `deps`, never the formatted sources — and
+the formatter's options walk-up does not stop at a pubspec (measured on Dart
+3.12.2), so one above a formatted file changes no verdict.
 """
 
 load(
