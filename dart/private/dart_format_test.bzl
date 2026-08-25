@@ -1,60 +1,160 @@
-"""Implementation of the dart_format_test rule."""
+"""Implementation of the dart_format_test rule.
 
-load("//dart/private:common.bzl", "WINDOWS_CONSTRAINT_ATTR", "create_test_executable", "runfiles_path")
+Checks `dart format` as a build-time action, in the same shape as
+`dart_analyze_test`: the verdict is computed while building a stamp file, and
+the test target is a pass-through that always succeeds.
+
+A build action rather than a test is what makes the check mean anything. The
+formatter reads its configuration — `page_width`, `trailing_commas` — from the
+`formatter:` section of an `analysis_options.yaml`, which it discovers by an
+unbounded lexical walk up from each file it is given, without resolving
+symlinks. Handed runfiles paths, that walk found no options file at all under a
+sandbox (so a repo's configured page width was silently ignored) and climbed
+into the execroot or straight into the source tree without one (so the verdict
+depended on the spawn strategy, and the formatter read files no action had
+declared). Staging a project directory and running over it puts every ancestor
+the walk can reach under Bazel's control — see `stage_root_options`, which is
+what terminates it.
+
+The staged project is deliberately thinner than the analyzer's: formatting is
+purely syntactic, so no import has to resolve. Only an options file that
+`include`s a ruleset by `package:` URI needs a `package_config.json`, and that
+is exactly what `dart_analysis_options` carries. No stub `pubspec.yaml` is
+staged either: at Dart 3.12.2 the language version no longer selects a
+formatting style (short style is gone), so a pubspec is a measured non-input,
+and writing one could only start pinning a language version the user did not ask
+for.
+"""
+
+load(
+    "//dart/private:common.bzl",
+    "WINDOWS_CONSTRAINT_ATTR",
+    "analysis_options_closure",
+    "noop_test_executable",
+    "writable_home_env",
+)
+load("//dart/private:project_staging.bzl", "stage_dart_project", "stage_root_options")
+load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS")
 
 def _dart_format_test_impl(ctx):
     toolchain = ctx.toolchains["//dart:toolchain_type"]
     dart_sdk_info = toolchain.dart_sdk_info
-    workspace_name = ctx.workspace_name
 
-    srcs = ctx.files.srcs
-    dart_path = runfiles_path(dart_sdk_info.dart, workspace_name)
+    # An options file may `include:` a ruleset by `package:` URI, which the
+    # formatter resolves through the staged `package_config.json` exactly as
+    # the analyzer does. Those packages are staged so that resolution works and
+    # for nothing else — they are never themselves formatted, because the
+    # manifest below names only this target's own sources.
+    opts = analysis_options_closure(ctx.attr.options)
 
-    # Write a manifest file listing runfiles-relative paths of sources
-    manifest = ctx.actions.declare_file(ctx.label.name + ".format_manifest")
-    manifest_lines = []
-    for src in srcs:
-        manifest_lines.append(runfiles_path(src, workspace_name))
-    ctx.actions.write(output = manifest, content = "\n".join(manifest_lines) + "\n")
+    # External sources are refused rather than staged. `stage_dart_project`
+    # keeps an external file only when it belongs to a known external package,
+    # and a loose `.dart` file from another repo matches none — it would be
+    # dropped from the staged tree, leaving the manifest naming a path that
+    # does not exist. Failing here instead is also the honest answer to what
+    # the check could mean: a formatting violation in a module you do not own
+    # is a red build with no edit in this repo that can turn it green.
+    for src in ctx.files.srcs:
+        if src.short_path.startswith("../"):
+            fail(
+                ("dart_format_test cannot format sources from external " +
+                 "repositories: {}. Declare a dart_format_test in the " +
+                 "module that owns the file instead.").format(src.short_path),
+            )
 
-    manifest_path = runfiles_path(manifest, workspace_name)
-
-    # Create test executable from pre-compiled format checker
-    executable, env_info, tool_runfiles = create_test_executable(
+    staged = stage_dart_project(
         ctx,
-        ctx.attr._tool,
-        env = {
-            "RULES_DART_DART": dart_path,
-            "RULES_DART_FORMAT_MANIFEST": manifest_path,
-        },
+        opts.packages,
+        ctx.files.srcs + opts.files,
     )
 
-    runfiles = ctx.runfiles(files = list(srcs) + [manifest], transitive_files = dart_sdk_info.tool_files)
-    runfiles = runfiles.merge(tool_runfiles)
+    # The one file that stops the formatter's walk-up inside the staged tree.
+    options_file = stage_root_options(ctx, ctx.file.options)
 
-    return [
-        DefaultInfo(
-            executable = executable,
-            runfiles = runfiles,
+    # Files are named individually rather than by handing the formatter the
+    # project directory: the staged tree also holds the package_config and, for
+    # a `package:` include, the ruleset package's own sources, none of which
+    # are this target's to format.
+    manifest = ctx.actions.declare_file(ctx.label.name + ".format_manifest")
+    ctx.actions.write(
+        output = manifest,
+        content = "".join([
+            "src/%s\n" % src.short_path
+            for src in ctx.files.srcs
+        ]),
+    )
+
+    stamp = ctx.actions.declare_file(ctx.label.name + ".formatted")
+
+    args = ctx.actions.args()
+    args.add("--dart", dart_sdk_info.dart)
+    args.add("--project", staged.proj_path)
+    args.add("--manifest", manifest)
+    args.add("--stamp", stamp)
+
+    ctx.actions.run(
+        executable = ctx.executable._format_runner,
+        arguments = [args],
+        inputs = depset(
+            direct = list(staged.inputs) + [
+                options_file,
+                manifest,
+                dart_sdk_info.dart,
+            ],
+            transitive = [dart_sdk_info.tool_files],
         ),
-        env_info,
-    ]
+        outputs = [stamp],
+        mnemonic = "DartFormat",
+        progress_message = "Checking Dart formatting of %s" % ctx.label,
+        env = writable_home_env(dart_sdk_info.dart, stamp),
+    )
+
+    noop = noop_test_executable(ctx, ctx.attr._tool)
+    return [DefaultInfo(
+        executable = noop.executable,
+        runfiles = ctx.runfiles(files = [stamp]).merge(noop.runfiles),
+    )]
 
 dart_format_test = rule(
     implementation = _dart_format_test_impl,
     attrs = dict({
         "srcs": attr.label_list(
-            doc = "Dart source files (`.dart`) to check. Typically `glob([\"lib/**/*.dart\"])`.",
+            doc = (
+                "Dart source files (`.dart`) to check. Typically " +
+                "`glob([\"lib/**/*.dart\"])`. Files from external " +
+                "repositories are rejected."
+            ),
             allow_files = [".dart"],
             mandatory = True,
         ),
+        "options": attr.label(
+            doc = (
+                "A `dart_analysis_options` target, or a bare " +
+                "`analysis_options.yaml`. Its `formatter:` section — " +
+                "`page_width`, `trailing_commas` — governs the check. Use " +
+                "the target form when the file `include`s a ruleset by " +
+                "`package:` URI. If omitted, stock `dart format` defaults " +
+                "apply, and are pinned hermetically rather than left to " +
+                "whatever file happens to sit above the sources."
+            ),
+            allow_single_file = [".yaml"],
+        ),
+        "_format_runner": attr.label(
+            default = "//dart/private/tools:format_runner",
+            executable = True,
+            cfg = "exec",
+        ),
         "_tool": attr.label(
-            default = "//dart/private/tools:format_checker",
+            default = "//dart/private/tools:noop",
             executable = True,
             cfg = "exec",
         ),
     }, **WINDOWS_CONSTRAINT_ATTR),
     test = True,
-    toolchains = ["//dart:toolchain_type"],
-    doc = "Checks that Dart source files match `dart format` output. Fails if any file would be changed by formatting.",
+    toolchains = ["//dart:toolchain_type"] + COPY_TO_DIRECTORY_TOOLCHAINS,
+    doc = (
+        "Checks that Dart source files match `dart format` output, as a " +
+        "build-time action. Fails the build if any file would be changed by " +
+        "formatting."
+    ),
 )

@@ -1,0 +1,4 @@
+# Carries a formatter: section so the staged-options assertions have something
+# distinguishable from the stub to look for.
+formatter:
+  page_width: 100

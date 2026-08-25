@@ -295,6 +295,54 @@ def analysis_options_closure(options_attr):
         ),
     )
 
+def noop_test_executable(ctx, tool):
+    """Symlinks the do-nothing binary as a test rule's executable.
+
+    `dart_analyze_test` and `dart_format_test` both decide their verdict in a
+    build action: when the action fails the build fails, and nothing is left
+    for the test binary to check. Both must still *be* tests, so both hand
+    Bazel the same pass-through executable.
+
+    Args:
+      ctx: The rule context (must carry `WINDOWS_CONSTRAINT_ATTR`).
+      tool: The `//dart/private/tools:noop` target.
+
+    Returns:
+      `struct(executable, runfiles)` — the declared symlink and the tool's own
+      runfiles, for the caller to merge with whatever stamp it produced.
+    """
+    is_windows = ctx.target_platform_has_constraint(
+        ctx.attr._windows_constraint[platform_common.ConstraintValueInfo],
+    )
+    ext = ".exe" if is_windows else ""
+    executable = ctx.actions.declare_file(ctx.label.name + ext)
+    ctx.actions.symlink(
+        output = executable,
+        target_file = tool[DefaultInfo].files_to_run.executable,
+        is_executable = True,
+    )
+    return struct(
+        executable = executable,
+        runfiles = tool[DefaultInfo].default_runfiles,
+    )
+
+def writable_home_env(dart, beside):
+    """The environment an SDK build action needs to have a writable home.
+
+    Windows `dart.exe` takes a POSIX `/tmp` literally and crashes, so it is
+    pointed at a directory that exists on the platform running it instead.
+
+    Args:
+      dart: The SDK's `dart` File, whose basename identifies the platform.
+      beside: A File whose directory serves as the Windows home.
+
+    Returns:
+      A dict for `ctx.actions.run(env = ...)`.
+    """
+    if dart.basename.endswith(".exe"):
+        return {"USERPROFILE": beside.dirname, "LOCALAPPDATA": beside.dirname}
+    return {"HOME": "/tmp"}
+
 def relative_path(from_dir, to_dir):
     """Compute the relative path from one directory to another.
 

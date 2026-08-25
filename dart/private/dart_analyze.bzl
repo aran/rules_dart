@@ -25,6 +25,8 @@ load(
     "analyzable_closure",
     "analyze_operand",
     "merge_package_records",
+    "noop_test_executable",
+    "writable_home_env",
 )
 load("//dart/private:project_staging.bzl", "pubspec_stub", "stage_dart_project", "stage_root_options")
 load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS")
@@ -79,16 +81,6 @@ def _dart_analyze_test_impl(ctx):
     args.add("--stamp", stamp)
     args.add("--fatal-infos")
 
-    # Mirror dart_compile.bzl's writable-home handling (Windows dart.exe
-    # receives /tmp literally and crashes).
-    if dart_sdk_info.dart.basename.endswith(".exe"):
-        env = {
-            "USERPROFILE": stamp.dirname,
-            "LOCALAPPDATA": stamp.dirname,
-        }
-    else:
-        env = {"HOME": "/tmp"}
-
     ctx.actions.run(
         executable = ctx.executable._analyze_tool,
         arguments = [args],
@@ -99,29 +91,13 @@ def _dart_analyze_test_impl(ctx):
         outputs = [stamp],
         mnemonic = "DartAnalyze",
         progress_message = "Analyzing Dart sources of %s" % ctx.label,
-        env = env,
+        env = writable_home_env(dart_sdk_info.dart, stamp),
     )
 
-    # Symlink the noop binary as the test executable.
-    # The real validation happens in the build action above.
-    is_windows = ctx.target_platform_has_constraint(
-        ctx.attr._windows_constraint[platform_common.ConstraintValueInfo],
-    )
-    ext = ".exe" if is_windows else ""
-    executable = ctx.actions.declare_file(ctx.label.name + ext)
-    ctx.actions.symlink(
-        output = executable,
-        target_file = ctx.attr._tool[DefaultInfo].files_to_run.executable,
-        is_executable = True,
-    )
-
-    tool_runfiles = ctx.attr._tool[DefaultInfo].default_runfiles
-    runfiles = ctx.runfiles(files = [stamp])
-    runfiles = runfiles.merge(tool_runfiles)
-
+    noop = noop_test_executable(ctx, ctx.attr._tool)
     return [DefaultInfo(
-        executable = executable,
-        runfiles = runfiles,
+        executable = noop.executable,
+        runfiles = ctx.runfiles(files = [stamp]).merge(noop.runfiles),
     )]
 
 dart_analyze_test = rule(

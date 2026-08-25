@@ -37,9 +37,8 @@ dart_binary(
 )
 
 dart_binary(
-    name = "format_checker",
+    name = "format_runner",
     compile_mode = "exe",
-    main = "format_checker.dart",
+    main = "format_runner.dart",
     visibility = ["//dart:__subpackages__"],
-    deps = ["//dart/runfiles"],
 )

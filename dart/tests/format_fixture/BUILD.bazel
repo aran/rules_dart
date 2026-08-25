@@ -1,0 +1,65 @@
+load("//dart:defs.bzl", "dart_analysis_options", "dart_format_test")
+load(
+    "//dart/tests:format_test.bzl",
+    "format_external_src_test",
+    "format_hermetic_test",
+    "format_options_closure_test",
+    "format_stages_root_options_test",
+)
+
+package(default_visibility = ["//dart/tests:__pkg__"])
+
+# No `options`: the case whose staged project root would otherwise be empty.
+dart_format_test(
+    name = "plain_format",
+    size = "small",
+    srcs = ["lib/formatted.dart"],
+)
+
+dart_format_test(
+    name = "configured_format",
+    size = "small",
+    srcs = ["lib/formatted.dart"],
+    options = ":ruleset_options",
+)
+
+# An external dep is the point: it is what forces a package_config into the
+# staged project so an `include: package:` URI can resolve.
+dart_analysis_options(
+    name = "ruleset_options",
+    src = "options.yaml",
+    deps = ["@ext_pub_deps//:meta"],
+)
+
+# `manual`: this one is expected to fail analysis, so a `//dart/tests/...`
+# wildcard that built it would fail the build before any test ran. The
+# `format_external_src_test` beside it is what asserts the failure.
+dart_format_test(
+    name = "external_srcs",
+    srcs = ["@ext_pub_deps//:meta"],
+    tags = ["manual"],
+)
+
+format_hermetic_test(
+    name = "format_hermetic_test",
+    size = "small",
+    target_under_test = ":plain_format",
+)
+
+format_stages_root_options_test(
+    name = "format_stages_root_options_test",
+    size = "small",
+    target_under_test = ":plain_format",
+)
+
+format_options_closure_test(
+    name = "format_options_closure_test",
+    size = "small",
+    target_under_test = ":configured_format",
+)
+
+format_external_src_test(
+    name = "format_external_src_test",
+    size = "small",
+    target_under_test = ":external_srcs",
+)
