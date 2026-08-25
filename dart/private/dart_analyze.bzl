@@ -26,7 +26,7 @@ load(
     "analyze_operand",
     "merge_package_records",
 )
-load("//dart/private:project_staging.bzl", "pubspec_stub", "stage_dart_project")
+load("//dart/private:project_staging.bzl", "pubspec_stub", "stage_dart_project", "stage_root_options")
 load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS")
 
 def _dart_analyze_test_impl(ctx):
@@ -66,12 +66,10 @@ def _dart_analyze_test_impl(ctx):
         extra_proj_files = {"pubspec.yaml": pubspec_stub(packages)},
     )
 
-    inputs = list(staged.inputs)
-    if ctx.attr.options:
-        # The analyzer discovers analysis_options.yaml from the project root.
-        options = ctx.actions.declare_file(ctx.label.name + ".proj/analysis_options.yaml")
-        ctx.actions.symlink(output = options, target_file = ctx.file.options)
-        inputs.append(options)
+    # Unconditional: an options file at the project root is what bounds the
+    # analyzer's discovery walk, so the no-options case needs one just as much
+    # as the configured case — see `stage_root_options`.
+    inputs = list(staged.inputs) + [stage_root_options(ctx, ctx.file.options)]
 
     stamp = ctx.actions.declare_file(ctx.label.name + ".analyzed")
 

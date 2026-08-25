@@ -1,6 +1,6 @@
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("//dart:defs.bzl", "dart_analyze_test")
-load(":analyze_test.bzl", "analyze_hermetic_test")
+load(":analyze_test.bzl", "analyze_hermetic_test", "analyze_stages_root_options_test")
 load(":code_asset_test.bzl", "code_asset_test_suite")
 load(":codegen_test.bzl", "codegen_test_suite")
 load(":common_test.bzl", "common_test_suite")
@@ -66,6 +66,14 @@ dart_analyze_test(
 
 analyze_hermetic_test(
     name = "analyze_hermetic_test",
+    size = "small",
+    target_under_test = ":shape_fixture_analyze",
+)
+
+# Deliberately points at the no-options fixture: that is the case whose staged
+# project root was empty, letting the analyzer's walk-up reach the execroot.
+analyze_stages_root_options_test(
+    name = "analyze_stages_root_options_test",
     size = "small",
     target_under_test = ":shape_fixture_analyze",
 )

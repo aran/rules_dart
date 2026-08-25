@@ -40,6 +40,34 @@ def _analyze_is_hermetic_test_impl(ctx):
 
 analyze_hermetic_test = analysistest.make(_analyze_is_hermetic_test_impl)
 
+def _analyze_stages_root_options_test_impl(ctx):
+    env = analysistest.begin(ctx)
+
+    # The fixture sets no `options`, which is exactly the case that used to
+    # stage nothing at the project root. `dart analyze` discovers options by an
+    # unbounded walk up from its input, so with the root empty it climbs out of
+    # `<name>.proj` — and under a non-sandboxed strategy the next thing up is
+    # the execroot, whose top level mirrors the workspace. A staged root file
+    # is the only thing that stops the walk, so its presence is the assertion.
+    staged = []
+    for a in analysistest.target_actions(env):
+        staged.extend([
+            f.short_path
+            for f in a.inputs.to_list()
+            if f.short_path.endswith(".proj/analysis_options.yaml")
+        ])
+    asserts.true(
+        env,
+        staged != [],
+        "no analysis_options.yaml is staged at the project root, so the " +
+        "analyzer's options walk-up escapes into the execroot",
+    )
+    return analysistest.end(env)
+
+analyze_stages_root_options_test = analysistest.make(
+    _analyze_stages_root_options_test_impl,
+)
+
 def _analyzable_provider_test_impl(ctx):
     env = analysistest.begin(ctx)
     target = analysistest.target_under_test(env)

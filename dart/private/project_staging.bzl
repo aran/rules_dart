@@ -199,6 +199,44 @@ def staged_pubspec_paths(packages):
         for lib_root, _ in main_package_roots(packages)
     ]
 
+_ROOT_OPTIONS_STUB = "# rules_dart: bounds analysis_options.yaml discovery\n"
+
+def stage_root_options(ctx, options_file):
+    """Declares `<name>.proj/analysis_options.yaml` — always, even when unset.
+
+    `dart analyze` and `dart format` both discover analysis options by an
+    unbounded lexical walk up from the path they are handed, and neither stops
+    at the project root. Under a non-sandboxed strategy the staged project sits
+    inside the execroot, whose top level mirrors the workspace — so a project
+    root with no options file of its own lets the tool climb out and adopt
+    whatever `analysis_options.yaml` the workspace happens to have. The verdict
+    then depends on the spawn strategy and on a file no action declared.
+
+    The *nearest* options file is what ends the walk, so one is staged
+    unconditionally: the user's when they named it, and a comment-only stub
+    otherwise. An empty options file is equivalent to no file at all when
+    nothing above interferes (measured on Dart 3.12.2), so the stub changes no
+    verdict — it removes only the ancestor read.
+
+    `dart_fix` is not a caller: it already writes a root options file in every
+    case, because it must compose its own exclusions over the user's.
+
+    Args:
+      ctx: The rule context.
+      options_file: The user's `analysis_options.yaml` File, or `None`.
+
+    Returns:
+      The staged File, for the consuming action's inputs.
+    """
+    staged = ctx.actions.declare_file(
+        ctx.label.name + ".proj/analysis_options.yaml",
+    )
+    if options_file:
+        ctx.actions.symlink(output = staged, target_file = options_file)
+    else:
+        ctx.actions.write(output = staged, content = _ROOT_OPTIONS_STUB)
+    return staged
+
 def stage_dart_project(ctx, packages, all_srcs, extra_proj_files = {}):
     """Stages packages and sources into a hermetic Dart project layout.
 
