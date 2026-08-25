@@ -25,20 +25,17 @@ void main() {
   );
   final manifest = r.rlocation('_main/dirty/fix.fix_manifest.json');
 
-  // The fixes tree is a directory, and a directory has no runfiles entry of its
-  // own in manifest mode. Locating the one file inside it and walking back up
-  // gets the root in either mode.
+  // A tree artifact is ONE runfiles entry — for the directory itself, not one
+  // per file inside it. Measured on Windows: the manifest carries
+  // `_main/dirty/fix.fixes` and nothing beneath it, and the runfiles tree is
+  // not materialised at all. So the directory is the only thing rlocation can
+  // answer for, and it answers in both modes: a manifest maps it to the real
+  // output path, a symlink forest falls through to the materialised directory.
   //
-  // The number of hops is derived from the path rather than written out, so
-  // moving the fixture a directory deeper cannot silently point the applier at
-  // the wrong root.
-  var fixesDir = File(
-    r.rlocation('_main/dirty/fix.fixes/$_fixedRelative'),
-  ).parent;
-  for (var i = 1; i < _fixedRelative.split('/').length; i++) {
-    fixesDir = fixesDir.parent;
-  }
-  final fixes = fixesDir.path;
+  // Asking for a file *inside* the tree resolves only in a forest. On Windows
+  // it misses the manifest, falls back to the non-existent runfiles directory,
+  // and hands the applier a path that is not there.
+  final fixes = r.rlocation('_main/dirty/fix.fixes');
 
   final before = File(r.rlocation('_main/$_fixedRelative')).readAsStringSync();
   final after = File(
