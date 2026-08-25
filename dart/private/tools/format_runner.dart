@@ -88,8 +88,20 @@ void main(List<String> args) {
   File(stamp).writeAsStringSync('formatted\n');
 }
 
-/// Rewrites staged paths in the formatter's output back to the workspace paths
-/// they were copied from, so a violation names a file the user can open.
+/// Rewrites staged source paths in the formatter's output back to the workspace
+/// paths they were copied from, so a violation names a file the user can open.
+///
+/// Deliberately limited to files under `src/`. Those are echoed back exactly as
+/// the runner passed them — relative, forward-slashed, as every Bazel exec path
+/// is — so stripping the prefix consumes the whole leading segment and what
+/// remains is a real workspace path. Verified on Windows: a violation there
+/// reports `lib/a.dart`, not a backslashed absolute path.
+///
+/// The other staged paths that appear — the options file named by an `include:`
+/// warning — are resolved and absolutised by the formatter itself. The project
+/// prefix sits in the *middle* of those, so stripping it would leave a shorter
+/// absolute path that looks real and points nowhere. A long honest path beats a
+/// short wrong one, so they are left alone.
 String _unstage(String out, String project) =>
     out.replaceAll('${project.replaceAll(r'\', '/')}/src/', '');
 
