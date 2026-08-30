@@ -129,43 +129,7 @@ Bazel's `-c` flag (`fastbuild`, `dbg`, `opt`) controls compiler flags automatica
 
 ### Deterministic VM compilation
 
-Every `dart_binary` mode and every `dart_test` first invokes the pinned SDK's `gen_kernel_aot.dart.snapshot`. The action installs one multi-root filesystem mapping rooted at the Bazel execroot and passes its entrypoint and package config as `org-dartlang-bazel:///...` URIs. Imports consequently enter the kernel as stable `package:`, `dart:`, or `org-dartlang-bazel:` URIs instead of absolute output-base or sandbox paths. `dart compile` then consumes that kernel for `exe`, `aot-snapshot`, `kernel`, and `jit-snapshot` outputs.
-
-Defines, language experiments, source-embedding options, assert configuration, and native-assets metadata are applied by this frontend action. Cross-compilation target flags, optimization options, and other backend flags remain on `dart compile`. `--filesystem-root` and `--filesystem-scheme` are reserved: setting either through `dart_compile_flags` fails analysis because replacing the mapping would reintroduce location-dependent source URIs. Rule attributes and providers are otherwise unchanged.
-
-Determinism here means byte-identical outputs for identical sources, toolchain, target platform, Bazel configuration, and flags. A quick local check using two independent Bazel output roots is:
-
-```bash
-artifacts=(
-  bazel-bin/dart/tests/kernel_fixture/exe.frontend.dill
-  bazel-bin/dart/tests/kernel_fixture/exe
-  bazel-bin/dart/tests/kernel_fixture/aot.frontend.dill
-  bazel-bin/dart/tests/kernel_fixture/aot.aot
-  bazel-bin/dart/tests/kernel_fixture/kernel.frontend.dill
-  bazel-bin/dart/tests/kernel_fixture/kernel.dill
-  bazel-bin/dart/tests/kernel_fixture/jit.frontend.dill
-  bazel-bin/dart/tests/kernel_fixture/jit.jit
-  bazel-bin/dart/tests/kernel_fixture/test.dill
-)
-
-bazel --output_user_root=/tmp/rules-dart-repro-a build \
-  //dart/tests/kernel_fixture:exe \
-  //dart/tests/kernel_fixture:aot \
-  //dart/tests/kernel_fixture:kernel \
-  //dart/tests/kernel_fixture:jit \
-  //dart/tests/kernel_fixture:test
-sha256sum "${artifacts[@]}" > /tmp/rules-dart-repro-a.sha256
-
-bazel --output_user_root=/tmp/rules-dart-repro-b build \
-  //dart/tests/kernel_fixture:exe \
-  //dart/tests/kernel_fixture:aot \
-  //dart/tests/kernel_fixture:kernel \
-  //dart/tests/kernel_fixture:jit \
-  //dart/tests/kernel_fixture:test
-sha256sum "${artifacts[@]}" > /tmp/rules-dart-repro-b.sha256
-
-diff -u /tmp/rules-dart-repro-a.sha256 /tmp/rules-dart-repro-b.sha256
-```
+Every `dart_binary` mode and `dart_test` first invokes the pinned SDK frontend with an execroot-rooted filesystem mapping. Entrypoints and package configs use stable `org-dartlang-bazel:///...` URIs, so kernels do not embed output-base or sandbox paths. Defines and other frontend options are applied there; target and optimization options remain on the `dart compile` backend. The filesystem mapping flags are reserved to preserve this invariant.
 
 ### Flag Mapping
 

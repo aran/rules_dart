@@ -25,15 +25,18 @@ def _argv_for(env, mnemonic):
 def _mnemonics(env):
     return [a.mnemonic for a in analysistest.target_actions(env)]
 
-def _staged_defines_test_impl(ctx):
-    # With code assets the front end runs in gen_kernel, so that is where the
-    # define has to land. Passing it again to the kernel->exe stage would be a
-    # silent no-op, which is exactly how the original bug read as "supported".
+def _flag_value(argv, flag):
+    for i in range(len(argv) - 1):
+        if argv[i] == flag:
+            return argv[i + 1]
+    return None
+
+def _defines_test_impl(ctx):
     env = analysistest.begin(ctx)
     flag = "-D" + ctx.attr.expected_define
-    gen_kernel = _argv_for(env, _DART_KERNEL)
+    kernel = _argv_for(env, _DART_KERNEL)
     dart_compile = _argv_for(env, _DART_COMPILE)
-    if gen_kernel == None or dart_compile == None:
+    if kernel == None or dart_compile == None:
         asserts.true(
             env,
             False,
@@ -43,50 +46,27 @@ def _staged_defines_test_impl(ctx):
         return analysistest.end(env)
     asserts.true(
         env,
-        flag in gen_kernel,
-        "%s missing from the front-end stage: %s" % (flag, gen_kernel),
+        flag in kernel,
+        "%s missing from the front-end stage: %s" % (flag, kernel),
     )
     asserts.true(
         env,
         flag not in dart_compile,
         "%s must not be repeated on the kernel->exe stage: %s" % (flag, dart_compile),
     )
-    return analysistest.end(env)
-
-staged_defines_test = analysistest.make(
-    _staged_defines_test_impl,
-    attrs = {"expected_define": attr.string()},
-)
-
-def _direct_defines_test_impl(ctx):
-    # Without code assets the same stable front end still owns constant
-    # evaluation; only the native-assets option is absent.
-    env = analysistest.begin(ctx)
-    flag = "-D" + ctx.attr.expected_define
-    gen_kernel = _argv_for(env, _DART_KERNEL)
-    dart_compile = _argv_for(env, _DART_COMPILE)
-    if gen_kernel == None or dart_compile == None:
-        asserts.true(
-            env,
-            False,
-            "expected both a %s and a %s action, saw %s" %
-            (_DART_KERNEL, _DART_COMPILE, _mnemonics(env)),
-        )
-        return analysistest.end(env)
-    asserts.true(
-        env,
-        flag in gen_kernel,
-        "%s missing from the front-end stage: %s" % (flag, gen_kernel),
-    )
-    asserts.true(
-        env,
-        flag not in dart_compile,
-        "%s must not be repeated on the kernel->exe stage: %s" % (flag, dart_compile),
-    )
+    asserts.equals(env, ".", _flag_value(kernel, "--filesystem-root"))
+    asserts.equals(env, "org-dartlang-bazel", _flag_value(kernel, "--filesystem-scheme"))
+    asserts.true(env, _flag_value(kernel, "--packages").startswith("org-dartlang-bazel:///"))
+    asserts.true(env, kernel[-1].startswith("org-dartlang-bazel:///"))
     return analysistest.end(env)
 
 direct_defines_test = analysistest.make(
-    _direct_defines_test_impl,
+    _defines_test_impl,
+    attrs = {"expected_define": attr.string()},
+)
+
+staged_defines_test = analysistest.make(
+    _defines_test_impl,
     attrs = {"expected_define": attr.string()},
 )
 

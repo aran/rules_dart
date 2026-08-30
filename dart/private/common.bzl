@@ -782,19 +782,7 @@ def synth_package_config(ctx, library_deps):
 
 _STABLE_KERNEL_SCHEME = "org-dartlang-bazel"
 
-def stable_kernel_uri(path):
-    """Returns the location-independent URI used in VM kernel components.
-
-    `gen_kernel` resolves this URI through an execroot-rooted multi-root file
-    system. The URI therefore records only Bazel's execroot-relative path, not
-    the absolute output base or sandbox directory in which the action ran.
-
-    Args:
-      path: An execroot-relative path.
-
-    Returns:
-      An `org-dartlang-bazel:///...` URI.
-    """
+def _stable_kernel_uri(path):
     return _STABLE_KERNEL_SCHEME + ":///" + path.replace("\\", "/").lstrip("/")
 
 def target_dart_abi(ctx):
@@ -1120,14 +1108,14 @@ def dart_kernel_action(
     args.add("--filesystem-root", ".")
     args.add("--filesystem-scheme", _STABLE_KERNEL_SCHEME)
     if package_config != None:
-        args.add("--packages", stable_kernel_uri(package_config.path))
+        args.add("--packages", _stable_kernel_uri(package_config.path))
     if native_assets_yaml != None:
         args.add("--native-assets", native_assets_yaml)
     for d in defines:
         args.add("-D" + d)
     args.add_all(frontend_flags)
     args.add("-o", output_dill)
-    args.add(stable_kernel_uri(main_path if main_path != None else main.path))
+    args.add(_stable_kernel_uri(main_path if main_path != None else main.path))
 
     direct = [main]
     if package_config != None:
