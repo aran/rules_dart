@@ -203,8 +203,6 @@ jobs:
       - name: dart_test — run tests under -c dbg
         working-directory: e2e/dart_test
         run: bazel test -c dbg --test_output=errors //...
-  # Consider using BuildBuddy's `bb detect nondeterminism` to verify reproducibility:
-  # https://www.buildbuddy.io/docs/cli-commands/#bb-detect-nondeterminism
   pre-commit:
     runs-on: ubuntu-latest
     steps:

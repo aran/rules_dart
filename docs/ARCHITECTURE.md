@@ -127,10 +127,6 @@ This split is why codegen resolves even under a target platform rules_dart regis
 
 Bazel's `-c` flag (`fastbuild`, `dbg`, `opt`) controls compiler flags automatically. Rules read `ctx.var["COMPILATION_MODE"]` and map it to Dart compiler flags. Per-target overrides are available via the `dart_compile_flags` and `defines` attributes; `dart_test` takes `defines` only, since its compile mode is fixed.
 
-### Deterministic VM compilation
-
-Every `dart_binary` mode and `dart_test` first invokes the pinned SDK frontend with an execroot-rooted filesystem mapping. Entrypoints and package configs use stable `org-dartlang-bazel:///...` URIs, so kernels do not embed output-base or sandbox paths. Defines and other frontend options are applied there; target and optimization options remain on the `dart compile` backend. The filesystem mapping flags are reserved to preserve this invariant.
-
 ### Flag Mapping
 
 **dart_binary (exe / aot-snapshot)**
