@@ -1075,14 +1075,7 @@ def dart_cfe_action(
         defines = [],
         cfe_flags = [],
         native_assets_yaml = None):
-    """Runs the Dart Common Front End (CFE) with stable input URIs.
-
-    Invokes `dartaotruntime gen_kernel_aot.dart.snapshot --platform <dill>
-    --filesystem-root . --filesystem-scheme org-dartlang-bazel ...`. Both the
-    entrypoint and package config are passed as stable scheme URIs, so source
-    references embedded in the component cannot contain the absolute sandbox
-    or output-base path. When supplied, the native-assets manifest is embedded
-    as `vm:ffi:native-assets` metadata; its libraries remain runtime inputs.
+    """Runs the Dart CFE with stable execroot-relative input URIs.
 
     Args:
       ctx: The rule context.
@@ -1094,7 +1087,7 @@ def dart_cfe_action(
       main_path: Optional path string to compile instead of `main.path` (e.g. a
         path inside an assembled `main` directory).
       defines: Environment declarations; each entry becomes a `-D` flag. This
-        action runs the CFE, so it is the only stage where they can still
+        action runs the front end, so it is the only stage where they can still
         reach constant evaluation — `dart compile` on the resulting `.dill`
         would accept them and silently do nothing.
       cfe_flags: Additional flags consumed by the CFE's `gen_kernel` tool.

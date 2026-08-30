@@ -52,19 +52,13 @@ def _long_flag_name(flag):
     return flag.split("=", 1)[0]
 
 def split_dart_compile_flags(flags):
-    """Routes user flags to the Dart CFE and/or backend.
-
-    The stable multi-root mapping is an invariant of the action and cannot be
-    replaced through `dart_compile_flags`. Language experiments, source
-    embedding, environment declarations written as raw flags, and other
-    CFE options must run before the `.dill` exists. Backend-specific flags
-    retain their old position at the end of `dart compile`'s argv.
+    """Routes flags to the Dart CFE and backend while reserving URI mapping.
 
     Args:
-      flags: The `dart_compile_flags` string list.
+      flags: User-supplied compile flags.
 
     Returns:
-      `struct(cfe, backend)`.
+      A `struct(cfe, backend)`.
     """
     cfe = []
     backend = []

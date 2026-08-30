@@ -1,11 +1,4 @@
-"""Tests that `defines` reach the action which runs the Dart CFE.
-
-`-D` values are resolved during constant evaluation, so they take effect only
-in the CFE action that compiles source. `dart compile` accepts `-D`
-on a precompiled `.dill` while silently ignoring it. Nothing fails, the define just
-evaporates, so these tests pin which stage receives the flag with and without
-native-assets metadata.
-"""
+"""Tests defines and stable URIs on the shared Dart CFE action."""
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts", "unittest")
 load("//dart/private:build_settings.bzl", "dart_define_error")
