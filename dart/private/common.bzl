@@ -496,7 +496,7 @@ def generate_package_config(packages, all_srcs, config_file):
             #   2. an aggregate `dart_library(srcs = [])` façade that exists
             #      only to re-export its deps.
             # Either way no consumer needs a `rootUri` for this package. If
-            # anything *does* import `package:<name>/…`, the Dart frontend
+            # anything *does* import `package:<name>/…`, the Dart CFE
             # reports a localized URI-not-found at the import — clearer than
             # failing the whole package_config build here.
             continue
@@ -778,12 +778,12 @@ def synth_package_config(ctx, library_deps):
     ctx.actions.write(output = package_config, content = content)
     return package_config, transitive_srcs
 
-# --- Dart frontend and native code-asset helpers ---
+# --- Dart CFE and native code-asset helpers ---
 
-_FRONTEND_URI_SCHEME = "org-dartlang-bazel"
+_CFE_URI_SCHEME = "org-dartlang-bazel"
 
-def _frontend_uri(path):
-    return _FRONTEND_URI_SCHEME + ":///" + path.replace("\\", "/").lstrip("/")
+def _cfe_uri(path):
+    return _CFE_URI_SCHEME + ":///" + path.replace("\\", "/").lstrip("/")
 
 def target_dart_abi(ctx):
     """Returns the Dart code-asset ABI string for the target platform.
@@ -1064,7 +1064,7 @@ def generate_native_assets_yaml(abi, asset_entries):
         assets = assets,
     )
 
-def dart_frontend_action(
+def dart_cfe_action(
         ctx,
         dart_sdk_info,
         main,
@@ -1073,9 +1073,9 @@ def dart_frontend_action(
         output_dill,
         main_path = None,
         defines = [],
-        frontend_flags = [],
+        cfe_flags = [],
         native_assets_yaml = None):
-    """Runs the Dart frontend through a stable execroot-relative URI namespace.
+    """Runs the Dart Common Front End (CFE) with stable input URIs.
 
     Invokes `dartaotruntime gen_kernel_aot.dart.snapshot --platform <dill>
     --filesystem-root . --filesystem-scheme org-dartlang-bazel ...`. Both the
@@ -1094,10 +1094,10 @@ def dart_frontend_action(
       main_path: Optional path string to compile instead of `main.path` (e.g. a
         path inside an assembled `main` directory).
       defines: Environment declarations; each entry becomes a `-D` flag. This
-        action runs the front end, so it is the only stage where they can still
+        action runs the CFE, so it is the only stage where they can still
         reach constant evaluation — `dart compile` on the resulting `.dill`
         would accept them and silently do nothing.
-      frontend_flags: Additional flags consumed by `gen_kernel`.
+      cfe_flags: Additional flags consumed by the CFE's `gen_kernel` tool.
       native_assets_yaml: Optional generated native_assets.yaml File.
     """
     tools = find_sdk_kernel_tools(dart_sdk_info)
@@ -1106,16 +1106,16 @@ def dart_frontend_action(
     args.add(tools.gen_kernel_snapshot)
     args.add("--platform", tools.platform_dill)
     args.add("--filesystem-root", ".")
-    args.add("--filesystem-scheme", _FRONTEND_URI_SCHEME)
+    args.add("--filesystem-scheme", _CFE_URI_SCHEME)
     if package_config != None:
-        args.add("--packages", _frontend_uri(package_config.path))
+        args.add("--packages", _cfe_uri(package_config.path))
     if native_assets_yaml != None:
         args.add("--native-assets", native_assets_yaml)
     for d in defines:
         args.add("-D" + d)
-    args.add_all(frontend_flags)
+    args.add_all(cfe_flags)
     args.add("-o", output_dill)
-    args.add(_frontend_uri(main_path if main_path != None else main.path))
+    args.add(_cfe_uri(main_path if main_path != None else main.path))
 
     direct = [main]
     if package_config != None:
@@ -1133,8 +1133,8 @@ def dart_frontend_action(
         arguments = [args],
         inputs = depset(direct = direct, transitive = transitive),
         outputs = [output_dill],
-        mnemonic = "DartFrontend",
-        progress_message = "Running Dart frontend for %s" % ctx.label,
+        mnemonic = "DartCFE",
+        progress_message = "Running Dart CFE for %s" % ctx.label,
         env = env,
     )
 

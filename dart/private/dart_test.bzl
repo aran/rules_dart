@@ -21,7 +21,7 @@ load(
     "collect_transitive_resources",
     "collect_transitive_srcs",
     "create_test_executable",
-    "dart_frontend_action",
+    "dart_cfe_action",
     "generate_native_assets_yaml",
     "generate_package_config",
     "resolve_code_assets",
@@ -89,7 +89,7 @@ def _dart_test_impl(ctx):
             content = generate_native_assets_yaml(abi, entries),
         )
 
-    dart_frontend_action(
+    dart_cfe_action(
         ctx = ctx,
         dart_sdk_info = dart_sdk_info,
         main = main_input,
@@ -165,7 +165,7 @@ dart_test = rule(
             doc = """Dart environment declarations (`key=value`). Each entry becomes a `-Dkey=value` \
 flag on the build-time compile, so `String.fromEnvironment` resolves to it. Set these here rather \
 than at run time: the test's `main` is compiled to a `.dill` during the build, and environment \
-declarations are resolved by the front end at that point — the VM cannot supply them later.""",
+declarations are resolved by the CFE at that point — the VM cannot supply them later.""",
         ),
         "code_assets": attr.label_list(
             doc = """Native code assets (e.g. `//dart/ext/sqlite3:code_asset`) the test's \

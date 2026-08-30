@@ -11,7 +11,7 @@ load(
     "collect_transitive_code_assets",
     "collect_transitive_resources",
     "collect_transitive_srcs",
-    "dart_frontend_action",
+    "dart_cfe_action",
     "generate_native_assets_yaml",
     "generate_package_config",
     "resolve_code_assets",
@@ -88,7 +88,7 @@ def _dart_binary_impl(ctx):
         binary_output_basename(ctx.label.name, compile_mode, is_windows),
     )
 
-    # Every native mode shares one front end with location-independent source
+    # Every native mode shares one CFE action with location-independent source
     # URIs. The selected `dart compile` backend consumes its `.dill` output.
     compile_defines = merge_dart_defines(ctx)
     routed_flags = split_dart_compile_flags(ctx.attr.dart_compile_flags)
@@ -117,21 +117,21 @@ def _dart_binary_impl(ctx):
             output = native_assets_yaml,
             content = generate_native_assets_yaml(abi, entries),
         )
-    frontend_dill = ctx.actions.declare_file(ctx.label.name + ".frontend.dill")
-    frontend_flags = list(routed_flags.frontend)
+    cfe_dill = ctx.actions.declare_file(ctx.label.name + ".cfe.dill")
+    cfe_flags = list(routed_flags.cfe)
     for flag in get_compilation_mode_flags(ctx, compile_mode):
         if flag in ["--enable-asserts", "--no-enable-asserts"]:
-            frontend_flags.append(flag)
-    dart_frontend_action(
+            cfe_flags.append(flag)
+    dart_cfe_action(
         ctx = ctx,
         dart_sdk_info = dart_sdk_info,
         main = main_input,
         transitive_srcs = depset(all_srcs),
         package_config = package_config,
-        output_dill = frontend_dill,
+        output_dill = cfe_dill,
         main_path = main_arg,
         defines = compile_defines,
-        frontend_flags = frontend_flags,
+        cfe_flags = cfe_flags,
         native_assets_yaml = native_assets_yaml,
     )
 
@@ -140,7 +140,7 @@ def _dart_binary_impl(ctx):
         ctx = ctx,
         dart_bin = dart_sdk_info.dart,
         sdk_files = dart_sdk_info.tool_files,
-        main = frontend_dill,
+        main = cfe_dill,
         srcs = [],
         package_config = None,
         output = output,

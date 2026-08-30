@@ -5,13 +5,13 @@ load("//dart/private:common.bzl", "writable_home_env")
 def defines_stage_error(defines, package_config):
     """Returns an error string if `defines` would reach the compiler too late.
 
-    `-D` values are consumed by the front end during constant evaluation —
+    `-D` values are consumed by the CFE during constant evaluation —
     `String.fromEnvironment` and friends resolve there, not at run time. When
     `main` is a precompiled `.dill` (signalled by a `None` `package_config`) the
-    front end has already run, and `dart compile` accepts `-D` and silently
+    CFE has already run, and `dart compile` accepts `-D` and silently
     ignores it: no error, no warning, just the default value baked into the
     output. Environment declarations for a `.dill` input have to go to the
-    frontend action that produced it.
+    CFE action that produced it.
 
     Args:
         defines: Environment declarations destined for this action.
@@ -25,15 +25,15 @@ def defines_stage_error(defines, package_config):
         return ("dart_compile_action: `defines` %s cannot be applied to a " +
                 "precompiled `.dill` — constant evaluation already happened in " +
                 "the action that produced it. Pass them to that action " +
-                "instead (e.g. `dart_frontend_action`).") % defines
+                "instead (e.g. `dart_cfe_action`).") % defines
     return None
 
-_RESERVED_FRONTEND_FLAGS = [
+_RESERVED_CFE_FLAGS = [
     "--filesystem-root",
     "--filesystem-scheme",
 ]
 
-_FRONTEND_ONLY_FLAGS = [
+_CFE_ONLY_FLAGS = [
     "--define",
     "--embed-sources",
     "--enable-experiment",
@@ -42,7 +42,7 @@ _FRONTEND_ONLY_FLAGS = [
     "--no-link-platform",
 ]
 
-_FRONTEND_AND_BACKEND_FLAGS = [
+_CFE_AND_BACKEND_FLAGS = [
     "--enable-asserts",
     "--no-enable-asserts",
     "--verbosity",
@@ -52,55 +52,55 @@ def _long_flag_name(flag):
     return flag.split("=", 1)[0]
 
 def split_dart_compile_flags(flags):
-    """Routes user flags to the frontend and/or backend.
+    """Routes user flags to the Dart CFE and/or backend.
 
     The stable multi-root mapping is an invariant of the action and cannot be
     replaced through `dart_compile_flags`. Language experiments, source
     embedding, environment declarations written as raw flags, and other
-    frontend options must run before the `.dill` exists. Backend-specific flags
+    CFE options must run before the `.dill` exists. Backend-specific flags
     retain their old position at the end of `dart compile`'s argv.
 
     Args:
       flags: The `dart_compile_flags` string list.
 
     Returns:
-      `struct(frontend, backend)`.
+      `struct(cfe, backend)`.
     """
-    frontend = []
+    cfe = []
     backend = []
-    frontend_value = False
+    cfe_value = False
     both_value = False
     for flag in flags:
-        if frontend_value:
-            frontend.append(flag)
-            frontend_value = False
+        if cfe_value:
+            cfe.append(flag)
+            cfe_value = False
             continue
         if both_value:
-            frontend.append(flag)
+            cfe.append(flag)
             backend.append(flag)
             both_value = False
             continue
 
         name = _long_flag_name(flag)
-        if name in _RESERVED_FRONTEND_FLAGS:
+        if name in _RESERVED_CFE_FLAGS:
             fail(("dart_compile_flags may not set %s: rules_dart reserves the " +
                   "execroot filesystem mapping so compiled source URIs remain " +
                   "deterministic.") % name)
 
         # `-Dfoo=bar` is the short spelling of `--define=foo=bar`.
         if flag == "-D" or (flag.startswith("-D") and len(flag) > 2):
-            frontend.append(flag)
-            frontend_value = flag == "-D"
-        elif name in _FRONTEND_ONLY_FLAGS:
-            frontend.append(flag)
-            frontend_value = "=" not in flag and name in ["--define", "--enable-experiment"]
-        elif name in _FRONTEND_AND_BACKEND_FLAGS:
-            frontend.append(flag)
+            cfe.append(flag)
+            cfe_value = flag == "-D"
+        elif name in _CFE_ONLY_FLAGS:
+            cfe.append(flag)
+            cfe_value = "=" not in flag and name in ["--define", "--enable-experiment"]
+        elif name in _CFE_AND_BACKEND_FLAGS:
+            cfe.append(flag)
             backend.append(flag)
             both_value = "=" not in flag and name == "--verbosity"
         else:
             backend.append(flag)
-    return struct(frontend = frontend, backend = backend)
+    return struct(cfe = cfe, backend = backend)
 
 def get_compilation_mode_flags(ctx, compile_mode):
     """Returns compiler flags for the current Bazel compilation mode.
@@ -172,7 +172,7 @@ def dart_compile_action(
     args.add(compile_mode)
 
     # `package_config` is None when `main` is a precompiled `.dill`,
-    # which already has package resolution baked in by the stable frontend.
+    # which already has package resolution baked in by the CFE.
     if package_config != None:
         args.add("--packages", package_config)
 

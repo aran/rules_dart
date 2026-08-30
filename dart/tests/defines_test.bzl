@@ -1,7 +1,7 @@
-"""Tests that `defines` reach the action which runs the Dart front end.
+"""Tests that `defines` reach the action which runs the Dart CFE.
 
 `-D` values are resolved during constant evaluation, so they take effect only
-in the frontend action that compiles source. `dart compile` accepts `-D`
+in the CFE action that compiles source. `dart compile` accepts `-D`
 on a precompiled `.dill` while silently ignoring it. Nothing fails, the define just
 evaporates, so these tests pin which stage receives the flag with and without
 native-assets metadata.
@@ -12,7 +12,7 @@ load("//dart/private:build_settings.bzl", "dart_define_error")
 load("//dart/private:dart_compile.bzl", "defines_stage_error")
 load(":small_suite.bzl", "small_unittest_suite")
 
-_DART_FRONTEND = "DartFrontend"
+_DART_CFE = "DartCFE"
 _DART_COMPILE = "DartCompile"
 
 def _argv_for(env, mnemonic):
@@ -34,30 +34,30 @@ def _flag_value(argv, flag):
 def _defines_test_impl(ctx):
     env = analysistest.begin(ctx)
     flag = "-D" + ctx.attr.expected_define
-    frontend = _argv_for(env, _DART_FRONTEND)
+    cfe = _argv_for(env, _DART_CFE)
     dart_compile = _argv_for(env, _DART_COMPILE)
-    if frontend == None or dart_compile == None:
+    if cfe == None or dart_compile == None:
         asserts.true(
             env,
             False,
             "expected both a %s and a %s action, saw %s" %
-            (_DART_FRONTEND, _DART_COMPILE, _mnemonics(env)),
+            (_DART_CFE, _DART_COMPILE, _mnemonics(env)),
         )
         return analysistest.end(env)
     asserts.true(
         env,
-        flag in frontend,
-        "%s missing from the front-end stage: %s" % (flag, frontend),
+        flag in cfe,
+        "%s missing from the CFE stage: %s" % (flag, cfe),
     )
     asserts.true(
         env,
         flag not in dart_compile,
         "%s must not be repeated on the backend stage: %s" % (flag, dart_compile),
     )
-    asserts.equals(env, ".", _flag_value(frontend, "--filesystem-root"))
-    asserts.equals(env, "org-dartlang-bazel", _flag_value(frontend, "--filesystem-scheme"))
-    asserts.true(env, _flag_value(frontend, "--packages").startswith("org-dartlang-bazel:///"))
-    asserts.true(env, frontend[-1].startswith("org-dartlang-bazel:///"))
+    asserts.equals(env, ".", _flag_value(cfe, "--filesystem-root"))
+    asserts.equals(env, "org-dartlang-bazel", _flag_value(cfe, "--filesystem-scheme"))
+    asserts.true(env, _flag_value(cfe, "--packages").startswith("org-dartlang-bazel:///"))
+    asserts.true(env, cfe[-1].startswith("org-dartlang-bazel:///"))
     return analysistest.end(env)
 
 direct_defines_test = analysistest.make(
