@@ -5,13 +5,13 @@ load("//dart/private:common.bzl", "writable_home_env")
 def defines_stage_error(defines, package_config):
     """Returns an error string if `defines` would reach the compiler too late.
 
-    `-D` values are consumed by the CFE during constant evaluation —
+    `-D` values are consumed by the front end during constant evaluation —
     `String.fromEnvironment` and friends resolve there, not at run time. When
-    `main` is a precompiled `.dill` (signalled by a `None` `package_config`) the
-    CFE has already run, and `dart compile` accepts `-D` and silently
+    `main` is a pre-built kernel (signalled by a `None` `package_config`) the
+    front end has already run, and `dart compile` accepts `-D` and silently
     ignores it: no error, no warning, just the default value baked into the
-    output. Environment declarations for a `.dill` input have to go to the
-    CFE action that produced it.
+    output. Environment declarations for a kernel input have to go to whatever
+    action produced that kernel.
 
     Args:
         defines: Environment declarations destined for this action.
@@ -23,7 +23,7 @@ def defines_stage_error(defines, package_config):
     """
     if defines and package_config == None:
         return ("dart_compile_action: `defines` %s cannot be applied to a " +
-                "precompiled `.dill` — constant evaluation already happened in " +
+                "pre-built kernel — constant evaluation already happened in " +
                 "the action that produced it. Pass them to that action " +
                 "instead (e.g. `dart_cfe_action`).") % defines
     return None
@@ -171,8 +171,9 @@ def dart_compile_action(
     args.add("compile")
     args.add(compile_mode)
 
-    # `package_config` is None when `main` is a precompiled `.dill`,
-    # which already has package resolution baked in by the CFE.
+    # `package_config` is None when `main` is a pre-built kernel (`.dill`),
+    # which already has package resolution baked in (e.g. the code_assets
+    # path that runs gen_kernel first).
     if package_config != None:
         args.add("--packages", package_config)
 

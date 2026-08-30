@@ -78,7 +78,7 @@ def _sound_when_compiling_source_test_impl(ctx):
     return unittest.end(env)
 
 def _sound_when_no_defines_test_impl(ctx):
-    # A precompiled `.dill` is fine on its own; only defines make it a mistake.
+    # A kernel input is fine on its own; only defines make it a mistake.
     env = unittest.begin(ctx)
     asserts.equals(env, None, defines_stage_error([], None))
     return unittest.end(env)

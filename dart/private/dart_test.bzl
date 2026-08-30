@@ -1,7 +1,7 @@
 """Implementation of the dart_test rule.
 
 Unified with `dart_binary`: the test's `main` is compiled to a self-contained
-a `.dill` **at build time**, so package resolution and `part`/`import`
+kernel (`.dill`) **at build time**, so package resolution and `part`/`import`
 co-location happen in the execroot — exactly where `dart_binary` already proves
 they work — and the test launcher merely runs the dill. No sources, no
 `package_config`, and no co-location are needed at runtime, so manifest-mode
@@ -74,7 +74,7 @@ def _dart_test_impl(ctx):
 
     native_assets_yaml = None
     if resolved_assets:
-        # Embed the code-asset mapping in the `.dill` (`gen_kernel --native-assets`),
+        # Embed the code-asset mapping in the kernel (`gen_kernel --native-assets`),
         # with `relative` paths resolved against the dill at runtime — the same
         # build-time path `dart_binary` uses. The `.so` libraries ship in runfiles.
         abi = target_dart_abi(ctx)
@@ -164,12 +164,12 @@ dart_test = rule(
         "defines": attr.string_list(
             doc = """Dart environment declarations (`key=value`). Each entry becomes a `-Dkey=value` \
 flag on the build-time compile, so `String.fromEnvironment` resolves to it. Set these here rather \
-than at run time: the test's `main` is compiled to a `.dill` during the build, and environment \
-declarations are resolved by the CFE at that point — the VM cannot supply them later.""",
+than at run time: the test's `main` is compiled to a kernel during the build, and environment \
+declarations are resolved by the front end at that point — the VM cannot supply them later.""",
         ),
         "code_assets": attr.label_list(
             doc = """Native code assets (e.g. `//dart/ext/sqlite3:code_asset`) the test's \
-`@Native` FFI bindings resolve against. When set, the test's `main` is compiled to a `.dill` \
+`@Native` FFI bindings resolve against. When set, the test's `main` is compiled to a kernel \
 with the code-asset mapping embedded (`gen_kernel --native-assets`), and the libraries ship in \
 runfiles so the Dart VM resolves them — no `dart:ffi` ceremony in the test source. Each entry \
 must provide `DartCodeAssetInfo` (see the `dart_code_asset` rule).""",
@@ -183,5 +183,5 @@ must provide `DartCodeAssetInfo` (see the `dart_code_asset` rule).""",
     }, **dict(WINDOWS_CONSTRAINT_ATTR, **dict(DART_ABI_CONSTRAINT_ATTRS, **EXTRA_DART_DEFINES_ATTR))),
     test = True,
     toolchains = ["//dart:toolchain_type"] + COPY_TO_DIRECTORY_TOOLCHAINS,
-    doc = "Compiles a Dart test to a `.dill` at build time and runs it with asserts enabled.",
+    doc = "Compiles a Dart test to a kernel at build time and runs it with asserts enabled.",
 )

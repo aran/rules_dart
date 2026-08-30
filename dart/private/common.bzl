@@ -496,7 +496,7 @@ def generate_package_config(packages, all_srcs, config_file):
             #   2. an aggregate `dart_library(srcs = [])` façade that exists
             #      only to re-export its deps.
             # Either way no consumer needs a `rootUri` for this package. If
-            # anything *does* import `package:<name>/…`, the Dart CFE
+            # anything *does* import `package:<name>/…`, the Dart frontend
             # reports a localized URI-not-found at the import — clearer than
             # failing the whole package_config build here.
             continue

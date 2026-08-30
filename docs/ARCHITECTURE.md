@@ -172,7 +172,7 @@ Bazel's `-c` flag (`fastbuild`, `dbg`, `opt`) controls compiler flags automatica
 
 No define keys are reserved. rules_dart maps compilation mode to `--enable-asserts` and gen-snapshot options only, and sets no define of its own, so there is nothing for a user value to collide with. (rules_flutter reserves `dart.vm.product` and friends because its build does set them.)
 
-One caveat, inherited from the Dart CLI and shared by the `defines` attribute: the CFE (`dart compile exe|kernel`, `gen_kernel`) splits a define **value** on commas, so `-DA=x,y` yields `A=x`. `dart compile js` does not split. Values containing commas are therefore not portable across compile modes. The flag is declared `repeatable` so that Bazel itself never splits them — the limit is the compiler's, not the build system's.
+One caveat, inherited from the Dart CLI and shared by the `defines` attribute: the VM front end (`dart compile exe|kernel`, `gen_kernel`) splits a define **value** on commas, so `-DA=x,y` yields `A=x`. `dart compile js` does not split. Values containing commas are therefore not portable across compile modes. The flag is declared `repeatable` so that Bazel itself never splits them — the limit is the compiler's, not the build system's.
 
 ---
 

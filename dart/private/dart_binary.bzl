@@ -205,7 +205,7 @@ dart_binary = rule(
         ),
         "code_assets": attr.label_list(
             doc = """Native code assets (e.g. `//dart/ext/sqlite3:code_asset`) the binary's \
-`@Native` FFI bindings resolve against. When set, the main is compiled to a `.dill` with the \
+`@Native` FFI bindings resolve against. When set, the main is compiled to a kernel with the \
 code-asset mapping embedded (`gen_kernel --native-assets`) before the snapshot/exe is produced, \
 and the libraries are staged in runfiles so the Dart VM resolves them relative to the executable \
 at runtime. Each entry must provide `DartCodeAssetInfo` (see the `dart_code_asset` rule).""",
