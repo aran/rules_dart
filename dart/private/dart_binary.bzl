@@ -11,7 +11,7 @@ load(
     "collect_transitive_code_assets",
     "collect_transitive_resources",
     "collect_transitive_srcs",
-    "dart_kernel_action",
+    "dart_frontend_action",
     "generate_native_assets_yaml",
     "generate_package_config",
     "resolve_code_assets",
@@ -88,9 +88,8 @@ def _dart_binary_impl(ctx):
         binary_output_basename(ctx.label.name, compile_mode, is_windows),
     )
 
-    # Every native mode shares one stable front end. `dart compile` only sees
-    # the resulting kernel, whose source URIs are independent of the output
-    # base and sandbox path.
+    # Every native mode shares one front end with location-independent source
+    # URIs. The selected `dart compile` backend consumes its `.dill` output.
     compile_defines = merge_dart_defines(ctx)
     routed_flags = split_dart_compile_flags(ctx.attr.dart_compile_flags)
     code_asset_libs = []
@@ -118,18 +117,18 @@ def _dart_binary_impl(ctx):
             output = native_assets_yaml,
             content = generate_native_assets_yaml(abi, entries),
         )
-    dill = ctx.actions.declare_file(ctx.label.name + ".frontend.dill")
+    frontend_dill = ctx.actions.declare_file(ctx.label.name + ".frontend.dill")
     frontend_flags = list(routed_flags.frontend)
     for flag in get_compilation_mode_flags(ctx, compile_mode):
         if flag in ["--enable-asserts", "--no-enable-asserts"]:
             frontend_flags.append(flag)
-    dart_kernel_action(
+    dart_frontend_action(
         ctx = ctx,
         dart_sdk_info = dart_sdk_info,
         main = main_input,
         transitive_srcs = depset(all_srcs),
         package_config = package_config,
-        output_dill = dill,
+        output_dill = frontend_dill,
         main_path = main_arg,
         defines = compile_defines,
         frontend_flags = frontend_flags,
@@ -141,7 +140,7 @@ def _dart_binary_impl(ctx):
         ctx = ctx,
         dart_bin = dart_sdk_info.dart,
         sdk_files = dart_sdk_info.tool_files,
-        main = dill,
+        main = frontend_dill,
         srcs = [],
         package_config = None,
         output = output,
@@ -206,7 +205,7 @@ dart_binary = rule(
         ),
         "code_assets": attr.label_list(
             doc = """Native code assets (e.g. `//dart/ext/sqlite3:code_asset`) the binary's \
-`@Native` FFI bindings resolve against. When set, the main is compiled to a kernel with the \
+`@Native` FFI bindings resolve against. When set, the main is compiled to a `.dill` with the \
 code-asset mapping embedded (`gen_kernel --native-assets`) before the snapshot/exe is produced, \
 and the libraries are staged in runfiles so the Dart VM resolves them relative to the executable \
 at runtime. Each entry must provide `DartCodeAssetInfo` (see the `dart_code_asset` rule).""",

@@ -7,11 +7,11 @@ def defines_stage_error(defines, package_config):
 
     `-D` values are consumed by the front end during constant evaluation —
     `String.fromEnvironment` and friends resolve there, not at run time. When
-    `main` is a pre-built kernel (signalled by a `None` `package_config`) the
+    `main` is a precompiled `.dill` (signalled by a `None` `package_config`) the
     front end has already run, and `dart compile` accepts `-D` and silently
     ignores it: no error, no warning, just the default value baked into the
-    output. Environment declarations for a kernel input have to go to whatever
-    action produced that kernel.
+    output. Environment declarations for a `.dill` input have to go to the
+    frontend action that produced it.
 
     Args:
         defines: Environment declarations destined for this action.
@@ -23,9 +23,9 @@ def defines_stage_error(defines, package_config):
     """
     if defines and package_config == None:
         return ("dart_compile_action: `defines` %s cannot be applied to a " +
-                "pre-built kernel — constant evaluation already happened in " +
+                "precompiled `.dill` — constant evaluation already happened in " +
                 "the action that produced it. Pass them to that action " +
-                "instead (e.g. `dart_kernel_action`).") % defines
+                "instead (e.g. `dart_frontend_action`).") % defines
     return None
 
 _RESERVED_FRONTEND_FLAGS = [
@@ -52,12 +52,12 @@ def _long_flag_name(flag):
     return flag.split("=", 1)[0]
 
 def split_dart_compile_flags(flags):
-    """Routes user flags to the source frontend and/or kernel backend.
+    """Routes user flags to the frontend and/or backend.
 
     The stable multi-root mapping is an invariant of the action and cannot be
     replaced through `dart_compile_flags`. Language experiments, source
     embedding, environment declarations written as raw flags, and other
-    frontend options must run before the kernel exists. Backend-specific flags
+    frontend options must run before the `.dill` exists. Backend-specific flags
     retain their old position at the end of `dart compile`'s argv.
 
     Args:
@@ -171,7 +171,7 @@ def dart_compile_action(
     args.add("compile")
     args.add(compile_mode)
 
-    # `package_config` is None when `main` is a pre-built kernel (`.dill`),
+    # `package_config` is None when `main` is a precompiled `.dill`,
     # which already has package resolution baked in by the stable frontend.
     if package_config != None:
         args.add("--packages", package_config)

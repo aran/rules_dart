@@ -778,12 +778,12 @@ def synth_package_config(ctx, library_deps):
     ctx.actions.write(output = package_config, content = content)
     return package_config, transitive_srcs
 
-# --- Stable kernel and native code-asset helpers ---
+# --- Dart frontend and native code-asset helpers ---
 
-_STABLE_KERNEL_SCHEME = "org-dartlang-bazel"
+_FRONTEND_URI_SCHEME = "org-dartlang-bazel"
 
-def _stable_kernel_uri(path):
-    return _STABLE_KERNEL_SCHEME + ":///" + path.replace("\\", "/").lstrip("/")
+def _frontend_uri(path):
+    return _FRONTEND_URI_SCHEME + ":///" + path.replace("\\", "/").lstrip("/")
 
 def target_dart_abi(ctx):
     """Returns the Dart code-asset ABI string for the target platform.
@@ -1064,7 +1064,7 @@ def generate_native_assets_yaml(abi, asset_entries):
         assets = assets,
     )
 
-def dart_kernel_action(
+def dart_frontend_action(
         ctx,
         dart_sdk_info,
         main,
@@ -1075,7 +1075,7 @@ def dart_kernel_action(
         defines = [],
         frontend_flags = [],
         native_assets_yaml = None):
-    """Runs `gen_kernel` through a stable execroot-relative URI namespace.
+    """Runs the Dart frontend through a stable execroot-relative URI namespace.
 
     Invokes `dartaotruntime gen_kernel_aot.dart.snapshot --platform <dill>
     --filesystem-root . --filesystem-scheme org-dartlang-bazel ...`. Both the
@@ -1106,16 +1106,16 @@ def dart_kernel_action(
     args.add(tools.gen_kernel_snapshot)
     args.add("--platform", tools.platform_dill)
     args.add("--filesystem-root", ".")
-    args.add("--filesystem-scheme", _STABLE_KERNEL_SCHEME)
+    args.add("--filesystem-scheme", _FRONTEND_URI_SCHEME)
     if package_config != None:
-        args.add("--packages", _stable_kernel_uri(package_config.path))
+        args.add("--packages", _frontend_uri(package_config.path))
     if native_assets_yaml != None:
         args.add("--native-assets", native_assets_yaml)
     for d in defines:
         args.add("-D" + d)
     args.add_all(frontend_flags)
     args.add("-o", output_dill)
-    args.add(_stable_kernel_uri(main_path if main_path != None else main.path))
+    args.add(_frontend_uri(main_path if main_path != None else main.path))
 
     direct = [main]
     if package_config != None:
@@ -1133,8 +1133,8 @@ def dart_kernel_action(
         arguments = [args],
         inputs = depset(direct = direct, transitive = transitive),
         outputs = [output_dill],
-        mnemonic = "DartKernel",
-        progress_message = "Compiling stable Dart kernel %s" % ctx.label,
+        mnemonic = "DartFrontend",
+        progress_message = "Running Dart frontend for %s" % ctx.label,
         env = env,
     )
 

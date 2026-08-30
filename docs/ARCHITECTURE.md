@@ -164,7 +164,7 @@ Bazel's `-c` flag (`fastbuild`, `dbg`, `opt`) controls compiler flags automatica
 ### Per-Target Attributes
 
 - **`dart_compile_flags`** (`string_list`): Extra flags are routed to the stage that consumes them. Frontend flags such as `--enable-experiment` reach `gen_kernel`; backend flags remain appended after mode defaults so they retain last-wins behavior.
-- **`defines`** (`string_list`): Entries in `key=value` format. Each becomes a `-Dkey=value` flag on the shared `gen_kernel` action. These are resolved by the front end during constant evaluation, before `dart compile` consumes the stable kernel.
+- **`defines`** (`string_list`): Entries in `key=value` format. Each becomes a `-Dkey=value` flag on the shared frontend action. These are resolved during constant evaluation, before the backend consumes its `.dill` input.
 
 ### Command-Line Defines
 
