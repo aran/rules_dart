@@ -1,0 +1,131 @@
+load("//dart:defs.bzl", "dart_binary", "dart_code_asset", "dart_library", "dart_test")
+load("//dart/tests:stable_kernel_test.bzl", "reserved_mapping_test", "stable_kernel_action_test")
+
+dart_library(
+    name = "lib",
+    package_name = "kernel_fixture",
+    srcs = ["lib/greeting.dart"],
+)
+
+dart_binary(
+    name = "exe",
+    main = "bin/main.dart",
+    deps = [":lib"],
+)
+
+dart_binary(
+    name = "aot",
+    compile_mode = "aot-snapshot",
+    main = "bin/main.dart",
+    deps = [":lib"],
+)
+
+dart_binary(
+    name = "kernel",
+    compile_mode = "kernel",
+    main = "bin/main.dart",
+    deps = [":lib"],
+)
+
+dart_binary(
+    name = "jit",
+    compile_mode = "jit-snapshot",
+    main = "bin/main.dart",
+    deps = [":lib"],
+)
+
+dart_binary(
+    name = "flags",
+    dart_compile_flags = [
+        "--enable-experiment=test-experiment",
+        "--extra-gen-snapshot-options=--optimization_level=3",
+    ],
+    main = "bin/main.dart",
+    deps = [":lib"],
+)
+
+dart_code_asset(
+    name = "system_asset",
+    asset_id = "package:kernel_fixture/src/ffi/kernel_fixture.g.dart",
+    link_mode = "dynamic_loading_system",
+    system_uri = "libc.so.6",
+)
+
+dart_binary(
+    name = "native_assets",
+    code_assets = [":system_asset"],
+    main = "bin/main.dart",
+    deps = [":lib"],
+)
+
+dart_test(
+    name = "test",
+    main = "test/main_test.dart",
+    deps = [":lib"],
+)
+
+dart_binary(
+    name = "reserved_mapping",
+    dart_compile_flags = ["--filesystem-root=/tmp/not-the-execroot"],
+    main = "bin/main.dart",
+    tags = ["manual"],
+    deps = [":lib"],
+)
+
+stable_kernel_action_test(
+    name = "exe_action_test",
+    compile_mode = "exe",
+    expect_packages = True,
+    target_under_test = ":exe",
+)
+
+stable_kernel_action_test(
+    name = "aot_action_test",
+    compile_mode = "aot-snapshot",
+    expect_packages = True,
+    target_under_test = ":aot",
+)
+
+stable_kernel_action_test(
+    name = "kernel_action_test",
+    compile_mode = "kernel",
+    expect_packages = True,
+    target_under_test = ":kernel",
+)
+
+stable_kernel_action_test(
+    name = "jit_action_test",
+    compile_mode = "jit-snapshot",
+    expect_packages = True,
+    target_under_test = ":jit",
+)
+
+stable_kernel_action_test(
+    name = "flags_action_test",
+    backend_flags = ["--extra-gen-snapshot-options=--optimization_level=3"],
+    compile_mode = "exe",
+    expect_packages = True,
+    frontend_flags = ["--enable-experiment=test-experiment"],
+    frontend_only_flags = ["--enable-experiment=test-experiment"],
+    target_under_test = ":flags",
+)
+
+stable_kernel_action_test(
+    name = "native_assets_action_test",
+    compile_mode = "exe",
+    expect_native_assets = True,
+    expect_packages = True,
+    target_under_test = ":native_assets",
+)
+
+stable_kernel_action_test(
+    name = "test_action_test",
+    entrypoint_suffix = "test/main_test.dart",
+    expect_packages = True,
+    target_under_test = ":test",
+)
+
+reserved_mapping_test(
+    name = "reserved_mapping_test",
+    target_under_test = ":reserved_mapping",
+)

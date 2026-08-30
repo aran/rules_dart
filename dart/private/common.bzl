@@ -778,11 +778,24 @@ def synth_package_config(ctx, library_deps):
     ctx.actions.write(output = package_config, content = content)
     return package_config, transitive_srcs
 
-# --- Native code-asset (gen_kernel --native-assets) helpers ---
-#
-# SKELETON STUBS: signatures exist so `dart_test`/`dart_binary` load and the
-# unit tests fail on assertions rather than missing symbols. Implemented in a
-# follow-up edit.
+# --- Stable kernel and native code-asset helpers ---
+
+_STABLE_KERNEL_SCHEME = "org-dartlang-bazel"
+
+def stable_kernel_uri(path):
+    """Returns the location-independent URI used in VM kernel components.
+
+    `gen_kernel` resolves this URI through an execroot-rooted multi-root file
+    system. The URI therefore records only Bazel's execroot-relative path, not
+    the absolute output base or sandbox directory in which the action ran.
+
+    Args:
+      path: An execroot-relative path.
+
+    Returns:
+      An `org-dartlang-bazel:///...` URI.
+    """
+    return _STABLE_KERNEL_SCHEME + ":///" + path.replace("\\", "/").lstrip("/")
 
 def target_dart_abi(ctx):
     """Returns the Dart code-asset ABI string for the target platform.
@@ -1063,23 +1076,25 @@ def generate_native_assets_yaml(abi, asset_entries):
         assets = assets,
     )
 
-def gen_kernel_native_assets_action(
+def dart_kernel_action(
         ctx,
         dart_sdk_info,
         main,
         transitive_srcs,
         package_config,
-        native_assets_yaml,
         output_dill,
         main_path = None,
-        defines = []):
-    """Runs `gen_kernel --native-assets=<yaml>` to produce a kernel `.dill`.
+        defines = [],
+        frontend_flags = [],
+        native_assets_yaml = None):
+    """Runs `gen_kernel` through a stable execroot-relative URI namespace.
 
     Invokes `dartaotruntime gen_kernel_aot.dart.snapshot --platform <dill>
-    --packages <pc> --native-assets <yaml> -o <output> <main>`, embedding the
-    code-asset mapping as `vm:ffi:native-assets` metadata. The `.so` files are
-    NOT inputs — gen_kernel only embeds the yaml text; the libraries are a
-    runtime (runfiles) dependency.
+    --filesystem-root . --filesystem-scheme org-dartlang-bazel ...`. Both the
+    entrypoint and package config are passed as stable scheme URIs, so source
+    references embedded in the component cannot contain the absolute sandbox
+    or output-base path. When supplied, the native-assets manifest is embedded
+    as `vm:ffi:native-assets` metadata; its libraries remain runtime inputs.
 
     Args:
       ctx: The rule context.
@@ -1087,7 +1102,6 @@ def gen_kernel_native_assets_action(
       main: The main `.dart` File.
       transitive_srcs: Depset of transitive source Files.
       package_config: The build-time `package_config.json` File (or None).
-      native_assets_yaml: The generated native_assets.yaml File.
       output_dill: The output `.dill` File to produce.
       main_path: Optional path string to compile instead of `main.path` (e.g. a
         path inside an assembled `main` directory).
@@ -1095,23 +1109,31 @@ def gen_kernel_native_assets_action(
         action runs the front end, so it is the only stage where they can still
         reach constant evaluation — `dart compile` on the resulting `.dill`
         would accept them and silently do nothing.
+      frontend_flags: Additional flags consumed by `gen_kernel`.
+      native_assets_yaml: Optional generated native_assets.yaml File.
     """
     tools = find_sdk_kernel_tools(dart_sdk_info)
 
     args = ctx.actions.args()
     args.add(tools.gen_kernel_snapshot)
     args.add("--platform", tools.platform_dill)
+    args.add("--filesystem-root", ".")
+    args.add("--filesystem-scheme", _STABLE_KERNEL_SCHEME)
     if package_config != None:
-        args.add("--packages", package_config)
-    args.add("--native-assets", native_assets_yaml)
+        args.add("--packages", stable_kernel_uri(package_config.path))
+    if native_assets_yaml != None:
+        args.add("--native-assets", native_assets_yaml)
     for d in defines:
         args.add("-D" + d)
+    args.add_all(frontend_flags)
     args.add("-o", output_dill)
-    args.add(main_path if main_path != None else main)
+    args.add(stable_kernel_uri(main_path if main_path != None else main.path))
 
-    direct = [main, native_assets_yaml]
+    direct = [main]
     if package_config != None:
         direct.append(package_config)
+    if native_assets_yaml != None:
+        direct.append(native_assets_yaml)
     transitive = [dart_sdk_info.tool_files]
     if transitive_srcs != None:
         transitive.append(transitive_srcs)
@@ -1123,8 +1145,8 @@ def gen_kernel_native_assets_action(
         arguments = [args],
         inputs = depset(direct = direct, transitive = transitive),
         outputs = [output_dill],
-        mnemonic = "DartGenKernelNativeAssets",
-        progress_message = "Compiling Dart kernel with native assets %s" % ctx.label,
+        mnemonic = "DartKernel",
+        progress_message = "Compiling stable Dart kernel %s" % ctx.label,
         env = env,
     )
 

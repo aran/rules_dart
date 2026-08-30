@@ -127,6 +127,46 @@ This split is why codegen resolves even under a target platform rules_dart regis
 
 Bazel's `-c` flag (`fastbuild`, `dbg`, `opt`) controls compiler flags automatically. Rules read `ctx.var["COMPILATION_MODE"]` and map it to Dart compiler flags. Per-target overrides are available via the `dart_compile_flags` and `defines` attributes; `dart_test` takes `defines` only, since its compile mode is fixed.
 
+### Deterministic VM compilation
+
+Every `dart_binary` mode and every `dart_test` first invokes the pinned SDK's `gen_kernel_aot.dart.snapshot`. The action installs one multi-root filesystem mapping rooted at the Bazel execroot and passes its entrypoint and package config as `org-dartlang-bazel:///...` URIs. Imports consequently enter the kernel as stable `package:`, `dart:`, or `org-dartlang-bazel:` URIs instead of absolute output-base or sandbox paths. `dart compile` then consumes that kernel for `exe`, `aot-snapshot`, `kernel`, and `jit-snapshot` outputs.
+
+Defines, language experiments, source-embedding options, assert configuration, and native-assets metadata are applied by this frontend action. Cross-compilation target flags, optimization options, and other backend flags remain on `dart compile`. `--filesystem-root` and `--filesystem-scheme` are reserved: setting either through `dart_compile_flags` fails analysis because replacing the mapping would reintroduce location-dependent source URIs. Rule attributes and providers are otherwise unchanged.
+
+Determinism here means byte-identical outputs for identical sources, toolchain, target platform, Bazel configuration, and flags. A quick local check using two independent Bazel output roots is:
+
+```bash
+artifacts=(
+  bazel-bin/dart/tests/kernel_fixture/exe.frontend.dill
+  bazel-bin/dart/tests/kernel_fixture/exe
+  bazel-bin/dart/tests/kernel_fixture/aot.frontend.dill
+  bazel-bin/dart/tests/kernel_fixture/aot.aot
+  bazel-bin/dart/tests/kernel_fixture/kernel.frontend.dill
+  bazel-bin/dart/tests/kernel_fixture/kernel.dill
+  bazel-bin/dart/tests/kernel_fixture/jit.frontend.dill
+  bazel-bin/dart/tests/kernel_fixture/jit.jit
+  bazel-bin/dart/tests/kernel_fixture/test.dill
+)
+
+bazel --output_user_root=/tmp/rules-dart-repro-a build \
+  //dart/tests/kernel_fixture:exe \
+  //dart/tests/kernel_fixture:aot \
+  //dart/tests/kernel_fixture:kernel \
+  //dart/tests/kernel_fixture:jit \
+  //dart/tests/kernel_fixture:test
+sha256sum "${artifacts[@]}" > /tmp/rules-dart-repro-a.sha256
+
+bazel --output_user_root=/tmp/rules-dart-repro-b build \
+  //dart/tests/kernel_fixture:exe \
+  //dart/tests/kernel_fixture:aot \
+  //dart/tests/kernel_fixture:kernel \
+  //dart/tests/kernel_fixture:jit \
+  //dart/tests/kernel_fixture:test
+sha256sum "${artifacts[@]}" > /tmp/rules-dart-repro-b.sha256
+
+diff -u /tmp/rules-dart-repro-a.sha256 /tmp/rules-dart-repro-b.sha256
+```
+
 ### Flag Mapping
 
 **dart_binary (exe / aot-snapshot)**
@@ -163,8 +203,8 @@ Bazel's `-c` flag (`fastbuild`, `dbg`, `opt`) controls compiler flags automatica
 
 ### Per-Target Attributes
 
-- **`dart_compile_flags`** (`string_list`): Extra flags appended after mode defaults. Appears last so user flags override defaults (e.g., `-O4` after `-O2` — dart2js uses last-wins).
-- **`defines`** (`string_list`): Entries in `key=value` format. Each becomes a `-Dkey=value` flag passed to the compiler. These are resolved by the front end during constant evaluation, so they must reach whichever action compiles source — with code assets that is `gen_kernel`, not the `dart compile` step that consumes its kernel.
+- **`dart_compile_flags`** (`string_list`): Extra flags are routed to the stage that consumes them. Frontend flags such as `--enable-experiment` reach `gen_kernel`; backend flags remain appended after mode defaults so they retain last-wins behavior.
+- **`defines`** (`string_list`): Entries in `key=value` format. Each becomes a `-Dkey=value` flag on the shared `gen_kernel` action. These are resolved by the front end during constant evaluation, before `dart compile` consumes the stable kernel.
 
 ### Command-Line Defines
 
