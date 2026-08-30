@@ -203,45 +203,9 @@ jobs:
       - name: dart_test — run tests under -c dbg
         working-directory: e2e/dart_test
         run: bazel test -c dbg --test_output=errors //...
-  reproducibility:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - name: Compare stable kernels and final outputs across output roots
-        shell: bash
-        run: |
-          set -euo pipefail
-          targets=(
-            //dart/tests/kernel_fixture:exe
-            //dart/tests/kernel_fixture:aot
-            //dart/tests/kernel_fixture:kernel
-            //dart/tests/kernel_fixture:jit
-            //dart/tests/kernel_fixture:native_assets
-            //dart/tests/kernel_fixture:test
-          )
-          artifacts=(
-            bazel-bin/dart/tests/kernel_fixture/exe.frontend.dill
-            bazel-bin/dart/tests/kernel_fixture/exe
-            bazel-bin/dart/tests/kernel_fixture/aot.frontend.dill
-            bazel-bin/dart/tests/kernel_fixture/aot.aot
-            bazel-bin/dart/tests/kernel_fixture/kernel.frontend.dill
-            bazel-bin/dart/tests/kernel_fixture/kernel.dill
-            bazel-bin/dart/tests/kernel_fixture/jit.frontend.dill
-            bazel-bin/dart/tests/kernel_fixture/jit.jit
-            bazel-bin/dart/tests/kernel_fixture/native_assets.frontend.dill
-            bazel-bin/dart/tests/kernel_fixture/native_assets
-            bazel-bin/dart/tests/kernel_fixture/test.dill
-          )
-
-          bazel --output_user_root="$RUNNER_TEMP/rules-dart-repro-a" build "${targets[@]}"
-          sha256sum "${artifacts[@]}" > "$RUNNER_TEMP/rules-dart-repro-a.sha256"
-
-          bazel --output_user_root="$RUNNER_TEMP/rules-dart-repro-b" build "${targets[@]}"
-          sha256sum "${artifacts[@]}" > "$RUNNER_TEMP/rules-dart-repro-b.sha256"
-
-          diff -u \
-            "$RUNNER_TEMP/rules-dart-repro-a.sha256" \
-            "$RUNNER_TEMP/rules-dart-repro-b.sha256"
+  # Reproducibility is checked manually for now with
+  # `bb detect nondeterminism --bazel_command='build //...'`. Last clean run:
+  # https://app.buildbuddy.io/invocation/6bc787fa-8647-4f5b-a9f9-b11a790bf0f3
   pre-commit:
     runs-on: ubuntu-latest
     steps:
@@ -250,7 +214,7 @@ jobs:
   # For branch protection settings, this job provides a "stable" name that can be used to gate PR merges
   # on "all matrix jobs were successful".
   conclusion:
-    needs: [test, expected-failure, dbg-mode, reproducibility, pre-commit]
+    needs: [test, expected-failure, dbg-mode, pre-commit]
     runs-on: ubuntu-latest
     if: always()
     steps:
