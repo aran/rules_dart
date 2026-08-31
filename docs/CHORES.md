@@ -274,7 +274,18 @@ Each in-repo Dart package is publishable to pub.dev. Maintenance includes:
 - **SDK constraint**: The `environment.sdk` lower bound in `pubspec.yaml`
   tracks the project's minimum supported Dart SDK. Updated by `/bump-dart-sdk`.
 - **Dependencies**: Any pub dependencies need periodic bumping. Run
-  `dart pub outdated` in the package directory to check.
+  `dart pub outdated` in the package directory to check, then `dart pub upgrade`
+  to take what the current constraints allow.
+
+  `dart/ext/` is the exception: **do not `dart pub upgrade` it as a chore.** Its
+  lock is `ext_pub_deps`, shared with every workspace that runs codegen, and the
+  pub extension fails the build when a package resolves to two versions across
+  locks. Moving it forward drags `e2e/codegen` and `e2e/dart_test_pkg` with it,
+  and they then land on an `_fe_analyzer_shared` that `dart/ext` cannot itself
+  reach — its builders hold `analyzer` at 10.x while everything else is on 14.x.
+  Bumping it means raising the builder constraints (freezed 4, analyzer 14,
+  `copy_with_extension_gen` 17), each of which needs its own
+  `dart/ext/<pkg>/<major>/` template. That is a change, not maintenance.
 - **Lock file**: `pubspec.lock` is refreshed automatically by
   `tool/refresh_locks.dart`.
 - **Version**: Committed as `0.0.0-dev`. The real version is injected from
