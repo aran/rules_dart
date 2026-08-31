@@ -24,9 +24,6 @@ def _flag_value(argv, flag):
             return argv[i + 1]
     return None
 
-def _flag_values(argv, flag):
-    return [argv[i + 1] for i in range(len(argv) - 1) if argv[i] == flag]
-
 def _defines_test_impl(ctx):
     env = analysistest.begin(ctx)
     flag = "-D" + ctx.attr.expected_define
@@ -50,7 +47,7 @@ def _defines_test_impl(ctx):
         flag not in dart_compile,
         "%s must not be repeated on the backend stage: %s" % (flag, dart_compile),
     )
-    asserts.equals(env, [".", "external"], _flag_values(cfe, "--filesystem-root"))
+    asserts.equals(env, ".", _flag_value(cfe, "--filesystem-root"))
     asserts.equals(env, "org-dartlang-bazel", _flag_value(cfe, "--filesystem-scheme"))
     asserts.true(env, _flag_value(cfe, "--packages").startswith("org-dartlang-bazel:///"))
     asserts.true(env, cfe[-1].startswith("org-dartlang-bazel:///"))

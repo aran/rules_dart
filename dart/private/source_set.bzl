@@ -186,24 +186,15 @@ def colocate_entrypoint(ctx, main, own_srcs):
     if not needs_source_assembly(own_srcs):
         return main, main.path, own_srcs
 
-    # `.entrysrcs` (vs packages' `.pkgsrcs`) so this dir can't collide with a package dir.
-    # Preserve repository-relative paths inside the tree. The CFE mounts this
-    # directory as a filesystem root, so `main` keeps the same logical URI it
-    # had before colocation and relative imports do not start resolving from a
-    # `bazel-out/...entrysrcs` URI.
+    # Preserve repository-relative paths so mounting the tree does not change
+    # the entrypoint's logical URI or the base of its relative imports.
     assembled = assemble_source_dir(
         ctx,
         ctx.label.name + ".main.entrysrcs",
         [main] + own_srcs,
         root_paths = [],
     )
-    rel = main.short_path
-    if rel.startswith("../"):
-        # An external File's short_path is `../<canonical-repo>/<path>`, while
-        # copy_to_directory lays files from its own repository out at `<path>`.
-        parts = rel.split("/", 2)
-        rel = parts[2] if len(parts) == 3 else main.basename
-    return assembled, rel, []
+    return assembled, main.short_path, []
 
 def _dart_source_set_impl(ctx):
     dst = assemble_source_dir(
