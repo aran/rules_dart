@@ -8,7 +8,7 @@ load(":small_suite.bzl", "small_unittest_suite")
 
 def _smoke_test_impl(ctx):
     env = unittest.begin(ctx)
-    asserts.equals(env, "3.12.2", TOOL_VERSIONS.keys()[0])
+    asserts.equals(env, "3.13.2", TOOL_VERSIONS.keys()[0])
     return unittest.end(env)
 
 # The per-platform checksum coverage that used to live here — a hand-listed set
