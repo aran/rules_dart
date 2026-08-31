@@ -1,0 +1,1 @@
+const generatedEntrypointValue = 'generated';

@@ -1098,7 +1098,18 @@ def dart_cfe_action(
     args = ctx.actions.args()
     args.add(tools.gen_kernel_snapshot)
     args.add("--platform", tools.platform_dill)
+    if main.is_directory:
+        # `colocate_entrypoint` preserves repository-relative paths under this
+        # tree. Mount it first so generated siblings shadow their source-tree
+        # locations while the entrypoint retains its original logical URI.
+        args.add("--filesystem-root", main.path)
     args.add("--filesystem-root", ".")
+
+    # Relative imports in generated entrypoints can cross into an external
+    # repository (for example `../some_repo/lib/main.dart`).  Keep that source
+    # syntax working inside the stable URI namespace: `/foo` is looked up in
+    # the main execroot first, then under Bazel's external-repository tree.
+    args.add("--filesystem-root", "external")
     args.add("--filesystem-scheme", _CFE_URI_SCHEME)
     if package_config != None:
         args.add("--packages", _cfe_uri(package_config.path))

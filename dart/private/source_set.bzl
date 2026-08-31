@@ -179,18 +179,31 @@ def colocate_entrypoint(ctx, main, own_srcs):
     Returns:
       `(main_input, main_arg, extra_inputs)` — `main_input` is the File to add to
       action inputs (the assembled directory when assembled, else `main`);
-      `main_arg` is the path string to pass as the compile target; `extra_inputs`
-      are `own_srcs` to add as inputs when not assembled (empty when assembled).
+      `main_arg` is the entrypoint's logical path in the CFE filesystem;
+      `extra_inputs` are `own_srcs` to add as inputs when not assembled (empty
+      when assembled).
     """
     if not needs_source_assembly(own_srcs):
         return main, main.path, own_srcs
 
     # `.entrysrcs` (vs packages' `.pkgsrcs`) so this dir can't collide with a package dir.
-    assembled = assemble_source_dir(ctx, ctx.label.name + ".main.entrysrcs", [main] + own_srcs)
+    # Preserve repository-relative paths inside the tree. The CFE mounts this
+    # directory as a filesystem root, so `main` keeps the same logical URI it
+    # had before colocation and relative imports do not start resolving from a
+    # `bazel-out/...entrysrcs` URI.
+    assembled = assemble_source_dir(
+        ctx,
+        ctx.label.name + ".main.entrysrcs",
+        [main] + own_srcs,
+        root_paths = [],
+    )
     rel = main.short_path
-    if ctx.label.package and rel.startswith(ctx.label.package + "/"):
-        rel = rel[len(ctx.label.package) + 1:]
-    return assembled, assembled.path + "/" + rel, []
+    if rel.startswith("../"):
+        # An external File's short_path is `../<canonical-repo>/<path>`, while
+        # copy_to_directory lays files from its own repository out at `<path>`.
+        parts = rel.split("/", 2)
+        rel = parts[2] if len(parts) == 3 else main.basename
+    return assembled, rel, []
 
 def _dart_source_set_impl(ctx):
     dst = assemble_source_dir(

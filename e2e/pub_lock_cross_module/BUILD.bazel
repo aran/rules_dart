@@ -18,6 +18,25 @@ dart_binary(
     ],
 )
 
+# A generated entrypoint can import a source from an external repository by
+# its Bazel-relative path. The CFE's stable URI mapping must preserve that
+# pre-existing resolution behavior without exposing its private URI scheme in
+# Dart source.
+genrule(
+    name = "generated_entrypoint_src",
+    srcs = ["generated_entrypoint_src.in.dart"],
+    outs = ["generated_entrypoint_src.dart"],
+    cmd = "cp $(location generated_entrypoint_src.in.dart) $@",
+    cmd_bat = "copy /Y $(location generated_entrypoint_src.in.dart) $@",
+)
+
+dart_binary(
+    name = "relative_external_app",
+    srcs = [":generated_entrypoint_src"],
+    main = "lib/relative_external_main.dart",
+    deps = ["@module_b//:greeter"],
+)
+
 dart_analysis_options(
     name = "options",
     src = "analysis_options.yaml",
