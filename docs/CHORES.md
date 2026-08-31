@@ -384,7 +384,11 @@ and typos to keep CI and local hooks in sync.
 pinned to something else in this repo:
 
 - `keith/pre-commit-buildifier` should track `buildifier_prebuilt` in
-  `MODULE.bazel`, so the hook and CI format identically.
+  `MODULE.bazel`, so the hook and CI format identically. Match on the buildifier
+  version — the first three components — not the fourth, which is the ruleset's
+  own packaging revision: `buildifier_prebuilt` 8.5.1.3 and 8.5.1.4 ship the
+  same buildifier 8.5.1, and the mirror repo tags only some of those revisions
+  (it has no 8.5.1.4). A fourth-component gap is not drift.
 - `google/yamlfmt` and `crate-ci/typos` should track `multitool.lock.json`
   (see § "Multitool Version Bumps").
 - `pre-commit/mirrors-prettier` is archived upstream; `v3.1.0` is the last
