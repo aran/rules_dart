@@ -277,15 +277,22 @@ Each in-repo Dart package is publishable to pub.dev. Maintenance includes:
   `dart pub outdated` in the package directory to check, then `dart pub upgrade`
   to take what the current constraints allow.
 
-  `dart/ext/` is the exception: **do not `dart pub upgrade` it as a chore.** Its
-  lock is `ext_pub_deps`, shared with every workspace that runs codegen, and the
-  pub extension fails the build when a package resolves to two versions across
-  locks. Moving it forward drags `e2e/codegen` and `e2e/dart_test_pkg` with it,
-  and they then land on an `_fe_analyzer_shared` that `dart/ext` cannot itself
-  reach — its builders hold `analyzer` at 10.x while everything else is on 14.x.
-  Bumping it means raising the builder constraints (freezed 4, analyzer 14,
-  `copy_with_extension_gen` 17), each of which needs its own
-  `dart/ext/<pkg>/<major>/` template. That is a change, not maintenance.
+  `dart/ext/` moves as a deliberate chore, not with the routine sweep. Its
+  lock is `ext_pub_deps`, shared with every workspace that runs codegen, and
+  the pub extension fails the build when a package resolves to two versions
+  across locks. The graph rides the newest analyzer line every builder
+  accepts: today that is analyzer 13.x — `drift_dev` caps `analyzer` <14 and
+  `package_config` <3, so those majors wait on drift. `e2e/codegen`,
+  `e2e/dart_test_pkg`, and rules_dart_proto's `dart_proto` pin
+  `analyzer`/`package_config` in their pubspecs to hold their locks on the
+  same line. To bump: `dart pub upgrade` in `dart/ext/` (needs a
+  Flutter-flavored pub — `go_router_builder` declares a Flutter environment
+  constraint), then `dart pub upgrade` in each pinned workspace, refresh the
+  touched `MODULE.bazel.lock`s, and verify with `//dart/ext/...`,
+  `e2e/codegen`, and a consuming app. The freezed 3.2→4.0 / analyzer 10→13
+  bump needed no shim changes — every shim compiled and analyzed clean
+  unchanged — so expect builder majors to be cheap unless a builder
+  entrypoint signature changes.
 - **Lock file**: `pubspec.lock` is refreshed automatically by
   `tool/refresh_locks.dart`.
 - **Version**: Committed as `0.0.0-dev`. The real version is injected from
