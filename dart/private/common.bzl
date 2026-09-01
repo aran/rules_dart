@@ -1,7 +1,7 @@
 """Shared utilities for Dart rules."""
 
 load("//dart:providers.bzl", "CODE_ASSET_LINK_MODES", "DartAnalysisOptionsInfo", "DartAnalyzableInfo", "DartInfo", "DartPackageIdentityInfo")
-load("//dart/private:dart_info.bzl", "derived_package_info")
+load("//dart/private:dart_info.bzl", "derived_package_info", "package_lib_prefix")
 load("//dart/private:source_set.bzl", "needs_source_assembly", "package_for")
 
 # Official Bazel bash runfiles v3 initialization boilerplate.
@@ -844,7 +844,7 @@ def generate_dev_package_config(packages, all_srcs, config_file, scheme = "org-d
                 scheme = scheme,
                 lib_root = pkg.lib_root,
             )
-            lib_prefix = (pkg.lib_root + "/lib/") if pkg.lib_root else "lib/"
+            lib_prefix = package_lib_prefix(pkg.lib_root)
             for f in files:
                 er = _exec_root_of(f)
                 if f.is_source:
@@ -1462,7 +1462,7 @@ def same_package_library_dep_files(deps, package_name, exclude_paths = None):
     lib_root = dart_lib_root_for_package(deps, package_name)
     if lib_root == None:
         return [], None
-    prefix = (lib_root + "/lib/") if lib_root else "lib/"
+    prefix = package_lib_prefix(lib_root)
     excluded = {p: True for p in exclude_paths}
     seen = {}
     out = []

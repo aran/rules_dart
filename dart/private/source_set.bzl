@@ -16,7 +16,7 @@ same assembly as a standalone, package-agnostic primitive (consumed via
 """
 
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory_bin_action")
-load("//dart/private:dart_info.bzl", "derived_package_info")
+load("//dart/private:dart_info.bzl", "derived_package_info", "package_lib_prefix")
 
 COPY_TO_DIRECTORY_TOOLCHAINS = ["@bazel_lib//lib:copy_to_directory_toolchain_type"]
 
@@ -73,27 +73,45 @@ def assemble_source_dir(ctx, name, srcs, root_paths = ["."], replace_prefixes = 
     return dst
 
 def package_for(short_path, packages):
-    """Returns the package_name whose `lib_root` is the longest prefix of `short_path`.
+    """Returns the package_name owning `short_path`, by longest matching `lib_root`.
 
-    The empty (root-package) `lib_root` matches `lib/...` paths at lowest precedence.
+    A package owns its `<lib_root>/lib/` subtree and nothing else in the
+    directory: `lib/` is what a `package:` URI can reach, and staging strips
+    `lib_root`, so a `test/` or `tool/` file co-located into the package would
+    land somewhere no import resolves — and a generated entrypoint would lose
+    the relative imports that resolved from its real location. The rule is the
+    same wherever the package sits. Among several matches the longest `lib_root`
+    wins; the root package's is empty, so it is taken only when nothing else
+    matched at all.
+
+    The one path that is not under `lib/` is `lib_root` itself, which matches
+    exactly. That is a package whose files arrive as one opaque directory — a
+    `dart_library(srcs_dir = ...)`, or a record `colocate_packages` already
+    rewrote to its `.pkgsrcs` directory — where the directory *is* the package
+    root and `lib/` sits inside it.
 
     Args:
       short_path: A File's `short_path`.
       packages: List of `DartPackageInfo` (read for `package_name` and `lib_root`).
 
     Returns:
-      The matching `package_name`, or `None` if no `lib_root` is a prefix.
+      The matching `package_name`, or `None` if no package owns the path.
     """
     best_name = None
     best_len = -1
     for p in packages:
         lr = p.lib_root
+        prefix = package_lib_prefix(lr)
+
+        # `<lib_root>/lib` — the library directory itself, not a file under it.
+        lib_dir = prefix[:-1]
+        under_lib = short_path == lib_dir or short_path.startswith(prefix)
         if not lr:
             # Root package: owns `lib/...` files. Lowest precedence.
-            if (short_path == "lib" or short_path.startswith("lib/")) and best_len < 0:
+            if under_lib and best_len < 0:
                 best_name = p.package_name
                 best_len = 0
-        elif short_path == lr or short_path.startswith(lr + "/"):
+        elif under_lib or short_path == lr:
             if len(lr) > best_len:
                 best_name = p.package_name
                 best_len = len(lr)
@@ -102,7 +120,8 @@ def package_for(short_path, packages):
 def colocate_packages(ctx, packages, all_srcs):
     """Co-locates each package's split source/generated files into one directory.
 
-    Groups `all_srcs` by the package they belong to (longest `lib_root` match).
+    Groups `all_srcs` by the package whose `lib/` they belong to (longest
+    `lib_root` match — see `package_for`).
     Any package with at least one generated file (and not already a single
     pre-assembled directory) is assembled into one tree-artifact directory, so it
     has a single real `rootUri` at compile time. This is what makes a package

@@ -66,6 +66,30 @@ def _package_for_exact_dir_test_impl(ctx):
     asserts.equals(env, "p", package_for("pkg/p.pkgsrcs", pkgs))
     return unittest.end(env)
 
+def _package_for_non_root_only_claims_lib_test_impl(ctx):
+    # A package in a subdirectory claims the same thing the root package does:
+    # its `lib/` subtree, and nothing else in the directory. `test/`, `tool/`
+    # and `bin/` files are not reachable by a `package:` URI, so co-locating
+    # them into the package's assembled directory would only misplace them —
+    # and, for a generated entrypoint, break the relative imports that resolved
+    # from its real location.
+    env = unittest.begin(ctx)
+    pkgs = [_fake_pkg("sub", "pkgs/sub")]
+    asserts.equals(env, "sub", package_for("pkgs/sub/lib/a.dart", pkgs))
+    asserts.equals(env, "sub", package_for("pkgs/sub/lib/nested/a.dart", pkgs))
+
+    # The `lib` directory itself, mirroring the root package's `"lib"` case.
+    asserts.equals(env, "sub", package_for("pkgs/sub/lib", pkgs))
+
+    asserts.equals(env, None, package_for("pkgs/sub/test/a_test.dart", pkgs))
+    asserts.equals(env, None, package_for("pkgs/sub/tool/gen.dart", pkgs))
+    asserts.equals(env, None, package_for("pkgs/sub/bin/main.dart", pkgs))
+    asserts.equals(env, None, package_for("pkgs/sub/pubspec.yaml", pkgs))
+
+    # A sibling directory whose name merely starts with the lib_root.
+    asserts.equals(env, None, package_for("pkgs/subway/lib/a.dart", pkgs))
+    return unittest.end(env)
+
 def _package_for_external_and_nomatch_test_impl(ctx):
     # External-repo lib_root prefix matches; an unrelated path matches nothing.
     env = unittest.begin(ctx)
@@ -203,6 +227,7 @@ _empty_test = unittest.make(_empty_no_assembly_test_impl)
 _root_pkg_test = unittest.make(_package_for_root_package_test_impl)
 _longest_prefix_test = unittest.make(_package_for_longest_prefix_test_impl)
 _exact_dir_test = unittest.make(_package_for_exact_dir_test_impl)
+_non_root_lib_only_test = unittest.make(_package_for_non_root_only_claims_lib_test_impl)
 _external_nomatch_test = unittest.make(_package_for_external_and_nomatch_test_impl)
 _colocate_loose_test = unittest.make(_colocate_loose_passthrough_test_impl)
 
@@ -218,6 +243,7 @@ def source_set_test_suite(name):
     _root_pkg_test(name = "source_set_package_for_root_test", size = "small")
     _longest_prefix_test(name = "source_set_package_for_longest_test", size = "small")
     _exact_dir_test(name = "source_set_package_for_exact_dir_test", size = "small")
+    _non_root_lib_only_test(name = "source_set_package_for_non_root_lib_only_test", size = "small")
     _external_nomatch_test(name = "source_set_package_for_external_test", size = "small")
     _colocate_loose_test(name = "source_set_colocate_loose_test", size = "small")
     _derive_carries_test(name = "source_set_derive_carries_test", size = "small")
@@ -232,6 +258,7 @@ def source_set_test_suite(name):
             ":source_set_package_for_root_test",
             ":source_set_package_for_longest_test",
             ":source_set_package_for_exact_dir_test",
+            ":source_set_package_for_non_root_lib_only_test",
             ":source_set_package_for_external_test",
             ":source_set_colocate_loose_test",
             ":source_set_derive_carries_test",

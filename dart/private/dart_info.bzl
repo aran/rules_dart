@@ -60,6 +60,31 @@ written through a constructor that makes them current.
 
 load("//dart:providers.bzl", "DartAnalyzableInfo", "DartCodeAssetInfo", "DartInfo", "DartPackageInfo")
 
+def package_lib_prefix(lib_root):
+    """Returns the short_path prefix under which a package's importable files live.
+
+    A Dart package resolves `package:<name>/x.dart` against `<lib_root>/lib/`,
+    so that — not `lib_root` itself — is the prefix that answers "does this file
+    belong to the package?" and "what is this file's package-relative path?".
+    The root package (empty `lib_root`) is the same rule with an empty left half,
+    which is the whole reason to write it once: open-coded, the conditional is
+    easy to drop, and dropping it silently widens the prefix to the package's
+    entire directory — `test/`, `tool/` and `bin/` included.
+
+    Lives here, next to the `DartPackageInfo` that defines `lib_root`, because
+    this file loads only `//dart:providers.bzl` while `source_set.bzl`,
+    `common.bzl` and `dart_library.bzl` — the three consumers — already load it.
+    Any other home would introduce a load cycle or a new edge.
+
+    Args:
+      lib_root: A `DartPackageInfo.lib_root` — the package root's short_path,
+        empty for the root workspace package.
+
+    Returns:
+      The trailing-slashed prefix, e.g. `"pkgs/sub/lib/"` or `"lib/"`.
+    """
+    return (lib_root + "/lib/") if lib_root else "lib/"
+
 def check_code_asset_ownership(label, package_name, assets):
     """Checks that every declared asset id is namespaced to this package.
 

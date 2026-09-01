@@ -2,7 +2,7 @@
 
 load("//dart:providers.bzl", "DartCodeAssetInfo", "DartInfo")
 load("//dart/private:common.bzl", "PACKAGE_IDENTITY_ATTRS", "codegen_identity_error", "resolve_package_identity")
-load("//dart/private:dart_info.bzl", "dart_info")
+load("//dart/private:dart_info.bzl", "dart_info", "package_lib_prefix")
 
 def derive_package_name(package_name_attr, label_package, label_name):
     """Derive the Dart package name from rule attributes and label.
@@ -81,7 +81,7 @@ def check_files_under_lib_root(label, lib_root, files, attr_name = "srcs"):
     Returns:
       An error message string for the first offending file, or `None`.
     """
-    prefix = lib_root + "/lib/" if lib_root else "lib/"
+    prefix = package_lib_prefix(lib_root)
     for f in files:
         if not f.short_path.startswith(prefix):
             return (
