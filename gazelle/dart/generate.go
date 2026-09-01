@@ -46,6 +46,8 @@ func (d *dartLang) GenerateRules(args language.GenerateArgs) language.GenerateRe
 		return language.GenerateResult{}
 	}
 
+	warnOnPackageNameOverlap(args)
+
 	registry, _ := args.Config.Exts[extKeyBuilderRegistry].(*builderRegistry)
 
 	// Drop generated files from the file list — they're outputs of
@@ -417,12 +419,7 @@ func emitCodegenStages(
 				r.SetAttr("config", stage.Builder.Config)
 			}
 		}
-		if pkgName := libraryName(args.Rel, args.Dir, args.Config); pkgName != "" {
-			r.SetAttr("package_name", pkgName)
-		}
-		if lv := resolvedLanguageVersion(args); lv != "" {
-			r.SetAttr("language_version", lv)
-		}
+		setPackageIdentity(r, args, libraryName(args.Rel, args.Dir, args.Config))
 		rules = append(rules, r)
 		labels = append(labels, ":"+name)
 	}
@@ -487,11 +484,7 @@ func buildMacroRule(
 	r := rule.NewRule(kind, name)
 	r.SetAttr("srcs", []string{f.Path})
 	r.SetAttr("visibility", []string{"//visibility:public"})
-	pkgName := libraryName(args.Rel, args.Dir, args.Config)
-	r.SetAttr("package_name", pkgName)
-	if lv := resolvedLanguageVersion(args); lv != "" {
-		r.SetAttr("language_version", lv)
-	}
+	setPackageIdentity(r, args, libraryName(args.Rel, args.Dir, args.Config))
 	if info.RuntimeDep != "" && info.RuntimeDep != defaultRuntimeDeps[nodeKey(info)] {
 		r.SetAttr("annotation_dep", info.RuntimeDep)
 	}
@@ -518,10 +511,7 @@ func buildInjectableMacro(
 	r.SetAttr("srcs", srcs)
 	r.SetAttr("init_src", initSrc)
 	r.SetAttr("visibility", []string{"//visibility:public"})
-	r.SetAttr("package_name", name)
-	if lv := resolvedLanguageVersion(args); lv != "" {
-		r.SetAttr("language_version", lv)
-	}
+	setPackageIdentity(r, args, name)
 	return r
 }
 
@@ -537,13 +527,17 @@ func buildAnnotatedLibrary(
 	srcs := append([]string{f.Path}, genTargets...)
 	r.SetAttr("srcs", srcs)
 	r.SetAttr("visibility", []string{"//visibility:public"})
-	if FindPubspecName(args.Dir, args.Rel) != "" ||
-		(args.Config.Exts != nil && args.Config.Exts["dart_package_name"] != nil) {
-		r.SetAttr("package_name", libraryName(args.Rel, args.Dir, args.Config))
-	}
-	if lv := resolvedLanguageVersion(args); lv != "" {
-		r.SetAttr("language_version", lv)
-	}
+
+	// Unconditionally, and from the same libraryName() the dart_codegen rules
+	// above used. Emitting it only when a pubspec or directive named the
+	// package left dart_library to fall back to its label, which agrees with
+	// libraryName() everywhere except the workspace root: there libraryName()
+	// yields "lib" while the label yields the target's own name, so the
+	// generated sources were produced for one package and collected into
+	// another. dart_library's fallback is still correct for a library Gazelle
+	// emits with no codegen beside it; it is only wrong next to a rule that
+	// already committed to a name.
+	setPackageIdentity(r, args, libraryName(args.Rel, args.Dir, args.Config))
 	return r
 }
 
@@ -563,6 +557,69 @@ func lowerSnake(s string) string {
 		}
 	}
 	return b.String()
+}
+
+// packageDeclLabel returns the in-package reference to a hand-written
+// `dart_package`, or "" when the directory has none.
+//
+// A package that has adopted a declaration must not have the inline attributes
+// written back onto its rules: the two spellings are mutually exclusive and a
+// rule carrying both fails at analysis, so re-running Gazelle over a converted
+// package would break exactly the packages that adopted the tidier form.
+// Detecting the declaration rather than emitting one is what makes adoption
+// incremental — Gazelle keeps writing the inline attributes everywhere else,
+// where they are machine-maintained from one derived value and cannot drift.
+func packageDeclLabel(args language.GenerateArgs) (label string, declaredName string) {
+	if args.File == nil {
+		return "", ""
+	}
+	for _, r := range args.File.Rules {
+		if r.Kind() == "dart_package" {
+			return ":" + r.Name(), r.AttrString("package_name")
+		}
+	}
+	return "", ""
+}
+
+// setPackageIdentity states the Dart package a generated rule belongs to,
+// either by reference to the directory's `dart_package` or inline.
+// warnOnPackageNameOverlap reports a `dart_package` whose declared name differs
+// from the one a pubspec or `# gazelle:dart_package_name` directive supplies.
+//
+// The declaration wins, which leaves the other a value the developer stated and
+// nothing acts on — the exact failure `dart_package` exists to remove, so it is
+// not one to reintroduce silently here. Reported once per directory rather than
+// once per emitted rule: it is a property of the directory, and four copies of
+// one warning trains people to skip all of them.
+func warnOnPackageNameOverlap(args language.GenerateArgs) {
+	decl, declaredName := packageDeclLabel(args)
+	if decl == "" || declaredName == "" {
+		return
+	}
+	derived := libraryName(args.Rel, args.Dir, args.Config)
+	if derived == "" || derived == declaredName {
+		return
+	}
+	log.Printf(
+		"dart: %s: dart_package %q declares package_name %q, but this "+
+			"directory otherwise resolves to %q. The declaration wins; drop "+
+			"the conflicting pubspec name or `# gazelle:dart_package_name` "+
+			"directive.",
+		args.Rel, decl, declaredName, derived,
+	)
+}
+
+func setPackageIdentity(r *rule.Rule, args language.GenerateArgs, pkgName string) {
+	if decl, _ := packageDeclLabel(args); decl != "" {
+		r.SetAttr("package", decl)
+		return
+	}
+	if pkgName != "" {
+		r.SetAttr("package_name", pkgName)
+	}
+	if lv := resolvedLanguageVersion(args); lv != "" {
+		r.SetAttr("language_version", lv)
+	}
 }
 
 // resolvedLanguageVersion returns the language_version to propagate onto
