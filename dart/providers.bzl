@@ -42,6 +42,7 @@ DartPackageInfo = provider(
     fields = {
         "package_name": "str: The Dart package name. Required.",
         "lib_root": "str: The short_path-based path to the package root directory (parent of `lib/`). Configuration-independent. Required; empty string for the root package.",
+        "version": "str: The package's own version, as resolved by pub (e.g. `2.2.0`). Optional; empty string when unknown, which is what a `dart_library` written by hand and a producer predating this field both carry. Recorded so that two records for one package name can be checked for agreement — see `package_agreement_error`.",
         "language_version": "str: Dart language version implied by the package's `environment.sdk` constraint, in `<major>.<minor>` form. Optional; empty string when unknown.",
         "code_assets": "tuple[DartCodeAssetInfo]: Native code assets this package owns. A tuple rather than a list because `DartPackageInfo` is carried in a depset, whose elements must be hashable.",
         "has_unreplaced_hook": "str: Path of a `hook/build.dart`/`hook/link.dart` this package ships that has no Bazel replacement (empty when none). Recorded at repo generation; acted on by `dart_binary`/`dart_test`.",

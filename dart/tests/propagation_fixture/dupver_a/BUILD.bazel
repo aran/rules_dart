@@ -1,0 +1,11 @@
+load("//dart:defs.bzl", "dart_library")
+
+# One hub's spoke for `dupver`, at the version its lock file pins.
+
+dart_library(
+    name = "dupver",
+    package_name = "dupver",
+    srcs = ["lib/dupver.dart"],
+    version = "2.1.5",
+    visibility = ["//dart/tests:__subpackages__"],
+)

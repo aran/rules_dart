@@ -6,7 +6,7 @@ through the one generator here, so a field added to the shape reaches both
 paths instead of only the one whose template was edited.
 """
 
-def make_dart_library_build_content(name, deps, language_version, code_assets = [], has_unreplaced_hook = ""):
+def make_dart_library_build_content(name, deps, language_version, code_assets = [], has_unreplaced_hook = "", version = ""):
     """Generate the BUILD.bazel content for a single `dart_library` spoke.
 
     The shape — `srcs = glob(["lib/**/*.dart"], allow_empty = True)`, the
@@ -38,6 +38,12 @@ def make_dart_library_build_content(name, deps, language_version, code_assets = 
         has_unreplaced_hook: Path of a build hook this package ships that has
             no replacement, or empty. Recorded so a consuming binary can fail
             with an explanation instead of at runtime.
+        version: The resolved package version this spoke was fetched at, or
+            empty. A trailing keyword with a default because this helper is
+            re-exported for rule sets outside //dart/pub — notably
+            rules_flutter's `flutter_pub_package` — whose existing calls must
+            keep working; a spoke that omits it simply states no version, and
+            an unstated version never conflicts with a stated one.
 
     Returns:
         BUILD.bazel content as a string.
@@ -56,13 +62,17 @@ def make_dart_library_build_content(name, deps, language_version, code_assets = 
     if has_unreplaced_hook:
         hook_block = '    has_unreplaced_hook = "{}",\n'.format(has_unreplaced_hook)
 
+    version_block = ""
+    if version:
+        version_block = '    version = "{}",\n'.format(version)
+
     return """\
 load("@rules_dart//dart:defs.bzl", "dart_library")
 
 dart_library(
     name = "{name}",
     srcs = glob(["lib/**/*.dart"], allow_empty = True),
-{assets}{deps}{hook}    package_name = "{name}",
+{assets}{deps}{hook}{version}    package_name = "{name}",
     resources = glob(
         ["lib/**"],
         exclude = ["lib/**/*.dart"],
@@ -76,5 +86,6 @@ dart_library(
         assets = assets_block,
         deps = deps_block,
         hook = hook_block,
+        version = version_block,
         language_version = language_version,
     )

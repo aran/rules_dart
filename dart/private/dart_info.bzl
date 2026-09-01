@@ -99,7 +99,8 @@ def dart_info(
         resources = [],
         code_assets = [],
         language_version = "",
-        has_unreplaced_hook = ""):
+        has_unreplaced_hook = "",
+        version = ""):
     """Builds a `DartInfo` for a library, merging its dependencies' closures.
 
     The caller supplies only what this target contributes itself; everything
@@ -125,6 +126,8 @@ def dart_info(
       language_version: Dart language version in `<major>.<minor>` form, or "".
       has_unreplaced_hook: Path of a pub build hook with no Bazel replacement,
         or "".
+      version: The package's own resolved version, or "" when unknown. Only pub
+        spokes know it; a hand-written `dart_library` leaves it empty.
 
     Returns:
       A `DartInfo`.
@@ -139,6 +142,7 @@ def dart_info(
     this_pkg = DartPackageInfo(
         package_name = package_name,
         lib_root = lib_root,
+        version = version,
         language_version = language_version,
         code_assets = tuple(own_assets),
         has_unreplaced_hook = has_unreplaced_hook,
@@ -233,7 +237,8 @@ def dart_analyzable_info_with_package(
         package_srcs = [],
         resources = [],
         code_assets = [],
-        language_version = ""):
+        language_version = "",
+        version = ""):
     """Builds a `DartAnalyzableInfo` for an executable that contributes a package.
 
     The sibling of `dart_analyzable_info()`, for the one case its narrow
@@ -278,6 +283,7 @@ def dart_analyzable_info_with_package(
       resources: This target's own non-Dart files under `lib/`.
       code_assets: Targets providing `DartCodeAssetInfo` that this package owns.
       language_version: Dart language version in `<major>.<minor>` form, or "".
+      version: The package's own resolved version, or "" when unknown.
 
     Returns:
       A `DartAnalyzableInfo` whose nested `DartInfo` records this package.
@@ -297,6 +303,7 @@ def dart_analyzable_info_with_package(
             resources = resources,
             code_assets = code_assets,
             language_version = language_version,
+            version = version,
         ),
         srcs = depset(srcs),
     )
@@ -333,6 +340,7 @@ def derived_package_info(pkg, lib_root = None, code_assets = None):
     return DartPackageInfo(
         package_name = pkg.package_name,
         lib_root = pkg.lib_root if lib_root == None else lib_root,
+        version = getattr(pkg, "version", ""),
         language_version = getattr(pkg, "language_version", ""),
         code_assets = (
             getattr(pkg, "code_assets", ()) if code_assets == None else code_assets

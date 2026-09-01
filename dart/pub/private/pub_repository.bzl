@@ -30,6 +30,7 @@ def _pub_package_impl(ctx):
         name = ctx.attr.package_name,
         deps = ["@{dep}".format(dep = dep) for dep in ctx.attr.deps],
         language_version = language_version,
+        version = ctx.attr.version,
     )
 
     ctx.file("BUILD.bazel", build_content)

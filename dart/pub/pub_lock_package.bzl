@@ -88,6 +88,7 @@ def _pub_lock_package_impl(ctx):
         language_version = language_version,
         code_assets = ctx.attr.code_assets,
         has_unreplaced_hook = unreplaced_hook,
+        version = ctx.attr.version,
     )
 
     ctx.file("BUILD.bazel", build_content)

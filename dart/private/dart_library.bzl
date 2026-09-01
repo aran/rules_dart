@@ -196,6 +196,7 @@ def _dart_library_impl(ctx):
             code_assets = ctx.attr.code_assets,
             language_version = ctx.attr.language_version,
             has_unreplaced_hook = ctx.attr.has_unreplaced_hook,
+            version = ctx.attr.version,
         ),
     ]
 
@@ -246,6 +247,9 @@ resolve at runtime.""",
         ),
         "language_version": attr.string(
             doc = "Dart language version implied by the package's `environment.sdk` constraint, in `<major>.<minor>` form. Emitted as `languageVersion` in generated `package_config.json` entries. For pub packages this is set automatically by `pub.from_lock()`; for hand-written `dart_library` targets, set it from your workspace's `pubspec.yaml` if you want analyzer behaviour to match.",
+        ),
+        "version": attr.string(
+            doc = "The package's own version, as resolved by pub (e.g. `2.2.0`). Set automatically by `pub.package()` / `pub.from_lock()`; leave it empty on hand-written targets, which have no resolved version to state. Its only use is agreement checking: when one package name arrives twice — two pub hubs each supplying `ffi`, say — a build whose two records name different versions would otherwise compile against whichever came first in dependency order, silently ignoring the other. Two *known*, differing versions fail the build; an empty one never conflicts.",
         ),
     },
     doc = "Collects Dart sources and propagates dependency information via `DartInfo`. Does not compile or assemble; consumers co-locate generated sources.",

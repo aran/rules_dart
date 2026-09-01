@@ -189,6 +189,84 @@ def collect_packages(deps):
         depset(transitive = [dep[DartInfo].transitive_packages for dep in deps]).to_list(),
     )
 
+_VERSION_REMEDY = """
+Two package sources resolved one package to different versions. Typically two
+pub hubs — rules_flutter's `flutter.pub()` and rules_dart's `pub.from_lock()`
+each generating a spoke for the same package — whose lock files have drifted
+apart. Only one record can win, and dependency order would decide which, so
+the build would compile against whichever came first regardless of what the
+other's lock pins.
+
+Reconcile the lock files feeding the two hubs so both pin one version, then
+re-run `dart pub get` / `flutter pub get` in each workspace.
+
+rules_dart does not support multiple versions of a package.
+"""
+
+_LANGUAGE_VERSION_REMEDY = """
+A package's records state different `language_version`s, so the Dart semantics
+its sources compile under would be decided by dependency order. Set
+`language_version` consistently on every `dart_library` contributing to this
+package — Gazelle derives it from the nearest `pubspec.yaml`'s `environment.sdk`
+constraint and writes the same value on each.
+"""
+
+def package_agreement_error(merged):
+    """Reports duplicate records for one package that state different facts.
+
+    Two records for one `package_name` are normal — see `merge_package_records`
+    for why — but they are supposed to describe the *same* package. When they
+    disagree, `merge_package_records` keeps the first and discards the second,
+    which silently substitutes one version's entire source tree for the other's.
+    A skewed pair of lock files reproduces exactly that: the build succeeds, no
+    diagnostic is emitted, and a package compiles against sources its own lock
+    does not pin.
+
+    Only two *known* values can disagree. A record whose producer does not emit
+    the field carries "" — every `DartPackageInfo` built by a rule set that
+    predates it, and every hand-written `dart_library`, which has no version to
+    state. Treating "" as a disagreement would fail every dual-hub build
+    including the agreeing ones; treating it as "knows less" is what lets the
+    field be adopted one producer at a time.
+
+    Pure, and separate from `merge_package_records`, for the same reason
+    `check_code_asset_ownership` is separate from `dart_info`: the caller owns
+    the `fail`, so the rule can be tested by calling it.
+
+    Args:
+      merged: List of DartPackageInfo, with duplicates, in dependency order.
+
+    Returns:
+      An error message string, or `None` when every duplicate agrees.
+    """
+    for field, label, remedy in (
+        ("version", "versions", _VERSION_REMEDY),
+        ("language_version", "language versions", _LANGUAGE_VERSION_REMEDY),
+    ):
+        # value -> lib_root of the first record stating it, per package name.
+        stated = {}
+        for pkg in merged:
+            value = getattr(pkg, field, "")
+            if not value:
+                continue
+            seen = stated.setdefault(pkg.package_name, {})
+            if value not in seen:
+                seen[value] = pkg.lib_root
+
+        for package_name in sorted(stated.keys()):
+            seen = stated[package_name]
+            if len(seen) < 2:
+                continue
+            return (
+                "Package \"%s\" is supplied more than once with different %s:\n" % (package_name, label) +
+                "".join([
+                    "  - %s (%s)\n" % (value, seen[value])
+                    for value in sorted(seen.keys())
+                ]) +
+                remedy
+            )
+    return None
+
 def merge_package_records(merged):
     """Dedups package records by name, unioning their code assets.
 
@@ -207,9 +285,18 @@ def merge_package_records(merged):
     `resolve_code_assets` fail later if — and only if — two assets genuinely
     claim one id, which is the case the Dart VM cannot resolve either.
 
-    Split out from `collect_packages` because it is pure: everything here is a
-    function of the record list, which makes the dedup and union rules
-    directly testable without synthesising `DartInfo`-bearing targets.
+    First-record-wins is only safe once the records are known to agree, so this
+    calls `package_agreement_error` first and fails when two of them state
+    different `version`s or `language_version`s. `has_unreplaced_hook` stays
+    order-decided and deliberately unchecked: unlike the other two it is derived
+    at repo generation rather than stated by a developer, and two hubs can
+    legitimately disagree — one curating `code_assets` so the hook counts as
+    replaced while the other still flags it.
+
+    Split out from `collect_packages` because the dedup and union rules are a
+    pure function of the record list, which makes them directly testable
+    without synthesising `DartInfo`-bearing targets. The agreement check keeps
+    that property by living in its own function and returning its message.
 
     Args:
         merged: List of DartPackageInfo, with duplicates, in dependency order.
@@ -217,6 +304,10 @@ def merge_package_records(merged):
     Returns:
         List of unique DartPackageInfo providers in dependency order.
     """
+    err = package_agreement_error(merged)
+    if err != None:
+        fail(err)
+
     packages = []
     index_by_name = {}
     for pkg in merged:

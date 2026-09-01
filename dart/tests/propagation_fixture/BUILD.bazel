@@ -1,6 +1,6 @@
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("//dart:defs.bzl", "dart_binary", "dart_code_asset")
-load("//dart/tests:propagation_test.bzl", "asset_conflict_test", "diamond_probe", "manifest_contains_test", "ownership_violation_test")
+load("//dart/tests:propagation_test.bzl", "asset_conflict_test", "diamond_probe", "manifest_contains_test", "ownership_violation_test", "version_conflict_test")
 
 # The near side of the diamond. `:app` names no `code_assets` at all — it
 # depends on `prop_a`, which depends on `prop_b`, which owns the asset.
@@ -57,4 +57,28 @@ asset_conflict_test(
     name = "asset_conflict_test",
     size = "small",
     target_under_test = ":conflicting_app",
+)
+
+# Two hubs supplying one package at different versions — the shape a pair of
+# drifted lock files produces, with `pub.from_lock()` and rules_flutter's
+# `flutter.pub()` each generating a spoke for the same package. The two
+# `dart_library` targets stand in for those spokes, so the fixture needs no
+# network. Before the agreement check this built successfully: first-record-wins
+# resolved `dupver` to whichever arrived first in dependency order, and the
+# other version's sources were simply never compiled against.
+
+dart_binary(
+    name = "dupver_app",
+    main = "main.dart",
+    tags = ["manual"],
+    deps = [
+        "//dart/tests/propagation_fixture/dupver_a:dupver",
+        "//dart/tests/propagation_fixture/dupver_b:dupver",
+    ],
+)
+
+version_conflict_test(
+    name = "version_conflict_test",
+    size = "small",
+    target_under_test = ":dupver_app",
 )
