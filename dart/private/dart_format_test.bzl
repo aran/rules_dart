@@ -50,10 +50,12 @@ target's own package deps do write into.
 load("//dart:providers.bzl", "DartInfo")
 load(
     "//dart/private:common.bzl",
+    "PACKAGE_IDENTITY_ATTRS",
     "WINDOWS_CONSTRAINT_ATTR",
     "analysis_options_closure",
     "noop_test_executable",
     "own_package_record",
+    "resolve_package_identity",
     "writable_home_env",
 )
 load("//dart/private:project_staging.bzl", "stage_dart_project", "stage_root_options")
@@ -89,17 +91,20 @@ def _format_operand(ctx):
         )
 
     if not ctx.attr.target:
+        # `package` is the other way to state the version for a loose `srcs`
+        # list, and `resolve_package_identity` is what refuses both at once.
         return struct(
             srcs = ctx.files.srcs,
-            language_version = ctx.attr.language_version,
+            language_version = resolve_package_identity(ctx).language_version,
         )
 
-    if ctx.attr.language_version:
+    if ctx.attr.language_version or ctx.attr.package:
         fail(
-            ("%s: `language_version` cannot be set alongside `target`. The " +
-             "version is the library's to declare — set " +
-             "`language_version` on %s instead.") % (
+            ("%s: `%s` cannot be set alongside `target`. The version is the " +
+             "library's to declare — set `language_version` (or `package`) " +
+             "on %s instead.") % (
                 ctx.label,
+                "language_version" if ctx.attr.language_version else "package",
                 ctx.attr.target.label,
             ),
         )
@@ -273,7 +278,7 @@ dart_format_test = rule(
             executable = True,
             cfg = "exec",
         ),
-    }, **WINDOWS_CONSTRAINT_ATTR),
+    } | PACKAGE_IDENTITY_ATTRS, **WINDOWS_CONSTRAINT_ATTR),
     test = True,
     toolchains = ["//dart:toolchain_type"] + COPY_TO_DIRECTORY_TOOLCHAINS,
     doc = (

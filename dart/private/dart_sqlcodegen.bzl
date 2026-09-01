@@ -22,17 +22,21 @@ Usage:
     )
 """
 
-load("//dart:providers.bzl", "DartInfo")
+load("//dart:providers.bzl", "DartInfo", "DartPackageIdentityInfo")
 load(
     "//dart/private:common.bzl",
+    "DEFAULT_ROOT_LANGUAGE_VERSION",
+    "PACKAGE_IDENTITY_ATTRS",
     "add_shim_contract_args",
     "asset_path_for",
     "dart_lib_root_for_package",
+    "resolve_package_identity",
     "same_package_library_dep_files",
     "synth_package_config",
 )
 
 def _dart_sqlcodegen_impl(ctx):
+    identity = resolve_package_identity(ctx)
     toolchain = ctx.toolchains["//dart:exec_tools_toolchain_type"]
     sdk_files = toolchain.dart_sdk_info.tool_files
 
@@ -45,13 +49,13 @@ def _dart_sqlcodegen_impl(ctx):
 
     lib_root_from_deps = dart_lib_root_for_package(
         ctx.attr.deps,
-        ctx.attr.package_name,
+        identity.package_name,
     )
     lib_root = lib_root_from_deps if lib_root_from_deps != None else ctx.label.package
 
     auto_staged, _ = same_package_library_dep_files(
         ctx.attr.deps,
-        ctx.attr.package_name,
+        identity.package_name,
         exclude_paths = [src.path],
     )
 
@@ -110,7 +114,18 @@ def _dart_sqlcodegen_impl(ctx):
         },
     )
 
-    return [DefaultInfo(files = depset(outputs))]
+    return [
+        DefaultInfo(files = depset(outputs)),
+        # The *effective* values, built-in default included: a library stating
+        # 3.11 over a generator that silently fell back to 3.0 is exactly the
+        # disagreement `codegen_identity_error` exists to name.
+        DartPackageIdentityInfo(
+            package_name = identity.package_name,
+            language_version = (
+                identity.language_version or DEFAULT_ROOT_LANGUAGE_VERSION
+            ),
+        ),
+    ]
 
 dart_sqlcodegen = rule(
     implementation = _dart_sqlcodegen_impl,
@@ -136,9 +151,12 @@ dart_sqlcodegen = rule(
             mandatory = True,
         ),
         "package_name": attr.string(
-            mandatory = True,
             doc = "Dart package name owning `src`. Must match the " +
-                  "consuming `dart_library`'s `package_name`.",
+                  "consuming `dart_library`'s `package_name` — enforced " +
+                  "where the two meet, in that library's `srcs`. Set this " +
+                  "or `package`, not both; `package` is how one declaration " +
+                  "serves every rule building the package, including rules " +
+                  "in other BUILD files.",
         ),
         "language_version": attr.string(
             doc = "Dart language version in `<major>.<minor>` form. " +
@@ -179,7 +197,7 @@ dart_sqlcodegen = rule(
                   "passed as `--dep <exec>|<asset>` using `asset_path_for`.",
             allow_files = True,
         ),
-    },
+    } | PACKAGE_IDENTITY_ATTRS,
     toolchains = ["//dart:exec_tools_toolchain_type"],
     doc = "Runs a Dart code generator over a non-Dart input (`.drift`, " +
           "`.moor`, …), producing one or more sibling outputs.",

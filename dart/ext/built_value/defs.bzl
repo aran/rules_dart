@@ -5,7 +5,7 @@ load("@rules_dart//dart/ext/_shared:defs.bzl", "shared_part_library")
 def built_value_library(
         name,
         srcs,
-        package_name,
+        package_name = "",
         language_version = "",
         deps = [],
         annotation_dep = "@pub_deps//:built_value",

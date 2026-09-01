@@ -14,7 +14,7 @@ _DEFAULT_RUNTIME_DEP = "@pub_deps//:stacked"
 def stacked_router_library(
         name,
         srcs,
-        package_name,
+        package_name = "",
         language_version = "",
         deps = [],
         annotation_dep = _DEFAULT_RUNTIME_DEP,
@@ -37,7 +37,7 @@ def stacked_router_library(
 def stacked_locator_library(
         name,
         srcs,
-        package_name,
+        package_name = "",
         language_version = "",
         deps = [],
         annotation_dep = _DEFAULT_RUNTIME_DEP,
@@ -60,7 +60,7 @@ def stacked_locator_library(
 def stacked_form_library(
         name,
         srcs,
-        package_name,
+        package_name = "",
         language_version = "",
         deps = [],
         annotation_dep = _DEFAULT_RUNTIME_DEP,
@@ -83,7 +83,7 @@ def stacked_form_library(
 def stacked_logger_library(
         name,
         srcs,
-        package_name,
+        package_name = "",
         language_version = "",
         deps = [],
         annotation_dep = _DEFAULT_RUNTIME_DEP,
@@ -106,7 +106,7 @@ def stacked_logger_library(
 def stacked_dialog_library(
         name,
         srcs,
-        package_name,
+        package_name = "",
         language_version = "",
         deps = [],
         annotation_dep = _DEFAULT_RUNTIME_DEP,
@@ -129,7 +129,7 @@ def stacked_dialog_library(
 def stacked_bottomsheet_library(
         name,
         srcs,
-        package_name,
+        package_name = "",
         language_version = "",
         deps = [],
         annotation_dep = _DEFAULT_RUNTIME_DEP,

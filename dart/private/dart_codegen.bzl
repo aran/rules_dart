@@ -58,12 +58,15 @@ reusing across requests is a silent-corruption hazard due to
 cost is amortised across the worker's lifetime.
 """
 
-load("//dart:providers.bzl", "DartInfo")
+load("//dart:providers.bzl", "DartInfo", "DartPackageIdentityInfo")
 load(
     "//dart/private:common.bzl",
+    "DEFAULT_ROOT_LANGUAGE_VERSION",
+    "PACKAGE_IDENTITY_ATTRS",
     "add_shim_contract_args",
     "asset_path_for",
     "dart_lib_root_for_package",
+    "resolve_package_identity",
     "same_package_library_dep_files",
     "synth_package_config",
 )
@@ -87,6 +90,7 @@ def compute_codegen_output_name(src_path, output_suffix):
     return base + output_suffix
 
 def _dart_codegen_impl(ctx):
+    identity = resolve_package_identity(ctx)
     toolchain = ctx.toolchains["//dart:exec_tools_toolchain_type"]
     dart = toolchain.dart_sdk_info.dart
     sdk_files = toolchain.dart_sdk_info.tool_files
@@ -109,7 +113,7 @@ def _dart_codegen_impl(ctx):
     # package root (e.g. `//myapp/lib:codegen` for Dart package `myapp`).
     lib_root_from_deps = dart_lib_root_for_package(
         ctx.attr.deps,
-        ctx.attr.package_name,
+        identity.package_name,
     )
     lib_root = lib_root_from_deps if lib_root_from_deps != None else ctx.label.package
 
@@ -118,7 +122,7 @@ def _dart_codegen_impl(ctx):
     # `findAssets` / `readAsString` without users hand-listing every file.
     auto_staged, _ = same_package_library_dep_files(
         ctx.attr.deps,
-        ctx.attr.package_name,
+        identity.package_name,
         exclude_paths = [src.path],
     )
 
@@ -208,7 +212,18 @@ def _dart_codegen_impl(ctx):
             progress_message = "DartCodegen %s" % ctx.label,
         )
 
-    return [DefaultInfo(files = depset(outputs))]
+    return [
+        DefaultInfo(files = depset(outputs)),
+        # The *effective* values, built-in default included: a library stating
+        # 3.11 over a generator that silently fell back to 3.0 is exactly the
+        # disagreement `codegen_identity_error` exists to name.
+        DartPackageIdentityInfo(
+            package_name = identity.package_name,
+            language_version = (
+                identity.language_version or DEFAULT_ROOT_LANGUAGE_VERSION
+            ),
+        ),
+    ]
 
 def _transitive(d):
     """Wraps an optional depset as a single-element list for `depset(transitive=...)`.
@@ -254,10 +269,12 @@ dart_codegen = rule(
             mandatory = True,
         ),
         "package_name": attr.string(
-            mandatory = True,
             doc = "Dart package name owning `src`. Must match the " +
-                  "consuming `dart_library`'s `package_name`. Passed as " +
-                  "`--package`.",
+                  "consuming `dart_library`'s `package_name` — enforced " +
+                  "where the two meet, in that library's `srcs`. Passed as " +
+                  "`--package`. Set this or `package`, not both; `package` " +
+                  "is how one declaration serves every rule building the " +
+                  "package, including rules in other BUILD files.",
         ),
         "language_version": attr.string(
             doc = "Dart language version of the consuming package, in " +
@@ -314,7 +331,7 @@ dart_codegen = rule(
                   "through `package:build`), use `data`.",
             allow_files = True,
         ),
-    },
+    } | PACKAGE_IDENTITY_ATTRS,
     toolchains = ["//dart:exec_tools_toolchain_type"],
     doc = "Runs a per-file Dart code generator, producing one or more " +
           "sibling outputs per input.",

@@ -37,6 +37,33 @@ forwarded silently discards every dependency's values.""",
     },
 )
 
+DartPackageIdentityInfo = provider(
+    doc = """The two facts a Dart package states about itself: its name and the \
+language version its sources are written against.
+
+Distinct from `DartPackageInfo`, which is a *record of a package in the build \
+graph* — where its sources live, what version pub resolved, what native assets \
+it owns — accumulated by `dart_info()` and carried in depsets. This is the \
+*declaration* a `dart_package` target makes, read back through an attribute by \
+the rules that would otherwise each ask for the same two strings.
+
+It exists because those two facts are properties of a package, not of a rule, \
+and a package is routinely built by more than one rule: a `dart_codegen` \
+generating part of it and the `dart_library` collecting the result must agree \
+on both, and `sibling_aggregate_pkg` shows the two living in different BUILD \
+files, where no macro can hold them together. A referenceable declaration can.
+
+Deliberately a leaf: it carries no `DartInfo`, so a `dart_package` cannot be \
+mistaken for a dependency. `attr.label(providers = ...)` is require-only, and a \
+target providing `DartInfo` would make `dart_library(deps = [":pkg"])` legal \
+with nothing to say about it — the same trap `DartAnalyzableInfo` exists to \
+avoid.""",
+    fields = {
+        "package_name": "str: The Dart package name used in `package:` imports. Required.",
+        "language_version": "str: Dart language version implied by the package's `environment.sdk` constraint, in `<major>.<minor>` form. Empty when the package states none.",
+    },
+)
+
 DartPackageInfo = provider(
     doc = "Metadata about a single Dart package, carried in depsets within DartInfo.",
     fields = {

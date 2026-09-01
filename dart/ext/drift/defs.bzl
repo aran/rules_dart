@@ -41,7 +41,7 @@ def _token(s):
 def drift_library(
         name,
         srcs,
-        package_name,
+        package_name = "",
         language_version = "",
         drift_srcs = [],
         deps = [],

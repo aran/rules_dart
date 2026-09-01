@@ -28,11 +28,12 @@ def _src_token(src_label):
 def shared_part_library(
         name,
         srcs,
-        package_name,
-        language_version,
         shim,
         part_suffix,
         annotation_dep,
+        package_name = "",
+        language_version = "",
+        package = None,
         deps = [],
         config = "",
         **kwargs):
@@ -49,7 +50,12 @@ def shared_part_library(
       name: Wrapping `dart_library` target name.
       srcs: `.dart` source files carrying the builder's annotation.
       package_name: Dart package name (matches consumer pubspec `name:`).
-      language_version: Dart language version (`<major>.<minor>`).
+        Omit when passing `package`.
+      language_version: Dart language version (`<major>.<minor>`). Omit when
+        passing `package`.
+      package: A `dart_package` declaring both of the above once, forwarded to
+        every rule this macro emits. Mutually exclusive with the two inline
+        arguments — the rules themselves refuse the overlap.
       shim: Label of the per-builder SharedPart shim binary.
       part_suffix: Output extension for the shim (e.g.
         `.json_serializable.g.part`). Exactly one per call.
@@ -76,6 +82,7 @@ def shared_part_library(
             output_suffixes = [part_suffix],
             package_name = package_name,
             language_version = language_version,
+            package = package,
             deps = deps + [annotation_dep],
             config = config,
         )
@@ -87,6 +94,7 @@ def shared_part_library(
             parts = [":" + part_target],
             package_name = package_name,
             language_version = language_version,
+            package = package,
         )
         combined_targets.append(":" + combined_target)
     dart_library(
@@ -95,17 +103,19 @@ def shared_part_library(
         deps = deps + [annotation_dep],
         package_name = package_name,
         language_version = language_version,
+        package = package,
         **kwargs
     )
 
 def library_builder_library(
         name,
         srcs,
-        package_name,
-        language_version,
         shim,
         output_suffixes,
         annotation_dep,
+        package_name = "",
+        language_version = "",
+        package = None,
         deps = [],
         config = "",
         **kwargs):
@@ -118,8 +128,12 @@ def library_builder_library(
     Args:
       name: Wrapping `dart_library` target name.
       srcs: `.dart` source files carrying the builder's annotation.
-      package_name: Dart package name.
-      language_version: Dart language version (`<major>.<minor>`).
+      package_name: Dart package name. Omit when passing `package`.
+      language_version: Dart language version (`<major>.<minor>`). Omit when
+        passing `package`.
+      package: A `dart_package` declaring both of the above once, forwarded to
+        every rule this macro emits. Mutually exclusive with the two inline
+        arguments — the rules themselves refuse the overlap.
       shim: Label of the per-builder shim binary.
       output_suffixes: Output file extensions (e.g. `['.freezed.dart']`,
         `['.mocks.dart']`, or multi-output like `['.config.dart',
@@ -142,6 +156,7 @@ def library_builder_library(
             output_suffixes = output_suffixes,
             package_name = package_name,
             language_version = language_version,
+            package = package,
             deps = deps + [annotation_dep],
             config = config,
         )
@@ -152,5 +167,6 @@ def library_builder_library(
         deps = deps + [annotation_dep],
         package_name = package_name,
         language_version = language_version,
+        package = package,
         **kwargs
     )

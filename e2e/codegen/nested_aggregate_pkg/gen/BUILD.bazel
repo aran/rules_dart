@@ -8,25 +8,23 @@ load("@rules_dart//dart:defs.bzl", "dart_aggregate_codegen", "dart_analyze_test"
 
 dart_codegen(
     name = "item_shard",
-    package_name = "nested_aggregate_fixture",
     src = "//nested_aggregate_pkg:lib/item.dart",
     generator = "//tools:shard_gen.dart",
-    language_version = "3.11",
     output_suffixes = [".shard.json"],
+    package = "//nested_aggregate_pkg:pkg",
     deps = ["//nested_aggregate_pkg:item_lib"],
 )
 
 dart_aggregate_codegen(
     name = "aggregate",
-    package_name = "nested_aggregate_fixture",
     srcs = [
         # do not sort: the first entry is the primary `--input`.
         "//nested_aggregate_pkg:lib/item.dart",
         ":item_shard",
     ],
     generator_script = "//tools:aggregate_gen.dart",
-    language_version = "3.11",
     outputs = ["lib/item.agg.dart"],
+    package = "//nested_aggregate_pkg:pkg",
     deps = ["//nested_aggregate_pkg:item_lib"],
 )
 

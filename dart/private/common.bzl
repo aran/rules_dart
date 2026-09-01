@@ -1,6 +1,6 @@
 """Shared utilities for Dart rules."""
 
-load("//dart:providers.bzl", "CODE_ASSET_LINK_MODES", "DartAnalysisOptionsInfo", "DartAnalyzableInfo", "DartInfo")
+load("//dart:providers.bzl", "CODE_ASSET_LINK_MODES", "DartAnalysisOptionsInfo", "DartAnalyzableInfo", "DartInfo", "DartPackageIdentityInfo")
 load("//dart/private:dart_info.bzl", "derived_package_info")
 load("//dart/private:source_set.bzl", "needs_source_assembly", "package_for")
 
@@ -210,6 +210,145 @@ its sources compile under would be decided by dependency order. Set
 package — Gazelle derives it from the nearest `pubspec.yaml`'s `environment.sdk`
 constraint and writes the same value on each.
 """
+
+# The language version a code generator's root package is assumed to have when
+# nothing states one. Deliberately old: a generator running under a *lower*
+# language version than the sources it reads is the safe direction, since the
+# analyzer then refuses syntax the real package would accept rather than
+# accepting syntax it would not. Prefer stating the real value — `dart_package`
+# exists so it only has to be stated once — and note that
+# `codegen_identity_error` reports this default when it contradicts a library
+# that does state one.
+DEFAULT_ROOT_LANGUAGE_VERSION = "3.0"
+
+# The attribute every rule that builds part of a Dart package gains, pointing at
+# the one `dart_package` that declares the package's identity.
+PACKAGE_IDENTITY_ATTRS = {
+    "package": attr.label(
+        providers = [DartPackageIdentityInfo],
+        doc = "A `dart_package` declaring this Dart package's `package_name` and `language_version`. Mutually exclusive with the inline `package_name` / `language_version` attributes: set `package` to state those facts once for every rule building this package, or set them inline, but never both. Referencing a target is what lets rules in *different* BUILD files share one declaration, which a macro cannot do.",
+    ),
+}
+
+def resolve_package_identity(ctx):
+    """Resolves a rule's Dart package identity from `package` or inline attrs.
+
+    Two ways to state one thing would be two ways for it to be wrong, so this
+    refuses the overlap outright rather than defining a precedence: a rule that
+    sets `package` and an inline attribute fails, whether or not the two agree.
+    Agreement today is not agreement after the next edit, and a silently ignored
+    attribute is the failure this whole mechanism exists to remove. The same
+    call `analyze_operand` makes for `target` / `lib`.
+
+    Tolerant about which attributes the calling rule actually declares:
+    `dart_format_test` has a `language_version` and no `package_name`, and a
+    rule that grows one later needs no change here.
+
+    Args:
+      ctx: The rule context. Must declare `package`; may declare
+        `package_name` and/or `language_version`.
+
+    Returns:
+      `struct(package_name, language_version)`, either of which may be "".
+    """
+    inline_name = getattr(ctx.attr, "package_name", "")
+    inline_language_version = getattr(ctx.attr, "language_version", "")
+    declaration = getattr(ctx.attr, "package", None)
+
+    if declaration == None:
+        return struct(
+            package_name = inline_name,
+            language_version = inline_language_version,
+        )
+
+    also_set = []
+    if inline_name:
+        also_set.append("package_name")
+    if inline_language_version:
+        also_set.append("language_version")
+    if also_set:
+        fail(("%s: sets `package` and also %s. `package = \"%s\"` already " +
+              "states %s for this package; drop the inline %s, or drop " +
+              "`package` and state everything inline.") % (
+            ctx.label,
+            " and ".join(["`%s`" % a for a in also_set]),
+            declaration.label,
+            "them" if len(also_set) > 1 else "it",
+            "attributes" if len(also_set) > 1 else "attribute",
+        ))
+
+    declared = declaration[DartPackageIdentityInfo]
+    return struct(
+        package_name = declared.package_name,
+        language_version = declared.language_version,
+    )
+
+def codegen_identity_error(label, srcs, identity):
+    """Reports a generated source whose package identity contradicts its library.
+
+    `dart_codegen` and its consuming `dart_library` each state the package the
+    generated file belongs to, and `dart_codegen`'s own documentation has always
+    required them to match — with nothing checking that they do. They cannot be
+    made to agree by construction either: the library depends on the codegen's
+    output, so no provider reaches from the codegen to the library, and the two
+    are routinely written in different BUILD files. `srcs` is where they meet.
+
+    The language version compared here is the generator's *effective* one, so a
+    `dart_codegen` that states none — and therefore ran under
+    `DEFAULT_ROOT_LANGUAGE_VERSION` — is reported against a library that states
+    3.11, instead of the mismatch surfacing later as a generated file the
+    analyzer rejects. A library that states none of its own asks for nothing and
+    is not second-guessed: `e2e/fix/clean` is that shape, both sides silent, and
+    it is not this function's business to invent an opinion for it.
+
+    Args:
+      label: The consuming rule's label, for the error message.
+      srcs: The consuming rule's `srcs` targets (`ctx.attr.srcs`).
+      identity: The consuming rule's own `resolve_package_identity` result.
+
+    Returns:
+      An error message string, or `None` when nothing contradicts.
+    """
+    for src in srcs:
+        if DartPackageIdentityInfo not in src:
+            continue
+        generated = src[DartPackageIdentityInfo]
+        if generated.package_name != identity.package_name:
+            return (
+                ("%s: generates sources for package \"%s\", but %s collects " +
+                 "them into package \"%s\". A generated file is part of the " +
+                 "package whose sources it was generated from — the two must " +
+                 "name the same one. Point both at a single `dart_package`, " +
+                 "or correct whichever `package_name` is wrong.") % (
+                    src.label,
+                    generated.package_name,
+                    label,
+                    identity.package_name,
+                )
+            )
+        if not identity.language_version:
+            continue
+        if generated.language_version != identity.language_version:
+            return (
+                ("%s: ran its generator under Dart language version %s, but " +
+                 "%s compiles package \"%s\" as %s.%s\n\nThe generator reads " +
+                 "the package's sources to produce the file, so a generator " +
+                 "held to different semantics than the package can reject " +
+                 "syntax the package legitimately uses, or emit syntax the " +
+                 "package cannot compile. Point both at a single " +
+                 "`dart_package`, or set the same `language_version` on " +
+                 "each.") % (
+                    src.label,
+                    generated.language_version,
+                    label,
+                    identity.package_name,
+                    identity.language_version,
+                    (
+                        " %s states no `language_version`, so it fell back to the built-in default." % src.label
+                    ) if generated.language_version == DEFAULT_ROOT_LANGUAGE_VERSION else "",
+                )
+            )
+    return None
 
 def package_agreement_error(merged):
     """Reports duplicate records for one package that state different facts.
@@ -1379,16 +1518,22 @@ def add_shim_contract_args(
       A list of extra action-input Files that callers must include in
       their `ctx.actions.run(inputs=...)`.
     """
-    if not ctx.attr.package_name:
-        fail("%s: `package_name` is required." % ctx.label)
+    identity = resolve_package_identity(ctx)
+    if not identity.package_name:
+        fail(("%s: no `package_name`. Set it on this rule, or set `package` " +
+              "to a `dart_package` that declares it.") % ctx.label)
 
     extra_inputs = []
-    args.add("--package", ctx.attr.package_name)
+    args.add("--package", identity.package_name)
 
     # When `language_version` is empty the rule defers to a built-in default
     # so users / Gazelle don't have to specify the SDK's `<major>.<minor>` on
-    # every macro invocation. Override only when pinning to a specific value.
-    args.add("--root-language-version", ctx.attr.language_version or "3.0")
+    # every macro invocation. Override only when pinning to a specific value —
+    # via `package` for a package built by more than one rule.
+    args.add(
+        "--root-language-version",
+        identity.language_version or DEFAULT_ROOT_LANGUAGE_VERSION,
+    )
     seen = {}
     for src in auto_stage_srcs:
         if src.path in seen:

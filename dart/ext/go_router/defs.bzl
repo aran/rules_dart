@@ -5,7 +5,7 @@ load("@rules_dart//dart/ext/_shared:defs.bzl", "shared_part_library")
 def go_router_library(
         name,
         srcs,
-        package_name,
+        package_name = "",
         language_version = "",
         deps = [],
         annotation_dep = "@pub_deps//:go_router",

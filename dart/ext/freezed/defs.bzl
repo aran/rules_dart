@@ -5,7 +5,7 @@ load("@rules_dart//dart/ext/_shared:defs.bzl", "library_builder_library")
 def freezed_library(
         name,
         srcs,
-        package_name,
+        package_name = "",
         language_version = "",
         deps = [],
         annotation_dep = "@pub_deps//:freezed_annotation",

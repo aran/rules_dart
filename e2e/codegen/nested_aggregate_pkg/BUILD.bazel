@@ -1,4 +1,4 @@
-load("@rules_dart//dart:defs.bzl", "dart_analyze_test", "dart_library")
+load("@rules_dart//dart:defs.bzl", "dart_analyze_test", "dart_library", "dart_package")
 
 # Dart package root. The codegen targets consuming this library live in the
 # NESTED Bazel package `gen/` — lib_root resolves to `nested_aggregate_pkg`
@@ -9,11 +9,18 @@ exports_files(
     visibility = ["//nested_aggregate_pkg/gen:__pkg__"],
 )
 
+# Stated once, for the rules here and the ones in `gen/`.
+dart_package(
+    name = "pkg",
+    package_name = "nested_aggregate_fixture",
+    language_version = "3.11",
+    visibility = ["//nested_aggregate_pkg/gen:__pkg__"],
+)
+
 dart_library(
     name = "item_lib",
-    package_name = "nested_aggregate_fixture",
     srcs = ["lib/item.dart"],
-    language_version = "3.11",
+    package = ":pkg",
     visibility = ["//nested_aggregate_pkg/gen:__pkg__"],
 )
 

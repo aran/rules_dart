@@ -16,7 +16,7 @@ load("@rules_dart//dart:defs.bzl", "dart_aggregate_codegen", "dart_codegen", "da
 def injectable_library(
         name,
         srcs,
-        package_name,
+        package_name = "",
         language_version = "",
         # init_src is logically required, but Starlark forbids a required
         # parameter after an optional one (language_version); enforced via
