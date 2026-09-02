@@ -86,7 +86,8 @@ file at runtime — keep file lists current as the repo evolves.
   reusable workflow sets `USE_BAZEL_VERSION` from it, so a stale value means CI
   never tests the version developers run locally
 - `.bcr/presubmit.yml` — `bazel:` matrix value (if major version changes)
-- `docs/ARCHITECTURE.md` — prose mentioning "Bazel 8.x" (if major version changes)
+- `docs/ARCHITECTURE.md` — prose naming the major Bazel version, currently
+  "Bazel 9.x" (if major version changes)
 
 **Procedure**:
 

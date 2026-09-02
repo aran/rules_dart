@@ -194,8 +194,8 @@ invalid GitHub user ID for aran` (aran's id is `5295`). Cause: `publish-to-bcr`
      **unrelated** to any core-team "manual review" block on a `rules_dart` PR — don't
      conflate them. Fix in **two** places: (a) hardening, pin
      `"github_user_id": 5295` in the maintainer entry of `.bcr/metadata.template.json` so
-     the value never depends on the lookup (done for all three repos as of 0.4.6 — verify
-     it's still there); (b) to unblock the already-open PR whose publish run missed it,
+     the value never depends on the lookup (present in all three repos); (b) to
+     unblock the already-open PR whose publish run missed it,
      re-add the field to `modules/<module>/metadata.json` on the PR's fork branch
      (`aran:<module>-${TARGET}`) via the contents API, e.g.
      `gh api -X PUT repos/aran/bazel-central-registry/contents/modules/<module>/metadata.json
@@ -213,9 +213,9 @@ invalid GitHub user ID for aran` (aran's id is `5295`). Cause: `publish-to-bcr`
      sensitive metadata modifications (outside versions array) have been updated in this
      PR. Manual reviews are necessary." Presubmit still spawns and goes green — that is a
      **separate gate** from auto-approval, so a healthy platform matrix does not mean the
-     PR will merge itself. Observed on rules*dart 0.4.8: upstream stored
-     `… "name", "github_user_id"` (0.4.6 appended the field via the API lookup) while the
-     template listed `"github_user_id"` before `"name"`.
+     PR will merge itself. The mismatch to watch for: upstream stores
+     `… "name", "github_user_id"` while the template may list `"github_user_id"`
+     before `"name"`.
      Fix: (a) reorder the maintainer keys in every `.bcr/metadata.template.json` to match
      what upstream already stores, so future releases generate a byte-identical block;
      (b) for the open PR, rewrite `modules/<module>/metadata.json` on the fork branch to
@@ -224,7 +224,7 @@ invalid GitHub user ID for aran` (aran's id is `5295`). Cause: `publish-to-bcr`
      JSON, or you reintroduce ordering/formatting drift. Verify with
      `gh pr diff <n>` that the only remaining hunk is the versions array.
      Note the bot does **not** retract its comment once posted; a cleaned-up diff still
-     waits on a maintainer, so it is worth getting the ordering right \_before* tagging.
+     waits on a maintainer, so it is worth getting the ordering right _before_ tagging.
 
 4. **Poll until BCR serves it**: live when `modules/rules_dart/${TARGET#v}/` exists
    upstream, or a fresh module resolves `bazel_dep(name="rules_dart", version="${TARGET#v}")`.
