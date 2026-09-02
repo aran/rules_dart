@@ -32,20 +32,20 @@ forwarded silently discards every dependency's values.""",
         "lib_root": "str: The short_path-based path to the package root directory (parent of `lib/`). Configuration-independent; consumers derive exec-root paths from source File objects.",
         "transitive_srcs": "depset[File]: All transitive Dart source files, including this library's own sources.",
         "transitive_resources": "depset[File]: Non-Dart files shipped inside `lib/` (see `dart_library`'s `resources`) by this library and all transitive deps. Carried beside `transitive_srcs` rather than within it because the two are routed differently: everything that stages a whole package wants both, and nothing that feeds the compiler wants these.",
-        "transitive_packages": "depset[DartPackageInfo]: Package metadata for this library and all transitive deps.",
+        "transitive_packages": "depset[DartPackageInfo]: Package records for this library and all transitive deps.",
         "transitive_code_asset_files": "depset[File]: The dynamic libraries of every transitive code asset. Carried separately from `transitive_packages` because a depset of providers cannot be turned back into files for runfiles.",
     },
 )
 
-DartPackageIdentityInfo = provider(
+DartPackageMetadataInfo = provider(
     doc = """The two facts a Dart package states about itself: its name and the \
 language version its sources are written against.
 
 Distinct from `DartPackageInfo`, which is a *record of a package in the build \
 graph* — where its sources live, what version pub resolved, what native assets \
 it owns — accumulated by `dart_info()` and carried in depsets. This is the \
-*declaration* a `dart_package` target makes, read back through an attribute by \
-the rules that would otherwise each ask for the same two strings.
+*declaration* a `dart_package_metadata` target makes, read back through an \
+attribute by the rules that would otherwise each ask for the same two strings.
 
 It exists because those two facts are properties of a package, not of a rule, \
 and a package is routinely built by more than one rule: a `dart_codegen` \
@@ -53,11 +53,11 @@ generating part of it and the `dart_library` collecting the result must agree \
 on both, and `sibling_aggregate_pkg` shows the two living in different BUILD \
 files, where no macro can hold them together. A referenceable declaration can.
 
-Deliberately a leaf: it carries no `DartInfo`, so a `dart_package` cannot be \
-mistaken for a dependency. `attr.label(providers = ...)` is require-only, and a \
-target providing `DartInfo` would make `dart_library(deps = [":pkg"])` legal \
-with nothing to say about it — the same trap `DartAnalyzableInfo` exists to \
-avoid.""",
+Deliberately a leaf: it carries no `DartInfo`, so a `dart_package_metadata` \
+cannot be mistaken for a dependency. `attr.label(providers = ...)` is \
+require-only, and a target providing `DartInfo` would make \
+`dart_library(deps = [":pkg"])` legal with nothing to say about it — the same \
+trap `DartAnalyzableInfo` exists to avoid.""",
     fields = {
         "package_name": "str: The Dart package name used in `package:` imports. Required.",
         "language_version": "str: Dart language version implied by the package's `environment.sdk` constraint, in `<major>.<minor>` form. Empty when the package states none.",
@@ -65,7 +65,7 @@ avoid.""",
 )
 
 DartPackageInfo = provider(
-    doc = "Metadata about a single Dart package, carried in depsets within DartInfo.",
+    doc = "Record of a single Dart package in the build graph, carried in depsets within DartInfo.",
     fields = {
         "package_name": "str: The Dart package name. Required.",
         "lib_root": "str: The short_path-based path to the package root directory (parent of `lib/`). Configuration-independent. Required; empty string for the root package.",
@@ -159,7 +159,7 @@ they are resolvable from the project, never themselves analyzed, and never \
 merged into the analyzed target's provider.""",
     fields = {
         "file": "File: The `analysis_options.yaml`.",
-        "packages": "list[DartPackageInfo]: Package metadata for every package the includes may reference.",
+        "packages": "list[DartPackageInfo]: Package records for every package the includes may reference.",
         "transitive_srcs": "depset[File]: Dart sources of those packages.",
         "transitive_resources": "depset[File]: Non-Dart `lib/` files of those packages — where a published ruleset's yaml actually lives.",
     },

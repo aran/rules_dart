@@ -1,8 +1,8 @@
-"""One `dart_package` declaration, and the ways rules can contradict it.
+"""One `dart_package_metadata` declaration, and the ways rules can contradict it.
 
 `dart_codegen` and the `dart_library` collecting its output each state the
 package they belong to, in BUILD files that may not even be the same one. These
-fixtures pin both halves of the answer: pointing both at one `dart_package`
+fixtures pin both halves of the answer: pointing both at one `dart_package_metadata`
 makes the duplication impossible, and where the inline attributes are still
 used, a contradiction stops the build instead of being resolved silently.
 
@@ -11,7 +11,7 @@ never run and the generator's outputs are never produced.
 """
 
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
-load("//dart:defs.bzl", "dart_codegen", "dart_library", "dart_package")
+load("//dart:defs.bzl", "dart_codegen", "dart_library", "dart_package_metadata")
 load(
     "//dart/tests:package_identity_test.bzl",
     "codegen_package_name_conflict_test",
@@ -20,7 +20,7 @@ load(
     "package_and_inline_conflict_test",
 )
 
-dart_package(
+dart_package_metadata(
     name = "pkg",
     package_name = "ident_fixture",
     language_version = "3.11",

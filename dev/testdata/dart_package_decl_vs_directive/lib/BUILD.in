@@ -1,8 +1,8 @@
 # gazelle:dart_package_name directive_name
 
-load("@rules_dart//dart:defs.bzl", "dart_package")
+load("@rules_dart//dart:defs.bzl", "dart_package_metadata")
 
-dart_package(
+dart_package_metadata(
     name = "pkg",
     package_name = "declared_name",
     language_version = "3.11",

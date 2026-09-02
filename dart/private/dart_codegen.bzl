@@ -58,7 +58,7 @@ reusing across requests is a silent-corruption hazard due to
 cost is amortised across the worker's lifetime.
 """
 
-load("//dart:providers.bzl", "DartInfo", "DartPackageIdentityInfo")
+load("//dart:providers.bzl", "DartInfo", "DartPackageMetadataInfo")
 load(
     "//dart/private:common.bzl",
     "DEFAULT_ROOT_LANGUAGE_VERSION",
@@ -217,7 +217,7 @@ def _dart_codegen_impl(ctx):
         # The *effective* values, built-in default included: a library stating
         # 3.11 over a generator that silently fell back to 3.0 is exactly the
         # disagreement `codegen_identity_error` exists to name.
-        DartPackageIdentityInfo(
+        DartPackageMetadataInfo(
             package_name = identity.package_name,
             language_version = (
                 identity.language_version or DEFAULT_ROOT_LANGUAGE_VERSION

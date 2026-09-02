@@ -1,4 +1,4 @@
-load("@rules_dart//dart:defs.bzl", "dart_analyze_test", "dart_library", "dart_package")
+load("@rules_dart//dart:defs.bzl", "dart_analyze_test", "dart_library", "dart_package_metadata")
 
 # Dart package root. The codegen targets consuming this library live in the
 # SIBLING Bazel package `../gen/` — generated shards' short_paths sit under
@@ -10,11 +10,11 @@ exports_files(
     visibility = ["//sibling_aggregate_pkg/gen:__pkg__"],
 )
 
-# The package's identity, stated once for the rules in BOTH Bazel packages. The
-# `dart_codegen` and `dart_aggregate_codegen` in `../gen/` reference this rather
-# than repeating the name and language version, which is the case no macro can
+# The package's name and language version, stated once for the rules in BOTH
+# Bazel packages. The `dart_codegen` and `dart_aggregate_codegen` in `../gen/`
+# reference this rather than repeating them, which is the case no macro can
 # cover: a macro cannot emit targets into two BUILD files.
-dart_package(
+dart_package_metadata(
     name = "pkg",
     package_name = "sibling_aggregate_fixture",
     language_version = "3.11",

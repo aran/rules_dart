@@ -1,4 +1,4 @@
-"""Tests for `dart_package` and the identity agreement it makes checkable.
+"""Tests for `dart_package_metadata` and the identity agreement it makes checkable.
 
 Analysis-time throughout. `codegen_identity_error` reads a provider off a
 target in `srcs` and `resolve_package_identity` reads a rule's attributes, so
@@ -12,7 +12,7 @@ load("//dart:providers.bzl", "DartInfo")
 load("//dart/private:common.bzl", "own_package_record")
 
 def _identity_probe_impl(ctx):
-    """Asserts a `dart_package` reached the library's own `DartPackageInfo`."""
+    """Asserts a `dart_package_metadata` reached the library's own `DartPackageInfo`."""
     info = ctx.attr.target[DartInfo]
     pkg = own_package_record(info)
     if pkg == None:

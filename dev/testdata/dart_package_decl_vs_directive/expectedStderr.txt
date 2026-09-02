@@ -1,1 +1,1 @@
-gazelle: dart: lib: dart_package ":pkg" declares package_name "declared_name", but this directory otherwise resolves to "directive_name". The declaration wins; drop the conflicting pubspec name or `# gazelle:dart_package_name` directive.
+gazelle: dart: lib: dart_package_metadata ":pkg" declares package_name "declared_name", but this directory otherwise resolves to "directive_name". The declaration wins; drop the conflicting pubspec name or `# gazelle:dart_package_name` directive.

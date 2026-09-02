@@ -45,7 +45,7 @@ Worker mode (`supports-workers=1`, protobuf, singleplex) is enabled for
 `generator_bin` actions; worker requests go through `dart/ext/lib/worker_entry.dart`.
 """
 
-load("//dart:providers.bzl", "DartInfo", "DartPackageIdentityInfo")
+load("//dart:providers.bzl", "DartInfo", "DartPackageMetadataInfo")
 load(
     "//dart/private:common.bzl",
     "DEFAULT_ROOT_LANGUAGE_VERSION",
@@ -155,7 +155,7 @@ def _dart_aggregate_codegen_impl(ctx):
         # The *effective* values, built-in default included: a library stating
         # 3.11 over a generator that silently fell back to 3.0 is exactly the
         # disagreement `codegen_identity_error` exists to name.
-        DartPackageIdentityInfo(
+        DartPackageMetadataInfo(
             package_name = identity.package_name,
             language_version = (
                 identity.language_version or DEFAULT_ROOT_LANGUAGE_VERSION

@@ -3,7 +3,7 @@
 Load this file from your BUILD files to access the following rules:
 
 - `dart_library`: Collects Dart sources and propagates dependency information. Does not compile.
-- `dart_package`: Declares a Dart package's name and language version once, for every rule that builds part of it.
+- `dart_package_metadata`: Declares a Dart package's name and language version once, for every rule that builds part of it.
 - `dart_source_set`: Assembles Dart sources (hand-written + generated) into one directory.
 - `dart_binary`: Compiles a Dart application (`exe`, `aot-snapshot`, `kernel`, or `jit-snapshot`).
 - `dart_test`: Runs a Dart test file using the Dart VM.
@@ -29,14 +29,14 @@ load("//dart/private:dart_codegen.bzl", _dart_codegen = "dart_codegen")
 load("//dart/private:dart_fix.bzl", _dart_fix = "dart_fix")
 load("//dart/private:dart_format_test.bzl", _dart_format_test = "dart_format_test")
 load("//dart/private:dart_library.bzl", _dart_library = "dart_library")
-load("//dart/private:dart_package.bzl", _dart_package = "dart_package")
+load("//dart/private:dart_package_metadata.bzl", _dart_package_metadata = "dart_package_metadata")
 load("//dart/private:dart_sqlcodegen.bzl", _dart_sqlcodegen = "dart_sqlcodegen")
 load("//dart/private:dart_test.bzl", _dart_test = "dart_test")
 load("//dart/private:dart_web_application.bzl", _dart_js_binary = "dart_js_binary", _dart_wasm_binary = "dart_wasm_binary")
 load("//dart/private:source_set.bzl", _dart_source_set = "dart_source_set")
 
 dart_library = _dart_library
-dart_package = _dart_package
+dart_package_metadata = _dart_package_metadata
 dart_source_set = _dart_source_set
 dart_binary = _dart_binary
 dart_test = _dart_test

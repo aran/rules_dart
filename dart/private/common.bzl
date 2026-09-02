@@ -1,6 +1,6 @@
 """Shared utilities for Dart rules."""
 
-load("//dart:providers.bzl", "CODE_ASSET_LINK_MODES", "DartAnalysisOptionsInfo", "DartAnalyzableInfo", "DartInfo", "DartPackageIdentityInfo")
+load("//dart:providers.bzl", "CODE_ASSET_LINK_MODES", "DartAnalysisOptionsInfo", "DartAnalyzableInfo", "DartInfo", "DartPackageMetadataInfo")
 load("//dart/private:dart_info.bzl", "derived_package_info", "package_lib_prefix")
 load("//dart/private:source_set.bzl", "needs_source_assembly", "package_for")
 
@@ -215,18 +215,18 @@ constraint and writes the same value on each.
 # nothing states one. Deliberately old: a generator running under a *lower*
 # language version than the sources it reads is the safe direction, since the
 # analyzer then refuses syntax the real package would accept rather than
-# accepting syntax it would not. Prefer stating the real value — `dart_package`
+# accepting syntax it would not. Prefer stating the real value — `dart_package_metadata`
 # exists so it only has to be stated once — and note that
 # `codegen_identity_error` reports this default when it contradicts a library
 # that does state one.
 DEFAULT_ROOT_LANGUAGE_VERSION = "3.0"
 
 # The attribute every rule that builds part of a Dart package gains, pointing at
-# the one `dart_package` that declares the package's identity.
+# the one `dart_package_metadata` that declares the package's name and language version.
 PACKAGE_IDENTITY_ATTRS = {
     "package": attr.label(
-        providers = [DartPackageIdentityInfo],
-        doc = "A `dart_package` declaring this Dart package's `package_name` and `language_version`. Mutually exclusive with the inline `package_name` / `language_version` attributes: set `package` to state those facts once for every rule building this package, or set them inline, but never both. Referencing a target is what lets rules in *different* BUILD files share one declaration, which a macro cannot do.",
+        providers = [DartPackageMetadataInfo],
+        doc = "A `dart_package_metadata` declaring this Dart package's `package_name` and `language_version`. Mutually exclusive with the inline `package_name` / `language_version` attributes: set `package` to state those facts once for every rule building this package, or set them inline, but never both. Referencing a target is what lets rules in *different* BUILD files share one declaration, which a macro cannot do.",
     ),
 }
 
@@ -277,7 +277,7 @@ def resolve_package_identity(ctx):
             "attributes" if len(also_set) > 1 else "attribute",
         ))
 
-    declared = declaration[DartPackageIdentityInfo]
+    declared = declaration[DartPackageMetadataInfo]
     return struct(
         package_name = declared.package_name,
         language_version = declared.language_version,
@@ -310,15 +310,15 @@ def codegen_identity_error(label, srcs, identity):
       An error message string, or `None` when nothing contradicts.
     """
     for src in srcs:
-        if DartPackageIdentityInfo not in src:
+        if DartPackageMetadataInfo not in src:
             continue
-        generated = src[DartPackageIdentityInfo]
+        generated = src[DartPackageMetadataInfo]
         if generated.package_name != identity.package_name:
             return (
                 ("%s: generates sources for package \"%s\", but %s collects " +
                  "them into package \"%s\". A generated file is part of the " +
                  "package whose sources it was generated from — the two must " +
-                 "name the same one. Point both at a single `dart_package`, " +
+                 "name the same one. Point both at a single `dart_package_metadata`, " +
                  "or correct whichever `package_name` is wrong.") % (
                     src.label,
                     generated.package_name,
@@ -336,7 +336,7 @@ def codegen_identity_error(label, srcs, identity):
                  "held to different semantics than the package can reject " +
                  "syntax the package legitimately uses, or emit syntax the " +
                  "package cannot compile. Point both at a single " +
-                 "`dart_package`, or set the same `language_version` on " +
+                 "`dart_package_metadata`, or set the same `language_version` on " +
                  "each.") % (
                     src.label,
                     generated.language_version,
@@ -1521,7 +1521,7 @@ def add_shim_contract_args(
     identity = resolve_package_identity(ctx)
     if not identity.package_name:
         fail(("%s: no `package_name`. Set it on this rule, or set `package` " +
-              "to a `dart_package` that declares it.") % ctx.label)
+              "to a `dart_package_metadata` that declares it.") % ctx.label)
 
     extra_inputs = []
     args.add("--package", identity.package_name)

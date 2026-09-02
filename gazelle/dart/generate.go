@@ -560,7 +560,7 @@ func lowerSnake(s string) string {
 }
 
 // packageDeclLabel returns the in-package reference to a hand-written
-// `dart_package`, or "" when the directory has none.
+// `dart_package_metadata`, or "" when the directory has none.
 //
 // A package that has adopted a declaration must not have the inline attributes
 // written back onto its rules: the two spellings are mutually exclusive and a
@@ -574,7 +574,7 @@ func packageDeclLabel(args language.GenerateArgs) (label string, declaredName st
 		return "", ""
 	}
 	for _, r := range args.File.Rules {
-		if r.Kind() == "dart_package" {
+		if r.Kind() == "dart_package_metadata" {
 			return ":" + r.Name(), r.AttrString("package_name")
 		}
 	}
@@ -582,12 +582,12 @@ func packageDeclLabel(args language.GenerateArgs) (label string, declaredName st
 }
 
 // setPackageIdentity states the Dart package a generated rule belongs to,
-// either by reference to the directory's `dart_package` or inline.
-// warnOnPackageNameOverlap reports a `dart_package` whose declared name differs
+// either by reference to the directory's `dart_package_metadata` or inline.
+// warnOnPackageNameOverlap reports a `dart_package_metadata` whose declared name differs
 // from the one a pubspec or `# gazelle:dart_package_name` directive supplies.
 //
 // The declaration wins, which leaves the other a value the developer stated and
-// nothing acts on — the exact failure `dart_package` exists to remove, so it is
+// nothing acts on — the exact failure `dart_package_metadata` exists to remove, so it is
 // not one to reintroduce silently here. Reported once per directory rather than
 // once per emitted rule: it is a property of the directory, and four copies of
 // one warning trains people to skip all of them.
@@ -601,7 +601,7 @@ func warnOnPackageNameOverlap(args language.GenerateArgs) {
 		return
 	}
 	log.Printf(
-		"dart: %s: dart_package %q declares package_name %q, but this "+
+		"dart: %s: dart_package_metadata %q declares package_name %q, but this "+
 			"directory otherwise resolves to %q. The declaration wins; drop "+
 			"the conflicting pubspec name or `# gazelle:dart_package_name` "+
 			"directive.",

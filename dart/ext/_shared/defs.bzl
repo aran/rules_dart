@@ -53,7 +53,7 @@ def shared_part_library(
         Omit when passing `package`.
       language_version: Dart language version (`<major>.<minor>`). Omit when
         passing `package`.
-      package: A `dart_package` declaring both of the above once, forwarded to
+      package: A `dart_package_metadata` declaring both of the above once, forwarded to
         every rule this macro emits. Mutually exclusive with the two inline
         arguments — the rules themselves refuse the overlap.
       shim: Label of the per-builder SharedPart shim binary.
@@ -131,7 +131,7 @@ def library_builder_library(
       package_name: Dart package name. Omit when passing `package`.
       language_version: Dart language version (`<major>.<minor>`). Omit when
         passing `package`.
-      package: A `dart_package` declaring both of the above once, forwarded to
+      package: A `dart_package_metadata` declaring both of the above once, forwarded to
         every rule this macro emits. Mutually exclusive with the two inline
         arguments — the rules themselves refuse the overlap.
       shim: Label of the per-builder shim binary.
