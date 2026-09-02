@@ -163,7 +163,11 @@ Add directives as comments in a `BUILD.bazel` file to control generation:
   `package:shelf/shelf.dart` are resolved to `@pub_deps//:shelf`.
 
 - **`# gazelle:dart_package_name my_app`** — explicitly sets the
-  `package_name` attribute on the generated `dart_library` rule.
+  `package_name` attribute on the generated `dart_library` rule. In a directory
+  that already declares a `dart_package_metadata`, Gazelle emits
+  `package = ":pkg"` on the rules it generates instead of an inline
+  `package_name`, and warns when the declaration's name differs from the one the
+  pubspec or this directive supplies.
 
 - **`# gazelle:resolve dart foo //third_party:foo`** — overrides
   automatic dependency resolution for a Dart package (the `foo` of
@@ -245,6 +249,46 @@ For first-party builders (`json_serializable`, `freezed`, `built_value`,
 the matching annotations in sources and emits the macro automatically. See
 [`docs/ext.md`](./docs/ext.md) for the shim contract, worker behaviour, and
 dual-build migration guide when coexisting with `build_runner`.
+
+#### Stating a package's name once
+
+Every rule that builds part of a package must agree on its `package_name` and
+`language_version`: the `dart_codegen` above states them, and the `dart_library`
+collecting its output has to state the same pair. A `dart_package_metadata`
+target declares them once and the rules point at it:
+
+```starlark
+load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "pkg",
+    package_name = "my_pkg",
+    language_version = "3.11",
+)
+
+dart_codegen(
+    name = "user_g",
+    src = "lib/user.dart",
+    package = ":pkg",
+    generator = "//tools:gen.dart",
+    output_suffixes = [".g.dart"],
+)
+
+dart_library(
+    name = "my_lib",
+    srcs = ["lib/user.dart", ":user_g"],
+    package = ":pkg",
+)
+```
+
+Set `package` or the inline attributes, never both — the rules refuse the
+overlap rather than silently ignoring one. Because it is a target rather than a
+macro, the rules referencing it can sit in different BUILD files, which is the
+case nothing else covers. The builder macros (`json_serializable_library` and
+friends) accept `package` too and forward it to every rule they emit.
+
+This is not `pub.package()`, which fetches a published package from pub.dev;
+`dart_package_metadata` states facts about a package you are building yourself.
 
 ### Static analysis and formatting
 

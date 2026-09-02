@@ -290,6 +290,11 @@ tune _registered_ builders:
   `language_version` attr. When unset, Gazelle derives it from the
   nearest `pubspec.yaml`'s `environment.sdk` constraint's lower bound.
 
+Every macro also accepts `package`, a `dart_package_metadata` label
+declaring the package's `package_name` and `language_version` once. It is
+forwarded to every rule the macro emits, and is mutually exclusive with
+passing those two inline.
+
 ## Dual-build coexistence
 
 `rules_dart` and `build_runner` can be used on the same checkout during
