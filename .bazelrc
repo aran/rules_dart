@@ -16,9 +16,6 @@ common --config=ruleset
 # same rule set download dependencies at the same versions with the same bits.
 # This setting does not affect modules that depend on this module.
 #
-# When updating dependencies, use --lockfile_mode=refresh, for example:
-#     bazel mod tidy --lockfile_mode=refresh
-#
 # When testing different versions of Bazel, use --lockfile_mode=update or
 # --lockfile_mode=off. The lock file format changes over time, and different
 # versions of Bazel may expect different syntax. Bazel also implicitly requires

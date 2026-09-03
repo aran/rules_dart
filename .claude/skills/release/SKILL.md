@@ -259,8 +259,18 @@ not permitted with --lockfile_mode=error`;
    and each `e2e/*` module is its own workspace. If only the root lock misbehaves, this is why.
 
    So: move `.bazelrc.user` aside (or regenerate from a `git ls-files`-only copy of the
-   tree), then in **each** module run `bazel mod tidy --lockfile_mode=refresh` — `bazel mod
-deps` does **not** re-evaluate extensions. Restore `.bazelrc.user` afterwards.
+   tree), then in **each** module run both passes, in this order:
+
+   ```sh
+   bazel mod tidy --lockfile_mode=refresh              # restores the registry hash
+   bazel build --nobuild --lockfile_mode=update //...  # records the rest of the extensions
+   ```
+
+   `mod tidy` evaluates only the extensions it needs, so on its own it writes a lock
+   missing entries for extensions the build reaches, which `--lockfile_mode=error`
+   rejects with `The module extension '@@...' does not exist in the lockfile`.
+
+   Restore `.bazelrc.user` afterwards.
 
    **Verify explicitly**, for every module (root + each e2e):
 
@@ -294,8 +304,20 @@ tagging.
 1. It was already validated against the WIP rules_dart in **Phase 3** — sufficient for now.
 2. **Bump the pin** to `${TARGET#v}` in the root `MODULE.bazel` and every `e2e/*/MODULE.bazel`
    (skip `e2e/_overlay_tests/native_assets_synthetic`, which pins `0.0.0` behind an override).
-   Regenerate each lock with `bazel mod tidy --lockfile_mode=refresh`, verify with
-   `--lockfile_mode=error`, commit (signed) to `main`, push, and watch CI.
+   `rules_flutter` carries a `.bazelrc.user` in **every** workspace, not just the root
+   as `rules_dart_proto` does. Enumerate and move all of them aside before regenerating
+   anything:
+
+   ```sh
+   find . -name .bazelrc.user -not -path "*/bazel-*"
+   ```
+
+   Then run the same two-pass regeneration as Phase 7 step 3 in each workspace, verify
+   with `--lockfile_mode=error`, restore the `.bazelrc.user` files, commit (signed) to
+   `main`, push, and watch CI. Its e2e locks may also predate the lock format the
+   current Bazel accepts; regenerating then rewrites the whole file, so an enormous diff
+   there is a format change, not lost content.
+
 3. **Pushing to `main` does not open a BCR PR.** `release.yaml` (which calls `publish.yaml`
    → BCR) fires only on a `v*.*.*` **tag push** or via `workflow_call` from `tag.yaml`.
    `tag.yaml` — a daily `smlx/ccv` cron that would otherwise auto-tag and auto-release
