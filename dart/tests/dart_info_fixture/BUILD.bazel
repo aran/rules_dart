@@ -4,6 +4,7 @@ load(
     "analyzable_with_package_test",
     "facade_library",
     "forwards_closures_test",
+    "language_version_passthrough_test",
     "misowned_asset_test",
     "no_package_empty_test",
     "no_package_name_test",
@@ -40,6 +41,34 @@ forwards_closures_test(
     name = "forwards_closures_test",
     size = "small",
     target_under_test = ":wrapper",
+)
+
+# `:wrapper` sets no `language_version`, so its rule passes `""` to the
+# constructor — the "this package states none" answer, which must still produce
+# a record rather than an error.
+language_version_passthrough_test(
+    name = "empty_language_version_test",
+    size = "small",
+    expected_language_version = "",
+    expected_package = "wrapper_pkg",
+    target_under_test = ":wrapper",
+)
+
+# The stated half: a value declared on the rule reaches the package record it
+# describes.
+wrapper_library(
+    name = "wrapper_stated_lv",
+    package_name = "stated_lv_pkg",
+    srcs = ["lib/wrapped.dart"],
+    language_version = "3.11",
+)
+
+language_version_passthrough_test(
+    name = "stated_language_version_test",
+    size = "small",
+    expected_language_version = "3.11",
+    expected_package = "stated_lv_pkg",
+    target_under_test = ":wrapper_stated_lv",
 )
 
 # A facade over the same dependency: forwards everything, contributes no

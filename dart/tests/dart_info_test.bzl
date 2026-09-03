@@ -44,6 +44,7 @@ def _wrapper_library_impl(ctx):
             srcs = ctx.files.srcs,
             resources = ctx.files.resources,
             code_assets = ctx.attr.code_assets,
+            language_version = ctx.attr.language_version,
         ),
     ]
 
@@ -55,6 +56,7 @@ wrapper_library = rule(
         "deps": attr.label_list(providers = [DartInfo]),
         "code_assets": attr.label_list(providers = [DartCodeAssetInfo]),
         "package_name": attr.string(mandatory = True),
+        "language_version": attr.string(),
     },
     doc = "A non-`dart_library` producer of `DartInfo`, built through `dart_info()`.",
 )
@@ -336,4 +338,42 @@ def _misowned_asset_test_impl(ctx):
 misowned_asset_test = analysistest.make(
     _misowned_asset_test_impl,
     expect_failure = True,
+)
+
+def _language_version_passthrough_test_impl(ctx):
+    env = analysistest.begin(ctx)
+    info = analysistest.target_under_test(env)[DartInfo]
+
+    own = [
+        p
+        for p in info.transitive_packages.to_list()
+        if p.package_name == ctx.attr.expected_package
+    ]
+    asserts.equals(
+        env,
+        1,
+        len(own),
+        "expected exactly one record for %s" % ctx.attr.expected_package,
+    )
+    asserts.equals(
+        env,
+        ctx.attr.expected_language_version,
+        own[0].language_version,
+    )
+
+    return analysistest.end(env)
+
+# `language_version` is a required parameter of `dart_info()`, which is a claim
+# about the *calling convention* and not about the value: a package that states
+# no language version is still expressible, by answering `""`. These two cases
+# are what says so — the stated value reaches the record, and the empty one
+# produces a record carrying `""` rather than being rejected. If tightening the
+# signature had narrowed the value space instead of the ways to call it, the
+# empty case is what would break.
+language_version_passthrough_test = analysistest.make(
+    _language_version_passthrough_test_impl,
+    attrs = {
+        "expected_language_version": attr.string(),
+        "expected_package": attr.string(mandatory = True),
+    },
 )

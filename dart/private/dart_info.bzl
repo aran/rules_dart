@@ -56,6 +56,23 @@ and is indexed directly by every consumer. The one deliberate exception is
 `language_version` precisely to prove the tolerance for pre-existing shapes
 still holds; a fixture asserting that older producers keep working cannot be
 written through a constructor that makes them current.
+
+`language_version` is the one parameter these constructors require rather than
+default, which is a deliberate exception to the paragraph above: adding a field
+here is supposed to reach every call site *without* touching them, and this one
+obliges every caller to state it. The reason is that its empty value is not
+inert. An absent `languageVersion` in a generated `package_config.json` does not
+mean "no language version" — the SDK reads it as the *current* one, so a caller
+that simply forgot the argument silently compiles that package under newer
+syntax and semantics than its own pubspec allows. Defaulting made "I forgot" and
+"this package states none" the same call, and the two have different
+consequences. The other optional parameters do not share that shape: the
+collections mean "none of these", `version`'s empty is a supported state
+`package_agreement_error` reads as "knows less", and `has_unreplaced_hook` is
+derived at repository generation rather than stated by a developer. Requiring the
+argument narrows how the constructors may be *called*, not what a package may
+say: `language_version = ""` remains legal and keeps its meaning, which
+`dart_info_fixture`'s `empty_language_version_test` pins.
 """
 
 load("//dart:providers.bzl", "DartAnalyzableInfo", "DartCodeAssetInfo", "DartInfo", "DartPackageInfo")
@@ -119,11 +136,11 @@ def dart_info(
         label,
         package_name,
         lib_root,
+        language_version,
         deps = [],
         srcs = [],
         resources = [],
         code_assets = [],
-        language_version = "",
         has_unreplaced_hook = "",
         version = ""):
     """Builds a `DartInfo` for a library, merging its dependencies' closures.
@@ -148,7 +165,14 @@ def dart_info(
       srcs: This target's own Dart sources (or its source directory).
       resources: This target's own non-Dart files under `lib/`.
       code_assets: Targets providing `DartCodeAssetInfo` that this package owns.
-      language_version: Dart language version in `<major>.<minor>` form, or "".
+      language_version: Dart language version in `<major>.<minor>` form, or ""
+        when the package states none. Required to pass — not because a package
+        must have one, but because omitting the argument and stating `""` are
+        different intentions that used to produce the same call. An absent
+        `languageVersion` in `package_config.json` is not "no language version",
+        it is *the current SDK's*, so a forgotten argument silently compiles the
+        package under newer semantics than its pubspec allows. `""` remains a
+        legal, meaningful value; only not answering is gone.
       has_unreplaced_hook: Path of a pub build hook with no Bazel replacement,
         or "".
       version: The package's own resolved version, or "" when unknown. Only pub
@@ -257,12 +281,12 @@ def dart_analyzable_info_with_package(
         label,
         package_name,
         lib_root,
+        language_version,
         deps = [],
         srcs = [],
         package_srcs = [],
         resources = [],
         code_assets = [],
-        language_version = "",
         version = ""):
     """Builds a `DartAnalyzableInfo` for an executable that contributes a package.
 
@@ -307,7 +331,14 @@ def dart_analyzable_info_with_package(
         files, reachable as `package:<package_name>/…`.
       resources: This target's own non-Dart files under `lib/`.
       code_assets: Targets providing `DartCodeAssetInfo` that this package owns.
-      language_version: Dart language version in `<major>.<minor>` form, or "".
+      language_version: Dart language version in `<major>.<minor>` form, or ""
+        when the package states none. Required to pass — not because a package
+        must have one, but because omitting the argument and stating `""` are
+        different intentions that used to produce the same call. An absent
+        `languageVersion` in `package_config.json` is not "no language version",
+        it is *the current SDK's*, so a forgotten argument silently compiles the
+        package under newer semantics than its pubspec allows. `""` remains a
+        legal, meaningful value; only not answering is gone.
       version: The package's own resolved version, or "" when unknown.
 
     Returns:

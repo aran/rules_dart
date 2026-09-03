@@ -25,6 +25,7 @@ def _pkg_executable_impl(ctx):
             deps = ctx.attr.deps,
             srcs = ctx.files.srcs,
             package_srcs = ctx.files.package_srcs,
+            language_version = ctx.attr.language_version,
         ),
     ]
 
@@ -41,6 +42,13 @@ pkg_executable = rule(
         ),
         "deps": attr.label_list(providers = [DartInfo]),
         "package_name": attr.string(mandatory = True),
+        "language_version": attr.string(
+            doc = "The package's Dart language version, or \"\" when it " +
+                  "states none. Present because the real consumer this models " +
+                  "has one: the constructor requires an answer, and a rule " +
+                  "that cannot supply one from its own attributes would have " +
+                  "to invent it.",
+        ),
     },
     doc = "An executable contributing a package, analyzable through the " +
           "public constructor rather than a hand-built provider.",
