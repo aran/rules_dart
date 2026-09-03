@@ -206,11 +206,12 @@ def _agreement_rejects_disagreeing_versions_test_impl(ctx):
     return unittest.end(env)
 
 def _agreement_tolerates_one_sided_version_test_impl(ctx):
-    # The adoption path. A `DartPackageInfo` from a producer that does not yet
-    # emit `version` — every rules_flutter spoke today, and
-    # `//dart/tests/no_lv_fixture` — carries "". Comparing an empty against a
-    # known version would fail every dual-hub build immediately, including the
-    # agreeing ones, so only two *known* versions can disagree.
+    # The adoption path. A `DartPackageInfo` from a producer that has not
+    # adopted `version` — any rule set outside rules_dart, on its own schedule,
+    # and `//dart/tests/no_lv_fixture` in this repo — carries "". Comparing an
+    # empty against a known version would fail every dual-hub build
+    # immediately, including the agreeing ones, so only two *known* versions
+    # can disagree.
     env = unittest.begin(ctx)
     err = package_agreement_error([
         _pkg("ffi", "../rules_flutter++flutter+deps__ffi"),
