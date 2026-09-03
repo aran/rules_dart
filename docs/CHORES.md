@@ -294,6 +294,7 @@ Each in-repo Dart package is publishable to pub.dev. Maintenance includes:
   bump needed no shim changes — every shim compiled and analyzed clean
   unchanged — so expect builder majors to be cheap unless a builder
   entrypoint signature changes.
+
 - **Lock file**: `pubspec.lock` is refreshed automatically by
   `tool/refresh_locks.dart`.
 - **Version**: Committed as `0.0.0-dev`. The real version is injected from
