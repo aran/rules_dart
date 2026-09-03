@@ -190,25 +190,27 @@ def collect_packages(deps):
     )
 
 _VERSION_REMEDY = """
-Two package sources resolved one package to different versions. Typically two
-pub hubs — rules_flutter's `flutter.pub()` and rules_dart's `pub.from_lock()`
-each generating a spoke for the same package — whose lock files have drifted
-apart. Only one record can win, and dependency order would decide which, so
-the build would compile against whichever came first regardless of what the
-other's lock pins.
+Each package listed just above was resolved to different versions by two
+package sources. Typically two pub hubs — rules_flutter's `flutter.pub()` and
+rules_dart's `pub.from_lock()` each generating a spoke for the same package —
+whose lock files have drifted apart. Only one record per package can win, and
+dependency order would decide which, so the build would compile against
+whichever came first regardless of what the other's lock pins.
 
-Reconcile the lock files feeding the two hubs so both pin one version, then
-re-run `dart pub get` / `flutter pub get` in each workspace.
+Reconcile the lock files feeding the two hubs so both pin one version of each,
+then re-run `dart pub get` / `flutter pub get` in each workspace. Every package
+that disagrees is listed, so one reconciliation settles all of them.
 
 rules_dart does not support multiple versions of a package.
 """
 
 _LANGUAGE_VERSION_REMEDY = """
-A package's records state different `language_version`s, so the Dart semantics
-its sources compile under would be decided by dependency order. Set
-`language_version` consistently on every `dart_library` contributing to this
-package — Gazelle derives it from the nearest `pubspec.yaml`'s `environment.sdk`
-constraint and writes the same value on each.
+Each package listed just above has records stating different
+`language_version`s, so the Dart semantics its sources compile under would be
+decided by dependency order. Set `language_version` consistently on every
+`dart_library` contributing to the package — Gazelle derives it from the
+nearest `pubspec.yaml`'s `environment.sdk` constraint and writes the same value
+on each.
 """
 
 # The language version a code generator's root package is assumed to have when
@@ -351,7 +353,7 @@ def codegen_identity_error(label, srcs, identity):
     return None
 
 def package_agreement_error(merged):
-    """Reports duplicate records for one package that state different facts.
+    """Reports every duplicate record that states facts its twin contradicts.
 
     Two records for one `package_name` are normal — see `merge_package_records`
     for why — but they are supposed to describe the *same* package. When they
@@ -368,6 +370,15 @@ def package_agreement_error(merged):
     including the agreeing ones; treating it as "knows less" is what lets the
     field be adopted one producer at a time.
 
+    Every disagreement is reported at once, across both fields, because the
+    cause is almost always one skew producing many of them: a pair of lock
+    files that drifted apart disagrees about every package whose version moved
+    between them. Naming only the first turns one reconciliation into a round
+    of fix-one, re-analyse, see-the-next per package, and `--keep_going` buys
+    nothing since every failing target reports that same first name. The full
+    list costs nothing to produce — it is already accumulated before the first
+    is found.
+
     Pure, and separate from `merge_package_records`, for the same reason
     `check_code_asset_ownership` is separate from `dart_info`: the caller owns
     the `fail`, so the rule can be tested by calling it.
@@ -376,8 +387,10 @@ def package_agreement_error(merged):
       merged: List of DartPackageInfo, with duplicates, in dependency order.
 
     Returns:
-      An error message string, or `None` when every duplicate agrees.
+      An error message string naming every disagreement, or `None` when every
+      duplicate agrees.
     """
+    blocks = []
     for field, label, remedy in (
         ("version", "versions", _VERSION_REMEDY),
         ("language_version", "language versions", _LANGUAGE_VERSION_REMEDY),
@@ -392,19 +405,28 @@ def package_agreement_error(merged):
             if value not in seen:
                 seen[value] = pkg.lib_root
 
+        reported = []
         for package_name in sorted(stated.keys()):
             seen = stated[package_name]
             if len(seen) < 2:
                 continue
-            return (
+            reported.append(
                 "Package \"%s\" is supplied more than once with different %s:\n" % (package_name, label) +
                 "".join([
                     "  - %s (%s)\n" % (value, seen[value])
                     for value in sorted(seen.keys())
-                ]) +
-                remedy
+                ]),
             )
-    return None
+
+        # One remedy per field, after that field's packages: the fix is the
+        # same for all of them, and repeating the paragraph per package is what
+        # makes a wide report unreadable.
+        if reported:
+            blocks.append("".join(reported) + remedy)
+
+    if not blocks:
+        return None
+    return "\n".join(blocks)
 
 def merge_package_records(merged):
     """Dedups package records by name, unioning their code assets.

@@ -269,6 +269,68 @@ def _agreement_tolerates_records_without_the_field_test_impl(ctx):
     asserts.equals(env, None, err)
     return unittest.end(env)
 
+def _agreement_reports_every_disagreeing_package_test_impl(ctx):
+    # The measured cost of stopping at the first: a real lock skew between two
+    # sibling repos disagreed on `clock`, `io` and `stack_trace` at once, and
+    # reporting only the alphabetically-first turned one reconciliation into
+    # three fix-and-re-analyse rounds. `--keep_going` does not help, because
+    # every one of the 66 failing targets named the same first package. All of
+    # them are already in `stated` when the first is found, so all of them
+    # belong in the message.
+    env = unittest.begin(ctx)
+    err = package_agreement_error([
+        _pkg("clock", "../flutter_hub__clock", version = "1.1.2"),
+        _pkg("clock", "../dart_hub__clock", version = "1.1.3"),
+        _pkg("io", "../flutter_hub__io", version = "1.0.4"),
+        _pkg("io", "../dart_hub__io", version = "1.0.5"),
+        _pkg("stack_trace", "../flutter_hub__stack_trace", version = "1.11.1"),
+        _pkg("stack_trace", "../dart_hub__stack_trace", version = "1.12.0"),
+    ])
+    asserts.true(env, err != None, "disagreeing versions must be reported")
+    for package_name in ("clock", "io", "stack_trace"):
+        asserts.true(env, ('"%s"' % package_name) in err, "message names %s" % package_name)
+    for value in ("1.1.2", "1.1.3", "1.0.4", "1.0.5", "1.11.1", "1.12.0"):
+        asserts.true(env, value in err, "message names version %s" % value)
+
+    # One remedy for the field, not one per package: three copies of the same
+    # paragraph is what makes a multi-package report unreadable.
+    asserts.equals(
+        env,
+        1,
+        err.count("rules_dart does not support multiple versions"),
+        "the version remedy appears once, not once per package",
+    )
+    return unittest.end(env)
+
+def _agreement_reports_both_fields_together_test_impl(ctx):
+    # A version disagreement must not mask a language-version one. They are
+    # separate defects with separate remedies, and a user who fixes the locks
+    # only to be shown the next field has paid for a whole re-analysis to learn
+    # something the first message already knew.
+    env = unittest.begin(ctx)
+    err = package_agreement_error([
+        _pkg("clock", "../flutter_hub__clock", version = "1.1.2"),
+        _pkg("clock", "../dart_hub__clock", version = "1.1.3"),
+        _pkg("split", "first/split", language_version = "3.7"),
+        _pkg("split", "second/split", language_version = "3.4"),
+    ])
+    asserts.true(env, err != None, "both disagreements must be reported")
+    asserts.true(env, '"clock"' in err, "message names the version mismatch")
+    asserts.true(env, '"split"' in err, "message names the language-version mismatch")
+    asserts.true(env, "1.1.2" in err and "1.1.3" in err, "message names both versions")
+    asserts.true(env, "3.7" in err and "3.4" in err, "message names both language versions")
+    asserts.true(
+        env,
+        "rules_dart does not support multiple versions" in err,
+        "the version remedy is present",
+    )
+    asserts.true(
+        env,
+        "Set `language_version` consistently on every" in err,
+        "the language-version remedy is present",
+    )
+    return unittest.end(env)
+
 # --- end-to-end propagation through real rules ---
 
 def _diamond_probe_impl(ctx):
@@ -366,6 +428,8 @@ _t12_test = unittest.make(_agreement_rejects_disagreeing_language_versions_test_
 _t13_test = unittest.make(_agreement_tolerates_one_sided_language_version_test_impl)
 _t14_test = unittest.make(_agreement_ignores_distinct_packages_test_impl)
 _t15_test = unittest.make(_agreement_tolerates_records_without_the_field_test_impl)
+_t16_test = unittest.make(_agreement_reports_every_disagreeing_package_test_impl)
+_t17_test = unittest.make(_agreement_reports_both_fields_together_test_impl)
 
 def propagation_test_suite(name):
     """Declares the code-asset propagation unit tests.
@@ -391,4 +455,6 @@ def propagation_test_suite(name):
         _t13_test,
         _t14_test,
         _t15_test,
+        _t16_test,
+        _t17_test,
     )
