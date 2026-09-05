@@ -11,13 +11,13 @@ load(
     "collect_transitive_code_assets",
     "collect_transitive_resources",
     "collect_transitive_srcs",
-    "gen_kernel_native_assets_action",
+    "dart_cfe_action",
     "generate_native_assets_yaml",
     "generate_package_config",
     "resolve_code_assets",
     "target_dart_abi",
 )
-load("//dart/private:dart_compile.bzl", "dart_compile_action")
+load("//dart/private:dart_compile.bzl", "dart_compile_action", "get_compilation_mode_flags", "split_dart_compile_flags")
 load("//dart/private:dart_info.bzl", "dart_analyzable_info")
 load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS", "colocate_entrypoint", "colocate_packages")
 
@@ -88,17 +88,12 @@ def _dart_binary_impl(ctx):
         binary_output_basename(ctx.label.name, compile_mode, is_windows),
     )
 
-    # By default compile the source main directly. With native code assets,
-    # first run gen_kernel with the asset mapping embedded (its `relative`
-    # paths resolve against the final executable at runtime), then compile the
-    # resulting kernel — `dart compile` accepts a `.dill` input and the
-    # metadata flows through into the snapshot.
-    compile_main = main_input
-    compile_main_arg = main_arg
-    compile_srcs = all_srcs
-    compile_package_config = package_config
+    # Every native mode shares one CFE action with location-independent source
+    # URIs. The selected `dart compile` backend consumes its `.dill` output.
     compile_defines = merge_dart_defines(ctx)
+    routed_flags = split_dart_compile_flags(ctx.attr.dart_compile_flags)
     code_asset_libs = []
+    native_assets_yaml = None
 
     # Assets reach a binary two ways: propagated from any package in `deps`
     # that owns one (the upstream semantics — depending on a package gets you
@@ -122,42 +117,37 @@ def _dart_binary_impl(ctx):
             output = native_assets_yaml,
             content = generate_native_assets_yaml(abi, entries),
         )
-        dill = ctx.actions.declare_file(ctx.label.name + ".na.dill")
-        gen_kernel_native_assets_action(
-            ctx = ctx,
-            dart_sdk_info = dart_sdk_info,
-            main = main_input,
-            transitive_srcs = depset(all_srcs),
-            package_config = package_config,
-            native_assets_yaml = native_assets_yaml,
-            output_dill = dill,
-            main_path = main_arg,
-            defines = compile_defines,
-        )
-        compile_main = dill
-        compile_main_arg = None
-        compile_srcs = []
-        compile_package_config = None
-
-        # gen_kernel ran the front end, so the defines are already resolved
-        # into `dill`. Repeating them here would be a silent no-op.
-        compile_defines = []
+    cfe_dill = ctx.actions.declare_file(ctx.label.name + ".cfe.dill")
+    cfe_flags = list(routed_flags.cfe)
+    for flag in get_compilation_mode_flags(ctx, compile_mode):
+        if flag in ["--enable-asserts", "--no-enable-asserts"]:
+            cfe_flags.append(flag)
+    dart_cfe_action(
+        ctx = ctx,
+        dart_sdk_info = dart_sdk_info,
+        main = main_input,
+        transitive_srcs = depset(all_srcs),
+        package_config = package_config,
+        output_dill = cfe_dill,
+        main_path = main_arg,
+        defines = compile_defines,
+        cfe_flags = cfe_flags,
+        native_assets_yaml = native_assets_yaml,
+    )
 
     # Run dart compile
     dart_compile_action(
         ctx = ctx,
         dart_bin = dart_sdk_info.dart,
         sdk_files = dart_sdk_info.tool_files,
-        main = compile_main,
-        main_path = compile_main_arg,
-        srcs = compile_srcs,
-        package_config = compile_package_config,
+        main = cfe_dill,
+        srcs = [],
+        package_config = None,
         output = output,
         compile_mode = compile_mode,
         target_os = dart_sdk_info.target_os,
         target_arch = dart_sdk_info.target_arch,
-        extra_flags = ctx.attr.dart_compile_flags,
-        defines = compile_defines,
+        extra_flags = routed_flags.backend,
     )
 
     # Resources ride the runfiles, not the compile. A dep's `lib/**` non-Dart

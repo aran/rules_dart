@@ -18,6 +18,23 @@ dart_binary(
     ],
 )
 
+# Colocating an entrypoint with a generated sibling must not change the base of
+# its ordinary relative imports.
+genrule(
+    name = "generated_entrypoint_src",
+    srcs = ["generated_entrypoint_src.in.dart"],
+    outs = ["generated_entrypoint_src.dart"],
+    cmd = "cp $(location generated_entrypoint_src.in.dart) $@",
+    cmd_bat = "copy /Y $(location generated_entrypoint_src.in.dart) $@",
+)
+
+dart_binary(
+    name = "relative_import_app",
+    srcs = [":generated_entrypoint_src"],
+    main = "lib/relative_import_main.dart",
+    deps = ["//support:greeting"],
+)
+
 dart_analysis_options(
     name = "options",
     src = "analysis_options.yaml",

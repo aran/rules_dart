@@ -168,8 +168,8 @@ Bazel's `-c` flag (`fastbuild`, `dbg`, `opt`) controls compiler flags automatica
 
 ### Per-Target Attributes
 
-- **`dart_compile_flags`** (`string_list`): Extra flags appended after mode defaults. Appears last so user flags override defaults (e.g., `-O4` after `-O2` — dart2js uses last-wins).
-- **`defines`** (`string_list`): Entries in `key=value` format. Each becomes a `-Dkey=value` flag passed to the compiler. These are resolved by the front end during constant evaluation, so they must reach whichever action compiles source — with code assets that is `gen_kernel`, not the `dart compile` step that consumes its kernel.
+- **`dart_compile_flags`** (`string_list`): Extra flags are routed to the stage that consumes them. CFE flags such as `--enable-experiment` reach `gen_kernel`; backend flags remain appended after mode defaults so they retain last-wins behavior.
+- **`defines`** (`string_list`): Entries in `key=value` format. Each becomes a `-Dkey=value` flag on the shared CFE action. These are resolved during constant evaluation, before the backend consumes its `.dill` input.
 
 ### Command-Line Defines
 

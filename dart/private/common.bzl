@@ -1008,11 +1008,12 @@ def synth_package_config(ctx, library_deps):
     ctx.actions.write(output = package_config, content = content)
     return package_config, transitive_srcs
 
-# --- Native code-asset (gen_kernel --native-assets) helpers ---
-#
-# SKELETON STUBS: signatures exist so `dart_test`/`dart_binary` load and the
-# unit tests fail on assertions rather than missing symbols. Implemented in a
-# follow-up edit.
+# --- Dart CFE and native code-asset helpers ---
+
+_CFE_URI_SCHEME = "org-dartlang-bazel"
+
+def _cfe_uri(path):
+    return _CFE_URI_SCHEME + ":///" + path.replace("\\", "/").lstrip("/")
 
 def target_dart_abi(ctx):
     """Returns the Dart code-asset ABI string for the target platform.
@@ -1293,23 +1294,18 @@ def generate_native_assets_yaml(abi, asset_entries):
         assets = assets,
     )
 
-def gen_kernel_native_assets_action(
+def dart_cfe_action(
         ctx,
         dart_sdk_info,
         main,
         transitive_srcs,
         package_config,
-        native_assets_yaml,
         output_dill,
         main_path = None,
-        defines = []):
-    """Runs `gen_kernel --native-assets=<yaml>` to produce a kernel `.dill`.
-
-    Invokes `dartaotruntime gen_kernel_aot.dart.snapshot --platform <dill>
-    --packages <pc> --native-assets <yaml> -o <output> <main>`, embedding the
-    code-asset mapping as `vm:ffi:native-assets` metadata. The `.so` files are
-    NOT inputs — gen_kernel only embeds the yaml text; the libraries are a
-    runtime (runfiles) dependency.
+        defines = [],
+        cfe_flags = [],
+        native_assets_yaml = None):
+    """Runs the Dart CFE with stable execroot-relative input URIs.
 
     Args:
       ctx: The rule context.
@@ -1317,7 +1313,6 @@ def gen_kernel_native_assets_action(
       main: The main `.dart` File.
       transitive_srcs: Depset of transitive source Files.
       package_config: The build-time `package_config.json` File (or None).
-      native_assets_yaml: The generated native_assets.yaml File.
       output_dill: The output `.dill` File to produce.
       main_path: Optional path string to compile instead of `main.path` (e.g. a
         path inside an assembled `main` directory).
@@ -1325,23 +1320,35 @@ def gen_kernel_native_assets_action(
         action runs the front end, so it is the only stage where they can still
         reach constant evaluation — `dart compile` on the resulting `.dill`
         would accept them and silently do nothing.
+      cfe_flags: Additional flags consumed by the CFE's `gen_kernel` tool.
+      native_assets_yaml: Optional generated native_assets.yaml File.
     """
     tools = find_sdk_kernel_tools(dart_sdk_info)
 
     args = ctx.actions.args()
     args.add(tools.gen_kernel_snapshot)
     args.add("--platform", tools.platform_dill)
+    if main.is_directory:
+        # Keep the entrypoint's logical URI while reading its generated
+        # siblings from the assembled tree.
+        args.add("--filesystem-root", main.path)
+    args.add("--filesystem-root", ".")
+    args.add("--filesystem-scheme", _CFE_URI_SCHEME)
     if package_config != None:
-        args.add("--packages", package_config)
-    args.add("--native-assets", native_assets_yaml)
+        args.add("--packages", _cfe_uri(package_config.path))
+    if native_assets_yaml != None:
+        args.add("--native-assets", native_assets_yaml)
     for d in defines:
         args.add("-D" + d)
+    args.add_all(cfe_flags)
     args.add("-o", output_dill)
-    args.add(main_path if main_path != None else main)
+    args.add(_cfe_uri(main_path if main_path != None else main.path))
 
-    direct = [main, native_assets_yaml]
+    direct = [main]
     if package_config != None:
         direct.append(package_config)
+    if native_assets_yaml != None:
+        direct.append(native_assets_yaml)
     transitive = [dart_sdk_info.tool_files]
     if transitive_srcs != None:
         transitive.append(transitive_srcs)
@@ -1353,8 +1360,8 @@ def gen_kernel_native_assets_action(
         arguments = [args],
         inputs = depset(direct = direct, transitive = transitive),
         outputs = [output_dill],
-        mnemonic = "DartGenKernelNativeAssets",
-        progress_message = "Compiling Dart kernel with native assets %s" % ctx.label,
+        mnemonic = "DartCFE",
+        progress_message = "Running Dart CFE for %s" % ctx.label,
         env = env,
     )
 
