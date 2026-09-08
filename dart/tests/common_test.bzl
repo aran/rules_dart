@@ -137,6 +137,63 @@ def _resolve_skips_source_less_test_impl(ctx):
     asserts.false(env, "missing_pkg" in roots, "source-less package must not be in roots")
     return unittest.end(env)
 
+def _resolve_ignores_colocated_sibling_dir_test_impl(ctx):
+    # Regression: a dependency's assembled `.pkgsrcs` directory is declared by
+    # the *consuming* rule, so it lands in that rule's Bazel package — under
+    # the tested package's directory when the test sits beside the library it
+    # tests (`packages/foo/BUILD.bazel` holding both). It is not under
+    # `packages/foo/lib/`, so it must not resolve `foo`'s root; matching it
+    # pointed `foo` at `bazel-out/.../packages/foo`, where no `lib/` exists.
+    env = unittest.begin(ctx)
+    pkgs = [
+        _fake_pkg("genpkg", "packages/foo/foo_test.genpkg.pkgsrcs"),
+        _fake_pkg("foo", "packages/foo"),
+    ]
+    srcs = [
+        _fake_src(
+            "packages/foo/foo_test.genpkg.pkgsrcs",
+            path = "bazel-out/k8-fastbuild/bin/packages/foo/foo_test.genpkg.pkgsrcs",
+            is_directory = True,
+        ),
+        _fake_src("packages/foo/lib/foo.dart"),
+    ]
+    roots = resolve_package_roots(pkgs, srcs)
+    asserts.equals(env, "packages/foo", roots["foo"])
+    asserts.equals(
+        env,
+        "bazel-out/k8-fastbuild/bin/packages/foo/foo_test.genpkg.pkgsrcs",
+        roots["genpkg"],
+    )
+    return unittest.end(env)
+
+def _resolve_ignores_generated_non_lib_file_test_impl(ctx):
+    # The same rule stated for a plain file: a generated file under the
+    # package's directory but outside its `lib/` (a rule's own generated
+    # entrypoint sibling) says nothing about where the package's `lib/` is.
+    env = unittest.begin(ctx)
+    pkgs = [_fake_pkg("foo", "packages/foo")]
+    srcs = [
+        _fake_gen("packages/foo/test/foo_test.mocks.dart", "packages/foo"),
+        _fake_src("packages/foo/lib/foo.dart"),
+    ]
+    roots = resolve_package_roots(pkgs, srcs)
+    asserts.equals(env, "packages/foo", roots["foo"])
+    return unittest.end(env)
+
+def _resolve_nested_package_wins_test_impl(ctx):
+    # Nested packages: a file under the inner package's `lib/` belongs to the
+    # inner package only. The outer one resolves from its own `lib/`.
+    env = unittest.begin(ctx)
+    pkgs = [_fake_pkg("outer", "pkgs"), _fake_pkg("inner", "pkgs/inner")]
+    srcs = [
+        _fake_src("pkgs/inner/lib/i.dart"),
+        _fake_src("pkgs/lib/o.dart"),
+    ]
+    roots = resolve_package_roots(pkgs, srcs)
+    asserts.equals(env, "pkgs", roots["outer"])
+    asserts.equals(env, "pkgs/inner", roots["inner"])
+    return unittest.end(env)
+
 def _gpc_source_less_lib_root_skipped_test_impl(ctx):
     # Regression for the bug surfaced from rules_flutter: a package with a
     # non-empty lib_root but no Dart sources in the transitive closure
@@ -476,6 +533,9 @@ _t27_test = unittest.make(_apf_generated_sibling_package_test_impl)
 _t28_test = unittest.make(_apf_generated_deeper_build_test_impl)
 _t32_test = unittest.make(_hooks_ok_test_impl)
 _t33_test = unittest.make(_hooks_offender_test_impl)
+_t34_test = unittest.make(_resolve_ignores_colocated_sibling_dir_test_impl)
+_t35_test = unittest.make(_resolve_ignores_generated_non_lib_file_test_impl)
+_t36_test = unittest.make(_resolve_nested_package_wins_test_impl)
 
 def common_test_suite(name):
     small_unittest_suite(
@@ -511,4 +571,7 @@ def common_test_suite(name):
         _t28_test,
         _t32_test,
         _t33_test,
+        _t34_test,
+        _t35_test,
+        _t36_test,
     )

@@ -1,0 +1,43 @@
+load("@rules_dart//dart:defs.bzl", "dart_analyze_test", "dart_library", "dart_test")
+
+# A test declared in the same Bazel package as the library it tests — the
+# ordinary pub layout — where the library itself is pure source and its
+# *dependency* is what carries generated members.
+#
+# That combination is what no other fixture here has. `import_pkg` colocates a
+# test with its library too, but there the tested package is the assembled one,
+# so its `lib_root` is rewritten to the assembled directory and nothing about
+# its original directory is consulted again. Here `colocated_fixture` is never
+# assembled, so its `lib_root` stays `colocated_test_pkg` — and the assembled
+# directory for `import_fixture` is declared by the `dart_test` below, which
+# puts it at `colocated_test_pkg/consumer_test.import_fixture.pkgsrcs`. That
+# path sits under `colocated_fixture`'s directory but outside its `lib/`, and
+# when root resolution matched on the directory rather than on `lib/`,
+# `colocated_fixture` claimed it and resolved to
+# `bazel-out/.../bin/colocated_test_pkg` — where no `lib/consumer.dart`
+# exists, so every `package:colocated_fixture/…` import failed to read.
+
+dart_library(
+    name = "colocated_fixture",
+    package_name = "colocated_fixture",
+    srcs = ["lib/consumer.dart"],
+    language_version = "3.11",
+    deps = ["//import_pkg:import_fixture"],
+)
+
+dart_test(
+    name = "consumer_test",
+    size = "small",
+    main = "test/consumer_test.dart",
+    deps = [
+        ":colocated_fixture",
+        "@pub_deps//:test",
+    ],
+)
+
+dart_analyze_test(
+    name = "analyze_consumer_test",
+    size = "small",
+    options = "//:options",
+    target = ":consumer_test",
+)

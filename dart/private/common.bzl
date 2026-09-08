@@ -672,8 +672,22 @@ def check_single_root_package(packages):
 def resolve_package_roots(packages, all_srcs):
     """Match packages to source files, returning exec-root-relative roots.
 
-    Matches using short_path (same coordinate system as lib_root),
-    then derives the exec-root path from the matched File.path.
+    Ownership is `package_for`'s and only `package_for`'s: a file resolves a
+    package's root only if it is one the package could actually export — under
+    `<lib_root>/lib/`, or the `lib_root` directory itself. Matching anything
+    else under `lib_root` was the bug: a `dart_test` sitting in the same Bazel
+    package as the library it tests (`packages/foo/BUILD.bazel` declaring both
+    `dart_library(foo)` and its test, which is the ordinary pub layout) makes
+    the rule declare its dependencies' assembled `.pkgsrcs` directories at
+    `packages/foo/<test>.<dep>.pkgsrcs`. That path starts with `packages/foo/`,
+    so `foo` claimed it and resolved its own root to
+    `bazel-out/.../bin/packages/foo` — a directory with no `lib/` in it — and
+    every `package:foo/…` import failed to read.
+
+    Having the match live in one function also keeps this in step with
+    `generate_dev_package_config`, which groups the same files by `package_for`
+    and then reads the roots computed here; the two disagreeing meant a
+    package's files and its root could come from different packages.
 
     Two or more packages with an empty `lib_root` are ambiguous — the
     empty-prefix match would race to claim any `lib/`-prefixed source.
@@ -691,24 +705,22 @@ def resolve_package_roots(packages, all_srcs):
     if err:
         fail(err)
 
+    by_name = {pkg.package_name: pkg for pkg in packages}
     roots = {}
     for src in all_srcs:
-        for pkg in packages:
-            if pkg.package_name in roots:
-                continue
-            if not pkg.lib_root:
-                # Root package: sources are directly under lib/. Safe because
-                # the earlier check guarantees at most one such package.
-                if src.short_path.startswith("lib/") or src.short_path == "lib":
-                    suffix = src.short_path
-                    exec_root = src.path[:len(src.path) - len(suffix)]
-                    if exec_root.endswith("/"):
-                        exec_root = exec_root[:-1]
-                    roots[pkg.package_name] = exec_root
-            elif src.short_path.startswith(pkg.lib_root + "/") or \
-                 (src.is_directory and src.short_path == pkg.lib_root):
-                suffix = src.short_path[len(pkg.lib_root):]
-                roots[pkg.package_name] = src.path[:len(src.path) - len(suffix)]
+        name = package_for(src.short_path, packages)
+        if name == None or name in roots:
+            continue
+
+        # The package-relative tail, stripped off the exec path to leave the
+        # root. Empty when the file *is* the package root (an assembled
+        # directory); otherwise "/lib/…", or "lib/…" for the root package,
+        # whose empty `lib_root` leaves a trailing slash to trim.
+        suffix = src.short_path[len(by_name[name].lib_root):]
+        exec_root = src.path[:len(src.path) - len(suffix)]
+        if exec_root.endswith("/"):
+            exec_root = exec_root[:-1]
+        roots[name] = exec_root
     return roots
 
 def generate_package_config(packages, all_srcs, config_file):
