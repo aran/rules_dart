@@ -171,8 +171,9 @@ load to) anything in `dart/pub/extensions.bzl`'s closure invalidates the lock of
 Two workspaces are deliberately skipped by the tool (`_skipWorkspaces` in
 `tool/refresh_locks.dart`) because they don't resolve standalone:
 `e2e/pub_lock_conflict` (intentionally conflicting lock files) and
-`e2e/pub_lock_cross_module/module_b` (consumed only from its parent). Their
-locks still get updated as a side effect of building those workspaces.
+`e2e/pub_lock_cross_module`'s `module_b` and `module_c` (consumed only from
+their parent). Their locks still get updated as a side effect of building those
+workspaces.
 
 **Procedure**: Run `dart run tool/refresh_locks.dart`. This both refreshes
 Bazel lock files (pulling fresh registry data, keeping MODULE.bazel

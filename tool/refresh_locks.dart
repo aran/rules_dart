@@ -135,6 +135,10 @@ const _skipWorkspaces = {
   // workspace. Its MODULE.bazel declares `bazel_dep(rules_dart, 0.0.0)` with
   // no local_path_override, so standalone resolution can't find rules_dart.
   'e2e/pub_lock_cross_module/module_b',
+  // Same: consumed only from the parent workspace. It names its pub hub
+  // `deps_a`, the name the parent also uses, which is the collision the parent
+  // fixture exists to cover.
+  'e2e/pub_lock_cross_module/module_c',
 };
 
 /// Find all directories containing MODULE.bazel, excluding references/.

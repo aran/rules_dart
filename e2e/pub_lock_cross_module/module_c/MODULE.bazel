@@ -1,0 +1,15 @@
+module(name = "module_c")
+
+bazel_dep(name = "rules_dart", version = "0.0.0")
+
+# Deliberately the SAME hub name the root module uses, over a different lock.
+# Two modules cannot coordinate their hub names, and this is the shape a
+# consumer lands in whenever it depends on two modules that each call their
+# pub hub the obvious thing. The hub they share must hold the union of both
+# locks, with each package aliased once.
+pub = use_extension("@rules_dart//dart/pub:extensions.bzl", "pub")
+pub.from_lock(
+    name = "deps_a",
+    lock = "//:lock_c.lock",
+)
+use_repo(pub, "deps_a")

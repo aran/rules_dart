@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:collection/collection.dart';
 import 'package:module_b/greeter.dart';
+import 'package:module_c/logger.dart';
 
 void main() {
   // Uses module_b's greeter (which internally uses package:path)
@@ -12,5 +13,6 @@ void main() {
   final first = numbers.firstWhereOrNull((n) => n > 4);
   stdout
     ..writeln('First > 4: $first')
+    ..writeln(describe('cross_module'))
     ..writeln('Cross-module test passed!');
 }

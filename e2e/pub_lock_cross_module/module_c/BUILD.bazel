@@ -1,0 +1,11 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+exports_files(["lock_c.lock"])
+
+dart_library(
+    name = "logger",
+    package_name = "module_c",
+    srcs = ["lib/logger.dart"],
+    visibility = ["//visibility:public"],
+    deps = ["@deps_a//:logging"],
+)

@@ -12,6 +12,14 @@ local_path_override(
     path = "module_b",
 )
 
+# `module_c` names its pub hub `deps_a` — the same name this module uses, over
+# a different lock. See its MODULE.bazel.
+bazel_dep(name = "module_c", version = "0.0.0")
+local_path_override(
+    module_name = "module_c",
+    path = "module_c",
+)
+
 dart = use_extension("@rules_dart//dart:extensions.bzl", "dart")
 dart.toolchain(dart_version = "3.13.2")
 use_repo(dart, "dart_toolchains")

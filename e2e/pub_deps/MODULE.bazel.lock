@@ -258,7 +258,7 @@
     },
     "@@rules_dart+//dart/pub:extensions.bzl%pub": {
       "general": {
-        "bzlTransitiveDigest": "aZYkdW/RFJNbzaPJiFf1OJTW5C/r9KBZwUayKZZNG58=",
+        "bzlTransitiveDigest": "cdg/DbmiTveQUVLettaospHgwpi5HyZ5wlhLDewEpyY=",
         "usagesDigest": "G7LJNcKF5bz0cXQpXwFkfmm8afrXRAeTF8UIIEQ6MbY=",
         "recordedInputs": [
           "REPO_MAPPING:rules_dart+,yaml.bzl yaml.bzl+",

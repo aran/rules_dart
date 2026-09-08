@@ -33,7 +33,16 @@ _package = tag_class(
 _from_lock = tag_class(
     attrs = {
         "name": attr.string(
-            doc = "Repository name for the resolved packages.",
+            doc = "Repository name for the resolved packages. The name is global to the " +
+                  "extension, not scoped to the declaring module: every `from_lock` that " +
+                  "states it — in any module in the build — contributes to one hub holding " +
+                  "the union of those locks, and each package is aliased once. That is what " +
+                  "makes two modules that both call their hub the obvious thing work when a " +
+                  "third depends on both. It also means a module can reach a package only " +
+                  "another module's lock names, which resolves today and breaks the day that " +
+                  "module leaves the build, so state in your own lock everything you import. " +
+                  "Package versions are reconciled across the union — see " +
+                  "`on_version_conflict`.",
             mandatory = True,
         ),
         "lock": attr.label(
@@ -87,20 +96,27 @@ def _pub_impl(ctx):
     # registry[pkg_name] = {url, entries: [{version, sha256, hub_name, lock_label, on_version_conflict}]}
     registry = {}
 
-    # Track which packages belong to each hub (for per-hub alias creation)
+    # Which packages belong to each hub, as a set per hub (for per-hub alias
+    # creation). A set, not a list, because a hub name is shared by every
+    # `from_lock` that states it — including ones in *different modules*, which
+    # cannot coordinate their naming and routinely land on the same obvious
+    # name. Such a hub holds the union of those locks, and a package both locks
+    # name must still be aliased once: two `alias` rules of one name make the
+    # generated BUILD file fail to load, which Bazel reports as the *next*
+    # package being undeclared, naming neither the duplicate nor the two locks.
     hub_packages = {}
 
-    root_hub_names = []
+    root_hub_names = {}
     for mod in ctx.modules:
         is_root = (mod == ctx.modules[0])
         for lock_tag in mod.tags.from_lock:
             hub_name = lock_tag.name
             if is_root:
-                root_hub_names.append(hub_name)
+                root_hub_names[hub_name] = True
             lock_content = ctx.read(lock_tag.lock)
             lock_pkgs = parse_pubspec_lock(lock_content)
 
-            hub_packages.setdefault(hub_name, [])
+            hub_packages.setdefault(hub_name, {})
 
             # Only hosted packages can be fetched from a pub registry. Collect
             # every non-hosted package and report once per lock file — Flutter
@@ -117,7 +133,7 @@ def _pub_impl(ctx):
                 if name in explicit:
                     continue  # pub.package() wins
 
-                hub_packages[hub_name].append(name)
+                hub_packages[hub_name][name] = True
 
                 desc = info.get("description", {})
                 url = desc.get("url", "https://pub.dev")
@@ -235,7 +251,7 @@ def _pub_impl(ctx):
         all_hub_names.append(hub_name)
 
     return ctx.extension_metadata(
-        root_module_direct_deps = list(explicit.keys()) + root_hub_names,
+        root_module_direct_deps = list(explicit.keys()) + list(root_hub_names.keys()),
         root_module_direct_dev_deps = [],
     )
 

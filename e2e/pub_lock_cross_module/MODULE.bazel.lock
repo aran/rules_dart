@@ -258,13 +258,14 @@
     },
     "@@rules_dart+//dart/pub:extensions.bzl%pub": {
       "general": {
-        "bzlTransitiveDigest": "aZYkdW/RFJNbzaPJiFf1OJTW5C/r9KBZwUayKZZNG58=",
-        "usagesDigest": "CUS5T4g2tNmIX5Xux/TVRllGB+uH7ZYdk3TS2oKvcxk=",
+        "bzlTransitiveDigest": "cdg/DbmiTveQUVLettaospHgwpi5HyZ5wlhLDewEpyY=",
+        "usagesDigest": "3WJl5OtpfREWEbsWjQZjyAmnKDo6Qv53jEL2NCMliB4=",
         "recordedInputs": [
           "REPO_MAPPING:rules_dart+,yaml.bzl yaml.bzl+",
           "FILE:@@//lock_a.lock 9ac542f735a2464e7832518796fd06830e0425972257d8dc91ca0cdd0fddd03c",
           "FILE:@@rules_dart+//dart/ext/pubspec.lock c9ba320af1d0029ca4001514cf55dfa5e7c8bdee0f0d866315b923bc422665f5",
-          "FILE:@@module_b+//lock_b.lock defdb29f3e8fbe030cb8d719d9c3510fd5360932ab7660163211e6e9657542ec"
+          "FILE:@@module_b+//lock_b.lock defdb29f3e8fbe030cb8d719d9c3510fd5360932ab7660163211e6e9657542ec",
+          "FILE:@@module_c+//lock_c.lock 5f49dbe74479b0d3d71258b724a4e718084f33bfa074444ab57e8b9079e5a715"
         ],
         "generatedRepoSpecs": {
           "very_good_analysis": {
@@ -10845,6 +10846,7 @@
               "spoke_prefix": "dart_pub",
               "packages": [
                 "collection",
+                "logging",
                 "path"
               ]
             }
