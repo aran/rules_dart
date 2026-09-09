@@ -73,10 +73,13 @@ Goal: `main` is green, formatted, tidy, working tree clean. From this repo:
 5. **`bazel mod tidy`** in the root and every module dir
    (`find . -path ./bazel-* -prune -o -path ./references -prune -o -name MODULE.bazel -print | grep -v bazel-`).
    After tidying, `git status` must still be clean. If tidy changed anything, that's part
-   of the release: commit it (signed) and re-run the test surface. Two fixtures can't be
+   of the release: commit it (signed) and re-run the test surface. Some fixtures can't be
    tidied standalone and will error — that's expected, ignore them: `e2e/pub_lock_conflict`
-   (intentional cross-lock version conflict) and `e2e/pub_lock_cross_module/module_b` (a
-   sub-module resolved only within its parent). What matters is that the tree stays clean.
+   (intentional cross-lock version conflict), and every sub-module under
+   `e2e/pub_lock_cross_module` (`module_b`, `module_c`) — each is resolved only within its
+   parent, so standalone it fails with `rules_dart@0.0.0 not found in registries`. Expect
+   that list to grow as the cross-module fixture gains sub-modules; the count is not the
+   check. What matters is that the tree stays clean.
 6. **Locks committed**: no `MODULE.bazel.lock` dirty or untracked.
 
 Do not proceed until everything is green and `git status` is clean.
