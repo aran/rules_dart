@@ -169,6 +169,46 @@ be green against local WIP rules_dart before pushing.
 3. Confirm a GitHub Release exists for `$TARGET`, the BCR publish job opened a PR, and
    pub-publish ran.
 
+   - **A `publish` job that fails on `Invalid username or token` is the PAT, not the
+     release.** `BCR_PUBLISH_TOKEN` is a **classic** PAT and GitHub's default expiry is 90
+     days, so it dies silently between releases and takes down only the one job that
+     pushes to the fork. The tell is that everything else in the run is green —
+     `release / build`, `release / attest`, `release / release` and `pub-publish` all
+     succeed, the registry commit is even built correctly (all files under
+     `modules/<module>/$VERSION/`) — and then:
+
+     ```
+     remote: Invalid username or token. Password authentication is not supported for Git operations.
+     fatal: Authentication failed for 'https://github.com/aran/bazel-central-registry.git/'
+     ```
+
+     So the GitHub Release and the pub.dev publish have already happened and must not be
+     redone; only the BCR half is missing. Diagnose with `gh secret list --repo aran/<repo>`
+     — the timestamp is when the PAT was _set_, and ~90 days later is when it died.
+
+     All three repos carry the same PAT, installed in one sitting (the 2026-06-10 set is
+     32 seconds apart across rules_dart / rules_dart_proto / rules_flutter), so when one
+     expires **all three are dead** — fix them together rather than one release at a time.
+
+   - **Minting the replacement**: per publish-to-bcr's README it must be a **classic** PAT
+     with **`repo` and `workflow`** scopes. Not `public_repo` — and _not_ fine-grained,
+     which cannot open pull requests against public repositories and only works with
+     `open_pull_request: false`, which this config does not use (it opens a draft PR against
+     `bazelbuild/bazel-central-registry`). Only a human in a browser can mint it; GitHub
+     requires sudo-mode re-auth and deliberately will not let a token mint a token.
+     **Set it to no expiration** — classic PATs allow it, and the 90-day default is the
+     whole failure mode. Then:
+
+     ```sh
+     for r in rules_dart rules_dart_proto rules_flutter; do
+       gh secret set BCR_PUBLISH_TOKEN --repo "aran/$r"   # paste, or pipe from `op read`
+     done
+     ```
+
+   - **Recovering the release** without re-tagging: `publish.yaml` carries a
+     `workflow_dispatch` with a `tag_name` input for exactly this. `gh workflow run
+"Publish to BCR" --repo aran/<repo> -f tag_name=$TARGET`, then rejoin at Phase 6.
+
 ---
 
 ## Phase 6 — BCR PR → ready → merged → served (block & poll)
