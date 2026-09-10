@@ -269,11 +269,27 @@ invalid GitHub user ID for aran` (aran's id is `5295`). Cause: `publish-to-bcr`
      Note the bot does **not** retract its comment once posted; a cleaned-up diff still
      waits on a maintainer, so it is worth getting the ordering right _before_ tagging.
 
-4. **Poll until BCR serves it**: live when `modules/rules_dart/${TARGET#v}/` exists
-   upstream, or a fresh module resolves `bazel_dep(name="rules_dart", version="${TARGET#v}")`.
+4. **Poll until BCR serves it — and "merged" is not "served".** The only acceptable
+   proof is that a clean module actually resolves it:
+
+   ```sh
+   d=$(mktemp -d) && cd "$d" && touch BUILD.bazel
+   printf 'module(name="c",version="0.0.0")\nbazel_dep(name="rules_dart",version="%s")\n' "${TARGET#v}" > MODULE.bazel
+   bazel mod show_repo rules_dart   # must print a real http_archive with an integrity hash
+   ```
+
+   Do **not** accept the file existing in the registry's git repo. Measured on 0.6.3: the
+   PR merged and `bcr.bazel.build/modules/rules_dart/0.6.3/{source.json,MODULE.bazel}`
+   went on 404ing for a further **~30 minutes**, while
+   `raw.githubusercontent.com/.../modules/rules_dart/0.6.3/source.json` returned 200
+   immediately and `bcr.bazel.build/modules/rules_dart/metadata.json` listed 0.6.3 the
+   whole time. So both the obvious shortcuts — check the repo, check the metadata — go
+   green while Bazel still cannot fetch the module. A downstream bumped in that window
+   fails with the version simply absent, which reads as a bad pin rather than a cold CDN.
+
 5. **Verify pub.dev**: the `dart/runfiles` package published at `${TARGET#v}`.
 
-Proceed to the cascade only once BCR is serving `${TARGET#v}`.
+Proceed to the cascade only once a clean module resolves `${TARGET#v}`.
 
 ---
 
