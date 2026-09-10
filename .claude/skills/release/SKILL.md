@@ -313,14 +313,24 @@ not permitted with --lockfile_mode=error`;
    missing entries for extensions the build reaches, which `--lockfile_mode=error`
    rejects with `The module extension '@@...' does not exist in the lockfile`.
 
-   Restore `.bazelrc.user` afterwards.
-
-   **Verify explicitly**, for every module (root + each e2e):
+   **Verify while `.bazelrc.user` is still parked** — restoring it first makes the root
+   check fail every time, and the failure looks like a bad lock rather than a bad
+   verification. For every module (root + each e2e):
 
    ```sh
    grep -c "modules/rules_dart/${TARGET#v}/MODULE.bazel" <module>/MODULE.bazel.lock  # must be >= 1
    bazel build //... --lockfile_mode=error                                            # must pass
    ```
+
+   With `.bazelrc.user` in place the root fails on `the usages of the extension
+'@@rules_dart+//dart/pub:extensions.bzl%pub' have changed`: the lock you just
+   regenerated correctly records the _published_ module, while the restored override
+   points the pub extension at the sibling checkout, so its `usagesDigest` no longer
+   matches. Nothing is wrong with the lock — CI has no `.bazelrc.user`, which is exactly
+   the parked state, so parked is the condition the check has to run under. Only the root
+   is affected, since each `e2e/*` is its own workspace.
+
+   Restore `.bazelrc.user` only after the verification passes.
 
    The pub `usagesDigest` is **platform-independent** — clean macOS and clean Linux
    produce byte-identical locks (verified during the 0.4.6 cascade). Do **not** spin up a
