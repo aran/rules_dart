@@ -110,3 +110,21 @@ dart_analyze_test(
     options = ":options",
     target = ":defines_test",
 )
+
+# A test that prints and then hangs until Bazel's timeout kills it. Whatever it
+# printed must still be in its test.log, or a hang is undiagnosable from the
+# log. `manual` keeps it out of `//...`; CI's expected-failure job runs it with
+# a short `--test_timeout` and looks for its output.
+dart_test(
+    name = "hangs_until_killed_test",
+    size = "small",
+    main = "test/hangs_until_killed_test.dart",
+    tags = ["manual"],
+)
+
+dart_analyze_test(
+    name = "analyze_hangs_until_killed_test",
+    size = "small",
+    options = ":options",
+    target = ":hangs_until_killed_test",
+)

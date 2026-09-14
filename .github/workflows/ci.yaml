@@ -190,6 +190,20 @@ jobs:
           fi
           bazel build //:format_missing_include 2>&1 | grep -q "Couldn't read file"
           echo "OK: unreadable format include rejected"
+      # A hung test is diagnosed from what it printed before Bazel killed it, so
+      # that output has to be in test.log rather than held back by the launcher.
+      - name: dart_test — expect a timed-out test's output in its log
+        working-directory: e2e/dart_test
+        run: |
+          if bazel test --test_timeout=5 //:hangs_until_killed_test; then
+            echo "ERROR: test should have timed out"
+            exit 1
+          fi
+          log=bazel-testlogs/hangs_until_killed_test/test.log
+          grep -q "Test timed out" "$log"
+          grep -q "printed before hanging" "$log"
+          grep -q "written to stderr before hanging" "$log"
+          echo "OK: timed-out test's output reached its log"
   # `dart compile kernel` rejects `--enable-asserts`, so dbg-mode flags are
   # chosen per compile mode. hello_world builds all four dart_binary modes;
   # dart_test exercises the kernel test path end-to-end.

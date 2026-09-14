@@ -1,4 +1,4 @@
-load("//dart:defs.bzl", "dart_binary")
+load("//dart:defs.bzl", "dart_binary", "dart_test")
 
 dart_binary(
     name = "noop",
@@ -34,6 +34,31 @@ dart_binary(
     main = "test_runner.dart",
     visibility = ["//dart:__subpackages__"],
     deps = ["//dart/runfiles"],
+)
+
+# What `test_runner_test` runs through the launcher in place of a real test.
+dart_binary(
+    name = "test_runner_fixture",
+    compile_mode = "kernel",
+    main = "test_runner_fixture.dart",
+)
+
+dart_test(
+    name = "test_runner_test",
+    size = "small",
+    args = [
+        "$(rlocationpath :test_runner)",
+        "$(rlocationpath :test_runner_fixture)",
+    ],
+    data = [
+        ":test_runner",
+        ":test_runner_fixture",
+    ],
+    main = "test_runner_test.dart",
+    deps = [
+        "//dart/runfiles",
+        "@ext_pub_deps//:test",
+    ],
 )
 
 dart_binary(
