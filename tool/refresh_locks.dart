@@ -9,8 +9,8 @@
 ///    MODULE.bazel formatting canonical and lock files complete.
 ///
 /// 2. Finds every directory containing a pubspec.yaml (excluding references/,
-///    dev/testdata/, and e2e/) and runs `dart pub get` to refresh the
-///    pubspec.lock file.
+///    dev/testdata/, and e2e/) and runs `dart pub get` with the pinned SDK
+///    (`bazel run @rules_dart//dart`) to refresh the pubspec.lock file.
 ///
 /// Uses only dart:io — no pubspec needed.
 library;
@@ -78,14 +78,20 @@ Future<void> main() async {
     }
     stdout.writeln('');
 
+    final flutterRoot = _flutterRoot();
     for (final pkg in pubPackages) {
       final rel = _relativePath(root, pkg);
       stdout.write('Refreshing $rel pubspec.lock ... ');
 
+      // The pinned SDK rather than the `dart` on PATH, which can be older than
+      // a package's SDK floor. FLUTTER_ROOT lets that pub satisfy a Flutter
+      // environment constraint (dart/ext's go_router_builder) without
+      // resolving through the Dart that Flutter bundles.
       final result = await Process.run(
-        'dart',
-        ['pub', 'get'],
+        'bazel',
+        ['run', '@rules_dart//dart', '--', 'pub', 'get'],
         workingDirectory: pkg,
+        environment: {'FLUTTER_ROOT': ?flutterRoot},
       );
 
       if (result.exitCode == 0) {
@@ -93,6 +99,7 @@ Future<void> main() async {
         passed++;
       } else {
         stdout.writeln('FAILED (exit ${result.exitCode})');
+        stderr.writeln(result.stdout);
         stderr.writeln(result.stderr);
         failed++;
       }
@@ -102,6 +109,21 @@ Future<void> main() async {
   stdout.writeln('');
   stdout.writeln('Done: $passed passed, $failed failed.');
   if (failed > 0) exit(1);
+}
+
+/// The Flutter SDK to report to pub: `FLUTTER_ROOT` if set, else the SDK the
+/// `flutter` on PATH belongs to, else null.
+String? _flutterRoot() {
+  final env = Platform.environment['FLUTTER_ROOT'];
+  if (env != null && env.isNotEmpty) return env;
+  final separator = Platform.isWindows ? ';' : ':';
+  for (final dir in (Platform.environment['PATH'] ?? '').split(separator)) {
+    final flutter = File('$dir/flutter');
+    if (flutter.existsSync()) {
+      return File(flutter.resolveSymbolicLinksSync()).parent.parent.path;
+    }
+  }
+  return null;
 }
 
 /// Walk up from the script's location to find the repo root (directory

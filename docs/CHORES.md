@@ -177,8 +177,12 @@ workspaces.
 
 **Procedure**: Run `dart run tool/refresh_locks.dart`. This both refreshes
 Bazel lock files (pulling fresh registry data, keeping MODULE.bazel
-formatting canonical) and runs `dart pub get` in any in-repo Dart packages
-(currently `dart/runfiles/`) to refresh their `pubspec.lock` files.
+formatting canonical) and runs `dart pub get` in the in-repo Dart packages
+(`dart/ext/`, `dart/private/tools/`, `dart/runfiles/`) to refresh their
+`pubspec.lock` files. Pub runs on the pinned SDK
+(`bazel run @rules_dart//dart`), since a package's SDK floor can be ahead of
+the host's `dart`, with `FLUTTER_ROOT` taken from the environment or the
+`flutter` on PATH: `dart/ext/` needs a Flutter-flavored pub.
 
 **Verification**: All workspaces and packages report success.
 
@@ -287,10 +291,12 @@ Each in-repo Dart package is publishable to pub.dev. Maintenance includes:
   `package_config` <3, so those majors wait on drift. `e2e/codegen`,
   `e2e/dart_test_pkg`, and rules_dart_proto's `dart_proto` pin
   `analyzer`/`package_config` in their pubspecs to hold their locks on the
-  same line. To bump: `dart pub upgrade` in `dart/ext/` (needs a
-  Flutter-flavored pub — `go_router_builder` declares a Flutter environment
-  constraint), then `dart pub upgrade` in each pinned workspace, refresh the
-  touched `MODULE.bazel.lock`s, and verify with `//dart/ext/...`,
+  same line. To bump:
+  `FLUTTER_ROOT=<flutter sdk> bazel run @rules_dart//dart -- pub upgrade` in
+  `dart/ext/` (it needs a Flutter-flavored pub on the pinned SDK —
+  `go_router_builder` declares a Flutter environment constraint), then
+  `dart pub upgrade` in each pinned workspace, refresh the touched
+  `MODULE.bazel.lock`s, and verify with `//dart/ext/...`,
   `e2e/codegen`, and a consuming app. The freezed 3.2→4.0 / analyzer 10→13
   bump needed no shim changes — every shim compiled and analyzed clean
   unchanged — so expect builder majors to be cheap unless a builder
