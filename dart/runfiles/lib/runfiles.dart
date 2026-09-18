@@ -57,6 +57,10 @@ class Runfiles {
   /// 5. `<executable>.runfiles_manifest` file
   /// 6. `<executable>.exe.runfiles_manifest` file
   ///
+  /// A directory found next to the executable is held by its resolved
+  /// path, so [rlocation] keeps working after a symlink on the way to it,
+  /// such as `bazel-bin`, is repointed.
+  ///
   /// If a `_repo_mapping` file is present at the runfiles root (always
   /// the case under bzlmod; absent under WORKSPACE-only builds), it's
   /// parsed and consulted by [rlocation] for apparent → canonical repo
@@ -100,7 +104,10 @@ class Runfiles {
 
       for (final candidate in ['$exe.runfiles', '$exe.exe.runfiles']) {
         if (Directory(candidate).existsSync()) {
-          directory = candidate;
+          // Hold the tree where it really is, not the path that found it.
+          // That path runs through the symlink, and `./bazel-bin/...` is
+          // repointed by the next build in another configuration.
+          directory = Directory(candidate).resolveSymbolicLinksSync();
           break;
         }
       }

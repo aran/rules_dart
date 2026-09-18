@@ -1,4 +1,4 @@
-load("//dart:defs.bzl", "dart_library", "dart_test")
+load("//dart:defs.bzl", "dart_binary", "dart_library", "dart_test")
 
 dart_library(
     name = "runfiles",
@@ -6,9 +6,19 @@ dart_library(
     visibility = ["//visibility:public"],
 )
 
+# Run by runfiles_test from a runfiles layout it builds itself, so
+# Runfiles.create() probes from the executable path rather than from the
+# RUNFILES_DIR that `bazel test` sets.
+dart_binary(
+    name = "create_probe",
+    main = "test/create_probe.dart",
+    deps = [":runfiles"],
+)
+
 dart_test(
     name = "runfiles_test",
     size = "small",
+    data = [":create_probe"],
     main = "test/runfiles_test.dart",
     deps = [
         ":runfiles",

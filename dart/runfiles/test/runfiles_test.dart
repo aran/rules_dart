@@ -1,3 +1,7 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:runfiles/runfiles.dart';
 import 'package:test/test.dart';
 
@@ -160,4 +164,74 @@ void main() {
       expect(r.rlocation('baz/foo'), '/abs/baz/foo');
     });
   });
+
+  group('create() probing next to the executable', () {
+    // `./bazel-bin/pkg/tool` reaches the binary through a symlink that the
+    // next build in another configuration repoints. A Runfiles created
+    // before that must still find its files afterwards.
+    test('survives a symlink on the executable path being repointed', () async {
+      final sep = Platform.pathSeparator;
+      final exeName = Platform.isWindows ? 'create_probe.exe' : 'create_probe';
+      final tmp = Directory.systemTemp.createTempSync('runfiles_create');
+      final current = '${tmp.path}${sep}current';
+      addTearDown(() {
+        if (FileSystemEntity.isLinkSync(current)) Link(current).deleteSync();
+        tmp.deleteSync(recursive: true);
+      });
+
+      // a/ holds the binary with its runfiles tree beside it; b/ is where
+      // the symlink points after the "rebuild", and holds neither.
+      final a = Directory('${tmp.path}${sep}a')..createSync();
+      final b = Directory('${tmp.path}${sep}b')..createSync();
+      File(
+        Runfiles.create().rlocation('_main/dart/runfiles/$exeName'),
+      ).copySync('${a.path}$sep$exeName');
+      File('${a.path}$sep$exeName.runfiles${sep}_main${sep}data.txt')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('found');
+      _pointLink(current, a.path);
+
+      final process = await Process.start(
+        '$current$sep$exeName',
+        const [],
+        environment: Map.of(Platform.environment)
+          ..remove('RUNFILES_DIR')
+          ..remove('RUNFILES_MANIFEST_FILE'),
+        includeParentEnvironment: false,
+      );
+      addTearDown(process.kill);
+      final stderr = process.stderr.transform(utf8.decoder).join();
+      final lines = StreamIterator(
+        process.stdout.transform(utf8.decoder).transform(const LineSplitter()),
+      );
+
+      if (!await lines.moveNext()) fail('probe exited: ${await stderr}');
+      expect(lines.current, 'ready');
+
+      _pointLink(current, b.path);
+      await process.stdin.close();
+
+      final rest = <String>[];
+      while (await lines.moveNext()) {
+        rest.add(lines.current);
+      }
+      expect(await process.exitCode, 0, reason: await stderr);
+      expect(rest, ['found']);
+    });
+  });
+}
+
+/// Points the directory symlink at [link] to [target], replacing any
+/// existing one. Windows gets a junction — what Bazel makes `bazel-bin`
+/// there, and creatable without symlink privilege.
+void _pointLink(String link, String target) {
+  if (FileSystemEntity.isLinkSync(link)) Link(link).deleteSync();
+  if (!Platform.isWindows) {
+    Link(link).createSync(target);
+    return;
+  }
+  final result = Process.runSync('cmd', ['/c', 'mklink', '/J', link, target]);
+  if (result.exitCode != 0) {
+    throw StateError('mklink /J $link $target failed: ${result.stderr}');
+  }
 }
