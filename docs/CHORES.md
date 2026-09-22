@@ -112,11 +112,12 @@ file at runtime — keep file lists current as the repo evolves.
 - E2e workspaces that duplicate deps:
   - `e2e/smoke/MODULE.bazel` — `bazel_skylib`, `rules_shell`
   - `e2e/codegen/MODULE.bazel` — `bazel_skylib`
-  - `e2e/gazelle/MODULE.bazel` — `bazel_skylib`, `gazelle`, `rules_shell`
+  - `e2e/gazelle/MODULE.bazel` — `bazel_skylib`, `gazelle`, `rules_shell`,
+    `apple_support`
   - `e2e/cross_compile/MODULE.bazel` — `platforms`, `rules_platform`
   - `e2e/dual_build/MODULE.bazel` — `rules_shell`
   - `e2e/ext_exemplar/MODULE.bazel` — `gazelle`, `rules_go`, `sqlite3`,
-    `rules_cc`, `platforms`
+    `rules_cc`, `platforms`, `apple_support`
   - `e2e/fix/MODULE.bazel` — `bazel_skylib`
 - `e2e/ext_exemplar/sqlite3_binary/test/direct_test.dart` — asserts the exact
   `sqlite3.version.libVersion` string, so a `sqlite3` bump fails this test until

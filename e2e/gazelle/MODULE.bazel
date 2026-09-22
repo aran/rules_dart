@@ -2,13 +2,13 @@ module(name = "gazelle_e2e")
 
 bazel_dep(name = "rules_dart", version = "0.0.0")
 bazel_dep(name = "bazel_skylib", version = "1.9.2")
-bazel_dep(name = "gazelle", version = "0.53.0")
+bazel_dep(name = "gazelle", version = "0.54.0")
 bazel_dep(name = "rules_shell", version = "0.8.0")
 
 # Building the Go binaries here goes through the C++ toolchain, which on macOS
-# is apple_support's. 2.8.3 builds that toolchain's helper tools for macOS 11,
+# is apple_support's. 2.9.0 builds that toolchain's helper tools for macOS 11,
 # the oldest Xcode 27's libc++ accepts without a warning.
-bazel_dep(name = "apple_support", version = "2.8.3")
+bazel_dep(name = "apple_support", version = "2.9.0")
 
 local_path_override(
     module_name = "rules_dart",
