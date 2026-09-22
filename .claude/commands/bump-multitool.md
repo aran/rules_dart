@@ -27,7 +27,7 @@ Update multitool-managed tools to their latest versions.
 
 8. Verify the updated tools work:
 
-   - `bazel run @multitool//tools/yamlfmt -- -lint .`
-   - `bazel run @multitool//tools/typos -- .`
+   - `bazel run @multitool//tools/yamlfmt -- -lint -gitignore_excludes "$PWD"`
+   - `bazel run @multitool//tools/typos -- "$PWD"`
 
 9. Commit with message: `chore: bump multitool-managed tools`

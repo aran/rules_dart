@@ -15,7 +15,8 @@ We suggest using a pre-commit hook to automate this. Two options:
 
 Copy the script below to `.git/hooks/pre-commit` and make it executable.
 It runs buildifier, yamlfmt, and typos via `bazel run`, so no additional
-installs are needed beyond Bazel.
+installs are needed beyond Bazel. `bazel run` starts each tool in its runfiles
+directory, so pass the repo as an absolute path.
 
 ```shell
 #!/usr/bin/env bash
@@ -25,13 +26,10 @@ echo "Running buildifier check..."
 bazel run //.github/workflows:buildifier.check
 
 echo "Running yamlfmt check..."
-bazel run @multitool//tools/yamlfmt -- -lint \
-  .github/workflows/*.yaml \
-  .pre-commit-config.yaml \
-  .bcr/presubmit.yml
+bazel run @multitool//tools/yamlfmt -- -lint -gitignore_excludes "$PWD"
 
 echo "Running typos check..."
-bazel run @multitool//tools/typos -- .
+bazel run @multitool//tools/typos -- "$PWD"
 ```
 
 ```shell

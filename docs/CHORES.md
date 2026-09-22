@@ -386,8 +386,8 @@ outdated dependencies.
 2. Download archives for all platform variants (macOS/Linux, arm64/x86_64)
 3. Compute SHA-256 hashes and update the lockfile entries
 4. Regenerate lock files: `dart run tool/refresh_locks.dart`
-5. Run `bazel run @multitool//tools/yamlfmt -- -lint .` and
-   `bazel run @multitool//tools/typos -- .` to verify the updated tools work
+5. Run `bazel run @multitool//tools/yamlfmt -- -lint -gitignore_excludes "$PWD"` and
+   `bazel run @multitool//tools/typos -- "$PWD"` to verify the updated tools work
 
 **Verification**: Both tools run successfully against the repo.
 
