@@ -36,8 +36,10 @@ upstream `bazelbuild/bazel-central-registry`. A pushed `vX.Y.Z` tag triggers a r
 
 ## Hard guardrails (apply throughout)
 
-- **Signing**: every commit/tag we publish MUST be signed. Never bypass signing. Tags
-  are signed annotated tags (`git tag -s`); a lightweight tag cannot carry a signature.
+- **Signing**: every commit and every tag we push by hand MUST be signed. Never bypass
+  signing. Tags are signed annotated tags (`git tag -s`); a lightweight tag cannot carry a
+  signature. Tags cut by the daily `tag.yaml` workflow are exempt: `smlx/ccv` creates and
+  pushes them as `github-actions`, which holds no signing key.
 - **Pushing is separate from signing**: an SSH `git push` authenticates through the
   1Password SSH agent, which can stop answering mid-session (`communication with agent
 failed`). The objects are already signed, so push over HTTPS with the `gh` login instead:
