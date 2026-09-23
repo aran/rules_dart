@@ -1,6 +1,6 @@
 ---
 name: release
-description: Drive a rules_dart release end-to-end — local readiness checks, validate dependent repos against the WIP checkout, push, watch CI, tag, mark the BCR draft PR ready, and wait for BCR + pub.dev to serve it; then cascade the same to rules_dart_proto. Use when the user asks to cut, ship, publish, or release a new rules_dart version.
+description: Drive a rules_dart release end-to-end — local readiness checks, validate dependent repos against the WIP checkout, push, watch CI, tag, mark the BCR draft PR ready, and wait for BCR + pub.dev to serve it; then cascade to rules_dart_proto (same version) and rules_flutter (own version track). Use when the user asks to cut, ship, publish, or release a new rules_dart version.
 ---
 
 # Release rules_dart
@@ -12,11 +12,11 @@ failures.
 
 ## The repos
 
-| Repo               | Local clone                       | Releases to                     | Notes                                                    |
-| ------------------ | --------------------------------- | ------------------------------- | -------------------------------------------------------- |
-| `rules_dart`       | `$HOME/Projects/rules_dart`       | BCR + pub.dev (`dart/runfiles`) | this repo                                                |
-| `rules_dart_proto` | `$HOME/Projects/rules_dart_proto` | BCR                             | pins `rules_dart`; **version-aligned** with it           |
-| `rules_flutter`    | `$HOME/Projects/rules_flutter`    | BCR                             | pins `rules_dart`; **currently held back** (see Phase 8) |
+| Repo               | Local clone                       | Releases to                     | Notes                                                  |
+| ------------------ | --------------------------------- | ------------------------------- | ------------------------------------------------------ |
+| `rules_dart`       | `$HOME/Projects/rules_dart`       | BCR + pub.dev (`dart/runfiles`) | this repo                                              |
+| `rules_dart_proto` | `$HOME/Projects/rules_dart_proto` | BCR                             | pins `rules_dart`; **version-aligned** with it         |
+| `rules_flutter`    | `$HOME/Projects/rules_flutter`    | BCR                             | pins `rules_dart`; **own version track** (see Phase 8) |
 
 Paths above assume the three repos are **sibling clones under `~/Projects/`** — adjust if
 yours live elsewhere. All three publish to the BCR fork `aran/bazel-central-registry` →
@@ -30,7 +30,9 @@ upstream `bazelbuild/bazel-central-registry`. A pushed `vX.Y.Z` tag triggers a r
   the next version **greater than the max latest tag across both**. Default bump =
   **patch** (`+0.0.1`); use **minor** (`+0.1.0`) for a significant feature. **Confirm
   the exact number with the user before tagging.**
-- `rules_flutter` is on its **own** track and is **held back** right now (Phase 8).
+- `rules_flutter` is on its **own** track (it started at `v0.0.1`, while rules_dart is at
+  0.6.x). Its target = its own latest tag + patch by default; minor if its unreleased
+  commits carry a significant feature. Confirm it with the user alongside `TARGET`.
 
 ## Hard guardrails (apply throughout)
 
@@ -94,6 +96,10 @@ Do not proceed until everything is green and `git status` is clean.
 2. `TARGET` = next version greater than the **max** of those two. Default = patch.
    Propose it (and the minor alternative) and **get the user's explicit confirmation**.
 3. This `TARGET` (e.g. `v0.4.5`) is used for **both** rules_dart and rules_dart_proto.
+4. `FLUTTER_TARGET` = next patch after
+   `git -C $HOME/Projects/rules_flutter fetch --tags -q && git -C $HOME/Projects/rules_flutter tag --sort=-v:refname | grep '^v' | head -1`
+   (the repo also carries non-version tags such as `pre-squash-backup`; filter them out).
+   Propose it with `TARGET` and get the same explicit confirmation.
 
 ---
 
@@ -219,6 +225,7 @@ be green against local WIP rules_dart before pushing.
      --search "rules_dart ${TARGET#v} in:title" --state open
    ```
    Verify it's the rules_dart `${TARGET#v}` PR (head from `aran/bazel-central-registry`).
+   For the downstream cascades, substitute the module name and its version.
 2. **Mark ready for review** (triggers auto-approval):
    `gh pr ready <number> --repo bazelbuild/bazel-central-registry`.
 3. **Poll until merged**: `gh pr view <number> --repo bazelbuild/bazel-central-registry
@@ -364,57 +371,55 @@ not permitted with --lockfile_mode=error`;
 
 ---
 
-## Phase 8 — rules_flutter (HELD BACK for now)
+## Phase 8 — Cascade to rules_flutter (own version)
 
-rules_flutter is **not** ready for a public release. Do **not** tag or release it here.
-It **does** track the rules_dart pin, so bump it like rules_dart_proto — just stop before
-tagging.
+rules_flutter does not depend on rules_dart_proto, so this phase can run alongside
+Phase 7 once Phase 6 has proven BCR serves `${TARGET#v}`. From `$HOME/Projects/rules_flutter`:
 
-1. It was already validated against the WIP rules_dart in **Phase 3** — sufficient for now.
+1. `git fetch origin`; clean tree on `main`. It was already validated against the WIP
+   rules_dart in **Phase 3**.
 2. **Bump the pin** to `${TARGET#v}` in the root `MODULE.bazel` and every `e2e/*/MODULE.bazel`
    (skip `e2e/_overlay_tests/native_assets_synthetic`, which pins `0.0.0` behind an override).
-   `rules_flutter` carries a `.bazelrc.user` in **every** workspace, not just the root
-   as `rules_dart_proto` does. Enumerate and move all of them aside before regenerating
-   anything:
+   Ignore everything under `.claude/worktrees/` — those are other sessions' checkouts.
+3. **Regenerate the locks.** `rules_flutter` carries a `.bazelrc.user` in **every**
+   workspace, not just the root as `rules_dart_proto` does. Enumerate and move all of
+   them aside before regenerating anything:
 
    ```sh
-   find . -name .bazelrc.user -not -path "*/bazel-*"
+   find . -name .bazelrc.user -not -path "*/bazel-*" -not -path "./.claude/*"
    ```
 
-   Then run the same two-pass regeneration as Phase 7 step 3 in each workspace, verify
-   with `--lockfile_mode=error`, restore the `.bazelrc.user` files, commit (signed) to
-   `main`, push, and watch CI. Its e2e locks may also predate the lock format the
-   current Bazel accepts; regenerating then rewrites the whole file, so an enormous diff
-   there is a format change, not lost content.
+   Then run the same two-pass regeneration and parked-state verification as Phase 7
+   step 3 in each workspace, and only then restore the `.bazelrc.user` files. Its e2e
+   locks may also predate the lock format the current Bazel accepts; regenerating then
+   rewrites the whole file, so an enormous diff there is a format change, not lost content.
 
-3. **Pushing to `main` does not open a BCR PR.** `release.yaml` (which calls `publish.yaml`
-   → BCR) fires only on a `v*.*.*` **tag push** or via `workflow_call` from `tag.yaml`.
-   `tag.yaml` — a daily `smlx/ccv` cron that would otherwise auto-tag and auto-release
-   conventional commits — is currently **`disabled_manually`**. Confirm before pushing:
+4. Run the test surface with **no override** (root + the `ci.yaml` matrix workspaces,
+   with the Android env from Phase 3). Commit (`build: bump rules_dart to ${TARGET#v}`,
+   the form its history uses), signed, directly to `main`. Push. Watch CI green.
+5. **Tag by hand, right after the push.** `tag.yaml` is enabled, as in the other two
+   repos: a daily `smlx/ccv` cron (15:00 UTC) that tags and releases unreleased
+   `fix:`/`feat:` commits once the latest tag is two weeks old. The pin bump is a
+   `build:` commit, which it never tags, so the cascade still tags explicitly. Check
+   first that the cron hasn't already cut a tag for these commits:
 
    ```sh
-   gh workflow list --all --repo aran/rules_flutter   # "Tag a Release" must be disabled
+   git fetch --tags origin && git tag --sort=-v:refname | grep '^v' | head -1
+   git tag $FLUTTER_TARGET origin/main && git push origin $FLUTTER_TARGET
    ```
 
-   If it is ever re-enabled, a pushed `fix:`/`feat:` commit will be auto-tagged within a
-   day and a BCR PR opened. Then: close the PR, delete the tag, and re-disable the workflow.
+   A cron-cut release outside a cascade also opens a **draft** BCR PR that nobody marks
+   ready; sweep for one with
+   `gh pr list --repo bazelbuild/bazel-central-registry --search "rules_flutter in:title" --state open`.
 
-4. **Sweep for auto-opened BCR PRs** after any push (outward-facing; confirm with the user
-   before closing):
-   ```sh
-   gh pr list --repo bazelbuild/bazel-central-registry --search "rules_flutter in:title" --state open
-   gh pr close <number> --repo bazelbuild/bazel-central-registry --comment "rules_flutter not ready for release yet"
-   ```
-   Leave any existing **draft** GitHub Releases (e.g. `v0.1.0`, `v0.2.0`) alone — a draft
-   release does not create a git tag, and the remote currently has **no** `v*` tags.
-5. When rules_flutter IS ready later: it gets its **own** next version (own track), bumps its
-   rules_dart pin to the current published version, re-enables `tag.yaml` if desired, then
-   follows the same per-repo flow (Phases 4–6).
+6. Watch `release.yaml`, then repeat **Phase 6** for the `rules_flutter ${FLUTTER_TARGET#v}`
+   BCR PR (find → `gh pr ready` → poll merged → poll served). rules_flutter does **not**
+   publish to pub.dev.
 
 ---
 
 ## Done
 
-Summarize: the version released, the rules_dart GitHub Release / BCR PR / pub.dev links,
-the rules_dart_proto release, and the rules_flutter hold-back/cleanup status. Note
+Summarize: the versions released, the rules_dart GitHub Release / BCR PR / pub.dev links,
+and the rules_dart_proto and rules_flutter releases and BCR PRs. Note
 anything skipped (e.g. host-specific e2e modules not runnable locally).
