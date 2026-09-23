@@ -134,7 +134,7 @@ then: tag the repo and push the tag, for example
 
 ```sh
 % git fetch
-% git tag v1.0.0-rc0 origin/main
+% git tag -s -m "rules_dart v1.0.0-rc0" v1.0.0-rc0 origin/main
 % git push origin v1.0.0-rc0
 ```
 

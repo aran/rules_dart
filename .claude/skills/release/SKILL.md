@@ -36,9 +36,12 @@ upstream `bazelbuild/bazel-central-registry`. A pushed `vX.Y.Z` tag triggers a r
 
 ## Hard guardrails (apply throughout)
 
-- **Signing**: every commit/tag we publish MUST be signed. Never bypass signing. If
-  1Password is locked and the next step publishes (push, tag push, PR), STOP and ask
-  the user to unlock — do not push unsigned.
+- **Signing**: every commit/tag we publish MUST be signed. Never bypass signing. Tags
+  are signed annotated tags (`git tag -s`); a lightweight tag cannot carry a signature.
+- **Pushing is separate from signing**: an SSH `git push` authenticates through the
+  1Password SSH agent, which can stop answering mid-session (`communication with agent
+failed`). The objects are already signed, so push over HTTPS with the `gh` login instead:
+  `git -c credential.helper= -c credential.helper='!gh auth git-credential' push https://github.com/aran/<repo>.git <ref>`.
 - **Trunk-based**: commit directly to `main` on the source repos; never open a PR on
   rules_dart / rules_dart_proto / rules_flutter. (BCR PRs are the publish mechanism —
   those are expected.)
@@ -164,10 +167,9 @@ be green against local WIP rules_dart before pushing.
 
 ## Phase 5 — Tag the rules_dart release & watch
 
-1. `git fetch origin`, then tag the released commit (lightweight tag on `origin/main`,
-   per `CONTRIBUTING.md`):
+1. `git fetch origin`, then tag the released commit with a signed annotated tag:
    ```sh
-   git tag $TARGET origin/main
+   git tag -s -m "rules_dart $TARGET" $TARGET origin/main
    git push origin $TARGET
    ```
 2. Watch `release.yaml` (`Release`, `Publish to BCR`, `pub-publish` jobs):
@@ -294,6 +296,12 @@ invalid GitHub user ID for aran` (aran's id is `5295`). Cause: `publish-to-bcr`
    green while Bazel still cannot fetch the module. A downstream bumped in that window
    fails with the version simply absent, which reads as a bad pin rather than a cold CDN.
 
+   **Do not probe `bcr.bazel.build` for the module's files before the merge.** The CDN
+   caches a 404 for an hour (`cache-control: max-age=3600`), so an early probe stretches
+   the wait by up to an hour. Measured on 0.6.5: a probe landed about a minute before the
+   upload, and the CDN served 404 for ~48 more minutes. The 0.6.3 delay above may have
+   the same cause. Run the clean-module check only once the PR has merged.
+
 5. **Verify pub.dev**: the `dart/runfiles` package published at `${TARGET#v}`.
 
 Proceed to the cascade only once a clean module resolves `${TARGET#v}`.
@@ -365,7 +373,8 @@ not permitted with --lockfile_mode=error`;
    cache resolves it — the lock verification in step 3 is what guards CI.
 5. Commit (conventional message, e.g. `chore: bump rules_dart to ${TARGET#v}`), signed,
    directly to `main`. Push. Watch CI green.
-6. Tag the **same** `$TARGET`: `git tag $TARGET origin/main && git push origin $TARGET`.
+6. Tag the **same** `$TARGET`, signed:
+   `git tag -s -m "rules_dart_proto $TARGET" $TARGET origin/main && git push origin $TARGET`.
 7. Watch `release.yaml`, then repeat **Phase 6** for the rules_dart_proto BCR PR (find →
    `gh pr ready` → poll merged → poll served). rules_dart_proto does **not** publish to pub.dev.
 
@@ -374,47 +383,20 @@ not permitted with --lockfile_mode=error`;
 ## Phase 8 — Cascade to rules_flutter (own version)
 
 rules_flutter does not depend on rules_dart_proto, so this phase can run alongside
-Phase 7 once Phase 6 has proven BCR serves `${TARGET#v}`. From `$HOME/Projects/rules_flutter`:
+Phase 7 once Phase 6 has proven BCR serves `${TARGET#v}`. rules_flutter has its own
+release skill (`$HOME/Projects/rules_flutter/.claude/skills/release/SKILL.md`); this
+phase only bumps the pin and hands off to it.
 
-1. `git fetch origin`; clean tree on `main`. It was already validated against the WIP
-   rules_dart in **Phase 3**.
+1. In `$HOME/Projects/rules_flutter`: `git fetch origin`; clean tree on `main`.
 2. **Bump the pin** to `${TARGET#v}` in the root `MODULE.bazel` and every `e2e/*/MODULE.bazel`
    (skip `e2e/_overlay_tests/native_assets_synthetic`, which pins `0.0.0` behind an override).
    Ignore everything under `.claude/worktrees/` — those are other sessions' checkouts.
-3. **Regenerate the locks.** `rules_flutter` carries a `.bazelrc.user` in **every**
-   workspace, not just the root as `rules_dart_proto` does. Enumerate and move all of
-   them aside before regenerating anything:
-
-   ```sh
-   find . -name .bazelrc.user -not -path "*/bazel-*" -not -path "./.claude/*"
-   ```
-
-   Then run the same two-pass regeneration and parked-state verification as Phase 7
-   step 3 in each workspace, and only then restore the `.bazelrc.user` files. Its e2e
-   locks may also predate the lock format the current Bazel accepts; regenerating then
-   rewrites the whole file, so an enormous diff there is a format change, not lost content.
-
-4. Run the test surface with **no override** (root + the `ci.yaml` matrix workspaces,
-   with the Android env from Phase 3). Commit (`build: bump rules_dart to ${TARGET#v}`,
-   the form its history uses), signed, directly to `main`. Push. Watch CI green.
-5. **Tag by hand, right after the push.** `tag.yaml` is enabled, as in the other two
-   repos: a daily `smlx/ccv` cron (15:00 UTC) that tags and releases unreleased
-   `fix:`/`feat:` commits once the latest tag is two weeks old. The pin bump is a
-   `build:` commit, which it never tags, so the cascade still tags explicitly. Check
-   first that the cron hasn't already cut a tag for these commits:
-
-   ```sh
-   git fetch --tags origin && git tag --sort=-v:refname | grep '^v' | head -1
-   git tag $FLUTTER_TARGET origin/main && git push origin $FLUTTER_TARGET
-   ```
-
-   A cron-cut release outside a cascade also opens a **draft** BCR PR that nobody marks
-   ready; sweep for one with
-   `gh pr list --repo bazelbuild/bazel-central-registry --search "rules_flutter in:title" --state open`.
-
-6. Watch `release.yaml`, then repeat **Phase 6** for the `rules_flutter ${FLUTTER_TARGET#v}`
-   BCR PR (find → `gh pr ready` → poll merged → poll served). rules_flutter does **not**
-   publish to pub.dev.
+   Commit it signed as `build: bump rules_dart to ${TARGET#v}`, the form its history uses.
+3. **Run rules_flutter's release skill from its Phase 1**, with the version already
+   confirmed as `FLUTTER_TARGET`. Its readiness phase parks every `.bazelrc.user`, checks
+   and regenerates the locks against the published rules_dart, and runs the full test
+   surface; its later phases push, tag signed, and drive the BCR PR to served. It also
+   covers re-publishing a version whose BCR PR is still open.
 
 ---
 
