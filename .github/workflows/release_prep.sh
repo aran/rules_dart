@@ -30,3 +30,11 @@ Add to your \`MODULE.bazel\` file:
 bazel_dep(name = "rules_dart", version = "${TAG:1}")
 \`\`\`
 EOF
+
+# Release notes from the `Changelog:` trailers since the previous version tag.
+# The reusable workflow checks out only the tagged commit, without other tags.
+git fetch --quiet --tags --unshallow origin 2>/dev/null || git fetch --quiet --tags origin
+PREV=$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' "$TAG^" 2>/dev/null) || PREV=""
+echo
+bazel run @multitool//tools/git-cliff -- \
+    --workdir "$PWD" --config cliff.toml --strip header "${PREV:+$PREV..}$TAG"

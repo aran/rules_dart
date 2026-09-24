@@ -169,14 +169,20 @@ be green against local WIP rules_dart before pushing.
 
 ## Phase 5 — Tag the rules_dart release & watch
 
-1. `git fetch origin`, then tag the released commit with a signed annotated tag:
+1. Preview the release notes and show them to the user before tagging:
+   `bazel run //tools/changelog -- --tag $TARGET`. They are the `Changelog:` trailers
+   since the last tag (policy in `AGENTS.md`); `release_prep.sh` puts the same text in
+   the GitHub release body, and `pub-publish` copies that body into
+   `dart/runfiles/CHANGELOG.md`. A missing or badly worded entry is fixed by a new commit
+   carrying the trailer, never by rewriting pushed history.
+2. `git fetch origin`, then tag the released commit with a signed annotated tag:
    ```sh
    git tag -s -m "rules_dart $TARGET" $TARGET origin/main
    git push origin $TARGET
    ```
-2. Watch `release.yaml` (`Release`, `Publish to BCR`, `pub-publish` jobs):
+3. Watch `release.yaml` (`Release`, `Publish to BCR`, `pub-publish` jobs):
    `gh run list --workflow=release.yaml --limit 5`, then `gh run watch <run-id> --exit-status`.
-3. Confirm a GitHub Release exists for `$TARGET`, the BCR publish job opened a PR, and
+4. Confirm a GitHub Release exists for `$TARGET`, the BCR publish job opened a PR, and
    pub-publish ran.
 
    - **A `publish` job that fails on `Invalid username or token` is the PAT, not the

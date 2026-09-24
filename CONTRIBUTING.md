@@ -46,8 +46,17 @@ chmod +x .git/hooks/pre-commit
 pre-commit install
 ```
 
-This runs the full hook suite including prettier, commitizen, and file
-hygiene checks.
+This runs the full hook suite including prettier and file hygiene checks.
+
+## Commit messages
+
+Commits follow the conventional-commit format and the `Changelog:` trailer
+policy in [AGENTS.md](AGENTS.md#changelog). CI checks every push to `main`;
+check locally before that with the commit-msg hook:
+
+```shell
+pre-commit install --hook-type commit-msg
+```
 
 ## Running tests
 
