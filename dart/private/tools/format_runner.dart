@@ -82,9 +82,11 @@ void main(List<String> args) {
     // Reported at the path the user can act on. The formatter names the file
     // it was handed, which is inside the staged tree — an output path nobody
     // can edit, and one that buries the workspace path it was copied from.
-    stdout.write(_unstage(result.stdout as String, project));
+    // Its stdout is only the files it would change and a summary, so a clean
+    // run stays silent: Bazel echoes any action output on every build.
     stderr.write(_unstage(result.stderr as String, project));
     if (result.exitCode != 0) {
+      stdout.write(_unstage(result.stdout as String, project));
       failed = true;
     }
 

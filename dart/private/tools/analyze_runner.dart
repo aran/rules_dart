@@ -26,7 +26,9 @@ void main(List<String> args) {
     }
   }
   if (dart == null || project == null || stamp == null) {
-    stderr.writeln('analyze_runner: --dart, --project, and --stamp are required');
+    stderr.writeln(
+      'analyze_runner: --dart, --project, and --stamp are required',
+    );
     exit(64);
   }
 
@@ -35,9 +37,11 @@ void main(List<String> args) {
     if (fatalInfos) '--fatal-infos',
     project,
   ]);
-  stdout.write(result.stdout);
+  // Bazel echoes any action output, so a clean run stays silent rather than
+  // printing the analyzer's "No issues found!" on every build.
   stderr.write(result.stderr);
   if (result.exitCode != 0) {
+    stdout.write(result.stdout);
     exit(result.exitCode);
   }
   File(stamp).writeAsStringSync('analyzed\n');

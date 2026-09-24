@@ -28,6 +28,23 @@ def defines_stage_error(defines, package_config):
                 "instead (e.g. `gen_kernel_native_assets_action`).") % defines
     return None
 
+def compile_quiet_flags(compile_mode):
+    """Returns the flags that keep `dart compile` from writing to stdout.
+
+    `exe` and `aot-snapshot` print `Generated: <output path>` on success, and
+    Bazel echoes any action output, so every build would show a sandbox path.
+    Errors still print. The other modes have no flag that silences them.
+
+    Args:
+        compile_mode: The Dart compile mode ("exe", "aot-snapshot", "kernel", "jit-snapshot").
+
+    Returns:
+        A list of flag strings.
+    """
+    if compile_mode in ("exe", "aot-snapshot"):
+        return ["--verbosity=error"]
+    return []
+
 def get_compilation_mode_flags(ctx, compile_mode):
     """Returns compiler flags for the current Bazel compilation mode.
 
@@ -96,6 +113,7 @@ def dart_compile_action(
     args = ctx.actions.args()
     args.add("compile")
     args.add(compile_mode)
+    args.add_all(compile_quiet_flags(compile_mode))
 
     # `package_config` is None when `main` is a pre-built kernel (`.dill`),
     # which already has package resolution baked in (e.g. the code_assets
