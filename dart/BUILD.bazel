@@ -83,6 +83,7 @@ bzl_library(
     visibility = ["//visibility:public"],
     deps = [
         ":repositories",
+        "//dart/private:toolchain_selection",
     ],
 )
 

@@ -10,13 +10,10 @@ names (the latest version will be picked for each name) and can register them as
 effectively overriding the default named toolchain due to toolchain resolution precedence.
 """
 
+load("//dart/private:toolchain_selection.bzl", "select_toolchain_version")
 load(":repositories.bzl", "dart_register_toolchains")
 
 _DEFAULT_NAME = "dart"
-
-def _parse_version(v):
-    """Splits a version string into a list of ints for comparison."""
-    return [int(x) for x in v.split(".")]
 
 dart_toolchain = tag_class(attrs = {
     "name": attr.string(doc = """\
@@ -37,22 +34,19 @@ def _toolchain_extension(module_ctx):
                 """)
             if toolchain.name not in registrations.keys():
                 registrations[toolchain.name] = []
-            registrations[toolchain.name].append(toolchain.dart_version)
-    for name, versions in registrations.items():
-        if len(versions) > 1:
-            selected = versions[0]
-            for v in versions[1:]:
-                if _parse_version(v) > _parse_version(selected):
-                    selected = v
-
+            registrations[toolchain.name].append(struct(
+                version = toolchain.dart_version,
+                is_root = mod.is_root,
+            ))
+    for name, requests in registrations.items():
+        selection = select_toolchain_version(name, requests)
+        if selection.note:
             # buildifier: disable=print
-            print("NOTE: Dart toolchain {} has multiple versions {}, selected {}".format(name, versions, selected))
-        else:
-            selected = versions[0]
+            print("NOTE: " + selection.note)
 
         dart_register_toolchains(
             name = name,
-            dart_version = selected,
+            dart_version = selection.version,
         )
     return module_ctx.extension_metadata(
         reproducible = True,

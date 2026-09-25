@@ -13,6 +13,12 @@ bzl_library(
 )
 
 bzl_library(
+    name = "toolchain_selection",
+    srcs = ["toolchain_selection.bzl"],
+    visibility = ["//dart:__subpackages__"],
+)
+
+bzl_library(
     name = "resolved_toolchain",
     srcs = ["resolved_toolchain.bzl"],
     visibility = ["//dart:__subpackages__"],
