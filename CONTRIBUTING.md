@@ -9,54 +9,32 @@ contributing immediately and skip the next step.
 ## Formatting
 
 Starlark files must be formatted by buildifier, and YAML files by yamlfmt.
-We suggest using a pre-commit hook to automate this. Two options:
-
-### Option A — Git hook (no extra tools needed)
-
-Copy the script below to `.git/hooks/pre-commit` and make it executable.
-It runs buildifier, yamlfmt, and typos via `bazel run`, so no additional
-installs are needed beyond Bazel. `bazel run` starts each tool in its runfiles
-directory, so pass the repo as an absolute path.
+Git hooks check this, along with prettier, typos, file hygiene and the commit
+message policy. They run with [prek](https://github.com/j178/prek), which reads
+`.pre-commit-config.yaml`. Install prek with [uv](https://docs.astral.sh/uv/)
+and set up the hooks once per clone:
 
 ```shell
-#!/usr/bin/env bash
-set -euo pipefail
-
-echo "Running buildifier check..."
-bazel run //.github/workflows:buildifier.check
-
-echo "Running yamlfmt check..."
-bazel run @multitool//tools/yamlfmt -- -lint -gitignore_excludes "$PWD"
-
-echo "Running typos check..."
-bazel run @multitool//tools/typos -- "$PWD"
+uv tool install prek
+prek install -f
 ```
+
+`-f` replaces hooks already in the clone, such as ones pre-commit installed;
+without it prek keeps them and runs them too. The installed hook calls the prek at `~/.local/bin/prek`, which stays put across
+`uv tool upgrade prek` and `bazel clean`. Set `PREK_QUIET=1` in your shell
+profile for hooks that print nothing unless one fails.
+
+To run every hook without installing anything beyond Bazel:
 
 ```shell
-cp .git/hooks/pre-commit.sample .git/hooks/pre-commit
-# paste the script above, then:
-chmod +x .git/hooks/pre-commit
+bazel run @multitool//tools/prek -- -C "$PWD" run --all-files
 ```
-
-### Option B — pre-commit
-
-[Install pre-commit](https://pre-commit.com/#installation), then run:
-
-```shell
-pre-commit install
-```
-
-This runs the full hook suite including prettier and file hygiene checks.
 
 ## Commit messages
 
 Commits follow the conventional-commit format and the `Changelog:` trailer
 policy in [AGENTS.md](AGENTS.md#changelog). CI checks every push to `main`;
-check locally before that with the commit-msg hook:
-
-```shell
-pre-commit install --hook-type commit-msg
-```
+the commit-msg hook that `prek install` sets up checks each commit before that.
 
 ## Running tests
 

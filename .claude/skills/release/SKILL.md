@@ -69,14 +69,11 @@ Goal: `main` is green, formatted, tidy, working tree clean. From this repo:
 3. **Expected-failure modules** (the `expected-failure` job in `ci.yaml`):
    `e2e/pub_lock_conflict` must fail to build with `conflicting versions across lock files`;
    `e2e/analysis_failure` must fail to build with `unused_local_variable`. Confirm both.
-4. **Lint**: run the **full** `pre-commit` suite, not just buildifier — CI's `pre-commit`
+4. **Lint**: run the **full** hook suite, not just buildifier — CI's `pre-commit`
    job also runs `prettier` (markdown/yaml/json), `yamlfmt`, and `typos`, and buildifier
-   alone will let a prettier violation through and fail CI. Prefer
-   `pre-commit run --all-files` (install via `pipx install pre-commit` or
-   `brew install pre-commit` if absent). If pre-commit can't be installed, at minimum run
-   the same hook versions by hand on changed files, reading the pins from
-   `.pre-commit-config.yaml` — e.g. `npx --yes prettier@<rev> --write <files>` and
-   `bazel run //.github/workflows:buildifier.check`. The tree must be clean afterward.
+   alone will let a prettier violation through and fail CI. Run
+   `bazel run @multitool//tools/prek -- -C "$PWD" run --all-files` (or plain
+   `prek run --all-files` if prek is installed). The tree must be clean afterward.
 5. **`bazel mod tidy`** in the root and every module dir
    (`find . -path ./bazel-* -prune -o -path ./references -prune -o -name MODULE.bazel -print | grep -v bazel-`).
    After tidying, `git status` must still be clean. If tidy changed anything, that's part

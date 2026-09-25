@@ -12,6 +12,6 @@
       ]
     }
   },
-  // sets up pre-commit hooks
-  "postStartCommand": "pre-commit install"
+  // sets up the git hooks
+  "postStartCommand": "uv tool install prek && ~/.local/bin/prek install"
 }

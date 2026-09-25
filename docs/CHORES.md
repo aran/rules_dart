@@ -378,7 +378,7 @@ outdated dependencies.
 
 - `multitool.lock.json` — tool versions, URLs, and SHA-256 hashes
 
-**Managed tools**: `yamlfmt`, `typos`
+**Managed tools**: `git-cliff`, `prek`, `typos`, `yamlfmt`
 
 **Procedure**:
 
@@ -392,7 +392,9 @@ outdated dependencies.
 **Verification**: Both tools run successfully against the repo.
 
 Also update the matching `rev:` values in `.pre-commit-config.yaml` for yamlfmt
-and typos to keep CI and local hooks in sync.
+and typos to keep CI and local hooks in sync. When bumping prek, update
+`prek-version` in `.github/workflows/ci.yaml` to match, and run
+`uv tool upgrade prek` so the installed git hooks use the new version.
 
 **Automation**: `/bump-multitool` slash command. Alternatively, install the
 [multitool CLI](https://github.com/theoremlp/multitool) and run
@@ -400,15 +402,15 @@ and typos to keep CI and local hooks in sync.
 
 ---
 
-## Pre-commit Hook Bumps
+## Git Hook Bumps
 
-**Trigger**: New versions of pre-commit hooks (buildifier, etc.).
+**Trigger**: New versions of the git hooks (buildifier, etc.).
 
 **Files**:
 
 - `.pre-commit-config.yaml`
 
-**Procedure**: Run `pre-commit autoupdate`, then reconcile the revs that are
+**Procedure**: Run `prek autoupdate`, then reconcile the revs that are
 pinned to something else in this repo:
 
 - `keith/pre-commit-buildifier` should track `buildifier_prebuilt` in
@@ -423,7 +425,7 @@ pinned to something else in this repo:
   stable tag and is expected to stay pinned. Do not "upgrade" it to the
   `v4.0.0-alpha` tags.
 
-**Verification**: `pre-commit run --all-files` passes.
+**Verification**: `prek run --all-files` passes.
 
 **Automation**: Manual. These were previously assumed to be handled by
 Renovate, but no Renovate config has ever existed in this repo, and the
@@ -440,7 +442,7 @@ buildifier and commitizen revs silently drifted as a result.
 **Dependencies** (all `uses:` references across workflows):
 
 - Actions: `actions/checkout`, `amannn/action-semantic-pull-request`,
-  `dart-lang/setup-dart`, `smlx/ccv`, `pre-commit/action`
+  `dart-lang/setup-dart`, `smlx/ccv`, `j178/prek-action`
 - Reusable workflows: `bazel-contrib/.github` (CI + release),
   `bazel-contrib/publish-to-bcr`
 
