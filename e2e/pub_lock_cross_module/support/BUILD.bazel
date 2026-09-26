@@ -1,0 +1,8 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+dart_library(
+    name = "greeting",
+    package_name = "relative_import_greeting",
+    srcs = ["lib/greeting.dart"],
+    visibility = ["//visibility:public"],
+)

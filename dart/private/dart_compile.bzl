@@ -25,8 +25,76 @@ def defines_stage_error(defines, package_config):
         return ("dart_compile_action: `defines` %s cannot be applied to a " +
                 "pre-built kernel — constant evaluation already happened in " +
                 "the action that produced it. Pass them to that action " +
-                "instead (e.g. `gen_kernel_native_assets_action`).") % defines
+                "instead (e.g. `dart_cfe_action`).") % defines
     return None
+
+_RESERVED_CFE_FLAGS = [
+    "--filesystem-root",
+    "--filesystem-scheme",
+]
+
+_CFE_ONLY_FLAGS = [
+    "--define",
+    "--embed-sources",
+    "--enable-experiment",
+    "--link-platform",
+    "--no-embed-sources",
+    "--no-link-platform",
+]
+
+_CFE_AND_BACKEND_FLAGS = [
+    "--enable-asserts",
+    "--no-enable-asserts",
+    "--verbosity",
+]
+
+def _long_flag_name(flag):
+    return flag.split("=", 1)[0]
+
+def split_dart_compile_flags(flags):
+    """Routes flags to the Dart CFE and backend while reserving URI mapping.
+
+    Args:
+      flags: User-supplied compile flags.
+
+    Returns:
+      A `struct(cfe, backend)`.
+    """
+    cfe = []
+    backend = []
+    cfe_value = False
+    both_value = False
+    for flag in flags:
+        if cfe_value:
+            cfe.append(flag)
+            cfe_value = False
+            continue
+        if both_value:
+            cfe.append(flag)
+            backend.append(flag)
+            both_value = False
+            continue
+
+        name = _long_flag_name(flag)
+        if name in _RESERVED_CFE_FLAGS:
+            fail(("dart_compile_flags may not set %s: rules_dart reserves the " +
+                  "execroot filesystem mapping so compiled source URIs remain " +
+                  "deterministic.") % name)
+
+        # `-Dfoo=bar` is the short spelling of `--define=foo=bar`.
+        if flag == "-D" or (flag.startswith("-D") and len(flag) > 2):
+            cfe.append(flag)
+            cfe_value = flag == "-D"
+        elif name in _CFE_ONLY_FLAGS:
+            cfe.append(flag)
+            cfe_value = "=" not in flag and name in ["--define", "--enable-experiment"]
+        elif name in _CFE_AND_BACKEND_FLAGS:
+            cfe.append(flag)
+            backend.append(flag)
+            both_value = "=" not in flag and name == "--verbosity"
+        else:
+            backend.append(flag)
+    return struct(cfe = cfe, backend = backend)
 
 def get_compilation_mode_flags(ctx, compile_mode):
     """Returns compiler flags for the current Bazel compilation mode.

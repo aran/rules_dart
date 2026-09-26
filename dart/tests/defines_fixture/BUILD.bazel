@@ -1,9 +1,7 @@
 load("//dart:defs.bzl", "dart_binary", "dart_code_asset", "dart_test")
 load("//dart/tests:defines_test.bzl", "direct_defines_test", "staged_defines_test")
 
-# Two `dart_binary` targets differing only in whether they carry a code asset,
-# which is what selects the one-action or two-action compile pipeline. Both
-# declare the same `defines`, so the tests below assert only on where it lands.
+# The same CFE path is tested with and without native-assets metadata.
 
 dart_binary(
     name = "plain",
