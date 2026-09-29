@@ -1,0 +1,15 @@
+load("@rules_dart//dart:defs.bzl", "dart_analysis_test", "dart_library")
+
+# Expected red: `bazel test //...` never builds a `manual` target, so its
+# violation — dead code — is caught only by naming it in a `dart_analysis_test`,
+# whose build must then fail.
+dart_library(
+    name = "manual_bad",
+    srcs = ["lib/manual_bad.dart"],
+    tags = ["manual"],
+)
+
+dart_analysis_test(
+    name = "manual_analysis_test",
+    targets = [":manual_bad"],
+)

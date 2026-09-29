@@ -1,0 +1,66 @@
+load("//dart:defs.bzl", "dart_analysis_test", "dart_binary", "dart_library")
+load("//dart/tests:analyze_test.bzl", "config_refused_test")
+
+# Targets `bazel test //...` never builds, checked by naming them. The red path —
+# a violation in a listed target failing the test's build — is in
+# `e2e/analysis_failure`, where CI expects it.
+
+dart_library(
+    name = "manual_lib",
+    srcs = ["lib/manual.dart"],
+    tags = ["manual"],
+)
+
+dart_binary(
+    name = "manual_bin",
+    main = "bin/manual_main.dart",
+    tags = ["manual"],
+    deps = [":manual_lib"],
+)
+
+# Misformatted, and tagged out of the format check: the tag holds here too, and
+# its analysis still runs.
+dart_library(
+    name = "format_opted_out",
+    package_name = "analysis_test_fixture",
+    srcs = ["lib/unformatted.dart"],
+    tags = [
+        "manual",
+        "no-dart-format",
+    ],
+)
+
+dart_analysis_test(
+    name = "manual_analysis_test",
+    size = "small",
+    targets = [
+        ":format_opted_out",
+        ":manual_bin",
+        ":manual_lib",
+    ],
+)
+
+# A listed target with nothing to check is a mistake in the list.
+dart_library(
+    name = "opted_out_entirely",
+    srcs = ["lib/manual.dart"],
+    tags = [
+        "manual",
+        "no-dart-analyze",
+        "no-dart-format",
+    ],
+)
+
+dart_analysis_test(
+    name = "nothing_to_check",
+    size = "small",
+    tags = ["manual"],
+    targets = [":opted_out_entirely"],
+)
+
+config_refused_test(
+    name = "nothing_to_check_test",
+    size = "small",
+    message = "which the `dart_analyze` aspect has nothing to check in",
+    target_under_test = ":nothing_to_check",
+)

@@ -9,6 +9,7 @@ Load this file from your BUILD files to access the following rules:
 - `dart_test`: Runs a Dart test file using the Dart VM.
 - `dart_analysis_options`: An `analysis_options.yaml` plus the packages its `include:` directives resolve against.
 - `dart_analysis_config`: Lists every `dart_analysis_options` for the `dart_analyze` aspect (`//dart:analyze.bzl`), which runs `dart analyze` and the `dart format` check under `bazel test`.
+- `dart_analysis_test`: Runs the `dart_analyze` aspect's checks on named targets `bazel test //...` cannot reach (tagged `manual`, fixtures).
 - `dart_fix`: Applies `dart fix` to a target's own sources via `bazel run`, under the `dart_analyze` aspect's options.
 - `dart_format`: Formats workspace files via `bazel run`, under the options the `dart_analyze` aspect's format check applies.
 - `dart_js_binary`: Compiles a Dart web application to JavaScript.
@@ -22,6 +23,7 @@ Load this file from your BUILD files to access the following rules:
 load("//dart:providers.bzl", _DartCodeAssetInfo = "DartCodeAssetInfo")
 load("//dart/private:dart_aggregate_codegen.bzl", _dart_aggregate_codegen = "dart_aggregate_codegen")
 load("//dart/private:dart_analysis_options.bzl", _dart_analysis_options = "dart_analysis_options")
+load("//dart/private:dart_analysis_test.bzl", _dart_analysis_test = "dart_analysis_test")
 load("//dart/private:dart_analyze_aspect.bzl", _dart_analysis_config = "dart_analysis_config")
 load("//dart/private:dart_binary.bzl", _dart_binary = "dart_binary")
 load("//dart/private:dart_code_asset.bzl", _dart_code_asset = "dart_code_asset")
@@ -42,6 +44,7 @@ dart_binary = _dart_binary
 dart_test = _dart_test
 dart_analysis_options = _dart_analysis_options
 dart_analysis_config = _dart_analysis_config
+dart_analysis_test = _dart_analysis_test
 dart_fix = _dart_fix
 dart_format = _dart_format
 dart_js_binary = _dart_js_binary

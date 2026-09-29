@@ -477,6 +477,27 @@ bazel build //:fix --output_groups=+dart_fix_manifest  # what was fixed, and wha
 bazel build //:fix --output_groups=+dart_fix_fixes     # the fixed files themselves
 ```
 
+#### Checking targets `//...` does not reach
+
+The `.bazelrc` setup checks the targets a test run names, so it never reaches a
+target tagged `manual`, or a fixture that must not be built by a wildcard.
+`dart_analysis_test` applies the same aspect to the targets it lists:
+
+```starlark
+load("@rules_dart//dart:defs.bzl", "dart_analysis_test")
+
+dart_analysis_test(
+    name = "fixtures_analysis_test",
+    targets = [":manual_fixture"],
+)
+```
+
+Both checks run on each listed target, less what its `no-dart-analyze` or
+`no-dart-format` tag removes, under the same `analysis_config` flag, whatever
+output groups the command line asks for. A violation fails the build of the
+test. It is not the way to enable the checks — the `.bazelrc` setup is — only
+the way to reach what that setup cannot name.
+
 ### Web compilation
 
 `dart_js_binary` compiles a Dart entrypoint to JavaScript via `dart compile js`.

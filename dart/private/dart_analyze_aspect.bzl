@@ -42,6 +42,8 @@ package of its own takes the version of the in-repo package whose root contains
 its entrypoint, and one containing no such package is formatted at `latest`, as
 `dart format` would with nothing to go on.
 
+`dart_analysis_test` applies this aspect to targets a wildcard cannot reach.
+
 The same staged project also feeds a `dart fix` action whose products sit in
 the `dart_fix_fixes` and `dart_fix_manifest` output groups, built only when
 asked for. `dart_fix` applies the aspect to its `target` and writes those

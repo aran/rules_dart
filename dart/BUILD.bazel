@@ -66,6 +66,7 @@ bzl_library(
     deps = [
         "//dart/private:dart_aggregate_codegen",
         "//dart/private:dart_analysis_options",
+        "//dart/private:dart_analysis_test",
         "//dart/private:dart_analyze_aspect",
         "//dart/private:dart_binary",
         "//dart/private:dart_codegen",

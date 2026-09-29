@@ -279,6 +279,19 @@ jobs:
         run: |
           bazel test --output_groups=-dart_format //fmt || [ $? -eq 4 ]
           echo "OK: format check skipped when its output group is not requested"
+      # A `manual` target is out of `//...`'s reach; `dart_analysis_test` names
+      # it and must fail to build on its violation, whatever output groups the
+      # command line asks for.
+      - name: analysis_failure — expect dart_analysis_test to fail on a manual target's violation
+        working-directory: e2e/analysis_failure
+        run: |
+          flags="--output_groups=-dart_analyze,-dart_format"
+          if bazel test $flags //manual:manual_analysis_test 2>/dev/null; then
+            echo "ERROR: build should have failed with dead_code"
+            exit 1
+          fi
+          bazel test $flags //manual:manual_analysis_test 2>&1 | grep -q "manual/lib/manual_bad.dart:4:3 - Dead code"
+          echo "OK: dart_analysis_test checked the manual target"
       # A hung test is diagnosed from what it printed before Bazel killed it, so
       # that output has to be in test.log rather than held back by the launcher.
       - name: dart_test — expect a timed-out test's output in its log
