@@ -157,18 +157,7 @@ bzl_library(
     visibility = ["//dart:__subpackages__"],
     deps = [
         ":common",
-        ":project_staging",
-        ":source_set",
-    ],
-)
-
-bzl_library(
-    name = "dart_format_test",
-    srcs = ["dart_format_test.bzl"],
-    visibility = ["//dart:__subpackages__"],
-    deps = [
-        ":common",
-        ":project_staging",
+        ":dart_analyze_aspect",
         ":source_set",
     ],
 )

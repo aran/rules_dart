@@ -4,6 +4,7 @@ load(
     "analyzed_test",
     "aspect_applies_test",
     "config_refused_test",
+    "formatted_test",
 )
 
 # The `dart_analyze` aspect's green paths, under the root `//:analysis_config`,
@@ -50,6 +51,7 @@ aspect_applies_test(
     size = "small",
     expect_analyzed = False,
     expect_fixable = False,
+    expect_formatted = False,
     target_under_test = "//dart/tests/analyze_aspect_fixture/generated:generated_only",
 )
 
@@ -60,6 +62,7 @@ aspect_applies_test(
     size = "small",
     expect_analyzed = True,
     expect_fixable = True,
+    expect_formatted = True,
     target_under_test = "//dart/tests/analyze_aspect_fixture/flutter_shaped",
 )
 
@@ -74,7 +77,15 @@ aspect_applies_test(
     size = "small",
     expect_analyzed = False,
     expect_fixable = True,
+    expect_formatted = True,
     target_under_test = "//dart/tests/analyze_aspect_fixture/opted_out",
+)
+
+# ... and its format check still runs.
+formatted_test(
+    name = "tag_opt_out_formatted_test",
+    size = "small",
+    target = "//dart/tests/analyze_aspect_fixture/opted_out",
 )
 
 # Configurations that must be refused. `manual`: they fail to analyze.

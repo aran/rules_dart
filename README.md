@@ -316,16 +316,21 @@ This is not `pub.package()`, which fetches a published package from pub.dev;
 
 ### Static analysis and formatting
 
-`dart analyze` runs as an aspect, `dart_analyze`, over every Dart target a
-`bazel test` names. Enable it in `.bazelrc`, and list every
-`analysis_options.yaml` in the repository in one `dart_analysis_config`:
+`dart analyze` and the `dart format` check run as an aspect, `dart_analyze`,
+over every Dart target a `bazel test` names. Enable it in `.bazelrc`, and list
+every `analysis_options.yaml` in the repository in one `dart_analysis_config`:
 
 ```
 # .bazelrc
 test --aspects=@rules_dart//dart:analyze.bzl%dart_analyze
 test --output_groups=+dart_analyze
+test --output_groups=+dart_format
 common --@rules_dart//dart:analysis_config=//:analysis_config
 ```
+
+Each check is its own output group: keep the `dart_analyze` line for analysis,
+the `dart_format` line for the format check, or both. A check whose group is
+not requested does not run.
 
 ```starlark
 # BUILD.bazel
@@ -347,7 +352,13 @@ dart_analysis_config(
 ```
 
 Each file is judged by the nearest listed `analysis_options.yaml` above it, as
-in the IDE, so every listed file must have that name. `bazel test //...` then
+in the IDE, so every listed file must have that name. An options file may
+`include:` another listed one by relative path (`include:
+../analysis_options.yaml`). Any other yaml it includes comes from a package, by
+`package:` URI, with that package in the `dart_analysis_options`'s `deps`: only
+listed options files and those packages are staged, so a relative include of
+any other file fails both checks rather than reading a file no target
+declares. `bazel test //...` then
 analyzes every Dart target it matches, and any diagnostic, down to an info,
 fails the build. Only each target's own hand-written files are checked: its
 dependencies are resolved but not re-checked (each is checked as a target of
@@ -356,58 +367,40 @@ its own), generated files are never checked, and targets in other repositories
 Options files from other repositories are refused; to share a ruleset across
 modules, `include:` it from an options file of your own and put its package in
 that `dart_analysis_options`'s `deps`. Tag a target `no-dart-analyze` to skip
-it.
+its analysis, and `no-dart-format` to skip its format check; each tag leaves
+the other check in place.
 
 A `dart_binary`, `dart_test`, `dart_js_binary` or `dart_wasm_binary` has its
 entrypoint checked, which is how you lint a `main.dart`: it sits outside any
 package's `lib/`, so no `dart_library` will accept it, and it would otherwise be
 the one file in a project nothing checks.
 
-```starlark
-load("@rules_dart//dart:defs.bzl", "dart_format_test")
+The format check runs `dart format --set-exit-if-changed` over the same files,
+and fails the build if formatting would change any of them. Its settings are
+the `formatter:` section (`page_width`, `trailing_commas`) of the same nearest
+listed `analysis_options.yaml`, including what that file `include:`s, and a
+file under no listed options file gets stock defaults. Options files the
+config does not list are never read, whatever directory they sit in: the check
+runs against a staged copy of your sources, not the sources themselves, so the
+verdict cannot depend on files no target declares or on sandboxing settings.
+If an options file cannot be read — an `include:` that does not resolve — the
+check fails rather than quietly formatting at stock defaults, as `dart format`
+itself would.
 
-dart_format_test(
-    name = "format_test",
-    target = ":greeter",
-    options = "analysis_options.yaml",
-)
-```
-
-`dart_format_test`'s `target` takes a `dart_library` only, and formats the
-sources that library declares. An executable's `DefaultInfo` is the program it
-compiles rather than the code it was built from, so name an entrypoint in
-`srcs` instead.
-
-`dart_format_test` takes `options`, and computes its verdict while building
-rather than while testing — a violation fails `bazel build` of the target. Formatting
-is configured by the `formatter:` section of an `analysis_options.yaml`
-(`page_width`, `trailing_commas`), and `dart_format_test` honours it only when
-you name it: the file is not discovered from the surrounding directory, because
-the check runs against a staged copy of your sources rather than the sources
-themselves. That is deliberate. `dart format` finds its configuration by walking
-up from each file it is given, which under Bazel would mean reading files no
-target declared and reaching different answers under different sandboxing
-settings. Passing `options` is how you opt in; omitting it pins stock defaults.
-
-Use the `dart_analysis_options` target form when the file `include`s a shared
-ruleset by `package:` URI, so the packages it resolves against are staged with
-it. Sources from external repositories are rejected: a formatting violation in a
-module you do not own is a red build no edit in your repo can fix.
-
-Prefer `target` over `srcs` on `dart_format_test`, because the language version
-comes with the library — and the language version is what selects the
-formatting _style_: below `3.7`, `dart format` writes the old short style, and
-from `3.7` on the tall one. Nothing in a staged project can tell the formatter
-which applies, so a check that does not carry the version runs at the newest
-one the SDK knows, and a package declaring an older version gets told to adopt
-a style its own `dart format` will never produce — a red build with no edit
-that fixes it. For loose `srcs` that belong to no library, set
-`language_version` on the check itself. Setting it alongside `target` is an
-error: the library has already answered, and two answers can only disagree.
+The language version selects the formatting _style_: below `3.7`, `dart format`
+writes the old short style, and from `3.7` on the tall one. The check formats
+each target at its own package's `language_version` (set on the `dart_library`
+or its `dart_package_metadata`; Gazelle copies it from `pubspec.yaml`). An
+executable's entrypoint takes the version of the package whose directory
+contains it, as Dart does for `bin/` and `test/`. With no version stated, the
+check uses the newest the SDK knows, so a package on an older version must
+state it for the check to hold it to the style its own `dart format` produces.
 
 `dart_format` is the check's `bazel run` counterpart: it rewrites files in your
-workspace with the settings `options` resolves to. Give it the same `options`
-as `dart_format_test`. Running the SDK's formatter over the workspace directly
+workspace with the settings the check applies to them. It reads the same
+`analysis_config`, which is why that flag goes under `common`, and stages the
+options exactly as the check does, so each file gets its nearest listed
+options file. Running the SDK's formatter over the workspace directly
 (`bazel run @rules_dart//dart -- format`) cannot resolve an `include:` by
 `package:` URI, because there is no package config for it to use, and the SDK
 then ignores every key in the options file, not only the included ones.
@@ -415,10 +408,7 @@ then ignores every key in the options file, not only the included ones.
 ```starlark
 load("@rules_dart//dart:defs.bzl", "dart_format")
 
-dart_format(
-    name = "format",
-    options = ":analysis_options",
-)
+dart_format(name = "format")
 ```
 
 ```sh
@@ -426,7 +416,9 @@ bazel run //:format -- lib test  # files or directories, relative to where you r
 ```
 
 It formats at the newest language version the SDK knows unless you pass
-`--language-version=<major>.<minor>`.
+`--language-version=<major>.<minor>`. The check uses each target's own
+version, so pass it when formatting a package below `3.7`. Files outside the
+workspace are refused: no listed options could govern them.
 
 `dart_fix` applies the analyzer's automated fixes — the same quick-fixes an IDE
 offers, driven by the lints your options enable. It fixes its target's own
@@ -489,7 +481,7 @@ The [`e2e/`](e2e/) directory contains complete working examples:
 | [`hello_world`](e2e/hello_world/)                     | Minimal binary + all compile modes (`exe`, `aot-snapshot`, `kernel`, `jit-snapshot`) |
 | [`library_deps`](e2e/library_deps/)                   | Transitive `dart_library` dependencies, `srcs` attribute                             |
 | [`dart_test`](e2e/dart_test/)                         | Tests with and without deps, `srcs` for test helpers                                 |
-| [`analysis`](e2e/analysis/)                           | The `dart_analyze` aspect and `dart_format_test` with `package:`-included options    |
+| [`analysis`](e2e/analysis/)                           | The `dart_analyze` aspect's checks with `package:`-included options                  |
 | [`fix`](e2e/fix/)                                     | `dart_fix` write-back, and that generated files are never rewritten                  |
 | [`analyze_composition`](e2e/analyze_composition/)     | A lint ruleset shared from another Bazel module                                      |
 | [`web_app`](e2e/web_app/)                             | JavaScript and WebAssembly compilation with library deps                             |

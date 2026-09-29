@@ -1,0 +1,17 @@
+load("@rules_dart//dart:defs.bzl", "dart_analysis_options", "dart_library")
+
+# The same source and the same width, reached through an `include:` by
+# `package:` URI instead. Pins the whole chain: the options target's `deps`
+# become package_config entries in the staged project, which is what lets the
+# formatter resolve the URI and apply the width it finds.
+dart_analysis_options(
+    name = "options",
+    src = "analysis_options.yaml",
+    visibility = ["//:__pkg__"],
+    deps = ["//fmt_ruleset"],
+)
+
+dart_library(
+    name = "pkg_wide",
+    srcs = ["lib/wide.dart"],
+)

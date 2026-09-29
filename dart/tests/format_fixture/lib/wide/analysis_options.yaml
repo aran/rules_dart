@@ -1,0 +1,3 @@
+# Reaches its page width through an `include:` by `package:` URI, which only
+# resolves when the options target's `deps` are staged with it.
+include: package:format_fixture_rules/opts.yaml

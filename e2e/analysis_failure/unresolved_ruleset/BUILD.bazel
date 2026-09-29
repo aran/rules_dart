@@ -8,6 +8,9 @@ load("@rules_dart//dart:defs.bzl", "dart_analysis_options", "dart_library")
 dart_library(
     name = "clean_lib",
     srcs = ["lib/clean.dart"],
+    # The same include breaks the format check, which `//fmt_unresolved`
+    # covers; skipping it here leaves analysis the only thing that can fail.
+    tags = ["no-dart-format"],
 )
 
 dart_analysis_options(

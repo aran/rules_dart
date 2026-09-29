@@ -1,0 +1,3 @@
+# The page width the stock default disagrees with.
+formatter:
+  page_width: 100

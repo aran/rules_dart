@@ -157,7 +157,7 @@ the only alternative — adding the ruleset to the analyzed library's own `deps`
 into every binary and test downstream of it.
 
 Produced by `dart_analysis_options` and consumed by `dart_analysis_config` \
-(for the `dart_analyze` aspect) and by `dart_format_test`'s `options`, which stage these packages for options resolution alone: \
+(for the `dart_analyze` aspect and `dart_format`), which stages these packages for options resolution alone: \
 they are resolvable from the project, never themselves analyzed, and never \
 merged into the analyzed target's provider.""",
     fields = {

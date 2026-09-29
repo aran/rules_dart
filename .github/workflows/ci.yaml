@@ -58,12 +58,13 @@ jobs:
   # outright. Which of those happened decided the verdict, so the same code
   # passed or failed depending on the flags.
   #
-  # Staging the project bounds the walk, and `e2e/analysis`'s root
-  # analysis_options.yaml carries a deliberately absurd `page_width: 20` canary
-  # so this job can prove it. Every dart_format_test there uses stock 80 or its
-  # own `options`, so if the walk ever escapes again it reaches the canary and
-  # these cells disagree. All four must agree; before the fix, the two local
-  # cells failed.
+  # The `dart_analyze` aspect's staged project bounds the walk, and
+  # `e2e/analysis_failure`'s root analysis_options.yaml — deliberately left out
+  # of its `analysis_config` — carries an absurd `page_width: 20` canary so this
+  # job can prove it: `//:clean_lib` there is formatted at the stock 80, so if
+  # the walk ever escapes it reaches the canary and turns red. `e2e/analysis`
+  # runs its whole suite beside it, so its configured widths, `package:`
+  # includes and language versions must agree across all four cells too.
   format-hermeticity:
     runs-on: ubuntu-latest
     strategy:
@@ -82,13 +83,12 @@ jobs:
       - uses: actions/checkout@v7
       - name: analysis — ${{ matrix.name }}
         working-directory: e2e/analysis
-        # The library's analysis is built first on purpose: it is what
-        # materialises the canary's execroot symlink, and within a single
-        # invocation the ordering against the format actions is up to the
-        # scheduler. Without it a regression could pass by luck.
-        run: |
-          bazel build ${{ matrix.flags }} --aspects=@rules_dart//dart:analyze.bzl%dart_analyze --output_groups=+dart_analyze //:good_lib
-          bazel test ${{ matrix.flags }} --test_output=errors //...
+        # Exit code 4: the workspace has no test targets, only the aspect's
+        # checks, which `bazel test` builds.
+        run: bazel test ${{ matrix.flags }} --test_output=errors //... || [ $? -eq 4 ]
+      - name: analysis_failure canary — ${{ matrix.name }}
+        working-directory: e2e/analysis_failure
+        run: bazel test ${{ matrix.flags }} //:clean_lib || [ $? -eq 4 ]
   # Workspaces that are expected to fail at module resolution.
   # Validates that rules_dart produces the correct error messages.
   expected-failure:
@@ -222,39 +222,63 @@ jobs:
           fi
           bazel build //:cross_repo_config 2>&1 | grep -q "is in another repository"
           echo "OK: cross-repository options refused"
-      # The format check's red paths. The first is the obvious one; the other
-      # two exist because `dart format` treats an unresolvable `include:` as a
-      # warning, exits 0, and silently formats at stock defaults — so a broken
-      # options file and a correctly formatted codebase look identical unless
-      # the runner escalates. These also pin the SDK's warning text, which that
-      # escalation matches on.
+      # The format check's red paths, under the aspect's `dart_format` output
+      # group. The first is the obvious one; the other two exist because
+      # `dart format` treats an unresolvable `include:` as a warning, exits 0,
+      # and silently formats at stock defaults — so a broken options file and a
+      # correctly formatted codebase look identical unless the runner
+      # escalates. These also pin the SDK's warning text, which that escalation
+      # matches on. Each target is tagged `no-dart-analyze`, so the format check
+      # is the only thing that can fail it.
       - name: analysis_failure — expect a formatting violation to fail
         working-directory: e2e/analysis_failure
         run: |
-          if bazel build //:format_bad 2>/dev/null; then
+          if bazel test //fmt 2>/dev/null; then
             echo "ERROR: build should have failed with a formatting violation"
             exit 1
           fi
-          bazel build //:format_bad 2>&1 | grep -q "Changed fmt/misformatted.dart"
+          bazel test //fmt 2>&1 | grep -q "Changed fmt/lib/misformatted.dart"
           echo "OK: expected formatting failure detected, at the workspace path"
       - name: analysis_failure — expect an unresolvable format ruleset to fail
         working-directory: e2e/analysis_failure
         run: |
-          if bazel build //:format_unresolved_ruleset 2>/dev/null; then
+          if bazel test //fmt_unresolved 2>/dev/null; then
             echo "ERROR: build should have failed with an unresolved include"
             exit 1
           fi
-          bazel build //:format_unresolved_ruleset 2>&1 | grep -q "Failed to resolve package URI"
+          bazel test //fmt_unresolved 2>&1 | grep -q "Failed to resolve package URI"
           echo "OK: silently-degraded format options rejected"
-      - name: analysis_failure — expect a missing format include to fail
+      # A relative `include:` of a yaml no target declares. The file exists in
+      # the workspace, so a check that read outside its staged project — as an
+      # unsandboxed action could — would go green or fail differently. Both
+      # checks must fail on the unreadable include, naming it at its workspace
+      # path, under the sandbox and without one alike.
+      - name: analysis_failure — expect an undeclared relative include to fail both checks
         working-directory: e2e/analysis_failure
         run: |
-          if bazel build //:format_missing_include 2>/dev/null; then
-            echo "ERROR: build should have failed with an unreadable include"
-            exit 1
-          fi
-          bazel build //:format_missing_include 2>&1 | grep -q "Couldn't read file"
-          echo "OK: unreadable format include rejected"
+          for strategy in "" "--spawn_strategy=standalone"; do
+            for group in dart_analyze dart_format; do
+              flags="$strategy --output_groups=-dart_analyze,-dart_format,+$group"
+              if bazel test $flags //undeclared_include 2>/dev/null; then
+                echo "ERROR: $group [$strategy] should have failed on the undeclared include"
+                exit 1
+              fi
+              out=$(bazel test $flags //undeclared_include 2>&1 || true)
+              case $group in
+                dart_analyze) echo "$out" | grep -q "The URI 'shared.yaml' included in 'undeclared_include/analysis_options.yaml' can't be found" ;;
+                dart_format) echo "$out" | grep -q "Couldn't read file \"undeclared_include/shared.yaml\"" ;;
+              esac
+            done
+          done
+          echo "OK: undeclared include refused by both checks, under every strategy"
+      # The format check runs only when its output group is asked for: with
+      # `dart_format` removed from the groups `.bazelrc` requests, the
+      # misformatted target builds green.
+      - name: analysis_failure — expect the format check to run only when requested
+        working-directory: e2e/analysis_failure
+        run: |
+          bazel test --output_groups=-dart_format //fmt || [ $? -eq 4 ]
+          echo "OK: format check skipped when its output group is not requested"
       # A hung test is diagnosed from what it printed before Bazel killed it, so
       # that output has to be in test.log rather than held back by the launcher.
       - name: dart_test — expect a timed-out test's output in its log

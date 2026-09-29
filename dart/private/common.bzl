@@ -1,6 +1,6 @@
 """Shared utilities for Dart rules."""
 
-load("//dart:providers.bzl", "CODE_ASSET_LINK_MODES", "DartAnalysisOptionsInfo", "DartInfo", "DartPackageMetadataInfo")
+load("//dart:providers.bzl", "CODE_ASSET_LINK_MODES", "DartInfo", "DartPackageMetadataInfo")
 load("//dart/private:dart_info.bzl", "derived_package_info", "package_lib_prefix")
 load("//dart/private:source_set.bzl", "needs_source_assembly", "package_for")
 
@@ -241,9 +241,8 @@ def resolve_package_identity(ctx):
     Agreement today is not agreement after the next edit, and a silently ignored
     attribute is the failure this whole mechanism exists to remove.
 
-    Tolerant about which attributes the calling rule actually declares:
-    `dart_format_test` has a `language_version` and no `package_name`, and a
-    rule that grows one later needs no change here.
+    Tolerant about which attributes the calling rule actually declares: a rule
+    with a `language_version` and no `package_name` needs no change here.
 
     Args:
       ctx: The rule context. Must declare `package`; may declare
@@ -490,43 +489,13 @@ def merge_package_records(merged):
             )
     return packages
 
-def analysis_options_closure(options_attr):
-    """Normalizes an `options` attribute to the closure its `include:`s need.
-
-    `dart_format_test` and `dart_format` accept the same three shapes: unset,
-    a bare `.yaml` label, and a `dart_analysis_options` target. Only the third
-    carries packages, because only a `package:` URI needs resolving; this is
-    the single place that distinction is made, so the rules cannot drift into
-    staging different closures for the same options file.
-
-    The packages are for resolution alone. Callers merge them into the list
-    that builds `package_config.json` and stage the files, but they never enter
-    the analyzed target's own `DartInfo` — see `dart_analysis_options`.
-
-    Args:
-      options_attr: The rule's `ctx.attr.options` (may be `None`).
-
-    Returns:
-      `struct(packages, files)` — `DartPackageInfo` records the includes may
-      reference, and the files of those packages to stage. Both empty unless
-      the attribute is a `dart_analysis_options` target.
-    """
-    if not options_attr or DartAnalysisOptionsInfo not in options_attr:
-        return struct(packages = [], files = [])
-    opts = options_attr[DartAnalysisOptionsInfo]
-    return struct(
-        packages = opts.packages,
-        files = (
-            opts.transitive_srcs.to_list() + opts.transitive_resources.to_list()
-        ),
-    )
-
 def noop_test_executable(ctx, tool):
     """Symlinks the do-nothing binary as a test rule's executable.
 
-    `dart_format_test` decides its verdict in a build action: when the action
-    fails the build fails, and nothing is left for the test binary to check.
-    It must still *be* a test, so it hands Bazel a pass-through executable.
+    A test whose verdict is decided in a build action — the `dart_analyze`
+    aspect's, in this repository's own tests — has nothing left for the test
+    binary to check. It must still *be* a test, so it hands Bazel a
+    pass-through executable.
 
     Args:
       ctx: The rule context (must carry `WINDOWS_CONSTRAINT_ATTR`).

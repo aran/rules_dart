@@ -2,20 +2,22 @@ load(
     "@rules_dart//dart:defs.bzl",
     "dart_analysis_config",
     "dart_binary",
-    "dart_format_test",
     "dart_library",
 )
 
-# Every target in this workspace is expected to FAIL to build under
-# `bazel test`, which applies the `dart_analyze` aspect (see `.bazelrc`). The
-# expected-failure CI job builds each one and greps for its diagnostic, so each
-# target fails with a diagnostic no other target shares.
+# Every target in this workspace but `clean_lib` is expected to FAIL to build
+# under `bazel test`, which applies the `dart_analyze` aspect's analysis and
+# format check (see `.bazelrc`). The expected-failure CI job builds each one and
+# greps for its diagnostic, so each target fails with a diagnostic no other
+# target shares.
 
 dart_analysis_config(
     name = "analysis_config",
     options = [
+        "//fmt_unresolved:options",
         "//nested:loud_options",
         "//nested:options",
+        "//undeclared_include:options",
         "//unresolved_ruleset:options",
         "//vga:options",
     ],
@@ -40,26 +42,18 @@ dart_binary(
     main = "bad_main.dart",
 )
 
-# The format check's three red paths. A formatting violation must fail the
-# build, and — the reason the other two exist — a *broken options file* must
-# fail it too. `dart format` treats an unresolvable `include:` as a warning,
-# exits 0, and silently formats at stock defaults, so without the runner's
-# escalation a misconfigured ruleset and a correctly formatted codebase would
-# look identical. That is the same silent-wrong-verdict the rule was rewritten
-# to eliminate, so it gets the same red-path proof the analyzer's include has.
-dart_format_test(
-    name = "format_bad",
-    srcs = ["fmt/misformatted.dart"],
-)
+# The format check's three red paths are `//fmt`, `//fmt_unresolved` and
+# `//undeclared_include`. A formatting violation must fail the build, and —
+# the reason the other two exist — a *broken options file* must fail it too.
+# `dart format` treats an unresolvable `include:` as a warning, exits 0, and
+# silently formats at stock defaults, so without the runner's escalation a
+# misconfigured ruleset and a correctly formatted codebase would look identical.
 
-dart_format_test(
-    name = "format_unresolved_ruleset",
+# The one green target: formatted at the stock 80 columns, which is right only
+# while the options walk stays inside the staged project — see the unlisted
+# canary `analysis_options.yaml` beside this file. CI builds it under every
+# spawn strategy and runfiles mode.
+dart_library(
+    name = "clean_lib",
     srcs = ["lib/clean.dart"],
-    options = "unresolved_format_options.yaml",
-)
-
-dart_format_test(
-    name = "format_missing_include",
-    srcs = ["lib/clean.dart"],
-    options = "missing_include_options.yaml",
 )

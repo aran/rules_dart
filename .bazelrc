@@ -23,11 +23,13 @@ common --config=ruleset
 # also affects the contents of the lock file.
 common --lockfile_mode=error
 
-# Analyze every Dart target a test run names, under //:analysis_config — the
-# setup README.md asks of users. The options flag is under `common` so that
-# `bazel run` of a `dart_fix` sees the same options.
+# Analyze and format-check every Dart target a test run names, under
+# //:analysis_config — the setup README.md asks of users. The options flag is
+# under `common` so that `bazel run` of a `dart_fix` or `dart_format` sees the
+# same options.
 test --aspects=//dart:analyze.bzl%dart_analyze
 test --output_groups=+dart_analyze
+test --output_groups=+dart_format
 common --//dart:analysis_config=//:analysis_config
 
 # Load any settings specific to the current user.

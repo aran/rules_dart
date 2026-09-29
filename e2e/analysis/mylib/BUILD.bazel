@@ -1,4 +1,4 @@
-load("@rules_dart//dart:defs.bzl", "dart_format_test", "dart_library")
+load("@rules_dart//dart:defs.bzl", "dart_library")
 
 # Analyzed by the `dart_analyze` aspect under the root package's options: the
 # ruleset those carry resolves for every package below them, not only the one
@@ -7,10 +7,4 @@ dart_library(
     name = "mylib",
     srcs = glob(["lib/**/*.dart"]),
     visibility = ["//visibility:public"],
-)
-
-dart_format_test(
-    name = "format_test",
-    size = "small",
-    srcs = glob(["lib/**/*.dart"]),
 )

@@ -1,0 +1,11 @@
+# A canary, not a preference, and deliberately NOT listed in
+# `//:analysis_config`. `dart format` and `dart analyze` find their options by
+# an unbounded walk up from each file, so a page width this extreme is what
+# proves the staged project bounds that walk: `//:clean_lib` is formatted at
+# the stock 80, which is what it must get with no listed options above it. If
+# the walk ever escapes the staged project, it reaches this file in the
+# execroot and the format check of `//:clean_lib` turns red. Running
+# `dart format` by hand in this workspace produces 20-column output — that is
+# the cost of the pin.
+formatter:
+  page_width: 20

@@ -5,16 +5,29 @@ dart_library(
     resources = ["lib/opts.yaml"],
 )
 
+# Listed in the root `//:analysis_config`, which is what `:format` reads. It
+# governs `ws/`, a directory with no targets of its own: the test below builds
+# a scratch workspace with files at those paths.
 dart_analysis_options(
     name = "options",
-    src = "options.yaml",
+    src = "ws/analysis_options.yaml",
+    visibility = ["//:__pkg__"],
     deps = [":format_run_ruleset"],
 )
 
-dart_format(
-    name = "format",
-    options = ":options",
+dart_analysis_options(
+    name = "sub_options",
+    src = "ws/sub/analysis_options.yaml",
+    visibility = ["//:__pkg__"],
 )
+
+dart_analysis_options(
+    name = "undeclared_options",
+    src = "ws/undeclared/analysis_options.yaml",
+    visibility = ["//:__pkg__"],
+)
+
+dart_format(name = "format")
 
 filegroup(
     name = "format_config",
@@ -22,8 +35,9 @@ filegroup(
     output_group = "dart_format_config",
 )
 
-# Runs `:format` over a scratch workspace and checks that both the included
-# page width and the file's own `trailing_commas` reached the formatter.
+# Runs `:format` over a scratch workspace and checks that each file got its
+# nearest listed options: the included page width and the file's own
+# `trailing_commas` under `ws/`, the stock defaults elsewhere.
 dart_test(
     name = "format_run_test",
     size = "small",

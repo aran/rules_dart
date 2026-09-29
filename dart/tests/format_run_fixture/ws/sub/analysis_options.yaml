@@ -1,0 +1,2 @@
+# Extends the listed parent by relative path, as nested monorepo options do.
+include: ../analysis_options.yaml

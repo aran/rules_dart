@@ -1,0 +1,10 @@
+load("//dart/tests/no_lv_fixture:no_lv_rules.bzl", "no_lv_dart_library")
+
+# A record with only `package_name` and `lib_root`, as an older producer builds
+# it, over a hand-written file: the aspect checks it and must not assume the
+# optional `language_version` is present.
+no_lv_dart_library(
+    name = "src_lib",
+    package_name = "no_lv_src_lib",
+    srcs = ["lib/answer.dart"],
+)

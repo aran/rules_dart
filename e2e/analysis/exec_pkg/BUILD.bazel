@@ -1,4 +1,3 @@
-load("@rules_dart//dart:defs.bzl", "dart_format_test")
 load(":rules.bzl", "pkg_executable")
 
 # An executable that also contributes a package, declared by a rule outside
@@ -14,10 +13,4 @@ pkg_executable(
     srcs = ["main.dart"],
     package_srcs = glob(["lib/**/*.dart"]),
     deps = ["//mylib"],
-)
-
-dart_format_test(
-    name = "format_test",
-    size = "small",
-    srcs = glob(["**/*.dart"]),
 )

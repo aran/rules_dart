@@ -1,7 +1,7 @@
 """Implementation of the dart_format rule.
 
-The `bazel run` counterpart of `dart_format_test`: it rewrites the files it is
-given with the same formatter settings the check applies.
+The `bazel run` counterpart of the `dart_analyze` aspect's format check: it
+rewrites the files it is given with the settings the check applies to them.
 
 `dart format` finds its settings in the `formatter:` section of the nearest
 `analysis_options.yaml`, and resolves any `include: package:` URI in that file
@@ -12,36 +12,47 @@ file, the ones stated beside the include as well, and rewraps the code at stock
 defaults. The check never sees this, because it formats a staged project whose
 package config carries the ruleset.
 
-So this rule stages that same project — the options file at its root, and the
-packages a `dart_analysis_options` target carries — and puts it in runfiles.
-The runner copies the named files into a scratch project built from it, formats
-them there, and writes back the ones that changed. The formatter therefore
-reads exactly the options the check reads, and never the workspace's own.
+So this rule stages the options the same way, with the same code
+(`stage_config_project`): every options file `@rules_dart//dart:analysis_config`
+lists, at its workspace path, the packages their `include:`s resolve against,
+and the root options file that ends the formatter's walk up. The runner copies
+that, and each named file at its workspace path, into a scratch project,
+formats there, and writes back the files that changed. Each file therefore
+meets the nearest listed options file above it, exactly as in the check, and
+never an options file the config does not list.
 """
 
-load("//dart/private:common.bzl", "WINDOWS_CONSTRAINT_ATTR", "analysis_options_closure", "runfiles_path")
-load("//dart/private:project_staging.bzl", "stage_dart_project", "stage_root_options")
+load("//dart/private:common.bzl", "WINDOWS_CONSTRAINT_ATTR", "runfiles_path")
+load("//dart/private:dart_analyze_aspect.bzl", "DartAnalysisConfigInfo", "stage_config_project")
 load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS")
 
 def _dart_format_impl(ctx):
     toolchain = ctx.toolchains["//dart:toolchain_type"]
     dart_sdk_info = toolchain.dart_sdk_info
-
-    # The same closure and the same staging as `dart_format_test`, so a run and
-    # a check over the same `options` cannot resolve different settings.
-    opts = analysis_options_closure(ctx.attr.options)
-    staged = stage_dart_project(ctx, opts.packages, opts.files)
-    options_file = stage_root_options(ctx, ctx.file.options)
+    config = ctx.attr._config[DartAnalysisConfigInfo]
+    staged = stage_config_project(ctx, config, [], [], [], ctx.label.name)
 
     # Runfiles locations rather than paths, so the runner finds them through the
-    # manifest on Windows, where there is no runfiles tree to walk.
-    config = ctx.actions.declare_file(ctx.label.name + ".format_config.json")
+    # manifest on Windows, where there is no runfiles tree to walk. The options
+    # files are read from their sources rather than from the staged tree, whose
+    # members a manifest does not list.
+    run_config = ctx.actions.declare_file(ctx.label.name + ".format_config.json")
     ctx.actions.write(
-        output = config,
+        output = run_config,
         content = json.encode({
             "dart": runfiles_path(dart_sdk_info.dart, ctx.workspace_name),
-            "options": runfiles_path(options_file, ctx.workspace_name),
+            "root_options": runfiles_path(
+                staged.proj_files["analysis_options.yaml"],
+                ctx.workspace_name,
+            ),
             "package_config": runfiles_path(staged.package_config, ctx.workspace_name),
+            "options": [
+                {
+                    "file": runfiles_path(f, ctx.workspace_name),
+                    "workspace_path": f.short_path,
+                }
+                for f in config.options_files
+            ],
         }),
     )
 
@@ -58,12 +69,12 @@ def _dart_format_impl(ctx):
     )
 
     runfiles = ctx.runfiles(
-        files = list(staged.inputs) + [options_file, config, dart_sdk_info.dart],
+        files = list(staged.inputs) + config.options_files + [run_config, dart_sdk_info.dart],
         transitive_files = dart_sdk_info.tool_files,
     )
     runfiles = runfiles.merge(ctx.attr._format_writer[DefaultInfo].default_runfiles)
 
-    config_key = runfiles_path(config, ctx.workspace_name)
+    config_key = runfiles_path(run_config, ctx.workspace_name)
     return [
         DefaultInfo(executable = executable, runfiles = runfiles),
         # `bazel run //:format -- lib` forwards only the user's arguments, so the
@@ -72,23 +83,15 @@ def _dart_format_impl(ctx):
         RunEnvironmentInfo(environment = {"DART_FORMAT_CONFIG": config_key}),
         # The same file by label, for a caller that runs the binary as `data`
         # and so does not get the environment above.
-        OutputGroupInfo(dart_format_config = depset([config])),
+        OutputGroupInfo(dart_format_config = depset([run_config])),
     ]
 
 dart_format = rule(
     implementation = _dart_format_impl,
     attrs = dict({
-        "options": attr.label(
-            doc = (
-                "A `dart_analysis_options` target, or a bare " +
-                "`analysis_options.yaml`, whose `formatter:` section " +
-                "(`page_width`, `trailing_commas`) governs the run. Give it " +
-                "the same target as the matching `dart_format_test`. Use the " +
-                "target form when the file `include`s a ruleset by " +
-                "`package:` URI. If omitted, stock `dart format` defaults " +
-                "apply, whatever options file sits above the sources."
-            ),
-            allow_single_file = [".yaml"],
+        "_config": attr.label(
+            default = "//dart:analysis_config",
+            providers = [DartAnalysisConfigInfo],
         ),
         "_format_writer": attr.label(
             default = "//dart/private/tools:format_writer",
@@ -99,10 +102,14 @@ dart_format = rule(
     executable = True,
     toolchains = ["//dart:toolchain_type"] + COPY_TO_DIRECTORY_TOOLCHAINS,
     doc = (
-        "Formats Dart files in the workspace under `bazel run`, with the " +
-        "settings from `options` — the same ones `dart_format_test` checks " +
-        "against. Arguments are the files and directories to format, " +
-        "relative to the directory `bazel run` was invoked from, plus " +
-        "optionally `--language-version=<major>.<minor>` (default `latest`)."
+        "Formats Dart files in the workspace under `bazel run`, each with " +
+        "the settings of the nearest `analysis_options.yaml` that " +
+        "`@rules_dart//dart:analysis_config` lists — the ones the " +
+        "`dart_analyze` aspect's format check applies. Arguments are the " +
+        "files and directories to format, relative to the directory " +
+        "`bazel run` was invoked from, plus optionally " +
+        "`--language-version=<major>.<minor>` (default `latest`). The check " +
+        "formats each target at its own package's language version, so pass " +
+        "it for a package below 3.7, whose style differs."
     ),
 )

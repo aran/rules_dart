@@ -1,0 +1,14 @@
+load("@rules_dart//dart:defs.bzl", "dart_analysis_options", "dart_library")
+
+# Expected red in both checks, with the same message under every spawn
+# strategy: the options `include:` a yaml no target declares.
+dart_library(
+    name = "undeclared_include",
+    srcs = ["lib/clean.dart"],
+)
+
+dart_analysis_options(
+    name = "options",
+    src = "analysis_options.yaml",
+    visibility = ["//:__pkg__"],
+)

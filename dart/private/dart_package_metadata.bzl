@@ -22,8 +22,8 @@ dart_package_metadata = rule(
     provides = [DartPackageMetadataInfo],
     doc = """Declares a Dart package's name and language version once, for every rule that builds part of it.
 
-Point `dart_library`, `dart_codegen`, `dart_aggregate_codegen`, `dart_sqlcodegen`
-and `dart_format_test` at it with `package = ":<name>"` instead of repeating
+Point `dart_library`, `dart_codegen`, `dart_aggregate_codegen` and
+`dart_sqlcodegen` at it with `package = ":<name>"` instead of repeating
 `package_name` and `language_version` on each:
 
 ```starlark

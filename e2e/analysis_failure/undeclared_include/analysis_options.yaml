@@ -1,0 +1,6 @@
+# A relative include of a file no target declares. `shared.yaml` exists beside
+# this file in the workspace, but only listed options files (and the packages
+# their `dart_analysis_options` depend on) are staged, so neither check can
+# read it — under any spawn strategy. Both must say so rather than quietly
+# falling back to defaults, or reading a file that no action declared.
+include: shared.yaml

@@ -1,14 +1,11 @@
-load("@rules_dart//dart:defs.bzl", "dart_format_test", "dart_library")
+load("@rules_dart//dart:defs.bzl", "dart_library")
 
-# The language version selects the formatting style, and nothing in a staged
-# project tells the formatter what it is: the rule stages no package_config
-# entry for the files it formats, so an inferred version is always the SDK's
-# newest. This package declares 3.6, whose short style is not what any later
-# version produces, so `short.dart` is formatted correctly here and a violation
-# at the default. A green `format_short_style` means the version reached the
-# formatter from the library; before `dart_format_test` grew `target`, this
-# same file failed with no edit available that could fix it — `dart format` on
-# the developer's machine writes exactly what is checked in.
+# The language version selects the formatting style, and the format check takes
+# it from the target's own package. This package declares 3.6, whose short
+# style is not what any later version produces, so `short.dart` is formatted
+# correctly here and a violation at the default. A green format check means the
+# version reached the formatter from the library — `dart format` on the
+# developer's machine writes exactly what is checked in.
 dart_library(
     name = "shortstyle",
     srcs = ["lib/short.dart"],
@@ -16,10 +13,4 @@ dart_library(
     # Laid out in the 3.6 short style for the format check, which the root
     # ruleset's trailing-comma lint rejects.
     tags = ["no-dart-analyze"],
-)
-
-dart_format_test(
-    name = "format_short_style",
-    size = "small",
-    target = ":shortstyle",
 )

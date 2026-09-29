@@ -1,0 +1,3 @@
+# Nearest to `sub.dart`, and adds nothing of its own: everything comes from
+# the listed parent it includes by relative path.
+include: ../../analysis_options.yaml

@@ -1,0 +1,19 @@
+load("//dart:defs.bzl", "dart_binary", "dart_library")
+
+# Declares 3.6, whose short style no later version produces, so `short.dart`
+# is formatted correctly only if that version reaches the formatter.
+dart_library(
+    name = "short",
+    srcs = ["lib/short.dart"],
+    language_version = "3.6",
+    visibility = ["//dart/tests/format_fixture:__pkg__"],
+)
+
+# An executable states no package of its own, so its entrypoint takes the
+# version of the package whose root contains it, as Dart does: 3.6 here.
+dart_binary(
+    name = "short_main",
+    main = "bin/short_main.dart",
+    visibility = ["//dart/tests/format_fixture:__pkg__"],
+    deps = [":short"],
+)

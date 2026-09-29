@@ -1,0 +1,15 @@
+load("@rules_dart//dart:defs.bzl", "dart_analysis_options", "dart_library")
+
+# A page width the stock default disagrees with, stated directly. `wide.dart`
+# is formatted for it, so a green format check means this file's `formatter:`
+# section reached the check, and not the root options above it.
+dart_analysis_options(
+    name = "options",
+    src = "analysis_options.yaml",
+    visibility = ["//:__pkg__"],
+)
+
+dart_library(
+    name = "wide",
+    srcs = ["lib/wide.dart"],
+)

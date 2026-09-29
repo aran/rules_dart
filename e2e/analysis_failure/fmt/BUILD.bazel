@@ -1,0 +1,10 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+# Expected red under the format check: a formatting violation must fail the
+# build, named at its workspace path. Analysis is opted out so the format
+# check is the only thing that can fail.
+dart_library(
+    name = "fmt",
+    srcs = ["lib/misformatted.dart"],
+    tags = ["no-dart-analyze"],
+)

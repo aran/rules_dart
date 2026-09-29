@@ -1,0 +1,15 @@
+load("@rules_dart//dart:defs.bzl", "dart_analysis_options", "dart_library")
+
+# Expected red under the format check alone (analysis is opted out, since the
+# same options break it too): see the options file for how they are broken.
+dart_library(
+    name = "fmt_unresolved",
+    srcs = ["lib/clean.dart"],
+    tags = ["no-dart-analyze"],
+)
+
+dart_analysis_options(
+    name = "options",
+    src = "analysis_options.yaml",
+    visibility = ["//:__pkg__"],
+)

@@ -1,0 +1,19 @@
+load("//dart:defs.bzl", "dart_analysis_options", "dart_library")
+
+dart_analysis_options(
+    name = "options",
+    src = "analysis_options.yaml",
+    visibility = ["//:__pkg__"],
+)
+
+dart_analysis_options(
+    name = "sub_options",
+    src = "lib/sub/analysis_options.yaml",
+    visibility = ["//:__pkg__"],
+)
+
+dart_library(
+    name = "rel_include",
+    srcs = ["lib/sub/sub.dart"],
+    visibility = ["//dart/tests/format_fixture:__pkg__"],
+)

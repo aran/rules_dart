@@ -31,8 +31,7 @@ load("//dart/private:common.bzl", "collect_packages", "collect_transitive_resour
 def _dart_analysis_options_impl(ctx):
     return [
         # A single file, so this target is still usable anywhere a plain
-        # `analysis_options.yaml` label was: `allow_single_file` is satisfied
-        # and `dart_format_test`'s file-only path keeps working.
+        # `analysis_options.yaml` label was: `allow_single_file` is satisfied.
         DefaultInfo(files = depset([ctx.file.src])),
         DartAnalysisOptionsInfo(
             file = ctx.file.src,
@@ -63,7 +62,6 @@ dart_analysis_options = rule(
     doc = (
         "An `analysis_options.yaml` bundled with the packages its `include:` " +
         "directives resolve against. List it in a `dart_analysis_config` " +
-        "for the `dart_analyze` aspect, or pass it as `dart_format_test`'s " +
-        "or `dart_format`'s `options`."
+        "for the `dart_analyze` aspect and `dart_format`."
     ),
 )

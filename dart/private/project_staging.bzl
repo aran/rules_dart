@@ -199,45 +199,6 @@ def staged_pubspec_paths(packages):
         for lib_root, _ in main_package_roots(packages)
     ]
 
-_ROOT_OPTIONS_STUB = "# rules_dart: bounds analysis_options.yaml discovery\n"
-
-def stage_root_options(ctx, options_file, name = None):
-    """Declares `<name>.proj/analysis_options.yaml` — always, even when unset.
-
-    `dart analyze` and `dart format` both discover analysis options by an
-    unbounded lexical walk up from the path they are handed, and neither stops
-    at the project root. Under a non-sandboxed strategy the staged project sits
-    inside the execroot, whose top level mirrors the workspace — so a project
-    root with no options file of its own lets the tool climb out and adopt
-    whatever `analysis_options.yaml` the workspace happens to have. The verdict
-    then depends on the spawn strategy and on a file no action declared.
-
-    The *nearest* options file is what ends the walk, so one is staged
-    unconditionally: the user's when they named it, and a comment-only stub
-    otherwise. An empty options file is equivalent to no file at all when
-    nothing above interferes (measured on Dart 3.12.2), so the stub changes no
-    verdict — it removes only the ancestor read.
-
-    The `dart_analyze` aspect is not a caller: it writes a root options file
-    of its own in every case, to carry its exclusions.
-
-    Args:
-      ctx: The rule context.
-      options_file: The user's `analysis_options.yaml` File, or `None`.
-      name: Prefix for the staged paths; defaults to the target's name.
-
-    Returns:
-      The staged File, for the consuming action's inputs.
-    """
-    staged = ctx.actions.declare_file(
-        (name or ctx.label.name) + ".proj/analysis_options.yaml",
-    )
-    if options_file:
-        ctx.actions.symlink(output = staged, target_file = options_file)
-    else:
-        ctx.actions.write(output = staged, content = _ROOT_OPTIONS_STUB)
-    return staged
-
 def stage_dart_project(ctx, packages, all_srcs, extra_proj_files = {}, name = None):
     """Stages packages and sources into a hermetic Dart project layout.
 
@@ -257,6 +218,7 @@ def stage_dart_project(ctx, packages, all_srcs, extra_proj_files = {}, name = No
         proj_path: exec path of the `<name>.proj` directory,
         src_tree: the `src` tree artifact File,
         package_config: the written package_config File,
+        proj_files: dict of `extra_proj_files` name -> the File written,
         inputs: list of Files to add to the consuming action's inputs,
       )
     """
@@ -325,14 +287,17 @@ def stage_dart_project(ctx, packages, all_srcs, extra_proj_files = {}, name = No
     )
     inputs.append(package_config)
 
+    proj_files = {}
     for filename, content in extra_proj_files.items():
         extra = ctx.actions.declare_file(name + ".proj/" + filename)
         ctx.actions.write(output = extra, content = content)
         inputs.append(extra)
+        proj_files[filename] = extra
 
     return struct(
         proj_path = src_tree.dirname,
         src_tree = src_tree,
         package_config = package_config,
+        proj_files = proj_files,
         inputs = inputs,
     )

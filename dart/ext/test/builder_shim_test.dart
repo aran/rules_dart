@@ -653,8 +653,9 @@ void main() {
         final partPkg = Directory(p.join(tmp.path, 'partpkg_pkg'))
           ..createSync(recursive: true);
         Directory(p.join(partPkg.path, 'lib')).createSync(recursive: true);
-        File(p.join(partPkg.path, 'lib', 'partpkg.dart'))
-            .writeAsStringSync("part of 'somewhere.dart';\n");
+        File(
+          p.join(partPkg.path, 'lib', 'partpkg.dart'),
+        ).writeAsStringSync("part of 'somewhere.dart';\n");
         final zfooPkg = _writeForeignPackage(root: tmp, name: 'zfoo');
         final pkgConfig = _writePackageConfig(
           root: tmp,
@@ -768,8 +769,9 @@ void main() {
       // `exclude: '**'` is planted above deliberately: it is the ancestor
       // setting most likely to change generation if it were ever consulted.
       final stage = await Directory(p.join(tmp.path, 'stage')).create();
-      File(p.join(tmp.path, 'analysis_options.yaml'))
-          .writeAsStringSync('analyzer:\n  exclude:\n    - "**"\n');
+      File(
+        p.join(tmp.path, 'analysis_options.yaml'),
+      ).writeAsStringSync('analyzer:\n  exclude:\n    - "**"\n');
 
       final input = File(p.join(tmp.path, 'a.dart'))
         ..writeAsStringSync('class Foo {}');

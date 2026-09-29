@@ -1,0 +1,5 @@
+# Declared by no target. Were it read, the format check would apply this page
+# width and `lib/clean.dart` would fail with "Changed" instead of the expected
+# unreadable-include message.
+formatter:
+  page_width: 20

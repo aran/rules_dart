@@ -1,0 +1,9 @@
+load("//dart:defs.bzl", "dart_library")
+
+# A ruleset shipped in a package's `lib/`, the way a published one is: reached
+# as `package:format_fixture_rules/opts.yaml`.
+dart_library(
+    name = "format_fixture_rules",
+    resources = ["lib/opts.yaml"],
+    visibility = ["//dart/tests/format_fixture:__pkg__"],
+)

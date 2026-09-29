@@ -143,6 +143,17 @@ int _format(
     err = err.replaceAll(copy.path, file.path);
     out = out.replaceAll(copy.path, file.path);
   });
+  // Anything else under the scratch `src/` — an options file's unreadable
+  // `include:` — is named by its workspace path, which is where the user
+  // would look for it: forward-slashed, like every workspace path Bazel
+  // prints, whatever the host.
+  final staged = RegExp(
+    '${RegExp.escape('$src${Platform.pathSeparator}')}[^"\\s]+',
+  );
+  err = err.replaceAllMapped(
+    staged,
+    (m) => m[0]!.substring(src.length + 1).replaceAll(r'\', '/'),
+  );
   stdout.write(out);
   stderr.write(err);
 

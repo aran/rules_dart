@@ -1,10 +1,11 @@
 """Tests for the `dart_analyze` aspect and the provider it reads from executables.
 
-The aspect's verdicts are checked by building it: `analyzed_test` applies it to
-one target and passes only if that target's analysis ran and came back clean.
-Its red paths live in `e2e/analysis_failure`, where CI asserts each build fails
-with the expected diagnostic. The analysis tests here pin which targets the
-aspect takes on at all.
+The aspect's verdicts are checked by building it: `analyzed_test` and
+`formatted_test` apply it to one target and pass only if that target's analysis
+or format check ran and came back clean. Its red paths live in
+`e2e/analysis_failure`, where CI asserts each build fails with the expected
+diagnostic. The analysis tests here pin which targets the aspect takes on at
+all.
 
 The rest of this file covers an executable. A `dart_binary`/`dart_test`
 entrypoint belongs to no package's `lib/`, so it reaches the aspect through
@@ -23,29 +24,42 @@ load("//dart/private:dart_analyze_aspect.bzl", "DartFixOutputsInfo", "dart_analy
 _ENTRYPOINT = "/analyzable_fixture/main.dart"
 _DEP_PACKAGE = "analyzable_dep"
 
-def _analyzed_test_impl(ctx):
-    groups = ctx.attr.target[OutputGroupInfo] if OutputGroupInfo in ctx.attr.target else None
-    if groups == None or not hasattr(groups, "dart_analyze"):
-        fail("%s: the dart_analyze aspect did not analyze %s" % (ctx.label, ctx.attr.target.label))
-    noop = noop_test_executable(ctx, ctx.attr._tool)
-    return [DefaultInfo(
-        executable = noop.executable,
-        runfiles = ctx.runfiles(transitive_files = groups.dart_analyze).merge(noop.runfiles),
-    )]
+def _checked_test_impl(group):
+    def impl(ctx):
+        groups = ctx.attr.target[OutputGroupInfo] if OutputGroupInfo in ctx.attr.target else None
+        if groups == None or not hasattr(groups, group):
+            fail("%s: the dart_analyze aspect has no %s check for %s" % (ctx.label, group, ctx.attr.target.label))
+        noop = noop_test_executable(ctx, ctx.attr._tool)
+        return [DefaultInfo(
+            executable = noop.executable,
+            runfiles = ctx.runfiles(transitive_files = getattr(groups, group)).merge(noop.runfiles),
+        )]
+
+    return impl
+
+_CHECKED_TEST_ATTRS = dict({
+    "target": attr.label(mandatory = True, aspects = [dart_analyze]),
+    "_tool": attr.label(
+        default = "//dart/private/tools:noop",
+        executable = True,
+        cfg = "exec",
+    ),
+}, **WINDOWS_CONSTRAINT_ATTR)
 
 # Passes when `target`'s analysis ran and found nothing: the aspect's stamp is
 # in the runfiles, and it is only written when `dart analyze` exits clean.
 # Independent of `.bazelrc`, so it holds however the suite is invoked.
 analyzed_test = rule(
-    implementation = _analyzed_test_impl,
-    attrs = dict({
-        "target": attr.label(mandatory = True, aspects = [dart_analyze]),
-        "_tool": attr.label(
-            default = "//dart/private/tools:noop",
-            executable = True,
-            cfg = "exec",
-        ),
-    }, **WINDOWS_CONSTRAINT_ATTR),
+    implementation = _checked_test_impl("dart_analyze"),
+    attrs = _CHECKED_TEST_ATTRS,
+    test = True,
+)
+
+# The same for the format check: passes when `dart format` would change none of
+# `target`'s own files under the options that govern them.
+formatted_test = rule(
+    implementation = _checked_test_impl("dart_format"),
+    attrs = _CHECKED_TEST_ATTRS,
     test = True,
 )
 
@@ -60,6 +74,16 @@ def _aspect_applies_test_impl(ctx):
         analyzed,
         "the dart_analyze aspect %s %s" % ("analyzed" if analyzed else "skipped", target.label),
     )
+    formatted = groups != None and hasattr(groups, "dart_format")
+    asserts.equals(
+        env,
+        ctx.attr.expect_formatted,
+        formatted,
+        "the dart_analyze aspect %s the format check of %s" % (
+            "ran" if formatted else "skipped",
+            target.label,
+        ),
+    )
     asserts.equals(
         env,
         ctx.attr.expect_fixable,
@@ -68,13 +92,14 @@ def _aspect_applies_test_impl(ctx):
     )
     return analysistest.end(env)
 
-# Whether the aspect checks a target, and whether it offers `dart_fix` fixes for
-# it: neither for a target with nothing hand-written of its own, fixes but no
-# check for one tagged `no-dart-analyze`.
+# Whether the aspect analyzes a target, format-checks it, and offers `dart_fix`
+# fixes for it: none for a target with nothing hand-written of its own, and
+# each opt-out tag removes its own check and nothing else.
 aspect_applies_test = analysistest.make(
     _aspect_applies_test_impl,
     attrs = {
         "expect_analyzed": attr.bool(mandatory = True),
+        "expect_formatted": attr.bool(mandatory = True),
         "expect_fixable": attr.bool(mandatory = True),
     },
     extra_target_under_test_aspects = [dart_analyze],

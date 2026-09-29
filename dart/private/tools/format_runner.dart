@@ -1,4 +1,5 @@
-// Build-action runner for `dart format` over a staged project directory.
+// Build-action runner for the `dart_analyze` aspect's format check: `dart format`
+// over a staged project directory.
 //
 // `dart format` produces no output artifact, but a Bazel action must; this
 // runner forwards the formatter's diagnostics and writes the stamp file only
@@ -6,9 +7,8 @@
 //
 // Files are named individually from a manifest rather than by handing the
 // formatter the project directory. The staged project also holds the harness
-// (stub pubspecs, package_config.json) and, when the options file pulls in a
-// lint ruleset, that package's own sources — none of which are the target's to
-// format.
+// (stub pubspecs, package_config.json), the target's dependencies and any lint
+// ruleset an options file pulls in — none of which are the target's to format.
 import 'dart:convert';
 import 'dart:io';
 
@@ -70,9 +70,8 @@ void main(List<String> args) {
         '--set-exit-if-changed',
         // Passed in every case, `latest` included. The formatter would
         // otherwise take the version from whatever package_config.json entry
-        // happens to cover the staged file — and the rule stages no entry for
-        // the files it formats, so that would always mean the SDK's newest,
-        // whatever the code declares. See dart_format_test.bzl.
+        // happens to cover the staged file, which for an entrypoint outside
+        // `lib/` need not be the target's own. See dart_analyze_aspect.bzl.
         '--language-version=$languageVersion',
         ...chunk,
       ],
@@ -92,7 +91,7 @@ void main(List<String> args) {
 
     // A malformed or unresolvable `include:` does not fail the formatter — it
     // warns on stderr, exits 0, and silently formats at stock defaults. That
-    // is the same silent-wrong-verdict this rule exists to prevent, so the
+    // is the same silent-wrong-verdict this check exists to prevent, so the
     // warning is escalated: a check that quietly stopped honouring the
     // configured page width must not report green.
     if (_warned(result.stderr as String)) {
@@ -112,21 +111,20 @@ void main(List<String> args) {
 }
 
 /// Rewrites staged source paths in the formatter's output back to the workspace
-/// paths they were copied from, so a violation names a file the user can open.
+/// paths they were copied from, so a message names a file the user can open.
 ///
-/// Deliberately limited to files under `src/`. Those are echoed back exactly as
-/// the runner passed them — relative, forward-slashed, as every Bazel exec path
-/// is — so stripping the prefix consumes the whole leading segment and what
-/// remains is a real workspace path. Verified on Windows: a violation there
-/// reports `lib/a.dart`, not a backslashed absolute path.
-///
-/// The other staged paths that appear — the options file named by an `include:`
-/// warning — are resolved and absolutised by the formatter itself. The project
-/// prefix sits in the *middle* of those, so stripping it would leave a shorter
-/// absolute path that looks real and points nowhere. A long honest path beats a
-/// short wrong one, so they are left alone.
-String _unstage(String out, String project) =>
-    out.replaceAll('${project.replaceAll(r'\', '/')}/src/', '');
+/// The formatter echoes the files it was handed as given — relative,
+/// forward-slashed, as every Bazel exec path is — and names options files (an
+/// `include:` it could not read) by absolute path. Both lose their whole
+/// staging prefix, the absolute form first: stripping only the relative
+/// project path from the middle of an absolute one would leave a path that
+/// looks like the source tree's and names a file the formatter never read.
+/// Only the `src/` tree is rewritten: nothing outside it has a workspace path.
+String _unstage(String out, String project) {
+  final relative = project.replaceAll(r'\', '/');
+  final absolute = Directory(project).absolute.path.replaceAll(r'\', '/');
+  return out.replaceAll('$absolute/src/', '').replaceAll('$relative/src/', '');
+}
 
 /// Whether the formatter reported a non-fatal problem reading its options.
 bool _warned(String err) =>

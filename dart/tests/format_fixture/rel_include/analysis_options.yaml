@@ -1,0 +1,9 @@
+# Reached from `lib/sub/analysis_options.yaml` by a relative `include:`, as a
+# monorepo's per-directory options extend a parent's. Both settings must reach
+# `lib/sub/sub.dart`: the page width for the format check, the silenced
+# diagnostic for analysis.
+analyzer:
+  errors:
+    unused_local_variable: ignore
+formatter:
+  page_width: 100

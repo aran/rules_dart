@@ -1,0 +1,9 @@
+load("//dart:defs.bzl", "dart_library")
+
+# Misformatted and tagged: the format check skips it, analysis does not.
+dart_library(
+    name = "tagged",
+    srcs = ["lib/tagged.dart"],
+    tags = ["no-dart-format"],
+    visibility = ["//dart/tests/format_fixture:__pkg__"],
+)
