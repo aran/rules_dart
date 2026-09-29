@@ -343,6 +343,29 @@ that fixes it. For loose `srcs` that belong to no library, set
 `language_version` on the check itself. Setting it alongside `target` is an
 error: the library has already answered, and two answers can only disagree.
 
+`dart_format` is the check's `bazel run` counterpart: it rewrites files in your
+workspace with the settings `options` resolves to. Give it the same `options`
+as `dart_format_test`. Running the SDK's formatter over the workspace directly
+(`bazel run @rules_dart//dart -- format`) cannot resolve an `include:` by
+`package:` URI, because there is no package config for it to use, and the SDK
+then ignores every key in the options file, not only the included ones.
+
+```starlark
+load("@rules_dart//dart:defs.bzl", "dart_format")
+
+dart_format(
+    name = "format",
+    options = ":analysis_options",
+)
+```
+
+```sh
+bazel run //:format -- lib test  # files or directories, relative to where you run it
+```
+
+It formats at the newest language version the SDK knows unless you pass
+`--language-version=<major>.<minor>`.
+
 `dart_fix` applies the analyzer's automated fixes — the same quick-fixes an IDE
 offers, driven by the lints your `analysis_options.yaml` enables. Give it the same
 `options` target as `dart_analyze_test`, or `bazel run` cannot turn a red analysis

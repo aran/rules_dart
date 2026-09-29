@@ -1,0 +1,5 @@
+# The shape of a workspace that shares a ruleset: a `package:` include, plus a
+# setting of its own beside it. An unresolved include loses both.
+include: package:format_run_fixture/opts.yaml
+formatter:
+  trailing_commas: preserve

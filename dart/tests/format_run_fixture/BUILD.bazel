@@ -1,0 +1,43 @@
+load("//dart:defs.bzl", "dart_analysis_options", "dart_format", "dart_library", "dart_test")
+
+dart_library(
+    name = "format_run_ruleset",
+    resources = ["lib/opts.yaml"],
+)
+
+dart_analysis_options(
+    name = "options",
+    src = "options.yaml",
+    deps = [":format_run_ruleset"],
+)
+
+dart_format(
+    name = "format",
+    options = ":options",
+)
+
+filegroup(
+    name = "format_config",
+    srcs = [":format"],
+    output_group = "dart_format_config",
+)
+
+# Runs `:format` over a scratch workspace and checks that both the included
+# page width and the file's own `trailing_commas` reached the formatter.
+dart_test(
+    name = "format_run_test",
+    size = "small",
+    args = [
+        "$(rlocationpath :format)",
+        "$(rlocationpath :format_config)",
+    ],
+    data = [
+        ":format",
+        ":format_config",
+    ],
+    main = "format_run_test.dart",
+    deps = [
+        "//dart/runfiles",
+        "@ext_pub_deps//:test",
+    ],
+)

@@ -1,0 +1,4 @@
+# A shared ruleset, reached from options.yaml as
+# `package:format_run_fixture/opts.yaml`.
+formatter:
+  page_width: 100

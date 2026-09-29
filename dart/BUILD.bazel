@@ -70,6 +70,7 @@ bzl_library(
         "//dart/private:dart_binary",
         "//dart/private:dart_codegen",
         "//dart/private:dart_fix",
+        "//dart/private:dart_format",
         "//dart/private:dart_format_test",
         "//dart/private:dart_library",
         "//dart/private:dart_test",

@@ -67,3 +67,11 @@ dart_binary(
     main = "format_runner.dart",
     visibility = ["//dart:__subpackages__"],
 )
+
+dart_binary(
+    name = "format_writer",
+    compile_mode = "exe",
+    main = "format_writer.dart",
+    visibility = ["//dart:__subpackages__"],
+    deps = ["//dart/runfiles"],
+)
