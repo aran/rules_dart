@@ -16,18 +16,20 @@ import 'package:runfiles/runfiles.dart';
 /// The one file `//dirty:fix` may write, relative to the workspace root.
 const _fixedRelative = 'dirty/lib/model.dart';
 
-void main() {
+void main(List<String> args) {
   final r = Runfiles.create();
   final failures = <String>[];
 
   final exe = r.rlocation(
     Platform.isWindows ? '_main/dirty/fix.exe' : '_main/dirty/fix',
   );
-  final manifest = r.rlocation('_main/dirty/fix.fix_manifest.json');
+  // The manifest and fixes are the aspect's outputs, named by `args` from the
+  // `:manifest` / `:fixes` output-group filegroups rather than by their paths.
+  final manifest = r.rlocation(args[0]);
 
   // A tree artifact is ONE runfiles entry — for the directory itself, not one
   // per file inside it. Measured on Windows: the manifest carries
-  // `_main/dirty/fix.fixes` and nothing beneath it, and the runfiles tree is
+  // the fixes directory and nothing beneath it, and the runfiles tree is
   // not materialised at all. So the directory is the only thing rlocation can
   // answer for, and it answers in both modes: a manifest maps it to the real
   // output path, a symlink forest falls through to the materialised directory.
@@ -35,7 +37,7 @@ void main() {
   // Asking for a file *inside* the tree resolves only in a forest. On Windows
   // it misses the manifest, falls back to the non-existent runfiles directory,
   // and hands the applier a path that is not there.
-  final fixes = r.rlocation('_main/dirty/fix.fixes');
+  final fixes = r.rlocation(args[1]);
 
   final before = File(r.rlocation('_main/$_fixedRelative')).readAsStringSync();
   final after = File(

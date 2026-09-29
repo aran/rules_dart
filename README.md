@@ -238,20 +238,15 @@ emitter, insufficient for anything with dependencies.
 
 That distinction is also what analyzing a generator comes down to. A
 `generator_bin` is already a target, and every executable rule hands out
-`DartAnalyzableInfo`, so it is an ordinary `dart_analyze_test` operand:
+`DartAnalyzableInfo`, so the `dart_analyze` aspect checks it like any other
+target (see [Static analysis](#static-analysis-and-formatting)).
 
-```starlark
-dart_analyze_test(name = "analyze_shim", target = "//tools:route_shim")
-```
-
-A bare script has no target to point at. Declare a `dart_binary` over the same
-source as an analysis handle — it needs no wiring into the `dart_codegen` call,
-which keeps running the script exactly as before:
+A bare script has no target to be checked as. Declare a `dart_binary` over the
+same source as an analysis handle — it needs no wiring into the `dart_codegen`
+call, which keeps running the script exactly as before:
 
 ```starlark
 dart_binary(name = "my_generator", main = "my_generator.dart")
-
-dart_analyze_test(name = "analyze_my_generator", target = ":my_generator")
 ```
 
 Do not promote a script to `generator_bin` just to analyze it: that path runs
@@ -309,13 +304,55 @@ This is not `pub.package()`, which fetches a published package from pub.dev;
 
 ### Static analysis and formatting
 
-```starlark
-load("@rules_dart//dart:defs.bzl", "dart_analyze_test", "dart_format_test")
+`dart analyze` runs as an aspect, `dart_analyze`, over every Dart target a
+`bazel test` names. Enable it in `.bazelrc`, and list every
+`analysis_options.yaml` in the repository in one `dart_analysis_config`:
 
-dart_analyze_test(
-    name = "analyze",
-    target = ":greeter",
+```
+# .bazelrc
+test --aspects=@rules_dart//dart:analyze.bzl%dart_analyze
+test --output_groups=+dart_analyze
+common --@rules_dart//dart:analysis_config=//:analysis_config
+```
+
+```starlark
+# BUILD.bazel
+load("@rules_dart//dart:defs.bzl", "dart_analysis_config", "dart_analysis_options")
+
+dart_analysis_options(
+    name = "analysis_options",
+    src = "analysis_options.yaml",
+    deps = ["@very_good_analysis"],  # packages its `include:` names
 )
+
+dart_analysis_config(
+    name = "analysis_config",
+    options = [
+        ":analysis_options",
+        "//tools:analysis_options",  # tools/analysis_options.yaml
+    ],
+)
+```
+
+Each file is judged by the nearest listed `analysis_options.yaml` above it, as
+in the IDE, so every listed file must have that name. `bazel test //...` then
+analyzes every Dart target it matches, and any diagnostic, down to an info,
+fails the build. Only each target's own hand-written files are checked: its
+dependencies are resolved but not re-checked (each is checked as a target of
+its own), generated files are never checked, and targets in other repositories
+(pub packages, other Bazel modules) are left to the module that owns them.
+Options files from other repositories are refused; to share a ruleset across
+modules, `include:` it from an options file of your own and put its package in
+that `dart_analysis_options`'s `deps`. Tag a target `no-dart-analyze` to skip
+it.
+
+A `dart_binary`, `dart_test`, `dart_js_binary` or `dart_wasm_binary` has its
+entrypoint checked, which is how you lint a `main.dart`: it sits outside any
+package's `lib/`, so no `dart_library` will accept it, and it would otherwise be
+the one file in a project nothing checks.
+
+```starlark
+load("@rules_dart//dart:defs.bzl", "dart_format_test")
 
 dart_format_test(
     name = "format_test",
@@ -324,17 +361,13 @@ dart_format_test(
 )
 ```
 
-`target` takes a `dart_library` or an executable — `dart_binary`, `dart_test`,
-`dart_js_binary`, `dart_wasm_binary`. Pointing it at an executable is how you
-lint an entrypoint: a `main.dart` sits outside any package's `lib/`, so no
-`dart_library` will accept it, and it would otherwise be the one file in a
-project nothing checks. `dart_format_test`'s `target` is the exception — it
-takes a `dart_library` only, and formats the sources that library declares.
-An executable's `DefaultInfo` is the program it compiles rather than the code
-it was built from, so name an entrypoint in `srcs` instead.
+`dart_format_test`'s `target` takes a `dart_library` only, and formats the
+sources that library declares. An executable's `DefaultInfo` is the program it
+compiles rather than the code it was built from, so name an entrypoint in
+`srcs` instead.
 
-Both rules take `options`, and both compute their verdict while building rather
-than while testing — a violation fails `bazel build` of the target. Formatting
+`dart_format_test` takes `options`, and computes its verdict while building
+rather than while testing — a violation fails `bazel build` of the target. Formatting
 is configured by the `formatter:` section of an `analysis_options.yaml`
 (`page_width`, `trailing_commas`), and `dart_format_test` honours it only when
 you name it: the file is not discovered from the surrounding directory, because
@@ -384,9 +417,10 @@ It formats at the newest language version the SDK knows unless you pass
 `--language-version=<major>.<minor>`.
 
 `dart_fix` applies the analyzer's automated fixes — the same quick-fixes an IDE
-offers, driven by the lints your `analysis_options.yaml` enables. Give it the same
-`options` target as `dart_analyze_test`, or `bazel run` cannot turn a red analysis
-green.
+offers, driven by the lints your options enable. It fixes its target's own
+files over the very project the `dart_analyze` aspect stages to analyze them,
+under the same `analysis_config`, which is why that flag goes under `common`:
+`bazel run` then sees the options `bazel test` checks against.
 
 ```starlark
 load("@rules_dart//dart:defs.bzl", "dart_fix")
@@ -394,7 +428,6 @@ load("@rules_dart//dart:defs.bzl", "dart_fix")
 dart_fix(
     name = "fix",
     target = ":greeter",
-    options = ":analysis_options",
 )
 ```
 
@@ -405,8 +438,8 @@ bazel run //:fix -- --dry-run # print them as a diff, change nothing
 
 Generated files are never rewritten: only files Bazel records as sources are
 eligible, so codegen output stays resolvable to its importers without being
-edited. To inspect what a run would do without applying anything, build the
-outputs directly:
+edited. A target tagged `no-dart-analyze` can still be fixed. To inspect what a
+run would do without applying anything, build the outputs directly:
 
 ```sh
 bazel build //:fix --output_groups=+dart_fix_manifest  # what was fixed, and what was skipped
@@ -439,26 +472,27 @@ dart_wasm_binary(
 
 The [`e2e/`](e2e/) directory contains complete working examples:
 
-| Example                                               | What it demonstrates                                                                   |
-| ----------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| [`hello_world`](e2e/hello_world/)                     | Minimal binary + all compile modes (`exe`, `aot-snapshot`, `kernel`, `jit-snapshot`)   |
-| [`library_deps`](e2e/library_deps/)                   | Transitive `dart_library` dependencies, `srcs` attribute                               |
-| [`dart_test`](e2e/dart_test/)                         | Tests with and without deps, `srcs` for test helpers                                   |
-| [`analysis`](e2e/analysis/)                           | `dart_analyze_test` and `dart_format_test` with custom and `package:`-included options |
-| [`fix`](e2e/fix/)                                     | `dart_fix` write-back, and that generated files are never rewritten                    |
-| [`web_app`](e2e/web_app/)                             | JavaScript and WebAssembly compilation with library deps                               |
-| [`pub_deps`](e2e/pub_deps/)                           | Single pub.dev package via `pub.package()`                                             |
-| [`pub_lock`](e2e/pub_lock/)                           | Multiple packages from `pubspec.lock` via `pub.from_lock()`                            |
-| [`gazelle`](e2e/gazelle/)                             | Automatic BUILD file generation with Gazelle                                           |
-| [`cross_compile`](e2e/cross_compile/)                 | Cross-compilation to other platforms via `platform_data` transition                    |
-| [`dart_test_pkg`](e2e/dart_test_pkg/)                 | `dart_test` with pub dependencies via `pub.from_lock()`                                |
-| [`pub_lock_dedup`](e2e/pub_lock_dedup/)               | Cross-lock-file package deduplication                                                  |
-| [`pub_lock_upgrade`](e2e/pub_lock_upgrade/)           | Version conflict resolution with `on_version_conflict = "upgrade"`                     |
-| [`pub_lock_conflict`](e2e/pub_lock_conflict/)         | Version conflict detection across lock files                                           |
-| [`pub_lock_cross_module`](e2e/pub_lock_cross_module/) | `pub.from_lock()` across Bazel module boundaries                                       |
-| [`codegen`](e2e/codegen/)                             | `dart_codegen`/`dart_aggregate_codegen` over parts, re-exports and source sets         |
-| [`ext_exemplar`](e2e/ext_exemplar/)                   | One package per bundled `dart/ext` builder, plus native `code_assets` via sqlite3      |
-| [`dual_build`](e2e/dual_build/)                       | Collision detection between Bazel-generated and `build_runner`-generated sources       |
+| Example                                               | What it demonstrates                                                                 |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| [`hello_world`](e2e/hello_world/)                     | Minimal binary + all compile modes (`exe`, `aot-snapshot`, `kernel`, `jit-snapshot`) |
+| [`library_deps`](e2e/library_deps/)                   | Transitive `dart_library` dependencies, `srcs` attribute                             |
+| [`dart_test`](e2e/dart_test/)                         | Tests with and without deps, `srcs` for test helpers                                 |
+| [`analysis`](e2e/analysis/)                           | The `dart_analyze` aspect and `dart_format_test` with `package:`-included options    |
+| [`fix`](e2e/fix/)                                     | `dart_fix` write-back, and that generated files are never rewritten                  |
+| [`analyze_composition`](e2e/analyze_composition/)     | A lint ruleset shared from another Bazel module                                      |
+| [`web_app`](e2e/web_app/)                             | JavaScript and WebAssembly compilation with library deps                             |
+| [`pub_deps`](e2e/pub_deps/)                           | Single pub.dev package via `pub.package()`                                           |
+| [`pub_lock`](e2e/pub_lock/)                           | Multiple packages from `pubspec.lock` via `pub.from_lock()`                          |
+| [`gazelle`](e2e/gazelle/)                             | Automatic BUILD file generation with Gazelle                                         |
+| [`cross_compile`](e2e/cross_compile/)                 | Cross-compilation to other platforms via `platform_data` transition                  |
+| [`dart_test_pkg`](e2e/dart_test_pkg/)                 | `dart_test` with pub dependencies via `pub.from_lock()`                              |
+| [`pub_lock_dedup`](e2e/pub_lock_dedup/)               | Cross-lock-file package deduplication                                                |
+| [`pub_lock_upgrade`](e2e/pub_lock_upgrade/)           | Version conflict resolution with `on_version_conflict = "upgrade"`                   |
+| [`pub_lock_conflict`](e2e/pub_lock_conflict/)         | Version conflict detection across lock files                                         |
+| [`pub_lock_cross_module`](e2e/pub_lock_cross_module/) | `pub.from_lock()` across Bazel module boundaries                                     |
+| [`codegen`](e2e/codegen/)                             | `dart_codegen`/`dart_aggregate_codegen` over parts, re-exports and source sets       |
+| [`ext_exemplar`](e2e/ext_exemplar/)                   | One package per bundled `dart/ext` builder, plus native `code_assets` via sqlite3    |
+| [`dual_build`](e2e/dual_build/)                       | Collision detection between Bazel-generated and `build_runner`-generated sources     |
 
 > **Note**: Only the `exe` and `aot-snapshot` compile modes cross-compile via
 > `--platforms`. `kernel` and `jit-snapshot` are VM formats that ignore target

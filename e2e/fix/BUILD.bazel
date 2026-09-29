@@ -1,11 +1,14 @@
-load("@rules_dart//dart:defs.bzl", "dart_analysis_options")
+load("@rules_dart//dart:defs.bzl", "dart_analysis_config", "dart_analysis_options")
 
-# One options target for the whole workspace. `dart_fix` and `dart_analyze_test`
-# have to be given the same one: fixes are driven by whatever lints are enabled,
-# so a `dart_fix` on a different options file cannot turn its analyze test
-# green. Every fixture below points both rules here.
+# The options every `dart_fix` here and the `dart_analyze` aspect share, through
+# the `analysis_config` flag in `.bazelrc`: fixes are driven by whatever lints
+# are enabled, so only shared options let a fix turn an analysis green.
 dart_analysis_options(
     name = "options",
     src = "analysis_options.yaml",
-    visibility = ["//visibility:public"],
+)
+
+dart_analysis_config(
+    name = "analysis_config",
+    options = [":options"],
 )

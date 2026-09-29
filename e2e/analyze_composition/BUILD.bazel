@@ -1,0 +1,20 @@
+load("@rules_dart//dart:defs.bzl", "dart_analysis_config", "dart_analysis_options")
+
+dart_analysis_options(
+    name = "options",
+    src = "analysis_options.yaml",
+    deps = ["@dep_module//dep_rules"],
+)
+
+dart_analysis_config(
+    name = "analysis_config",
+    options = [":options"],
+)
+
+# Expected to fail: an options target from another repository governs nothing
+# here. Built by hand, so `manual`.
+dart_analysis_config(
+    name = "cross_repo_config",
+    options = ["@dep_module//:options"],
+    tags = ["manual"],
+)

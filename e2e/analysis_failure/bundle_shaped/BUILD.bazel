@@ -1,0 +1,9 @@
+load("//flutter_shaped:rules.bzl", "bundle_shaped")
+
+# Expected red: a target whose `DefaultInfo` is a built bundle, with its
+# package's `lib/` files only in `DartAnalyzableInfo`, is still analyzed.
+bundle_shaped(
+    name = "bundle_shaped",
+    package_name = "bundle_shaped",
+    srcs = ["lib/bundle.dart"],
+)

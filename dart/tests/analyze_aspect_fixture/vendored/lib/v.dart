@@ -1,0 +1,3 @@
+void shout() {
+  print('vendored');
+}

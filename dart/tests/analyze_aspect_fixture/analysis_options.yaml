@@ -1,0 +1,4 @@
+# Governs this fixture, except where a nearer analysis_options.yaml takes over.
+linter:
+  rules:
+    - avoid_print

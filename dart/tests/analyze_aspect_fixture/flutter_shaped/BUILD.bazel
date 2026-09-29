@@ -1,0 +1,12 @@
+load("//dart/tests:dart_info_test.bzl", "wrapper_executable")
+
+# The shape a `flutter_library` has: `DartAnalyzableInfo` whose `srcs` are
+# empty, its files being its package's `lib/` (in `DefaultInfo` and the nested
+# `DartInfo`).
+wrapper_executable(
+    name = "flutter_shaped",
+    package_name = "flutter_shaped",
+    language_version = "3.11",
+    package_srcs = ["lib/widget.dart"],
+    visibility = ["//dart/tests/analyze_aspect_fixture:__pkg__"],
+)

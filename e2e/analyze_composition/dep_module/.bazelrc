@@ -1,0 +1,7 @@
+# dep_module's own analysis, with its own options. Applies only when this
+# module is the one being built.
+test --aspects=@rules_dart//dart:analyze.bzl%dart_analyze
+test --output_groups=+dart_analyze
+common --@rules_dart//dart:analysis_config=//:analysis_config
+
+try-import %workspace%/.bazelrc.user

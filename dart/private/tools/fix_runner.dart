@@ -62,9 +62,12 @@ void main(List<String> args) {
   _absolutizePackageConfig(project, scratch);
 
   final result = Process.runSync(dart, ['fix', '--apply', scratch]);
-  stdout.write(result.stdout);
+  // Bazel echoes any action output, and this action runs whenever fixes are
+  // asked for: its progress chatter is printed only when it fails. What it
+  // changed is in the manifest.
   stderr.write(result.stderr);
   if (result.exitCode != 0) {
+    stdout.write(result.stdout);
     exit(result.exitCode);
   }
 

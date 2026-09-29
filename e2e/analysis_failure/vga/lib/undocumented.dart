@@ -1,4 +1,4 @@
-// The library analyzed by `//:analyze_lib_lint_applied`. Its public member
+// The library in `//vga:undocumented_lib`. Its public member
 // carries no doc comment, which trips `public_member_api_docs` — a lint that
 // fires only when the analyzer attributes this file to a package whose `lib/`
 // contains it. That attribution walks up from the file to the nearest

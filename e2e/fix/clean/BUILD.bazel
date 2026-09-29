@@ -1,11 +1,12 @@
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
 load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
-load("@rules_dart//dart:defs.bzl", "dart_analyze_test", "dart_codegen", "dart_fix", "dart_library")
+load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_fix", "dart_library")
 
 # The green end of the red/green pair. //dirty holds the same library with two
 # violations in it; this one is what `bazel run //dirty:fix` must produce, and
-# `:analyze` is the proof that what it produces passes the analyzer.
+# `:lib` passing the `dart_analyze` aspect under `bazel test` is the proof that
+# what it produces passes the analyzer.
 exports_files(["lib/model.dart"])
 
 dart_codegen(
@@ -34,16 +35,8 @@ dart_library(
     ],
 )
 
-dart_analyze_test(
-    name = "analyze",
-    size = "small",
-    options = "//:options",
-    target = ":lib",
-)
-
 dart_fix(
     name = "fix",
-    options = "//:options",
     target = ":lib",
 )
 

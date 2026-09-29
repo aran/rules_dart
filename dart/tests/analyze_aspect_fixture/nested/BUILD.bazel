@@ -1,0 +1,19 @@
+load("//dart:defs.bzl", "dart_analysis_options", "dart_library")
+
+# One target, two options files: `lib/quiet.dart` falls under the fixture's
+# (no `print`), `lib/loud/loud.dart` under the nearer `lib/loud` one (`print`
+# allowed).
+dart_library(
+    name = "nested",
+    srcs = [
+        "lib/loud/loud.dart",
+        "lib/quiet.dart",
+    ],
+    visibility = ["//dart/tests/analyze_aspect_fixture:__pkg__"],
+)
+
+dart_analysis_options(
+    name = "loud_options",
+    src = "lib/loud/analysis_options.yaml",
+    visibility = ["//:__pkg__"],
+)

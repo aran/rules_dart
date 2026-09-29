@@ -13,6 +13,9 @@ dart_library(
     name = "shortstyle",
     srcs = ["lib/short.dart"],
     language_version = "3.6",
+    # Laid out in the 3.6 short style for the format check, which the root
+    # ruleset's trailing-comma lint rejects.
+    tags = ["no-dart-analyze"],
 )
 
 dart_format_test(

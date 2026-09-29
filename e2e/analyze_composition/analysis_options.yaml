@@ -1,0 +1,2 @@
+# The ruleset comes from another Bazel module, included the Dart way.
+include: package:dep_rules/rules.yaml

@@ -1,0 +1,9 @@
+load(":rules.bzl", "package_only_library")
+
+# Expected red: a `flutter_library`-shaped target is analyzed, though its
+# `DartAnalyzableInfo.srcs` is empty.
+package_only_library(
+    name = "flutter_shaped",
+    package_name = "flutter_shaped",
+    srcs = ["lib/widget.dart"],
+)

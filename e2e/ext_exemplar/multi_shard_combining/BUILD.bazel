@@ -2,7 +2,6 @@
 
 load(
     "@rules_dart//dart:defs.bzl",
-    "dart_analyze_test",
     "dart_codegen",
     "dart_library",
     "dart_test",
@@ -64,18 +63,4 @@ dart_test(
         ":multi_shard_combining",
         "@pub_deps//:test",
     ],
-)
-
-dart_analyze_test(
-    name = "analyze_multi_shard_combining",
-    size = "small",
-    options = "//:options",
-    target = ":multi_shard_combining",
-)
-
-dart_analyze_test(
-    name = "analyze_user_test",
-    size = "small",
-    options = "//:options",
-    target = ":user_test",
 )

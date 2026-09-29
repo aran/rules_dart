@@ -1,4 +1,4 @@
-load("@rules_dart//dart:defs.bzl", "dart_analyze_test", "dart_library")
+load("@rules_dart//dart:defs.bzl", "dart_library")
 
 # Aggregate `dart_library` with no `srcs` of its own — exists only to
 # re-export `//utils`. `dart/private/dart_library.bzl` blesses this pattern
@@ -9,20 +9,11 @@ load("@rules_dart//dart:defs.bzl", "dart_analyze_test", "dart_library")
 # analysis with `generate_package_config: no source files found for package
 # "facade"`. The fix in `dart/private/common.bzl` skips the entry rather
 # than failing — no consumer needs a `rootUri` when there are no sources
-# to resolve under it.
+# to resolve under it. The aspect analyzes this sourceless library under
+# `bazel test`, the same shape `dart analyze` reads through the package config.
 dart_library(
     name = "facade",
     srcs = [],
     visibility = ["//visibility:public"],
     deps = ["//utils"],
-)
-
-# Extends the regression to the analyzer: staging a project in which `facade`
-# names a package that contributes zero sources is the same shape that broke
-# `generate_package_config`, and `dart analyze` reads the same config.
-dart_analyze_test(
-    name = "analyze_facade",
-    size = "small",
-    options = "//:options",
-    target = ":facade",
 )

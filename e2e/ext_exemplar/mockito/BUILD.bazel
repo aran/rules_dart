@@ -10,12 +10,17 @@
 
 load(
     "@rules_dart//dart:defs.bzl",
-    "dart_analyze_test",
     "dart_codegen",
     "dart_library",
     "dart_test",
 )
 
+# `Api` carries an inline `one_member_abstracts` ignore rather than this package
+# opting out of analysis. The lint wants a one-method abstract class turned into
+# a top-level function, and a function is not something `@GenerateMocks` can
+# mock — so the advice would delete the fixture. Suppressing it at the one
+# declaration keeps everything else here analyzed, including `api_test.dart`,
+# which is where the actual test logic lives.
 dart_library(
     name = "api",
     package_name = "mockito_fixture",
@@ -80,39 +85,4 @@ dart_test(
         "@pub_deps//:mockito",
         "@pub_deps//:test",
     ],
-)
-
-# `Api` carries an inline `one_member_abstracts` ignore rather than this package
-# opting out of analysis. The lint wants a one-method abstract class turned into
-# a top-level function, and a function is not something `@GenerateMocks` can
-# mock — so the advice would delete the fixture. Suppressing it at the one
-# declaration keeps everything else here analyzed, including `api_test.dart`,
-# which is where the actual test logic lives.
-
-dart_analyze_test(
-    name = "analyze_clock",
-    size = "small",
-    options = "//:options",
-    target = ":clock",
-)
-
-dart_analyze_test(
-    name = "analyze_nice_mock_test",
-    size = "small",
-    options = "//:options",
-    target = ":nice_mock_test",
-)
-
-dart_analyze_test(
-    name = "analyze_api",
-    size = "small",
-    options = "//:options",
-    target = ":api",
-)
-
-dart_analyze_test(
-    name = "analyze_api_test",
-    size = "small",
-    options = "//:options",
-    target = ":api_test",
 )

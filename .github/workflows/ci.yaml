@@ -47,7 +47,8 @@ jobs:
           "e2e/pub_lock_upgrade",
           "e2e/ext_exemplar",
           "e2e/dual_build",
-          "e2e/fix"
+          "e2e/fix",
+          "e2e/analyze_composition"
         ]
   # `dart format` and `dart analyze` find their configuration by walking up from
   # the file they are given, and that walk does not stop at the project root. It
@@ -81,12 +82,12 @@ jobs:
       - uses: actions/checkout@v7
       - name: analysis — ${{ matrix.name }}
         working-directory: e2e/analysis
-        # The analyze target is built first on purpose: it is what materialises
-        # the canary's execroot symlink, and within a single invocation the
-        # ordering against the format actions is up to the scheduler. Without
-        # it a regression could pass by luck.
+        # The library's analysis is built first on purpose: it is what
+        # materialises the canary's execroot symlink, and within a single
+        # invocation the ordering against the format actions is up to the
+        # scheduler. Without it a regression could pass by luck.
         run: |
-          bazel build ${{ matrix.flags }} //:analyze_strict
+          bazel build ${{ matrix.flags }} --aspects=@rules_dart//dart:analyze.bzl%dart_analyze --output_groups=+dart_analyze //:good_lib
           bazel test ${{ matrix.flags }} --test_output=errors //...
   # Workspaces that are expected to fail at module resolution.
   # Validates that rules_dart produces the correct error messages.
@@ -103,24 +104,68 @@ jobs:
           fi
           bazel build //:app 2>&1 | grep -q "conflicting versions across lock files"
           echo "OK: expected conflict error detected"
-      - name: analysis_failure — expect analyzer diagnostics to fail the build
+      # Each target in e2e/analysis_failure is expected red under the
+      # `dart_analyze` aspect, which its `.bazelrc` applies under `bazel test`.
+      # `check` builds one, expects the build to fail, and greps its output
+      # for the one diagnostic only that target produces.
+      - name: analysis_failure — expect analyzer diagnostics to fail the build, at workspace paths
         working-directory: e2e/analysis_failure
         run: |
-          if bazel build //:analyze_bad 2>/dev/null; then
+          if bazel test //:bad_lib 2>/dev/null; then
             echo "ERROR: build should have failed with analyzer diagnostics"
             exit 1
           fi
-          bazel build //:analyze_bad 2>&1 | grep -q "unused_local_variable"
-          echo "OK: expected analyzer failure detected"
+          out=$(bazel test //:bad_lib 2>&1 || true)
+          echo "$out" | grep -q "unused_local_variable"
+          # Named as the user's file, not as the staged copy under `src/`.
+          echo "$out" | grep -q -- "- lib/bad.dart:4:7 -"
+          echo "OK: expected analyzer failure detected, at the workspace path"
       - name: analysis_failure — expect a binary's entrypoint to be analyzed too
         working-directory: e2e/analysis_failure
         run: |
-          if bazel build //:analyze_bad_bin 2>/dev/null; then
+          if bazel test //:bad_bin 2>/dev/null; then
             echo "ERROR: build should have failed with analyzer diagnostics"
             exit 1
           fi
-          bazel build //:analyze_bad_bin 2>&1 | grep -q "unused_import"
+          bazel test //:bad_bin 2>&1 | grep -q "unused_import"
           echo "OK: expected analyzer failure detected"
+      # A `flutter_library` lists its files in `DefaultInfo` and leaves
+      # `DartAnalyzableInfo.srcs` empty; they are its own files all the same.
+      - name: analysis_failure — expect a flutter_library-shaped target to be analyzed
+        working-directory: e2e/analysis_failure
+        run: |
+          if bazel test //flutter_shaped 2>/dev/null; then
+            echo "ERROR: build should have failed with unused_element"
+            exit 1
+          fi
+          bazel test //flutter_shaped 2>&1 | grep -q "unused_element"
+          echo "OK: package-only target analyzed"
+      - name: analysis_failure — expect a bundle-shaped target's package sources to be analyzed
+        working-directory: e2e/analysis_failure
+        run: |
+          if bazel test //bundle_shaped 2>/dev/null; then
+            echo "ERROR: build should have failed with unused_element"
+            exit 1
+          fi
+          bazel test //bundle_shaped 2>&1 | grep -q "bundle_shaped/lib/bundle.dart.*unused_element"
+          echo "OK: package sources analyzed though DefaultInfo is a bundle"
+      # Each file is judged by the nearest options file above it, as in the
+      # IDE: `nested/lib/quiet.dart` breaks `nested/`'s `avoid_print`, and
+      # `nested/lib/loud/loud.dart` prints under nearer options that allow it.
+      - name: analysis_failure — expect the nearest options file to govern each file
+        working-directory: e2e/analysis_failure
+        run: |
+          if bazel test //nested 2>/dev/null; then
+            echo "ERROR: build should have failed with avoid_print"
+            exit 1
+          fi
+          out=$(bazel test //nested 2>&1 || true)
+          echo "$out" | grep -q "nested/lib/quiet.dart:5:3 .* avoid_print"
+          if echo "$out" | grep -q "loud.dart"; then
+            echo "ERROR: loud.dart was judged by options other than its nearest"
+            exit 1
+          fi
+          echo "OK: nearest options applied per file"
       # An `include:` that does not resolve makes the analyzer apply no rules at
       # all, so without a diagnostic a misconfigured ruleset and a clean
       # codebase look identical. These two steps pin both halves: a broken
@@ -129,20 +174,20 @@ jobs:
       - name: analysis_failure — expect an unresolvable ruleset include to fail
         working-directory: e2e/analysis_failure
         run: |
-          if bazel build //:analyze_unresolved_ruleset 2>/dev/null; then
+          if bazel test //unresolved_ruleset:clean_lib 2>/dev/null; then
             echo "ERROR: build should have failed with an unresolved include"
             exit 1
           fi
-          bazel build //:analyze_unresolved_ruleset 2>&1 | grep -q "include_file_not_found"
+          bazel test //unresolved_ruleset:clean_lib 2>&1 | grep -q "include_file_not_found"
           echo "OK: expected unresolved include detected"
       - name: analysis_failure — expect an included ruleset's lints to be applied
         working-directory: e2e/analysis_failure
         run: |
-          if bazel build //:analyze_ruleset_applied 2>/dev/null; then
+          if bazel test //vga:double_quoted_lib 2>/dev/null; then
             echo "ERROR: build should have failed with a very_good_analysis lint"
             exit 1
           fi
-          bazel build //:analyze_ruleset_applied 2>&1 | grep -q "prefer_single_quotes"
+          bazel test //vga:double_quoted_lib 2>&1 | grep -q "prefer_single_quotes"
           echo "OK: included ruleset's lints reached the code"
       # The layout-gated half: `public_member_api_docs` only fires when the
       # nearest-pubspec walk roots the file's package at its true lib_root,
@@ -151,12 +196,32 @@ jobs:
       - name: analysis_failure — expect package-root-gated lints to be applied
         working-directory: e2e/analysis_failure
         run: |
-          if bazel build //:analyze_lib_lint_applied 2>/dev/null; then
+          if bazel test //vga:undocumented_lib 2>/dev/null; then
             echo "ERROR: build should have failed with public_member_api_docs"
             exit 1
           fi
-          bazel build //:analyze_lib_lint_applied 2>&1 | grep -q "public_member_api_docs"
+          bazel test //vga:undocumented_lib 2>&1 | grep -q "public_member_api_docs"
           echo "OK: package-root-gated lint reached the code"
+      # A ruleset shared by another Bazel module is included from an options
+      # file of this one; the module's own options file cannot govern here.
+      - name: analyze_composition — expect another module's ruleset to apply
+        working-directory: e2e/analyze_composition
+        run: |
+          if bazel test //bad 2>/dev/null; then
+            echo "ERROR: build should have failed with avoid_print"
+            exit 1
+          fi
+          bazel test //bad 2>&1 | grep -q "avoid_print"
+          echo "OK: included ruleset from another module applied"
+      - name: analyze_composition — expect another repository's options to be refused
+        working-directory: e2e/analyze_composition
+        run: |
+          if bazel build //:cross_repo_config 2>/dev/null; then
+            echo "ERROR: build should have refused an options file from another repository"
+            exit 1
+          fi
+          bazel build //:cross_repo_config 2>&1 | grep -q "is in another repository"
+          echo "OK: cross-repository options refused"
       # The format check's red paths. The first is the obvious one; the other
       # two exist because `dart format` treats an unresolvable `include:` as a
       # warning, exits 0, and silently formats at stock defaults — so a broken

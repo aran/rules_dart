@@ -1,6 +1,7 @@
 load("@package_metadata//licenses/rules:license.bzl", "license")
 load("@package_metadata//purl:purl.bzl", "purl")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
+load("//dart:defs.bzl", "dart_analysis_config", "dart_analysis_options")
 
 package_metadata(
     name = "package_metadata",
@@ -15,4 +16,22 @@ license(
     name = "license",
     kind = "@package_metadata//licenses/spdx:Apache-2.0",
     text = "LICENSE",
+)
+
+# Every `analysis_options.yaml` in this repository, for the `dart_analyze`
+# aspect `.bazelrc` applies under `bazel test`.
+dart_analysis_options(
+    name = "analysis_options",
+    src = "analysis_options.yaml",
+)
+
+dart_analysis_config(
+    name = "analysis_config",
+    options = [
+        ":analysis_options",
+        "//dart/tests/analyze_aspect_fixture:options",
+        "//dart/tests/analyze_aspect_fixture/nested:loud_options",
+        "//dart/tests/analyze_aspect_fixture/vendored:options",
+        "//dart/tests/resource_consumer:options",
+    ],
 )

@@ -1,4 +1,4 @@
-load("@rules_dart//dart:defs.bzl", "dart_analysis_options", "dart_analyze_test", "dart_binary")
+load("@rules_dart//dart:defs.bzl", "dart_analysis_config", "dart_analysis_options", "dart_binary")
 
 exports_files([
     "lock_a.lock",
@@ -25,9 +25,7 @@ dart_analysis_options(
     deps = ["@very_good_analysis"],
 )
 
-dart_analyze_test(
-    name = "analyze_app",
-    size = "small",
-    options = ":options",
-    target = ":app",
+dart_analysis_config(
+    name = "analysis_config",
+    options = [":options"],
 )

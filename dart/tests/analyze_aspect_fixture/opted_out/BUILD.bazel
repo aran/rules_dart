@@ -1,0 +1,10 @@
+load("//dart:defs.bzl", "dart_library")
+
+# Breaks the fixture's options and opts out; `bazel test //...` in this
+# repository applies the aspect to it, so the tag is what keeps that green.
+dart_library(
+    name = "opted_out",
+    srcs = ["lib/o.dart"],
+    tags = ["no-dart-analyze"],
+    visibility = ["//dart/tests/analyze_aspect_fixture:__pkg__"],
+)

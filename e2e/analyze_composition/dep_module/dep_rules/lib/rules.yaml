@@ -1,0 +1,4 @@
+# A shared ruleset, reached as package:dep_rules/rules.yaml.
+linter:
+  rules:
+    - avoid_print

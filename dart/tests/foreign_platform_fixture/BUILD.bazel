@@ -1,0 +1,16 @@
+load(":rules.bzl", "foreign_bundle")
+
+# No Dart SDK is registered for this platform.
+platform(
+    name = "android",
+    constraint_values = [
+        "@platforms//os:android",
+        "@platforms//cpu:arm64",
+    ],
+)
+
+# Shaped like `flutter_android_bundle`: a non-Dart target that transitions to a
+# platform with no Dart toolchain. The `dart_analyze` aspect, applied to every
+# target `bazel test //...` builds, must pass over it instead of failing
+# toolchain resolution for that platform.
+foreign_bundle(name = "bundle")

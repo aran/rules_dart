@@ -30,8 +30,8 @@ With only a project-level pubspec, a staged file's "package root" would be
 those lints silently decline. The stubs restore each package's true root; a
 nested pubspec does not split analysis contexts (context roots split on
 options/package_config files, not pubspecs — `ContextLocatorImpl`, verified
-on Dart 3.12.2), so the project-root `analysis_options.yaml` still governs
-every file.
+on Dart 3.12.2), so options still come from the nearest `analysis_options.yaml`
+above each file, never from a pubspec's position.
 """
 
 load("//dart/private:source_set.bzl", "assemble_source_dir", "package_for")
@@ -131,9 +131,9 @@ def pubspec_stub(packages, name = "analyze_stub"):
     special-cases the containing package, so a `package:self/…` import never
     needs a self-dependency (measured on Dart 3.12.2).
 
-    Shared by `dart_analyze_test` and `dart_fix` rather than written out in
-    each: fixes are driven by the lints a project reports, so the two staging
-    the same project is what lets `bazel run :fix` turn a red analyze green.
+    Pubspec-reading lints fire on the harness unless this is a valid pubspec,
+    so the `dart_analyze` aspect stages one for both its analyze and its fix
+    action.
 
     Args:
       packages: List of DartPackageInfo (from `collect_packages`) — every
@@ -183,8 +183,8 @@ def main_package_roots(packages):
 def staged_pubspec_paths(packages):
     """Project-relative paths of the per-package stub pubspecs staging writes.
 
-    `dart_fix` composes its wrapper `analysis_options.yaml` before calling
-    `stage_dart_project`, so the stub paths it must exclude from fixing are
+    The `dart_analyze` aspect composes its wrapper `analysis_options.yaml`
+    before calling `stage_dart_project`, so the stub paths it must exclude are
     computed here, from the same dedupe rule staging uses, rather than
     returned by it.
 
@@ -201,7 +201,7 @@ def staged_pubspec_paths(packages):
 
 _ROOT_OPTIONS_STUB = "# rules_dart: bounds analysis_options.yaml discovery\n"
 
-def stage_root_options(ctx, options_file):
+def stage_root_options(ctx, options_file, name = None):
     """Declares `<name>.proj/analysis_options.yaml` — always, even when unset.
 
     `dart analyze` and `dart format` both discover analysis options by an
@@ -218,18 +218,19 @@ def stage_root_options(ctx, options_file):
     nothing above interferes (measured on Dart 3.12.2), so the stub changes no
     verdict — it removes only the ancestor read.
 
-    `dart_fix` is not a caller: it already writes a root options file in every
-    case, because it must compose its own exclusions over the user's.
+    The `dart_analyze` aspect is not a caller: it writes a root options file
+    of its own in every case, to carry its exclusions.
 
     Args:
       ctx: The rule context.
       options_file: The user's `analysis_options.yaml` File, or `None`.
+      name: Prefix for the staged paths; defaults to the target's name.
 
     Returns:
       The staged File, for the consuming action's inputs.
     """
     staged = ctx.actions.declare_file(
-        ctx.label.name + ".proj/analysis_options.yaml",
+        (name or ctx.label.name) + ".proj/analysis_options.yaml",
     )
     if options_file:
         ctx.actions.symlink(output = staged, target_file = options_file)
@@ -237,7 +238,7 @@ def stage_root_options(ctx, options_file):
         ctx.actions.write(output = staged, content = _ROOT_OPTIONS_STUB)
     return staged
 
-def stage_dart_project(ctx, packages, all_srcs, extra_proj_files = {}):
+def stage_dart_project(ctx, packages, all_srcs, extra_proj_files = {}, name = None):
     """Stages packages and sources into a hermetic Dart project layout.
 
     Args:
@@ -248,6 +249,8 @@ def stage_dart_project(ctx, packages, all_srcs, extra_proj_files = {}):
       extra_proj_files: Dict of `<filename> -> content string` written as
         declared files directly under `<name>.proj/` (e.g. a `pubspec.yaml`
         stub for `dart analyze`).
+      name: Prefix for the staged paths; defaults to the target's name. An
+        aspect passes its own, so it cannot collide with the target's outputs.
 
     Returns:
       struct(
@@ -257,7 +260,7 @@ def stage_dart_project(ctx, packages, all_srcs, extra_proj_files = {}):
         inputs: list of Files to add to the consuming action's inputs,
       )
     """
-    name = ctx.label.name
+    name = name or ctx.label.name
 
     ext_pkgs = [p for p in packages if p.lib_root.startswith("../")]
     main_files = []

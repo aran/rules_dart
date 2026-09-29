@@ -19,7 +19,7 @@ will never compile, and the package_config of unrelated targets grows an entry
 that exists only to satisfy a linter.
 
 This rule keeps the file and the packages its includes resolve against together
-in one target, so `dart_analyze_test` can stage that closure for options
+in one target, so the `dart_analyze` aspect can stage that closure for options
 resolution alone. The packages land in the non-analyzed `extpkgs` region beside
 pub sources — resolvable, never themselves analyzed — and never reach the
 analyzed target's own provider.
@@ -32,7 +32,7 @@ def _dart_analysis_options_impl(ctx):
     return [
         # A single file, so this target is still usable anywhere a plain
         # `analysis_options.yaml` label was: `allow_single_file` is satisfied
-        # and the file-only path through `dart_analyze_test` keeps working.
+        # and `dart_format_test`'s file-only path keeps working.
         DefaultInfo(files = depset([ctx.file.src])),
         DartAnalysisOptionsInfo(
             file = ctx.file.src,
@@ -62,7 +62,8 @@ dart_analysis_options = rule(
     },
     doc = (
         "An `analysis_options.yaml` bundled with the packages its `include:` " +
-        "directives resolve against, for use as `dart_analyze_test`'s " +
-        "`options`."
+        "directives resolve against. List it in a `dart_analysis_config` " +
+        "for the `dart_analyze` aspect, or pass it as `dart_format_test`'s " +
+        "or `dart_format`'s `options`."
     ),
 )

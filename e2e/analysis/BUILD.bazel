@@ -1,23 +1,9 @@
-load("@rules_dart//dart:defs.bzl", "dart_analysis_options", "dart_analyze_test", "dart_format_test", "dart_library")
+load("@rules_dart//dart:defs.bzl", "dart_analysis_config", "dart_analysis_options", "dart_format_test", "dart_library")
 
 dart_library(
     name = "good_lib",
     srcs = glob(["lib/**/*.dart"]),
     deps = ["//mylib"],
-)
-
-dart_analyze_test(
-    name = "analyze",
-    size = "small",
-    target = ":good_lib",
-)
-
-# Same library analyzed with stricter custom options.
-dart_analyze_test(
-    name = "analyze_strict",
-    size = "small",
-    options = "analysis_options.yaml",
-    target = ":good_lib",
 )
 
 dart_format_test(
@@ -26,32 +12,20 @@ dart_format_test(
     srcs = glob(["lib/**/*.dart"]),
 )
 
-# The same library under `package:very_good_analysis`. Covers two things the
-# rule set has to get right for any published ruleset: a pub spoke has to carry
-# the non-Dart files it ships in `lib/` (the ruleset is a yaml), and the
-# synthesized pubspec has to be valid enough that lints blame the code rather
-# than the staging.
-dart_analyze_test(
-    name = "analyze_vga",
-    size = "small",
-    options = ":vga",
-    target = ":good_lib",
+# The options the `dart_analyze` aspect applies to every package here. The
+# ruleset is a pub package whose yaml the options file includes by `package:`
+# URI. Naming it here rather than in `good_lib`'s deps is the point: a lint
+# ruleset is not a dependency of the code it lints, and listing it there would
+# carry it into the `DartInfo` of every binary and test downstream.
+dart_analysis_options(
+    name = "options",
+    src = "analysis_options.yaml",
+    deps = ["@very_good_analysis"],
 )
 
-# The ruleset is a pub package whose yaml the options file includes by
-# `package:` URI. Naming it here rather than in `good_lib`'s deps is the point:
-# a lint ruleset is not a dependency of the code it lints, and listing it there
-# would carry it into the `DartInfo` of every binary and test downstream.
-dart_analysis_options(
-    name = "vga",
-    src = "vga_options.yaml",
-    # Shared with every package that lints so the workspace has one canonical
-    # ruleset target rather than a duplicate declaration in each of them.
-    visibility = [
-        "//exec_pkg:__pkg__",
-        "//mylib:__pkg__",
-    ],
-    deps = ["@very_good_analysis"],
+dart_analysis_config(
+    name = "analysis_config",
+    options = [":options"],
 )
 
 # `options` honoured directly: the source is formatted for a 100-column page,

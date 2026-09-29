@@ -1,25 +1,33 @@
 load(
     "@rules_dart//dart:defs.bzl",
-    "dart_analysis_options",
-    "dart_analyze_test",
+    "dart_analysis_config",
     "dart_binary",
     "dart_format_test",
     "dart_library",
 )
 
-# This workspace should FAIL to build: bad.dart carries an
-# unused_local_variable diagnostic and dart_analyze_test runs the analyzer
-# with --fatal-infos. Exercised by the expected-failure CI job — it guards
-# the analyze action's error path (diagnostics must fail the build, not be
-# swallowed by the runner).
+# Every target in this workspace is expected to FAIL to build under
+# `bazel test`, which applies the `dart_analyze` aspect (see `.bazelrc`). The
+# expected-failure CI job builds each one and greps for its diagnostic, so each
+# target fails with a diagnostic no other target shares.
+
+dart_analysis_config(
+    name = "analysis_config",
+    options = [
+        "//nested:loud_options",
+        "//nested:options",
+        "//unresolved_ruleset:options",
+        "//vga:options",
+    ],
+)
+
+# bad.dart carries an unused_local_variable diagnostic: the analyze action's
+# error path (diagnostics must fail the build, not be swallowed by the runner),
+# named at its workspace path. No options file governs it, so the SDK defaults
+# apply.
 dart_library(
     name = "bad_lib",
     srcs = ["lib/bad.dart"],
-)
-
-dart_analyze_test(
-    name = "analyze_bad",
-    target = ":bad_lib",
 )
 
 # The same guard for an entrypoint. A `dart_binary`'s `main` is under no `lib/`,
@@ -30,78 +38,6 @@ dart_analyze_test(
 dart_binary(
     name = "bad_bin",
     main = "bad_main.dart",
-)
-
-dart_analyze_test(
-    name = "analyze_bad_bin",
-    target = ":bad_bin",
-)
-
-# A lint ruleset reaches the analyzer through an `include:` that resolves like
-# any other `package:` URI. When it does not resolve, the analyzer applies no
-# rules — so a configuration mistake and a clean codebase would look identical
-# unless something says so out loud. The next two targets pin the two halves of
-# that: an include that fails is reported, and an include that succeeds really
-# does bring its lints to bear.
-
-# Half one. `unresolved_ruleset_options.yaml` names a package this workspace
-# does not have, and `clean.dart` has nothing else wrong with it, so
-# `include_file_not_found` is the only thing that can fail this build. If a
-# future SDK demotes that diagnostic below the analyzer's fatal threshold, this
-# target goes green and CI catches it.
-dart_library(
-    name = "clean_lib",
-    srcs = ["lib/clean.dart"],
-)
-
-dart_analyze_test(
-    name = "analyze_unresolved_ruleset",
-    options = "unresolved_ruleset_options.yaml",
-    target = ":clean_lib",
-)
-
-# Half two. Here the include does resolve, and the assertion is that its lints
-# actually reach the code: `double_quoted.dart` violates `prefer_single_quotes`,
-# which very_good_analysis enables and the SDK defaults do not. A green path
-# cannot prove this — a clean library stays clean whether or not the ruleset
-# loaded, which is exactly why `e2e/analysis`'s passing `analyze_vga` would not
-# have noticed the ruleset going missing. The proof has to be a red path.
-#
-# The lint is also info-level, so this target only fails because the rule runs
-# the analyzer with `--fatal-infos`; dropping that flag turns it green too.
-dart_library(
-    name = "double_quoted_lib",
-    srcs = ["lib/double_quoted.dart"],
-)
-
-dart_analysis_options(
-    name = "vga",
-    src = "vga_options.yaml",
-    deps = ["@very_good_analysis"],
-)
-
-dart_analyze_test(
-    name = "analyze_ruleset_applied",
-    options = ":vga",
-    target = ":double_quoted_lib",
-)
-
-# The layout-gated half of ruleset delivery. `public_member_api_docs` fires
-# only when the analyzer attributes the file to a package whose `lib/`
-# contains it — an attribution that walks up to the nearest pubspec.yaml. The
-# per-package stub pubspec `stage_dart_project` writes is what makes that walk
-# land on the package root instead of the project root; if it ever goes
-# missing, this lint (and every other `isInLibDir`-gated rule) silently
-# declines and this expected-red build turns green for CI to catch.
-dart_library(
-    name = "undocumented_lib",
-    srcs = ["lib/undocumented.dart"],
-)
-
-dart_analyze_test(
-    name = "analyze_lib_lint_applied",
-    options = ":vga",
-    target = ":undocumented_lib",
 )
 
 # The format check's three red paths. A formatting violation must fail the

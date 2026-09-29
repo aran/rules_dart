@@ -1,0 +1,17 @@
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_test")
+
+# Clean under this repository's ruleset, and depends on code from another
+# module that breaks it: that code must be resolved, not re-checked.
+dart_library(
+    name = "app",
+    srcs = ["lib/app.dart"],
+    deps = ["@dep_module//dep_lib"],
+)
+
+# An entrypoint, reached through DartAnalyzableInfo rather than DartInfo.
+dart_test(
+    name = "app_test",
+    size = "small",
+    main = "test/app_test.dart",
+    deps = [":app"],
+)

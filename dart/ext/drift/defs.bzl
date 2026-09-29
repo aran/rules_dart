@@ -124,6 +124,9 @@ def drift_library(
         srcs = srcs,
         package_name = package_name,
         language_version = language_version,
+        # Plumbing, not a library: its files import parts and packages it does
+        # not carry. They are analyzed as the `name` library's own files.
+        tags = ["no-dart-analyze"],
         visibility = ["//visibility:private"],
     )
 

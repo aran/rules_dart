@@ -1,18 +1,9 @@
-load("@rules_dart//dart:defs.bzl", "dart_analysis_options", "dart_analyze_test", "dart_binary")
+load("@rules_dart//dart:defs.bzl", "dart_analysis_config", "dart_analysis_options", "dart_binary")
 
 dart_binary(
     name = "app",
     main = "main.dart",
     deps = ["@path"],
-)
-
-# `main.dart` is an entrypoint, not a library member, so this is also the case
-# that proves `dart_analyze_test` reaches Dart living outside any `lib/`.
-dart_analyze_test(
-    name = "analyze_app",
-    size = "small",
-    options = ":options",
-    target = ":app",
 )
 
 # The ruleset is a lint input, not a program input: naming it here rather than
@@ -21,4 +12,9 @@ dart_analysis_options(
     name = "options",
     src = "analysis_options.yaml",
     deps = ["@very_good_analysis"],
+)
+
+dart_analysis_config(
+    name = "analysis_config",
+    options = [":options"],
 )

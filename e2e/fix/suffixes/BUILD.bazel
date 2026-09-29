@@ -17,11 +17,11 @@ dart_library(
         "lib/thing.freezed.dart",
         "lib/thing.g.dart",
     ],
+    tags = ["no-dart-analyze"],
 )
 
 dart_fix(
     name = "fix",
-    options = "//:options",
     target = ":lib",
 )
 

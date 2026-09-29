@@ -1,6 +1,6 @@
 """Shared utilities for Dart rules."""
 
-load("//dart:providers.bzl", "CODE_ASSET_LINK_MODES", "DartAnalysisOptionsInfo", "DartAnalyzableInfo", "DartInfo", "DartPackageMetadataInfo")
+load("//dart:providers.bzl", "CODE_ASSET_LINK_MODES", "DartAnalysisOptionsInfo", "DartInfo", "DartPackageMetadataInfo")
 load("//dart/private:dart_info.bzl", "derived_package_info", "package_lib_prefix")
 load("//dart/private:source_set.bzl", "needs_source_assembly", "package_for")
 
@@ -239,8 +239,7 @@ def resolve_package_identity(ctx):
     refuses the overlap outright rather than defining a precedence: a rule that
     sets `package` and an inline attribute fails, whether or not the two agree.
     Agreement today is not agreement after the next edit, and a silently ignored
-    attribute is the failure this whole mechanism exists to remove. The same
-    call `analyze_operand` makes for `target` / `lib`.
+    attribute is the failure this whole mechanism exists to remove.
 
     Tolerant about which attributes the calling rule actually declares:
     `dart_format_test` has a `language_version` and no `package_name`, and a
@@ -491,61 +490,11 @@ def merge_package_records(merged):
             )
     return packages
 
-def analyze_operand(ctx):
-    """Returns the target a `dart_analyze_test` / `dart_fix` was pointed at.
-
-    Both rules name the operand `target` and still answer to the older `lib`.
-    Neither attribute can be `mandatory` while the other exists, so the
-    missing-attribute error Bazel used to raise for `lib` has to be raised here
-    instead — and with it the both-set case, where picking one silently would
-    analyze something the BUILD file did not ask for.
-
-    Args:
-      ctx: The rule context (must declare both `target` and `lib`).
-
-    Returns:
-      The chosen target.
-    """
-    if ctx.attr.target and ctx.attr.lib:
-        fail(("%s: set either `target` or `lib`, not both. `lib` is the " +
-              "deprecated spelling of `target`; drop it.") % ctx.label)
-    if ctx.attr.target:
-        return ctx.attr.target
-    if ctx.attr.lib:
-        return ctx.attr.lib
-    fail(("%s: missing `target` — name the `dart_library`, `dart_binary` or " +
-          "`dart_test` whose Dart sources to analyze.") % ctx.label)
-
-def analyzable_closure(target):
-    """Normalizes an analyze/fix operand to the closure and the loose sources.
-
-    `dart_analyze_test` and `dart_fix` accept either provider — `DartInfo` from
-    a library, `DartAnalyzableInfo` from an executable — and this is the single
-    place that OR is resolved, so neither rule has to branch and the two cannot
-    drift into disagreeing about what "the sources to analyze" means.
-
-    Args:
-      target: A target providing `DartAnalyzableInfo` or `DartInfo`.
-
-    Returns:
-      `struct(dart_info, srcs)` — the dependency closure, and the target's own
-      package-less entrypoint sources (empty for a library, whose every source
-      is already inside the closure).
-    """
-    if DartAnalyzableInfo in target:
-        analyzable = target[DartAnalyzableInfo]
-        return struct(
-            dart_info = analyzable.dart_info,
-            srcs = analyzable.srcs.to_list(),
-        )
-    return struct(dart_info = target[DartInfo], srcs = [])
-
 def analysis_options_closure(options_attr):
     """Normalizes an `options` attribute to the closure its `include:`s need.
 
-    Every rule that stages a project for an SDK tool — `dart_analyze_test`,
-    `dart_fix`, `dart_format_test` — accepts the same three shapes: unset, a
-    bare `.yaml` label, and a `dart_analysis_options` target. Only the third
+    `dart_format_test` and `dart_format` accept the same three shapes: unset,
+    a bare `.yaml` label, and a `dart_analysis_options` target. Only the third
     carries packages, because only a `package:` URI needs resolving; this is
     the single place that distinction is made, so the rules cannot drift into
     staging different closures for the same options file.
@@ -575,10 +524,9 @@ def analysis_options_closure(options_attr):
 def noop_test_executable(ctx, tool):
     """Symlinks the do-nothing binary as a test rule's executable.
 
-    `dart_analyze_test` and `dart_format_test` both decide their verdict in a
-    build action: when the action fails the build fails, and nothing is left
-    for the test binary to check. Both must still *be* tests, so both hand
-    Bazel the same pass-through executable.
+    `dart_format_test` decides its verdict in a build action: when the action
+    fails the build fails, and nothing is left for the test binary to check.
+    It must still *be* a test, so it hands Bazel a pass-through executable.
 
     Args:
       ctx: The rule context (must carry `WINDOWS_CONSTRAINT_ATTR`).

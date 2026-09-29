@@ -1,0 +1,6 @@
+# Analyze every Dart target a test run names, under //:analysis_config.
+test --aspects=@rules_dart//dart:analyze.bzl%dart_analyze
+test --output_groups=+dart_analyze
+common --@rules_dart//dart:analysis_config=//:analysis_config
+
+try-import %workspace%/.bazelrc.user

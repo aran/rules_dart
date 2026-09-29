@@ -1,5 +1,6 @@
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
-load("//dart:defs.bzl", "dart_analyze_test", "dart_fix")
+load("//dart:defs.bzl", "dart_fix")
+load("//dart/tests:analyze_test.bzl", "analyzed_test")
 load("//dart/tests:dart_info_test.bzl", "wrapper_executable")
 
 # The shape a downstream `flutter_test` has, under a real `dart analyze` run.
@@ -22,15 +23,14 @@ wrapper_executable(
     ],
 )
 
-dart_analyze_test(
+analyzed_test(
     name = "analyze_exec",
     size = "small",
     target = ":exec",
 )
 
-# `dart_fix` reaches the operand through the same `analyzable_closure`, so it
-# inherits the fix and would inherit the regression. Cheap to pin from the side
-# that stages rather than analyzes.
+# `dart_fix` stages through the same aspect, so it inherits the fix and would
+# inherit the regression. Cheap to pin from the side that applies fixes.
 dart_fix(
     name = "fix_exec",
     target = ":exec",

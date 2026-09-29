@@ -275,6 +275,7 @@ def dart_analyzable_info(deps = [], srcs = []):
     return DartAnalyzableInfo(
         dart_info = dart_info_no_package(deps = deps),
         srcs = depset(srcs),
+        package_srcs = depset(),
     )
 
 def dart_analyzable_info_with_package(
@@ -362,6 +363,7 @@ def dart_analyzable_info_with_package(
             version = version,
         ),
         srcs = depset(srcs),
+        package_srcs = depset(package_srcs),
     )
 
 def derived_package_info(pkg, lib_root = None, code_assets = None):

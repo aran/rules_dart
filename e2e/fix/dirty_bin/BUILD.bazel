@@ -9,24 +9,25 @@ load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_fix", "dart_library")
 # but ineligible would compute the fix and drop it; eligible but unstaged would
 # never compute one.
 #
-# The violation is load-bearing, so do not `bazel run //dirty_bin:fix` — it
+# The violations are load-bearing, so do not `bazel run //dirty_bin:fix` — it
 # would rewrite the fixture and take the assertion with it.
 
 dart_library(
     name = "dep",
     package_name = "fix_bin_dep",
     srcs = ["lib/dep.dart"],
+    tags = ["no-dart-analyze"],
 )
 
 dart_binary(
     name = "bin",
     main = "main.dart",
+    tags = ["no-dart-analyze"],
     deps = [":dep"],
 )
 
 dart_fix(
     name = "fix",
-    options = "//:options",
     target = ":bin",
 )
 
@@ -42,9 +43,8 @@ filegroup(
     output_group = "dart_fix_fixes",
 )
 
-# One entry, and it is the entrypoint. `lib/dep.dart` is staged and eligible but
-# clean, so its absence is what distinguishes "fixed the entrypoint" from "fixed
-# everything in the closure".
+# One entry, and it is the entrypoint. `lib/dep.dart` has a violation too, but
+# it is `:dep`'s file, staged only to resolve against.
 diff_test(
     name = "manifest_test",
     size = "small",

@@ -66,7 +66,7 @@ bzl_library(
     deps = [
         "//dart/private:dart_aggregate_codegen",
         "//dart/private:dart_analysis_options",
-        "//dart/private:dart_analyze",
+        "//dart/private:dart_analyze_aspect",
         "//dart/private:dart_binary",
         "//dart/private:dart_codegen",
         "//dart/private:dart_fix",
@@ -110,4 +110,19 @@ bzl_library(
         "//dart/private:dart_library",
         "//dart/private:source_set",
     ],
+)
+
+# The `dart_analysis_config` whose options the `dart_analyze` aspect and
+# `dart_fix` use. The default lists none: every file gets the SDK's defaults.
+label_flag(
+    name = "analysis_config",
+    build_setting_default = "//dart/private:empty_analysis_config",
+    visibility = ["//visibility:public"],
+)
+
+bzl_library(
+    name = "analyze",
+    srcs = ["analyze.bzl"],
+    visibility = ["//visibility:public"],
+    deps = ["//dart/private:dart_analyze_aspect"],
 )

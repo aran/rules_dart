@@ -1,26 +1,12 @@
-load("@rules_dart//dart:defs.bzl", "dart_analyze_test", "dart_format_test", "dart_library")
+load("@rules_dart//dart:defs.bzl", "dart_format_test", "dart_library")
 
+# Analyzed by the `dart_analyze` aspect under the root package's options: the
+# ruleset those carry resolves for every package below them, not only the one
+# that declared it.
 dart_library(
     name = "mylib",
     srcs = glob(["lib/**/*.dart"]),
     visibility = ["//visibility:public"],
-)
-
-dart_analyze_test(
-    name = "analyze_test",
-    size = "small",
-    target = ":mylib",
-)
-
-# The same library under `package:very_good_analysis`, via the options target in
-# the root package. Proves a `dart_analysis_options` is reusable across
-# packages: the ruleset it carries resolves against whichever target is being
-# analyzed, not against the package that declared it.
-dart_analyze_test(
-    name = "analyze_vga",
-    size = "small",
-    options = "//:vga",
-    target = ":mylib",
 )
 
 dart_format_test(

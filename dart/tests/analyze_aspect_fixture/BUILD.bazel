@@ -1,0 +1,120 @@
+load("//dart:defs.bzl", "dart_analysis_config", "dart_analysis_options")
+load(
+    "//dart/tests:analyze_test.bzl",
+    "analyzed_test",
+    "aspect_applies_test",
+    "config_refused_test",
+)
+
+# The `dart_analyze` aspect's green paths, under the root `//:analysis_config`,
+# which lists this fixture's three options files. Their red halves are in
+# `e2e/analysis_failure`, where CI expects each build to fail.
+
+dart_analysis_options(
+    name = "options",
+    src = "analysis_options.yaml",
+    visibility = ["//:__pkg__"],
+)
+
+# Only a target's own files are checked: `app` is clean and depends on code
+# that breaks this fixture's options.
+analyzed_test(
+    name = "own_files_only_test",
+    size = "small",
+    target = "//dart/tests/analyze_aspect_fixture/app",
+)
+
+# The nearest options file governs: `vendored` prints under its own options.
+analyzed_test(
+    name = "nearest_options_test",
+    size = "small",
+    target = "//dart/tests/analyze_aspect_fixture/vendored",
+)
+
+# ... per file, within one target.
+analyzed_test(
+    name = "nearest_options_per_file_test",
+    size = "small",
+    target = "//dart/tests/analyze_aspect_fixture/nested",
+)
+
+# A generated file is never checked, though its hand-written sibling is.
+analyzed_test(
+    name = "generated_skipped_test",
+    size = "small",
+    target = "//dart/tests/analyze_aspect_fixture/generated",
+)
+
+aspect_applies_test(
+    name = "generated_only_skipped_test",
+    size = "small",
+    expect_analyzed = False,
+    expect_fixable = False,
+    target_under_test = "//dart/tests/analyze_aspect_fixture/generated:generated_only",
+)
+
+# A `flutter_library`'s files arrive through `DefaultInfo`, not
+# `DartAnalyzableInfo.srcs`, which is empty.
+aspect_applies_test(
+    name = "flutter_shaped_applies_test",
+    size = "small",
+    expect_analyzed = True,
+    expect_fixable = True,
+    target_under_test = "//dart/tests/analyze_aspect_fixture/flutter_shaped",
+)
+
+analyzed_test(
+    name = "flutter_shaped_test",
+    size = "small",
+    target = "//dart/tests/analyze_aspect_fixture/flutter_shaped",
+)
+
+aspect_applies_test(
+    name = "tag_opt_out_test",
+    size = "small",
+    expect_analyzed = False,
+    expect_fixable = True,
+    target_under_test = "//dart/tests/analyze_aspect_fixture/opted_out",
+)
+
+# Configurations that must be refused. `manual`: they fail to analyze.
+dart_analysis_options(
+    name = "misnamed",
+    src = "misnamed.yaml",
+    tags = ["manual"],
+)
+
+dart_analysis_config(
+    name = "misnamed_config",
+    options = [":misnamed"],
+    tags = ["manual"],
+)
+
+config_refused_test(
+    name = "misnamed_refused_test",
+    size = "small",
+    message = "only finds options files named `analysis_options.yaml`",
+    target_under_test = ":misnamed_config",
+)
+
+dart_analysis_options(
+    name = "options_again",
+    src = "analysis_options.yaml",
+    tags = ["manual"],
+)
+
+dart_analysis_config(
+    name = "duplicate_config",
+    options = [
+        ":options",
+        ":options_again",
+    ],
+    tags = ["manual"],
+)
+
+config_refused_test(
+    name = "duplicate_refused_test",
+    size = "small",
+    message = "is listed twice",
+    target_under_test = ":duplicate_config",
+)

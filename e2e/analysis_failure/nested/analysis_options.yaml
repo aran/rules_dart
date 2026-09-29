@@ -1,0 +1,4 @@
+# Governs this directory, except below `lib/loud`, whose own options are nearer.
+linter:
+  rules:
+    - avoid_print

@@ -1,0 +1,9 @@
+load("//dart:defs.bzl", "dart_library")
+
+# Clean itself; depends on vendored code the fixture's options would reject.
+dart_library(
+    name = "app",
+    srcs = ["lib/a.dart"],
+    visibility = ["//dart/tests/analyze_aspect_fixture:__pkg__"],
+    deps = ["//dart/tests/analyze_aspect_fixture/vendored"],
+)

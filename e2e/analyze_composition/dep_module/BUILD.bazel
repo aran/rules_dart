@@ -1,0 +1,12 @@
+load("@rules_dart//dart:defs.bzl", "dart_analysis_config", "dart_analysis_options")
+
+dart_analysis_options(
+    name = "options",
+    src = "analysis_options.yaml",
+    visibility = ["//visibility:public"],
+)
+
+dart_analysis_config(
+    name = "analysis_config",
+    options = [":options"],
+)

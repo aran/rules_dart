@@ -43,7 +43,7 @@ pub.from_lock(
     on_version_conflict = "upgrade",
 )
 
-# Lint ruleset for the analyze tests. Declared as its own spoke rather than
+# Lint ruleset for the analyze aspect. Declared as its own spoke rather than
 # added to pubspec.yaml: it is never imported by any source here, and putting
 # it in the lock would make it a runtime dep of every `pub_deps` consumer.
 pub.package(

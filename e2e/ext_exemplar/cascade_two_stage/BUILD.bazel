@@ -5,7 +5,6 @@
 
 load(
     "@rules_dart//dart:defs.bzl",
-    "dart_analyze_test",
     "dart_codegen",
     "dart_library",
     "dart_test",
@@ -36,6 +35,9 @@ dart_library(
         ":_event_freezed",
     ],
     language_version = "3.11",
+    # Only the freezed stage's output is present here; event.dart also needs
+    # the json part from the next stage, so `:cascade_two_stage` analyzes it.
+    tags = ["no-dart-analyze"],
     deps = _ANN_DEPS,
 )
 
@@ -78,18 +80,4 @@ dart_test(
         ":cascade_two_stage",
         "@pub_deps//:test",
     ],
-)
-
-dart_analyze_test(
-    name = "analyze_cascade_two_stage",
-    size = "small",
-    options = "//:options",
-    target = ":cascade_two_stage",
-)
-
-dart_analyze_test(
-    name = "analyze_event_test",
-    size = "small",
-    options = "//:options",
-    target = ":event_test",
 )

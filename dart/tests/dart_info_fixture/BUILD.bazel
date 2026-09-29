@@ -123,6 +123,9 @@ wrapper_executable(
     language_version = "3.11",
     package_srcs = ["lib/owned.dart"],
     resources = ["lib/owned.yaml"],
+    # Two packages rooted at one directory, which no package_config may hold:
+    # a provider-shape fixture, not a project the analyzer can resolve.
+    tags = ["no-dart-analyze"],
     deps = [":dep"],
 )
 

@@ -1,3 +1,9 @@
+# Every Dart target here is analyzed under `package:very_good_analysis`, which
+# covers two things the rule set has to get right for any published ruleset: a
+# pub spoke has to carry the non-Dart files it ships in `lib/` (the ruleset is
+# a yaml), and the synthesized pubspec has to be valid enough that lints blame
+# the code rather than the staging.
+include: package:very_good_analysis/analysis_options.yaml
 analyzer:
   exclude:
     - "bazel-*/**"

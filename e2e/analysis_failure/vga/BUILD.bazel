@@ -1,0 +1,31 @@
+load("@rules_dart//dart:defs.bzl", "dart_analysis_options", "dart_library")
+
+# This directory is governed by `package:very_good_analysis`. A green path
+# cannot prove a ruleset's lints reach the code — a clean library stays clean
+# whether or not the ruleset loaded — so both targets here are expected red.
+dart_analysis_options(
+    name = "options",
+    src = "analysis_options.yaml",
+    visibility = ["//:__pkg__"],
+    deps = ["@very_good_analysis"],
+)
+
+# `double_quoted.dart` violates `prefer_single_quotes`, which very_good_analysis
+# enables and the SDK defaults do not. The lint is also info-level, so this
+# fails only because the aspect runs the analyzer with `--fatal-infos`.
+dart_library(
+    name = "double_quoted_lib",
+    srcs = ["lib/double_quoted.dart"],
+)
+
+# The layout-gated half of ruleset delivery. `public_member_api_docs` fires
+# only when the analyzer attributes the file to a package whose `lib/`
+# contains it — an attribution that walks up to the nearest pubspec.yaml. The
+# per-package stub pubspec staging writes is what makes that walk land on the
+# package root instead of the project root; if it ever goes missing, this lint
+# (and every other `isInLibDir`-gated rule) silently declines and this
+# expected-red build turns green for CI to catch.
+dart_library(
+    name = "undocumented_lib",
+    srcs = ["lib/undocumented.dart"],
+)

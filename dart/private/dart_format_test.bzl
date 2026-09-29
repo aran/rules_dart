@@ -1,7 +1,6 @@
 """Implementation of the dart_format_test rule.
 
-Checks `dart format` as a build-time action, in the same shape as
-`dart_analyze_test`: the verdict is computed while building a stamp file, and
+Checks `dart format` as a build-time action: the verdict is computed while building a stamp file, and
 the test target is a pass-through that always succeeds.
 
 A build action rather than a test is what makes the check mean anything. The
@@ -20,7 +19,7 @@ The staged project is deliberately thinner than the analyzer's: formatting is
 purely syntactic, so no import has to resolve. Only an options file that
 `include`s a ruleset by `package:` URI needs a `package_config.json`, and that
 is exactly what `dart_analysis_options` carries. No project-root `pubspec.yaml`
-is written either, as `dart_analyze_test` writes one: the formatter takes the
+is written either, as the `dart_analyze` aspect writes one: the formatter takes the
 language version that selects its style from `package_config.json` alone, never
 from a pubspec's `sdk:` constraint (measured on Dart 3.12.2 across `any`,
 `^3.6.0`, `>=3.0.0 <4.0.0` and `^3.12.0` — all four formatted identically), so a

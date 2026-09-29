@@ -1,4 +1,4 @@
-load("@rules_dart//dart:defs.bzl", "dart_analyze_test", "dart_library", "dart_test")
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_test")
 
 # A test declared in the same Bazel package as the library it tests — the
 # ordinary pub layout — where the library itself is pure source and its
@@ -33,11 +33,4 @@ dart_test(
         ":colocated_fixture",
         "@pub_deps//:test",
     ],
-)
-
-dart_analyze_test(
-    name = "analyze_consumer_test",
-    size = "small",
-    options = "//:options",
-    target = ":consumer_test",
 )

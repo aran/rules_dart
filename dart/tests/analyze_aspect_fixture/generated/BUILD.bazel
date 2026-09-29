@@ -1,0 +1,31 @@
+load("@bazel_skylib//rules:write_file.bzl", "write_file")
+load("//dart:defs.bzl", "dart_library")
+
+# A generated file that breaks the fixture's options, beside a hand-written one
+# that does not. Generated files are never checked.
+write_file(
+    name = "gen",
+    out = "lib/gen.dart",
+    content = [
+        "void generated() {",
+        "  print('generated');",
+        "}",
+        "",
+    ],
+)
+
+dart_library(
+    name = "generated",
+    srcs = [
+        "lib/gen.dart",
+        "lib/hand.dart",
+    ],
+    visibility = ["//dart/tests/analyze_aspect_fixture:__pkg__"],
+)
+
+# Nothing hand-written at all: nothing for the aspect to check.
+dart_library(
+    name = "generated_only",
+    srcs = ["lib/gen.dart"],
+    visibility = ["//dart/tests/analyze_aspect_fixture:__pkg__"],
+)

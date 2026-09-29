@@ -1,0 +1,17 @@
+load("@rules_dart//dart:defs.bzl", "dart_analysis_options", "dart_library")
+
+# Expected red: this directory's options `include:` a package that does not
+# exist, and the library below them has nothing else wrong with it, so
+# `include_file_not_found` is the only thing that can fail its analysis. If a
+# future SDK demotes that diagnostic below the analyzer's fatal threshold, this
+# goes green and CI catches it.
+dart_library(
+    name = "clean_lib",
+    srcs = ["lib/clean.dart"],
+)
+
+dart_analysis_options(
+    name = "options",
+    src = "analysis_options.yaml",
+    visibility = ["//:__pkg__"],
+)

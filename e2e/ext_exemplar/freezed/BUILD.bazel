@@ -1,6 +1,5 @@
 load(
     "@rules_dart//dart:defs.bzl",
-    "dart_analyze_test",
     "dart_test",
 )
 load("@rules_dart//dart/ext/freezed:defs.bzl", "freezed_library")
@@ -39,25 +38,4 @@ dart_test(
         ":freezed_fixture",
         "@pub_deps//:test",
     ],
-)
-
-dart_analyze_test(
-    name = "analyze_freezed_fixture",
-    size = "small",
-    options = "//:options",
-    target = ":freezed_fixture",
-)
-
-dart_analyze_test(
-    name = "analyze_event_test",
-    size = "small",
-    options = "//:options",
-    target = ":event_test",
-)
-
-dart_analyze_test(
-    name = "analyze_network_result_test",
-    size = "small",
-    options = "//:options",
-    target = ":network_result_test",
 )

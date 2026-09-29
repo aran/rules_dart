@@ -183,9 +183,9 @@ def _dart_binary_impl(ctx):
             executable = output,
             compile_mode = compile_mode,
         ),
-        # What makes `dart_analyze_test(target = ":bin")` / `dart_fix` possible
+        # What makes the `dart_analyze` aspect and `dart_fix` reach this entrypoint
         # without making this target a legal `deps` entry. The pre-colocation
-        # `ctx.file.main` on purpose: those rules stage by `short_path`, and a
+        # `ctx.file.main` on purpose: staging goes by `short_path`, and a
         # colocated copy's is inside the assembled directory.
         dart_analyzable_info(
             deps = ctx.attr.deps,

@@ -41,6 +41,7 @@ const _ciFolders = [
   'e2e/ext_exemplar',
   'e2e/dual_build',
   'e2e/fix',
+  'e2e/analyze_composition',
 ];
 
 /// Per-folder timeout. The first folder pays for the hermetic Dart SDK
@@ -216,18 +217,44 @@ const _expectedFailureChecks = [
     '//:app',
     'conflicting versions across lock files',
   ),
+  // The `dart_analyze` aspect's red paths, each with an error string no other
+  // target shares, so a grep hit cannot be another target's.
   _ExpectedFailure(
     'e2e/analysis_failure',
-    '//:analyze_bad',
+    '//:bad_lib',
     'unused_local_variable',
   ),
   // The entrypoint half: a `dart_binary`'s `main` reaches the analyzer through
-  // `DartAnalyzableInfo`, and a diagnostic in it must fail the build too. Its
-  // own error string, so a grep hit cannot be the library target's.
+  // `DartAnalyzableInfo`, and a diagnostic in it must fail the build too.
   _ExpectedFailure(
     'e2e/analysis_failure',
-    '//:analyze_bad_bin',
+    '//:bad_bin',
     'unused_import',
+  ),
+  _ExpectedFailure(
+    'e2e/analysis_failure',
+    '//flutter_shaped',
+    'unused_element',
+  ),
+  _ExpectedFailure(
+    'e2e/analysis_failure',
+    '//nested',
+    'avoid_print',
+  ),
+  _ExpectedFailure(
+    'e2e/analysis_failure',
+    '//unresolved_ruleset:clean_lib',
+    'include_file_not_found',
+  ),
+  _ExpectedFailure(
+    'e2e/analysis_failure',
+    '//vga:double_quoted_lib',
+    'prefer_single_quotes',
+  ),
+  _ExpectedFailure(
+    'e2e/analysis_failure',
+    '//vga:undocumented_lib',
+    'public_member_api_docs',
   ),
 ];
 
@@ -242,7 +269,9 @@ Future<_FolderResult> _runExpectedFailure(
   final dir = '\$HOME/rd/rules_dart/${check.folder}';
   final command =
       "bash -lc 'cd $dir && "
-      "if bazel build ${check.target} > /tmp/expected_failure.out 2>&1; "
+      // `test`, not `build`: the workspaces apply the `dart_analyze` aspect
+      // under `bazel test` only.
+      "if bazel test ${check.target} > /tmp/expected_failure.out 2>&1; "
       "then echo BUILD_UNEXPECTEDLY_PASSED; echo RD_EXIT=2; "
       "elif grep -q \"${check.expectedError}\" /tmp/expected_failure.out; "
       "then echo RD_EXIT=0; else echo RD_EXIT=1; fi'";

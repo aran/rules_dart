@@ -1,0 +1,14 @@
+load("//dart:defs.bzl", "dart_analysis_options", "dart_library")
+
+dart_analysis_options(
+    name = "options",
+    src = "analysis_options.yaml",
+    visibility = ["//:__pkg__"],
+)
+
+# Prints, which its own options allow and the fixture's options do not.
+dart_library(
+    name = "vendored",
+    srcs = ["lib/v.dart"],
+    visibility = ["//dart/tests/analyze_aspect_fixture:__subpackages__"],
+)

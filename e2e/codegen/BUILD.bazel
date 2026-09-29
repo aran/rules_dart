@@ -1,4 +1,4 @@
-load("@rules_dart//dart:defs.bzl", "dart_analysis_options")
+load("@rules_dart//dart:defs.bzl", "dart_analysis_config", "dart_analysis_options")
 
 exports_files(["pubspec.lock"])
 
@@ -11,4 +11,9 @@ dart_analysis_options(
     src = "analysis_options.yaml",
     visibility = ["//visibility:public"],
     deps = ["@very_good_analysis"],
+)
+
+dart_analysis_config(
+    name = "analysis_config",
+    options = [":options"],
 )

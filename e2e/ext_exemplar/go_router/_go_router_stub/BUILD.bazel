@@ -2,7 +2,6 @@
 # ../README.md or the library header in lib/go_router.dart for rationale.
 load(
     "@rules_dart//dart:defs.bzl",
-    "dart_analyze_test",
     "dart_library",
 )
 
@@ -14,11 +13,4 @@ dart_library(
         "lib/src/route_data.dart",
     ],
     visibility = ["//go_router:__pkg__"],
-)
-
-dart_analyze_test(
-    name = "analyze_go_router_stub",
-    size = "small",
-    options = "//:options",
-    target = ":go_router_stub",
 )

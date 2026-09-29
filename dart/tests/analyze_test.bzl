@@ -1,18 +1,21 @@
-"""Tests for the hermetic dart_analyze_test implementation.
+"""Tests for the `dart_analyze` aspect and the provider it reads from executables.
 
-The analyze action must run the compiled analyze_runner over a staged, declared
-project directory — no shell, no mktemp.
+The aspect's verdicts are checked by building it: `analyzed_test` applies it to
+one target and passes only if that target's analysis ran and came back clean.
+Its red paths live in `e2e/analysis_failure`, where CI asserts each build fails
+with the expected diagnostic. The analysis tests here pin which targets the
+aspect takes on at all.
 
-The rest of this file covers the other half of what the rule accepts: an
-executable. A `dart_binary`/`dart_test` entrypoint belongs to no package's
-`lib/`, so it reaches the rule through `DartAnalyzableInfo` rather than
-`DartInfo`, and the cases below pin both directions of that — that the
-entrypoint really is staged for analysis, and that the provider carrying it is
-still not something `deps` will accept.
+The rest of this file covers an executable. A `dart_binary`/`dart_test`
+entrypoint belongs to no package's `lib/`, so it reaches the aspect through
+`DartAnalyzableInfo` rather than `DartInfo`, and the cases below pin that the
+provider carrying it is still not something `deps` will accept.
 """
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts")
 load("//dart:providers.bzl", "DartAnalyzableInfo", "DartInfo")
+load("//dart/private:common.bzl", "WINDOWS_CONSTRAINT_ATTR", "noop_test_executable")
+load("//dart/private:dart_analyze_aspect.bzl", "DartFixOutputsInfo", "dart_analyze")
 
 # The fixture's entrypoint and its dependency, by the suffix of their
 # `short_path`. Named here rather than passed in: these tests exist for one
@@ -20,52 +23,73 @@ load("//dart:providers.bzl", "DartAnalyzableInfo", "DartInfo")
 _ENTRYPOINT = "/analyzable_fixture/main.dart"
 _DEP_PACKAGE = "analyzable_dep"
 
-def _analyze_is_hermetic_test_impl(ctx):
+def _analyzed_test_impl(ctx):
+    groups = ctx.attr.target[OutputGroupInfo] if OutputGroupInfo in ctx.attr.target else None
+    if groups == None or not hasattr(groups, "dart_analyze"):
+        fail("%s: the dart_analyze aspect did not analyze %s" % (ctx.label, ctx.attr.target.label))
+    noop = noop_test_executable(ctx, ctx.attr._tool)
+    return [DefaultInfo(
+        executable = noop.executable,
+        runfiles = ctx.runfiles(transitive_files = groups.dart_analyze).merge(noop.runfiles),
+    )]
+
+# Passes when `target`'s analysis ran and found nothing: the aspect's stamp is
+# in the runfiles, and it is only written when `dart analyze` exits clean.
+# Independent of `.bazelrc`, so it holds however the suite is invoked.
+analyzed_test = rule(
+    implementation = _analyzed_test_impl,
+    attrs = dict({
+        "target": attr.label(mandatory = True, aspects = [dart_analyze]),
+        "_tool": attr.label(
+            default = "//dart/private/tools:noop",
+            executable = True,
+            cfg = "exec",
+        ),
+    }, **WINDOWS_CONSTRAINT_ATTR),
+    test = True,
+)
+
+def _aspect_applies_test_impl(ctx):
     env = analysistest.begin(ctx)
-    action = None
-    for a in analysistest.target_actions(env):
-        if a.mnemonic == "DartAnalyze":
-            action = a
-    asserts.true(env, action != None, "expected a DartAnalyze action")
-    argv = action.argv
-    asserts.true(
+    target = analysistest.target_under_test(env)
+    groups = target[OutputGroupInfo] if OutputGroupInfo in target else None
+    analyzed = groups != None and hasattr(groups, "dart_analyze")
+    asserts.equals(
         env,
-        "analyze_runner" in argv[0],
-        "analyze must run the compiled analyze_runner, got: %s" % argv[0],
+        ctx.attr.expect_analyzed,
+        analyzed,
+        "the dart_analyze aspect %s %s" % ("analyzed" if analyzed else "skipped", target.label),
     )
-    asserts.true(env, "--project" in argv, "missing --project in argv: %s" % argv)
-    asserts.true(env, "--fatal-infos" in argv, "missing --fatal-infos in argv: %s" % argv)
-    asserts.true(env, "--stamp" in argv, "missing --stamp in argv: %s" % argv)
+    asserts.equals(
+        env,
+        ctx.attr.expect_fixable,
+        DartFixOutputsInfo in target,
+        "whether `dart_fix` can fix %s" % target.label,
+    )
     return analysistest.end(env)
 
-analyze_hermetic_test = analysistest.make(_analyze_is_hermetic_test_impl)
+# Whether the aspect checks a target, and whether it offers `dart_fix` fixes for
+# it: neither for a target with nothing hand-written of its own, fixes but no
+# check for one tagged `no-dart-analyze`.
+aspect_applies_test = analysistest.make(
+    _aspect_applies_test_impl,
+    attrs = {
+        "expect_analyzed": attr.bool(mandatory = True),
+        "expect_fixable": attr.bool(mandatory = True),
+    },
+    extra_target_under_test_aspects = [dart_analyze],
+)
 
-def _analyze_stages_root_options_test_impl(ctx):
+def _config_refused_test_impl(ctx):
     env = analysistest.begin(ctx)
-
-    # The fixture sets no `options`, which is exactly the case that used to
-    # stage nothing at the project root. `dart analyze` discovers options by an
-    # unbounded walk up from its input, so with the root empty it climbs out of
-    # `<name>.proj` — and under a non-sandboxed strategy the next thing up is
-    # the execroot, whose top level mirrors the workspace. A staged root file
-    # is the only thing that stops the walk, so its presence is the assertion.
-    staged = []
-    for a in analysistest.target_actions(env):
-        staged.extend([
-            f.short_path
-            for f in a.inputs.to_list()
-            if f.short_path.endswith(".proj/analysis_options.yaml")
-        ])
-    asserts.true(
-        env,
-        staged != [],
-        "no analysis_options.yaml is staged at the project root, so the " +
-        "analyzer's options walk-up escapes into the execroot",
-    )
+    asserts.expect_failure(env, ctx.attr.message)
     return analysistest.end(env)
 
-analyze_stages_root_options_test = analysistest.make(
-    _analyze_stages_root_options_test_impl,
+# A `dart_analysis_config` that must be refused, and the error that says why.
+config_refused_test = analysistest.make(
+    _config_refused_test_impl,
+    attrs = {"message": attr.string(mandatory = True)},
+    expect_failure = True,
 )
 
 def _analyzable_provider_test_impl(ctx):
@@ -116,30 +140,6 @@ def _analyzable_provider_test_impl(ctx):
 
 analyzable_provider_test = analysistest.make(_analyzable_provider_test_impl)
 
-def _stages_entrypoint_test_impl(ctx):
-    env = analysistest.begin(ctx)
-
-    # Scanned across every action rather than the DartAnalyze one: the analyzer
-    # is handed a project directory, so the entrypoint reaches it as a member of
-    # the `src` tree artifact that `copy_to_directory` assembles, and only that
-    # action lists it by name.
-    staged = []
-    for a in analysistest.target_actions(env):
-        staged.extend([
-            f.short_path
-            for f in a.inputs.to_list()
-            if f.short_path.endswith(_ENTRYPOINT)
-        ])
-    asserts.true(
-        env,
-        staged != [],
-        "no action of the analyze target consumes the entrypoint — it was " +
-        "never staged, so `dart analyze` never saw it",
-    )
-    return analysistest.end(env)
-
-stages_entrypoint_test = analysistest.make(_stages_entrypoint_test_impl)
-
 def _binary_not_a_dep_test_impl(ctx):
     env = analysistest.begin(ctx)
     asserts.expect_failure(env, "mandatory providers")
@@ -151,26 +151,5 @@ def _binary_not_a_dep_test_impl(ctx):
 # executable ever starts returning `DartInfo`, this is what goes red.
 binary_not_a_dep_test = analysistest.make(
     _binary_not_a_dep_test_impl,
-    expect_failure = True,
-)
-
-def _both_operands_test_impl(ctx):
-    env = analysistest.begin(ctx)
-    asserts.expect_failure(env, "not both")
-    return analysistest.end(env)
-
-def _no_operand_test_impl(ctx):
-    env = analysistest.begin(ctx)
-    asserts.expect_failure(env, "missing `target`")
-    return analysistest.end(env)
-
-# Neither `target` nor `lib` can be `mandatory` while the other exists, so the
-# error Bazel used to raise for a missing `lib` is now the rule's to raise.
-both_operands_test = analysistest.make(
-    _both_operands_test_impl,
-    expect_failure = True,
-)
-no_operand_test = analysistest.make(
-    _no_operand_test_impl,
     expect_failure = True,
 )

@@ -1,0 +1,7 @@
+# This repository's analysis: every Dart target a test run names is analyzed
+# against //:analysis_config. Nothing here reaches dep_module's own build.
+test --aspects=@rules_dart//dart:analyze.bzl%dart_analyze
+test --output_groups=+dart_analyze
+common --@rules_dart//dart:analysis_config=//:analysis_config
+
+try-import %workspace%/.bazelrc.user

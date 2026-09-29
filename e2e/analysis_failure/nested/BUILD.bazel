@@ -1,0 +1,25 @@
+load("@rules_dart//dart:defs.bzl", "dart_analysis_options", "dart_library")
+
+# Expected red, on one file of two: each file is judged by the nearest options
+# above it, within one target. `lib/quiet.dart` breaks this directory's
+# `avoid_print`; `lib/loud/loud.dart` prints too, under options that allow it,
+# so CI expects the first reported and not the second.
+dart_library(
+    name = "nested",
+    srcs = [
+        "lib/loud/loud.dart",
+        "lib/quiet.dart",
+    ],
+)
+
+dart_analysis_options(
+    name = "options",
+    src = "analysis_options.yaml",
+    visibility = ["//:__pkg__"],
+)
+
+dart_analysis_options(
+    name = "loud_options",
+    src = "lib/loud/analysis_options.yaml",
+    visibility = ["//:__pkg__"],
+)

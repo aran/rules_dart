@@ -1,0 +1,9 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+# Breaks the included ruleset, so its analysis must fail. `manual` keeps it out
+# of `//...`; built by hand to see the failure.
+dart_library(
+    name = "bad",
+    srcs = ["lib/bad.dart"],
+    tags = ["manual"],
+)

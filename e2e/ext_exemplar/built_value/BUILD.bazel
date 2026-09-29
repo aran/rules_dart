@@ -1,6 +1,5 @@
 load(
     "@rules_dart//dart:defs.bzl",
-    "dart_analyze_test",
     "dart_library",
     "dart_test",
 )
@@ -75,39 +74,4 @@ dart_test(
         "@pub_deps//:built_collection",
         "@pub_deps//:test",
     ],
-)
-
-dart_analyze_test(
-    name = "analyze_models",
-    size = "small",
-    options = "//:options",
-    target = ":models",
-)
-
-dart_analyze_test(
-    name = "analyze_serializers",
-    size = "small",
-    options = "//:options",
-    target = ":serializers",
-)
-
-dart_analyze_test(
-    name = "analyze_built_value",
-    size = "small",
-    options = "//:options",
-    target = ":built_value",
-)
-
-dart_analyze_test(
-    name = "analyze_user_test",
-    size = "small",
-    options = "//:options",
-    target = ":user_test",
-)
-
-dart_analyze_test(
-    name = "analyze_profile_serializer_test",
-    size = "small",
-    options = "//:options",
-    target = ":profile_serializer_test",
 )

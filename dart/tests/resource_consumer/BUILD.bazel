@@ -1,4 +1,5 @@
-load("//dart:defs.bzl", "dart_analyze_test", "dart_library", "dart_test")
+load("//dart:defs.bzl", "dart_analysis_options", "dart_library", "dart_test")
+load("//dart/tests:analyze_test.bzl", "analyzed_test")
 
 dart_library(
     name = "resource_consumer_lib",
@@ -8,7 +9,7 @@ dart_library(
 
 # Behavioural proof that `resources` reach the analyzer's staged project.
 #
-# The analyzer resolves this target's `analysis_options.yaml` `include:` through
+# The analyzer resolves this package's `analysis_options.yaml` `include:` through
 # the staged package_config, so it reads a dependency's non-Dart `lib/` file by
 # `package:` URI — the same path by which it reads
 # `package:sky_engine/_embedder.yaml` to resolve `dart:ui`, which is the case
@@ -18,11 +19,19 @@ dart_library(
 # Stop staging resources and this fails twice over: the include dangles
 # (`include_file_not_found`) and the diagnostic it was suppressing comes back
 # (`unused_local_variable`, fatal under `--fatal-infos`).
-dart_analyze_test(
+analyzed_test(
     name = "resource_staged_for_analyzer_test",
     size = "small",
-    options = "analysis_options.yaml",
     target = ":resource_consumer_lib",
+)
+
+# Listed in the root `//:analysis_config`. Its `include:` reads a file from a
+# package of this repository, which the staged project must therefore carry.
+dart_analysis_options(
+    name = "options",
+    src = "analysis_options.yaml",
+    visibility = ["//:__pkg__"],
+    deps = ["//dart/tests/resource_fixture:resource_fixture_lib"],
 )
 
 # The run-time half: a dependency's resources have to survive into runfiles,

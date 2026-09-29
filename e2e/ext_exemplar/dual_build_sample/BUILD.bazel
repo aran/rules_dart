@@ -3,7 +3,6 @@
 
 load(
     "@rules_dart//dart:defs.bzl",
-    "dart_analyze_test",
     "dart_test",
 )
 load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_library")
@@ -24,18 +23,4 @@ dart_test(
         ":user",
         "@pub_deps//:test",
     ],
-)
-
-dart_analyze_test(
-    name = "analyze_user",
-    size = "small",
-    options = "//:options",
-    target = ":user",
-)
-
-dart_analyze_test(
-    name = "analyze_user_test",
-    size = "small",
-    options = "//:options",
-    target = ":user_test",
 )

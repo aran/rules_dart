@@ -1,11 +1,16 @@
 load(
     "@rules_dart//dart:defs.bzl",
+    "dart_analysis_config",
     "dart_analysis_options",
-    "dart_analyze_test",
     "dart_js_binary",
     "dart_library",
     "dart_test",
     "dart_wasm_binary",
+)
+
+dart_analysis_config(
+    name = "analysis_config",
+    options = [":options"],
 )
 
 # Root package (empty lib_root): its lib/ sources must be staged for the web
@@ -17,6 +22,8 @@ dart_library(
     visibility = ["//visibility:public"],
 )
 
+# The web binaries carry the root-level `main.dart`/`config.dart`, which no
+# `dart_library` owns; the aspect analyzing the binaries is what reaches them.
 dart_js_binary(
     name = "app",
     srcs = ["config.dart"],
@@ -56,36 +63,5 @@ dart_test(
 dart_analysis_options(
     name = "options",
     src = "analysis_options.yaml",
-    visibility = ["//greet:__pkg__"],
     deps = ["@very_good_analysis"],
-)
-
-dart_analyze_test(
-    name = "analyze_rootlib",
-    size = "small",
-    options = ":options",
-    target = ":rootlib",
-)
-
-# The web binaries carry the root-level `main.dart`/`config.dart`, which no
-# `dart_library` owns; analyzing the binaries is the only way to reach them.
-dart_analyze_test(
-    name = "analyze_app",
-    size = "small",
-    options = ":options",
-    target = ":app",
-)
-
-dart_analyze_test(
-    name = "analyze_app_wasm",
-    size = "small",
-    options = ":options",
-    target = ":app_wasm",
-)
-
-dart_analyze_test(
-    name = "analyze_js_output_test",
-    size = "small",
-    options = ":options",
-    target = ":js_output_test",
 )

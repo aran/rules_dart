@@ -1,7 +1,7 @@
 # Dual-build collision checker. Migration scaffolding for users adopting
 # rules_dart while build_runner is still producing committed files.
 
-load("//dart:defs.bzl", "dart_analyze_test", "dart_binary", "dart_library", "dart_test")
+load("//dart:defs.bzl", "dart_binary", "dart_library", "dart_test")
 
 dart_library(
     name = "check_dual_build_collisions_lib",
@@ -33,17 +33,4 @@ dart_test(
         ":check_dual_build_collisions_lib",
         "@ext_pub_deps//:test",
     ],
-)
-
-# The checker is an ordinary `dart_binary`, so it is an ordinary
-# `dart_analyze_test` operand: the executable rules hand out
-# `DartAnalyzableInfo`, and that is the whole of what analyzing one takes. It
-# generates nothing itself — it is the dual-build migration checker — but a
-# build-time tool is exactly where a type error is cheapest to catch and
-# hardest to notice.
-
-dart_analyze_test(
-    name = "analyze_check_dual_build_collisions",
-    size = "small",
-    target = ":check_dual_build_collisions",
 )

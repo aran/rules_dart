@@ -1,4 +1,4 @@
-# The lints every `dart_fix` and `dart_analyze_test` here is driven by.
+# The lints every `dart_fix` here and the `dart_analyze` aspect are driven by.
 #
 # `prefer_final_locals` is the workhorse: a reliable, purely textual fix.
 # `annotate_overrides` is the interesting one — the analyzer can only propose

@@ -1,4 +1,4 @@
-load("@rules_dart//dart:defs.bzl", "dart_analysis_options", "dart_analyze_test", "dart_binary")
+load("@rules_dart//dart:defs.bzl", "dart_analysis_config", "dart_analysis_options", "dart_binary")
 load(":registry_contract.bzl", "check_registry_contract")
 
 exports_files(["pubspec.lock"])
@@ -25,9 +25,7 @@ dart_analysis_options(
     deps = ["@very_good_analysis"],
 )
 
-dart_analyze_test(
-    name = "analyze_app",
-    size = "small",
-    options = ":options",
-    target = ":app",
+dart_analysis_config(
+    name = "analysis_config",
+    options = [":options"],
 )
