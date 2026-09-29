@@ -1,0 +1,31 @@
+load("//dart:defs.bzl", "dart_test")
+
+# The test the protocol harness drives. `manual`: run on its own it fails
+# (`filtered_out` fails unless a filter excludes it), which is the point.
+dart_test(
+    name = "cases",
+    size = "small",
+    main = "cases_test.dart",
+    tags = ["manual"],
+    deps = ["@ext_pub_deps//:test"],
+)
+
+# Runs `:cases` through its launcher the way Bazel would, with the filter,
+# sharding and XML variables set, and checks what ran.
+dart_test(
+    name = "protocol_test",
+    size = "small",
+    args = [
+        "$(rlocationpath :cases)",
+        "$(rlocationpath :cases_test.dart)",
+    ],
+    data = [
+        ":cases",
+        ":cases_test.dart",
+    ],
+    main = "protocol_test.dart",
+    deps = [
+        "//dart/runfiles",
+        "@ext_pub_deps//:test",
+    ],
+)

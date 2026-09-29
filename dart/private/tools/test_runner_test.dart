@@ -17,7 +17,9 @@ void main(List<String> args) {
   Future<Process> start(List<String> fixtureArgs) => Process.start(
     launcher,
     fixtureArgs,
-    environment: {'RULES_DART_DILL': args[1]},
+    // This test itself runs under the `package:test` runner; the fixture is a
+    // plain `main`, run directly.
+    environment: {'RULES_DART_DILL': args[1], 'RULES_DART_TEST_RUNNER': ''},
   );
 
   StreamIterator<String> lines(Stream<List<int>> stream) => StreamIterator(
@@ -67,5 +69,23 @@ void main(List<String> args) {
       onTimeout: () => fail('the launcher outlived the test it ran'),
     );
     expect(exitCode, 0);
+  });
+
+  // A plain `main` has no cases to select, so a filter must fail loudly
+  // rather than run everything and report a filtered pass.
+  test('a test without package:test refuses --test_filter', () async {
+    final process = await Process.start(
+      launcher,
+      ['stream'],
+      environment: {
+        'RULES_DART_DILL': args[1],
+        'RULES_DART_TEST_RUNNER': '',
+        'TESTBRIDGE_TEST_ONLY': 'anything',
+      },
+    );
+    final err = await process.stderr.transform(utf8.decoder).join();
+    await process.stdout.drain<void>();
+    expect(await process.exitCode, 1);
+    expect(err, contains('--test_filter needs a test written with package:test'));
   });
 }

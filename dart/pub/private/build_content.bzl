@@ -6,6 +6,40 @@ through the one generator here, so a field added to the shape reaches both
 paths instead of only the one whose template was edited.
 """
 
+_LOAD = 'load("@rules_dart//dart:defs.bzl", "dart_library")\n'
+
+_TEST_LIBRARY = "test_library"
+
+_TEST_RUNNER_LOAD = """\
+load("@rules_dart//dart:defs.bzl", "dart_binary")
+load(
+    "@rules_dart//dart/private:dart_test_runner.bzl",
+    "dart_test_package",
+    "dart_test_runner_main",
+)
+"""
+
+# `package:test`'s spoke also builds the runner `dart_test` runs tests through,
+# from this same package, so the two can never be different versions. Built
+# once here and shared by every test that depends on `package:test`.
+_TEST_RUNNER_BLOCK = """\
+dart_test_runner_main(name = "test_runner_main")
+
+dart_binary(
+    name = "test_runner",
+    compile_mode = "kernel",
+    main = ":test_runner_main",
+    deps = [":{library}"],
+)
+
+dart_test_package(
+    name = "test",
+    library = ":{library}",
+    runner = ":test_runner",
+    visibility = ["//visibility:public"],
+)
+""".format(library = _TEST_LIBRARY)
+
 def make_dart_library_build_content(name, deps, language_version, code_assets = [], has_unreplaced_hook = "", version = ""):
     """Generate the BUILD.bazel content for a single `dart_library` spoke.
 
@@ -66,11 +100,9 @@ def make_dart_library_build_content(name, deps, language_version, code_assets = 
     if version:
         version_block = '    version = "{}",\n'.format(version)
 
-    return """\
-load("@rules_dart//dart:defs.bzl", "dart_library")
-
+    library = """\
 dart_library(
-    name = "{name}",
+    name = "{target}",
     srcs = glob(["lib/**/*.dart"], allow_empty = True),
 {assets}{deps}{hook}{version}    package_name = "{name}",
     resources = glob(
@@ -79,13 +111,20 @@ dart_library(
         allow_empty = True,
     ),
     language_version = "{language_version}",
-    visibility = ["//visibility:public"],
+    visibility = ["{visibility}"],
 )
 """.format(
+        # `package:test` keeps its public name for the target that carries the
+        # runner beside it; see `_TEST_RUNNER_BLOCK`.
+        target = _TEST_LIBRARY if name == "test" else name,
         name = name,
         assets = assets_block,
         deps = deps_block,
         hook = hook_block,
         version = version_block,
         language_version = language_version,
+        visibility = "//visibility:private" if name == "test" else "//visibility:public",
     )
+    if name != "test":
+        return _LOAD + "\n" + library
+    return _LOAD + _TEST_RUNNER_LOAD + "\n" + library + "\n" + _TEST_RUNNER_BLOCK
