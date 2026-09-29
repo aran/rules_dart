@@ -41,14 +41,15 @@ class PostsDao extends DatabaseAccessor<AppDatabase> with _$PostsDaoMixin {
   Future<List<PostWithAuthor>> postsWithAuthor(int userId) async {
     final query = select(posts).join([
       innerJoin(users, users.id.equalsExp(posts.userId)),
-    ])
-      ..where(users.id.equals(userId));
+    ])..where(users.id.equals(userId));
 
     return (await query.get())
-        .map((row) => PostWithAuthor(
-              post: row.readTable(posts),
-              author: row.readTable(users).name,
-            ))
+        .map(
+          (row) => PostWithAuthor(
+            post: row.readTable(posts),
+            author: row.readTable(users).name,
+          ),
+        )
         .toList();
   }
 }

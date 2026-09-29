@@ -25,11 +25,12 @@ void main() {
   test('emits the StackedLoggerGenerator header + logger imports', () {
     expect(generated, contains('GENERATED CODE - DO NOT MODIFY'));
     expect(
-        generated,
-        anyOf(
-          contains('StackedLoggerGenerator'),
-          contains('LoggerGenerator'),
-        ));
+      generated,
+      anyOf(
+        contains('StackedLoggerGenerator'),
+        contains('LoggerGenerator'),
+      ),
+    );
     expect(generated, contains("import 'package:logger/logger.dart'"));
   });
 
@@ -38,9 +39,10 @@ void main() {
     // A regression in annotation-parameter propagation would flip this.
     expect(generated, contains('getFixtureLogger'));
     expect(
-        generated.contains('getLogger'),
-        isFalse,
-        reason: 'default helper name should not be emitted when overridden');
+      generated.contains('getLogger'),
+      isFalse,
+      reason: 'default helper name should not be emitted when overridden',
+    );
   });
 
   test('wires a PrettyPrinter and top-level log class', () {

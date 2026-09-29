@@ -30,8 +30,7 @@ void main() {
       expect(mock, isA<Clock>());
     });
 
-    test('stubbed methods return stubbed values; verify().called(n) works',
-        () {
+    test('stubbed methods return stubbed values; verify().called(n) works', () {
       final mock = MockClock();
       final fixedNow = DateTime.utc(2024, 1, 2);
       when(mock.now()).thenReturn(fixedNow);
@@ -41,14 +40,16 @@ void main() {
       verify(mock.now()).called(2);
     });
 
-    test('unstubbed methods on a default nice mock return typed zero values',
-        () {
-      // Default @GenerateNiceMocks contract: calling an unstubbed method
-      // returns the type's zero value rather than throwing — the reason
-      // the API is "nice".
-      final mock = MockClock();
-      expect(mock.millisSince(DateTime.utc(2024)), equals(0));
-    });
+    test(
+      'unstubbed methods on a default nice mock return typed zero values',
+      () {
+        // Default @GenerateNiceMocks contract: calling an unstubbed method
+        // returns the type's zero value rather than throwing — the reason
+        // the API is "nice".
+        final mock = MockClock();
+        expect(mock.millisSince(DateTime.utc(2024)), equals(0));
+      },
+    );
   });
 
   group('@GenerateNiceMocks — MockSpec(as: #NamedClock, returnDefault)', () {

@@ -1,11 +1,13 @@
 // The executable behind `dart_format`: formats workspace files under `bazel run`
-// with the options a `dart_format_test` would check them against.
+// with the options the `dart_analyze` aspect's format check applies to them.
 //
 // `dart format` cannot be pointed at an options file or a package config; it
 // finds both by walking up from each file. So the files are copied into a
-// scratch project whose root holds the rule's staged options file and a package
-// config that resolves the ruleset packages in runfiles, formatted there, and
-// copied back only when they changed.
+// scratch project laid out as the check's: every listed options file and every
+// named file at its workspace path under `src/`, the staged root options file
+// above them to end the walk, and a package config that resolves the ruleset
+// packages in runfiles. They are formatted there and copied back only when
+// they changed.
 import 'dart:convert';
 import 'dart:io';
 
@@ -48,6 +50,19 @@ void main(List<String> args) {
     exit(1);
   }
 
+  // Each file is copied to its workspace path, so the nearest listed options
+  // file above it is the one the check reads for it. A file outside the
+  // workspace has no such path, and so no options the check could agree on.
+  final workspace = Platform.environment['BUILD_WORKSPACE_DIRECTORY'];
+  if (workspace == null || workspace.isEmpty) {
+    stderr.writeln(
+      'dart_format: BUILD_WORKSPACE_DIRECTORY is not set. Run this with '
+      '`bazel run` on the target.',
+    );
+    exit(1);
+  }
+  final root = _canonical(workspace);
+
   final config = _readConfig();
   final files = <String, File>{};
   for (final operand in operands) {
@@ -55,20 +70,22 @@ void main(List<String> args) {
         ? operand
         : '$cwd${Platform.pathSeparator}$operand';
     for (final file in _dartFiles(path)) {
-      files.putIfAbsent(file.absolute.path, () => file);
+      final relative = _workspacePath(file, root);
+      if (relative == null) {
+        stderr.writeln(
+          'dart_format: ${file.path} is outside the workspace ($workspace), '
+          'so no analysis options govern it.',
+        );
+        exit(1);
+      }
+      files.putIfAbsent(relative, () => file);
     }
   }
 
   final scratch = Directory.systemTemp.createTempSync('dart_format.');
   final int code;
   try {
-    code = _format(
-      config,
-      files.values.toList(),
-      scratch,
-      languageVersion,
-      cwd,
-    );
+    code = _format(config, files, scratch, languageVersion, cwd);
   } finally {
     scratch.deleteSync(recursive: true);
   }
@@ -78,28 +95,30 @@ void main(List<String> args) {
 
 int _format(
   _Config config,
-  List<File> files,
+  Map<String, File> files,
   Directory scratch,
   String languageVersion,
   String cwd,
 ) {
-  File(
-    _join(scratch.path, 'analysis_options.yaml'),
-  ).writeAsBytesSync(File(config.options).readAsBytesSync());
+  File(_join(scratch.path, 'analysis_options.yaml'))
+      .writeAsBytesSync(File(config.rootOptions).readAsBytesSync());
   File(_join(scratch.path, '.dart_tool/package_config.json'))
     ..createSync(recursive: true)
     ..writeAsStringSync(_absolutePackageConfig(config.packageConfig));
 
-  // One directory per file keeps each basename, so the formatter's own
-  // messages still name a recognisable file; the prefix is rewritten below.
   final src = _join(scratch.path, 'src');
+  config.options.forEach((relative, source) {
+    File(_join(src, relative))
+      ..createSync(recursive: true)
+      ..writeAsBytesSync(File(source).readAsBytesSync());
+  });
   final copies = <File, File>{};
-  for (final (i, file) in files.indexed) {
-    final copy = File(_join(src, '$i/${_basename(file.path)}'))
+  files.forEach((relative, file) {
+    final copy = File(_join(src, relative))
       ..createSync(recursive: true)
       ..writeAsBytesSync(file.readAsBytesSync());
     copies[file] = copy;
-  }
+  });
   if (copies.isEmpty) {
     stdout.writeln('dart_format: no Dart files found');
     return 0;
@@ -157,11 +176,14 @@ int _format(
 }
 
 class _Config {
-  _Config(this.dart, this.options, this.packageConfig);
+  _Config(this.dart, this.rootOptions, this.packageConfig, this.options);
 
   final String dart;
-  final String options;
+  final String rootOptions;
   final String packageConfig;
+
+  /// Each listed options file's source, by its workspace path.
+  final Map<String, String> options;
 }
 
 _Config _readConfig() {
@@ -171,13 +193,18 @@ _Config _readConfig() {
     exit(1);
   }
   final r = Runfiles.create();
-  final json =
-      jsonDecode(File(r.rlocation(key)).readAsStringSync())
-          as Map<String, dynamic>;
+  final json = jsonDecode(
+    File(r.rlocation(key)).readAsStringSync(),
+  ) as Map<String, dynamic>;
   return _Config(
     r.rlocation(json['dart'] as String),
-    r.rlocation(json['options'] as String),
+    r.rlocation(json['root_options'] as String),
     r.rlocation(json['package_config'] as String),
+    {
+      for (final entry in json['options'] as List<dynamic>)
+        (entry as Map<String, dynamic>)['workspace_path'] as String: r
+            .rlocation(entry['file'] as String),
+    },
   );
 }
 
@@ -226,6 +253,26 @@ bool _sameBytes(List<int> a, List<int> b) {
     if (a[i] != b[i]) return false;
   }
   return true;
+}
+
+/// [path] with symlinks in its directories resolved, forward-slashed.
+///
+/// Only the directories: a workspace file may itself be a symlink, and its
+/// workspace path is where it sits, not what it points at.
+String _canonical(String path) {
+  final type = FileSystemEntity.typeSync(path, followLinks: false);
+  if (type == FileSystemEntityType.directory) {
+    return Directory(path).resolveSymbolicLinksSync().replaceAll(r'\', '/');
+  }
+  final parent = File(path).parent.resolveSymbolicLinksSync();
+  return '$parent/${_basename(path)}'.replaceAll(r'\', '/');
+}
+
+/// [file]'s path relative to the workspace [root], or null outside it.
+String? _workspacePath(File file, String root) {
+  final path = _canonical(file.path);
+  final prefix = root.endsWith('/') ? root : '$root/';
+  return path.startsWith(prefix) ? path.substring(prefix.length) : null;
 }
 
 bool _isAbsolute(String path) =>

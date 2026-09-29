@@ -17,8 +17,8 @@ void main() {
 
   setUpAll(() {
     final r = Runfiles.create();
-    generated =
-        File(r.rlocation('_main/stacked/lib/app.router.dart')).readAsStringSync();
+    generated = File(r.rlocation('_main/stacked/lib/app.router.dart'))
+        .readAsStringSync();
   });
 
   test('emits the stacked router generator header + Flutter imports', () {
@@ -27,11 +27,12 @@ void main() {
     // versions used `StackedRouterGenerator`). Accept either so this
     // test is robust across minor upgrades.
     expect(
-        generated,
-        anyOf(
-          contains('StackedNavigatorGenerator'),
-          contains('StackedRouterGenerator'),
-        ));
+      generated,
+      anyOf(
+        contains('StackedNavigatorGenerator'),
+        contains('StackedRouterGenerator'),
+      ),
+    );
     expect(generated, contains("import 'package:flutter/material.dart'"));
     expect(generated, contains("import 'package:stacked/stacked.dart'"));
   });
@@ -53,13 +54,15 @@ void main() {
     expect(generated, contains('page: _i2.DetailsView'));
   });
 
-  test('wires StackedRouter with a _pagesMap for MaterialPageRoute factories',
-      () {
-    // The generator emits a `_pagesMap` mapping each page Type to a
-    // `StackedRouteFactory`. MaterialRoute(...) annotations must yield
-    // `MaterialPageRoute` factories (vs CupertinoRoute / etc.).
-    expect(generated, contains('class StackedRouter'));
-    expect(generated, contains('_pagesMap'));
-    expect(generated, contains('MaterialPageRoute'));
-  });
+  test(
+    'wires StackedRouter with a _pagesMap for MaterialPageRoute factories',
+    () {
+      // The generator emits a `_pagesMap` mapping each page Type to a
+      // `StackedRouteFactory`. MaterialRoute(...) annotations must yield
+      // `MaterialPageRoute` factories (vs CupertinoRoute / etc.).
+      expect(generated, contains('class StackedRouter'));
+      expect(generated, contains('_pagesMap'));
+      expect(generated, contains('MaterialPageRoute'));
+    },
+  );
 }

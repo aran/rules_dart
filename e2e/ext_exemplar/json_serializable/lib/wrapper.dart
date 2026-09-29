@@ -18,8 +18,7 @@ class Wrapper<T> {
   factory Wrapper.fromJson(
     Map<String, dynamic> json,
     T Function(Object? json) fromJsonT,
-  ) =>
-      _$WrapperFromJson(json, fromJsonT);
+  ) => _$WrapperFromJson(json, fromJsonT);
 
   /// The wrapped value.
   final T data;

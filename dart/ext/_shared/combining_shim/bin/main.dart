@@ -35,7 +35,8 @@ const _header = '''
 // `part of` text mid-shard (e.g. inside a string literal at column 0) is
 // never stripped. Accepts the URI form and the legacy identifier form.
 final _partOfRe = RegExp(
-    r'''^\s*part of (?:'[^']+'|"[^"]+"|[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*);\s*''');
+  r'''^\s*part of (?:'[^']+'|"[^"]+"|[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*);\s*''',
+);
 
 Future<void> main(List<String> argv) async {
   if (argv.contains('--persistent_worker')) {
@@ -54,8 +55,9 @@ class _CombiningWorker extends AsyncWorkerLoop {
     try {
       await runZoned(
         () => _runOnce(request.arguments, sink),
-        zoneSpecification:
-            ZoneSpecification(print: (_, _, _, line) => buf.writeln(line)),
+        zoneSpecification: ZoneSpecification(
+          print: (_, _, _, line) => buf.writeln(line),
+        ),
       );
     } catch (e, st) {
       buf
@@ -70,8 +72,8 @@ class _CombiningWorker extends AsyncWorkerLoop {
 }
 
 Future<void> _runOnce(
-    List<String> argv, [
-    void Function(String)? diagnostic,
+  List<String> argv, [
+  void Function(String)? diagnostic,
 ]) async {
   final sink = diagnostic ?? stderr.writeln;
   final parser = ArgParser()
@@ -111,13 +113,12 @@ Future<void> _runOnce(
   // Shard reads run in parallel via async I/O; this keeps the worker's
   // stdin-reading loop responsive even for large generated `.g.part`
   // shards (drift with many tables can produce multi-hundred-KB shards).
-  final contents = await Future.wait(
-    [for (final part in parts) File(part).readAsString()],
+  final contents = await Future.wait([
+    for (final part in parts) File(part).readAsString(),
+  ]);
+  await File(output).writeAsString(
+    combine(sourceBasename: p.basename(input), partContents: contents),
   );
-  await File(output).writeAsString(combine(
-    sourceBasename: p.basename(input),
-    partContents: contents,
-  ));
 }
 
 /// Expand any `@<path>` arg by reading the file and splitting on newlines.
@@ -130,9 +131,9 @@ List<String> _expandFlagFiles(List<String> args) {
         if (line.isNotEmpty) out.add(line);
       }
     } else if (a.startsWith('--flagfile=')) {
-      for (final line in File(a.substring('--flagfile='.length))
-          .readAsStringSync()
-          .split('\n')) {
+      for (final line in File(
+        a.substring('--flagfile='.length),
+      ).readAsStringSync().split('\n')) {
         if (line.isNotEmpty) out.add(line);
       }
     } else {

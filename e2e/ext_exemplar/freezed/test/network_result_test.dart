@@ -5,10 +5,10 @@ void main() {
   group('freezed union: NetworkResult<T>', () {
     test('.when dispatches to the matching variant', () {
       String describe(NetworkResult<int> r) => r.when(
-            success: (data) => 'ok:$data',
-            failure: (code, message) => 'err:$code:$message',
-            loading: () => 'loading',
-          );
+        success: (data) => 'ok:$data',
+        failure: (code, message) => 'err:$code:$message',
+        loading: () => 'loading',
+      );
 
       expect(describe(const NetworkResult.success(42)), 'ok:42');
       expect(
@@ -30,9 +30,9 @@ void main() {
 
     test('.maybeWhen falls back to orElse for unhandled variants', () {
       String describe(NetworkResult<int> r) => r.maybeWhen(
-            success: (data) => 'ok:$data',
-            orElse: () => 'other',
-          );
+        success: (data) => 'ok:$data',
+        orElse: () => 'other',
+      );
 
       expect(describe(const NetworkResult.success(7)), 'ok:7');
       expect(describe(const NetworkResult<int>.loading()), 'other');
@@ -53,15 +53,17 @@ void main() {
       expect(msg, '');
     });
 
-    test('copyWith on a specific variant preserves type and updates fields',
-        () {
-      const s = NetworkResult<String>.success('a');
-      // Via the variant-specific class you can copyWith fields of that
-      // variant — freezed generates the per-variant copyWith extension.
-      final s2 = (s as NetworkSuccess<String>).copyWith(data: 'b');
-      expect(s2.data, 'b');
-      expect(s2, isA<NetworkSuccess<String>>());
-    });
+    test(
+      'copyWith on a specific variant preserves type and updates fields',
+      () {
+        const s = NetworkResult<String>.success('a');
+        // Via the variant-specific class you can copyWith fields of that
+        // variant — freezed generates the per-variant copyWith extension.
+        final s2 = (s as NetworkSuccess<String>).copyWith(data: 'b');
+        expect(s2.data, 'b');
+        expect(s2, isA<NetworkSuccess<String>>());
+      },
+    );
 
     test('variants implement value equality', () {
       expect(

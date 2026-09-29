@@ -20,18 +20,19 @@ void main() {
       expect(renamed.createdAt, 100);
     });
 
-    test('.copyWith.<field>(value) shortcut is generated per mutable field',
-        () {
-      final deactivated = sample.copyWith.active(false);
-      expect(deactivated.active, isFalse);
-      expect(deactivated.name, 'Alice');
-      expect(deactivated.id, 'alpha');
-    });
+    test(
+      '.copyWith.<field>(value) shortcut is generated per mutable field',
+      () {
+        final deactivated = sample.copyWith.active(false);
+        expect(deactivated.active, isFalse);
+        expect(deactivated.name, 'Alice');
+        expect(deactivated.id, 'alpha');
+      },
+    );
   });
 
   group('@CopyWith(copyWithNull: true)', () {
-    test('copyWithNull nullifies a nullable field that was previously set',
-        () {
+    test('copyWithNull nullifies a nullable field that was previously set', () {
       final cleared = sample.copyWithNull(bio: true);
       expect(cleared.bio, isNull);
       // Non-nulled fields unchanged.

@@ -63,21 +63,31 @@ void main() {
     test('emits route-class mixins with type-safe navigation methods', () {
       // go_router_builder generates mixins like `$HomeRoute` / `$DetailsRoute`
       // (dollar-prefixed) providing `location`, `go`, `push`, etc.
-      expect(generatedSource, contains(RegExp(r'mixin \$HomeRoute on GoRouteData')));
-      expect(generatedSource, contains(RegExp(r'mixin \$DetailsRoute on GoRouteData')));
+      expect(
+        generatedSource,
+        contains(RegExp(r'mixin \$HomeRoute on GoRouteData')),
+      );
+      expect(
+        generatedSource,
+        contains(RegExp(r'mixin \$DetailsRoute on GoRouteData')),
+      );
       expect(generatedSource, contains('String get location =>'));
       expect(generatedSource, contains('void go(BuildContext context)'));
-      expect(generatedSource,
-          contains('Future<T?> push<T>(BuildContext context)'));
+      expect(
+        generatedSource,
+        contains('Future<T?> push<T>(BuildContext context)'),
+      );
     });
 
-    test('derives DetailsRoute from GoRouterState to reconstruct its id field',
-        () {
-      // `_fromState` factory methods parse path/query params out of a
-      // GoRouterState. A regression in path-param parsing would drop
-      // the `state.pathParameters['id']` access.
-      expect(generatedSource, contains('_fromState'));
-      expect(generatedSource, contains("state.pathParameters['id']"));
-    });
+    test(
+      'derives DetailsRoute from GoRouterState to reconstruct its id field',
+      () {
+        // `_fromState` factory methods parse path/query params out of a
+        // GoRouterState. A regression in path-param parsing would drop
+        // the `state.pathParameters['id']` access.
+        expect(generatedSource, contains('_fromState'));
+        expect(generatedSource, contains("state.pathParameters['id']"));
+      },
+    );
   });
 }

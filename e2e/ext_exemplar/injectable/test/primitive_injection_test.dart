@@ -13,10 +13,11 @@ void main() {
     await GetIt.instance.reset();
   });
 
-  test('primitive-form pipeline registers an @injectable class with GetIt',
-      () {
+  test('primitive-form pipeline registers an @injectable class with GetIt', () {
     configurePrimitiveInjection();
-    expect(GetIt.instance.get<PrimitiveGreeter>().greet('world'),
-        'primitive-hello, world');
+    expect(
+      GetIt.instance.get<PrimitiveGreeter>().greet('world'),
+      'primitive-hello, world',
+    );
   });
 }

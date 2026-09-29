@@ -162,9 +162,8 @@ void _absolutizePackageConfig(String project, String scratch) {
   // against the config file, and `demo.proj/` must not prefix-match a sibling
   // `demo.projX`.
   final anchor = Uri.directory(Directory('$project/.dart_tool').absolute.path);
-  final projectRoot = Uri.directory(
-    Directory(project).absolute.path,
-  ).toString();
+  final projectRoot = Uri.directory(Directory(project).absolute.path)
+      .toString();
   var rewrote = false;
   for (final package in decoded['packages'] as List) {
     if (package is! Map) continue;

@@ -5,8 +5,7 @@ import 'package:json_serializable_fixture/wrapper.dart';
 import 'package:test/test.dart';
 
 void main() {
-  test(
-      'Wrapper<T> with genericArgumentFactories round-trips a nested '
+  test('Wrapper<T> with genericArgumentFactories round-trips a nested '
       'User payload via per-T adapters', () {
     final user = User(
       id: 1,

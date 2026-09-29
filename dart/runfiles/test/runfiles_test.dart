@@ -66,8 +66,10 @@ void main() {
         directory: '/runfiles',
         repoMapping: mapping,
       );
-      expect(r.rlocation('baz/templates/index.html'),
-          '/runfiles/baz+1.0/templates/index.html');
+      expect(
+        r.rlocation('baz/templates/index.html'),
+        '/runfiles/baz+1.0/templates/index.html',
+      );
     });
 
     test('forRepo view resolves from a different source repo', () {
@@ -76,11 +78,15 @@ void main() {
         repoMapping: mapping,
       );
       final libView = r.forRepo('foo+');
-      expect(libView.rlocation('baz/templates/index.html'),
-          '/runfiles/baz+2.0/templates/index.html');
+      expect(
+        libView.rlocation('baz/templates/index.html'),
+        '/runfiles/baz+2.0/templates/index.html',
+      );
       // Original view unchanged.
-      expect(r.rlocation('baz/templates/index.html'),
-          '/runfiles/baz+1.0/templates/index.html');
+      expect(
+        r.rlocation('baz/templates/index.html'),
+        '/runfiles/baz+1.0/templates/index.html',
+      );
     });
 
     test('apparent name absent from mapping → path used verbatim', () {
@@ -111,8 +117,10 @@ void main() {
         directory: '/runfiles',
         repoMapping: mapping,
       );
-      expect(r.rlocation('baz/foo', sourceRepo: 'foo+'),
-          '/runfiles/baz+2.0/foo');
+      expect(
+        r.rlocation('baz/foo', sourceRepo: 'foo+'),
+        '/runfiles/baz+2.0/foo',
+      );
     });
 
     test('defaultSourceRepo set via fromState is used when no override', () {
@@ -127,9 +135,7 @@ void main() {
 
   group('rlocation manifest vs directory', () {
     test('manifest hit returns manifest-mapped path', () {
-      final r = Runfiles.fromState(
-        manifest: {'real/path': '/abs/real/path'},
-      );
+      final r = Runfiles.fromState(manifest: {'real/path': '/abs/real/path'});
       expect(r.rlocation('real/path'), '/abs/real/path');
     });
 
@@ -150,9 +156,7 @@ void main() {
     });
 
     test('manifest-only with miss and no directory throws', () {
-      final r = Runfiles.fromState(
-        manifest: {'other': '/abs/other'},
-      );
+      final r = Runfiles.fromState(manifest: {'other': '/abs/other'});
       expect(() => r.rlocation('p'), throwsStateError);
     });
 
@@ -183,9 +187,8 @@ void main() {
       // the symlink points after the "rebuild", and holds neither.
       final a = Directory('${tmp.path}${sep}a')..createSync();
       final b = Directory('${tmp.path}${sep}b')..createSync();
-      File(
-        Runfiles.create().rlocation('_main/dart/runfiles/$exeName'),
-      ).copySync('${a.path}$sep$exeName');
+      File(Runfiles.create().rlocation('_main/dart/runfiles/$exeName'))
+          .copySync('${a.path}$sep$exeName');
       File('${a.path}$sep$exeName.runfiles${sep}_main${sep}data.txt')
         ..createSync(recursive: true)
         ..writeAsStringSync('found');

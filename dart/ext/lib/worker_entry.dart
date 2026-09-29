@@ -39,10 +39,7 @@ Future<void> runShimAsWorker(
 /// and drive [performRequest] directly with a crafted [WorkRequest] — the
 /// stdin/stdout framing is [AsyncWorkerLoop]'s responsibility, not ours.
 class ShimWorkerLoop extends AsyncWorkerLoop {
-  ShimWorkerLoop({
-    required this.factoryOrFactories,
-    this.emptyOutput,
-  });
+  ShimWorkerLoop({required this.factoryOrFactories, this.emptyOutput});
 
   final Object factoryOrFactories;
   final EmptyOutputHook? emptyOutput;

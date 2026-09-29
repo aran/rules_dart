@@ -22,8 +22,10 @@ void main() {
   // .bazelrc — no target names it, which is the point of the flag.
   const fromFlag = String.fromEnvironment('E2E_FLAG', defaultValue: 'UNSET');
   if (fromFlag != 'from_flag') {
-    stderr.writeln('expected the extra_dart_defines flag to reach the compile, '
-        'got "$fromFlag"');
+    stderr.writeln(
+      'expected the extra_dart_defines flag to reach the compile, '
+      'got "$fromFlag"',
+    );
     exit(1);
   }
 

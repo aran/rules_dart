@@ -116,9 +116,8 @@ Future<int> _runUnderRunner({
     return 1;
   }
   final precompiled = dill.substring(0, dill.length - suffix.length);
-  final tmp = Directory(
-    env['TEST_TMPDIR'] ?? Directory.systemTemp.path,
-  ).createTempSync('dart_test.');
+  final tmp = Directory(env['TEST_TMPDIR'] ?? Directory.systemTemp.path)
+      .createTempSync('dart_test.');
   File(testSource).copySync(_join(tmp.path, testPath));
 
   final filter = env['TESTBRIDGE_TEST_ONLY'];
@@ -214,9 +213,9 @@ String junitXml(List<String> lines, {required String suiteName}) {
         starts[id] = event['time'] as int;
       case 'error':
         final id = event['testID'] as int;
-        (byId[id] ??= _Case(id)).errors.add(
-          '${event['error']}\n${event['stackTrace']}',
-        );
+        (byId[id] ??= _Case(
+          id,
+        )).errors.add('${event['error']}\n${event['stackTrace']}');
       case 'print':
         final id = event['testID'] as int;
         (byId[id] ??= _Case(id)).output.writeln(event['message']);

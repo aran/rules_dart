@@ -12,5 +12,5 @@ import 'package:injectable_fixture/injection.config.dart';
 /// Registers every annotated type with GetIt, filtered by [env].
 @InjectableInit(initializerName: r'$initGetIt')
 void configureInjection({String? env}) => GetIt.instance.$initGetIt(
-      environment: env,
-    );
+  environment: env,
+);

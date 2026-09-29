@@ -12,8 +12,5 @@ import 'dart:convert';
 import 'package:injectable_generator/builder.dart' show injectableBuilder;
 import 'package:rules_dart_ext/worker_entry.dart';
 
-Future<void> main(List<String> args) => shimMain(
-      args,
-      injectableBuilder,
-      emptyOutput: (_, _) => utf8.encode('[]'),
-    );
+Future<void> main(List<String> args) =>
+    shimMain(args, injectableBuilder, emptyOutput: (_, _) => utf8.encode('[]'));

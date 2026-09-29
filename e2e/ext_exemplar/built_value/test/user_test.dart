@@ -3,10 +3,12 @@ import 'package:test/test.dart';
 
 void main() {
   test('built_value generates builder + equality + hashCode', () {
-    final alice = User((b) => b
-      ..id = 'alpha'
-      ..name = 'Alice'
-      ..score = 42);
+    final alice = User(
+      (b) => b
+        ..id = 'alpha'
+        ..name = 'Alice'
+        ..score = 42,
+    );
     expect(alice.id, 'alpha');
     expect(alice.name, 'Alice');
     expect(alice.score, 42);

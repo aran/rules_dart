@@ -12,5 +12,4 @@ import 'package:injectable_fixture/primitive_injection.config.dart';
 
 /// Registers the primitive-form pipeline's types with GetIt.
 @InjectableInit(initializerName: r'$initPrimitiveGetIt')
-void configurePrimitiveInjection() =>
-    GetIt.instance.$initPrimitiveGetIt();
+void configurePrimitiveInjection() => GetIt.instance.$initPrimitiveGetIt();

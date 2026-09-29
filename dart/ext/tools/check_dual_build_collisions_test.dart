@@ -18,15 +18,17 @@ void main() {
 
     test('clean tree yields no collisions', () {
       File(p.join(tmp.path, 'user.dart')).writeAsStringSync('class User {}');
-      final report = checkDualBuildCollisions(tmp, ['.g.dart', '.freezed.dart']);
+      final report = checkDualBuildCollisions(tmp, [
+        '.g.dart',
+        '.freezed.dart',
+      ]);
       expect(report.isEmpty, isTrue);
       expect(report.collisions, isEmpty);
     });
 
     test('committed .g.dart is flagged', () {
       File(p.join(tmp.path, 'user.dart')).writeAsStringSync('class User {}');
-      File(p.join(tmp.path, 'user.g.dart'))
-          .writeAsStringSync('// GENERATED');
+      File(p.join(tmp.path, 'user.g.dart')).writeAsStringSync('// GENERATED');
       final report = checkDualBuildCollisions(tmp, ['.g.dart']);
       expect(report.collisions.length, 1);
       expect(report.collisions.single, endsWith('user.g.dart'));
@@ -37,10 +39,11 @@ void main() {
       File(p.join(tmp.path, 'a.g.dart')).writeAsStringSync('');
       File(p.join(tmp.path, 'a.freezed.dart')).writeAsStringSync('');
       File(p.join(tmp.path, 'a.mocks.dart')).writeAsStringSync('');
-      final report = checkDualBuildCollisions(
-        tmp,
-        ['.g.dart', '.freezed.dart', '.mocks.dart'],
-      );
+      final report = checkDualBuildCollisions(tmp, [
+        '.g.dart',
+        '.freezed.dart',
+        '.mocks.dart',
+      ]);
       expect(report.collisions.length, 3);
     });
 
@@ -61,10 +64,9 @@ void main() {
 
     test('non-existent directory throws', () {
       expect(
-        () => checkDualBuildCollisions(
-          Directory(p.join(tmp.path, 'missing')),
-          ['.g.dart'],
-        ),
+        () => checkDualBuildCollisions(Directory(p.join(tmp.path, 'missing')), [
+          '.g.dart',
+        ]),
         throwsArgumentError,
       );
     });
@@ -83,8 +85,11 @@ void main() {
       final list = loadBaselineExtensions();
       for (final ext in list) {
         expect(ext.startsWith('.'), isTrue, reason: '$ext missing leading dot');
-        expect(ext.endsWith('.dart'), isTrue,
-            reason: '$ext is not a .dart extension');
+        expect(
+          ext.endsWith('.dart'),
+          isTrue,
+          reason: '$ext is not a .dart extension',
+        );
       }
     });
   });

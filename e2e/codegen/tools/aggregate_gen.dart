@@ -26,8 +26,9 @@ void main(List<String> args) {
   }
   if (inputAsset == null || output == null) {
     stderr.writeln(
-        'Usage: aggregate_gen.dart --input-asset <asset> --output <file> '
-        '[--input-asset-extra <exec>|<asset> ...]');
+      'Usage: aggregate_gen.dart --input-asset <asset> --output <file> '
+      '[--input-asset-extra <exec>|<asset> ...]',
+    );
     exit(1);
   }
   final buf = StringBuffer()..writeln('// input-asset: $inputAsset');

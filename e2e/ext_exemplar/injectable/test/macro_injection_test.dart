@@ -61,11 +61,13 @@ void main() {
     expect(cfg.label, 'dev-config');
   });
 
-  test('a different @Environment resolves a different implementation',
-      () async {
-    configureInjection(env: 'prod');
-    final cfg = GetIt.instance.get<AppConfig>();
-    expect(cfg, isA<ProdConfig>());
-    expect(cfg.label, 'prod-config');
-  });
+  test(
+    'a different @Environment resolves a different implementation',
+    () async {
+      configureInjection(env: 'prod');
+      final cfg = GetIt.instance.get<AppConfig>();
+      expect(cfg, isA<ProdConfig>());
+      expect(cfg.label, 'prod-config');
+    },
+  );
 }

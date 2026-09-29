@@ -9,9 +9,16 @@ void main() {
   test('User round-trips through JSON via rules_dart-generated .g.dart', () {
     final original = User(name: 'alice', age: 30, tags: ['admin', 'prod']);
     final json = original.toJson();
-    expect(json, {'name': 'alice', 'age': 30, 'tags': ['admin', 'prod']});
-    expect(json['name'], isNot('STALE_NAME'),
-        reason: 'stale lib/user.g.dart fixture leaked into runfiles');
+    expect(json, {
+      'name': 'alice',
+      'age': 30,
+      'tags': ['admin', 'prod'],
+    });
+    expect(
+      json['name'],
+      isNot('STALE_NAME'),
+      reason: 'stale lib/user.g.dart fixture leaked into runfiles',
+    );
 
     final restored = User.fromJson(json);
     expect(restored.name, 'alice');

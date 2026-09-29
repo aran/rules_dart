@@ -41,10 +41,10 @@ class Runfiles {
     Map<String, String>? manifest,
     Map<(String, String), String>? repoMapping,
     String defaultSourceRepo = '',
-  })  : _directory = directory,
-        _manifest = manifest,
-        _repoMapping = repoMapping ?? const {},
-        _defaultSourceRepo = defaultSourceRepo;
+  }) : _directory = directory,
+       _manifest = manifest,
+       _repoMapping = repoMapping ?? const {},
+       _defaultSourceRepo = defaultSourceRepo;
 
   /// Creates a [Runfiles] instance by probing environment variables and
   /// filesystem paths.
@@ -147,11 +147,11 @@ class Runfiles {
   /// binary's source repo and resolve apparent names from the wrong
   /// module's perspective under bzlmod with version skew.
   Runfiles forRepo(String sourceRepository) => Runfiles.fromState(
-        directory: _directory,
-        manifest: _manifest,
-        repoMapping: _repoMapping,
-        defaultSourceRepo: sourceRepository,
-      );
+    directory: _directory,
+    manifest: _manifest,
+    repoMapping: _repoMapping,
+    defaultSourceRepo: sourceRepository,
+  );
 
   /// Returns the absolute path to a runfile.
   ///

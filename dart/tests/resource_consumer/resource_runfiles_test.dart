@@ -13,8 +13,9 @@ import 'package:runfiles/runfiles.dart';
 
 void main() {
   final runfiles = Runfiles.create();
-  final path =
-      runfiles.rlocation('_main/dart/tests/resource_fixture/lib/strict.yaml');
+  final path = runfiles.rlocation(
+    '_main/dart/tests/resource_fixture/lib/strict.yaml',
+  );
   final file = File(path);
 
   if (!file.existsSync()) {

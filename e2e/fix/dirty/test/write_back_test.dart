@@ -40,9 +40,8 @@ void main(List<String> args) {
   final fixes = r.rlocation(args[1]);
 
   final before = File(r.rlocation('_main/$_fixedRelative')).readAsStringSync();
-  final after = File(
-    r.rlocation('_main/clean/lib/model.dart'),
-  ).readAsStringSync();
+  final after = File(r.rlocation('_main/clean/lib/model.dart'))
+      .readAsStringSync();
 
   final dry = _run(exe, manifest, fixes, before, dryRun: true);
   if (dry.tree != before) {

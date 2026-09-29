@@ -22,19 +22,21 @@ void main(List<String> args) {
     launcher,
     const [],
     environment: {
-      'RULES_DART_DILL': '_main/dart/tests/test_protocol_fixture/cases.precompiled/'
+      'RULES_DART_DILL':
+          '_main/dart/tests/test_protocol_fixture/cases.precompiled/'
           'dart/tests/test_protocol_fixture/cases_test.dart.vm_test.vm.app.dill',
       'RULES_DART_TEST_MAIN': args[1],
-      'RULES_DART_TEST_PATH': 'dart/tests/test_protocol_fixture/cases_test.dart',
+      'RULES_DART_TEST_PATH':
+          'dart/tests/test_protocol_fixture/cases_test.dart',
       'TEST_TMPDIR': tmp.path,
       ...env,
     },
   );
 
   Set<String> ran(String xml) => {
-    for (final m in RegExp(r'<testcase name="([^"]*)"').allMatches(
-      File(xml).readAsStringSync(),
-    ))
+    for (final m in RegExp(
+      r'<testcase name="([^"]*)"',
+    ).allMatches(File(xml).readAsStringSync()))
       m.group(1)!,
   };
 

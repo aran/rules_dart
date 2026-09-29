@@ -29,9 +29,18 @@ void main() {
 
   group('shim_form (stackedFormGenerator) end-to-end output', () {
     test('emits the header + standard imports package:build expects', () {
-      expect(generatedSource, startsWith('// GENERATED CODE - DO NOT MODIFY BY HAND'));
-      expect(generatedSource, contains("import 'package:flutter/material.dart'"));
-      expect(generatedSource, contains("import 'package:stacked/stacked.dart'"));
+      expect(
+        generatedSource,
+        startsWith('// GENERATED CODE - DO NOT MODIFY BY HAND'),
+      );
+      expect(
+        generatedSource,
+        contains("import 'package:flutter/material.dart'"),
+      );
+      expect(
+        generatedSource,
+        contains("import 'package:stacked/stacked.dart'"),
+      );
     });
 
     test('emits one ValueKey constant per field, verbatim', () {
@@ -55,20 +64,30 @@ void main() {
       expect(generatedSource, isNot(contains('BirthdayValueToTitleMap')));
     });
 
-    test('emits a TextEditingController getter only for FormTextField names',
-        () {
-      // addTextEditingControllersForTextFields generates one getter per
-      // text field — and only for text fields. A FormDropdownField /
-      // FormDateField must not produce a controller getter.
-      expect(generatedSource,
-          contains('TextEditingController get emailController'));
-      expect(generatedSource,
-          contains('TextEditingController get passwordController'));
-      expect(generatedSource,
-          isNot(contains('TextEditingController get birthdayController')));
-      expect(generatedSource,
-          isNot(contains('TextEditingController get countryController')));
-    });
+    test(
+      'emits a TextEditingController getter only for FormTextField names',
+      () {
+        // addTextEditingControllersForTextFields generates one getter per
+        // text field — and only for text fields. A FormDropdownField /
+        // FormDateField must not produce a controller getter.
+        expect(
+          generatedSource,
+          contains('TextEditingController get emailController'),
+        );
+        expect(
+          generatedSource,
+          contains('TextEditingController get passwordController'),
+        );
+        expect(
+          generatedSource,
+          isNot(contains('TextEditingController get birthdayController')),
+        );
+        expect(
+          generatedSource,
+          isNot(contains('TextEditingController get countryController')),
+        );
+      },
+    );
 
     test('emits a FocusNode getter per text field', () {
       expect(generatedSource, contains('FocusNode get emailFocusNode'));
@@ -83,28 +102,36 @@ void main() {
     });
 
     test(
-        'emits a ValueProperties extension with a typed value getter per field',
-        () {
-      // One getter per @FormView field. Return type is derived from the
-      // field kind: text → String?, date → DateTime?, dropdown → String?.
-      // A regression in kind→type mapping would surface as a wrong type.
-      expect(generatedSource,
-          contains('extension ValueProperties on FormStateHelper'));
-      expect(generatedSource, contains('String? get emailValue'));
-      expect(generatedSource, contains('String? get passwordValue'));
-      expect(generatedSource, contains('DateTime? get birthdayValue'));
-      expect(generatedSource, contains('String? get countryValue'));
-    });
+      'emits a ValueProperties extension with a typed value getter per field',
+      () {
+        // One getter per @FormView field. Return type is derived from the
+        // field kind: text → String?, date → DateTime?, dropdown → String?.
+        // A regression in kind→type mapping would surface as a wrong type.
+        expect(
+          generatedSource,
+          contains('extension ValueProperties on FormStateHelper'),
+        );
+        expect(generatedSource, contains('String? get emailValue'));
+        expect(generatedSource, contains('String? get passwordValue'));
+        expect(generatedSource, contains('DateTime? get birthdayValue'));
+        expect(generatedSource, contains('String? get countryValue'));
+      },
+    );
 
     test('emits hasX / setXValidationMessage helpers per field', () {
       // Proves the generator walked every field in the annotation
       // (not just the first one) through the helpers' emit pass.
       for (final field in const ['Email', 'Password', 'Birthday', 'Country']) {
-        expect(generatedSource, contains('bool get has$field'),
-            reason: 'missing has$field getter');
         expect(
-            generatedSource, contains('set${field}ValidationMessage'),
-            reason: 'missing set${field}ValidationMessage setter');
+          generatedSource,
+          contains('bool get has$field'),
+          reason: 'missing has$field getter',
+        );
+        expect(
+          generatedSource,
+          contains('set${field}ValidationMessage'),
+          reason: 'missing set${field}ValidationMessage setter',
+        );
       }
     });
 
@@ -131,12 +158,16 @@ void main() {
       expect(generatedSource, contains('passwordController.addListener'));
     });
 
-    test('emits a disposeForm that clears both controllers and focus nodes',
-        () {
-      expect(generatedSource, contains('void disposeForm()'));
-      expect(generatedSource,
-          contains('_LoginViewTextEditingControllers.clear()'));
-      expect(generatedSource, contains('_LoginViewFocusNodes.clear()'));
-    });
+    test(
+      'emits a disposeForm that clears both controllers and focus nodes',
+      () {
+        expect(generatedSource, contains('void disposeForm()'));
+        expect(
+          generatedSource,
+          contains('_LoginViewTextEditingControllers.clear()'),
+        );
+        expect(generatedSource, contains('_LoginViewFocusNodes.clear()'));
+      },
+    );
   });
 }

@@ -64,9 +64,7 @@ User _\$UserFromJson(Map<String, dynamic> json) => User();
     test('strips leading `part of` directives from each shard', () {
       final out = combine(
         sourceBasename: 'user.dart',
-        partContents: [
-          "part of 'user.dart';\n\nclass A {}\n",
-        ],
+        partContents: ["part of 'user.dart';\n\nclass A {}\n"],
       );
       // Exactly one `part of` directive — the combining shim's own header —
       // not the one the SharedPartBuilder shard emitted.
@@ -78,9 +76,7 @@ User _\$UserFromJson(Map<String, dynamic> json) => User();
     test('strips legacy identifier-form `part of` headers', () {
       final out = combine(
         sourceBasename: 'user.dart',
-        partContents: [
-          'part of my_lib.models.user;\n\nclass A {}\n',
-        ],
+        partContents: ['part of my_lib.models.user;\n\nclass A {}\n'],
       );
       // Exactly one `part of` directive — the combining shim's own header.
       expect('part of'.allMatches(out).length, 1);
@@ -99,7 +95,8 @@ User _\$UserFromJson(Map<String, dynamic> json) => User();
     });
 
     test('strips only the leading header, not mid-shard `part of` text', () {
-      final shard = "part of 'user.dart';\n\n"
+      final shard =
+          "part of 'user.dart';\n\n"
           "const example = '''\npart of 'user.dart';\n''';\n";
       final out = combine(sourceBasename: 'user.dart', partContents: [shard]);
       // The real header is stripped; the mid-shard literal survives. One

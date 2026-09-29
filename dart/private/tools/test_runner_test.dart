@@ -86,6 +86,9 @@ void main(List<String> args) {
     final err = await process.stderr.transform(utf8.decoder).join();
     await process.stdout.drain<void>();
     expect(await process.exitCode, 1);
-    expect(err, contains('--test_filter needs a test written with package:test'));
+    expect(
+      err,
+      contains('--test_filter needs a test written with package:test'),
+    );
   });
 }
