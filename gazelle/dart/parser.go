@@ -9,12 +9,12 @@ import (
 
 // DartImport represents a parsed Dart import statement.
 type DartImport struct {
-	URI       string // The import URI (e.g., "package:foo/bar.dart", "dart:core")
-	IsPackage bool   // True if package: import
-	IsDartSDK bool   // True if dart: import
-	IsRelative bool  // True if relative import (no scheme)
-	Package   string // Package name for package: imports
-	Path      string // Path within package (e.g., "bar.dart")
+	URI        string // The import URI (e.g., "package:foo/bar.dart", "dart:core")
+	IsPackage  bool   // True if package: import
+	IsDartSDK  bool   // True if dart: import
+	IsRelative bool   // True if relative import (no scheme)
+	Package    string // Package name for package: imports
+	Path       string // Path within package (e.g., "bar.dart")
 }
 
 var importRe = regexp.MustCompile(`^\s*(?:import|export)\s+['"](.+?)['"]`)
@@ -125,9 +125,10 @@ func FindPubspecName(dir string, rel string) string {
 // be parsed.
 //
 // Examples:
-//   environment: { sdk: ">=3.11.0 <4.0.0" } → "3.11"
-//   environment: { sdk: "^3.10.0" }         → "3.10"
-//   environment: { sdk: ">=2.18.0 <3.0.0" } → "2.18"
+//
+//	environment: { sdk: ">=3.11.0 <4.0.0" } → "3.11"
+//	environment: { sdk: "^3.10.0" }         → "3.10"
+//	environment: { sdk: ">=2.18.0 <3.0.0" } → "2.18"
 func ParsePubspecLanguageVersion(dir string) string {
 	data, err := os.ReadFile(filepath.Join(dir, "pubspec.yaml"))
 	if err != nil {

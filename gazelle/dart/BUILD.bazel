@@ -3,6 +3,7 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "dart",
     srcs = [
+        "analysis_options.go",
         "builder_registry.go",
         "dag.go",
         "generate.go",
@@ -30,6 +31,7 @@ go_test(
     name = "dart_test",
     size = "small",
     srcs = [
+        "analysis_options_test.go",
         "builder_registry_test.go",
         "dag_test.go",
         "generate_test.go",

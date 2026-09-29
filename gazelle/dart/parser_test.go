@@ -18,9 +18,9 @@ func writeTempDart(t *testing.T, content string) string {
 
 func TestParseDartFile(t *testing.T) {
 	tests := []struct {
-		name    string
-		input   string
-		want    []DartImport
+		name  string
+		input string
+		want  []DartImport
 	}{
 		{
 			name:  "PlainPackageImport",

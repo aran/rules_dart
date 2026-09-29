@@ -97,6 +97,19 @@ var _primitiveDartKinds = map[string]rule.KindInfo{
 		},
 		ResolveAttrs: map[string]bool{"deps": true},
 	},
+	// One per analysis_options.yaml, and the root's list of them. The config
+	// matches by name alone: there is one per repository.
+	"dart_analysis_options": {
+		MatchAttrs:     []string{"src"},
+		NonEmptyAttrs:  map[string]bool{"src": true},
+		MergeableAttrs: map[string]bool{"src": true, "deps": true},
+		ResolveAttrs:   map[string]bool{"deps": true},
+	},
+	// Never "empty": an empty config is valid (SDK defaults) and `.bazelrc`
+	// files name it, so Gazelle must not delete it.
+	"dart_analysis_config": {
+		MergeableAttrs: map[string]bool{"options": true},
+	},
 	// Code-gen primitives. Emitted by Gazelle's DAG-synthesis when
 	// annotations are detected; also usable by hand.
 	"dart_codegen": {

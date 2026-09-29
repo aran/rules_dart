@@ -16,7 +16,9 @@ import (
 const dartName = "dart"
 
 // dartLang implements language.Language for Dart.
-type dartLang struct{}
+type dartLang struct {
+	analysis analysisState
+}
 
 // NewLanguage creates a new Dart language extension for Gazelle.
 func NewLanguage() language.Language {
@@ -26,7 +28,7 @@ func NewLanguage() language.Language {
 func (*dartLang) Name() string { return dartName }
 
 func (*dartLang) RegisterFlags(fs *flag.FlagSet, cmd string, c *config.Config) {}
-func (*dartLang) CheckFlags(fs *flag.FlagSet, c *config.Config) error           { return nil }
+func (*dartLang) CheckFlags(fs *flag.FlagSet, c *config.Config) error          { return nil }
 
 func (*dartLang) KnownDirectives() []string {
 	return []string{
@@ -136,7 +138,7 @@ func (*dartLang) Loads() []rule.LoadInfo {
 		[]rule.LoadInfo{
 			{
 				Name:    "@rules_dart//dart:defs.bzl",
-				Symbols: []string{"dart_library", "dart_binary", "dart_test", "dart_codegen", "dart_aggregate_codegen", "dart_sqlcodegen"},
+				Symbols: []string{"dart_library", "dart_binary", "dart_test", "dart_codegen", "dart_aggregate_codegen", "dart_sqlcodegen", "dart_analysis_options", "dart_analysis_config"},
 			},
 		},
 		macroLoadInfos()...,
@@ -148,7 +150,7 @@ func (*dartLang) ApparentLoads(moduleToApparentName func(string) string) []rule.
 		[]rule.LoadInfo{
 			{
 				Name:    "@rules_dart//dart:defs.bzl",
-				Symbols: []string{"dart_library", "dart_binary", "dart_test", "dart_codegen", "dart_aggregate_codegen", "dart_sqlcodegen"},
+				Symbols: []string{"dart_library", "dart_binary", "dart_test", "dart_codegen", "dart_aggregate_codegen", "dart_sqlcodegen", "dart_analysis_options", "dart_analysis_config"},
 			},
 		},
 		macroLoadInfos()...,

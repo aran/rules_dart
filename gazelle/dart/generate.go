@@ -39,8 +39,22 @@ var baselineGeneratedExtensions = func() []string {
 // covering every annotated file in the directory.
 const injectableInitAnnotation = "InjectableInit"
 
-// GenerateRules generates Dart BUILD rules for a directory.
+// GenerateRules generates Dart BUILD rules for a directory: the Dart targets,
+// then the analysis options targets (analysis_options.go).
 func (d *dartLang) GenerateRules(args language.GenerateArgs) language.GenerateResult {
+	res := d.generateDartRules(args)
+	taken := map[string]bool{}
+	for _, r := range res.Gen {
+		taken[r.Name()] = true
+	}
+	gen, imports, empty := d.analysisRules(args, taken)
+	res.Gen = append(res.Gen, gen...)
+	res.Imports = append(res.Imports, imports...)
+	res.Empty = append(res.Empty, empty...)
+	return res
+}
+
+func (d *dartLang) generateDartRules(args language.GenerateArgs) language.GenerateResult {
 	dartFiles, err := ParseDartDir(args.Dir, args.RegularFiles)
 	if err != nil || len(dartFiles) == 0 {
 		return language.GenerateResult{}

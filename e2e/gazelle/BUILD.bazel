@@ -1,5 +1,5 @@
 load("@gazelle//:def.bzl", "gazelle", "gazelle_binary")
-load("@rules_shell//shell:sh_test.bzl", "sh_test")
+load("@rules_dart//dart:defs.bzl", "dart_test")
 
 gazelle_binary(
     name = "gazelle_bin",
@@ -13,22 +13,24 @@ gazelle(
     gazelle = "gazelle_bin",
 )
 
-sh_test(
+_SAMPLES = [
+    "bin/deferred_import.dart",
+    "bin/hello.dart",
+    "bin/show_import.dart",
+    "lib/greeter.dart",
+    "lib/io_impl.dart",
+    "lib/platform_client.dart",
+    "lib/stub.dart",
+    "lib/web_impl.dart",
+    "test/greeter_test.dart",
+]
+
+dart_test(
     name = "gazelle_test",
     size = "small",
-    srcs = ["gazelle_test.sh"],
-    args = ["$(rlocationpath :gazelle_bin)"],
-    data = [
-        "bin/deferred_import.dart",
-        "bin/hello.dart",
-        "bin/show_import.dart",
-        "lib/greeter.dart",
-        "lib/io_impl.dart",
-        "lib/platform_client.dart",
-        "lib/stub.dart",
-        "lib/web_impl.dart",
-        "test/greeter_test.dart",
-        ":gazelle_bin",
-    ],
-    deps = ["@bazel_tools//tools/bash/runfiles"],
+    args = ["$(rlocationpath :gazelle_bin)"] +
+           ["$(rlocationpath %s)" % f for f in _SAMPLES],
+    data = _SAMPLES + [":gazelle_bin"],
+    main = "gazelle_test.dart",
+    deps = ["@rules_dart//dart/runfiles"],
 )

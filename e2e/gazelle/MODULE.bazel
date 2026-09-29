@@ -3,7 +3,6 @@ module(name = "gazelle_e2e")
 bazel_dep(name = "rules_dart", version = "0.0.0")
 bazel_dep(name = "bazel_skylib", version = "1.9.2")
 bazel_dep(name = "gazelle", version = "0.54.0")
-bazel_dep(name = "rules_shell", version = "0.8.0")
 
 # Building the Go binaries here goes through the C++ toolchain, which on macOS
 # is apple_support's. 2.9.0 builds that toolchain's helper tools for macOS 11,

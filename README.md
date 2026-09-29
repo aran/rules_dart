@@ -197,6 +197,18 @@ folder, Gazelle reads the `name` field and uses it as both the target name
 and `package_name` for the generated `dart_library`. This means most
 projects need no directives at all.
 
+#### Analysis options
+
+For every directory holding an `analysis_options.yaml`, Gazelle emits a
+`dart_analysis_options` named `analysis_options` (`analysis_options_yaml` if
+another rule in that directory has the name) whose `deps` are the packages its
+`include: package:<pkg>/...` lines name. In the root package it keeps one
+`dart_analysis_config` named `analysis_config` listing all of them, which is the
+target the `analysis_config` flag points at. A run on part of the tree
+(`gazelle path/to/dir`, or `-r=false`) updates only the directories it visits
+and keeps the config's other entries, so `gazelle -mode=diff` over the whole
+repository in CI reports an `analysis_options.yaml` nobody listed.
+
 ### Code generation
 
 `dart_codegen` runs a generator on each source file individually.
