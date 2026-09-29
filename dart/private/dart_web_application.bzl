@@ -9,8 +9,8 @@ The rules stage that layout hermetically from declared artifacts (see
 
 load("//dart:providers.bzl", "DartInfo")
 load("//dart/private:build_settings.bzl", "EXTRA_DART_DEFINES_ATTR", "merge_dart_defines")
-load("//dart/private:common.bzl", "collect_packages", "collect_transitive_resources", "collect_transitive_srcs", "writable_home_env")
-load("//dart/private:dart_info.bzl", "dart_analyzable_info")
+load("//dart/private:common.bzl", "collect_transitive_resources", "collect_transitive_srcs", "writable_home_env")
+load("//dart/private:executable_package.bzl", "EXECUTABLE_PACKAGE_ATTRS", "executable_package")
 load("//dart/private:project_staging.bzl", "stage_dart_project")
 load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS")
 
@@ -53,7 +53,8 @@ def _dart_web_compile(ctx, compile_mode):
     toolchain = ctx.toolchains["//dart:toolchain_type"]
     dart_sdk_info = toolchain.dart_sdk_info
 
-    packages = collect_packages(ctx.attr.deps)
+    own = executable_package(ctx, [ctx.file.main] + ctx.files.srcs)
+    packages = own.packages
 
     # Resources join the staged project for the same reason they join the
     # analyzer's: a package staged without them is not the package. They are
@@ -103,10 +104,7 @@ def _dart_web_compile(ctx, compile_mode):
         ),
         # See `dart_binary`: a web entrypoint is as analyzable as a VM one, and
         # as invalid a `deps` entry.
-        dart_analyzable_info(
-            deps = ctx.attr.deps,
-            srcs = [ctx.file.main] + ctx.files.srcs,
-        ),
+        own.analyzable,
     ]
 
 def _dart_js_binary_impl(ctx):
@@ -135,7 +133,7 @@ _WEB_BINARY_ATTRS = {
     "defines": attr.string_list(
         doc = "Dart environment declarations (`key=value`). Each entry becomes a `-Dkey=value` flag.",
     ),
-} | EXTRA_DART_DEFINES_ATTR
+} | EXTRA_DART_DEFINES_ATTR | EXECUTABLE_PACKAGE_ATTRS
 
 dart_js_binary = rule(
     implementation = _dart_js_binary_impl,

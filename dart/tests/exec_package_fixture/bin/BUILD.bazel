@@ -1,0 +1,19 @@
+load("//dart:defs.bzl", "dart_binary")
+load("//dart/tests:executable_package_test.bzl", "executable_package_refused_test")
+
+# `exec_pkg` is rooted one directory up, where its library is; this BUILD file
+# is not that directory, so naming the package here names a second one.
+dart_binary(
+    name = "elsewhere",
+    main = "main.dart",
+    package = "//dart/tests/exec_package_fixture:meta",
+    tags = ["manual"],
+    deps = ["//dart/tests/exec_package_fixture:lib"],
+)
+
+executable_package_refused_test(
+    name = "elsewhere_test",
+    size = "small",
+    message = "states package \"exec_pkg\" rooted at `dart/tests/exec_package_fixture/bin`, but @@//dart/tests/exec_package_fixture:lib supplies package \"exec_pkg\" rooted at `dart/tests/exec_package_fixture`",
+    target_under_test = ":elsewhere",
+)

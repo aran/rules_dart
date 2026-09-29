@@ -20,6 +20,8 @@ load(
     "package_and_inline_conflict_test",
 )
 
+exports_files(["gen.dart"])
+
 dart_package_metadata(
     name = "pkg",
     package_name = "ident_fixture",

@@ -84,7 +84,8 @@ entrypoint.
 Provided by executable rules — `dart_binary`, `dart_test`, `dart_js_binary`, \
 `dart_wasm_binary` here, and downstream by rules whose target is an executable \
 that *also* contributes a package (a `flutter_test` whose `srcs` are its own \
-package's `lib/` files). A library needs nothing extra: for it `DartInfo` *is* \
+package's `lib/` files). The executables here contribute one too when they \
+state a `package`, `package_name` or `language_version`. A library needs nothing extra: for it `DartInfo` *is* \
 the analyzable closure, and the aspect accepts either provider, which is what \
 keeps `dart_proto_library` analyzable without adopting anything. The aspect \
 checks a target's own files: its `DefaultInfo` `.dart` files (a library's \

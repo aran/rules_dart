@@ -16,7 +16,6 @@ load(
     "WINDOWS_CONSTRAINT_ATTR",
     "check_unreplaced_hooks",
     "code_asset_entries",
-    "collect_packages",
     "collect_transitive_code_assets",
     "collect_transitive_resources",
     "collect_transitive_srcs",
@@ -29,9 +28,9 @@ load(
     "target_dart_abi",
 )
 load("//dart/private:dart_compile.bzl", "dart_compile_action")
-load("//dart/private:dart_info.bzl", "dart_analyzable_info")
 load("//dart/private:dart_test_runner.bzl", "DartTestRunnerInfo")
-load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS", "colocate_entrypoint", "colocate_packages")
+load("//dart/private:executable_package.bzl", "EXECUTABLE_PACKAGE_ATTRS", "executable_package")
+load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS", "colocate_executable")
 
 def _dart_test_impl(ctx):
     toolchain = ctx.toolchains["//dart:toolchain_type"]
@@ -42,7 +41,8 @@ def _dart_test_impl(ctx):
     # files into one real directory, and the test's own `main` with any generated
     # sibling sources (e.g. a `.mocks.dart`), so the build-time compile resolves
     # everything.
-    packages = collect_packages(ctx.attr.deps)
+    own = executable_package(ctx, [ctx.file.main] + ctx.files.srcs)
+    packages = own.packages
     runner = _test_runner(ctx, packages)
 
     hook_err = check_unreplaced_hooks(ctx.label, packages)
@@ -50,9 +50,18 @@ def _dart_test_impl(ctx):
         fail(hook_err)
 
     # The one flatten per rule: colocation inspects per-file paths.
-    packages, dep_srcs = colocate_packages(ctx, packages, collect_transitive_srcs(ctx.attr.deps).to_list())
-    main_input, main_arg, own_inputs = colocate_entrypoint(ctx, ctx.file.main, ctx.files.srcs)
-    compile_srcs = dep_srcs + own_inputs
+    colocated = colocate_executable(
+        ctx,
+        packages,
+        collect_transitive_srcs(ctx.attr.deps).to_list(),
+        ctx.file.main,
+        ctx.files.srcs,
+        own.record,
+    )
+    packages = colocated.packages
+    main_input = colocated.main_input
+    main_arg = colocated.main_arg
+    compile_srcs = colocated.srcs
     if runner:
         # Under the runner the compiled entrypoint is a bootstrap that hands
         # `main` to `package:test`; the test file itself becomes an input.
@@ -66,7 +75,7 @@ def _dart_test_impl(ctx):
     package_config = ctx.actions.declare_file(ctx.label.name + ".package_config.json")
     ctx.actions.write(
         output = package_config,
-        content = generate_package_config(packages, compile_srcs, package_config),
+        content = generate_package_config(packages, compile_srcs, package_config, colocated.roots),
     )
 
     if runner:
@@ -170,12 +179,9 @@ def _dart_test_impl(ctx):
         DefaultInfo(executable = executable, runfiles = runfiles),
         env_info,
         # See `dart_binary`: analyzable and fixable without becoming a valid
-        # `deps` entry. `ctx.file.main` is the pre-colocation file, because the
-        # analyze/fix rules stage by `short_path`.
-        dart_analyzable_info(
-            deps = ctx.attr.deps,
-            srcs = [ctx.file.main] + ctx.files.srcs,
-        ),
+        # `deps` entry. Built from the pre-colocation `ctx.file.main`, because
+        # the analyze/fix rules stage by `short_path`.
+        own.analyzable,
     ]
 
 def _test_runner(ctx, packages):
@@ -310,7 +316,7 @@ must provide `DartCodeAssetInfo` (see the `dart_code_asset` rule).""",
             executable = True,
             cfg = "exec",
         ),
-    }, **dict(WINDOWS_CONSTRAINT_ATTR, **dict(DART_ABI_CONSTRAINT_ATTRS, **EXTRA_DART_DEFINES_ATTR))),
+    }, **dict(WINDOWS_CONSTRAINT_ATTR, **dict(DART_ABI_CONSTRAINT_ATTRS, **dict(EXTRA_DART_DEFINES_ATTR, **EXECUTABLE_PACKAGE_ATTRS)))),
     test = True,
     toolchains = ["//dart:toolchain_type"] + COPY_TO_DIRECTORY_TOOLCHAINS,
     doc = (

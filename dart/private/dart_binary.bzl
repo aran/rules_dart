@@ -7,7 +7,6 @@ load(
     "DART_ABI_CONSTRAINT_ATTRS",
     "check_unreplaced_hooks",
     "code_asset_entries",
-    "collect_packages",
     "collect_transitive_code_assets",
     "collect_transitive_resources",
     "collect_transitive_srcs",
@@ -18,8 +17,8 @@ load(
     "target_dart_abi",
 )
 load("//dart/private:dart_compile.bzl", "dart_compile_action")
-load("//dart/private:dart_info.bzl", "dart_analyzable_info")
-load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS", "colocate_entrypoint", "colocate_packages")
+load("//dart/private:executable_package.bzl", "EXECUTABLE_PACKAGE_ATTRS", "executable_package")
+load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS", "colocate_executable")
 
 def binary_output_basename(name, compile_mode, is_windows):
     """Returns a `dart_binary`'s output filename with the platform exe extension.
@@ -57,7 +56,8 @@ def _dart_binary_impl(ctx):
     # Co-locate each dep package's source+generated (and split-across-targets)
     # files into one real directory, and the binary's own `main` with any
     # generated sibling sources, so the compile resolves everything.
-    packages = collect_packages(ctx.attr.deps)
+    own = executable_package(ctx, [ctx.file.main] + ctx.files.srcs)
+    packages = own.packages
 
     if ctx.attr.code_assets_from_deps:
         hook_err = check_unreplaced_hooks(ctx.label, packages)
@@ -65,9 +65,18 @@ def _dart_binary_impl(ctx):
             fail(hook_err)
 
     # The one flatten per rule: colocation inspects per-file paths.
-    packages, dep_srcs = colocate_packages(ctx, packages, collect_transitive_srcs(ctx.attr.deps).to_list())
-    main_input, main_arg, own_inputs = colocate_entrypoint(ctx, ctx.file.main, ctx.files.srcs)
-    all_srcs = dep_srcs + own_inputs
+    colocated = colocate_executable(
+        ctx,
+        packages,
+        collect_transitive_srcs(ctx.attr.deps).to_list(),
+        ctx.file.main,
+        ctx.files.srcs,
+        own.record,
+    )
+    packages = colocated.packages
+    main_input = colocated.main_input
+    main_arg = colocated.main_arg
+    all_srcs = colocated.srcs
 
     # Root resolution must see the rule's own inputs too: a package whose
     # metadata comes from a srcs-less façade library resolves only via the
@@ -75,7 +84,7 @@ def _dart_binary_impl(ctx):
     package_config = ctx.actions.declare_file(ctx.label.name + ".package_config.json")
     ctx.actions.write(
         output = package_config,
-        content = generate_package_config(packages, all_srcs, package_config),
+        content = generate_package_config(packages, all_srcs, package_config, colocated.roots),
     )
 
     # Determine output filename (Windows gets the `.exe` extension — see
@@ -184,13 +193,10 @@ def _dart_binary_impl(ctx):
             compile_mode = compile_mode,
         ),
         # What makes the `dart_analyze` aspect and `dart_fix` reach this entrypoint
-        # without making this target a legal `deps` entry. The pre-colocation
-        # `ctx.file.main` on purpose: staging goes by `short_path`, and a
-        # colocated copy's is inside the assembled directory.
-        dart_analyzable_info(
-            deps = ctx.attr.deps,
-            srcs = [ctx.file.main] + ctx.files.srcs,
-        ),
+        # without making this target a legal `deps` entry. Built from the
+        # pre-colocation `ctx.file.main` on purpose: staging goes by
+        # `short_path`, and a colocated copy's is inside the assembled directory.
+        own.analyzable,
     ]
 
 dart_binary = rule(
@@ -253,7 +259,7 @@ The `dart compile` mode. Determines the output format:
         "defines": attr.string_list(
             doc = "Dart environment declarations (`key=value`). Each entry becomes a `-Dkey=value` flag.",
         ),
-    }, **dict(DART_ABI_CONSTRAINT_ATTRS, **EXTRA_DART_DEFINES_ATTR)),
+    }, **dict(DART_ABI_CONSTRAINT_ATTRS, **dict(EXTRA_DART_DEFINES_ATTR, **EXECUTABLE_PACKAGE_ATTRS))),
     executable = True,
     toolchains = ["//dart:toolchain_type"] + COPY_TO_DIRECTORY_TOOLCHAINS,
     doc = "Compiles a Dart application using `dart compile`.",

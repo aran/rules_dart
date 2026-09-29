@@ -1,0 +1,11 @@
+load("//dart:defs.bzl", "dart_library")
+
+exports_files(["bin/inner_main.dart"])
+
+dart_library(
+    name = "inner",
+    package_name = "inner_pkg",
+    srcs = ["lib/inner.dart"],
+    language_version = "3.8",
+    visibility = ["//dart/tests/exec_package_fixture:__subpackages__"],
+)

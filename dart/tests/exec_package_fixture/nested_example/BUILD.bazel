@@ -1,0 +1,26 @@
+load("//dart:defs.bzl", "dart_binary")
+load("//dart/tests:executable_package_test.bzl", "package_config_probe_test")
+
+# A package of its own nested inside `exec_pkg`'s root, like a pub package's
+# `example/`: Dart gives its files the innermost package's version, so it may
+# differ from the outer one's. Reading `_` compiles only below 3.7.
+dart_binary(
+    name = "example",
+    package_name = "nested_example",
+    compile_mode = "kernel",
+    language_version = "3.6",
+    main = "bin/example.dart",
+    deps = ["//dart/tests/exec_package_fixture:lib"],
+)
+
+package_config_probe_test(
+    name = "example_package_config_test",
+    size = "small",
+    expected = [
+        '"name": "nested_example", "rootUri": "../../../../../../../dart/tests/exec_package_fixture/nested_example", "packageUri": "lib/", "languageVersion": "3.6"',
+        '"name": "exec_pkg", "rootUri": "../../../../../../../dart/tests/exec_package_fixture", "packageUri": "lib/", "languageVersion": "3.8"',
+    ],
+    expected_language_version = "3.6",
+    expected_package_name = "nested_example",
+    target_under_test = ":example",
+)

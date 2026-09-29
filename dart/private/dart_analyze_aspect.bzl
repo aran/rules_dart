@@ -37,8 +37,10 @@ The format check names the target's own files individually and passes the
 language version of the target's own package on the command line. That version
 selects the formatting style (below 3.7 the old short one), and passing it
 keeps the verdict off whatever `package_config.json` entry happens to cover a
-staged file — an entrypoint outside `lib/`, say. A target with no package of
-its own is formatted at `latest`, as `dart format` would with nothing to go on.
+staged file — an entrypoint outside `lib/`, say. An executable that states no
+package of its own takes the version of the in-repo package whose root contains
+its entrypoint, and one containing no such package is formatted at `latest`, as
+`dart format` would with nothing to go on.
 
 The same staged project also feeds a `dart fix` action whose products sit in
 the `dart_fix_fixes` and `dart_fix_manifest` output groups, built only when
@@ -250,7 +252,8 @@ def _format_language_versions(info, own_paths):
     whose root directory contains the file, `test/` and `bin/` included, not
     only `lib/`. A library states its package; an executable's entrypoint
     belongs to whichever in-repo package's root contains it — the package it
-    sits in, not a dependency's. Formatting it at the SDK's newest version
+    sits in, not a dependency's — unless the executable states its own package,
+    which then has a record like a library's. Formatting it at the SDK's newest version
     instead would demand a style the package's own `dart format` never produces
     once a package states a version below 3.7.
 

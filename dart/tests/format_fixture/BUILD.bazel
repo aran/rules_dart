@@ -55,6 +55,23 @@ formatted_test(
     target = "//dart/tests/format_fixture/short:short_main",
 )
 
+# An executable that states its own package's version is formatted at it, in a
+# package with no library to state it: short style, for VM and web entrypoints.
+[
+    formatted_test(
+        name = "stated_%s_format_test" % target,
+        size = "small",
+        target = "//dart/tests/format_fixture/stated:" + target,
+    )
+    for target in [
+        "stated_main",
+        "stated_test",
+        "meta_test",
+        "stated_js",
+        "stated_wasm",
+    ]
+]
+
 # A nested options file that `include:`s its listed parent by relative path:
 # both checks must honour the parent's settings, which only resolve if the
 # include is followed within the staged project.

@@ -48,3 +48,18 @@ dart_test(
         "@rules_dart//dart/runfiles",
     ],
 )
+
+# The same test as a member of the package it tests. The package's files are
+# assembled with its generated part, so the test's entrypoint is assembled with
+# them and sits inside the package root its `package_config.json` names.
+dart_test(
+    name = "member_lib_test",
+    package_name = "part_pkg_fixture",
+    size = "small",
+    language_version = "3.11",
+    main = "test/lib_test.dart",
+    deps = [
+        ":part_pkg_fixture",
+        "@pub_deps//:test",
+    ],
+)

@@ -92,8 +92,20 @@ bzl_library(
         ":build_settings",
         ":common",
         ":dart_compile",
-        ":dart_info",
+        ":executable_package",
         ":source_set",
+        "//dart:providers",
+    ],
+)
+
+bzl_library(
+    name = "executable_package",
+    srcs = ["executable_package.bzl"],
+    visibility = ["//dart:__subpackages__"],
+    deps = [
+        ":common",
+        ":dart_info",
+        ":dart_library",
         "//dart:providers",
     ],
 )
@@ -106,7 +118,7 @@ bzl_library(
         ":build_settings",
         ":common",
         ":dart_compile",
-        ":dart_info",
+        ":executable_package",
         ":source_set",
         "//dart:providers",
     ],
@@ -169,7 +181,7 @@ bzl_library(
     deps = [
         ":build_settings",
         ":common",
-        ":dart_info",
+        ":executable_package",
         ":project_staging",
         ":source_set",
         "//dart:providers",

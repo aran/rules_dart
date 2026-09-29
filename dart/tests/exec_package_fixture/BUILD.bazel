@@ -1,0 +1,148 @@
+"""An executable stating the package it belongs to, and every contradiction refused.
+
+`exec_pkg` is a library package at 3.8, declared once in `:meta`. Its test
+joins it through the same declaration; `nested_example/` is a different package
+nested inside it, which Dart allows. Every other executable here states
+something its `deps` contradict, is tagged `manual`, and is pinned by the error
+that names both sides.
+"""
+
+load("//dart:defs.bzl", "dart_binary", "dart_codegen", "dart_library", "dart_package_metadata", "dart_test")
+load(
+    "//dart/tests:executable_package_test.bzl",
+    "executable_package_refused_test",
+    "package_config_probe_test",
+)
+
+exports_files(["test/member_test.dart"])
+
+dart_package_metadata(
+    name = "meta",
+    package_name = "exec_pkg",
+    language_version = "3.8",
+    visibility = ["//dart/tests/exec_package_fixture:__subpackages__"],
+)
+
+dart_library(
+    name = "lib",
+    srcs = ["lib/exec_pkg.dart"],
+    package = ":meta",
+    visibility = ["//dart/tests/exec_package_fixture:__subpackages__"],
+)
+
+# The library's own test, a member of its package: one record, one version.
+dart_test(
+    name = "member_test",
+    size = "small",
+    main = "test/member_test.dart",
+    package = ":meta",
+    deps = [":lib"],
+)
+
+package_config_probe_test(
+    name = "member_test_package_config_test",
+    size = "small",
+    expected = ['"name": "exec_pkg", "rootUri": "../../../../../../dart/tests/exec_package_fixture", "packageUri": "lib/", "languageVersion": "3.8"'],
+    expected_language_version = "3.8",
+    expected_package_name = "exec_pkg",
+    target_under_test = ":member_test",
+)
+
+# --- contradictions the build must refuse -----------------------------------
+
+# The same package, at another version than its library states.
+dart_binary(
+    name = "other_version",
+    package_name = "exec_pkg",
+    language_version = "3.7",
+    main = "tool/exec_main.dart",
+    tags = ["manual"],
+    deps = [":lib"],
+)
+
+executable_package_refused_test(
+    name = "other_version_test",
+    size = "small",
+    message = "states package \"exec_pkg\" at language version 3.7, but @@//dart/tests/exec_package_fixture:lib, the same package, states 3.8",
+    target_under_test = ":other_version",
+)
+
+# The library's directory, under another name.
+dart_binary(
+    name = "renamed",
+    package_name = "renamed_pkg",
+    main = "tool/exec_main.dart",
+    tags = ["manual"],
+    deps = [":lib"],
+)
+
+executable_package_refused_test(
+    name = "renamed_test",
+    size = "small",
+    message = "declares the same directory `dart/tests/exec_package_fixture` as package \"exec_pkg\"",
+    target_under_test = ":renamed",
+)
+
+# `package` and an inline attribute: refused as for a library.
+dart_binary(
+    name = "double_declared",
+    language_version = "3.8",
+    main = "tool/exec_main.dart",
+    package = ":meta",
+    tags = ["manual"],
+    deps = [":lib"],
+)
+
+executable_package_refused_test(
+    name = "double_declared_test",
+    size = "small",
+    message = "sets `package` and also `language_version`",
+    target_under_test = ":double_declared",
+)
+
+# An entrypoint inside a package nested in this one: Dart gives it the inner
+# package's version, never the one stated here.
+dart_binary(
+    name = "swallowed",
+    main = "//dart/tests/exec_package_fixture/inner:bin/inner_main.dart",
+    package = ":meta",
+    tags = ["manual"],
+    deps = [
+        ":lib",
+        "//dart/tests/exec_package_fixture/inner",
+    ],
+)
+
+executable_package_refused_test(
+    name = "swallowed_test",
+    size = "small",
+    message = "lies inside package \"inner_pkg\" (root `dart/tests/exec_package_fixture/inner`",
+    target_under_test = ":swallowed",
+)
+
+# A generated source naming another package than the executable collecting it.
+dart_codegen(
+    name = "misnamed_g",
+    package_name = "not_exec_pkg",
+    src = "test/member_test.dart",
+    generator = "//dart/tests/package_fixture:gen.dart",
+    language_version = "3.8",
+    output_suffixes = [".g.dart"],
+    tags = ["manual"],
+)
+
+dart_test(
+    name = "misnamed_codegen",
+    srcs = [":misnamed_g"],
+    main = "test/member_test.dart",
+    package = ":meta",
+    tags = ["manual"],
+    deps = [":lib"],
+)
+
+executable_package_refused_test(
+    name = "misnamed_codegen_test",
+    size = "small",
+    message = "collects them into package \"exec_pkg\"",
+    target_under_test = ":misnamed_codegen",
+)

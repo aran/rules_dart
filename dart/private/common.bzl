@@ -640,7 +640,7 @@ def resolve_package_roots(packages, all_srcs):
         roots[name] = exec_root
     return roots
 
-def generate_package_config(packages, all_srcs, config_file):
+def generate_package_config(packages, all_srcs, config_file, roots = {}):
     """Generate package_config.json content using short_path-based lib_root.
 
     Resolves exec-root paths from source files, then computes relative
@@ -650,6 +650,10 @@ def generate_package_config(packages, all_srcs, config_file):
         packages: List of DartPackageInfo providers.
         all_srcs: List of File objects from the transitive source closure.
         config_file: The output File for package_config.json (used for dirname).
+        roots: Dict of package name to exec-root-relative root, for packages
+            whose root no file in `all_srcs` reveals — an executable's own
+            package with no `lib/` files (see `colocate_executable`). A root
+            found from the files wins.
 
     Returns:
         String content of the package_config.json file.
@@ -657,7 +661,8 @@ def generate_package_config(packages, all_srcs, config_file):
     if not packages:
         return '{"configVersion": 2, "packages": []}\n'
 
-    exec_roots = resolve_package_roots(packages, all_srcs)
+    exec_roots = dict(roots)
+    exec_roots.update(resolve_package_roots(packages, all_srcs))
     config_dir = config_file.dirname
 
     entries = []

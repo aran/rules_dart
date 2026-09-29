@@ -117,7 +117,7 @@ def package_for(short_path, packages):
                 best_len = len(lr)
     return best_name
 
-def colocate_packages(ctx, packages, all_srcs):
+def colocate_packages(ctx, packages, all_srcs, members = {}):
     """Co-locates each package's split source/generated files into one directory.
 
     Groups `all_srcs` by the package whose `lib/` they belong to (longest
@@ -133,6 +133,10 @@ def colocate_packages(ctx, packages, all_srcs):
       ctx: The rule context (must carry `COPY_TO_DIRECTORY_TOOLCHAINS`).
       packages: List of `DartPackageInfo` (from `collect_packages`).
       all_srcs: Flat list of transitive source Files.
+      members: Dict of package name to Files that belong to that package
+        outside its `lib/` — an executable's own sources, when it states the
+        package. They are assembled with the package's `lib/` so they sit
+        inside its root, where its `languageVersion` applies.
 
     Returns:
       `(packages2, srcs2)` — packages with each assembled package's `lib_root`
@@ -149,6 +153,8 @@ def colocate_packages(ctx, packages, all_srcs):
             by_pkg[name].append(f)
         else:
             by_pkg[name] = [f]
+    for name, files in members.items():
+        by_pkg[name] = by_pkg.get(name, []) + files
 
     # Files matching no package (pub/transitive sources that only ride along in
     # transitive_srcs) are already co-located in their own source location; pass
@@ -210,6 +216,50 @@ def colocate_entrypoint(ctx, main, own_srcs):
     if ctx.label.package and rel.startswith(ctx.label.package + "/"):
         rel = rel[len(ctx.label.package) + 1:]
     return assembled, assembled.path + "/" + rel, []
+
+def colocate_executable(ctx, packages, dep_srcs, main, own_srcs, own_package = None):
+    """Co-locates an executable's dependencies and its own sources for one compile.
+
+    With no package of its own, the dependencies' packages are co-located and
+    the entrypoint with its generated siblings, separately — see
+    `colocate_packages` and `colocate_entrypoint`. With one (`own_package`), its
+    own sources are members of that package instead, and are assembled with the
+    package's `lib/` whenever any of them is generated, so the entrypoint always
+    sits inside the package root the generated `package_config.json` names.
+
+    Args:
+      ctx: The rule context (must carry `COPY_TO_DIRECTORY_TOOLCHAINS`).
+      packages: The deduplicated `DartPackageInfo` list, `own_package` included.
+      dep_srcs: Flat list of the dependencies' transitive source Files.
+      main: The entrypoint File.
+      own_srcs: The rule's own `srcs` Files.
+      own_package: The executable's own `DartPackageInfo`, or `None`.
+
+    Returns:
+      `struct(packages, srcs, main_input, main_arg, roots)`: the rewritten
+      package list; every File the compile reads; the File holding the
+      entrypoint and the path to compile; and exec-root package roots for
+      `generate_package_config` that no `lib/` file can reveal.
+    """
+    if own_package == None:
+        packages, srcs = colocate_packages(ctx, packages, dep_srcs)
+        main_input, main_arg, own_inputs = colocate_entrypoint(ctx, main, own_srcs)
+        return struct(packages = packages, srcs = srcs + own_inputs, main_input = main_input, main_arg = main_arg, roots = {})
+
+    name = own_package.package_name
+    root = own_package.lib_root
+    packages, srcs = colocate_packages(ctx, packages, dep_srcs, members = {name: [main] + own_srcs})
+    rel = main.short_path[len(root) + 1:] if root else main.short_path
+    for p in packages:
+        if p.package_name == name and p.lib_root != root:
+            # Assembled: the directory is the package root, entrypoint inside.
+            assembled = [f for f in srcs if f.short_path == p.lib_root][0]
+            return struct(packages = packages, srcs = srcs, main_input = assembled, main_arg = assembled.path + "/" + rel, roots = {})
+
+    # Not assembled: every member is a source file where it stands, so the root
+    # is the directory containing them, found from the entrypoint's own path.
+    exec_root = main.path[:len(main.path) - len(rel)].rstrip("/")
+    return struct(packages = packages, srcs = srcs, main_input = main, main_arg = main.path, roots = {name: exec_root})
 
 def _dart_source_set_impl(ctx):
     dst = assemble_source_dir(

@@ -314,6 +314,32 @@ friends) accept `package` too and forward it to every rule they emit.
 This is not `pub.package()`, which fetches a published package from pub.dev;
 `dart_package_metadata` states facts about a package you are building yourself.
 
+#### Executables in a package
+
+A `dart_binary`, `dart_test`, `dart_js_binary` or `dart_wasm_binary` belongs to
+no package unless it says so, and usually need not: its entrypoint takes the
+language version of the package whose root directory contains it, as Dart does
+for `bin/` and `test/`. A package with no `dart_library` has nothing to state
+that version, so an executable may state it itself, with the same `package`, or
+inline `package_name` / `language_version`, that a library takes:
+
+```starlark
+dart_binary(
+    name = "tool",
+    main = "bin/tool.dart",
+    language_version = "3.6",
+)
+```
+
+It is then a member of that package, rooted at its BUILD file's directory as a
+`dart_library` there would be: the entrypoint compiles, analyzes and is
+format-checked at that version. The package name defaults to the directory's
+name. Everything it states must agree with its `deps`, or the build fails
+naming both sides: a library of the same package (same directory) must state
+the same name and the same `language_version`; a package in `deps` with the
+same name must be rooted in the same directory; and each of the executable's
+own files must sit in its directory and not inside another package's.
+
 ### Static analysis and formatting
 
 `dart analyze` and the `dart format` check run as an aspect, `dart_analyze`,
@@ -392,7 +418,8 @@ writes the old short style, and from `3.7` on the tall one. The check formats
 each target at its own package's `language_version` (set on the `dart_library`
 or its `dart_package_metadata`; Gazelle copies it from `pubspec.yaml`). An
 executable's entrypoint takes the version of the package whose directory
-contains it, as Dart does for `bin/` and `test/`. With no version stated, the
+contains it, as Dart does for `bin/` and `test/`, or the one the executable
+states for itself (see [Executables in a package](#executables-in-a-package)). With no version stated, the
 check uses the newest the SDK knows, so a package on an older version must
 state it for the check to hold it to the style its own `dart format` produces.
 

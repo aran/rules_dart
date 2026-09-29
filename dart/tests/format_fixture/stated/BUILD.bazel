@@ -1,0 +1,79 @@
+load(
+    "//dart:defs.bzl",
+    "dart_binary",
+    "dart_js_binary",
+    "dart_package_metadata",
+    "dart_test",
+    "dart_wasm_binary",
+)
+load("//dart/tests:executable_package_test.bzl", "package_config_probe_test")
+
+# A package with no `dart_library`: nothing but its executables can state its
+# language version, so each does. Every entrypoint here reads a variable named
+# `_`, which compiles only below 3.7, and is laid out in the short style only
+# 3.6 produces — so a green build means the stated version reached the
+# compiler, and a green format check means it reached the formatter.
+
+dart_package_metadata(
+    name = "meta",
+    package_name = "stated",
+    language_version = "3.6",
+)
+
+dart_binary(
+    name = "stated_main",
+    compile_mode = "kernel",
+    language_version = "3.6",
+    main = "bin/stated_main.dart",
+    visibility = ["//dart/tests/format_fixture:__pkg__"],
+)
+
+dart_test(
+    name = "stated_test",
+    size = "small",
+    language_version = "3.6",
+    main = "test/stated_test.dart",
+    visibility = ["//dart/tests/format_fixture:__pkg__"],
+)
+
+dart_test(
+    name = "meta_test",
+    size = "small",
+    main = "test/meta_test.dart",
+    package = ":meta",
+    visibility = ["//dart/tests/format_fixture:__pkg__"],
+)
+
+dart_js_binary(
+    name = "stated_js",
+    language_version = "3.6",
+    main = "web/stated_web.dart",
+    visibility = ["//dart/tests/format_fixture:__pkg__"],
+)
+
+dart_wasm_binary(
+    name = "stated_wasm",
+    main = "web/stated_web.dart",
+    package = ":meta",
+    visibility = ["//dart/tests/format_fixture:__pkg__"],
+)
+
+# The compile's `package_config.json` covers each entrypoint with the stated
+# version; a web target's staged one does the same.
+[
+    package_config_probe_test(
+        name = target + "_package_config_test",
+        size = "small",
+        expected = [entry],
+        expected_language_version = "3.6",
+        expected_package_name = "stated",
+        target_under_test = ":" + target,
+    )
+    for target, entry in [
+        ("stated_main", '"name": "stated", "rootUri": "../../../../../../../dart/tests/format_fixture/stated", "packageUri": "lib/", "languageVersion": "3.6"'),
+        ("stated_test", '"name": "stated", "rootUri": "../../../../../../../dart/tests/format_fixture/stated", "packageUri": "lib/", "languageVersion": "3.6"'),
+        ("meta_test", '"name": "stated", "rootUri": "../../../../../../../dart/tests/format_fixture/stated", "packageUri": "lib/", "languageVersion": "3.6"'),
+        ("stated_js", '"name": "stated", "rootUri": "../src/dart/tests/format_fixture/stated", "packageUri": "lib/", "languageVersion": "3.6"'),
+        ("stated_wasm", '"name": "stated", "rootUri": "../src/dart/tests/format_fixture/stated", "packageUri": "lib/", "languageVersion": "3.6"'),
+    ]
+]

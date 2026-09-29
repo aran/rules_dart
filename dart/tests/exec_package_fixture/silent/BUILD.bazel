@@ -1,0 +1,41 @@
+load("//dart:defs.bzl", "dart_binary", "dart_library")
+load("//dart/tests:executable_package_test.bzl", "executable_package_refused_test")
+
+# States no language version.
+dart_library(
+    name = "silent",
+    srcs = ["lib/silent.dart"],
+)
+
+# The same package, stating one: the library's files would compile at 3.6 in
+# this binary and at the SDK's version everywhere else.
+dart_binary(
+    name = "loud",
+    language_version = "3.6",
+    main = "bin/loud.dart",
+    tags = ["manual"],
+    deps = [":silent"],
+)
+
+executable_package_refused_test(
+    name = "loud_test",
+    size = "small",
+    message = "states package \"silent\" at language version 3.6, but @@//dart/tests/exec_package_fixture/silent:silent, the same package, states none",
+    target_under_test = ":loud",
+)
+
+# An entrypoint from another directory cannot take this package's version.
+dart_binary(
+    name = "outside",
+    language_version = "3.6",
+    main = "//dart/tests/exec_package_fixture:test/member_test.dart",
+    tags = ["manual"],
+    deps = ["//dart/tests/exec_package_fixture:lib"],
+)
+
+executable_package_refused_test(
+    name = "outside_test",
+    size = "small",
+    message = "but its source `dart/tests/exec_package_fixture/test/member_test.dart` is outside that directory",
+    target_under_test = ":outside",
+)
