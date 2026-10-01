@@ -7,6 +7,7 @@ load(":defines_test.bzl", "defines_test_suite")
 load(":language_version_test.bzl", "language_version_test_suite")
 load(":library_test.bzl", "library_test_suite")
 load(":native_assets_test.bzl", "native_assets_test_suite")
+load(":project_staging_test.bzl", "project_staging_test_suite")
 load(":propagation_test.bzl", "propagation_test_suite")
 load(":provider_shape_test.bzl", "provider_shape_probe")
 load(":registry_test.bzl", "registry_test_suite")
@@ -36,6 +37,8 @@ code_asset_test_suite(name = "code_asset_test")
 propagation_test_suite(name = "propagation_test")
 
 registry_test_suite(name = "registry_test")
+
+project_staging_test_suite(name = "project_staging_test")
 
 yaml_parser_test_suite(name = "yaml_parser_test")
 

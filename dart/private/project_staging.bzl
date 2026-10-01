@@ -131,6 +131,11 @@ def pubspec_stub(packages, name = "analyze_stub"):
     special-cases the containing package, so a `package:self/…` import never
     needs a self-dependency (measured on Dart 3.12.2).
 
+    The SDK constraint is `^<language_version>.0` for the package named
+    `name` when it states a `language_version` (which is itself derived from
+    the package's real constraint), so `sdk_version_since` judges the code
+    against what the package declares. Otherwise it is `>=3.0.0 <4.0.0`.
+
     Pubspec-reading lints fire on the harness unless this is a valid pubspec,
     so the `dart_analyze` aspect stages one for both its analyze and its fix
     action.
@@ -145,7 +150,12 @@ def pubspec_stub(packages, name = "analyze_stub"):
     Returns:
       The pubspec file's contents, as a string.
     """
-    lines = ["name: %s" % name, "environment:", '  sdk: ">=3.0.0 <4.0.0"']
+    sdk = ">=3.0.0 <4.0.0"
+    for p in packages:
+        if p.package_name == name and getattr(p, "language_version", ""):
+            sdk = "^%s.0" % p.language_version
+            break
+    lines = ["name: %s" % name, "environment:", '  sdk: "%s"' % sdk]
     names = sorted([
         p.package_name
         for p in packages
