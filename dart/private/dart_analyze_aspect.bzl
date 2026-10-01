@@ -171,7 +171,7 @@ def _wrapper_options(excluded):
             lines.append('    - "%s"' % path)
     return "\n".join(lines) + "\n"
 
-def stage_config_project(ctx, config, packages, files, own, name):
+def stage_config_project(ctx, config, packages, files, own, name, sdk_version):
     """Stages a project holding every options file `config` lists.
 
     The one place a project is laid out for options to be found in: the
@@ -191,6 +191,8 @@ def stage_config_project(ctx, config, packages, files, own, name):
       own: The Files being checked; everything else staged is excluded from
         analysis, but for the options files above one of them.
       name: Prefix for the staged paths.
+      sdk_version: The toolchain SDK's version, the staged SDK constraint of a
+        package that states no `language_version`.
 
     Returns:
       The `stage_dart_project` struct.
@@ -221,10 +223,11 @@ def stage_config_project(ctx, config, packages, files, own, name):
         packages,
         staged_files,
         extra_proj_files = {
-            "pubspec.yaml": pubspec_stub(packages),
+            "pubspec.yaml": pubspec_stub(packages, sdk_version = sdk_version),
             _OPTIONS_BASENAME: _wrapper_options(excluded),
         },
         name = name,
+        sdk_version = sdk_version,
     )
 
 def _analyze(ctx, name, staged, sdk_inputs):
@@ -361,6 +364,7 @@ def _dart_analyze_aspect_impl(target, ctx):
         info.transitive_srcs.to_list() + info.transitive_resources.to_list() + entry + own.values(),
         own.values(),
         name,
+        ctx.toolchains[_TOOLCHAIN].dart_sdk_info.version,
     )
 
     dart_sdk_info = ctx.toolchains[_TOOLCHAIN].dart_sdk_info

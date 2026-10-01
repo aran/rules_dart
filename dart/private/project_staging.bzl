@@ -113,7 +113,7 @@ def staged_package_config_content(packages, ext_staged, proj_name):
         packages = ",\n".join(entries),
     )
 
-def pubspec_stub(packages, name = "analyze_stub"):
+def pubspec_stub(packages, name = "analyze_stub", sdk_version = ""):
     """Builds a `pubspec.yaml` for the staged project or a package within it.
 
     The analyzer resolves imports through `package_config.json`, never through
@@ -134,7 +134,10 @@ def pubspec_stub(packages, name = "analyze_stub"):
     The SDK constraint is `^<language_version>.0` for the package named
     `name` when it states a `language_version` (which is itself derived from
     the package's real constraint), so `sdk_version_since` judges the code
-    against what the package declares. Otherwise it is `>=3.0.0 <4.0.0`.
+    against what the package declares. Otherwise it is `^<major>.<minor>.0` of
+    the toolchain SDK (`sdk_version`), so "no version stated" means the newest,
+    as it does for the format style; without `sdk_version` it is
+    `>=3.0.0 <4.0.0`.
 
     Pubspec-reading lints fire on the harness unless this is a valid pubspec,
     so the `dart_analyze` aspect stages one for both its analyze and its fix
@@ -146,11 +149,16 @@ def pubspec_stub(packages, name = "analyze_stub"):
       name: The pubspec's `name:` field. The default names the harness-level
         stub at the project root; per-package stubs pass the real package name
         so the analyzer attributes each staged file to its true package.
+      sdk_version: The toolchain SDK's version (e.g. `3.11.0`); the constraint
+        for a package that states no `language_version`. Empty for none.
 
     Returns:
       The pubspec file's contents, as a string.
     """
     sdk = ">=3.0.0 <4.0.0"
+    parts = sdk_version.split(".")
+    if len(parts) >= 2:
+        sdk = "^%s.%s.0" % (parts[0], parts[1])
     for p in packages:
         if p.package_name == name and getattr(p, "language_version", ""):
             sdk = "^%s.0" % p.language_version
@@ -209,7 +217,7 @@ def staged_pubspec_paths(packages):
         for lib_root, _ in main_package_roots(packages)
     ]
 
-def stage_dart_project(ctx, packages, all_srcs, extra_proj_files = {}, name = None):
+def stage_dart_project(ctx, packages, all_srcs, extra_proj_files = {}, name = None, sdk_version = ""):
     """Stages packages and sources into a hermetic Dart project layout.
 
     Args:
@@ -222,6 +230,8 @@ def stage_dart_project(ctx, packages, all_srcs, extra_proj_files = {}, name = No
         stub for `dart analyze`).
       name: Prefix for the staged paths; defaults to the target's name. An
         aspect passes its own, so it cannot collide with the target's outputs.
+      sdk_version: The toolchain SDK's version, the staged SDK constraint of a
+        package that states no `language_version`. Empty for the old default.
 
     Returns:
       struct(
@@ -260,7 +270,7 @@ def stage_dart_project(ctx, packages, all_srcs, extra_proj_files = {}, name = No
             name,
             mangle_package_dir(lib_root) if lib_root else "_root",
         ))
-        ctx.actions.write(stub, pubspec_stub(packages, name = package_name))
+        ctx.actions.write(stub, pubspec_stub(packages, name = package_name, sdk_version = sdk_version))
 
         # Key on the stub's workspace-relative directory: with `root_paths=[]`
         # that is exactly the path prefix it would keep inside the tree.

@@ -30,7 +30,7 @@ def _dart_format_impl(ctx):
     toolchain = ctx.toolchains["//dart:toolchain_type"]
     dart_sdk_info = toolchain.dart_sdk_info
     config = ctx.attr._config[DartAnalysisConfigInfo]
-    staged = stage_config_project(ctx, config, [], [], [], ctx.label.name)
+    staged = stage_config_project(ctx, config, [], [], [], ctx.label.name, dart_sdk_info.version)
 
     # Runfiles locations rather than paths, so the runner finds them through the
     # manifest on Windows, where there is no runfiles tree to walk. The options
