@@ -106,9 +106,11 @@ Future<int> _runUnderRunner({
   // The runner loads the precompiled suite from `<dir>/<path>.vm_test.vm.app.dill`
   // — which is where `dart_test` put the dill, so it is loaded in place — and
   // reads the test's source at `<path>` relative to its working directory for
-  // its annotations. Runfiles cannot be relied on to hold that source at that
-  // relative path (Windows has only a manifest), so it is copied into a
-  // scratch directory that the runner then runs in.
+  // its annotations. The suite runs as an isolate inside the runner, so the
+  // runner's working directory is the test's: Bazel's contract makes that the
+  // runfiles workspace root, where `data` is found by workspace-relative path.
+  // Only where runfiles cannot hold the source at that relative path (Windows
+  // has only a manifest) is it copied into a scratch directory to run in.
   final suffix = '/$testPath.vm_test.vm.app.dill';
   final normalized = dill.replaceAll(r'\', '/');
   if (!normalized.endsWith(suffix)) {
@@ -118,7 +120,10 @@ Future<int> _runUnderRunner({
   final precompiled = dill.substring(0, dill.length - suffix.length);
   final tmp = Directory(env['TEST_TMPDIR'] ?? Directory.systemTemp.path)
       .createTempSync('dart_test.');
-  File(testSource).copySync(_join(tmp.path, testPath));
+  final inPlace = File(testPath).existsSync();
+  if (!inPlace) {
+    File(testSource).copySync(_join(tmp.path, testPath));
+  }
 
   final filter = env['TESTBRIDGE_TEST_ONLY'];
   final totalShards = env['TEST_TOTAL_SHARDS'];
@@ -154,7 +159,7 @@ Future<int> _runUnderRunner({
       ],
       testPath,
     ],
-    workingDirectory: tmp.path,
+    workingDirectory: inPlace ? null : tmp.path,
     environment: {
       'RULES_DART_TEST_ARGS': jsonEncode(args),
       // The runner reads a per-user config (`~/.dart_test.yaml`, or

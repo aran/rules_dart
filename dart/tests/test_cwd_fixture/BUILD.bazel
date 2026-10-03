@@ -1,0 +1,11 @@
+load("//dart:defs.bzl", "dart_test")
+
+# Bazel's test contract starts a test in the runfiles workspace root, so `data`
+# is found by workspace-relative path.
+dart_test(
+    name = "cwd_test",
+    size = "small",
+    data = ["data.txt"],
+    main = "cwd_test.dart",
+    deps = ["@ext_pub_deps//:test"],
+)
