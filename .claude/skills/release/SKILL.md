@@ -42,7 +42,8 @@ upstream `bazelbuild/bazel-central-registry`. A pushed `vX.Y.Z` tag triggers a r
   pushes them as `github-actions`, which holds no signing key.
 - **Pushing is separate from signing**: an SSH `git push` authenticates through the
   1Password SSH agent, which can stop answering mid-session (`communication with agent
-failed`). The objects are already signed, so push over HTTPS with the `gh` login instead:
+failed`). The objects are already signed, so push over HTTPS with the `gh` login instead (the same
+  goes for `git fetch`, which fails the same way):
   `git -c credential.helper= -c credential.helper='!gh auth git-credential' push https://github.com/aran/<repo>.git <ref>`.
 - **Trunk-based**: commit directly to `main` on the source repos; never open a PR on
   rules_dart / rules_dart_proto / rules_flutter. (BCR PRs are the publish mechanism —
@@ -66,9 +67,26 @@ Goal: `main` is green, formatted, tidy, working tree clean. From this repo:
    `cd <folder> && bazel test --test_output=errors //... || [ $? -eq 4 ]`
    (exit 4 = "no test targets", expected for build-only folders e.g. `e2e/hello_world`,
    `e2e/web_app`).
-3. **Expected-failure modules** (the `expected-failure` job in `ci.yaml`):
-   `e2e/pub_lock_conflict` must fail to build with `conflicting versions across lock files`;
-   `e2e/analysis_failure` must fail to build with `unused_local_variable`. Confirm both.
+3. **Expected-failure modules** (the `expected-failure` job in `ci.yaml`). The job is a
+   list of shell steps, one per red target, each asserting the build fails _and_ greps for
+   a diagnostic. Its steps change as red fixtures are added, so run its steps rather than a
+   remembered subset: a `bazel build //...` in `e2e/analysis_failure` fails on a different
+   diagnostic than the job greps for, and tells you nothing. Extract and run them (macOS
+   has no PyYAML, but ruby is there):
+
+   ```sh
+   ruby -ryaml -e '
+   y = YAML.load_file(".github/workflows/ci.yaml")
+   puts "set -e"
+   y["jobs"]["expected-failure"]["steps"].each { |s| next unless s["run"]
+     puts "echo \"== #{s["name"]}\"; (cd #{Dir.pwd}/#{s["working-directory"]} && bash -e <<'"'"'XEOF'"'"'\n#{s["run"]}\nXEOF\n) || { echo FAILED; exit 1; }" }
+   puts "echo ALLOK"' > "$TMPDIR/expected_failure.sh" && bash "$TMPDIR/expected_failure.sh" 2>&1 | grep -E '^(==|OK|FAILED|ALLOK|ERROR)'
+   ```
+
+   Every step must print `OK` and the run must end in `ALLOK`. A stray `ERROR: No test
+targets were found` inside a step that goes on to print `OK` is that step's own
+   negative check, not a failure.
+
 4. **Lint**: run the **full** hook suite, not just buildifier — CI's `pre-commit`
    job also runs `prettier` (markdown/yaml/json), `yamlfmt`, and `typos`, and buildifier
    alone will let a prettier violation through and fail CI. Run
@@ -373,7 +391,8 @@ not permitted with --lockfile_mode=error`;
    Linux VM for this; if a lock looks platform-specific, you left `.bazelrc.user` in place.
    Commit the lock updates (signed).
 
-4. Run the **full test surface** (its `ci.yaml` folders + `buildifier.check`) with **no
+4. Run the **full test surface** (its `ci.yaml` folders, then lint with `prek` as in Phase 1 step 4 — these repos have no
+   `//:buildifier.check` target) with **no
    override**, resolving the real published rules*dart. Remember this only proves \_your*
    cache resolves it — the lock verification in step 3 is what guards CI.
 5. Commit (conventional message, e.g. `chore: bump rules_dart to ${TARGET#v}`), signed,
@@ -392,7 +411,10 @@ Phase 7 once Phase 6 has proven BCR serves `${TARGET#v}`. rules_flutter has its 
 release skill (`$HOME/Projects/rules_flutter/.claude/skills/release/SKILL.md`); this
 phase only bumps the pin and hands off to it.
 
-1. In `$HOME/Projects/rules_flutter`: `git fetch origin`; clean tree on `main`.
+1. In `$HOME/Projects/rules_flutter`: `git fetch origin`; clean tree on `main`. `main` is
+   often **ahead of `origin/main`** by commits nobody has pushed. They are part of this
+   release: they get pushed, CI is watched on them (fixing `main` on any red job), and only
+   then is the tag cut. Tell the user the count when you propose `FLUTTER_TARGET`.
 2. **Bump the pin** to `${TARGET#v}` in the root `MODULE.bazel` and every `e2e/*/MODULE.bazel`
    (skip `e2e/_overlay_tests/native_assets_synthetic`, which pins `0.0.0` behind an override).
    Ignore everything under `.claude/worktrees/` — those are other sessions' checkouts.
@@ -402,6 +424,12 @@ phase only bumps the pin and hands off to it.
    and regenerates the locks against the published rules_dart, and runs the full test
    surface; its later phases push, tag signed, and drive the BCR PR to served. It also
    covers re-publishing a version whose BCR PR is still open.
+4. **The dev-tool e2e suite needs the machine to itself** (idle CPU, the booted simulators
+   and emulator, the rules_flutter tree). Other Claude sessions on this machine usually
+   hold some of that: `ListAgents`, then `SendMessage` the busy ones to pause heavy builds
+   and simulator use, and the session that owns `rules_flutter` to leave its tree alone;
+   tell them when the run is done. Rerun any failure on its own before judging it, and
+   report both results.
 
 ---
 
