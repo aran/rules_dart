@@ -56,7 +56,7 @@ bazel_dep(name = "buildifier_prebuilt", version = "10.0.1", dev_dependency = Tru
 bazel_dep(name = "bazelrc-preset.bzl", version = "1.9.2", dev_dependency = True)
 
 dart = use_extension("//dart:extensions.bzl", "dart")
-dart.toolchain(dart_version = "3.13.4")
+dart.toolchain(dart_version = "3.13.5")
 use_repo(dart, "dart_toolchains")
 
 register_toolchains("@dart_toolchains//:all")
