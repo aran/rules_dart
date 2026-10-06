@@ -110,7 +110,8 @@ Future<int> _runUnderRunner({
   // runner's working directory is the test's: Bazel's contract makes that the
   // runfiles workspace root, where `data` is found by workspace-relative path.
   // Only where runfiles cannot hold the source at that relative path (Windows
-  // has only a manifest) is it copied into a scratch directory to run in.
+  // has only a manifest) is the workspace's runfiles laid out in a scratch
+  // directory from the manifest, to run in.
   final suffix = '/$testPath.vm_test.vm.app.dill';
   final normalized = dill.replaceAll(r'\', '/');
   if (!normalized.endsWith(suffix)) {
@@ -122,7 +123,21 @@ Future<int> _runUnderRunner({
       .createTempSync('dart_test.');
   final inPlace = File(testPath).existsSync();
   if (!inPlace) {
-    File(testSource).copySync(_join(tmp.path, testPath));
+    // The workspace's runfiles are laid out in the scratch directory, so `data`
+    // is found by workspace-relative path as it is in a runfiles tree.
+    final manifest = env['RUNFILES_MANIFEST_FILE'];
+    final workspace = env['TEST_WORKSPACE'];
+    if (manifest != null && workspace != null) {
+      materializeWorkspace(
+        manifest: File(manifest).readAsLinesSync(),
+        workspace: workspace,
+        into: tmp.path,
+      );
+    }
+    final inScratch = File(_join(tmp.path, testPath));
+    if (!inScratch.existsSync()) {
+      File(testSource).copySync(inScratch.path);
+    }
   }
 
   final filter = env['TESTBRIDGE_TEST_ONLY'];
@@ -190,6 +205,47 @@ Future<int> _runUnderRunner({
     }
   }
   return code;
+}
+
+/// Lays out `workspace`'s runfiles under [into] from the lines of a runfiles
+/// manifest, each `<runfiles path> <real path>`.
+///
+/// Where Bazel builds no runfiles tree (Windows by default) the manifest is all
+/// there is, and a test's working directory would hold none of its `data`. A
+/// real path that is a directory (a tree artifact is one entry) is copied whole.
+void materializeWorkspace({
+  required List<String> manifest,
+  required String workspace,
+  required String into,
+}) {
+  final prefix = '$workspace/';
+  for (final line in manifest) {
+    final space = line.indexOf(' ');
+    if (space < 0 || !line.startsWith(prefix)) continue;
+    final relative = line.substring(prefix.length, space);
+    final real = line.substring(space + 1);
+    final destination = _join(into, relative);
+    if (Directory(real).existsSync()) {
+      _copyDirectory(Directory(real), Directory(destination));
+    } else if (File(real).existsSync()) {
+      Directory(File(destination).parent.path).createSync(recursive: true);
+      File(real).copySync(destination);
+    }
+  }
+}
+
+void _copyDirectory(Directory from, Directory to) {
+  to.createSync(recursive: true);
+  for (final entity in from.listSync(recursive: true, followLinks: false)) {
+    final relative = entity.path.substring(from.path.length + 1);
+    final target = _join(to.path, relative.replaceAll(r'\', '/'));
+    if (entity is Directory) {
+      Directory(target).createSync(recursive: true);
+    } else if (entity is File) {
+      Directory(File(target).parent.path).createSync(recursive: true);
+      entity.copySync(target);
+    }
+  }
 }
 
 /// Converts `package:test`'s JSON reporter output into JUnit XML, one
