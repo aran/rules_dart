@@ -1,4 +1,5 @@
 load("@rules_dart//dart:defs.bzl", "dart_analysis_config", "dart_analysis_options", "dart_binary", "dart_link_hook", "dart_test")
+load(":in_rule.bzl", "in_rule_assets")
 
 exports_files(["pubspec.lock"])
 
@@ -62,6 +63,14 @@ dart_link_hook(
     deps = ["//glyphs"],
 )
 
+# The same hooks run from inside another rule's implementation.
+in_rule_assets(
+    name = "in_rule_assets",
+    data_assets = _INDEX,
+    recorded_uses = ":app",
+    deps = ["//glyphs"],
+)
+
 dart_test(
     name = "index_test",
     size = "small",
@@ -74,12 +83,15 @@ dart_test(
         "(none)",
         "$(rlocationpath :file_assets)",
         "moon",
+        "$(rlocationpath :in_rule_assets)",
+        "heart,star",
     ],
     data = [
         ":app_aot_assets",
         ":app_assets",
         ":app_kernel_assets",
         ":file_assets",
+        ":in_rule_assets",
     ],
     main = "index_test.dart",
     deps = ["@rules_dart//dart/runfiles"],

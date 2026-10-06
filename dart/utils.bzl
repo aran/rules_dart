@@ -28,6 +28,12 @@ load(
     _derive_package_name = "derive_package_name",
 )
 load(
+    "//dart/private:dart_link_hook.bzl",
+    _dart_link_hook_actions = "dart_link_hook_actions",
+    _link_hook_runner_attr = "link_hook_runner_attr",
+    _parse_data_asset_ids = "parse_data_asset_ids",
+)
+load(
     "//dart/private:source_set.bzl",
     _COPY_TO_DIRECTORY_TOOLCHAINS = "COPY_TO_DIRECTORY_TOOLCHAINS",
     _colocate_entrypoint = "colocate_entrypoint",
@@ -101,3 +107,11 @@ derive_package_name = _derive_package_name
 colocate_packages = _colocate_packages
 colocate_entrypoint = _colocate_entrypoint
 COPY_TO_DIRECTORY_TOOLCHAINS = _COPY_TO_DIRECTORY_TOOLCHAINS
+
+# Run link hooks from inside another rule, for one that compiles its own kernel
+# and so cannot depend on a `dart_link_hook` target without a cycle. The rule
+# declares the `//dart:exec_tools_toolchain_type` toolchain and merges
+# `link_hook_runner_attr()` into its `attrs`.
+dart_link_hook_actions = _dart_link_hook_actions
+link_hook_runner_attr = _link_hook_runner_attr
+parse_data_asset_ids = _parse_data_asset_ids

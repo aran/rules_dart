@@ -94,15 +94,49 @@ def _recorded_uses(ctx):
         fail(err)
     return files[0]
 
-def _dart_link_hook_impl(ctx):
-    sdk = ctx.toolchains["//dart:exec_tools_toolchain_type"].dart_sdk_info
-    recorded_uses = _recorded_uses(ctx)
+def link_hook_runner_attr():
+    """The private attribute a rule calling `dart_link_hook_actions` declares.
 
-    declared, err = parse_data_asset_ids(ctx.label, ctx.attr.data_assets)
+    Returns:
+      A dict to merge into the rule's `attrs`; pass `ctx.executable.
+      _link_hook_runner` as `runner`.
+    """
+    return {
+        "_link_hook_runner": attr.label(
+            default = "//dart/private/tools:link_hook_runner",
+            executable = True,
+            cfg = "exec",
+        ),
+    }
+
+def dart_link_hook_actions(ctx, runner, sdk, recorded_uses, deps, data_asset_ids, name):
+    """Registers the link-hook actions for a closure; what `dart_link_hook` runs.
+
+    For a rule that compiles its own kernel and so cannot depend on a
+    `dart_link_hook` target without a cycle. The caller's rule needs the
+    `//dart:exec_tools_toolchain_type` toolchain and `link_hook_runner_attr()`
+    in its `attrs`; `ctx` is used only for `ctx.actions` and `ctx.label`.
+
+    Args:
+      ctx: The rule context.
+      runner: The link-hook runner executable (`ctx.executable._link_hook_runner`).
+      sdk: The exec toolchain's `dart_sdk_info`.
+      recorded_uses: The recorded-uses JSON File.
+      deps: Targets providing `DartInfo`; their closure is linked.
+      data_asset_ids: The declared ids, each `package:<package>/<name>`.
+      name: Prefix for declared outputs, unique within the package.
+
+    Returns:
+      A struct: `assets` (a list of `struct(package, name, file, id)`, the
+      content of `DartDataAssetInfo`), and `validation_outputs` (Files to
+      put in an `_validation` output group, so every hook runs whenever the
+      target builds even if it emits no asset).
+    """
+    declared, err = parse_data_asset_ids(ctx.label, data_asset_ids)
     if err != None:
         fail(err)
 
-    packages = collect_packages(ctx.attr.deps)
+    packages = collect_packages(deps)
     hooks = {
         pkg.package_name: package_link_hook(pkg)
         for pkg in packages
@@ -114,9 +148,9 @@ def _dart_link_hook_impl(ctx):
                   "no link hook in `deps`. Packages with one: %s.") %
                  (ctx.label, asset.id, asset.package, sorted(hooks.keys()) or "none"))
 
-    srcs = collect_transitive_srcs(ctx.attr.deps)
-    resources = collect_transitive_resources(ctx.attr.deps)
-    package_config = ctx.actions.declare_file(ctx.label.name + ".package_config.json")
+    srcs = collect_transitive_srcs(deps)
+    resources = collect_transitive_resources(deps)
+    package_config = ctx.actions.declare_file(name + ".package_config.json")
     ctx.actions.write(
         output = package_config,
         content = generate_package_config(packages, srcs.to_list(), package_config),
@@ -127,7 +161,7 @@ def _dart_link_hook_impl(ctx):
     for package_name in sorted(hooks.keys()):
         hook = hooks[package_name]
         link_output = ctx.actions.declare_file(
-            "%s/%s.link_output.json" % (ctx.label.name, package_name),
+            "%s/%s.link_output.json" % (name, package_name),
         )
         link_outputs.append(link_output)
         args = ctx.actions.args()
@@ -143,7 +177,7 @@ def _dart_link_hook_impl(ctx):
             if asset.package != package_name:
                 continue
             out = ctx.actions.declare_file(
-                "%s/%s/%s" % (ctx.label.name, package_name, asset.name),
+                "%s/%s/%s" % (name, package_name, asset.name),
             )
             outputs.append(out)
             args.add("--data-asset", "%s=%s" % (asset.name, out.path))
@@ -154,7 +188,7 @@ def _dart_link_hook_impl(ctx):
                 id = asset.id,
             ))
         ctx.actions.run(
-            executable = ctx.executable._runner,
+            executable = runner,
             arguments = [args],
             inputs = depset(
                 [hook, package_config, recorded_uses],
@@ -165,16 +199,26 @@ def _dart_link_hook_impl(ctx):
             progress_message = "Running link hook of %s for %s" % (package_name, ctx.label),
             env = writable_home_env(sdk.dart, link_output),
         )
+    return struct(assets = asset_infos, validation_outputs = link_outputs)
 
-    asset_files = [a.file for a in asset_infos]
+def _dart_link_hook_impl(ctx):
+    result = dart_link_hook_actions(
+        ctx,
+        runner = ctx.executable._link_hook_runner,
+        sdk = ctx.toolchains["//dart:exec_tools_toolchain_type"].dart_sdk_info,
+        recorded_uses = _recorded_uses(ctx),
+        deps = ctx.attr.deps,
+        data_asset_ids = ctx.attr.data_assets,
+        name = ctx.label.name,
+    )
     return [
-        DefaultInfo(files = depset(asset_files)),
-        DartDataAssetInfo(assets = depset(asset_infos)),
+        DefaultInfo(files = depset([a.file for a in result.assets])),
+        DartDataAssetInfo(assets = depset(result.assets)),
         # A hook whose package declares no data assets has only its link
         # output, which nothing else asks for. As a validation output it still
         # runs whenever this target is built, so a hook that refuses the
         # program's uses fails the build either way.
-        OutputGroupInfo(_validation = depset(link_outputs)),
+        OutputGroupInfo(_validation = depset(result.validation_outputs)),
     ]
 
 dart_link_hook = rule(
@@ -201,12 +245,7 @@ Bazel needs every output named before the hooks run, so each one is declared her
 fails if a hook emits an asset not listed, or does not emit one that is. Each lands at \
 `<target>/<package>/<name>` and is provided through `DartDataAssetInfo`.""",
         ),
-        "_runner": attr.label(
-            default = "//dart/private/tools:link_hook_runner",
-            executable = True,
-            cfg = "exec",
-        ),
-    },
+    } | link_hook_runner_attr(),
     provides = [DartDataAssetInfo],
     toolchains = ["//dart:exec_tools_toolchain_type"],
     doc = "Runs the `hook/link.dart` of each package in `deps` over an executable's recorded uses and collects the data assets they emit.",
