@@ -1,0 +1,23 @@
+{
+  "constants": [
+    { "type": "string", "value": "moon" },
+    { "definition_index": 0, "type": "instance", "value": { "name": 0 } }
+  ],
+  "definitions": [
+    {
+      "path": [{ "kind": "class", "name": "Glyph" }],
+      "uri": "package:glyphs/glyphs.dart"
+    }
+  ],
+  "loading_units": [{ "name": "1" }],
+  "uses": {
+    "instances": [
+      {
+        "definition_index": 0,
+        "uses": [
+          { "constant_index": 1, "loading_unit_index": 0, "type": "constant" }
+        ]
+      }
+    ]
+  }
+}

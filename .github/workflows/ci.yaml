@@ -48,7 +48,8 @@ jobs:
           "e2e/ext_exemplar",
           "e2e/dual_build",
           "e2e/fix",
-          "e2e/analyze_composition"
+          "e2e/analyze_composition",
+          "e2e/link_hook"
         ]
   # `dart format` and `dart analyze` find their configuration by walking up from
   # the file they are given, and that walk does not stop at the project root. It
@@ -104,6 +105,17 @@ jobs:
           fi
           bazel build //:app 2>&1 | grep -q "conflicting versions across lock files"
           echo "OK: expected conflict error detected"
+      # A link hook that refuses the program's recorded uses fails the build,
+      # and its own message reaches the user.
+      - name: link_hook — expect a hook's refusal to fail the build, with its message
+        working-directory: e2e/link_hook
+        run: |
+          if bazel build //:dynamic_app_assets 2>/dev/null; then
+            echo "ERROR: build should have failed in glyphs' link hook"
+            exit 1
+          fi
+          bazel build //:dynamic_app_assets 2>&1 | grep -q "a Glyph is constructed at run time"
+          echo "OK: link hook failure reported"
       # Each target in e2e/analysis_failure is expected red under the
       # `dart_analyze` aspect, which its `.bazelrc` applies under `bazel test`.
       # `check` builds one, expects the build to fail, and greps its output

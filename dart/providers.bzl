@@ -72,7 +72,8 @@ DartPackageInfo = provider(
         "version": "str: The package's own version, as resolved by pub (e.g. `2.2.0`). Optional; empty string when unknown, which is what a `dart_library` written by hand and a producer predating this field both carry. Recorded so that two records for one package name can be checked for agreement — see `package_agreement_error`.",
         "language_version": "str: Dart language version implied by the package's `environment.sdk` constraint, in `<major>.<minor>` form. Optional; empty string when unknown.",
         "code_assets": "tuple[DartCodeAssetInfo]: Native code assets this package owns. A tuple rather than a list because `DartPackageInfo` is carried in a depset, whose elements must be hashable.",
-        "has_unreplaced_hook": "str: Path of a `hook/build.dart`/`hook/link.dart` this package ships that has no Bazel replacement (empty when none). Recorded at repo generation; acted on by `dart_binary`/`dart_test`.",
+        "has_unreplaced_hook": "str: Path of a `hook/build.dart` this package ships that has no Bazel replacement (empty when none). Recorded at repo generation; acted on by `dart_binary`/`dart_test`.",
+        "link_hook": "File or None: The package's `hook/link.dart`, which `dart_link_hook` runs. Optional; `None` when the package has none, and absent from a record built by a producer predating the field.",
     },
 )
 
@@ -143,6 +144,35 @@ package's `@Native` symbols against the Bazel-built library at runtime.""",
         "link_mode": "str: How the runtime loads the asset. One of `dynamic_loading_bundle`, `dynamic_loading_system`, `dynamic_loading_executable`, `dynamic_loading_process` — the upstream `code_assets` strings, verbatim.",
         "dynamic_library": "File or None: The dynamic library (`.so`/`.dylib`/`.dll`) the asset resolves to. Set only for `dynamic_loading_bundle`; `None` otherwise.",
         "system_uri": "str: System library URI (e.g. `libsqlite3.so.0`) for `dynamic_loading_system`. Empty string otherwise.",
+    },
+)
+
+DartRecordedUsesInfo = provider(
+    doc = """The uses of `@RecordUse` definitions the compiler recorded while \
+building an executable: which annotated classes were instantiated with which \
+constant fields, which annotated static methods were called with which \
+constant arguments.
+
+Provided by a `dart_binary` with `record_use = True`, and read by \
+`dart_link_hook`, which hands the file to each package's `hook/link.dart` as \
+`LinkInput.recordedUses`. The file is the JSON the Dart compiler writes, \
+unchanged.""",
+    fields = {
+        "file": "File: The recorded-uses JSON.",
+        "kind": "str: `aot` when the compiler recorded the uses — the `exe` and `aot-snapshot` modes, whose tree-shaking is what makes the set of uses known — or `empty` for the `kernel` and `jit-snapshot` modes, which record nothing; their file is the empty JSON object the compiler writes when there is nothing to record.",
+    },
+)
+
+DartDataAssetInfo = provider(
+    doc = """Data assets: files a Dart program reads at run time by asset id, \
+the counterpart of `DartCodeAssetInfo` for data rather than native code.
+
+Produced by `dart_link_hook` from the data assets its link hooks emit. Carries \
+only what upstream's `DataAsset` carries — package, name, file — and no \
+bundling paths: where the file lands inside an application is the bundler's \
+decision (rules_flutter's, for a Flutter app).""",
+    fields = {
+        "assets": "depset[struct]: One struct per data asset, with `package` (str: the owning package), `name` (str: the asset's name within the package, e.g. `glyphs/index.json`), `file` (File) and `id` (str: `package:<package>/<name>`, the id Dart code loads it by).",
     },
 )
 

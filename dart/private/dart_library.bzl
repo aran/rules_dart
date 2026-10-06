@@ -96,6 +96,30 @@ def check_files_under_lib_root(label, lib_root, files, attr_name = "srcs"):
             )
     return None
 
+def link_hook_error(label, lib_root, link_hook):
+    """Checks that a `link_hook` is the package's `hook/link.dart`.
+
+    The hook's location is how `dart_link_hook` finds the package root it
+    hands the hook, so a file anywhere else would give the hook the wrong
+    `packageRoot`.
+
+    Args:
+        label: The library's label, for the message.
+        lib_root: The package root's `short_path`; empty for the root package.
+        link_hook: The `link_hook` File, or None.
+
+    Returns:
+        An error string, or None.
+    """
+    if link_hook == None:
+        return None
+    expected = (lib_root + "/" if lib_root else "") + "hook/link.dart"
+    if link_hook.short_path != expected:
+        return ("%s: `link_hook` must be the package's `hook/link.dart` (`%s`), " +
+                "got `%s`. The hook's location is the package root it is " +
+                "run against.") % (label, expected, link_hook.short_path)
+    return None
+
 def derive_lib_root(workspace_root, label_package):
     """Derive the library root path (short_path-based, without /lib suffix).
 
@@ -190,6 +214,10 @@ def _dart_library_impl(ctx):
         if err != None:
             fail(err)
 
+    err = link_hook_error(ctx.label, lib_root, ctx.file.link_hook)
+    if err != None:
+        fail(err)
+
     # `dart_library` is a pure collector: it propagates its sources (source-tree
     # and/or generated) and package metadata unchanged. Co-location of a
     # package's split-across-targets / source+generated files into one real
@@ -211,6 +239,7 @@ def _dart_library_impl(ctx):
             language_version = identity.language_version,
             has_unreplaced_hook = ctx.attr.has_unreplaced_hook,
             version = ctx.attr.version,
+            link_hook = ctx.file.link_hook,
         ),
     ]
 
@@ -249,8 +278,16 @@ directly or transitively — matching upstream, where depending on a package get
 with no opt-in. Each `asset_id` must be namespaced to this library's `package_name`.""",
             providers = [DartCodeAssetInfo],
         ),
+        "link_hook": attr.label(
+            doc = """The package's `hook/link.dart`, if it has one. `dart_link_hook` runs it \
+over an executable's recorded uses; nothing else does, matching upstream, where only a \
+release build links. Must be the file at `hook/link.dart` under the package root. Set by \
+`pub.from_lock()` for pub packages that ship one. Its imports are ordinary `deps` of the \
+package, as pub requires.""",
+            allow_single_file = [".dart"],
+        ),
         "has_unreplaced_hook": attr.string(
-            doc = """Path of a pub build hook (`hook/build.dart` / `hook/link.dart`) this \
+            doc = """Path of a pub build hook (`hook/build.dart`) this \
 package ships that rules_dart has no replacement for. Set by `pub.from_lock()`; hand-written \
 `dart_library` targets leave it empty. A `dart_binary`/`dart_test` reaching such a package fails \
 with an explanation, rather than producing a binary whose `@Native` bindings silently fail to \

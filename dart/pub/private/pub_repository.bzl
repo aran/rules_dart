@@ -31,6 +31,8 @@ def _pub_package_impl(ctx):
         deps = ["@{dep}".format(dep = dep) for dep in ctx.attr.deps],
         language_version = language_version,
         version = ctx.attr.version,
+        # A link hook is runnable by `dart_link_hook`, so it is recorded.
+        link_hook = "hook/link.dart" if ctx.path("hook/link.dart").exists else "",
     )
 
     ctx.file("BUILD.bazel", build_content)

@@ -1,6 +1,6 @@
 """Implementation of the dart_binary rule."""
 
-load("//dart:providers.bzl", "DartCodeAssetInfo", "DartCompileInfo", "DartInfo")
+load("//dart:providers.bzl", "DartCodeAssetInfo", "DartCompileInfo", "DartInfo", "DartRecordedUsesInfo")
 load("//dart/private:build_settings.bzl", "EXTRA_DART_DEFINES_ATTR", "merge_dart_defines")
 load(
     "//dart/private:common.bzl",
@@ -16,7 +16,7 @@ load(
     "resolve_code_assets",
     "target_dart_abi",
 )
-load("//dart/private:dart_compile.bzl", "dart_compile_action")
+load("//dart/private:dart_compile.bzl", "dart_compile_action", "recorded_uses_kind")
 load("//dart/private:executable_package.bzl", "EXECUTABLE_PACKAGE_ATTRS", "executable_package")
 load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS", "colocate_executable")
 
@@ -152,6 +152,21 @@ def _dart_binary_impl(ctx):
         # into `dill`. Repeating them here would be a silent no-op.
         compile_defines = []
 
+    # The compiler records the uses of `@RecordUse` definitions only when it
+    # tree-shakes, so the other modes get the file it writes when there is
+    # nothing to record: a link hook then runs over no uses, as for a program
+    # that uses none.
+    compile_recorded_uses = None
+    recorded_uses_info = []
+    if ctx.attr.record_use:
+        recorded_uses = ctx.actions.declare_file(ctx.label.name + ".recorded_uses.json")
+        kind = recorded_uses_kind(compile_mode)
+        if kind == "aot":
+            compile_recorded_uses = recorded_uses
+        else:
+            ctx.actions.write(output = recorded_uses, content = "{}")
+        recorded_uses_info = [DartRecordedUsesInfo(file = recorded_uses, kind = kind)]
+
     # Run dart compile
     dart_compile_action(
         ctx = ctx,
@@ -167,6 +182,7 @@ def _dart_binary_impl(ctx):
         target_arch = dart_sdk_info.target_arch,
         extra_flags = ctx.attr.dart_compile_flags,
         defines = compile_defines,
+        recorded_uses = compile_recorded_uses,
     )
 
     # Resources ride the runfiles, not the compile. A dep's `lib/**` non-Dart
@@ -197,7 +213,7 @@ def _dart_binary_impl(ctx):
         # pre-colocation `ctx.file.main` on purpose: staging goes by
         # `short_path`, and a colocated copy's is inside the assembled directory.
         own.analyzable,
-    ]
+    ] + recorded_uses_info
 
 dart_binary = rule(
     implementation = _dart_binary_impl,
@@ -258,6 +274,13 @@ The `dart compile` mode. Determines the output format:
         ),
         "defines": attr.string_list(
             doc = "Dart environment declarations (`key=value`). Each entry becomes a `-Dkey=value` flag.",
+        ),
+        "record_use": attr.bool(
+            doc = """Record the uses of `@RecordUse` definitions (`package:meta`) as \
+`<name>.recorded_uses.json`, provided as `DartRecordedUsesInfo` for `dart_link_hook`. \
+In the `exe` and `aot-snapshot` modes the compiler records them as it tree-shakes. The \
+`kernel` and `jit-snapshot` modes do not tree-shake, so nothing is recorded and the file is \
+the empty JSON object `{}` (`kind = "empty"`).""",
         ),
     }, **dict(DART_ABI_CONSTRAINT_ATTRS, **dict(EXTRA_DART_DEFINES_ATTR, **EXECUTABLE_PACKAGE_ATTRS))),
     executable = True,

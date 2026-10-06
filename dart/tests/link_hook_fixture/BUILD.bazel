@@ -1,0 +1,204 @@
+"""Fixtures for the `analysistest`s in `//dart/tests:link_hook_test.bzl`.
+
+Nothing here is built — every target an assertion reads is tagged `manual` —
+so the hook is never run and no binary is compiled. The behaviour the hooks
+produce is `e2e/link_hook`'s to show.
+"""
+
+load("//dart:defs.bzl", "dart_binary", "dart_code_asset", "dart_library", "dart_link_hook")
+load(
+    "//dart/tests:link_hook_test.bzl",
+    "asset_without_hook_test",
+    "empty_recording_binary_test",
+    "library_records_link_hook_test",
+    "link_hook_actions_test",
+    "malformed_asset_id_test",
+    "misplaced_link_hook_test",
+    "not_recording_binary_test",
+    "recorded_uses_not_json_test",
+    "recording_binary_test",
+    "validation_runs_assetless_hook_test",
+)
+
+dart_library(
+    name = "lib",
+    package_name = "link_hook_fixture",
+    srcs = ["lib/fixture.dart"],
+    link_hook = "hook/link.dart",
+    deps = ["//dart/tests/link_hook_fixture/dep"],
+)
+
+library_records_link_hook_test(
+    name = "library_records_link_hook_test",
+    package_name = "link_hook_fixture",
+    size = "small",
+    target_under_test = ":lib",
+)
+
+dart_library(
+    name = "misplaced",
+    package_name = "link_hook_fixture",
+    srcs = ["lib/fixture.dart"],
+    link_hook = "misplaced/link.dart",
+    tags = ["manual"],
+)
+
+misplaced_link_hook_test(
+    name = "misplaced_link_hook_test",
+    size = "small",
+    target_under_test = ":misplaced",
+)
+
+# --- dart_binary(record_use) ---
+
+dart_binary(
+    name = "exe",
+    main = "main.dart",
+    record_use = True,
+    tags = ["manual"],
+    deps = [":lib"],
+)
+
+recording_binary_test(
+    name = "exe_records_test",
+    size = "small",
+    target_under_test = ":exe",
+)
+
+dart_binary(
+    name = "aot",
+    compile_mode = "aot-snapshot",
+    main = "main.dart",
+    record_use = True,
+    tags = ["manual"],
+    deps = [":lib"],
+)
+
+recording_binary_test(
+    name = "aot_snapshot_records_test",
+    size = "small",
+    target_under_test = ":aot",
+)
+
+# With a code asset the front end runs in gen_kernel; recording still happens
+# in the `dart compile` that tree-shakes the resulting kernel.
+dart_code_asset(
+    name = "asset",
+    asset_id = "package:link_hook_fixture/src/ffi.g.dart",
+    shared_library = "//dart/tests/cc_fixture:empty_shared",
+    tags = ["manual"],
+)
+
+dart_binary(
+    name = "staged",
+    code_assets = [":asset"],
+    main = "main.dart",
+    record_use = True,
+    tags = ["manual"],
+    deps = [":lib"],
+)
+
+recording_binary_test(
+    name = "staged_records_test",
+    size = "small",
+    target_under_test = ":staged",
+)
+
+dart_binary(
+    name = "kernel",
+    compile_mode = "kernel",
+    main = "main.dart",
+    record_use = True,
+    tags = ["manual"],
+    deps = [":lib"],
+)
+
+empty_recording_binary_test(
+    name = "kernel_records_nothing_test",
+    size = "small",
+    target_under_test = ":kernel",
+)
+
+dart_binary(
+    name = "plain",
+    main = "main.dart",
+    tags = ["manual"],
+    deps = [":lib"],
+)
+
+not_recording_binary_test(
+    name = "plain_records_nothing_test",
+    size = "small",
+    target_under_test = ":plain",
+)
+
+# --- dart_link_hook ---
+
+dart_link_hook(
+    name = "linked",
+    data_assets = ["package:link_hook_fixture/data/index.json"],
+    recorded_uses = ":exe",
+    tags = ["manual"],
+    deps = [":lib"],
+)
+
+link_hook_actions_test(
+    name = "link_hook_actions_test",
+    size = "small",
+    recorded_uses_basename = "exe.recorded_uses.json",
+    target_under_test = ":linked",
+)
+
+dart_link_hook(
+    name = "linked_from_file",
+    recorded_uses = "uses.json",
+    tags = ["manual"],
+    deps = [":lib"],
+)
+
+validation_runs_assetless_hook_test(
+    name = "validation_runs_assetless_hook_test",
+    size = "small",
+    target_under_test = ":linked_from_file",
+)
+
+dart_link_hook(
+    name = "asset_without_hook",
+    data_assets = ["package:link_hook_fixture_dep/x.json"],
+    recorded_uses = "uses.json",
+    tags = ["manual"],
+    deps = [":lib"],
+)
+
+asset_without_hook_test(
+    name = "asset_without_hook_test",
+    size = "small",
+    target_under_test = ":asset_without_hook",
+)
+
+dart_link_hook(
+    name = "malformed_asset_id",
+    data_assets = ["link_hook_fixture/x.json"],
+    recorded_uses = "uses.json",
+    tags = ["manual"],
+    deps = [":lib"],
+)
+
+malformed_asset_id_test(
+    name = "malformed_asset_id_test",
+    size = "small",
+    target_under_test = ":malformed_asset_id",
+)
+
+dart_link_hook(
+    name = "recorded_uses_not_json",
+    recorded_uses = ":plain",
+    tags = ["manual"],
+    deps = [":lib"],
+)
+
+recorded_uses_not_json_test(
+    name = "recorded_uses_not_json_test",
+    size = "small",
+    target_under_test = ":recorded_uses_not_json",
+)

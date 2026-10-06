@@ -1,0 +1,116 @@
+load("@rules_dart//dart:defs.bzl", "dart_analysis_config", "dart_analysis_options", "dart_binary", "dart_link_hook", "dart_test")
+
+exports_files(["pubspec.lock"])
+
+_INDEX = ["package:glyphs/glyphs/index.json"]
+
+# Each binary records the uses of `@RecordUse` classes; each `dart_link_hook`
+# runs `glyphs`' hook/link.dart over them and declares the one data asset it
+# emits.
+
+# AOT modes: the compiler writes the recorded uses beside the executable.
+dart_binary(
+    name = "app",
+    main = "app.dart",
+    record_use = True,
+    deps = ["//glyphs"],
+)
+
+dart_link_hook(
+    name = "app_assets",
+    data_assets = _INDEX,
+    recorded_uses = ":app",
+    deps = ["//glyphs"],
+)
+
+dart_binary(
+    name = "app_aot",
+    compile_mode = "aot-snapshot",
+    main = "app.dart",
+    record_use = True,
+    deps = ["//glyphs"],
+)
+
+dart_link_hook(
+    name = "app_aot_assets",
+    data_assets = _INDEX,
+    recorded_uses = ":app_aot",
+    deps = ["//glyphs"],
+)
+
+# A kernel is not tree-shaken, so nothing is recorded: the hook sees no uses.
+dart_binary(
+    name = "app_kernel",
+    compile_mode = "kernel",
+    main = "app.dart",
+    record_use = True,
+    deps = ["//glyphs"],
+)
+
+dart_link_hook(
+    name = "app_kernel_assets",
+    data_assets = _INDEX,
+    recorded_uses = ":app_kernel",
+    deps = ["//glyphs"],
+)
+
+# Recorded uses from anywhere, as a plain JSON file.
+dart_link_hook(
+    name = "file_assets",
+    data_assets = _INDEX,
+    recorded_uses = "recorded_uses.json",
+    deps = ["//glyphs"],
+)
+
+dart_test(
+    name = "index_test",
+    size = "small",
+    args = [
+        "$(rlocationpath :app_assets)",
+        "heart,star",
+        "$(rlocationpath :app_aot_assets)",
+        "heart,star",
+        "$(rlocationpath :app_kernel_assets)",
+        "(none)",
+        "$(rlocationpath :file_assets)",
+        "moon",
+    ],
+    data = [
+        ":app_aot_assets",
+        ":app_assets",
+        ":app_kernel_assets",
+        ":file_assets",
+    ],
+    main = "index_test.dart",
+    deps = ["@rules_dart//dart/runfiles"],
+)
+
+# Expected to fail: `glyphs`' hook refuses a Glyph built at run time. Tagged
+# manual so `//...` stays green; CI's expected-failure job builds it and checks
+# the hook's message reaches the user.
+dart_binary(
+    name = "dynamic_app",
+    main = "dynamic_app.dart",
+    record_use = True,
+    tags = ["manual"],
+    deps = ["//glyphs"],
+)
+
+dart_link_hook(
+    name = "dynamic_app_assets",
+    data_assets = _INDEX,
+    recorded_uses = ":dynamic_app",
+    tags = ["manual"],
+    deps = ["//glyphs"],
+)
+
+dart_analysis_options(
+    name = "options",
+    src = "analysis_options.yaml",
+    deps = ["@very_good_analysis"],
+)
+
+dart_analysis_config(
+    name = "analysis_config",
+    options = [":options"],
+)

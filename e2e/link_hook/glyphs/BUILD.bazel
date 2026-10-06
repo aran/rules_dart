@@ -1,0 +1,17 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+# A package with a link hook: `hook/link.dart` reads the recorded uses of
+# `Glyph` and emits `package:glyphs/glyphs/index.json`. The hook's own imports
+# are ordinary dependencies of the package, as pub requires.
+dart_library(
+    name = "glyphs",
+    srcs = glob(["lib/**/*.dart"]),
+    link_hook = "hook/link.dart",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@pub_deps//:data_assets",
+        "@pub_deps//:hooks",
+        "@pub_deps//:meta",
+        "@pub_deps//:record_use",
+    ],
+)

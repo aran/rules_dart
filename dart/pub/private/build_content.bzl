@@ -40,7 +40,31 @@ dart_test_package(
 )
 """.format(library = _TEST_LIBRARY)
 
-def make_dart_library_build_content(name, deps, language_version, code_assets = [], has_unreplaced_hook = "", version = ""):
+def classify_pub_hooks(has_build_hook, has_link_hook, build_hook_handled):
+    """Decides what a pub package's hooks mean for its generated `dart_library`.
+
+    A build hook builds native code at `pub get` time, which rules_dart cannot
+    run; unless it is replaced by curated `code_assets` or declared irrelevant,
+    it is recorded so a consuming binary fails with an explanation. A link hook
+    is runnable — `dart_link_hook` runs it — so it is recorded as the
+    package's `link_hook` whatever the build hook's fate.
+
+    Args:
+        has_build_hook: Whether the package ships `hook/build.dart`.
+        has_link_hook: Whether the package ships `hook/link.dart`.
+        build_hook_handled: Whether curated `code_assets` replace the build
+            hook, or the user listed the package in `ignore_hooks`.
+
+    Returns:
+        `struct(unreplaced_hook, link_hook)`: the paths to pass to
+        `make_dart_library_build_content`, each empty when not applicable.
+    """
+    return struct(
+        unreplaced_hook = "hook/build.dart" if has_build_hook and not build_hook_handled else "",
+        link_hook = "hook/link.dart" if has_link_hook else "",
+    )
+
+def make_dart_library_build_content(name, deps, language_version, code_assets = [], has_unreplaced_hook = "", version = "", link_hook = ""):
     """Generate the BUILD.bazel content for a single `dart_library` spoke.
 
     The shape — `srcs = glob(["lib/**/*.dart"], allow_empty = True)`, the
@@ -78,6 +102,9 @@ def make_dart_library_build_content(name, deps, language_version, code_assets = 
             rules_flutter's `flutter_pub_package` — whose existing calls must
             keep working; a spoke that omits it simply states no version, and
             an unstated version never conflicts with a stated one.
+        link_hook: Package-relative path of the package's link hook
+            (`hook/link.dart`), or empty. Trailing with a default for the same
+            reason as `version`.
 
     Returns:
         BUILD.bazel content as a string.
@@ -96,6 +123,10 @@ def make_dart_library_build_content(name, deps, language_version, code_assets = 
     if has_unreplaced_hook:
         hook_block = '    has_unreplaced_hook = "{}",\n'.format(has_unreplaced_hook)
 
+    link_hook_block = ""
+    if link_hook:
+        link_hook_block = '    link_hook = "{}",\n'.format(link_hook)
+
     version_block = ""
     if version:
         version_block = '    version = "{}",\n'.format(version)
@@ -104,7 +135,7 @@ def make_dart_library_build_content(name, deps, language_version, code_assets = 
 dart_library(
     name = "{target}",
     srcs = glob(["lib/**/*.dart"], allow_empty = True),
-{assets}{deps}{hook}{version}    package_name = "{name}",
+{assets}{deps}{hook}{link_hook}{version}    package_name = "{name}",
     resources = glob(
         ["lib/**"],
         exclude = ["lib/**/*.dart"],
@@ -121,6 +152,7 @@ dart_library(
         assets = assets_block,
         deps = deps_block,
         hook = hook_block,
+        link_hook = link_hook_block,
         version = version_block,
         language_version = language_version,
         visibility = "//visibility:private" if name == "test" else "//visibility:public",

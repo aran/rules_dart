@@ -1,0 +1,8 @@
+load("//dart:defs.bzl", "dart_library")
+
+dart_library(
+    name = "dep",
+    package_name = "link_hook_fixture_dep",
+    srcs = ["lib/dep.dart"],
+    visibility = ["//dart/tests/link_hook_fixture:__pkg__"],
+)

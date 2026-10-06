@@ -2,6 +2,21 @@
 
 load("//dart/private:common.bzl", "writable_home_env")
 
+# The `dart compile` modes that tree-shake, and so can record the uses of
+# `@RecordUse` definitions: what survives tree-shaking is the set of uses.
+RECORDING_COMPILE_MODES = ("exe", "aot-snapshot")
+
+def recorded_uses_kind(compile_mode):
+    """The `DartRecordedUsesInfo.kind` a `dart_binary` in `compile_mode` provides.
+
+    Args:
+        compile_mode: The `dart compile` mode.
+
+    Returns:
+        `aot` when the compiler records the uses, `empty` when it cannot.
+    """
+    return "aot" if compile_mode in RECORDING_COMPILE_MODES else "empty"
+
 def defines_stage_error(defines, package_config):
     """Returns an error string if `defines` would reach the compiler too late.
 
@@ -86,7 +101,8 @@ def dart_compile_action(
         target_arch = "",
         extra_flags = [],
         defines = [],
-        main_path = None):
+        main_path = None,
+        recorded_uses = None):
     """Creates a Dart compile action.
 
     Args:
@@ -105,6 +121,10 @@ def dart_compile_action(
         defines: Environment declarations; each entry becomes a -D flag.
         main_path: Optional path string to pass as the compile target instead of
             `main.path` (e.g. a path inside an assembled `main` directory).
+        recorded_uses: Optional output File for the uses of `@RecordUse`
+            definitions the compiler records (`--recorded-uses`). Only the
+            `exe` and `aot-snapshot` modes record; the flag works on a source
+            or a kernel `main` alike.
     """
     stage_err = defines_stage_error(defines, package_config)
     if stage_err != None:
@@ -135,6 +155,13 @@ def dart_compile_action(
     for d in defines:
         args.add("-D" + d)
 
+    outputs = [output]
+    if recorded_uses != None:
+        if compile_mode not in RECORDING_COMPILE_MODES:
+            fail("dart_compile_action: `dart compile %s` records no uses." % compile_mode)
+        args.add(recorded_uses, format = "--recorded-uses=%s")
+        outputs.append(recorded_uses)
+
     # Per-target extra flags (last, so they can override defaults)
     args.add_all(extra_flags)
 
@@ -153,7 +180,7 @@ def dart_compile_action(
             direct = direct,
             transitive = [sdk_files],
         ),
-        outputs = [output],
+        outputs = outputs,
         mnemonic = "DartCompile",
         progress_message = "Compiling Dart %s %s" % (compile_mode, ctx.label),
         env = env,

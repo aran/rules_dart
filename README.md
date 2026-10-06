@@ -520,31 +520,73 @@ dart_wasm_binary(
 )
 ```
 
+### Recorded uses and link hooks
+
+A package can ship a `hook/link.dart` that decides what to include from how the
+program uses the package: the compiler records each constant instance of a
+`@RecordUse` class (and each constant call to a `@RecordUse` static method)
+that survives tree-shaking. `dart_binary(record_use = True)` writes those uses
+beside the executable, and `dart_link_hook` runs the link hooks in its `deps`
+over them and collects the data assets they emit.
+
+```starlark
+load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_library", "dart_link_hook")
+
+dart_library(
+    name = "glyphs",
+    srcs = glob(["lib/**/*.dart"]),
+    link_hook = "hook/link.dart",
+    deps = ["@pub_deps//:data_assets", "@pub_deps//:hooks", "@pub_deps//:meta", "@pub_deps//:record_use"],
+)
+
+dart_binary(
+    name = "app",
+    main = "bin/main.dart",
+    record_use = True,
+    deps = [":glyphs"],
+)
+
+dart_link_hook(
+    name = "app_assets",
+    data_assets = ["package:glyphs/glyphs/index.json"],
+    recorded_uses = ":app",
+    deps = [":glyphs"],
+)
+```
+
+Uses are recorded in the `exe` and `aot-snapshot` modes; in `kernel` and
+`jit-snapshot` the hooks see none. The data assets a hook emits are declared by
+id in `data_assets`, since Bazel names every output before the hooks run; the
+build fails if a hook emits a different set, or if it fails itself, with the
+hook's message. Pub packages that ship a link hook get `link_hook` set by
+`pub.from_lock()`.
+
 ## Examples
 
 The [`e2e/`](e2e/) directory contains complete working examples:
 
-| Example                                               | What it demonstrates                                                                 |
-| ----------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| [`hello_world`](e2e/hello_world/)                     | Minimal binary + all compile modes (`exe`, `aot-snapshot`, `kernel`, `jit-snapshot`) |
-| [`library_deps`](e2e/library_deps/)                   | Transitive `dart_library` dependencies, `srcs` attribute                             |
-| [`dart_test`](e2e/dart_test/)                         | Tests with and without deps, `srcs` for test helpers                                 |
-| [`analysis`](e2e/analysis/)                           | The `dart_analyze` aspect's checks with `package:`-included options                  |
-| [`fix`](e2e/fix/)                                     | `dart_fix` write-back, and that generated files are never rewritten                  |
-| [`analyze_composition`](e2e/analyze_composition/)     | A lint ruleset shared from another Bazel module                                      |
-| [`web_app`](e2e/web_app/)                             | JavaScript and WebAssembly compilation with library deps                             |
-| [`pub_deps`](e2e/pub_deps/)                           | Single pub.dev package via `pub.package()`                                           |
-| [`pub_lock`](e2e/pub_lock/)                           | Multiple packages from `pubspec.lock` via `pub.from_lock()`                          |
-| [`gazelle`](e2e/gazelle/)                             | Automatic BUILD file generation with Gazelle                                         |
-| [`cross_compile`](e2e/cross_compile/)                 | Cross-compilation to other platforms via `platform_data` transition                  |
-| [`dart_test_pkg`](e2e/dart_test_pkg/)                 | `dart_test` with pub dependencies via `pub.from_lock()`                              |
-| [`pub_lock_dedup`](e2e/pub_lock_dedup/)               | Cross-lock-file package deduplication                                                |
-| [`pub_lock_upgrade`](e2e/pub_lock_upgrade/)           | Version conflict resolution with `on_version_conflict = "upgrade"`                   |
-| [`pub_lock_conflict`](e2e/pub_lock_conflict/)         | Version conflict detection across lock files                                         |
-| [`pub_lock_cross_module`](e2e/pub_lock_cross_module/) | `pub.from_lock()` across Bazel module boundaries                                     |
-| [`codegen`](e2e/codegen/)                             | `dart_codegen`/`dart_aggregate_codegen` over parts, re-exports and source sets       |
-| [`ext_exemplar`](e2e/ext_exemplar/)                   | One package per bundled `dart/ext` builder, plus native `code_assets` via sqlite3    |
-| [`dual_build`](e2e/dual_build/)                       | Collision detection between Bazel-generated and `build_runner`-generated sources     |
+| Example                                               | What it demonstrates                                                                     |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| [`hello_world`](e2e/hello_world/)                     | Minimal binary + all compile modes (`exe`, `aot-snapshot`, `kernel`, `jit-snapshot`)     |
+| [`library_deps`](e2e/library_deps/)                   | Transitive `dart_library` dependencies, `srcs` attribute                                 |
+| [`dart_test`](e2e/dart_test/)                         | Tests with and without deps, `srcs` for test helpers                                     |
+| [`analysis`](e2e/analysis/)                           | The `dart_analyze` aspect's checks with `package:`-included options                      |
+| [`fix`](e2e/fix/)                                     | `dart_fix` write-back, and that generated files are never rewritten                      |
+| [`analyze_composition`](e2e/analyze_composition/)     | A lint ruleset shared from another Bazel module                                          |
+| [`web_app`](e2e/web_app/)                             | JavaScript and WebAssembly compilation with library deps                                 |
+| [`pub_deps`](e2e/pub_deps/)                           | Single pub.dev package via `pub.package()`                                               |
+| [`pub_lock`](e2e/pub_lock/)                           | Multiple packages from `pubspec.lock` via `pub.from_lock()`                              |
+| [`gazelle`](e2e/gazelle/)                             | Automatic BUILD file generation with Gazelle                                             |
+| [`cross_compile`](e2e/cross_compile/)                 | Cross-compilation to other platforms via `platform_data` transition                      |
+| [`dart_test_pkg`](e2e/dart_test_pkg/)                 | `dart_test` with pub dependencies via `pub.from_lock()`                                  |
+| [`pub_lock_dedup`](e2e/pub_lock_dedup/)               | Cross-lock-file package deduplication                                                    |
+| [`pub_lock_upgrade`](e2e/pub_lock_upgrade/)           | Version conflict resolution with `on_version_conflict = "upgrade"`                       |
+| [`pub_lock_conflict`](e2e/pub_lock_conflict/)         | Version conflict detection across lock files                                             |
+| [`pub_lock_cross_module`](e2e/pub_lock_cross_module/) | `pub.from_lock()` across Bazel module boundaries                                         |
+| [`codegen`](e2e/codegen/)                             | `dart_codegen`/`dart_aggregate_codegen` over parts, re-exports and source sets           |
+| [`ext_exemplar`](e2e/ext_exemplar/)                   | One package per bundled `dart/ext` builder, plus native `code_assets` via sqlite3        |
+| [`dual_build`](e2e/dual_build/)                       | Collision detection between Bazel-generated and `build_runner`-generated sources         |
+| [`link_hook`](e2e/link_hook/)                         | `record_use` and a package's `hook/link.dart` emitting a data asset via `dart_link_hook` |
 
 > **Note**: Only the `exe` and `aot-snapshot` compile modes cross-compile via
 > `--platforms`. `kernel` and `jit-snapshot` are VM formats that ignore target

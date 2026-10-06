@@ -73,6 +73,7 @@ bzl_library(
         "//dart/private:dart_fix",
         "//dart/private:dart_format",
         "//dart/private:dart_library",
+        "//dart/private:dart_link_hook",
         "//dart/private:dart_test",
         "//dart/private:dart_web_application",
     ],

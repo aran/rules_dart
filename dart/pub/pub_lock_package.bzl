@@ -10,7 +10,7 @@ the `flutter pub get` analog) reuse this helper to emit the same
 """
 
 load("//dart/pub:yaml_parser.bzl", "parse_pubspec_deps", "parse_pubspec_sdk_constraint")
-load("//dart/pub/private:build_content.bzl", _make_dart_library_build_content = "make_dart_library_build_content")
+load("//dart/pub/private:build_content.bzl", _classify_pub_hooks = "classify_pub_hooks", _make_dart_library_build_content = "make_dart_library_build_content")
 load("//dart/pub/private:language_version.bzl", _derive_language_version = "derive_language_version")
 
 # Re-export for consumers outside //dart/pub (rules_flutter's
@@ -70,25 +70,26 @@ def _pub_lock_package_impl(ctx):
         for dep in bazel_deps
     ]
 
-    # A package that builds native code declares a hook. rules_dart cannot run
-    # it, so unless a curated `dart_code_asset` replaces it — or the user has
-    # declared it irrelevant — record it for the consuming binary to complain
-    # about. Recording rather than failing here is deliberate: the whole lock
-    # is materialised, including packages nothing depends on.
-    unreplaced_hook = ""
-    if not ctx.attr.code_assets and not ctx.attr.ignore_hook:
-        for candidate in ["hook/build.dart", "hook/link.dart"]:
-            if ctx.path(candidate).exists:
-                unreplaced_hook = candidate
-                break
+    # A package that builds native code declares a build hook. rules_dart
+    # cannot run it, so unless a curated `dart_code_asset` replaces it — or the
+    # user has declared it irrelevant — record it for the consuming binary to
+    # complain about. Recording rather than failing here is deliberate: the
+    # whole lock is materialised, including packages nothing depends on. A link
+    # hook is recorded too, for `dart_link_hook` to run.
+    hooks = _classify_pub_hooks(
+        has_build_hook = ctx.path("hook/build.dart").exists,
+        has_link_hook = ctx.path("hook/link.dart").exists,
+        build_hook_handled = bool(ctx.attr.code_assets) or ctx.attr.ignore_hook,
+    )
 
     build_content = make_dart_library_build_content(
         name = ctx.attr.package_name,
         deps = dep_labels,
         language_version = language_version,
         code_assets = ctx.attr.code_assets,
-        has_unreplaced_hook = unreplaced_hook,
+        has_unreplaced_hook = hooks.unreplaced_hook,
         version = ctx.attr.version,
+        link_hook = hooks.link_hook,
     )
 
     ctx.file("BUILD.bazel", build_content)

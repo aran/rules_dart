@@ -6,6 +6,7 @@ load(":dart_binary_test.bzl", "dart_binary_test_suite")
 load(":defines_test.bzl", "defines_test_suite")
 load(":language_version_test.bzl", "language_version_test_suite")
 load(":library_test.bzl", "library_test_suite")
+load(":link_hook_test.bzl", "link_hook_test_suite")
 load(":native_assets_test.bzl", "native_assets_test_suite")
 load(":project_staging_test.bzl", "project_staging_test_suite")
 load(":propagation_test.bzl", "propagation_test_suite")
@@ -49,6 +50,8 @@ source_set_test_suite(name = "source_set_test")
 language_version_test_suite(name = "language_version_test")
 
 library_test_suite(name = "library_test")
+
+link_hook_test_suite(name = "link_hook_test")
 
 semver_test_suite(name = "semver_test")
 

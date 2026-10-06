@@ -168,6 +168,8 @@ load to) anything in `dart/pub/extensions.bzl`'s closure invalidates the lock of
 - `e2e/dual_build`
 - `e2e/ext_exemplar`
 - `e2e/fix`
+- `e2e/analyze_composition`
+- `e2e/link_hook`
 
 Two workspaces are deliberately skipped by the tool (`_skipWorkspaces` in
 `tool/refresh_locks.dart`) because they don't resolve standalone:

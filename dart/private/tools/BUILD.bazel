@@ -75,3 +75,15 @@ dart_binary(
     visibility = ["//dart:__subpackages__"],
     deps = ["//dart/runfiles"],
 )
+
+dart_binary(
+    name = "link_hook_runner",
+    compile_mode = "exe",
+    main = "link_hook_runner.dart",
+    visibility = ["//dart:__subpackages__"],
+    deps = [
+        "@ext_pub_deps//:args",
+        "@ext_pub_deps//:data_assets",
+        "@ext_pub_deps//:hooks",
+    ],
+)

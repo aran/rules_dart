@@ -11,8 +11,8 @@
 /// exits non-zero if any folder failed.
 ///
 /// The Linux-only *expected failure* workspaces (`pub_lock_conflict`,
-/// `analysis_failure`) must fail to build with a specific error; they are
-/// checked separately on Linux.
+/// `analysis_failure`, `link_hook`) must fail to build with a specific error;
+/// they are checked separately on Linux.
 library;
 
 import 'dart:async';
@@ -42,6 +42,7 @@ const _ciFolders = [
   'e2e/dual_build',
   'e2e/fix',
   'e2e/analyze_composition',
+  'e2e/link_hook',
 ];
 
 /// Per-folder timeout. The first folder pays for the hermetic Dart SDK
@@ -255,6 +256,13 @@ const _expectedFailureChecks = [
     'e2e/analysis_failure',
     '//vga:undocumented_lib',
     'public_member_api_docs',
+  ),
+  // A link hook refusing the program's recorded uses fails the build with its
+  // own message.
+  _ExpectedFailure(
+    'e2e/link_hook',
+    '//:dynamic_app_assets',
+    'a Glyph is constructed at run time',
   ),
 ];
 

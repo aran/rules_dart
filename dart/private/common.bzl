@@ -117,6 +117,18 @@ def package_code_assets(pkg):
     """
     return pkg.code_assets if hasattr(pkg, "code_assets") else ()
 
+def package_link_hook(pkg):
+    """A `DartPackageInfo`'s `hook/link.dart`, tolerating older producers.
+
+    Args:
+      pkg: A `DartPackageInfo`.
+
+    Returns:
+      The hook File, or `None` when the package has none or the record
+      predates the field.
+    """
+    return getattr(pkg, "link_hook", None)
+
 def collect_code_asset_files(deps):
     """Merges `DartInfo.transitive_code_asset_files` across deps.
 
@@ -474,18 +486,26 @@ def merge_package_records(merged):
         if index == None:
             index_by_name[pkg.package_name] = len(packages)
             packages.append(pkg)
-        elif package_code_assets(pkg):
+        else:
             kept = packages[index]
+            adopt_hook = package_link_hook(pkg) != None and package_link_hook(kept) == None
+            if not package_code_assets(pkg) and not adopt_hook:
+                continue
 
-            # Only the assets merge; every other field stays the kept record's.
-            # That includes `has_unreplaced_hook`, so two hubs supplying one
-            # package can disagree about whether the hook was replaced and
-            # dependency order decides which answer survives. Recorded rather
-            # than quietly changed: picking the other one is a semantic call
-            # about what a replaced hook means for a package reached twice.
+            # Only the assets and a missing link hook merge; every other field
+            # stays the kept record's. The link hook is adopted for the same
+            # reason the assets are: a package split across targets may carry
+            # its `hook/link.dart` on any one of them, and dropping it would
+            # silently skip the hook. `has_unreplaced_hook` is not merged, so
+            # two hubs supplying one package can disagree about whether the
+            # hook was replaced and dependency order decides which answer
+            # survives. Recorded rather than quietly changed: picking the other
+            # one is a semantic call about what a replaced hook means for a
+            # package reached twice.
             packages[index] = derived_package_info(
                 kept,
                 code_assets = package_code_assets(kept) + package_code_assets(pkg),
+                link_hook = package_link_hook(pkg) if adopt_hook else None,
             )
     return packages
 
