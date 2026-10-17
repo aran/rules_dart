@@ -1,7 +1,9 @@
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library", "dart_source_set", "dart_test")
+load(":colocate.bzl", "colocated_sources")
 
 # A package assembled explicitly via dart_source_set and consumed via srcs_dir
-# (the pre-assembled single-directory path through the consumer's co-location).
+# (the pre-assembled single-directory path, which the consumer uses as-is).
 
 dart_codegen(
     name = "message_part",
@@ -36,4 +38,18 @@ dart_test(
         ":source_set_fixture",
         "@pub_deps//:test",
     ],
+)
+
+# Exercises COPY_TO_DIRECTORY_TOOLCHAINS, colocate_packages, and
+# colocate_entrypoint from a rule defined in this external module.
+colocated_sources(
+    name = "colocated",
+    srcs = [":message_part"],
+    main = "lib/message.dart",
+    deps = ["//part_pkg:part_pkg_fixture"],
+)
+
+build_test(
+    name = "colocated_test",
+    targets = [":colocated"],
 )

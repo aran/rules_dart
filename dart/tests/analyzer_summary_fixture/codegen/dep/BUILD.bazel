@@ -1,0 +1,9 @@
+load("//dart:defs.bzl", "dart_library")
+
+dart_library(
+    name = "dep",
+    package_name = "codegen_dep",
+    srcs = ["lib/dep.dart"],
+    language_version = "3.11",
+    visibility = ["//visibility:public"],
+)

@@ -20,6 +20,15 @@ pub.from_lock(
     lock = "//:pubspec.lock",
 )
 
+# `path` is declared explicitly although pubspec.lock also lists it, and `file`
+# (locked too) depends on it. The explicit declaration stands in for `path`
+# everywhere: in `@pub_deps` and as `file`'s dependency.
+pub.package(
+    name = "path",
+    sha256 = "75cca69d1490965be98c73ceaea117e8a04dd21217b37b292c9ddbec0d955bc5",
+    version = "1.9.1",
+)
+
 # The lint ruleset is declared with pub.package rather than added to
 # pubspec.lock: the lock is this workspace's fixture input, and a lint-only
 # package is not a dependency of the code it lints.
@@ -28,4 +37,4 @@ pub.package(
     sha256 = "0bd5eb8d6be76aa0d71e70cbdae6cac8f784f761170568e3c2214a6948c7f6d3",
     version = "11.0.0",
 )
-use_repo(pub, "pub_deps", "very_good_analysis")
+use_repo(pub, "path", "pub_deps", "very_good_analysis")

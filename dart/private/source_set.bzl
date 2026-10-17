@@ -1,24 +1,34 @@
-"""`dart_source_set` and the shared source-assembly helper.
+"""`dart_source_set`, the shared source-assembly helper, and executable inputs.
 
-The Dart toolchain resolves a `part` directive by filesystem adjacency to its
-library, and a package's `package:` imports against a single `rootUri`. So a
-package whose files are split between the source tree and `bazel-out` (because a
-`dart_codegen` writes generated members) must be reassembled into one real
-directory before `dart compile`/`dart` will resolve it.
+A package whose files are split between the source tree and `bazel-out` (because
+a `dart_codegen` writes generated members, or several `dart_library` targets
+contribute to one package) keeps its one `lib_root`. Compiles name every package
+as `org-dartlang-bazel:///<lib_root>`, and the compiler resolves that through a
+multi-root file system: the source tree and the bin directory both serve the
+`<lib_root>/...` paths, and each file is found where it sits (`gen_kernel_args`
+in `common.bzl`). So `dart_binary` and `dart_test` compile in place and copy
+nothing: `executable_inputs` gathers what they read. `merge_package_records`
+leaves one record per package name, so a name never maps to two roots.
 
-`assemble_source_dir` does that with bazel-lib's `copy_to_directory` (portable on
-Windows, no bash, no symlink privilege). The consuming `dart_binary`/`dart_test`
-assemble each package's complete file set at build time via `colocate_packages`
-and `colocate_entrypoint` — the consumer is the only place that sees a package's
-files across all of its `dart_library` fragments. `dart_source_set` exposes the
-same assembly as a standalone, package-agnostic primitive (consumed via
-`dart_library`'s `srcs_dir`).
+Copies remain where a consumer needs one real directory tree:
+
+- `assemble_source_dir`, which `dart_source_set` and `project_staging.bzl` use.
+  It copies with the `copy_tree` tool (`dart/private/tools/copy_tree.dart`),
+  reached through `//dart:copy_toolchain_type`. The tool is portable to Windows,
+  needs no bash and no symlink privilege. `dart_source_set` exposes it as a
+  package-agnostic primitive, consumed via `dart_library`'s `srcs_dir`.
+- `colocate_packages` and `colocate_entrypoint`, the directory-assembly helpers
+  `dart/utils.bzl` exports to rule sets built on rules_dart. No rule in this
+  repository calls them.
 """
 
-load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory_bin_action")
-load("//dart/private:dart_info.bzl", "derived_package_info", "package_lib_prefix")
+load("//dart/private:dart_info.bzl", "derived_package_info")
 
-COPY_TO_DIRECTORY_TOOLCHAINS = ["@bazel_lib//lib:copy_to_directory_toolchain_type"]
+_COPY_TOOLCHAIN_TYPE = Label("//dart:copy_toolchain_type")
+
+# The toolchain that provides the `copy_tree` tool. Rules that copy files list it
+# here; `dart/utils.bzl` exports the same list for rule sets built on rules_dart.
+COPY_TO_DIRECTORY_TOOLCHAINS = [_COPY_TOOLCHAIN_TYPE]
 
 def needs_source_assembly(srcs):
     """Whether `srcs` must be assembled into one directory before compilation.
@@ -49,28 +59,75 @@ def assemble_source_dir(ctx, name, srcs, root_paths = ["."], replace_prefixes = 
     Args:
       ctx: The rule context (must carry `COPY_TO_DIRECTORY_TOOLCHAINS`).
       name: Basename for the declared directory (unique within the package).
-      srcs: List of File objects (source and/or generated) to assemble.
-      root_paths: `copy_to_directory` root paths; `"."` is the current package.
-      replace_prefixes: `copy_to_directory` prefix rewrites for cross-package layout.
-      include_external_repositories: `copy_to_directory` external repo name
-        patterns; external files are excluded unless their repo matches, and
-        matching files are staged at their repo-relative paths.
+      srcs: List of File objects (source and/or generated, or tree artifacts)
+        to assemble.
+      root_paths: Root paths to strip; `"."` is the current package. Globs are
+        supported.
+      replace_prefixes: Prefix rewrites, applied after the roots, for cross-package
+        layout. Globs are supported.
+      include_external_repositories: Repository name patterns. Files from another
+        repository are excluded unless their repository matches, and matching
+        files are staged at their repo-relative paths.
 
     Returns:
       The assembled directory File (a tree artifact).
     """
     dst = ctx.actions.declare_directory(name)
-    copy_to_directory_bin_action(
-        ctx,
-        name = name,
-        dst = dst,
-        copy_to_directory_bin = ctx.toolchains["@bazel_lib//lib:copy_to_directory_toolchain_type"].copy_to_directory_info.bin,
-        files = srcs,
-        root_paths = root_paths,
-        replace_prefixes = replace_prefixes,
-        include_external_repositories = include_external_repositories,
+
+    # `"."` names the calling rule's package. A replace key ending in `**` would
+    # match every path, so it is rejected.
+    roots = [p if p != "." else ctx.label.package for p in root_paths]
+    for prefix in replace_prefixes.keys():
+        if prefix.endswith("**"):
+            fail("replace_prefix '{}' must not end with '**' glob expression".format(prefix))
+
+    # The options and the file list go in a params file, one value per line, so a
+    # long list stays off the command line. `copy_tree` reads its records in order.
+    args = ctx.actions.args()
+    args.use_param_file("@%s", use_always = True)
+    args.set_param_file_format("multiline")
+    args.add(dst.path)
+    for root in roots:
+        args.add("--root")
+        args.add(root)
+    for prefix, value in replace_prefixes.items():
+        args.add("--replace")
+        args.add(prefix)
+        args.add(value)
+    for pattern in include_external_repositories:
+        args.add("--external")
+        args.add(pattern)
+    args.add("--workspace")
+    args.add(ctx.label.workspace_name)
+    args.add_all(srcs, map_each = _copy_record, expand_directories = True)
+
+    copy_tc = ctx.toolchains[_COPY_TOOLCHAIN_TYPE]
+    ctx.actions.run(
+        executable = copy_tc.dart,
+        arguments = [copy_tc.copy_tree.path, args],
+        inputs = depset(direct = [copy_tc.copy_tree] + srcs, transitive = [copy_tc.runtime_files]),
+        outputs = [dst],
+        mnemonic = "DartCopyTree",
+        progress_message = "Copying files to directory %{output}",
+        toolchain = _COPY_TOOLCHAIN_TYPE,
     )
     return dst
+
+def _copy_record(f):
+    """The `--file` record `copy_tree` reads for one input file.
+
+    `workspace_path` is the file's path inside its repository: `short_path`
+    without the `../<repo>/` prefix an external file carries.
+
+    Args:
+      f: A File from `srcs`, or a file of a tree artifact in `srcs`.
+
+    Returns:
+      The record's values, which Args flattens into the params file.
+    """
+    short = f.short_path
+    workspace_path = short[short.find("/", 3) + 1:] if short.startswith("../") else short
+    return ["--file", f.path, short, f.owner.workspace_name, workspace_path]
 
 def package_for(short_path, packages):
     """Returns the package_name owning `short_path`, by longest matching `lib_root`.
@@ -90,6 +147,10 @@ def package_for(short_path, packages):
     rewrote to its `.pkgsrcs` directory — where the directory *is* the package
     root and `lib/` sits inside it.
 
+    Callers matching many files against one package list build the index once
+    with `package_index` and call `package_for_index` instead: this wrapper
+    rebuilds it on every call.
+
     Args:
       short_path: A File's `short_path`.
       packages: List of `DartPackageInfo` (read for `package_name` and `lib_root`).
@@ -97,37 +158,66 @@ def package_for(short_path, packages):
     Returns:
       The matching `package_name`, or `None` if no package owns the path.
     """
-    best_name = None
-    best_len = -1
-    for p in packages:
-        lr = p.lib_root
-        prefix = package_lib_prefix(lr)
+    return package_for_index(short_path, package_index(packages))
 
-        # `<lib_root>/lib` — the library directory itself, not a file under it.
-        lib_dir = prefix[:-1]
-        under_lib = short_path == lib_dir or short_path.startswith(prefix)
-        if not lr:
-            # Root package: owns `lib/...` files. Lowest precedence.
-            if under_lib and best_len < 0:
-                best_name = p.package_name
-                best_len = 0
-        elif under_lib or short_path == lr:
-            if len(lr) > best_len:
-                best_name = p.package_name
-                best_len = len(lr)
-    return best_name
+def package_index(packages):
+    """Indexes packages by `lib_root`, for `package_for_index`.
+
+    Where several records share a `lib_root`, the first keeps it, as
+    `package_for`'s scan in list order always decided.
+
+    Args:
+      packages: List of `DartPackageInfo` (read for `package_name` and `lib_root`).
+
+    Returns:
+      Dict of `lib_root` to `package_name`.
+    """
+    index = {}
+    for p in packages:
+        if p.lib_root not in index:
+            index[p.lib_root] = p.package_name
+    return index
+
+def package_for_index(short_path, index):
+    """`package_for` against an index from `package_index`.
+
+    The only `lib_root`s that can own a path are the path itself (an opaque
+    package directory) and each prefix that ends just before a `lib` component
+    of it. Trying those longest first, and taking the first that names a
+    package, is `package_for`'s longest-match rule in time proportional to the
+    path's depth rather than to the number of packages: an executable matches
+    every file of its closure, so the scan cost files × packages per target.
+
+    Args:
+      short_path: A File's `short_path`.
+      index: Dict of `lib_root` to `package_name`, from `package_index`.
+
+    Returns:
+      The matching `package_name`, or `None` if no package owns the path.
+    """
+
+    # The path itself is longer than any prefix of it. The root package's
+    # empty `lib_root` owns only its `lib/`, never a path by equality.
+    name = index.get(short_path) if short_path else None
+    if name != None:
+        return name
+    parts = short_path.split("/")
+    for i in range(len(parts) - 1, -1, -1):
+        if parts[i] == "lib":
+            name = index.get("/".join(parts[:i]))
+            if name != None:
+                return name
+    return None
 
 def colocate_packages(ctx, packages, all_srcs, members = {}):
-    """Co-locates each package's split source/generated files into one directory.
+    """Assembles each package's split source/generated files into one directory.
 
-    Groups `all_srcs` by the package whose `lib/` they belong to (longest
-    `lib_root` match — see `package_for`).
-    Any package with at least one generated file (and not already a single
-    pre-assembled directory) is assembled into one tree-artifact directory, so it
-    has a single real `rootUri` at compile time. This is what makes a package
-    whose files are split across the source tree and `bazel-out` (codegen) and/or
-    across several `dart_library` targets resolve — the consumer is the only place
-    that sees the package's complete file set.
+    For a caller that needs every package to have one real `rootUri`. Groups
+    `all_srcs` by the package whose `lib/` they belong to (longest `lib_root`
+    match — see `package_for`). Any package with at least one generated file (and
+    not already a single pre-assembled directory) is assembled into one
+    tree-artifact directory. rules_dart's own executables do not call this: their
+    multi-root compile resolves such a package in place (see `executable_inputs`).
 
     Args:
       ctx: The rule context (must carry `COPY_TO_DIRECTORY_TOOLCHAINS`).
@@ -145,8 +235,9 @@ def colocate_packages(ctx, packages, all_srcs, members = {}):
     """
     by_pkg = {}
     loose = []
+    index = package_index(packages)
     for f in all_srcs:
-        name = package_for(f.short_path, packages)
+        name = package_for_index(f.short_path, index)
         if name == None:
             loose.append(f)
         elif name in by_pkg:
@@ -188,13 +279,12 @@ def colocate_packages(ctx, packages, all_srcs, members = {}):
     return packages2, srcs2
 
 def colocate_entrypoint(ctx, main, own_srcs):
-    """Co-locates an entrypoint `main` with its own generated sibling sources.
+    """Assembles an entrypoint `main` with its own generated sibling sources.
 
-    A `dart_binary`/`dart_test` whose own `srcs` include a generated file that is
-    a `part`/relative-import sibling of `main` (e.g. a mockito `.mocks.dart`
-    generated for the test file itself) needs `main` and those files in one real
-    directory. When that's the case, assemble them and compile `main` from inside
-    the assembled directory.
+    For a caller that needs `main` and its siblings in one real directory. Not
+    used by rules_dart's executables: a generated sibling such as a mockito
+    `.mocks.dart` resolves beside `main` through the multi-root compile (see
+    `executable_inputs`).
 
     Args:
       ctx: The rule context (must carry `COPY_TO_DIRECTORY_TOOLCHAINS`).
@@ -217,18 +307,21 @@ def colocate_entrypoint(ctx, main, own_srcs):
         rel = rel[len(ctx.label.package) + 1:]
     return assembled, assembled.path + "/" + rel, []
 
-def colocate_executable(ctx, packages, dep_srcs, main, own_srcs, own_package = None):
-    """Co-locates an executable's dependencies and its own sources for one compile.
+def executable_inputs(packages, dep_srcs, main, own_srcs, own_package = None):
+    """Gathers what an executable's compile reads. Nothing is copied.
 
-    With no package of its own, the dependencies' packages are co-located and
-    the entrypoint with its generated siblings, separately — see
-    `colocate_packages` and `colocate_entrypoint`. With one (`own_package`), its
-    own sources are members of that package instead, and are assembled with the
-    package's `lib/` whenever any of them is generated, so the entrypoint always
-    sits inside the package root the generated `package_config.json` names.
+    Every package keeps its `lib_root`, whether its files sit in the source tree,
+    in `bazel-out`, or both: the compile names it `org-dartlang-bazel:///<lib_root>`
+    and the multi-root file system finds each file where it is (see the module
+    docstring). The entrypoint and the executable's own sources are compiled where
+    they sit too, so a generated sibling of `main` resolves beside it.
+
+    An executable's own package may hold no `lib/` file (the executable may be its
+    only member), and `generate_stable_package_config` keeps a package only if some
+    file or `roots` entry names it. So its root is named in `roots`, or the package
+    and the executable's own `package:` imports would be dropped.
 
     Args:
-      ctx: The rule context (must carry `COPY_TO_DIRECTORY_TOOLCHAINS`).
       packages: The deduplicated `DartPackageInfo` list, `own_package` included.
       dep_srcs: Flat list of the dependencies' transitive source Files.
       main: The entrypoint File.
@@ -236,30 +329,18 @@ def colocate_executable(ctx, packages, dep_srcs, main, own_srcs, own_package = N
       own_package: The executable's own `DartPackageInfo`, or `None`.
 
     Returns:
-      `struct(packages, srcs, main_input, main_arg, roots)`: the rewritten
-      package list; every File the compile reads; the File holding the
-      entrypoint and the path to compile; and exec-root package roots for
-      `generate_package_config` that no `lib/` file can reveal.
+      `struct(packages, srcs, main_input, main_arg, roots)`: the package list
+      unchanged; every File the compile reads; the entrypoint File and the path to
+      compile (its exec path); and exec-root package roots for
+      `generate_stable_package_config`, whose keys are the packages it must keep.
     """
-    if own_package == None:
-        packages, srcs = colocate_packages(ctx, packages, dep_srcs)
-        main_input, main_arg, own_inputs = colocate_entrypoint(ctx, main, own_srcs)
-        return struct(packages = packages, srcs = srcs + own_inputs, main_input = main_input, main_arg = main_arg, roots = {})
-
-    name = own_package.package_name
-    root = own_package.lib_root
-    packages, srcs = colocate_packages(ctx, packages, dep_srcs, members = {name: [main] + own_srcs})
-    rel = main.short_path[len(root) + 1:] if root else main.short_path
-    for p in packages:
-        if p.package_name == name and p.lib_root != root:
-            # Assembled: the directory is the package root, entrypoint inside.
-            assembled = [f for f in srcs if f.short_path == p.lib_root][0]
-            return struct(packages = packages, srcs = srcs, main_input = assembled, main_arg = assembled.path + "/" + rel, roots = {})
-
-    # Not assembled: every member is a source file where it stands, so the root
-    # is the directory containing them, found from the entrypoint's own path.
-    exec_root = main.path[:len(main.path) - len(rel)].rstrip("/")
-    return struct(packages = packages, srcs = srcs, main_input = main, main_arg = main.path, roots = {name: exec_root})
+    srcs = list(dep_srcs) + [main] + list(own_srcs)
+    roots = {}
+    if own_package != None:
+        root = own_package.lib_root
+        rel = main.short_path[len(root) + 1:] if root else main.short_path
+        roots[own_package.package_name] = main.path[:len(main.path) - len(rel)].rstrip("/")
+    return struct(packages = packages, srcs = srcs, main_input = main, main_arg = main.path, roots = roots)
 
 def _dart_source_set_impl(ctx):
     dst = assemble_source_dir(

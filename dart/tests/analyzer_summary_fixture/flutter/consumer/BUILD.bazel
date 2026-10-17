@@ -1,0 +1,13 @@
+load("//dart:defs.bzl", "dart_library")
+
+# A consumer of `flutter_app` that imports both `package:flutter_app/app.dart`
+# and `dart:ui`, verifying that `flutter_app`'s summary and `sky_engine`'s
+# embedder SDK summary work together across a dependency boundary.
+dart_library(
+    name = "flutter_consumer",
+    package_name = "flutter_consumer",
+    srcs = ["lib/consumer.dart"],
+    language_version = "3.11",
+    visibility = ["//dart/tests:__subpackages__"],
+    deps = ["//dart/tests/analyzer_summary_fixture/flutter/app:flutter_app"],
+)

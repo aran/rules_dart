@@ -1,5 +1,46 @@
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load(":dart_analyze_aspect.bzl", "dart_analysis_config")
+load(":dart_analyzer_summary.bzl", "analyzer_sdk_summary")
+
+# The SDK's own library summary, read by every analyzer-summary action. Built
+# once per SDK, and only when an action needs it: `manual`, so a wildcard build
+# never builds it, and the aspects reach it by label. See dart_analyzer_summary.bzl.
+analyzer_sdk_summary(
+    name = "analyzer_sdk_summary",
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+)
+
+# The aspects' analyzer attributes point at these aliases, not at the tool and
+# the summary themselves. With the flag off, an attribute that named the tool
+# would still configure it, and so load `@ext_pub_deps`' analyzer closure into
+# every build. Each alias resolves to the real label only under the flag, and to
+# a file or binary the aspects never run otherwise. Both are `manual`, so a
+# wildcard build never builds the target an alias picks.
+config_setting(
+    name = "analyzer_summaries_on",
+    flag_values = {"//dart:analyzer_summaries": "true"},
+)
+
+alias(
+    name = "analyzer_summary_tool",
+    actual = select({
+        ":analyzer_summaries_on": "//dart/private/tools:analyzer_summary",
+        "//conditions:default": "//dart/private/tools:noop",
+    }),
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+)
+
+alias(
+    name = "analyzer_sdk_summary_input",
+    actual = select({
+        ":analyzer_summaries_on": ":analyzer_sdk_summary",
+        "//conditions:default": "//dart/private/tools:noop.dart",
+    }),
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+)
 
 bzl_library(
     name = "toolchains_repo",
@@ -40,10 +81,13 @@ bzl_library(
     name = "source_set",
     srcs = ["source_set.bzl"],
     visibility = ["//dart:__subpackages__"],
-    deps = [
-        ":dart_info",
-        "@bazel_lib//lib:copy_to_directory",
-    ],
+    deps = [":dart_info"],
+)
+
+bzl_library(
+    name = "copy_toolchain",
+    srcs = ["copy_toolchain.bzl"],
+    visibility = ["//dart:__subpackages__"],
 )
 
 bzl_library(
@@ -54,11 +98,26 @@ bzl_library(
 )
 
 bzl_library(
+    name = "dart_kernel",
+    srcs = ["dart_kernel.bzl"],
+    visibility = ["//dart:__subpackages__"],
+    deps = [
+        ":common",
+        ":dart_info",
+        "//dart:providers",
+        "@bazel_skylib//rules:common_settings",
+    ],
+)
+
+bzl_library(
     name = "dart_library",
     srcs = ["dart_library.bzl"],
     visibility = ["//dart:__subpackages__"],
     deps = [
+        ":build_settings",
+        ":common",
         ":dart_info",
+        ":dart_kernel",
         "//dart:providers",
     ],
 )
@@ -85,6 +144,18 @@ bzl_library(
 )
 
 bzl_library(
+    name = "dart_test_runner",
+    srcs = ["dart_test_runner.bzl"],
+    visibility = ["//dart:__subpackages__"],
+    deps = [
+        ":common",
+        ":dart_kernel",
+        "//dart:providers",
+        "@bazel_skylib//rules:common_settings",
+    ],
+)
+
+bzl_library(
     name = "dart_binary",
     srcs = ["dart_binary.bzl"],
     visibility = ["//dart:__subpackages__"],
@@ -92,6 +163,8 @@ bzl_library(
         ":build_settings",
         ":common",
         ":dart_compile",
+        ":dart_kernel",
+        ":dart_test_runner",
         ":executable_package",
         ":source_set",
         "//dart:providers",
@@ -128,6 +201,8 @@ bzl_library(
         ":build_settings",
         ":common",
         ":dart_compile",
+        ":dart_kernel",
+        ":dart_test_runner",
         ":executable_package",
         ":source_set",
         "//dart:providers",
@@ -167,9 +242,22 @@ bzl_library(
     visibility = ["//dart:__subpackages__"],
     deps = [
         ":common",
+        ":dart_analyzer_summary",
         ":project_staging",
         ":source_set",
         "//dart:providers",
+        "@bazel_skylib//rules:common_settings",
+    ],
+)
+
+bzl_library(
+    name = "dart_analyzer_summary",
+    srcs = ["dart_analyzer_summary.bzl"],
+    visibility = ["//dart:__subpackages__"],
+    deps = [
+        ":common",
+        "//dart:providers",
+        "@bazel_skylib//rules:common_settings",
     ],
 )
 
@@ -218,6 +306,11 @@ bzl_library(
     name = "dart_codegen",
     srcs = ["dart_codegen.bzl"],
     visibility = ["//dart:__subpackages__"],
+    deps = [
+        ":dart_analyzer_summary",
+        "//dart:providers",
+        "@bazel_skylib//rules:common_settings",
+    ],
 )
 
 bzl_library(

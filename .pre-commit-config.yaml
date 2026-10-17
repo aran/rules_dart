@@ -24,8 +24,11 @@ repos:
       - id: check-yaml
       - id: destroyed-symlinks
       - id: detect-private-key
+      # Vendored third-party code, kept byte-for-byte as the SDK ships it.
       - id: end-of-file-fixer
+        exclude: ^third_party/dart_linter/
       - id: trailing-whitespace
+        exclude: ^third_party/dart_linter/
   # Check formatting and lint for starlark code
   - repo: https://github.com/keith/pre-commit-buildifier
     rev: 10.1.0
@@ -45,6 +48,7 @@ repos:
     rev: v3.1.0
     hooks:
       - id: prettier
+        exclude: ^third_party/dart_linter/
   - repo: https://github.com/google/yamlfmt
     rev: v0.21.0
     hooks:
@@ -53,3 +57,4 @@ repos:
     rev: v1.51.1
     hooks:
       - id: typos
+        exclude: ^third_party/dart_linter/

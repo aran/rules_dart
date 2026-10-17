@@ -19,7 +19,6 @@ module(
 bazel_dep(name = "bazel_skylib", version = "1.9.2")
 bazel_dep(name = "package_metadata", version = "0.0.13")
 bazel_dep(name = "platforms", version = "1.1.0")
-bazel_dep(name = "yaml.bzl", version = "0.1.2")
 
 # The Gazelle plugin at //gazelle/dart is a go_library, so its BUILD file
 # loads @io_bazel_rules_go//go:def.bzl. In bzlmod, BUILD files are evaluated
@@ -56,22 +55,36 @@ http_archive(
 # without a warning. Dev-only: the C++ toolchain is the consuming module's call.
 bazel_dep(name = "apple_support", version = "2.10.1", dev_dependency = True)
 
-# Used by `dart_library`/`dart_source_set` to assemble generated + hand-written
-# sources into one directory (copy_to_directory). Regular (not dev) dep so
-# downstream modules get it; self-registers its copy toolchains.
-bazel_dep(name = "bazel_lib", version = "3.7.2")
-
+# On Linux, register a hermetic Zig-backed C/C++ toolchain for rules_dart's own
+# native targets and tests so builds do not probe the host via local_config_cc.
+bazel_dep(name = "hermetic_cc_toolchain", version = "4.3.0", dev_dependency = True)
 bazel_dep(name = "rules_multitool", version = "1.11.1", dev_dependency = True)
 bazel_dep(name = "rules_shell", version = "0.8.0", dev_dependency = True)
 bazel_dep(name = "bazel_skylib_gazelle_plugin", version = "1.9.2", dev_dependency = True)
 bazel_dep(name = "buildifier_prebuilt", version = "10.1.0", dev_dependency = True)
 bazel_dep(name = "bazelrc-preset.bzl", version = "1.9.2", dev_dependency = True)
 
+cc_toolchains = use_extension(
+    "@hermetic_cc_toolchain//toolchain:ext.bzl",
+    "toolchains",
+    dev_dependency = True,
+)
+use_repo(cc_toolchains, "zig_sdk")
+
+register_toolchains(
+    "@zig_sdk//toolchain:linux_amd64_gnu.2.28",
+    "@zig_sdk//toolchain:linux_arm64_gnu.2.28",
+    dev_dependency = True,
+)
+
 dart = use_extension("//dart:extensions.bzl", "dart")
 dart.toolchain(dart_version = "3.13.5")
 use_repo(dart, "dart_toolchains")
 
 register_toolchains("@dart_toolchains//:all")
+
+# Copies files into one directory for `dart_source_set` and the staging rules.
+register_toolchains("//dart:copy_toolchain")
 
 multitool = use_extension(
     "@rules_multitool//multitool:extension.bzl",

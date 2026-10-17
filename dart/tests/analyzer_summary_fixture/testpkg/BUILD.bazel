@@ -1,0 +1,57 @@
+load("//dart:defs.bzl", "dart_analysis_test", "dart_library", "dart_test")
+load("//dart/tests:analyzer_summary_test.bzl", "default_mode_test")
+
+# A test in the same package as its library, and so covered by the library's
+# summary. It stages none of the package's `lib/` files, so its analysis is in
+# summary mode, and its `package:` import resolves from that summary.
+dart_library(
+    name = "testpkg_lib",
+    package_name = "testpkg_fixture",
+    srcs = ["lib/testpkg.dart"],
+    language_version = "3.11",
+    visibility = ["//visibility:public"],
+)
+
+dart_test(
+    name = "testpkg_test",
+    package_name = "testpkg_fixture",
+    size = "small",
+    language_version = "3.11",
+    main = "test/testpkg_test.dart",
+    deps = [":testpkg_lib"],
+)
+
+default_mode_test(
+    name = "testpkg_test_mode_test",
+    size = "small",
+    expect_summaries = True,
+    target_under_test = ":testpkg_test",
+)
+
+# The same test with the `test` package among its deps. That package's own
+# target is a wrapper over its library, which re-lists the same files; it must
+# not split the package, or every test using `package:test` falls back to source.
+dart_test(
+    name = "testpkg_test_with_pkg_test",
+    package_name = "testpkg_fixture",
+    size = "small",
+    language_version = "3.11",
+    main = "test/testpkg_with_pkg_test.dart",
+    deps = [
+        ":testpkg_lib",
+        "@ext_pub_deps//:test",
+    ],
+)
+
+default_mode_test(
+    name = "testpkg_test_with_pkg_mode_test",
+    size = "small",
+    expect_summaries = True,
+    target_under_test = ":testpkg_test_with_pkg_test",
+)
+
+dart_analysis_test(
+    name = "testpkg_test_analysis_test",
+    size = "small",
+    targets = [":testpkg_test"],
+)

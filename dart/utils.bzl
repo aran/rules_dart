@@ -6,14 +6,23 @@ co-location. These are used by both rules_dart and rules_flutter.
 """
 
 load(
+    "//dart:providers.bzl",
+    _DartKernelInfo = "DartKernelInfo",
+)
+load(
     "//dart/private:common.bzl",
+    _STABLE_SCHEME = "STABLE_SCHEME",
     _collect_packages = "collect_packages",
     _collect_transitive_resources = "collect_transitive_resources",
     _collect_transitive_srcs = "collect_transitive_srcs",
+    _gen_kernel_args = "gen_kernel_args",
     _generate_dev_package_config = "generate_dev_package_config",
     _generate_package_config = "generate_package_config",
     _generate_package_config_content = "generate_package_config_content",
+    _generate_stable_package_config = "generate_stable_package_config",
     _runfiles_path = "runfiles_path",
+    _stable_entry_path = "stable_entry_path",
+    _stable_path = "stable_path",
 )
 load(
     "//dart/private:dart_info.bzl",
@@ -21,6 +30,32 @@ load(
     _dart_analyzable_info_with_package = "dart_analyzable_info_with_package",
     _dart_info = "dart_info",
     _dart_info_no_package = "dart_info_no_package",
+)
+load(
+    "//dart/private:dart_kernel.bzl",
+    _KERNEL_MODULE_ATTRS = "KERNEL_MODULE_ATTRS",
+    _MODULAR_KERNEL_ATTRS = "MODULAR_KERNEL_ATTRS",
+    _MODULAR_KERNEL_TOOLCHAINS = "MODULAR_KERNEL_TOOLCHAINS",
+    _dart_kernel_module_aspect = "dart_kernel_module_aspect",
+    _dep_kernels_or_none = "dep_kernels_or_none",
+    _duplicated_source = "duplicated_source",
+    _entry_source_uri = "entry_source_uri",
+    _entry_sources = "entry_sources",
+    _find_kernel_module_tools = "find_kernel_module_tools",
+    _first_per_package = "first_per_package",
+    _global_dart_defines = "global_dart_defines",
+    _kernel_link_action = "kernel_link_action",
+    _kernel_module_action = "kernel_module_action",
+    _kernel_package_config = "kernel_package_config",
+    _kernel_packages_consistent = "kernel_packages_consistent",
+    _kernel_tools_for = "kernel_tools_for",
+    _library_kernel_info = "library_kernel_info",
+    _library_source_uri = "library_source_uri",
+    _modular_executable_kernel = "modular_executable_kernel",
+    _modular_executable_tools = "modular_executable_tools",
+    _modular_kernel_eligible = "modular_kernel_eligible",
+    _multi_root_uri = "multi_root_uri",
+    _no_kernel_module = "no_kernel_module",
 )
 load(
     "//dart/private:dart_library.bzl",
@@ -99,11 +134,46 @@ runfiles_path = _runfiles_path
 derive_lib_root = _derive_lib_root
 derive_package_name = _derive_package_name
 
-# Source co-location: assemble a package whose hand-written and generated files
-# straddle the source tree and `bazel-out` into one tree-artifact directory, so
-# `part` directives and a single `rootUri` resolve at compile time. Any rule
-# calling `colocate_packages`/`colocate_entrypoint` must declare
-# `COPY_TO_DIRECTORY_TOOLCHAINS` in its `toolchains`.
+# Stable multi-root URI helpers (`<scheme>:///<short_path>`).
+STABLE_SCHEME = _STABLE_SCHEME
+stable_path = _stable_path
+stable_entry_path = _stable_entry_path
+generate_stable_package_config = _generate_stable_package_config
+gen_kernel_args = _gen_kernel_args
+
+# Modular kernel compilation and linking (`dart/private/dart_kernel.bzl`).
+DartKernelInfo = _DartKernelInfo
+KERNEL_MODULE_ATTRS = _KERNEL_MODULE_ATTRS
+MODULAR_KERNEL_ATTRS = _MODULAR_KERNEL_ATTRS
+MODULAR_KERNEL_TOOLCHAINS = _MODULAR_KERNEL_TOOLCHAINS
+dart_kernel_module_aspect = _dart_kernel_module_aspect
+find_kernel_module_tools = _find_kernel_module_tools
+kernel_tools_for = _kernel_tools_for
+dep_kernels_or_none = _dep_kernels_or_none
+no_kernel_module = _no_kernel_module
+kernel_module_action = _kernel_module_action
+kernel_link_action = _kernel_link_action
+library_kernel_info = _library_kernel_info
+modular_executable_kernel = _modular_executable_kernel
+modular_executable_tools = _modular_executable_tools
+modular_kernel_eligible = _modular_kernel_eligible
+multi_root_uri = _multi_root_uri
+entry_source_uri = _entry_source_uri
+library_source_uri = _library_source_uri
+entry_sources = _entry_sources
+kernel_package_config = _kernel_package_config
+kernel_packages_consistent = _kernel_packages_consistent
+first_per_package = _first_per_package
+duplicated_source = _duplicated_source
+global_dart_defines = _global_dart_defines
+
+# Directory assembly: copy a package whose hand-written and generated files
+# straddle the source tree and `bazel-out` into one tree-artifact directory, for
+# a rule that needs one real `rootUri` per package. rules_dart's own executables
+# no longer copy (their multi-root compile resolves such a package in place), so
+# this is a copy per call. Any rule calling `colocate_packages`/
+# `colocate_entrypoint` must declare `COPY_TO_DIRECTORY_TOOLCHAINS` in its
+# `toolchains`.
 colocate_packages = _colocate_packages
 colocate_entrypoint = _colocate_entrypoint
 COPY_TO_DIRECTORY_TOOLCHAINS = _COPY_TO_DIRECTORY_TOOLCHAINS

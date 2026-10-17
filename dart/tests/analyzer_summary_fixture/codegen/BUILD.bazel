@@ -1,0 +1,123 @@
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("//dart:defs.bzl", "dart_binary", "dart_codegen", "dart_test")
+load(
+    "//dart/tests:codegen_summary_test.bzl",
+    "no_summaries_codegen_inputs_test",
+    "shim_codegen_inputs_test",
+    "shim_codegen_off_inputs_test",
+)
+
+# Codegen targets whose analyzer-summary inputs dart/tests/codegen_summary_test.bzl
+# reads. Each `src` is its own file, since two codegen targets in one package
+# cannot both declare the same output.
+
+# Built on the builder shim: it takes the summary flags.
+dart_codegen(
+    name = "shim_codegen",
+    package_name = "codegen_fixture",
+    src = "lib/shim_model.dart",
+    generator_bin = "//dart/ext/json_serializable:shim",
+    language_version = "3.11",
+    output_suffixes = [".g.dart"],
+    deps = ["//dart/tests/analyzer_summary_fixture/codegen/dep"],
+)
+
+# A generator outside the shim: it takes no summary flags, and rejects them.
+dart_binary(
+    name = "plain_gen",
+    main = "plain_gen.dart",
+    deps = ["@ext_pub_deps//:bazel_worker"],
+)
+
+dart_codegen(
+    name = "plain_codegen",
+    package_name = "codegen_fixture",
+    src = "lib/plain_model.dart",
+    generator_bin = ":plain_gen",
+    language_version = "3.11",
+    output_suffixes = [".g.dart"],
+    deps = ["//dart/tests/analyzer_summary_fixture/codegen/dep"],
+)
+
+# A kernel-compiled (`compile_mode = "kernel"`) worker generator: `dart_codegen`
+# runs `executable = dart` with `kernel_gen.dill` and declares both in `tools =`
+# so Bazel's persistent worker key hashes the `.dill` content.
+dart_binary(
+    name = "kernel_gen",
+    compile_mode = "kernel",
+    main = "plain_gen.dart",
+    deps = ["@ext_pub_deps//:bazel_worker"],
+)
+
+dart_codegen(
+    name = "kernel_codegen",
+    package_name = "codegen_fixture",
+    src = "lib/kernel_model.dart",
+    generator_bin = ":kernel_gen",
+    language_version = "3.11",
+    output_suffixes = [".g.dart"],
+    deps = ["//dart/tests/analyzer_summary_fixture/codegen/dep"],
+)
+
+dart_test(
+    name = "kernel_codegen_test",
+    size = "small",
+    args = ["$(rlocationpath :kernel_codegen)"],
+    data = [":kernel_codegen"],
+    main = "kernel_codegen_test.dart",
+    deps = [
+        "//dart/runfiles",
+        "@ext_pub_deps//:test",
+    ],
+)
+
+# Built on the shim, but its closure holds a Flutter embedder, so no summary
+# flags go to it.
+dart_codegen(
+    name = "flutter_codegen",
+    package_name = "codegen_flutter",
+    src = "lib/flutter_model.dart",
+    generator_bin = "//dart/ext/json_serializable:shim",
+    language_version = "3.11",
+    output_suffixes = [".g.dart"],
+    deps = ["//dart/tests/analyzer_summary_fixture/flutter:sky_engine"],
+)
+
+# The shim gets its dependencies' summaries under the default flag.
+shim_codegen_inputs_test(
+    name = "shim_codegen_summaries_test",
+    size = "small",
+    expect_summaries = True,
+    target_under_test = ":shim_codegen",
+)
+
+# With the flag off, the shim gets none, as before the flag.
+shim_codegen_off_inputs_test(
+    name = "shim_codegen_summaries_off_test",
+    size = "small",
+    expect_summaries = False,
+    target_under_test = ":shim_codegen",
+)
+
+# A user generator is passed no summary flag, even with the flag on.
+no_summaries_codegen_inputs_test(
+    name = "plain_codegen_summaries_test",
+    size = "small",
+    expect_summaries = False,
+    target_under_test = ":plain_codegen",
+)
+
+# A closure with a Flutter embedder is passed no summary flag, even with a shim.
+no_summaries_codegen_inputs_test(
+    name = "flutter_codegen_summaries_test",
+    size = "small",
+    expect_summaries = False,
+    target_under_test = ":flutter_codegen",
+)
+
+# The runtime check of the user generator: it rejects the summary flags, so this
+# build passes only if `dart_codegen` passes it none.
+build_test(
+    name = "plain_codegen_builds_test",
+    targets = [":plain_codegen"],
+)

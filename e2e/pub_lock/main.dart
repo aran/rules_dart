@@ -1,12 +1,22 @@
 import 'dart:io';
 
 import 'package:collection/collection.dart';
+import 'package:file/memory.dart';
 import 'package:path/path.dart' as p;
 
 void main() {
   // Test path package
   final joined = p.join('usr', 'local', 'bin');
   stdout.writeln('Path joined: $joined');
+
+  // `file` resolves its paths through its own `path` context. This is the
+  // package `path` this binary imports, reached through the same hub.
+  final fs = MemoryFileSystem();
+  final entry = fs.file(p.join('usr', 'local', 'bin', 'dart'));
+  final base = fs.path.basename(entry.path);
+  stdout.writeln('File path: ${entry.path}');
+  assert(base == 'dart', 'Expected dart but got $base');
+  stdout.writeln('File basename: $base');
 
   // Test collection package - use groupListsBy which is unique to collection
   final numbers = [3, 1, 4, 1, 5, 9, 2, 6];

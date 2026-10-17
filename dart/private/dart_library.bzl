@@ -60,11 +60,9 @@ def check_files_under_lib_root(label, lib_root, files, attr_name = "srcs"):
     """Detects `srcs`/`resources` entries that do not sit under the package's `lib/`.
 
     A Dart package resolves `package:<name>/x.dart` to `<lib_root>/lib/x.dart`,
-    and the consumer stages a package by stripping `lib_root` from each file
-    (`colocate_packages`). A file outside `<lib_root>/lib/` therefore lands
-    outside `lib/` in the staged tree and resolves to nothing. Nothing fails
-    until the kernel compile, which reports only a missing path inside a
-    `.pkgsrcs` directory — no target name, no mention of `lib/`.
+    so a file outside `<lib_root>/lib/` is reachable by no `package:` URI and
+    resolves to nothing. Nothing fails until the kernel compile, which reports
+    only a missing path — no target name, no mention of `lib/`.
 
     Generated files are subject to the same rule: `declare_file` paths are
     relative to the *producing* rule's Bazel package, so a codegen target
@@ -218,6 +216,20 @@ def _dart_library_impl(ctx):
     if err != None:
         fail(err)
 
+    info = dart_info(
+        label = ctx.label,
+        package_name = package_name,
+        lib_root = lib_root,
+        deps = ctx.attr.deps,
+        srcs = own_srcs,
+        resources = own_resources,
+        code_assets = ctx.attr.code_assets,
+        language_version = identity.language_version,
+        has_unreplaced_hook = ctx.attr.has_unreplaced_hook,
+        version = ctx.attr.version,
+        link_hook = ctx.file.link_hook,
+    )
+
     # `dart_library` is a pure collector: it propagates its sources (source-tree
     # and/or generated) and package metadata unchanged. Co-location of a
     # package's split-across-targets / source+generated files into one real
@@ -228,26 +240,14 @@ def _dart_library_impl(ctx):
             files = depset(own_srcs + own_resources),
             runfiles = ctx.runfiles(files = own_srcs + own_resources),
         ),
-        dart_info(
-            label = ctx.label,
-            package_name = package_name,
-            lib_root = lib_root,
-            deps = ctx.attr.deps,
-            srcs = own_srcs,
-            resources = own_resources,
-            code_assets = ctx.attr.code_assets,
-            language_version = identity.language_version,
-            has_unreplaced_hook = ctx.attr.has_unreplaced_hook,
-            version = ctx.attr.version,
-            link_hook = ctx.file.link_hook,
-        ),
+        info,
     ]
 
 dart_library = rule(
     implementation = _dart_library_impl,
     attrs = {
         "srcs": attr.label_list(
-            doc = "Dart source files (`.dart`), source-tree or generated. Typically `glob([\"lib/**/*.dart\"])`, optionally plus `dart_codegen` outputs. Generated members are co-located with the rest of the package by the consuming `dart_binary`/`dart_test`. Mutually exclusive with `srcs_dir`.",
+            doc = "Dart source files (`.dart`), source-tree or generated. Typically `glob([\"lib/**/*.dart\"])`, optionally plus `dart_codegen` outputs. Generated members are compiled together with the rest of the package by the consuming `dart_binary`/`dart_test`. Mutually exclusive with `srcs_dir`.",
             allow_files = [".dart"],
         ),
         "resources": attr.label_list(
@@ -303,5 +303,5 @@ resolve at runtime.""",
             doc = "The package's own version, as resolved by pub (e.g. `2.2.0`). Set automatically by `pub.package()` / `pub.from_lock()`; leave it empty on hand-written targets, which have no resolved version to state. Its only use is agreement checking: when one package name arrives twice — two pub hubs each supplying `ffi`, say — a build whose two records name different versions would otherwise compile against whichever came first in dependency order, silently ignoring the other. Two *known*, differing versions fail the build; an empty one never conflicts.",
         ),
     } | PACKAGE_IDENTITY_ATTRS,
-    doc = "Collects Dart sources and propagates dependency information via `DartInfo`. Does not compile or assemble; consumers co-locate generated sources.",
+    doc = "Collects Dart sources and propagates dependency information via `DartInfo`. Consumers co-locate generated sources.",
 )

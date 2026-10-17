@@ -42,7 +42,7 @@ dart_test(
 package_config_probe_test(
     name = "member_test_package_config_test",
     size = "small",
-    expected = ['"name": "exec_pkg", "rootUri": "../../../../../../dart/tests/exec_package_fixture", "packageUri": "lib/", "languageVersion": "3.8"'],
+    expected = ['"name": "exec_pkg", "rootUri": "org-dartlang-bazel:///dart/tests/exec_package_fixture", "packageUri": "lib/", "languageVersion": "3.8"'],
     expected_language_version = "3.8",
     expected_package_name = "exec_pkg",
     target_under_test = ":member_test",

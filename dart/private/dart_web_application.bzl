@@ -1,15 +1,15 @@
 """Implementation of dart_js_binary and dart_wasm_binary rules.
 
 Compiles a Dart application to JavaScript or WebAssembly for use in a browser.
-`dart compile js|wasm` accepts no `--packages` flag, so the compiler resolves
-packages by walking up from the entrypoint to a `.dart_tool/package_config.json`.
-The rules stage that layout hermetically from declared artifacts (see
-`project_staging.bzl`) and invoke the compiler directly — no shell, no mktemp.
+The rules stage the project layout hermetically from declared artifacts (see
+`project_staging.bzl`) and invoke the compiler directly under the
+`org-dartlang-bazel` multi-root scheme — no shell, no mktemp, and no host
+`file:` paths in emitted source maps.
 """
 
 load("//dart:providers.bzl", "DartInfo")
 load("//dart/private:build_settings.bzl", "EXTRA_DART_DEFINES_ATTR", "merge_dart_defines")
-load("//dart/private:common.bzl", "collect_transitive_resources", "collect_transitive_srcs", "writable_home_env")
+load("//dart/private:common.bzl", "STABLE_SCHEME", "collect_transitive_resources", "collect_transitive_srcs", "writable_home_env")
 load("//dart/private:executable_package.bzl", "EXECUTABLE_PACKAGE_ATTRS", "executable_package")
 load("//dart/private:project_staging.bzl", "stage_dart_project")
 load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS")
@@ -63,7 +63,7 @@ def _dart_web_compile(ctx, compile_mode):
     all_srcs = ([ctx.file.main] + list(ctx.files.srcs) +
                 collect_transitive_srcs(ctx.attr.deps).to_list() +
                 collect_transitive_resources(ctx.attr.deps).to_list())
-    staged = stage_dart_project(ctx, packages, all_srcs)
+    staged = stage_dart_project(ctx, packages, all_srcs, copy_external = False)
 
     # `dart compile wasm` writes more than the module: the `.mjs` loader that
     # instantiates it, the `.support.js` feature check a page runs first, and
@@ -84,14 +84,23 @@ def _dart_web_compile(ctx, compile_mode):
     args.add("compile")
     args.add(compile_mode)
     args.add_all(_get_web_compilation_mode_flags(ctx, compile_mode))
+    if compile_mode == "js":
+        args.add("--multi-root-scheme=" + STABLE_SCHEME)
+        args.add("--multi-root=.")
+    else:
+        args.add("-E--multi-root-scheme=" + STABLE_SCHEME)
+        args.add("-E--multi-root=.")
+    args.add("--packages=%s:///%s" % (STABLE_SCHEME, staged.package_config.path))
     for d in merge_dart_defines(ctx):
         args.add("-D" + d)
     args.add_all(ctx.attr.dart_compile_flags)
     args.add("-o", output)
 
-    # The entrypoint is compiled from inside the staged tree so the compiler's
-    # walk-up finds the sibling .dart_tool/package_config.json.
-    args.add(staged.src_tree.path + "/" + ctx.file.main.short_path)
+    # The entrypoint and package_config are addressed through `STABLE_SCHEME`
+    # rooted at the exec root, so relative `rootUri`s in the staged
+    # `package_config.json` resolve under `org-dartlang-bazel:///` rather than
+    # leaking the sandbox's `file:///` working directory into `.wasm.map`.
+    args.add("%s:///%s/%s" % (STABLE_SCHEME, staged.src_tree.path, ctx.file.main.short_path))
 
     env = writable_home_env(dart_sdk_info.dart, output)
 

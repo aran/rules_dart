@@ -230,7 +230,12 @@ def _empty_recording_binary_test_impl(ctx):
     writes = [a for a in _actions(env, "FileWrite") if info.file in a.outputs.to_list()]
     asserts.equals(env, 1, len(writes))
     asserts.equals(env, "{}", writes[0].content)
-    return analysistest.end(env)
+    return analysistest.end(env) + [
+        OutputGroupInfo(
+            _validation = target[DefaultInfo].files,
+            dart_analyze = target[DefaultInfo].files,
+        ),
+    ]
 
 empty_recording_binary_test = analysistest.make(_empty_recording_binary_test_impl)
 

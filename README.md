@@ -72,6 +72,40 @@ not reached only through a helper library: the runner comes with that target.
 A test whose `main` does not use `package:test` runs directly, and fails if
 given a filter or shards, because it has no cases to select.
 
+The runner starts from an app-JIT snapshot, trained on one run of it, so each
+test starts faster than from its kernel. The snapshot is skipped when the exec
+and target SDKs differ, and on Windows. The training targets a baseline CPU
+rather than the build host's, which is meant to let a remote cache share the
+snapshot across machines. Set `--@rules_dart//dart:test_runner_snapshot=false`
+to run the kernel instead, for example when a snapshot misbehaves.
+
+A `dart_test`'s runfiles carry only the parts of the SDK it needs to run its
+kernel. A test that runs SDK commands itself (`dart format`, `dart compile`)
+declares `@rules_dart//dart` in `data`, which brings the whole SDK.
+
+Test kernels are modular. Each `dart_library` compiles its own sources once, into
+one kernel per group of libraries that import each other, and an index of those
+kernels. A `dart_test` compiles only its own entry, and links in only the kernels
+its imports reach, so a library no test imports is never linked. Editing a leaf
+library recompiles that library and the executables that link it, not every test in
+the repository, and `package:test` is compiled once rather than once per test.
+
+A library's module compiles the sources it declares that can compile for the VM.
+The build reads each source's imports to decide which those are. A source that
+imports a `dart:` library the VM lacks, such as `dart:html`, is excluded, and so is
+every source that imports an excluded one. A conditional import takes its VM
+alternative. Each module's `.vm_excluded.txt` sidecar lists its excluded sources,
+and the modules above it read those sidecars. A test that reaches an excluded
+file compiles it from source along with its own code, so if the VM cannot run it,
+the test fails as it would under a whole-program compile. Set
+`--@rules_dart//dart:modular_kernel=false` to restore whole-program kernel
+compiles.
+
+A `dart_test` falls back to a whole-program compile on its own when its own
+`defines` attribute is set, or when its closure embeds native code assets. The
+`//dart:extra_dart_defines` flag does not cause a fallback: every module takes the
+same flag values.
+
 ### Using pub.dev packages
 
 Declare individual packages with `pub.package()`:
@@ -476,6 +510,43 @@ run would do without applying anything, build the outputs directly:
 bazel build //:fix --output_groups=+dart_fix_manifest  # what was fixed, and what was skipped
 bazel build //:fix --output_groups=+dart_fix_fixes     # the fixed files themselves
 ```
+
+#### Analyzer summaries
+
+`dart_analyze` checks each target against summaries of its dependencies, on by
+default. Each dependency is summarized once, as its declarations without
+function bodies, and the target is checked against those summaries rather than
+against its dependencies' source. The check is faster, and a body edit in a
+library no longer re-checks the libraries above it.
+
+To analyze from source, as `dart analyze` runs, turn it off in `.bazelrc`:
+
+```
+# .bazelrc
+common --@rules_dart//dart:analyzer_summaries=false
+```
+
+A target is checked from source whatever the flag says in these cases, since
+summaries cannot give it the same answer:
+
+- Its closure holds a Flutter embedder: a package named `sky_engine`, or a
+  `lib/_embedder.yaml`. A summary cannot resolve `dart:ui`.
+- The toolchain's Dart SDK is newer than the pinned analyzer supports. The bound
+  is `ANALYZER_MAX_LANGUAGE_VERSION` in `dart/private/dart_analyzer_summary.bzl`.
+- A dependency has no summary, such as an opaque `srcs_dir` library.
+
+`dart_codegen` passes the summaries only to generators built on rules_dart's
+builder shim. A generator of your own gets the command line it always had.
+
+The trade-off: the diagnostics come from rules_dart's pinned `package:analyzer`
+(14.5.0), not from the SDK's `dart analyze`, so they can differ from the IDE's.
+The lint rules are the SDK's own linter, vendored in `third_party/dart_linter`
+from the commit that published that analyzer. On the CI red paths the
+diagnostics matched `dart analyze` line for line. The vendored set lacks
+`migrate_design_widgets` relative to SDK 3.13.5. When the SDK moves ahead of the
+pinned analyzer, diagnostics can drift, and the re-vendored linter has to be
+updated with the pin. `dart fix` still runs on the SDK, and the format check is
+unchanged.
 
 #### Checking targets `//...` does not reach
 

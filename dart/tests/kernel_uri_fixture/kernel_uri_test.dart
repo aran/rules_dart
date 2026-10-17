@@ -12,7 +12,7 @@ import 'dart:io';
 import 'package:runfiles/runfiles.dart';
 
 const _entrypoint =
-    'org-dartlang-root:///dart/tests/kernel_uri_fixture/bin/probe.dart';
+    'org-dartlang-bazel:///dart/tests/kernel_uri_fixture/bin/probe.dart';
 
 void main() {
   final runfiles = Runfiles.create();
@@ -42,7 +42,7 @@ void main() {
   // The test itself goes through the same front end.
   final frame = StackTrace.current.toString().split('\n').first;
   if (!frame.contains(
-    'org-dartlang-root:///dart/tests/kernel_uri_fixture/kernel_uri_test.dart',
+    'org-dartlang-bazel:///dart/tests/kernel_uri_fixture/kernel_uri_test.dart',
   )) {
     throw StateError('dart_test named its entrypoint by a build path: $frame');
   }

@@ -7,17 +7,50 @@ dart_binary(
     visibility = ["//dart:__subpackages__"],
 )
 
-dart_binary(
-    name = "analyze_runner",
-    compile_mode = "exe",
-    main = "analyze_runner.dart",
+exports_files(
+    [
+        "noop.dart",
+        "runner_training_test.dart",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Run from source by the exec SDK's `dart`, by `dart_binary` in `jit-snapshot`
+# mode and by `dart_test_runner_snapshot`. See dart/private/dart_compile.bzl.
+exports_files(
+    ["app_jit_snapshot.dart"],
     visibility = ["//dart:__subpackages__"],
 )
 
 dart_binary(
+    name = "analyze_runner",
+    compile_mode = "kernel",
+    main = "analyze_runner.dart",
+    modular_kernel = False,
+    visibility = ["//dart:__subpackages__"],
+)
+
+# The analyzer-summary mode of `dart_analyze`: summarizes one package, and checks
+# a staged project against summaries. See dart/private/dart_analyzer_summary.bzl.
+dart_binary(
+    name = "analyzer_summary",
+    code_assets_from_deps = False,
+    compile_mode = "kernel",
+    main = "analyzer_summary.dart",
+    modular_kernel = False,
+    visibility = ["//dart:__subpackages__"],
+    deps = [
+        "//third_party/dart_linter:linter",
+        "@ext_pub_deps//:analyzer",
+        "@ext_pub_deps//:path",
+    ],
+)
+
+dart_binary(
     name = "fix_runner",
-    compile_mode = "exe",
+    compile_mode = "kernel",
     main = "fix_runner.dart",
+    modular_kernel = False,
     visibility = ["//dart:__subpackages__"],
 )
 
@@ -61,11 +94,37 @@ dart_test(
     ],
 )
 
+# Copies files into a declared directory for `assemble_source_dir`, through
+# //dart:copy_toolchain_type. Only dart:io, so it names no pub dependencies.
+dart_binary(
+    name = "copy_tree",
+    compile_mode = "kernel",
+    main = "copy_tree.dart",
+    modular_kernel = False,
+    visibility = ["//dart:__subpackages__"],
+)
+
+dart_test(
+    name = "copy_tree_test",
+    size = "small",
+    srcs = ["copy_tree.dart"],
+    main = "copy_tree_test.dart",
+    deps = ["@ext_pub_deps//:test"],
+)
+
 dart_binary(
     name = "format_runner",
-    compile_mode = "exe",
+    code_assets_from_deps = False,
+    compile_mode = "kernel",
     main = "format_runner.dart",
+    modular_kernel = False,
     visibility = ["//dart:__subpackages__"],
+    deps = [
+        "@ext_pub_deps//:dart_style",
+        "@ext_pub_deps//:package_config",
+        "@ext_pub_deps//:path",
+        "@ext_pub_deps//:pub_semver",
+    ],
 )
 
 dart_binary(
@@ -78,8 +137,9 @@ dart_binary(
 
 dart_binary(
     name = "link_hook_runner",
-    compile_mode = "exe",
+    compile_mode = "kernel",
     main = "link_hook_runner.dart",
+    modular_kernel = False,
     # Public: rules calling `dart_link_hook_actions` declare it as an attribute.
     visibility = ["//visibility:public"],
     deps = [
@@ -87,4 +147,69 @@ dart_binary(
         "@ext_pub_deps//:data_assets",
         "@ext_pub_deps//:hooks",
     ],
+)
+
+# Concatenates module kernels into a modular `dart_test`'s kernel. See the file's
+# header.
+dart_binary(
+    name = "kernel_link",
+    compile_mode = "kernel",
+    main = "kernel_link.dart",
+    modular_kernel = False,
+    visibility = ["//visibility:public"],
+)
+
+# Compiles one kernel module, excluding the sources that cannot compile for the VM.
+# A Bazel persistent worker. It has no pub dependencies on purpose: every `dart_library`
+# names it as an attribute, so depending on a `dart_library` would be a cycle.
+dart_binary(
+    name = "kernel_module",
+    srcs = ["dill_outline.dart"],
+    compile_mode = "kernel",
+    main = "kernel_module.dart",
+    modular_kernel = False,
+    visibility = ["//visibility:public"],
+)
+
+# The planner's and outline stripper's unit tests.
+dart_test(
+    name = "kernel_module_test",
+    size = "small",
+    srcs = [
+        "dill_outline.dart",
+        "kernel_link.dart",
+        "kernel_module.dart",
+    ],
+    data = ["//dart"],
+    main = "kernel_module_test.dart",
+    deps = ["@ext_pub_deps//:test"],
+)
+
+dart_test(
+    name = "analyzer_summary_test",
+    size = "small",
+    srcs = ["analyzer_summary.dart"],
+    main = "analyzer_summary_test.dart",
+    deps = [
+        "//third_party/dart_linter:linter",
+        "@ext_pub_deps//:analyzer",
+        "@ext_pub_deps//:path",
+        "@ext_pub_deps//:test",
+    ],
+)
+
+dart_test(
+    name = "app_jit_snapshot_test",
+    size = "small",
+    srcs = ["app_jit_snapshot.dart"],
+    main = "app_jit_snapshot_test.dart",
+    deps = ["@ext_pub_deps//:test"],
+)
+
+dart_test(
+    name = "fix_runner_test",
+    size = "small",
+    srcs = ["fix_runner.dart"],
+    main = "fix_runner_test.dart",
+    deps = ["@ext_pub_deps//:test"],
 )

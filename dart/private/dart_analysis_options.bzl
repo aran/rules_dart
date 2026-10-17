@@ -20,9 +20,8 @@ that exists only to satisfy a linter.
 
 This rule keeps the file and the packages its includes resolve against together
 in one target, so the `dart_analyze` aspect can stage that closure for options
-resolution alone. The packages land in the non-analyzed `extpkgs` region beside
-pub sources — resolvable, never themselves analyzed — and never reach the
-analyzed target's own provider.
+resolution alone. The packages are resolvable, never themselves analyzed, and
+never reach the analyzed target's own provider.
 """
 
 load("//dart:providers.bzl", "DartAnalysisOptionsInfo", "DartInfo")

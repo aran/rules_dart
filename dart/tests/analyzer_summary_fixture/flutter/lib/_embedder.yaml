@@ -1,0 +1,8 @@
+# The embedder's libraries, as Flutter's sky_engine declares them. The analyzer
+# finds `dart:ui` here, relative to this file's directory. It must list every
+# `dart:` library it replaces the SDK's with, `dart:core` and `dart:async`
+# included: an embedder without `dart:core` makes `dart analyze` fail.
+embedded_libs:
+  "dart:async": "async.dart"
+  "dart:core": "core.dart"
+  "dart:ui": "ui.dart"

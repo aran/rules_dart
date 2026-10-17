@@ -47,7 +47,9 @@ def _package_config_probe_test_impl(ctx):
 
 # What an executable's generated `package_config.json` says, and which package
 # record its `DartAnalyzableInfo` carries (none when `expected_package_name` is
-# empty).
+# empty). The expectations describe the whole-program config, which only the
+# whole-program compile writes; a modular test writes its module's config instead,
+# with multi-root URIs, so the probe pins the flag off.
 package_config_probe_test = analysistest.make(
     _package_config_probe_test_impl,
     attrs = {
@@ -55,6 +57,10 @@ package_config_probe_test = analysistest.make(
         "unexpected": attr.string_list(),
         "expected_package_name": attr.string(),
         "expected_language_version": attr.string(),
+    },
+    # Resolved here: `analysistest` reads a bare label against its own repository.
+    config_settings = {
+        str(Label("//dart:modular_kernel")): False,
     },
 )
 

@@ -17,8 +17,8 @@ package_config_probe_test(
     name = "example_package_config_test",
     size = "small",
     expected = [
-        '"name": "nested_example", "rootUri": "../../../../../../../dart/tests/exec_package_fixture/nested_example", "packageUri": "lib/", "languageVersion": "3.6"',
-        '"name": "exec_pkg", "rootUri": "../../../../../../../dart/tests/exec_package_fixture", "packageUri": "lib/", "languageVersion": "3.8"',
+        '"name": "nested_example", "rootUri": "org-dartlang-bazel:///dart/tests/exec_package_fixture/nested_example", "packageUri": "lib/", "languageVersion": "3.6"',
+        '"name": "exec_pkg", "rootUri": "org-dartlang-bazel:///dart/tests/exec_package_fixture", "packageUri": "lib/", "languageVersion": "3.8"',
     ],
     expected_language_version = "3.6",
     expected_package_name = "nested_example",

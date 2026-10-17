@@ -43,7 +43,7 @@ Worker mode (`supports-workers=1`, protobuf, singleplex) is enabled for
 `generator_bin` actions; worker requests go through `dart/ext/lib/worker_entry.dart`.
 """
 
-load("//dart:providers.bzl", "DartInfo", "DartPackageMetadataInfo")
+load("//dart:providers.bzl", "DartCompileInfo", "DartInfo", "DartPackageMetadataInfo")
 load(
     "//dart/private:common.bzl",
     "DEFAULT_ROOT_LANGUAGE_VERSION",
@@ -119,29 +119,52 @@ def _dart_aggregate_codegen_impl(ctx):
 
     direct_inputs = list(ctx.files.srcs) + extra_inputs
     transitive = [transitive_srcs] if transitive_srcs != None else []
-    transitive.append(dart_sdk_info.tool_files)
+    transitive.append(dart_sdk_info.analyze_files)
 
     if ctx.executable.generator_bin:
+        is_kernel_bin = (
+            DartCompileInfo in ctx.attr.generator_bin and
+            ctx.attr.generator_bin[DartCompileInfo].compile_mode == "kernel"
+        )
+        if is_kernel_bin:
+            executable = dart_sdk_info.dart
+            arguments = [ctx.executable.generator_bin.path, args]
+            direct_inputs = direct_inputs + [ctx.executable.generator_bin]
+            bin_transitive = transitive + [dart_sdk_info.runtime_files]
+            action_tools = depset(
+                direct = [ctx.executable.generator_bin, dart_sdk_info.dart],
+                transitive = [dart_sdk_info.runtime_files],
+            )
+        else:
+            executable = ctx.executable.generator_bin
+            arguments = [args]
+            bin_transitive = transitive
+            action_tools = depset(direct = [ctx.executable.generator_bin, dart_sdk_info.dart])
+
         ctx.actions.run(
-            executable = ctx.executable.generator_bin,
-            arguments = [args],
-            inputs = depset(direct = direct_inputs, transitive = transitive),
+            executable = executable,
+            arguments = arguments,
+            inputs = depset(direct = direct_inputs, transitive = bin_transitive),
+            tools = action_tools,
             outputs = outputs,
             mnemonic = "DartAggregateCodegen",
             progress_message = "DartAggregateCodegen %s" % ctx.label,
-            execution_requirements = {
+            execution_requirements = {} if "manual" in getattr(ctx.attr, "tags", []) else {
                 "supports-workers": "1",
                 "requires-worker-protocol": "proto",
                 "worker-key-mnemonic": "DartAggregateCodegen",
             },
         )
     else:
+        # A `generator_script` is run by the `dart` launcher, which also loads
+        # `dartvm` and the kernel service: the runtime subset, on top of the
+        # analyze subset.
         ctx.actions.run(
             executable = dart_sdk_info.dart,
             arguments = [ctx.file.generator_script.path, args],
             inputs = depset(
                 direct = [ctx.file.generator_script] + direct_inputs,
-                transitive = transitive,
+                transitive = transitive + [dart_sdk_info.runtime_files],
             ),
             outputs = outputs,
             mnemonic = "DartAggregateCodegen",

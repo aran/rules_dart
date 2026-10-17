@@ -10,7 +10,7 @@ load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
 load("//dart:providers.bzl", "DartInfo", "DartPackageInfo")
 load("//dart/private:common.bzl", "collect_packages", "collect_transitive_srcs", "package_code_assets")
 load("//dart/private:dart_info.bzl", "derived_package_info")
-load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS", "colocate_packages", "needs_source_assembly", "package_for")
+load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS", "colocate_packages", "executable_inputs", "needs_source_assembly", "package_for")
 
 def _fake_file(is_source):
     # needs_source_assembly only inspects File.is_source.
@@ -96,6 +96,58 @@ def _package_for_external_and_nomatch_test_impl(ctx):
     pkgs = [_fake_pkg("foo", "../pub/foo")]
     asserts.equals(env, "foo", package_for("../pub/foo/lib/x.dart", pkgs))
     asserts.equals(env, None, package_for("other/lib/x.dart", pkgs))
+    return unittest.end(env)
+
+def _package_for_lib_inside_lib_root_test_impl(ctx):
+    # A `lib` component inside a `lib_root` is part of the root, not the
+    # package's `lib/`: the package rooted deepest still wins, and the outer
+    # one owns only what sits in its own `lib/` outside the inner root.
+    env = unittest.begin(ctx)
+    pkgs = [_fake_pkg("outer", "a"), _fake_pkg("inner", "a/lib/b")]
+    asserts.equals(env, "inner", package_for("a/lib/b/lib/x.dart", pkgs))
+    asserts.equals(env, "outer", package_for("a/lib/b/x.dart", pkgs))
+    asserts.equals(env, "outer", package_for("a/lib/x.dart", pkgs))
+    return unittest.end(env)
+
+def _package_for_shared_root_first_wins_test_impl(ctx):
+    # Two records at one `lib_root` (a split package; two hubs): the first in
+    # list order owns the path, as it did when the lookup scanned the list.
+    env = unittest.begin(ctx)
+    pkgs = [_fake_pkg("first", "p"), _fake_pkg("second", "p"), _fake_pkg("root", "")]
+    asserts.equals(env, "first", package_for("p/lib/x.dart", pkgs))
+    asserts.equals(env, "first", package_for("p", pkgs))
+
+    # The root package's `lib/` holding a directory that is named like one.
+    asserts.equals(env, "root", package_for("lib/p/lib/x.dart", pkgs))
+    return unittest.end(env)
+
+def _executable_inputs_keeps_split_package_in_place_test_impl(ctx):
+    # A package with a generated file keeps its own lib_root: nothing is
+    # assembled, so the entrypoint is compiled where it sits, and the package is
+    # named as a root no `lib/` file reveals (its only member is the entrypoint).
+    env = unittest.begin(ctx)
+    pkgs = [_fake_pkg("app", "app")]
+    main = struct(short_path = "app/test/x_test.dart", path = "app/test/x_test.dart")
+    generated = _fake_src("app/lib/gen.dart", is_source = False)
+    own = struct(package_name = "app", lib_root = "app")
+    inputs = executable_inputs(pkgs, [generated], main, [], own)
+    asserts.equals(env, pkgs, inputs.packages)
+    asserts.equals(env, main, inputs.main_input)
+    asserts.equals(env, "app/test/x_test.dart", inputs.main_arg)
+    asserts.true(env, generated in inputs.srcs, "generated source must be a compile input")
+    asserts.true(env, main in inputs.srcs, "the entrypoint must be a compile input")
+    asserts.equals(env, {"app": "app"}, inputs.roots)
+    return unittest.end(env)
+
+def _executable_inputs_without_own_package_test_impl(ctx):
+    # An executable that states no package names no root, and its entrypoint is
+    # compiled from its own path.
+    env = unittest.begin(ctx)
+    pkgs = [_fake_pkg("dep", "dep")]
+    main = struct(short_path = "bin/main.dart", path = "bin/main.dart")
+    inputs = executable_inputs(pkgs, [_fake_src("dep/lib/a.dart")], main, [])
+    asserts.equals(env, {}, inputs.roots)
+    asserts.equals(env, "bin/main.dart", inputs.main_arg)
     return unittest.end(env)
 
 def _colocate_loose_passthrough_test_impl(ctx):
@@ -228,8 +280,12 @@ _root_pkg_test = unittest.make(_package_for_root_package_test_impl)
 _longest_prefix_test = unittest.make(_package_for_longest_prefix_test_impl)
 _exact_dir_test = unittest.make(_package_for_exact_dir_test_impl)
 _non_root_lib_only_test = unittest.make(_package_for_non_root_only_claims_lib_test_impl)
+_lib_inside_root_test = unittest.make(_package_for_lib_inside_lib_root_test_impl)
+_shared_root_test = unittest.make(_package_for_shared_root_first_wins_test_impl)
 _external_nomatch_test = unittest.make(_package_for_external_and_nomatch_test_impl)
 _colocate_loose_test = unittest.make(_colocate_loose_passthrough_test_impl)
+_executable_split_test = unittest.make(_executable_inputs_keeps_split_package_in_place_test_impl)
+_executable_no_package_test = unittest.make(_executable_inputs_without_own_package_test_impl)
 
 def source_set_test_suite(name):
     """Registers the source-assembly helper unit tests.
@@ -245,7 +301,11 @@ def source_set_test_suite(name):
     _exact_dir_test(name = "source_set_package_for_exact_dir_test", size = "small")
     _non_root_lib_only_test(name = "source_set_package_for_non_root_lib_only_test", size = "small")
     _external_nomatch_test(name = "source_set_package_for_external_test", size = "small")
+    _lib_inside_root_test(name = "source_set_package_for_lib_inside_root_test", size = "small")
+    _shared_root_test(name = "source_set_package_for_shared_root_test", size = "small")
     _colocate_loose_test(name = "source_set_colocate_loose_test", size = "small")
+    _executable_split_test(name = "source_set_executable_split_test", size = "small")
+    _executable_no_package_test(name = "source_set_executable_no_package_test", size = "small")
     _derive_carries_test(name = "source_set_derive_carries_test", size = "small")
     _derive_defaults_test(name = "source_set_derive_defaults_test", size = "small")
     _derive_overrides_test(name = "source_set_derive_overrides_test", size = "small")
@@ -260,7 +320,11 @@ def source_set_test_suite(name):
             ":source_set_package_for_exact_dir_test",
             ":source_set_package_for_non_root_lib_only_test",
             ":source_set_package_for_external_test",
+            ":source_set_package_for_lib_inside_root_test",
+            ":source_set_package_for_shared_root_test",
             ":source_set_colocate_loose_test",
+            ":source_set_executable_split_test",
+            ":source_set_executable_no_package_test",
             ":source_set_derive_carries_test",
             ":source_set_derive_defaults_test",
             ":source_set_derive_overrides_test",

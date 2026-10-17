@@ -1,4 +1,4 @@
-load("//dart:defs.bzl", "dart_binary", "dart_js_binary", "dart_library", "dart_test")
+load("//dart:defs.bzl", "dart_binary", "dart_js_binary", "dart_library", "dart_test", "dart_wasm_binary")
 load("//dart/tests:package_config_test.bzl", "package_config_own_srcs_test")
 load("//dart/tests:web_test.bzl", "web_compile_hermetic_test")
 
@@ -49,4 +49,36 @@ web_compile_hermetic_test(
     name = "web_compile_hermetic_test",
     size = "small",
     target_under_test = ":pc_web",
+)
+
+dart_wasm_binary(
+    name = "pc_wasm",
+    srcs = ["lib/util.dart"],
+    defines = ["banner=hello world"],
+    main = "bin/main.dart",
+    deps = [":pc_facade_lib"],
+)
+
+filegroup(
+    name = "pc_wasm_source_map",
+    srcs = [":pc_wasm"],
+    output_group = "source_map",
+)
+
+web_compile_hermetic_test(
+    name = "wasm_compile_hermetic_test",
+    size = "small",
+    target_under_test = ":pc_wasm",
+)
+
+dart_test(
+    name = "wasm_source_map_test",
+    size = "small",
+    args = ["$(rlocationpath :pc_wasm_source_map)"],
+    data = [":pc_wasm_source_map"],
+    main = "test/wasm_source_map_test.dart",
+    deps = [
+        ":pc_facade_lib",
+        "//dart/runfiles",
+    ],
 )

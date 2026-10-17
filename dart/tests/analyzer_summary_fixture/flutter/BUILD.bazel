@@ -1,0 +1,17 @@
+load("//dart:defs.bzl", "dart_library")
+
+# Stands in for Flutter's `sky_engine`. Its `lib/_embedder.yaml` gives `dart:ui`,
+# which `dart_analyzer_summary` builds into an embedder SDK summary so targets
+# above `sky_engine` can be summarized and analyzed from summaries.
+dart_library(
+    name = "sky_engine",
+    package_name = "sky_engine",
+    srcs = [
+        "lib/async.dart",
+        "lib/core.dart",
+        "lib/ui.dart",
+    ],
+    language_version = "3.11",
+    resources = ["lib/_embedder.yaml"],
+    visibility = ["//visibility:public"],
+)

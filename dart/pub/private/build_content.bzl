@@ -12,16 +12,20 @@ _TEST_LIBRARY = "test_library"
 
 _TEST_RUNNER_LOAD = """\
 load("@rules_dart//dart:defs.bzl", "dart_binary")
+load("@rules_dart//dart/private:dart_test.bzl", "dart_test_kernel")
 load(
     "@rules_dart//dart/private:dart_test_runner.bzl",
     "dart_test_package",
     "dart_test_runner_main",
+    "dart_test_runner_snapshot",
 )
 """
 
 # `package:test`'s spoke also builds the runner `dart_test` runs tests through,
 # from this same package, so the two can never be different versions. Built
-# once here and shared by every test that depends on `package:test`.
+# once here and shared by every test that depends on `package:test`. The
+# snapshot is trained on `runner_training_test.dart`, compiled against this same
+# `package:test`.
 _TEST_RUNNER_BLOCK = """\
 dart_test_runner_main(name = "test_runner_main")
 
@@ -32,10 +36,23 @@ dart_binary(
     deps = [":{library}"],
 )
 
+dart_test_kernel(
+    name = "runner_training",
+    main = "@rules_dart//dart/private/tools:runner_training_test.dart",
+    deps = [":{library}"],
+)
+
+dart_test_runner_snapshot(
+    name = "test_runner_snapshot",
+    runner = ":test_runner",
+    training = ":runner_training",
+)
+
 dart_test_package(
     name = "test",
     library = ":{library}",
     runner = ":test_runner",
+    snapshot = ":test_runner_snapshot",
     visibility = ["//visibility:public"],
 )
 """.format(library = _TEST_LIBRARY)

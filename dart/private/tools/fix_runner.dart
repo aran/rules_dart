@@ -13,7 +13,7 @@ import 'dart:io';
 /// excludes are what say why.
 const _droppedReason = 'not write-back eligible';
 
-/// Rewritten by this runner (see [_absolutizePackageConfig]), so its difference
+/// Rewritten by this runner (see [repointPackageConfig]), so its difference
 /// from the staged original is self-inflicted rather than a discarded fix.
 const _packageConfigPath = '.dart_tool/package_config.json';
 
@@ -59,7 +59,7 @@ void main(List<String> args) {
   final writeBack = _readEligible(eligible);
 
   _copyTree(project, scratch);
-  _absolutizePackageConfig(project, scratch);
+  repointPackageConfig(project, scratch);
 
   final result = Process.runSync(dart, ['fix', '--apply', scratch]);
   // Bazel echoes any action output, and this action runs whenever fixes are
@@ -139,14 +139,15 @@ void _copyFile(String from, String to) {
 }
 
 /// Repoints the scratch copy's package config at the packages that live
-/// outside the copied tree.
+/// outside the copied tree using relative URIs.
 ///
 /// Only the project directory is copied; the pub packages its config reaches
-/// through `../../<name>.extpkgs/...` stay where the sandbox staged them, and
-/// a relative URI no longer finds them from wherever scratch is. Absolute URIs
-/// are how the copy keeps resolving those without copying pub trees or
-/// symlinking them in, which Windows cannot do unprivileged anyway.
-void _absolutizePackageConfig(String project, String scratch) {
+/// through `../../<name>.extpkgs/...` or `../../external/<repo>` stay where the
+/// sandbox staged them. Rewriting external entries as relative URIs from
+/// `$scratch/.dart_tool` keeps those packages resolvable when [scratch] and
+/// [project] are at different depths without embedding the sandbox's absolute
+/// path in the declared [scratch] output directory.
+void repointPackageConfig(String project, String scratch) {
   final file = File('$scratch/$_packageConfigPath');
   if (!file.existsSync()) return;
   final Object? decoded;
@@ -162,6 +163,9 @@ void _absolutizePackageConfig(String project, String scratch) {
   // against the config file, and `demo.proj/` must not prefix-match a sibling
   // `demo.projX`.
   final anchor = Uri.directory(Directory('$project/.dart_tool').absolute.path);
+  final scratchAnchor = Uri.directory(
+    Directory('$scratch/.dart_tool').absolute.path,
+  );
   final projectRoot = Uri.directory(Directory(project).absolute.path)
       .toString();
   var rewrote = false;
@@ -170,23 +174,47 @@ void _absolutizePackageConfig(String project, String scratch) {
     final root = package['rootUri'];
     if (root is! String) continue;
     final parsed = Uri.tryParse(root);
-    if (parsed == null || parsed.hasScheme) continue;
-    final resolved = anchor.resolveUri(parsed).toString();
-    // A URI that stays inside the project is left alone: the copy preserves
-    // the tree below the project dir, so it resolves to the scratch file at
-    // the same path. Pointing it at the original instead would split every
-    // package into two identities — the scratch file the fixer analyzes and
-    // the `package:` URI it imports itself by — and the analyzer reports type
-    // errors between them, which costs the fixes that depend on resolution.
-    if (resolved.startsWith(projectRoot)) continue;
-    package['rootUri'] = resolved;
-    rewrote = true;
+    if (parsed == null || (parsed.hasScheme && !parsed.isScheme('file'))) {
+      continue;
+    }
+    final resolved = anchor.resolveUri(parsed);
+    // A URI that stays inside the project resolves against the copied tree at
+    // the same relative path under scratch. Pointing it at the original instead
+    // would split every package into two identities — the scratch file the
+    // fixer analyzes and the `package:` URI it imports itself by — and the
+    // analyzer reports type errors between them, which costs the fixes that
+    // depend on resolution.
+    final base = resolved.toString().startsWith(projectRoot)
+        ? anchor
+        : scratchAnchor;
+    final rel = _relativeUri(base, resolved);
+    if (rel != root) {
+      package['rootUri'] = rel;
+      rewrote = true;
+    }
   }
   if (rewrote) {
     file.writeAsStringSync(
       '${const JsonEncoder.withIndent('  ').convert(decoded)}\n',
     );
   }
+}
+
+/// Returns a relative URI path from directory [fromDir] to [toUri].
+String _relativeUri(Uri fromDir, Uri toUri) {
+  final fromParts = fromDir.path.split('/').where((s) => s.isNotEmpty).toList();
+  final toParts = toUri.path.split('/').where((s) => s.isNotEmpty).toList();
+  var common = 0;
+  while (common < fromParts.length &&
+      common < toParts.length &&
+      fromParts[common] == toParts[common]) {
+    common++;
+  }
+  final parts = [
+    ...List.filled(fromParts.length - common, '..'),
+    ...toParts.sublist(common),
+  ];
+  return parts.isEmpty ? '.' : parts.join('/');
 }
 
 /// Lists every changed file that no one asked to have written back.

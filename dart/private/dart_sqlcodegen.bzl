@@ -22,7 +22,7 @@ Usage:
     )
 """
 
-load("//dart:providers.bzl", "DartInfo", "DartPackageMetadataInfo")
+load("//dart:providers.bzl", "DartCompileInfo", "DartInfo", "DartPackageMetadataInfo")
 load(
     "//dart/private:common.bzl",
     "DEFAULT_ROOT_LANGUAGE_VERSION",
@@ -38,7 +38,7 @@ load(
 def _dart_sqlcodegen_impl(ctx):
     identity = resolve_package_identity(ctx)
     toolchain = ctx.toolchains["//dart:exec_tools_toolchain_type"]
-    sdk_files = toolchain.dart_sdk_info.tool_files
+    sdk_files = toolchain.dart_sdk_info.analyze_files
 
     if not ctx.attr.output_suffixes:
         fail("%s: `output_suffixes` must contain at least one suffix." %
@@ -100,14 +100,33 @@ def _dart_sqlcodegen_impl(ctx):
 
     transitive = ([lib_dep_srcs] if lib_dep_srcs != None else []) + [sdk_files]
 
+    is_kernel_bin = (
+        DartCompileInfo in ctx.attr.generator_bin and
+        ctx.attr.generator_bin[DartCompileInfo].compile_mode == "kernel"
+    )
+    if is_kernel_bin:
+        executable = toolchain.dart_sdk_info.dart
+        arguments = [ctx.executable.generator_bin.path, args]
+        direct.append(ctx.executable.generator_bin)
+        transitive.append(toolchain.dart_sdk_info.runtime_files)
+        action_tools = depset(
+            direct = [ctx.executable.generator_bin, toolchain.dart_sdk_info.dart],
+            transitive = [toolchain.dart_sdk_info.runtime_files],
+        )
+    else:
+        executable = ctx.executable.generator_bin
+        arguments = [args]
+        action_tools = depset(direct = [ctx.executable.generator_bin, toolchain.dart_sdk_info.dart])
+
     ctx.actions.run(
-        executable = ctx.executable.generator_bin,
-        arguments = [args],
+        executable = executable,
+        arguments = arguments,
         inputs = depset(direct = direct, transitive = transitive),
+        tools = action_tools,
         outputs = outputs,
         mnemonic = "DartSqlCodegen",
         progress_message = "DartSqlCodegen %s" % ctx.label,
-        execution_requirements = {
+        execution_requirements = {} if "manual" in getattr(ctx.attr, "tags", []) else {
             "supports-workers": "1",
             "requires-worker-protocol": "proto",
             "worker-key-mnemonic": "DartSqlCodegen",

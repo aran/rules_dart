@@ -2,7 +2,8 @@ load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("//dart:defs.bzl", "dart_binary", "dart_test")
 load(":no_lv_rules.bzl", "no_lv_dart_library")
 
-# Generated `.dart` forces `colocate_packages`'s assembly branch.
+# Generated `.dart` splits the package between the source tree and bazel-out,
+# so the compile resolves it through the multi-root file system.
 genrule(
     name = "gen_lib_src",
     outs = ["lib/no_lv_lib.dart"],

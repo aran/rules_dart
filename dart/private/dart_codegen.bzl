@@ -58,7 +58,8 @@ reusing across requests is a silent-corruption hazard due to
 cost is amortised across the worker's lifetime.
 """
 
-load("//dart:providers.bzl", "DartInfo", "DartPackageMetadataInfo")
+load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
+load("//dart:providers.bzl", "DartAnalyzableInfo", "DartCompileInfo", "DartInfo", "DartPackageMetadataInfo")
 load(
     "//dart/private:common.bzl",
     "DEFAULT_ROOT_LANGUAGE_VERSION",
@@ -70,6 +71,83 @@ load(
     "same_package_library_dep_files",
     "synth_package_config",
 )
+load(
+    ":dart_analyzer_summary.bzl",
+    "DartAnalyzerSummaryInfo",
+    "analyzer_summaries_supported",
+    "dart_analyzer_summary",
+    "embedder_in_closure",
+)
+
+# The shim library every `dart/ext` shim binary is built on. A generator whose
+# closure holds it parses the `--summary` and `--sdk-summary` flags; a generator
+# that does not may reject them as unknown.
+_BUILDER_SHIM_SOURCE = "dart/ext/lib/builder_shim.dart"
+
+def is_builder_shim_generator(generator):
+    """Returns whether a `generator_bin` is built on the rules_dart builder shim.
+
+    The shim's source is in the executable's closure. That is the one fact that
+    says the binary parses the summary flags, whatever its own sources are, and
+    it holds for every `dart/ext` shim and for a user binary that uses the shim
+    library directly. A binary with no Dart closure (a Go or C++ tool) is not.
+
+    Args:
+      generator: The `generator_bin` target.
+
+    Returns:
+      A bool.
+    """
+    if DartAnalyzableInfo not in generator:
+        return False
+    for f in generator[DartAnalyzableInfo].dart_info.transitive_srcs.to_list():
+        if f.short_path == _BUILDER_SHIM_SOURCE or f.short_path.endswith("/" + _BUILDER_SHIM_SOURCE):
+            return True
+    return False
+
+def analyzer_summary_inputs(ctx, package_name):
+    """Returns the analyzer summaries a `generator_bin` shim resolves `deps` against.
+
+    Under `//dart:analyzer_summaries` the shim reads the libraries of `deps`
+    outside `package_name` from their summaries, not from source. Same-package
+    libraries stay sources, since they are the files the builder reads.
+
+    Summaries are passed only when all of these hold, and the command line is
+    otherwise unchanged:
+
+      - the flag is on, and the exec SDK is no newer than the pinned analyzer
+        supports (`analyzer_summaries_supported`);
+      - the generator is built on the builder shim (`is_builder_shim_generator`),
+        so it accepts the flags. A user's own generator never sees them;
+      - no dependency's closure holds a Flutter embedder, whose `dart:ui` a
+        summary cannot resolve. Such a closure is analyzed from source, as it
+        was before the flag existed.
+
+    Args:
+      ctx: The `dart_codegen` rule context.
+      package_name: The package owning `src`.
+
+    Returns:
+      A pair `(summaries, sdk_summary)`: the `File`s to pass as `--summary`, and
+      the SDK summary to pass as `--sdk-summary`. Both are empty when no
+      summaries are passed.
+    """
+    if not ctx.attr._analyzer_summaries[BuildSettingInfo].value:
+        return [], None
+    if not analyzer_summaries_supported(ctx.toolchains["//dart:exec_tools_toolchain_type"].dart_sdk_info.version):
+        return [], None
+    if not is_builder_shim_generator(ctx.attr.generator_bin):
+        return [], None
+    for d in ctx.attr.deps:
+        if DartInfo in d and embedder_in_closure(d[DartInfo]):
+            return [], None
+    packaged = depset(transitive = [
+        d[DartAnalyzerSummaryInfo].packaged_summaries
+        for d in ctx.attr.deps
+        if DartAnalyzerSummaryInfo in d
+    ]).to_list()
+    summaries = [f for (name, f) in packaged if name != package_name]
+    return summaries, ctx.file._analyzer_sdk_summary
 
 def compute_codegen_output_name(src_path, output_suffix):
     """Compute the output file path for a codegen source file.
@@ -93,7 +171,12 @@ def _dart_codegen_impl(ctx):
     identity = resolve_package_identity(ctx)
     toolchain = ctx.toolchains["//dart:exec_tools_toolchain_type"]
     dart = toolchain.dart_sdk_info.dart
-    sdk_files = toolchain.dart_sdk_info.tool_files
+
+    # The shim reads what the analyzer reads: the analyze subset. A `generator`
+    # script is run by the `dart` launcher, which also loads `dartvm` and the
+    # kernel service, so that branch takes the runtime subset as well.
+    sdk_files = toolchain.dart_sdk_info.analyze_files
+    script_sdk_files = depset(transitive = [sdk_files, toolchain.dart_sdk_info.runtime_files])
 
     if ctx.file.generator and ctx.executable.generator_bin:
         fail("%s: only one of `generator` or `generator_bin` may be set." %
@@ -162,17 +245,47 @@ def _dart_codegen_impl(ctx):
         ))
         args.add_all(ctx.attr.generator_args)
 
+        # Under `//dart:analyzer_summaries` only: the other packages of `deps`
+        # resolve from their summaries. The script branch below takes no
+        # summaries, since a script does not speak the shim contract.
+        summaries, sdk_summary = analyzer_summary_inputs(ctx, identity.package_name)
+        if sdk_summary != None:
+            args.add_all(summaries, before_each = "--summary")
+            args.add("--sdk-summary", sdk_summary)
+            direct_inputs.extend(summaries)
+            direct_inputs.append(sdk_summary)
+
+        is_kernel_bin = (
+            DartCompileInfo in ctx.attr.generator_bin and
+            ctx.attr.generator_bin[DartCompileInfo].compile_mode == "kernel"
+        )
+        if is_kernel_bin:
+            executable = dart
+            arguments = [ctx.executable.generator_bin.path, args]
+            direct_inputs.append(ctx.executable.generator_bin)
+            bin_sdk_files = script_sdk_files
+            action_tools = depset(
+                direct = [ctx.executable.generator_bin, dart],
+                transitive = [toolchain.dart_sdk_info.runtime_files],
+            )
+        else:
+            executable = ctx.executable.generator_bin
+            arguments = [args]
+            bin_sdk_files = sdk_files
+            action_tools = depset(direct = [ctx.executable.generator_bin, dart])
+
         ctx.actions.run(
-            executable = ctx.executable.generator_bin,
-            arguments = [args],
+            executable = executable,
+            arguments = arguments,
             inputs = depset(
                 direct = direct_inputs,
-                transitive = _transitive(library_dep_srcs) + [sdk_files],
+                transitive = _transitive(library_dep_srcs) + [bin_sdk_files],
             ),
+            tools = action_tools,
             outputs = outputs,
             mnemonic = "DartCodegen",
             progress_message = "DartCodegen %s" % ctx.label,
-            execution_requirements = {
+            execution_requirements = {} if "manual" in getattr(ctx.attr, "tags", []) else {
                 "supports-workers": "1",
                 "requires-worker-protocol": "proto",
                 # The worker key includes the shim binary path; using the
@@ -205,7 +318,7 @@ def _dart_codegen_impl(ctx):
             arguments = [args],
             inputs = depset(
                 direct = direct_inputs,
-                transitive = _transitive(library_dep_srcs) + [sdk_files],
+                transitive = _transitive(library_dep_srcs) + [script_sdk_files],
             ),
             outputs = outputs,
             mnemonic = "DartCodegen",
@@ -291,6 +404,17 @@ dart_codegen = rule(
                   "as `src` is also auto-staged as `--dep` so the " +
                   "Resolver can walk siblings.",
             providers = [DartInfo],
+            # Under `//dart:analyzer_summaries`, each dependency carries the
+            # summaries the shim reads in place of its source.
+            aspects = [dart_analyzer_summary],
+        ),
+        "_analyzer_summaries": attr.label(
+            default = "//dart:analyzer_summaries",
+            providers = [BuildSettingInfo],
+        ),
+        "_analyzer_sdk_summary": attr.label(
+            default = "//dart/private:analyzer_sdk_summary_input",
+            allow_single_file = True,
         ),
         "parts": attr.label_list(
             doc = "Additional input files passed as `--part <path>` " +

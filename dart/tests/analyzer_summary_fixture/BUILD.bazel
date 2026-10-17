@@ -1,0 +1,217 @@
+load("//dart:defs.bzl", "dart_analysis_test", "dart_library", "dart_source_set", "dart_test")
+load(
+    "//dart/tests:analyzer_summary_test.bzl",
+    "default_mode_test",
+    "summaries_off_mode_test",
+    "summaries_on_mode_test",
+    "summary_file_test",
+    "summary_packages_test",
+)
+
+# A library assembled into one directory (`srcs_dir`) is opaque: its `.dart`
+# files are not visible to the aspect, so it has no summary of its own. Its
+# package must stay uncovered, so `dart_analyze` analyzes a dependent from source.
+dart_source_set(
+    name = "opaque_srcs",
+    srcs = ["lib/opaque.dart"],
+)
+
+dart_library(
+    name = "opaque",
+    package_name = "opaque_dep",
+    language_version = "3.11",
+    srcs_dir = ":opaque_srcs",
+)
+
+# A dependent of the opaque library, with sources of its own.
+dart_library(
+    name = "user",
+    package_name = "summary_user",
+    srcs = ["lib/user.dart"],
+    language_version = "3.11",
+    deps = [":opaque"],
+)
+
+# A generated library, exported by a hand-written one. It lives in the output
+# tree, not beside the sources, so its package is covered only if the summary
+# carries the export. The analysis of a dependent through the export is checked
+# by //e2e/codegen:reexport_pkg.
+genrule(
+    name = "generated_lib",
+    outs = ["lib/generated.dart"],
+    cmd = "echo \"String generated() => 'generated';\" > $@",
+)
+
+dart_library(
+    name = "generated_fixture",
+    package_name = "generated_fixture",
+    srcs = [
+        "lib/generated_api.dart",
+        ":generated_lib",
+    ],
+    language_version = "3.11",
+)
+
+summary_packages_test(
+    name = "generated_export_covered_test",
+    size = "small",
+    expect_covered = ["generated_fixture"],
+    target_under_test = ":generated_fixture",
+)
+
+# A façade with no sources of its own: its package has nothing to cover.
+dart_library(
+    name = "facade",
+    package_name = "summary_facade",
+    srcs = [],
+    language_version = "3.11",
+    deps = [":user"],
+)
+
+# The dependent's own package is covered by its summary, and the opaque
+# library's package is not, so its dependents are analyzed from source.
+summary_packages_test(
+    name = "opaque_not_covered_test",
+    size = "small",
+    expect_covered = ["summary_user"],
+    expect_uncovered = ["opaque_dep"],
+    target_under_test = ":user",
+)
+
+# A façade covers its own package although it has no summary.
+summary_packages_test(
+    name = "facade_covered_test",
+    size = "small",
+    expect_covered = ["summary_facade"],
+    expect_uncovered = ["opaque_dep"],
+    target_under_test = ":facade",
+)
+
+# The default is on: a closure with no opaque or embedder dependency is checked
+# in summary mode, and so is the test that reads it.
+default_mode_test(
+    name = "generated_default_mode_test",
+    size = "small",
+    expect_summaries = True,
+    target_under_test = ":generated_fixture",
+)
+
+summary_file_test(
+    name = "generated_summary_file_test",
+    size = "small",
+    expect_summary = True,
+    target_under_test = ":generated_fixture",
+)
+
+summaries_off_mode_test(
+    name = "generated_summaries_off_mode_test",
+    size = "small",
+    expect_summaries = False,
+    target_under_test = ":generated_fixture",
+)
+
+# An opaque dependency is never summarized, so the dependent is checked from source.
+default_mode_test(
+    name = "user_opaque_mode_test",
+    size = "small",
+    expect_summaries = False,
+    target_under_test = ":user",
+)
+
+# A Flutter embedder: `sky_engine`'s `lib/_embedder.yaml` builds an embedder SDK
+# summary with `dart:ui`, so `sky_engine` and `flutter_app` are covered,
+# `flutter_app` builds a summary, and `flutter_app` (and `flutter_consumer`
+# above it) are analyzed in summary mode. `yaml_only` is a non-`sky_engine`
+# package with `lib/_embedder.yaml`, so it has no embedder SDK summary and stays
+# uncovered.
+summary_packages_test(
+    name = "embedder_uncovered_test",
+    size = "small",
+    expect_covered = [
+        "flutter_app",
+        "sky_engine",
+    ],
+    target_under_test = "//dart/tests/analyzer_summary_fixture/flutter/app:flutter_app",
+)
+
+summary_file_test(
+    name = "embedder_summary_file_test",
+    size = "small",
+    expect_summary = True,
+    target_under_test = "//dart/tests/analyzer_summary_fixture/flutter/app:flutter_app",
+)
+
+default_mode_test(
+    name = "embedder_default_mode_test",
+    size = "small",
+    expect_summaries = True,
+    target_under_test = "//dart/tests/analyzer_summary_fixture/flutter/app:flutter_app",
+)
+
+summaries_on_mode_test(
+    name = "embedder_summaries_on_mode_test",
+    size = "small",
+    expect_summaries = True,
+    target_under_test = "//dart/tests/analyzer_summary_fixture/flutter/app:flutter_app",
+)
+
+default_mode_test(
+    name = "embedder_consumer_default_mode_test",
+    size = "small",
+    expect_summaries = True,
+    target_under_test = "//dart/tests/analyzer_summary_fixture/flutter/consumer:flutter_consumer",
+)
+
+summary_packages_test(
+    name = "yaml_embedder_uncovered_test",
+    size = "small",
+    expect_uncovered = ["yaml_only"],
+    target_under_test = "//dart/tests/analyzer_summary_fixture/flutter/yaml_only:yaml_only",
+)
+
+summary_file_test(
+    name = "yaml_embedder_summary_file_test",
+    size = "small",
+    expect_summary = False,
+    target_under_test = "//dart/tests/analyzer_summary_fixture/flutter/yaml_only:yaml_only",
+)
+
+# The runtime check of the embedder: the summary-mode analysis of `flutter_app`
+# and of `flutter_consumer` (which reads `flutter_app`'s summary and the
+# embedder SDK summary) must pass.
+dart_analysis_test(
+    name = "embedder_analysis_test",
+    size = "small",
+    targets = [
+        "//dart/tests/analyzer_summary_fixture/flutter/app:flutter_app",
+        "//dart/tests/analyzer_summary_fixture/flutter/consumer:flutter_consumer",
+    ],
+)
+
+# The runtime check of summary mode: the default analysis of a closure that has
+# no embedder, so it is checked against summaries, passes.
+dart_analysis_test(
+    name = "generated_summary_analysis_test",
+    size = "small",
+    targets = [":generated_fixture"],
+)
+
+dart_test(
+    name = "worker_hardening_test",
+    size = "small",
+    args = [
+        "$(rlocationpath //dart/private/tools:format_runner)",
+        "$(rlocationpath //dart/private/tools:analyzer_summary)",
+        "$(rlocationpath //dart/private:analyzer_sdk_summary)",
+    ],
+    data = [
+        "//dart/private:analyzer_sdk_summary",
+        "//dart/private/tools:analyzer_summary",
+        "//dart/private/tools:format_runner",
+    ],
+    main = "worker_hardening_test.dart",
+    deps = [
+        "//dart/runfiles",
+        "@ext_pub_deps//:test",
+    ],
+)

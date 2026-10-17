@@ -1,0 +1,45 @@
+load("//dart:defs.bzl", "dart_binary", "dart_test")
+
+dart_binary(
+    name = "app_modular",
+    compile_mode = "kernel",
+    main = "bin/main.dart",
+    visibility = ["//dart/tests:__subpackages__"],
+    deps = [
+        "//dart/tests/legacy_mixin_fixture/legacy",
+        "//dart/tests/legacy_mixin_fixture/mid",
+    ],
+)
+
+dart_binary(
+    name = "app_whole",
+    compile_mode = "kernel",
+    main = "bin/main.dart",
+    modular_kernel = False,
+    visibility = ["//dart/tests:__subpackages__"],
+    deps = [
+        "//dart/tests/legacy_mixin_fixture/legacy",
+        "//dart/tests/legacy_mixin_fixture/mid",
+    ],
+)
+
+dart_test(
+    name = "legacy_mixin_test",
+    size = "small",
+    args = [
+        "$(rlocationpath :app_modular)",
+        "$(rlocationpath :app_whole)",
+    ],
+    data = [
+        ":app_modular",
+        ":app_whole",
+    ],
+    main = "legacy_mixin_test.dart",
+    visibility = ["//dart/tests:__subpackages__"],
+    deps = [
+        "//dart/runfiles",
+        "//dart/tests/legacy_mixin_fixture/legacy",
+        "//dart/tests/legacy_mixin_fixture/mid",
+        "@ext_pub_deps//:test",
+    ],
+)

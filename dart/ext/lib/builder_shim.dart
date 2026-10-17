@@ -16,12 +16,17 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:typed_data';
 
 import 'package:analyzer/dart/analysis/analysis_context_collection.dart';
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/analysis/session.dart';
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/element/element.dart';
+import 'package:analyzer/file_system/file_system.dart' as fs;
+import 'package:analyzer/file_system/physical_file_system.dart';
+// ignore: implementation_imports
+import 'package:analyzer/src/dart/analysis/analysis_context_collection.dart';
 import 'package:args/args.dart';
 import 'package:build/build.dart';
 import 'package:crypto/crypto.dart';
@@ -42,6 +47,8 @@ class ShimArgs {
     required this.rootLanguageVersion,
     this.packageConfigUri,
     this.sdkPath,
+    this.summaryPaths = const [],
+    this.sdkSummaryPath,
   });
 
   final String inputPath;
@@ -67,6 +74,14 @@ class ShimArgs {
 
   /// Dart SDK root — AOT shims can't auto-detect this.
   final String? sdkPath;
+
+  /// Analyzer summaries of the libraries outside the input's own package
+  /// (`--summary`, repeatable). Empty leaves the analysis context as it was.
+  final List<String> summaryPaths;
+
+  /// The analyzer summary of the SDK's own libraries (`--sdk-summary`), read
+  /// alongside [summaryPaths]. Null when not given.
+  final String? sdkSummaryPath;
 
   final LanguageVersion rootLanguageVersion;
 
@@ -141,6 +156,20 @@ class ShimArgs {
             "context collection can locate the SDK's libraries. The "
             "rules_dart codegen rules pass this from the toolchain.",
         defaultsTo: '',
+      )
+      ..addMultiOption(
+        'summary',
+        help:
+            'Analyzer summary (`.sum`) of a library outside the input\'s '
+            'package. Repeatable. The analysis context resolves those '
+            'libraries from the summary instead of their source.',
+      )
+      ..addOption(
+        'sdk-summary',
+        help:
+            'Analyzer summary of the Dart SDK\'s own libraries. Read with '
+            'each `--summary`, since a dependency summary refers to them.',
+        defaultsTo: '',
       );
 
     final ArgResults parsed;
@@ -202,6 +231,8 @@ class ShimArgs {
     final configJson = parsed['config'] as String;
     final pkgConfig = parsed['package-config'] as String;
     final sdkPath = parsed['sdk-path'] as String;
+    final summaries = (parsed['summary'] as List).cast<String>();
+    final sdkSummary = parsed['sdk-summary'] as String;
     final rootLvParts = rootLvRaw.split('.');
     if (rootLvParts.length != 2) {
       throw FormatException(
@@ -252,6 +283,8 @@ class ShimArgs {
       config: config,
       packageConfigUri: pkgConfig.isEmpty ? null : pkgConfig,
       sdkPath: sdkPath.isEmpty ? null : sdkPath,
+      summaryPaths: summaries,
+      sdkSummaryPath: sdkSummary.isEmpty ? null : sdkSummary,
       rootLanguageVersion: rootLv,
     );
   }
@@ -304,14 +337,14 @@ Future<void> runShim(
     );
     final originalCwd = Directory.current;
     try {
-      await prepareSourceGenCwd(
+      final packageStagingDir = await prepareSourceGenCwd(
         baseDir: stagingDir,
         packageName: args.packageName,
       );
       await _runWithStaging(
         absArgs,
         _normaliseFactories(factoryOrFactories),
-        stagingDir,
+        packageStagingDir,
         buildAnalysisContext: buildAnalysisContext,
         writeDiagnostic: sink,
       );
@@ -347,9 +380,19 @@ List<BuilderFactory> _normaliseFactories(Object factoryOrFactories) {
   );
 }
 
-/// Writes a `pubspec.yaml` in [baseDir] and chdirs into it, so `source_gen`'s
-/// `rootPackageName` (a CWD-reading top-level `final`) initialises correctly
-/// before any Builder runs.
+/// Writes a `pubspec.yaml` in [baseDir], chdirs into [baseDir], and returns
+/// the package-specific staging directory `<baseDir>/<packageName>`.
+///
+/// `package:source_gen`'s `rootPackageName` (in `source_gen/src/utils.dart`) is
+/// a top-level `final` that reads `File('pubspec.yaml')` from CWD once per
+/// isolate and computes `p.join(rootPackageName, p.relative(url.path))` in
+/// `_fileToAssetUrl`. In a persistent worker serving multiple packages, putting
+/// a concrete package name in CWD's `pubspec.yaml` would freeze the first
+/// request's package name for the lifetime of the isolate. Writing `name: ""`
+/// in [baseDir] and staging files under `<baseDir>/<packageName>/...` makes
+/// `rootPackageName` evaluate to `""` while `p.relative(url.path)` evaluates to
+/// `<packageName>/<assetPath>`, so `p.join("", "<packageName>/<assetPath>")`
+/// yields `<packageName>/<assetPath>` for every package in any order.
 ///
 /// Also drops an empty `stacked.json` so `stacked_generator`'s
 /// `ConfigHelper.composeAndLoadConfigFile()` — invoked unconditionally
@@ -359,18 +402,23 @@ List<BuilderFactory> _normaliseFactories(Object factoryOrFactories) {
 /// writes a diagnostic to stdout, which corrupts Bazel's worker
 /// protocol. An empty JSON object is the sentinel that means "use
 /// defaults"; benign for non-stacked builders.
-Future<void> prepareSourceGenCwd({
+Future<Directory> prepareSourceGenCwd({
   required Directory baseDir,
   required String packageName,
 }) async {
   await baseDir.create(recursive: true);
   await File(
     p.join(baseDir.absolute.path, 'pubspec.yaml'),
-  ).writeAsString('name: $packageName\nenvironment:\n  sdk: ^3.0.0\n');
+  ).writeAsString('name: ""\nenvironment:\n  sdk: ^3.0.0\n');
   await File(
     p.join(baseDir.absolute.path, 'stacked.json'),
   ).writeAsString('{}\n');
+  final packageStagingDir = Directory(
+    p.join(baseDir.absolute.path, packageName),
+  );
+  await packageStagingDir.create(recursive: true);
   Directory.current = baseDir;
+  return packageStagingDir;
 }
 
 /// Same as [runShim] but takes pre-parsed [args] and propagates errors as
@@ -386,14 +434,14 @@ Future<void> runShimWithArgs(ShimArgs args, Object factoryOrFactories) async {
   );
   final originalCwd = Directory.current;
   try {
-    await prepareSourceGenCwd(
+    final packageStagingDir = await prepareSourceGenCwd(
       baseDir: stagingDir,
       packageName: args.packageName,
     );
     await _runWithStaging(
       absArgs,
       _normaliseFactories(factoryOrFactories),
-      stagingDir,
+      packageStagingDir,
     );
   } finally {
     Directory.current = originalCwd;
@@ -436,6 +484,10 @@ ShimArgs _absoluteArgs(ShimArgs a) => ShimArgs(
       ? _absAndNormalize(a.packageConfigUri!)
       : null,
   sdkPath: a.sdkPath != null ? _absAndNormalize(a.sdkPath!) : null,
+  summaryPaths: [for (final s in a.summaryPaths) _absAndNormalize(s)],
+  sdkSummaryPath: a.sdkSummaryPath != null
+      ? _absAndNormalize(a.sdkSummaryPath!)
+      : null,
   rootLanguageVersion: a.rootLanguageVersion,
 );
 
@@ -459,13 +511,35 @@ typedef AnalysisContextBuilder =
     Future<AnalysisContextCollection> Function({
       required List<String> includedPaths,
       required String? sdkPath,
+      required List<String> librarySummaryPaths,
     });
 
+/// With no [librarySummaryPaths] this is the public constructor, as it always
+/// was. With any, the analyzer resolves those libraries from their summaries;
+/// the `Impl` constructor is the only one that takes them.
 Future<AnalysisContextCollection> _defaultBuildAnalysisContext({
   required List<String> includedPaths,
   required String? sdkPath,
-}) async =>
-    AnalysisContextCollection(includedPaths: includedPaths, sdkPath: sdkPath);
+  required List<String> librarySummaryPaths,
+}) async {
+  final boundedProvider = _StagingBoundedResourceProvider(
+    PhysicalResourceProvider.INSTANCE,
+    boundaryRoots: includedPaths,
+  );
+  if (librarySummaryPaths.isEmpty) {
+    return AnalysisContextCollection(
+      resourceProvider: boundedProvider,
+      includedPaths: includedPaths,
+      sdkPath: sdkPath,
+    );
+  }
+  return AnalysisContextCollectionImpl(
+    resourceProvider: boundedProvider,
+    includedPaths: includedPaths,
+    sdkPath: sdkPath,
+    librarySummaryPaths: librarySummaryPaths,
+  );
+}
 
 Future<void> _runWithStaging(
   ShimArgs args,
@@ -517,11 +591,7 @@ Future<void> _runWithStaging(
   await pcFile.writeAsString(_serializePackageConfig(packageConfig));
 
   // Write a minimal pubspec.yaml so the analyzer recognises the staging
-  // dir as a Dart package root. Also satisfies source_gen's
-  // `rootPackageName` (a top-level `final` in `source_gen/src/utils.dart`
-  // that reads `pubspec.yaml` from CWD) — the workerEntry pre-writes this
-  // file at startup via [prepareSourceGenCwd] so the cache is populated
-  // before any Builder observes it.
+  // dir as a Dart package root.
   await File(
     p.join(stagingPath, 'pubspec.yaml'),
   ).writeAsString('name: ${args.packageName}\nenvironment:\n  sdk: ^3.0.0\n');
@@ -554,9 +624,14 @@ Future<void> _runWithStaging(
   // element drift loaded via `backend.readDart(drift2Uri)` (from the
   // drift pub-cache context). Forcing one context canonicalises them.
   final contextBuilder = buildAnalysisContext ?? _defaultBuildAnalysisContext;
+  final librarySummaryPaths = [
+    ...args.summaryPaths,
+    if (args.sdkSummaryPath != null) args.sdkSummaryPath!,
+  ];
   final collection = await contextBuilder(
     includedPaths: [stagingPath],
     sdkPath: args.sdkPath != null ? p.absolute(args.sdkPath!) : null,
+    librarySummaryPaths: librarySummaryPaths,
   );
 
   // CWD must contain a valid pubspec before any Builder runs; the shim
@@ -652,11 +727,18 @@ Future<void> _runWithStaging(
     // Release analyzer drivers, file-watching handles, and thread-pool
     // workers. Without this, a long-running worker accumulates drivers
     // across every request until it exhausts file descriptors.
-    try {
-      await collection.dispose();
-    } catch (_) {
-      // Older analyzer releases don't expose dispose; swallow so we don't
-      // regress workers on versions that lack it.
+    //
+    // Not with summaries: on analyzer 13.3 a dispose of a driver whose
+    // libraries came from summaries throws "Expected to link dart:core and
+    // dart:async first" inside the analyzer's scheduler. That error is not
+    // caught here, and it ends the worker's isolate.
+    if (librarySummaryPaths.isEmpty) {
+      try {
+        await collection.dispose();
+      } catch (_) {
+        // Older analyzer releases don't expose dispose; swallow so we don't
+        // regress workers on versions that lack it.
+      }
     }
   }
 
@@ -1098,7 +1180,16 @@ class _ShimAnalyzerResolver implements Resolver {
   Future<bool> isLibrary(AssetId id) async {
     final path = _pathFor(id);
     if (path == null) return false;
-    final result = await _sessionFor(path).getResolvedLibrary(path);
+    final session = _sessionFor(path);
+    final parsed = session.getParsedUnit(path);
+    if (parsed is! ParsedUnitResult || parsed.isPart) {
+      return false;
+    }
+    if (id.path.startsWith('lib/')) {
+      final libResult = await session.getLibraryByUri(id.uri.toString());
+      return libResult is LibraryElementResult;
+    }
+    final result = await session.getResolvedLibrary(path);
     return result is ResolvedLibraryResult;
   }
 
@@ -1330,6 +1421,229 @@ class _ShimAnalyzerResolver implements Resolver {
     }
     return parsedLib.getFragmentDeclaration(fragment)?.node;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Bounded ResourceProvider confining ContextLocator upward walks at staging.
+// ---------------------------------------------------------------------------
+
+final class _StagingBoundedResourceProvider implements fs.ResourceProvider {
+  _StagingBoundedResourceProvider(
+    this._delegate, {
+    required Iterable<String> boundaryRoots,
+  }) : _boundaryRoots = {
+         for (final r in boundaryRoots) p.normalize(p.absolute(r)),
+       };
+
+  final fs.ResourceProvider _delegate;
+  final Set<String> _boundaryRoots;
+
+  bool isBoundary(String normPath) {
+    if (_boundaryRoots.contains(normPath)) return true;
+    for (final root in _boundaryRoots) {
+      if (p.isWithin(normPath, root)) return true;
+    }
+    return false;
+  }
+
+  @override
+  p.Context get pathContext => _delegate.pathContext;
+
+  @override
+  fs.File getFile(String path) =>
+      _StagingBoundedFile(this, _delegate.getFile(path));
+
+  @override
+  fs.Folder getFolder(String path) =>
+      _StagingBoundedFolder(this, _delegate.getFolder(path));
+
+  @override
+  fs.Link getLink(String path) => _delegate.getLink(path);
+
+  @override
+  fs.Resource getResource(String path) {
+    final res = _delegate.getResource(path);
+    if (res is fs.Folder) return _StagingBoundedFolder(this, res);
+    if (res is fs.File) return _StagingBoundedFile(this, res);
+    return res;
+  }
+
+  @override
+  fs.Folder? getStateLocation(String pluginId) =>
+      _delegate.getStateLocation(pluginId);
+}
+
+final class _StagingBoundedFolder implements fs.Folder {
+  const _StagingBoundedFolder(this._provider, this._delegate);
+
+  final _StagingBoundedResourceProvider _provider;
+  final fs.Folder _delegate;
+
+  String get _normPath => p.normalize(p.absolute(_delegate.path));
+
+  @override
+  bool get isRoot => _provider.isBoundary(_normPath) || _delegate.isRoot;
+
+  @override
+  fs.Folder get parent =>
+      isRoot ? this : _StagingBoundedFolder(_provider, _delegate.parent);
+
+  @override
+  bool get exists => _delegate.exists;
+
+  @override
+  String get path => _delegate.path;
+
+  @override
+  fs.ResourceProvider get provider => _provider;
+
+  @override
+  String get shortName => _delegate.shortName;
+
+  @override
+  String canonicalizePath(String path) => _delegate.canonicalizePath(path);
+
+  @override
+  bool contains(String path) => _delegate.contains(path);
+
+  @override
+  fs.Folder copyTo(fs.Folder parentFolder) =>
+      _StagingBoundedFolder(_provider, _delegate.copyTo(parentFolder));
+
+  @override
+  void create() => _delegate.create();
+
+  @override
+  void delete() => _delegate.delete();
+
+  @override
+  fs.Resource getChild(String relPath) =>
+      _provider.getResource(_provider.pathContext.join(path, relPath));
+
+  @override
+  fs.File getChildAssumingFile(String relPath) => getFile(relPath);
+
+  @override
+  fs.Folder getChildAssumingFolder(String relPath) => getFolder(relPath);
+
+  @override
+  fs.File getFile(String relPath) =>
+      _provider.getFile(_provider.pathContext.join(path, relPath));
+
+  @override
+  fs.Folder getFolder(String relPath) =>
+      _provider.getFolder(_provider.pathContext.join(path, relPath));
+
+  @override
+  List<fs.Resource> getChildren() => [
+    for (final child in _delegate.getChildren())
+      if (child is fs.Folder)
+        _StagingBoundedFolder(_provider, child)
+      else if (child is fs.File)
+        _StagingBoundedFile(_provider, child)
+      else
+        child,
+  ];
+
+  @override
+  bool isOrContains(String path) => _delegate.isOrContains(path);
+
+  @override
+  fs.Resource resolveSymbolicLinksSync() {
+    final resolved = _delegate.resolveSymbolicLinksSync();
+    if (resolved is fs.Folder)
+      return _StagingBoundedFolder(_provider, resolved);
+    if (resolved is fs.File) return _StagingBoundedFile(_provider, resolved);
+    return resolved;
+  }
+
+  @override
+  Uri toUri() => _delegate.toUri();
+
+  @override
+  fs.ResourceWatcher watch() => _delegate.watch();
+
+  @override
+  bool operator ==(Object other) => other is fs.Folder && path == other.path;
+
+  @override
+  int get hashCode => path.hashCode;
+}
+
+final class _StagingBoundedFile implements fs.File {
+  const _StagingBoundedFile(this._provider, this._delegate);
+
+  final _StagingBoundedResourceProvider _provider;
+  final fs.File _delegate;
+
+  @override
+  bool get exists => _delegate.exists;
+
+  @override
+  int get lengthSync => _delegate.lengthSync;
+
+  @override
+  int get modificationStamp => _delegate.modificationStamp;
+
+  @override
+  fs.Folder get parent => _StagingBoundedFolder(_provider, _delegate.parent);
+
+  @override
+  String get path => _delegate.path;
+
+  @override
+  fs.ResourceProvider get provider => _provider;
+
+  @override
+  String get shortName => _delegate.shortName;
+
+  @override
+  fs.File copyTo(fs.Folder parentFolder) =>
+      _StagingBoundedFile(_provider, _delegate.copyTo(parentFolder));
+
+  @override
+  void delete() => _delegate.delete();
+
+  @override
+  bool isOrContains(String path) => _delegate.isOrContains(path);
+
+  @override
+  Uint8List readAsBytesSync() => _delegate.readAsBytesSync();
+
+  @override
+  String readAsStringSync() => _delegate.readAsStringSync();
+
+  @override
+  fs.File renameSync(String newPath) =>
+      _StagingBoundedFile(_provider, _delegate.renameSync(newPath));
+
+  @override
+  fs.Resource resolveSymbolicLinksSync() {
+    final resolved = _delegate.resolveSymbolicLinksSync();
+    if (resolved is fs.File) return _StagingBoundedFile(_provider, resolved);
+    if (resolved is fs.Folder)
+      return _StagingBoundedFolder(_provider, resolved);
+    return resolved;
+  }
+
+  @override
+  Uri toUri() => _delegate.toUri();
+
+  @override
+  fs.ResourceWatcher watch() => _delegate.watch();
+
+  @override
+  void writeAsBytesSync(List<int> bytes) => _delegate.writeAsBytesSync(bytes);
+
+  @override
+  void writeAsStringSync(String content) =>
+      _delegate.writeAsStringSync(content);
+
+  @override
+  bool operator ==(Object other) => other is fs.File && path == other.path;
+
+  @override
+  int get hashCode => path.hashCode;
 }
 
 // ---------------------------------------------------------------------------

@@ -10,7 +10,7 @@ which step receives the flag, with and without code assets.
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts", "unittest")
 load("//dart/private:build_settings.bzl", "dart_define_error")
-load("//dart/private:dart_compile.bzl", "front_end_flags")
+load("//dart/private:dart_compile.bzl", "defines_stage_error")
 load(":small_suite.bzl", "small_unittest_suite")
 
 _KERNEL = "DartKernel"
@@ -59,19 +59,24 @@ staged_defines_test = analysistest.make(
     attrs = {"expected_flags": attr.string_list()},
 )
 
-# --- front_end_flags ---
+# --- defines_stage_error ---
 
-def _splits_front_end_flags_test_impl(ctx):
+def _sound_when_compiling_source_test_impl(ctx):
     env = unittest.begin(ctx)
-    front_end, rest = front_end_flags([
-        "--enable-experiment=x",
-        "--extra-gen-snapshot-options=--optimization_level=3",
-        "-DA=1",
-        "--define=B=2",
-        "--verbosity=all",
-    ])
-    asserts.equals(env, ["--enable-experiment=x", "-DA=1", "--define=B=2"], front_end)
-    asserts.equals(env, ["--extra-gen-snapshot-options=--optimization_level=3", "--verbosity=all"], rest)
+    asserts.equals(env, None, defines_stage_error(["A=1"], "package_config.json"))
+    return unittest.end(env)
+
+def _sound_when_no_defines_test_impl(ctx):
+    # A kernel input is fine on its own; only defines make it a mistake.
+    env = unittest.begin(ctx)
+    asserts.equals(env, None, defines_stage_error([], None))
+    return unittest.end(env)
+
+def _rejects_defines_on_kernel_input_test_impl(ctx):
+    env = unittest.begin(ctx)
+    err = defines_stage_error(["A=1"], None)
+    asserts.true(env, err != None, "defines on a pre-built kernel must be rejected")
+    asserts.true(env, "A=1" in err, "the message should name the offending defines: %s" % err)
     return unittest.end(env)
 
 # --- dart_define_error ---
@@ -99,20 +104,24 @@ def _rejects_empty_key_test_impl(ctx):
     asserts.true(env, err != None, "a define with no key must be rejected")
     return unittest.end(env)
 
-_splits_test = unittest.make(_splits_front_end_flags_test_impl)
+_sound_source_test = unittest.make(_sound_when_compiling_source_test_impl)
+_sound_empty_test = unittest.make(_sound_when_no_defines_test_impl)
+_rejects_test = unittest.make(_rejects_defines_on_kernel_input_test_impl)
 _accepts_usable_test = unittest.make(_accepts_usable_defines_test_impl)
 _rejects_empty_test = unittest.make(_rejects_empty_define_test_impl)
 _rejects_empty_key_test = unittest.make(_rejects_empty_key_test_impl)
 
 def defines_test_suite(name):
-    """Declares the `front_end_flags` and `dart_define_error` unit tests.
+    """Declares the `defines_stage_error` and `dart_define_error` unit tests.
 
     Args:
       name: Name of the generated `test_suite`.
     """
     small_unittest_suite(
         name,
-        _splits_test,
+        _sound_source_test,
+        _sound_empty_test,
+        _rejects_test,
         _accepts_usable_test,
         _rejects_empty_test,
         _rejects_empty_key_test,

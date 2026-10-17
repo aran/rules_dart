@@ -1,0 +1,16 @@
+load("//dart:defs.bzl", "dart_library")
+
+# A package not named `sky_engine` that still carries `lib/_embedder.yaml`: its
+# closure is flagged by the file, not by the package name. Its embedder is only
+# the `dart:ui` mapping, which is not complete enough for `dart analyze` to read
+# (see ../lib/_embedder.yaml), so the package is tagged out of the analysis. The
+# tests read only its summary and its mode.
+dart_library(
+    name = "yaml_only",
+    package_name = "yaml_only",
+    srcs = ["lib/ui.dart"],
+    language_version = "3.11",
+    resources = ["lib/_embedder.yaml"],
+    tags = ["no-dart-analyze"],
+    visibility = ["//dart/tests:__subpackages__"],
+)

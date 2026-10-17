@@ -7,6 +7,7 @@ dart_binary(
     name = "bin",
     srcs = ["bin/main.dart"],
     code_assets_from_deps = False,
+    compile_mode = "kernel",
     main = "bin/main.dart",
     visibility = ["//visibility:public"],
     deps = [

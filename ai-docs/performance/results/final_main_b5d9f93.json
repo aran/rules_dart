@@ -1,0 +1,153 @@
+{
+  "label": "final_main_b5d9f93",
+  "rules_rev": "b5d9f93",
+  "scenarios": {
+    "reanalysis_80pkg_s": 0.85,
+    "clean_build": {
+      "wall_s": 19.0,
+      "sandboxed": 41,
+      "actions": {
+        "SymlinkTree": {
+          "n": 33,
+          "cpu_s": 0.15
+        },
+        "DartKernel": {
+          "n": 113,
+          "cpu_s": 31.31
+        },
+        "DartCompile": {
+          "n": 4,
+          "cpu_s": 4.79
+        },
+        "DartKernelLink": {
+          "n": 31,
+          "cpu_s": 4.27
+        },
+        "DartTestRunnerSnapshot": {
+          "n": 1,
+          "cpu_s": 1.45
+        }
+      }
+    },
+    "body_edit_build": {
+      "wall_s": 9.17,
+      "sandboxed": 32,
+      "actions": {
+        "DartKernel": {
+          "n": 61,
+          "cpu_s": 13.84
+        },
+        "DartKernelLink": {
+          "n": 30,
+          "cpu_s": 4.64
+        },
+        "DartCompile": {
+          "n": 1,
+          "cpu_s": 1.04
+        }
+      }
+    },
+    "api_edit_build": {
+      "wall_s": 8.48,
+      "sandboxed": 32,
+      "actions": {
+        "DartKernel": {
+          "n": 61,
+          "cpu_s": 13.08
+        },
+        "DartKernelLink": {
+          "n": 30,
+          "cpu_s": 4.41
+        },
+        "DartCompile": {
+          "n": 1,
+          "cpu_s": 1.0
+        }
+      }
+    },
+    "null_build_s": 0.24,
+    "test_run": {
+      "wall_s": 2.46,
+      "sandboxed": 30,
+      "actions": {
+        "TestRunner": {
+          "n": 30,
+          "cpu_s": 7.24
+        }
+      },
+      "per_test_s": 0.241
+    },
+    "test_runfiles": {
+      "files": 39,
+      "mb": 282
+    },
+    "lint_clean": {
+      "wall_s": 42.37,
+      "sandboxed": 291,
+      "actions": {
+        "SymlinkTree": {
+          "n": 35,
+          "cpu_s": 0.6
+        },
+        "DartKernel": {
+          "n": 116,
+          "cpu_s": 36.27
+        },
+        "DartCompile": {
+          "n": 7,
+          "cpu_s": 7.55
+        },
+        "DartCopyTree": {
+          "n": 122,
+          "cpu_s": 6.34
+        },
+        "DartFormat": {
+          "n": 61,
+          "cpu_s": 3.95
+        },
+        "DartAnalyze": {
+          "n": 61,
+          "cpu_s": 86.85
+        },
+        "DartKernelLink": {
+          "n": 31,
+          "cpu_s": 4.22
+        },
+        "DartTestRunnerSnapshot": {
+          "n": 1,
+          "cpu_s": 1.4
+        }
+      }
+    },
+    "lint_body_edit": {
+      "wall_s": 34.54,
+      "sandboxed": 156,
+      "actions": {
+        "DartCopyTree": {
+          "n": 62,
+          "cpu_s": 13.6
+        },
+        "DartKernel": {
+          "n": 61,
+          "cpu_s": 16.49
+        },
+        "DartKernelLink": {
+          "n": 30,
+          "cpu_s": 4.5
+        },
+        "DartAnalyze": {
+          "n": 61,
+          "cpu_s": 97.02
+        },
+        "DartFormat": {
+          "n": 1,
+          "cpu_s": 0.09
+        },
+        "DartCompile": {
+          "n": 1,
+          "cpu_s": 1.23
+        }
+      }
+    }
+  }
+}

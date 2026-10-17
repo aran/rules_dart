@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:runfiles/runfiles.dart';
 
@@ -44,10 +45,15 @@ Future<void> main(List<String> args) async {
   if (runnerKey == null || runnerKey.isEmpty) {
     exit(await _runDirectly(dart, dill, args));
   }
+  final baseDillKey = env['RULES_DART_BASE_DILL'];
+  final baseDill = (baseDillKey == null || baseDillKey.isEmpty)
+      ? null
+      : r.rlocation(baseDillKey);
   exit(
     await _runUnderRunner(
       dart: dart,
       dill: dill,
+      baseDill: baseDill,
       runner: r.rlocation(runnerKey),
       testSource: r.rlocation(env['RULES_DART_TEST_MAIN']!),
       testPath: env['RULES_DART_TEST_PATH']!,
@@ -96,6 +102,7 @@ Future<int> _runDirectly(String dart, String dill, List<String> args) async {
 Future<int> _runUnderRunner({
   required String dart,
   required String dill,
+  String? baseDill,
   required String runner,
   required String testSource,
   required String testPath,
@@ -118,9 +125,25 @@ Future<int> _runUnderRunner({
     stderr.writeln('dart_test: $dill is not laid out for $testPath');
     return 1;
   }
-  final precompiled = dill.substring(0, dill.length - suffix.length);
+  var precompiled = dill.substring(0, dill.length - suffix.length);
   final tmp = Directory(env['TEST_TMPDIR'] ?? Directory.systemTemp.path)
       .createTempSync('dart_test.');
+  File? combinedDill;
+  if (baseDill != null && File(baseDill).existsSync()) {
+    final combinedPath = _join(
+      tmp.path,
+      'precompiled/$testPath.vm_test.vm.app.dill',
+    );
+    precompiled = combinedPath.substring(
+      0,
+      combinedPath.length - suffix.length,
+    );
+    combinedDill = File(combinedPath);
+    final builder = BytesBuilder(copy: false)
+      ..add(File(dill).readAsBytesSync())
+      ..add(File(baseDill).readAsBytesSync());
+    combinedDill.writeAsBytesSync(builder.takeBytes(), flush: true);
+  }
   final inPlace = File(testPath).existsSync();
   if (!inPlace) {
     // The workspace's runfiles are laid out in the scratch directory, so `data`
@@ -186,7 +209,16 @@ Future<int> _runUnderRunner({
     },
     mode: ProcessStartMode.inheritStdio,
   );
-  var code = await vm.exitCode;
+  int code;
+  try {
+    code = await vm.exitCode;
+  } finally {
+    if (combinedDill != null && combinedDill.existsSync()) {
+      try {
+        combinedDill.deleteSync();
+      } catch (_) {}
+    }
+  }
 
   // A filter that selects nothing here, or a shard that drew no cases, is not
   // a failure: `bazel test //... --test_filter=x` has to pass every target the

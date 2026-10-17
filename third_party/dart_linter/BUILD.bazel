@@ -1,0 +1,31 @@
+load("@package_metadata//licenses/rules:license.bzl", "license")
+load("//dart:defs.bzl", "dart_library")
+
+# The vendored lint rules, unmodified. See README.md for the commit they come
+# from and the rule for keeping them in step with the pinned analyzer.
+dart_library(
+    name = "linter",
+    package_name = "linter",
+    srcs = glob(["lib/**/*.dart"]),
+    language_version = "3.13",
+    tags = [
+        "no-dart-analyze",
+        "no-dart-format",
+    ],
+    visibility = ["//dart/private/tools:__pkg__"],
+    deps = [
+        "@ext_pub_deps//:analyzer",
+        "@ext_pub_deps//:collection",
+        "@ext_pub_deps//:meta",
+        "@ext_pub_deps//:path",
+        "@ext_pub_deps//:pub_semver",
+        "@ext_pub_deps//:source_span",
+        "@ext_pub_deps//:yaml",
+    ],
+)
+
+license(
+    name = "license",
+    kind = "@package_metadata//licenses/spdx:BSD-3-Clause",
+    text = "LICENSE",
+)

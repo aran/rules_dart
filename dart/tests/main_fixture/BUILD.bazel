@@ -1,0 +1,20 @@
+load("//dart:defs.bzl", "dart_library", "dart_test")
+
+# A library with a `main` of its own. Its kernel is linked into the test that imports
+# it, so the link must start the test's `main`, not this one. See `main_test.dart`.
+dart_library(
+    name = "cli",
+    package_name = "main_fixture",
+    srcs = ["lib/cli.dart"],
+    language_version = "3.11",
+)
+
+dart_test(
+    name = "main_test",
+    size = "small",
+    main = "main_test.dart",
+    deps = [
+        ":cli",
+        "@ext_pub_deps//:test",
+    ],
+)

@@ -4,7 +4,24 @@ load("//dart/pub:yaml_parser.bzl", "parse_pubspec_sdk_constraint")
 load("//dart/pub/private:build_content.bzl", "make_dart_library_build_content")
 load("//dart/pub/private:language_version.bzl", "derive_language_version")
 
+def pub_package_sha256_error(package_name, version, sha256):
+    """Returns an error string when `sha256` is empty, or None."""
+    if not sha256:
+        return 'pub_package "%s" (%s) requires a non-empty sha256.' % (
+            package_name,
+            version,
+        )
+    return None
+
 def _pub_package_impl(ctx):
+    err = pub_package_sha256_error(
+        ctx.attr.package_name,
+        ctx.attr.version,
+        ctx.attr.sha256,
+    )
+    if err:
+        fail(err)
+
     url = "https://pub.dev/api/archives/{name}-{version}.tar.gz".format(
         name = ctx.attr.package_name,
         version = ctx.attr.version,
@@ -12,7 +29,7 @@ def _pub_package_impl(ctx):
 
     ctx.download_and_extract(
         url = url,
-        sha256 = ctx.attr.sha256 if ctx.attr.sha256 else "",
+        sha256 = ctx.attr.sha256,
         type = "tar.gz",
     )
 

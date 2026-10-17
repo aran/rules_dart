@@ -6,7 +6,7 @@ tables, and nothing else validates them. A bad entry surfaces as a raw Starlark
 silently never matches. These assert the invariants the generator depends on.
 """
 
-load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
+load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts", "unittest")
 load(
     "//dart/private:toolchains_repo.bzl",
     "CROSS_TARGETS",
@@ -140,6 +140,100 @@ def _checksums_cover_every_host_test_impl(ctx):
             )
 
     return unittest.end(env)
+
+_EXPECTED_TOOL_FILES = [
+    "analysis_server.dart.snapshot",
+    "core.dart",
+    "dart",
+    "dart2js.dart.snapshot",
+    "dartvm",
+    "gen_kernel_aot.dart.snapshot",
+    "kernel-service.dart.snapshot",
+    "libraries.json",
+    "version",
+    "vm_platform_strong.dill",
+]
+
+_EXPECTED_COMPILE_FILES = [
+    "dart",
+    "dartvm",
+    "gen_kernel_aot.dart.snapshot",
+    "kernel-service.dart.snapshot",
+    "libraries.json",
+    "version",
+    "vm_platform_strong.dill",
+]
+
+_EXPECTED_RUNTIME_FILES = [
+    "dart",
+    "dartvm",
+    "kernel-service.dart.snapshot",
+    "libraries.json",
+    "version",
+    "vm_platform_strong.dill",
+]
+
+_EXPECTED_ANALYZE_FILES = [
+    "analysis_server.dart.snapshot",
+    "core.dart",
+    "dart",
+    "libraries.json",
+    "version",
+]
+
+def _basenames(files_depset):
+    return sorted([f.basename for f in files_depset.to_list()])
+
+def _assert_sdk_subsets(env, sdk_info):
+    asserts.equals(env, "3.11.0", sdk_info.version)
+    asserts.true(
+        env,
+        sdk_info.dart.short_path.endswith("dart-sdk/bin/dart"),
+        "unexpected dart path: %s" % sdk_info.dart.short_path,
+    )
+    asserts.equals(env, _EXPECTED_TOOL_FILES, _basenames(sdk_info.tool_files))
+    asserts.equals(env, _EXPECTED_COMPILE_FILES, _basenames(sdk_info.compile_files))
+    asserts.equals(env, _EXPECTED_RUNTIME_FILES, _basenames(sdk_info.runtime_files))
+    asserts.equals(env, _EXPECTED_ANALYZE_FILES, _basenames(sdk_info.analyze_files))
+
+def _sdk_toolchain_macro_native_test_impl(ctx):
+    env = analysistest.begin(ctx)
+    target = analysistest.target_under_test(env)
+    sdk_info = target[platform_common.ToolchainInfo].dart_sdk_info
+    _assert_sdk_subsets(env, sdk_info)
+    asserts.equals(env, "", sdk_info.target_os)
+    asserts.equals(env, "", sdk_info.target_arch)
+    return analysistest.end(env)
+
+def _sdk_toolchain_macro_cross_test_impl(ctx):
+    env = analysistest.begin(ctx)
+    target = analysistest.target_under_test(env)
+    sdk_info = target[platform_common.ToolchainInfo].dart_sdk_info
+    _assert_sdk_subsets(env, sdk_info)
+    asserts.equals(env, "linux", sdk_info.target_os)
+    asserts.equals(env, "arm64", sdk_info.target_arch)
+    return analysistest.end(env)
+
+def _sdk_toolchain_macro_alias_test_impl(ctx):
+    env = analysistest.begin(ctx)
+    target = analysistest.target_under_test(env)
+    asserts.equals(env, _EXPECTED_TOOL_FILES, _basenames(target[DefaultInfo].files))
+    return analysistest.end(env)
+
+def _sdk_toolchain_macro_dict_cross_test_impl(ctx):
+    env = analysistest.begin(ctx)
+    target = analysistest.target_under_test(env)
+    sdk_info = target[platform_common.ToolchainInfo].dart_sdk_info
+    asserts.equals(env, "linux", sdk_info.target_os)
+    asserts.equals(env, "riscv64", sdk_info.target_arch)
+    asserts.equals(env, ["dart", "extra.txt", "version"], _basenames(sdk_info.tool_files))
+    asserts.equals(env, ["dart", "version"], _basenames(sdk_info.compile_files))
+    return analysistest.end(env)
+
+sdk_toolchain_macro_native_test = analysistest.make(_sdk_toolchain_macro_native_test_impl)
+sdk_toolchain_macro_cross_test = analysistest.make(_sdk_toolchain_macro_cross_test_impl)
+sdk_toolchain_macro_alias_test = analysistest.make(_sdk_toolchain_macro_alias_test_impl)
+sdk_toolchain_macro_dict_cross_test = analysistest.make(_sdk_toolchain_macro_dict_cross_test_impl)
 
 _t0_test = unittest.make(_target_platforms_is_the_union_test_impl)
 _t1_test = unittest.make(_cross_targets_resolve_test_impl)

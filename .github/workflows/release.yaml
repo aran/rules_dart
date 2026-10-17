@@ -7,9 +7,6 @@ on:
       tag_name:
         required: true
         type: string
-    secrets:
-      publish_token:
-        required: true
   # Or, developers can manually push a tag from their clone
   push:
     tags:
@@ -25,38 +22,4 @@ jobs:
       release_files: rules_dart-*.tar.gz
       prerelease: false
       tag_name: ${{ inputs.tag_name || github.ref_name }}
-  publish:
-    needs: release
-    uses: ./.github/workflows/publish.yaml
-    with:
-      tag_name: ${{ inputs.tag_name || github.ref_name }}
-    secrets:
-      publish_token: ${{ secrets.publish_token || secrets.BCR_PUBLISH_TOKEN }}
-  pub-publish:
-    needs: release
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ inputs.tag_name || github.ref_name }}
-      - uses: dart-lang/setup-dart@v1
-      - name: Inject version from tag
-        run: |
-          TAG="${{ inputs.tag_name || github.ref_name }}"
-          VERSION="${TAG#v}"
-          sed -i "s/^version: 0\.0\.0-dev$/version: $VERSION/" dart/runfiles/pubspec.yaml
-          echo "Publishing runfiles $VERSION"
-      - name: Generate changelog
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          TAG="${{ inputs.tag_name || github.ref_name }}"
-          # The notes from release_prep.sh start at their `## X.Y.Z` heading,
-          # after the bazel_dep snippet, which pub.dev users do not need.
-          NOTES=$(gh release view "$TAG" --json body --jq .body | sed -n '/^## /,$p')
-          printf '# Changelog\n\n%s\n' "$NOTES" > dart/runfiles/CHANGELOG.md
-      - name: Publish to pub.dev
-        run: dart pub publish --force
-        working-directory: dart/runfiles
+

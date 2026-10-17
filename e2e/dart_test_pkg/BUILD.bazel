@@ -1,4 +1,4 @@
-load("@rules_dart//dart:defs.bzl", "dart_analysis_config", "dart_analysis_options", "dart_test")
+load("@rules_dart//dart:defs.bzl", "dart_analysis_config", "dart_analysis_options", "dart_library", "dart_test")
 
 exports_files(["pubspec.lock"])
 
@@ -25,4 +25,104 @@ dart_test(
     size = "small",
     main = "test/example_test.dart",
     deps = ["@pub_deps//:test"],
+)
+
+dart_library(
+    name = "dup_base",
+    package_name = "dart_test_pkg",
+    srcs = ["lib/dup/shared.dart"],
+    language_version = "3.11",
+)
+
+dart_library(
+    name = "dup_top",
+    package_name = "dart_test_pkg",
+    srcs = [
+        "lib/dup/shared.dart",
+        "lib/dup/top.dart",
+    ],
+    language_version = "3.11",
+    deps = [":dup_base"],
+)
+
+dart_test(
+    name = "dup_nested_test",
+    size = "small",
+    main = "test/dup_nested_test.dart",
+    deps = [
+        ":dup_top",
+        "@pub_deps//:test",
+    ],
+)
+
+dart_library(
+    name = "sib_a",
+    package_name = "dart_test_pkg",
+    srcs = ["lib/sib/common.dart"],
+    language_version = "3.11",
+    # `common.dart` imports `b.dart`, which only `sib_b` lists.
+    tags = ["no-dart-analyze"],
+)
+
+dart_library(
+    name = "sib_b",
+    package_name = "dart_test_pkg",
+    srcs = [
+        "lib/sib/b.dart",
+        "lib/sib/common.dart",
+    ],
+    language_version = "3.11",
+)
+
+dart_test(
+    name = "dup_sibling_test",
+    size = "small",
+    main = "test/dup_sibling_test.dart",
+    deps = [
+        ":sib_a",
+        ":sib_b",
+        "@pub_deps//:test",
+    ],
+)
+
+# The sources of a library that cannot compile on its own, as json_serializable's
+# `_advanced_sources` is: `id.dart` imports `package:path`, which this target does not
+# declare, and `role.dart` declares a part that only `:split` lists. The `:split`
+# wrapper lists the same files, declares the missing dependency and the part, and
+# is what the test reaches.
+dart_library(
+    name = "_split_sources",
+    package_name = "dart_test_pkg",
+    srcs = [
+        "lib/split/id.dart",
+        "lib/split/role.dart",
+    ],
+    language_version = "3.11",
+    tags = ["no-dart-analyze"],
+)
+
+dart_library(
+    name = "split",
+    package_name = "dart_test_pkg",
+    srcs = [
+        "lib/split/id.dart",
+        "lib/split/role.dart",
+        "lib/split/role.part.dart",
+    ],
+    language_version = "3.11",
+    deps = [
+        ":_split_sources",
+        "@pub_deps//:path",
+    ],
+)
+
+dart_test(
+    name = "split_test",
+    size = "small",
+    main = "test/split_test.dart",
+    deps = [
+        ":split",
+        "@pub_deps//:path",
+        "@pub_deps//:test",
+    ],
 )

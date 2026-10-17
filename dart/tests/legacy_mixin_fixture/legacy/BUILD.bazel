@@ -1,0 +1,9 @@
+load("//dart:defs.bzl", "dart_library")
+
+dart_library(
+    name = "legacy",
+    srcs = ["lib/legacy.dart"],
+    language_version = "2.19",
+    package_name = "legacy_mixin_fixture_legacy",
+    visibility = ["//dart/tests:__subpackages__"],
+)

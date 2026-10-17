@@ -797,6 +797,7 @@ void main() {
             ({
               required List<String> includedPaths,
               required String? sdkPath,
+              required List<String> librarySummaryPaths,
             }) async {
               // Checked here rather than after the run: the staging dir is deleted
               // as soon as `runShim` returns.
@@ -1392,6 +1393,111 @@ void main() {
         reason: 'second request must not inherit first request\'s exit code',
       );
     });
+
+    test(
+      'cross-package requests in the same persistent worker are history-independent for both lib/ and test/ assets',
+      () async {
+        final recorded = <String, Map<String, Object?>>{};
+        String? cachedRootPackageName;
+
+        final loop = ShimWorkerLoop(
+          factoryOrFactories: (_) => _CapturingBuilder((step) async {
+            final lib = await step.resolver.libraryFor(step.inputId);
+            final libUri = lib.firstFragment.source.uri;
+            final cls = lib.classes.first;
+            final assetId = await step.resolver.assetIdForElement(cls);
+            final isLib = await step.resolver.isLibrary(step.inputId);
+
+            // Simulate source_gen's top-level `final String rootPackageName`
+            // (which reads CWD's `pubspec.yaml` only on the first request) and
+            // `_fileToAssetUrl`'s `p.join(rootPackageName, p.relative(url.path))`.
+            if (cachedRootPackageName == null) {
+              final pubspecText = File('pubspec.yaml').readAsStringSync();
+              final match = RegExp(
+                r'^name:\s*"?([^"\n]*)"?',
+                multiLine: true,
+              ).firstMatch(pubspecText);
+              cachedRootPackageName = match?.group(1) ?? '';
+            }
+            final sourceGenAssetPath = libUri.scheme == 'file'
+                ? p.posix.joinAll(
+                    p.split(
+                      p.join(cachedRootPackageName!, p.relative(libUri.path)),
+                    ),
+                  )
+                : '${assetId.package}/${assetId.path}';
+
+            recorded[step.inputId.package] = {
+              'uriScheme': libUri.scheme,
+              'assetId': assetId.toString(),
+              'isLibrary': isLib,
+              'sourceGenAssetPath': sourceGenAssetPath,
+            };
+          }),
+        );
+
+        final testA = File(p.join(tmp.path, 'a_test.dart'))
+          ..writeAsStringSync('class MockA {}\n');
+        final outA = File(p.join(tmp.path, 'a_test.mocks.dart'));
+        final respA = await loop.performRequest(
+          WorkRequest(
+            arguments: [
+              '--input',
+              testA.path,
+              '--input-asset',
+              'test/a_test.dart',
+              '--output',
+              outA.path,
+              '--package',
+              'pkg_a',
+              '--root-language-version',
+              '3.11',
+            ],
+          ),
+        );
+        expect(respA.exitCode, 0, reason: respA.output);
+
+        final testB = File(p.join(tmp.path, 'b_test.dart'))
+          ..writeAsStringSync('class MockB {}\n');
+        final outB = File(p.join(tmp.path, 'b_test.mocks.dart'));
+        final respB = await loop.performRequest(
+          WorkRequest(
+            arguments: [
+              '--input',
+              testB.path,
+              '--input-asset',
+              'test/b_test.dart',
+              '--output',
+              outB.path,
+              '--package',
+              'pkg_b',
+              '--root-language-version',
+              '3.11',
+            ],
+          ),
+        );
+        expect(respB.exitCode, 0, reason: respB.output);
+
+        expect(recorded['pkg_a'], {
+          'uriScheme': 'file',
+          'assetId': 'pkg_a|test/a_test.dart',
+          'isLibrary': true,
+          'sourceGenAssetPath': 'pkg_a/test/a_test.dart',
+        });
+        expect(
+          recorded['pkg_b'],
+          {
+            'uriScheme': 'file',
+            'assetId': 'pkg_b|test/b_test.dart',
+            'isLibrary': true,
+            'sourceGenAssetPath': 'pkg_b/test/b_test.dart',
+          },
+          reason:
+              'second package in persistent worker must not inherit pkg_a '
+              'in source_gen file-to-asset URL normalization',
+        );
+      },
+    );
   });
 }
 

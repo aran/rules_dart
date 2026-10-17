@@ -8,6 +8,10 @@
 ///   --output <out.g.dart>   Where to write the combined file.
 ///   --part <shard.g.part>   Repeatable. Path to a SharedPartBuilder shard.
 ///
+/// `--summary` and `--sdk-summary` are accepted and ignored: the
+/// `dart_codegen` rule passes them to every `generator_bin` under
+/// `//dart:analyzer_summaries`, and this shim does no analysis.
+///
 /// Shards are concatenated in lexicographic order for determinism. A
 /// `part of` directive at the very start of a shard — URI form
 /// (`part of '…';`) or legacy identifier form (`part of lib.name;`) — is
@@ -87,7 +91,9 @@ Future<void> _runOnce(
     ..addMultiOption('dep')
     ..addOption('config', defaultsTo: '')
     ..addOption('root-language-version', defaultsTo: '')
-    ..addOption('sdk-path', defaultsTo: '');
+    ..addOption('sdk-path', defaultsTo: '')
+    ..addMultiOption('summary')
+    ..addOption('sdk-summary', defaultsTo: '');
 
   final ArgResults args;
   try {

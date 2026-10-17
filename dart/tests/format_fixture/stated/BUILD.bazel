@@ -70,9 +70,9 @@ dart_wasm_binary(
         target_under_test = ":" + target,
     )
     for target, entry in [
-        ("stated_main", '"name": "stated", "rootUri": "../../../../../../../dart/tests/format_fixture/stated", "packageUri": "lib/", "languageVersion": "3.6"'),
-        ("stated_test", '"name": "stated", "rootUri": "../../../../../../../dart/tests/format_fixture/stated", "packageUri": "lib/", "languageVersion": "3.6"'),
-        ("meta_test", '"name": "stated", "rootUri": "../../../../../../../dart/tests/format_fixture/stated", "packageUri": "lib/", "languageVersion": "3.6"'),
+        ("stated_main", '"name": "stated", "rootUri": "org-dartlang-bazel:///dart/tests/format_fixture/stated", "packageUri": "lib/", "languageVersion": "3.6"'),
+        ("stated_test", '"name": "stated", "rootUri": "org-dartlang-bazel:///dart/tests/format_fixture/stated", "packageUri": "lib/", "languageVersion": "3.6"'),
+        ("meta_test", '"name": "stated", "rootUri": "org-dartlang-bazel:///dart/tests/format_fixture/stated", "packageUri": "lib/", "languageVersion": "3.6"'),
         ("stated_js", '"name": "stated", "rootUri": "../src/dart/tests/format_fixture/stated", "packageUri": "lib/", "languageVersion": "3.6"'),
         ("stated_wasm", '"name": "stated", "rootUri": "../src/dart/tests/format_fixture/stated", "packageUri": "lib/", "languageVersion": "3.6"'),
     ]

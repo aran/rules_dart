@@ -3,4 +3,5 @@ environment:
   sdk: ^3.11.0
 dependencies:
   collection: ^1.19.1
+  file: ^7.0.1
   path: ^1.9.1

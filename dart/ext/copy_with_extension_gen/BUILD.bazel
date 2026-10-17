@@ -6,6 +6,7 @@ dart_binary(
     name = "shim",
     srcs = ["shim.dart"],
     code_assets_from_deps = False,
+    compile_mode = "kernel",
     main = "shim.dart",
     visibility = ["//visibility:public"],
     deps = [

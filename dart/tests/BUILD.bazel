@@ -1,9 +1,12 @@
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load(":analyzer_summary_test.bzl", "analyzer_summary_test_suite")
 load(":code_asset_test.bzl", "code_asset_test_suite")
 load(":codegen_test.bzl", "codegen_test_suite")
 load(":common_test.bzl", "common_test_suite")
+load(":compile_flags_test.bzl", "compile_flags_test_suite")
 load(":dart_binary_test.bzl", "dart_binary_test_suite")
 load(":defines_test.bzl", "defines_test_suite")
+load(":kernel_test.bzl", "kernel_test_suite")
 load(":language_version_test.bzl", "language_version_test_suite")
 load(":library_test.bzl", "library_test_suite")
 load(":link_hook_test.bzl", "link_hook_test_suite")
@@ -18,6 +21,7 @@ load(":toolchain_selection_test.bzl", "toolchain_selection_test_suite")
 load(":toolchains_test.bzl", "toolchains_test_suite")
 load(":versions_test.bzl", "versions_test_suite")
 load(":yaml_parser_test.bzl", "yaml_parser_test_suite")
+load(":yaml_subset_test.bzl", "yaml_subset_test_suite")
 
 versions_test_suite(name = "versions_test")
 
@@ -31,6 +35,8 @@ dart_binary_test_suite(name = "dart_binary_test")
 
 defines_test_suite(name = "defines_test")
 
+compile_flags_test_suite(name = "compile_flags_test")
+
 native_assets_test_suite(name = "native_assets_test")
 
 code_asset_test_suite(name = "code_asset_test")
@@ -43,9 +49,13 @@ project_staging_test_suite(name = "project_staging_test")
 
 yaml_parser_test_suite(name = "yaml_parser_test")
 
+yaml_subset_test_suite(name = "yaml_subset_test")
+
 codegen_test_suite(name = "codegen_test")
 
 source_set_test_suite(name = "source_set_test")
+
+kernel_test_suite(name = "kernel_test")
 
 language_version_test_suite(name = "language_version_test")
 
@@ -54,6 +64,8 @@ library_test_suite(name = "library_test")
 link_hook_test_suite(name = "link_hook_test")
 
 semver_test_suite(name = "semver_test")
+
+analyzer_summary_test_suite(name = "analyzer_summary_version_test")
 
 provider_shape_probe(
     name = "provider_shape_probe_target",

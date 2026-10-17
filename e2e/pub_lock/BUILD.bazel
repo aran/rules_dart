@@ -7,11 +7,14 @@ exports_files(["pubspec.lock"])
 # another module, the way rules_flutter consumes it.
 check_registry_contract()
 
+# `file` imports `path`, and `path` is declared with pub.package() above: both
+# reach this binary through the one hub, so `file` must see the explicit repo.
 dart_binary(
     name = "app",
     main = "main.dart",
     deps = [
         "@pub_deps//:collection",
+        "@pub_deps//:file",
         "@pub_deps//:path",
     ],
 )

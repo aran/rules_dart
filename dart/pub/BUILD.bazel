@@ -4,6 +4,7 @@ bzl_library(
     name = "yaml_parser",
     srcs = ["yaml_parser.bzl"],
     visibility = ["//visibility:public"],
+    deps = ["//dart/pub/private:yaml_subset"],
 )
 
 bzl_library(

@@ -107,7 +107,9 @@ Future<void> main(List<String> arguments) async {
       );
     }
     for (final MapEntry(key: name, value: path) in declared.entries) {
-      File.fromUri(emitted[name]!.file).copySync(path);
+      final dst = File(path);
+      dst.parent.createSync(recursive: true);
+      dst.writeAsBytesSync(File.fromUri(emitted[name]!.file).readAsBytesSync());
     }
     // The record kept of the hook's output names each asset by its declared
     // output rather than the scratch file it was copied from, and drops the

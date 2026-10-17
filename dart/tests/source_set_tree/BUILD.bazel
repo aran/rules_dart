@@ -1,0 +1,29 @@
+load("//dart:defs.bzl", "dart_source_set", "dart_test")
+
+# `inner` is a tree artifact: its files sit under `inner/` in the outer set.
+dart_source_set(
+    name = "inner",
+    srcs = ["lib/a.dart"],
+)
+
+# `outer` takes the tree artifact `inner` as one of its sources. Its copy must
+# expand the directory into its files, and keep their paths under `inner/`.
+dart_source_set(
+    name = "outer",
+    srcs = [
+        "lib/c.dart",
+        ":inner",
+    ],
+)
+
+dart_test(
+    name = "tree_test",
+    size = "small",
+    args = ["$(rlocationpath :outer)"],
+    data = [":outer"],
+    main = "test/tree_test.dart",
+    deps = [
+        "//dart/runfiles",
+        "@ext_pub_deps//:test",
+    ],
+)

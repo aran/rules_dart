@@ -1,5 +1,7 @@
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
 load("//dart/private:build_settings.bzl", "dart_defines_flag")
+load("//dart/private:copy_toolchain.bzl", "copy_toolchain")
 load("//dart/private:dart_sdk_binary.bzl", "dart_sdk_binary")
 load("//dart/private:resolved_toolchain.bzl", "resolved_toolchain")
 
@@ -9,6 +11,56 @@ load("//dart/private:resolved_toolchain.bzl", "resolved_toolchain")
 dart_defines_flag(
     name = "extra_dart_defines",
     build_setting_default = [],
+    visibility = ["//visibility:public"],
+)
+
+# Whether `dart_test` runs under an app-JIT snapshot of the `package:test` runner,
+# which starts each test faster than the runner's kernel does. The snapshot is
+# trained for a baseline CPU rather than the build host's, which is meant to let a
+# remote cache share it across CPUs. Turn the flag off when a snapshot misbehaves;
+# each test then runs the runner's kernel, as before:
+#   bazel test //... --@rules_dart//dart:test_runner_snapshot=false
+bool_flag(
+    name = "test_runner_snapshot",
+    build_setting_default = True,
+    visibility = ["//visibility:public"],
+)
+
+# Whether `dart_analyze` checks each target against per-library summaries of its
+# dependencies, rather than analyzing the dependencies' source again. It is
+# faster, and a body edit in a library stops re-analyzing the libraries above it,
+# since a summary holds no function bodies. On by default. Turn it off in
+# `.bazelrc` to analyze from source, as `dart analyze` runs:
+#   common --@rules_dart//dart:analyzer_summaries=false
+#
+# A target is analyzed from source anyway when its closure holds an unbacked
+# embedder (a `lib/_embedder.yaml` outside Flutter's `sky_engine`), when the
+# analyzing SDK is newer than the pinned analyzer supports
+# (`ANALYZER_MAX_LANGUAGE_VERSION` in dart/private/dart_analyzer_summary.bzl),
+# and when a dependency has no summary, such as an opaque `srcs_dir` library.
+# `dart_codegen` passes summaries only to generators built on the builder shim.
+#
+# The diagnostics come from rules_dart's pinned `package:analyzer`, 14.5.0, with
+# the lint rules of the SDK linter vendored in //third_party/dart_linter (the
+# commit that published that analyzer). On the CI red paths they matched
+# `dart analyze` line for line. The vendored set lacks `migrate_design_widgets`
+# relative to SDK 3.13.5. Once the SDK moves ahead of the pin, diagnostics can
+# drift from the SDK's `dart analyze`. `dart fix` still runs on the SDK.
+bool_flag(
+    name = "analyzer_summaries",
+    build_setting_default = True,
+    visibility = ["//visibility:public"],
+)
+
+# Whether test kernels are modular: each `dart_library` compiles its own sources
+# once, and a `dart_test` compiles only its entry and links the module kernels.
+# Off, each test compiles its whole closure into one kernel, as it did before.
+# Use the whole-program compile to rule modular compilation out when a build
+# misbehaves:
+#   bazel test //... --@rules_dart//dart:modular_kernel=false
+bool_flag(
+    name = "modular_kernel",
+    build_setting_default = True,
     visibility = ["//visibility:public"],
 )
 
@@ -29,6 +81,25 @@ toolchain_type(
 # registers no compile toolchain for.
 toolchain_type(
     name = "exec_tools_toolchain_type",
+    visibility = ["//visibility:public"],
+)
+
+# The tool that copies files into a directory (`assemble_source_dir`). Registered
+# in MODULE.bazel; rules declare `COPY_TO_DIRECTORY_TOOLCHAINS` to get it.
+toolchain_type(
+    name = "copy_toolchain_type",
+    visibility = ["//visibility:public"],
+)
+
+copy_toolchain(
+    name = "copy_toolchain_impl",
+    tool = "//dart/private/tools:copy_tree",
+)
+
+toolchain(
+    name = "copy_toolchain",
+    toolchain = ":copy_toolchain_impl",
+    toolchain_type = ":copy_toolchain_type",
     visibility = ["//visibility:public"],
 )
 
@@ -54,6 +125,7 @@ bzl_library(
     srcs = ["repositories.bzl"],
     visibility = ["//visibility:public"],
     deps = [
+        ":toolchain",
         "//dart/private:toolchains_repo",
         "//dart/private:versions",
     ],
@@ -106,11 +178,26 @@ bzl_library(
     srcs = ["utils.bzl"],
     visibility = ["//visibility:public"],
     deps = [
+        ":providers",
         "//dart/private:common",
         "//dart/private:dart_info",
+        "//dart/private:dart_kernel",
         "//dart/private:dart_library",
+        "//dart/private:dart_link_hook",
         "//dart/private:source_set",
     ],
+)
+
+alias(
+    name = "kernel_module",
+    actual = "//dart/private/tools:kernel_module",
+    visibility = ["//visibility:public"],
+)
+
+alias(
+    name = "kernel_link",
+    actual = "//dart/private/tools:kernel_link",
+    visibility = ["//visibility:public"],
 )
 
 # The `dart_analysis_config` whose options the `dart_analyze` aspect, `dart_fix`

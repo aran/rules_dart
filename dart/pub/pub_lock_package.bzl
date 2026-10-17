@@ -19,35 +19,89 @@ load("//dart/pub/private:language_version.bzl", _derive_language_version = "deri
 derive_language_version = _derive_language_version
 make_dart_library_build_content = _make_dart_library_build_content
 
+def pub_lock_package_sha256_error(package_name, version, sha256):
+    """Returns an error string when `sha256` is empty, or None."""
+    if not sha256:
+        return 'pub_lock_package "%s" (%s) requires a non-empty sha256.' % (
+            package_name,
+            version,
+        )
+    return None
+
+def trim_gzip_trailing_nulls(data):
+    """Strips trailing NUL padding after a `.tar.gz` gzip stream.
+
+    Some pub.dev tarballs (e.g. `nested@1.0.0`) are padded with NUL bytes to a
+    10 KiB tar record boundary past the 8-byte RFC 1952 gzip trailer (4-byte
+    CRC32 + 4-byte little-endian uncompressed `ISIZE`). Bazel's
+    `GzipCompressorInputStream` rejects trailing bytes after the trailer with
+    `Garbage after a valid .gz stream`.
+
+    Because the uncompressed stream is a `.tar` archive (a non-empty multiple
+    of 512 bytes), `ISIZE % 512 == 0`, so `ISIZE[0] == 0` and at least one of
+    `ISIZE[1..3]` is non-zero (for archives < 4 GiB), meaning an unpadded
+    `.tar.gz` ends with at most two NUL bytes.
+
+    Args:
+        data: Raw archive bytes as an ISO-8859-1 Starlark string.
+
+    Returns:
+        The archive bytes with any trailing NUL padding past the gzip trailer
+        removed.
+    """
+    if not data.endswith("\0\0\0\0"):
+        return data
+    stripped = data.rstrip("\0")
+    if len(stripped) < 10:
+        return data
+    b2_zero = stripped[-2:-1] == "\0"
+    b3_zero = stripped[-3:-2] == "\0"
+    if b2_zero and not b3_zero:
+        return stripped + "\0\0"
+    if b3_zero and not b2_zero:
+        if stripped[-4:-3] == "\0" and (hash(stripped[-2:-1]) + hash(stripped[-1:]) * 256) * 256 < len(stripped):
+            return stripped
+        return stripped + "\0"
+    if b2_zero and b3_zero:
+        b = hash(stripped[-1:])
+        if b % 2 != 0 or b * 256 < len(stripped):
+            return stripped + "\0"
+        return stripped + "\0\0"
+    return stripped
+
 def _pub_lock_package_impl(ctx):
+    err = pub_lock_package_sha256_error(
+        ctx.attr.package_name,
+        ctx.attr.version,
+        ctx.attr.sha256,
+    )
+    if err:
+        fail(err)
+
     url = "{base}/packages/{name}/versions/{version}.tar.gz".format(
         base = ctx.attr.base_url,
         name = ctx.attr.package_name,
         version = ctx.attr.version,
     )
 
-    # pub.dev serves some tarballs with trailing garbage past the gzip
-    # stream (observed as of 2026-04 on `nested@1.0.0`, among others).
-    # Bazel's built-in `download_and_extract` uses a strict Java gzip
-    # decoder that errors on the trailing bytes — but the archive itself
-    # is a valid tar.gz (GNU `tar -xzf` accepts it, `gunzip -t` reports
-    # "trailing garbage ignored").
+    # pub.dev serves some tarballs padded with trailing NUL bytes past the
+    # 8-byte RFC 1952 gzip trailer (observed as of 2026-04 on `nested@1.0.0`,
+    # among others). Bazel's built-in `GzipCompressorInputStream` rejects
+    # trailing bytes after the trailer with `Garbage after a valid .gz stream`.
     #
-    # We download the archive, then extract with the system `tar`
-    # command, which tolerates the trailing bytes. The sha256 still
-    # verifies the download so integrity is preserved.
+    # Download the archive (verifying its sha256), strip any trailing NUL
+    # padding past the gzip trailer, and unpack with `ctx.extract`.
     ctx.download(
         url = url,
         output = "_archive.tar.gz",
-        sha256 = ctx.attr.sha256 if ctx.attr.sha256 else "",
+        sha256 = ctx.attr.sha256,
     )
-    result = ctx.execute(["tar", "-xzf", "_archive.tar.gz"])
-    if result.return_code != 0:
-        fail("tar -xzf failed for {url}:\nstdout: {out}\nstderr: {err}".format(
-            url = url,
-            out = result.stdout,
-            err = result.stderr,
-        ))
+    raw_archive = ctx.read("_archive.tar.gz", watch = "no")
+    trimmed_archive = trim_gzip_trailing_nulls(raw_archive)
+    if trimmed_archive != raw_archive:
+        ctx.delete("_archive.tar.gz")
+        ctx.file("_archive.tar.gz", trimmed_archive, executable = False)
+    ctx.extract("_archive.tar.gz")
     ctx.delete("_archive.tar.gz")
 
     # Read pubspec.yaml to discover deps + the package's SDK constraint, the
@@ -58,15 +112,20 @@ def _pub_lock_package_impl(ctx):
     if pubspec_path.exists:
         pubspec_content = ctx.read(pubspec_path)
         all_deps = parse_pubspec_deps(pubspec_content)
-        available = {p: True for p in ctx.attr.lock_packages}
+        available = {p: True for p in ctx.attr.lock_packages + ctx.attr.explicit_packages}
         bazel_deps = sorted([d for d in all_deps if d in available])
         language_version = _derive_language_version(
             parse_pubspec_sdk_constraint(pubspec_content),
         )
 
-    # Build full label strings for sibling spoke repos.
+    # Build full label strings for sibling repos: a dependency declared with
+    # `pub.package()` is that explicit repo, every other one is its spoke.
+    explicit = {p: True for p in ctx.attr.explicit_packages}
     dep_labels = [
-        "@{hub}__{dep}//:{dep}".format(hub = ctx.attr.hub_name, dep = dep)
+        "@{repo}//:{dep}".format(
+            repo = dep if dep in explicit else "{hub}__{dep}".format(hub = ctx.attr.hub_name, dep = dep),
+            dep = dep,
+        )
         for dep in bazel_deps
     ]
 
@@ -119,6 +178,12 @@ pub_lock_package = repository_rule(
         ),
         "lock_packages": attr.string_list(
             doc = "All hosted package names in the lock file (for dep filtering).",
+            default = [],
+        ),
+        "explicit_packages": attr.string_list(
+            doc = "Every name declared with `pub.package()`. A dependency on one of these " +
+                  "points at that explicit repository, not a spoke, and is kept even when " +
+                  "no lock file lists it.",
             default = [],
         ),
         "ignore_hook": attr.bool(

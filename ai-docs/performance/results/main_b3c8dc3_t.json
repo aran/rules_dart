@@ -1,0 +1,56 @@
+{
+  "label": "main_b3c8dc3_t",
+  "rules_rev": "b3c8dc3",
+  "scenarios": {
+    "clean_build": {
+      "wall_s": 34.88,
+      "sandboxed": 33,
+      "actions": {
+        "SymlinkTree": {
+          "n": 31,
+          "cpu_s": 0.18
+        },
+        "DartCompile": {
+          "n": 33,
+          "cpu_s": 118.59
+        }
+      }
+    },
+    "body_edit_build": {
+      "wall_s": 22.78,
+      "sandboxed": 31,
+      "actions": {
+        "DartCompile": {
+          "n": 31,
+          "cpu_s": 85.56
+        }
+      }
+    },
+    "api_edit_build": {
+      "wall_s": 15.91,
+      "sandboxed": 31,
+      "actions": {
+        "DartCompile": {
+          "n": 31,
+          "cpu_s": 58.26
+        }
+      }
+    },
+    "null_build_s": 0.21,
+    "test_run": {
+      "wall_s": 4.95,
+      "sandboxed": 30,
+      "actions": {
+        "TestRunner": {
+          "n": 30,
+          "cpu_s": 16.53
+        }
+      },
+      "per_test_s": 0.551
+    },
+    "test_runfiles": {
+      "files": 39,
+      "mb": 278
+    }
+  }
+}

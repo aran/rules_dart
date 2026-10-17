@@ -1,0 +1,28 @@
+load("//dart:defs.bzl", "dart_analysis_test", "dart_library")
+load("//dart/tests:analyzer_summary_test.bzl", "summary_file_test")
+
+# A library with a `part` among its srcs. The part is not a library, so the
+# summary must not name it as one; the library's summary must still build, and
+# the target must analyze against it.
+dart_library(
+    name = "parted",
+    package_name = "parted_fixture",
+    srcs = [
+        "lib/parted.dart",
+        "lib/parted_part.dart",
+    ],
+    language_version = "3.11",
+)
+
+summary_file_test(
+    name = "parted_summary_file_test",
+    size = "small",
+    expect_summary = True,
+    target_under_test = ":parted",
+)
+
+dart_analysis_test(
+    name = "parted_summary_analysis_test",
+    size = "small",
+    targets = [":parted"],
+)

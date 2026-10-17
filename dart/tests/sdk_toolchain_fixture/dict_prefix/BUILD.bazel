@@ -1,0 +1,19 @@
+"""Fixture exercising `declare_dart_sdk_toolchains` with a slashless prefix and dict `cross_targets`."""
+
+load("//dart:toolchain.bzl", "declare_dart_sdk_toolchains")
+load("//dart/tests:toolchains_test.bzl", "sdk_toolchain_macro_dict_cross_test")
+
+declare_dart_sdk_toolchains(
+    cross_targets = {
+        "linux-riscv64": ("linux", "riscv64"),
+    },
+    dart = "dart-sdk/bin/dart",
+    prefix = "dart-sdk",
+    version = "3.11.0",
+)
+
+sdk_toolchain_macro_dict_cross_test(
+    name = "sdk_toolchain_macro_dict_cross_test",
+    size = "small",
+    target_under_test = ":dart_toolchain_cross_linux-riscv64",
+)
