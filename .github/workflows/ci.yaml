@@ -90,6 +90,19 @@ jobs:
       - name: analysis_failure canary — ${{ matrix.name }}
         working-directory: e2e/analysis_failure
         run: bazel test ${{ matrix.flags }} //:clean_lib || [ $? -eq 4 ]
+  # The build-wide escape hatch: every dart_test compiled whole-program. Run
+  # over the workspaces whose tests cover codegen, generated parts and the
+  # package:test runner, so the path the flag falls back to cannot rot.
+  whole-program:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        folder: [".", "e2e/dart_test", "e2e/codegen"]
+    steps:
+      - uses: actions/checkout@v7
+      - name: dart_test whole-program — ${{ matrix.folder }}
+        working-directory: ${{ matrix.folder }}
+        run: bazel test --test_output=errors --@rules_dart//dart:modular_kernel=false //...
   # Workspaces that are expected to fail at module resolution.
   # Validates that rules_dart produces the correct error messages.
   expected-failure:

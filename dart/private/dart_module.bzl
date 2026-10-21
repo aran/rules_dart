@@ -216,6 +216,10 @@ def _reached(ctx):
     return reached
 
 def _module_aspect_impl(target, ctx):
+    # The build-wide escape hatch: executables compile whole programs, and
+    # nothing reads a module.
+    if not ctx.attr._modular_kernel[BuildSettingInfo].value:
+        return [DartModuleInfo(modules = depset(), manifests = depset(), exported = {})]
     reached = _reached(ctx)
 
     # Not a library: hand on the libraries it holds (a toolchain's runtime),
@@ -413,6 +417,7 @@ def dart_module_aspect(kernel_sdk, extra_dart_defines = Label("//dart:extra_dart
             "_kernel_tool": attr.label(default = _KERNEL_TOOL, executable = True, cfg = "exec"),
             "_extra_dart_defines": attr.label(default = extra_dart_defines),
             "_module_defines": attr.label(default = Label("//dart/private:module_defines")),
+            "_modular_kernel": attr.label(default = Label("//dart:modular_kernel")),
         },
     )
 

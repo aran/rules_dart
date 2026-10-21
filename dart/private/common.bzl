@@ -1295,7 +1295,8 @@ def dart_kernel_action(
         main_path = None,
         defines = [],
         flags = [],
-        native_assets_yaml = None):
+        native_assets_yaml = None,
+        roots = ["."]):
     """Runs the Dart front end (`gen_kernel`) to produce a kernel `.dill`.
 
     Every VM compile goes through here first, and `dart compile` then turns the
@@ -1335,6 +1336,9 @@ def dart_kernel_action(
       native_assets_yaml: Optional `native_assets.yaml` File, embedded as the
         `vm:ffi:native-assets` mapping. The libraries it names are a run-time
         (runfiles) dependency, not inputs.
+      roots: The filesystem roots `KERNEL_FILESYSTEM_SCHEME` reads through:
+        the exec root, plus output directories when generated files are read
+        where they lie rather than assembled into one directory first.
     """
     tools = find_sdk_kernel_tools(dart_sdk_info)
 
@@ -1344,7 +1348,7 @@ def dart_kernel_action(
     args.add("-Ddart.vm.product=" + ("true" if product else "false"))
     args.add_all(["-Ddart.vm.asan=false", "-Ddart.vm.msan=false", "-Ddart.vm.tsan=false"])
     args.add("--filesystem-scheme", KERNEL_FILESYSTEM_SCHEME)
-    args.add("--filesystem-root", ".")
+    args.add_all(roots, before_each = "--filesystem-root")
     if package_config != None:
         args.add("--packages", kernel_uri(package_config.path))
     if native_assets_yaml != None:

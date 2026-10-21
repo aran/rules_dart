@@ -1,4 +1,5 @@
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
 load("//dart/private:build_settings.bzl", "dart_defines_flag")
 load("//dart/private:dart_sdk_binary.bzl", "dart_sdk_binary")
 load("//dart/private:resolved_toolchain.bzl", "resolved_toolchain")
@@ -9,6 +10,17 @@ load("//dart/private:resolved_toolchain.bzl", "resolved_toolchain")
 dart_defines_flag(
     name = "extra_dart_defines",
     build_setting_default = [],
+    visibility = ["//visibility:public"],
+)
+
+# Whether `dart_test` compiles each library once into kernel modules and links
+# the ones a test reaches (the default), or compiles every test's whole program
+# from source. Turned off build-wide only, as an escape hatch:
+#   bazel test //... --@rules_dart//dart:modular_kernel=false
+# Off, a library's imports are no longer checked against its own `deps`.
+bool_flag(
+    name = "modular_kernel",
+    build_setting_default = True,
     visibility = ["//visibility:public"],
 )
 

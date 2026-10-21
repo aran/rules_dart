@@ -8,6 +8,7 @@ the test compiles only its own files against them and links the program (see
 `dart_module.bzl`).
 """
 
+load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("//dart:providers.bzl", "DartCodeAssetInfo", "DartInfo", "DartKernelSdkInfo")
 load("//dart/private:build_settings.bzl", "EXTRA_DART_DEFINES_ATTR", "merge_dart_defines")
 load(
@@ -18,7 +19,9 @@ load(
     "code_asset_entries",
     "collect_transitive_code_assets",
     "collect_transitive_resources",
+    "collect_transitive_srcs",
     "create_test_executable",
+    "dart_kernel_action",
     "generate_native_assets_yaml",
     "relative_path",
     "resolve_code_assets",
@@ -31,7 +34,9 @@ load(
     "collect_modules",
     "dart_entry_kernel_action",
     "dart_link_kernel_action",
+    "kernel_package_config",
     "kernel_root_path",
+    "kernel_roots",
     "module_defines_transition",
     "vm_module_aspect",
 )
@@ -51,10 +56,6 @@ def _dart_test_impl(ctx):
     hook_err = check_unreplaced_hooks(ctx.label, packages)
     if hook_err != None:
         fail(hook_err)
-
-    # Every library in `deps` is already compiled, once, into its target's
-    # module; only the test's own files are compiled here.
-    modules = collect_modules(ctx.attr.deps)
 
     # The test's own files compile as a module of their own; the entrypoint
     # compiled against them is generated: the `package:test` bootstrap, or a
@@ -97,22 +98,27 @@ def _dart_test_impl(ctx):
             content = generate_native_assets_yaml(abi, entries),
         )
 
-    entry = ctx.actions.declare_file(ctx.label.name + ".entry.dill")
-    linked = dart_entry_kernel_action(
-        ctx = ctx,
-        sdk = sdk,
-        kernel_tool = ctx.executable._kernel_tool,
-        main = main,
-        srcs = [ctx.file.main] + ctx.files.srcs,
-        packages = packages,
-        modules = modules,
-        deps = ctx.attr.deps,
-        output = entry,
-        own_package = own.record,
-        defines = merge_dart_defines(ctx),
-        native_assets_yaml = native_assets_yaml,
-    )
-    dart_link_kernel_action(ctx, ctx.executable._kernel_tool, entry, linked, dill)
+    if not ctx.attr._modular_kernel[BuildSettingInfo].value:
+        # The whole program from source, as `dart_binary` compiles: what the
+        # build-wide escape hatch falls back to.
+        srcs = collect_transitive_srcs(ctx.attr.deps).to_list() + [ctx.file.main, main] + ctx.files.srcs
+        package_config = ctx.actions.declare_file(ctx.label.name + ".package_config.json")
+        ctx.actions.write(package_config, kernel_package_config(packages))
+        dart_kernel_action(
+            ctx = ctx,
+            dart_sdk_info = dart_sdk_info,
+            main = main,
+            transitive_srcs = depset(srcs),
+            package_config = package_config,
+            output_dill = dill,
+            product = True,
+            main_path = kernel_root_path(main.short_path),
+            defines = merge_dart_defines(ctx),
+            native_assets_yaml = native_assets_yaml,
+            roots = kernel_roots(srcs),
+        )
+    else:
+        _link_modules(ctx, sdk, main, packages, own, native_assets_yaml, dill)
 
     # Thin launcher: run the self-contained dill with asserts enabled. The dill
     # carries all sources/imports, so runfiles need only the VM and (for code
@@ -164,6 +170,25 @@ def _dart_test_impl(ctx):
         # the analyze/fix rules stage by `short_path`.
         own.analyzable,
     ]
+
+def _link_modules(ctx, sdk, main, packages, own, native_assets_yaml, dill):
+    """Compiles the test's own files and entrypoint against its modules, and links them."""
+    entry = ctx.actions.declare_file(ctx.label.name + ".entry.dill")
+    linked = dart_entry_kernel_action(
+        ctx = ctx,
+        sdk = sdk,
+        kernel_tool = ctx.executable._kernel_tool,
+        main = main,
+        srcs = [ctx.file.main] + ctx.files.srcs,
+        packages = packages,
+        modules = collect_modules(ctx.attr.deps),
+        deps = ctx.attr.deps,
+        output = entry,
+        own_package = own.record,
+        defines = merge_dart_defines(ctx),
+        native_assets_yaml = native_assets_yaml,
+    )
+    dart_link_kernel_action(ctx, ctx.executable._kernel_tool, entry, linked, dill)
 
 def _test_runner(ctx, packages):
     """The `package:test` runner for this test, or `None` to run it directly.
@@ -344,6 +369,7 @@ told where a runfile is (resolve it with `Runfiles.rlocation()`).""",
         "env_inherit": attr.string_list(
             doc = "Names of environment variables passed through from the environment `bazel test` runs in.",
         ),
+        "_modular_kernel": attr.label(default = Label("//dart:modular_kernel")),
         "_tool": attr.label(
             default = "//dart/private/tools:test_runner",
             executable = True,
