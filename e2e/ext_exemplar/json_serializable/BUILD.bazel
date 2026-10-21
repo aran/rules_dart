@@ -59,25 +59,8 @@ json_serializable_library(
 )
 
 # --- Advanced annotations via the macro. ---
-# user.dart references role.dart and custom_id.dart; the macro generates
-# one per-file codegen each, so each gets siblings visible via a shared
-# source-only dart_library.
-dart_library(
-    name = "_advanced_sources",
-    package_name = "json_serializable_fixture",
-    srcs = [
-        "lib/custom_id.dart",
-        "lib/role.dart",
-    ],
-    language_version = "3.11",
-    # Sibling sources for the codegen stages, not a standalone library:
-    # role.dart's part file only exists on `:advanced`, which analyzes them.
-    tags = ["no-dart-analyze"],
-    # custom_id.dart is `@immutable` — it defines ==/hashCode, and the
-    # analyzer only accepts that on a class it can prove immutable.
-    deps = ["@pub_deps//:meta"],
-)
-
+# user.dart references role.dart and custom_id.dart; each file's generator
+# sees its siblings through the macro.
 json_serializable_library(
     name = "advanced",
     package_name = "json_serializable_fixture",
@@ -88,10 +71,7 @@ json_serializable_library(
         "lib/wrapper.dart",
     ],
     language_version = "3.11",
-    deps = [
-        ":_advanced_sources",
-        "@pub_deps//:meta",
-    ],
+    deps = ["@pub_deps//:meta"],
 )
 
 # Aggregate library used by tests — pulls in every flavor.

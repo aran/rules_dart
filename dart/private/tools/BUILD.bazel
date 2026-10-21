@@ -88,3 +88,43 @@ dart_binary(
         "@ext_pub_deps//:hooks",
     ],
 )
+
+_KERNEL_TOOL_SRCS = [
+    "kernel_tool/args.dart",
+    "kernel_tool/commands.dart",
+    "kernel_tool/compile.dart",
+    "kernel_tool/directives.dart",
+    "kernel_tool/entry_command.dart",
+    "kernel_tool/link_command.dart",
+    "kernel_tool/manifest.dart",
+    "kernel_tool/module_command.dart",
+    "kernel_tool/module_graph.dart",
+    "kernel_tool/policy.dart",
+    "kernel_tool/uris.dart",
+    "kernel_tool/worker_command.dart",
+]
+
+_KERNEL_TOOL_DEPS = [
+    "@ext_pub_deps//:analyzer",
+    "@ext_pub_deps//:bazel_worker",
+    "@ext_pub_deps//:crypto",
+]
+
+dart_binary(
+    name = "kernel_tool",
+    srcs = _KERNEL_TOOL_SRCS,
+    compile_mode = "exe",
+    main = "kernel_tool.dart",
+    # Public: rule sets with their own platform link through it
+    # (`KERNEL_TOOL_ATTR` in `//dart:utils.bzl`).
+    visibility = ["//visibility:public"],
+    deps = _KERNEL_TOOL_DEPS,
+)
+
+dart_test(
+    name = "kernel_tool_test",
+    size = "small",
+    srcs = _KERNEL_TOOL_SRCS,
+    main = "kernel_tool_test.dart",
+    deps = _KERNEL_TOOL_DEPS + ["@ext_pub_deps//:test"],
+)

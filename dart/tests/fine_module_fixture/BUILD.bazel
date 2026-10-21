@@ -1,0 +1,23 @@
+load("//dart:defs.bzl", "dart_library", "dart_test")
+
+# A library with a web-only public entrypoint, which re-exports a source file
+# importing `dart:js_interop`, which imports a leaf. Every library is its own
+# module, so a VM test that imports only the leaf does not reach the web
+# modules; merging the leaf into the entrypoint's module would make it
+# unusable on the VM.
+dart_library(
+    name = "fine_module_fixture",
+    package_name = "fine_module_fixture",
+    srcs = [
+        "lib/fine_web.dart",
+        "lib/src/pool_workers.dart",
+        "lib/src/runtime_web.dart",
+    ],
+)
+
+dart_test(
+    name = "pool_workers_test",
+    size = "small",
+    main = "test/pool_workers_test.dart",
+    deps = [":fine_module_fixture"],
+)

@@ -73,6 +73,12 @@ use_repo(dart, "dart_toolchains")
 
 register_toolchains("@dart_toolchains//:all")
 
+# A toolchain supplying a Dart library, for the kernel module aspect's test.
+register_toolchains(
+    "//dart/tests/toolchain_dep_fixture:runtime_toolchain",
+    dev_dependency = True,
+)
+
 multitool = use_extension(
     "@rules_multitool//multitool:extension.bzl",
     "multitool",

@@ -30,6 +30,8 @@ forwarded silently discards every dependency's values.""",
     fields = {
         "package_name": "str: The Dart package name for this library.",
         "lib_root": "str: The short_path-based path to the package root directory (parent of `lib/`). Configuration-independent; consumers derive exec-root paths from source File objects.",
+        "srcs": "list[File]: This target's own Dart sources (or its source directory), without its dependencies'. The unit a per-library kernel compile builds.",
+        "deps": "dict[Label, str]: The targets this one depends on directly, as passed to `dart_info()` from whatever attribute or toolchain they came, each with its package name. The modules a per-library compile builds against, and the packages it may import.",
         "transitive_srcs": "depset[File]: All transitive Dart source files, including this library's own sources.",
         "transitive_resources": "depset[File]: Non-Dart files shipped inside `lib/` (see `dart_library`'s `resources`) by this library and all transitive deps. Carried beside `transitive_srcs` rather than within it because the two are routed differently: everything that stages a whole package wants both, and nothing that feeds the compiler wants these.",
         "transitive_packages": "depset[DartPackageInfo]: Package records for this library and all transitive deps.",
@@ -196,5 +198,43 @@ merged into the analyzed target's provider.""",
         "packages": "list[DartPackageInfo]: Package records for every package the includes may reference.",
         "transitive_srcs": "depset[File]: Dart sources of those packages.",
         "transitive_resources": "depset[File]: Non-Dart `lib/` files of those packages — where a published ruleset's yaml actually lives.",
+    },
+)
+
+DartKernelSdkInfo = provider(
+    doc = """The tools and platform one kernel target compiles with, for \
+`dart_module_aspect`.
+
+A kernel module is only valid for the platform it was compiled against, so the \
+VM (rules_dart) and Flutter (rules_flutter) each supply one of these and get \
+their own modules. Everything that differs between the two is here; the \
+aspect is otherwise the same code.""",
+    fields = {
+        "target": "str: The front end's target name (`vm`, `flutter`).",
+        "runtime": "File: The `dartaotruntime` that runs the snapshots.",
+        "kernel_worker": "File: `kernel_worker_aot.dart.snapshot`, which compiles modules.",
+        "frontend_server": "File: `frontend_server_aot.dart.snapshot`, which compiles an executable's entrypoint.",
+        "platform": "File: The platform `.dill` modules and entrypoints compile against.",
+        "sdk_root": "str: The directory holding `platform`, passed as the front end's `--sdk-root`.",
+        "libraries_spec": "File: The `libraries.json` that lists the `dart:` libraries `target` provides.",
+        "libraries_target": "str: The entry in `libraries_spec` to read (its `include` entries are followed).",
+        "defines": "list[str]: Environment declarations the platform itself fixes, e.g. `dart.vm.product=true`.",
+        "tool_files": "depset[File]: Everything the tools need at run time.",
+    },
+)
+
+DartModuleInfo = provider(
+    doc = """A target's compiled kernel modules and those of everything it \
+depends on, from `dart_module_aspect`.
+
+A target's sources are split as Dart's own modular build splits a package — \
+one module per strongly connected component of their imports — and compiled into a directory of `.dill`s beside a \
+`<directory>.json` manifest naming each module's libraries, its imports, and \
+whether it compiled. An executable compiles its entrypoint against, and links, \
+only the modules it reaches.""",
+    fields = {
+        "modules": "depset[File]: This target's module directory and every dependency's, dependencies first.",
+        "manifests": "depset[File]: The `<directory>.json` manifest of each directory in `modules`.",
+        "exported": "dict[Label, Target]: On a target that is not a library (a toolchain), the libraries it holds, for a library that names one in `DartInfo.deps`. Empty on a library.",
     },
 )

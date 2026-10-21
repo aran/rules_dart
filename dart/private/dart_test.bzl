@@ -1,14 +1,14 @@
 """Implementation of the dart_test rule.
 
-Unified with `dart_binary`: the test's `main` is compiled to a self-contained
-kernel (`.dill`) **at build time**, so package resolution and `part`/`import`
-co-location happen in the execroot — exactly where `dart_binary` already proves
-they work — and the test launcher merely runs the dill. No sources, no
-`package_config`, and no co-location are needed at runtime, so manifest-mode
-runfiles (Windows) are a non-issue.
+The test is compiled to a self-contained kernel (`.dill`) **at build time** and
+the launcher merely runs it, so no sources and no `package_config` are needed at
+run time and manifest-mode runfiles (Windows) are a non-issue. Its dependencies
+are compiled once each, into the kernel modules `dart_module_aspect` builds;
+the test compiles only its own files against them and links the program (see
+`dart_module.bzl`).
 """
 
-load("//dart:providers.bzl", "DartCodeAssetInfo", "DartInfo")
+load("//dart:providers.bzl", "DartCodeAssetInfo", "DartInfo", "DartKernelSdkInfo")
 load("//dart/private:build_settings.bzl", "EXTRA_DART_DEFINES_ATTR", "merge_dart_defines")
 load(
     "//dart/private:common.bzl",
@@ -18,28 +18,32 @@ load(
     "code_asset_entries",
     "collect_transitive_code_assets",
     "collect_transitive_resources",
-    "collect_transitive_srcs",
     "create_test_executable",
-    "dart_kernel_action",
     "generate_native_assets_yaml",
-    "generate_package_config",
+    "relative_path",
     "resolve_code_assets",
     "runfiles_path",
     "target_dart_abi",
 )
+load(
+    "//dart/private:dart_module.bzl",
+    "MODULE_EXECUTABLE_ATTRS",
+    "collect_modules",
+    "dart_entry_kernel_action",
+    "dart_link_kernel_action",
+    "kernel_root_path",
+    "module_defines_transition",
+    "vm_module_aspect",
+)
 load("//dart/private:dart_test_runner.bzl", "DartTestRunnerInfo")
 load("//dart/private:executable_package.bzl", "EXECUTABLE_PACKAGE_ATTRS", "executable_package")
-load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS", "colocate_executable")
 
 def _dart_test_impl(ctx):
     toolchain = ctx.toolchains["//dart:toolchain_type"]
     dart_sdk_info = toolchain.dart_sdk_info
     workspace_name = ctx.workspace_name
+    sdk = ctx.attr._kernel_sdk[DartKernelSdkInfo]
 
-    # Co-locate each dep package's source+generated (and split-across-targets)
-    # files into one real directory, and the test's own `main` with any generated
-    # sibling sources (e.g. a `.mocks.dart`), so the build-time compile resolves
-    # everything.
     own = executable_package(ctx, [ctx.file.main] + ctx.files.srcs)
     packages = own.packages
     runner = _test_runner(ctx, packages)
@@ -48,34 +52,14 @@ def _dart_test_impl(ctx):
     if hook_err != None:
         fail(hook_err)
 
-    # The one flatten per rule: colocation inspects per-file paths.
-    colocated = colocate_executable(
-        ctx,
-        packages,
-        collect_transitive_srcs(ctx.attr.deps).to_list(),
-        ctx.file.main,
-        ctx.files.srcs,
-        own.record,
-    )
-    packages = colocated.packages
-    main_input = colocated.main_input
-    main_arg = colocated.main_arg
-    compile_srcs = colocated.srcs
-    if runner:
-        # Under the runner the compiled entrypoint is a bootstrap that hands
-        # `main` to `package:test`; the test file itself becomes an input.
-        compile_srcs = compile_srcs + [main_input]
-        main_input = _write_bootstrap(ctx, main_arg)
-        main_arg = main_input.path
+    # Every library in `deps` is already compiled, once, into its target's
+    # module; only the test's own files are compiled here.
+    modules = collect_modules(ctx.attr.deps)
 
-    # Root resolution must see the rule's own inputs too: a package whose
-    # metadata comes from a srcs-less façade library resolves only via the
-    # files this rule supplies itself.
-    package_config = ctx.actions.declare_file(ctx.label.name + ".package_config.json")
-    ctx.actions.write(
-        output = package_config,
-        content = generate_package_config(packages, compile_srcs, package_config, colocated.roots),
-    )
+    # The test's own files compile as a module of their own; the entrypoint
+    # compiled against them is generated: the `package:test` bootstrap, or a
+    # forwarder to the test's `main`.
+    main = _write_bootstrap(ctx) if runner else _write_forwarder(ctx)
 
     if runner:
         # Declared where the runner's `--precompiled` layout expects it, so it
@@ -86,7 +70,6 @@ def _dart_test_impl(ctx):
         )
     else:
         dill = ctx.actions.declare_file(ctx.label.name + ".dill")
-    defines = merge_dart_defines(ctx)
     runtime_libs = []
 
     # Transitively propagated assets plus any named outright — see the same
@@ -114,19 +97,21 @@ def _dart_test_impl(ctx):
             content = generate_native_assets_yaml(abi, entries),
         )
 
-    # What `dart compile kernel` produces, including `dart.vm.product` true.
-    dart_kernel_action(
+    entry = ctx.actions.declare_file(ctx.label.name + ".entry.dill")
+    linked = dart_entry_kernel_action(
         ctx = ctx,
-        dart_sdk_info = dart_sdk_info,
-        main = main_input,
-        transitive_srcs = depset(compile_srcs),
-        package_config = package_config,
-        output_dill = dill,
-        product = True,
-        main_path = main_arg,
-        defines = defines,
+        sdk = sdk,
+        kernel_tool = ctx.executable._kernel_tool,
+        main = main,
+        srcs = [ctx.file.main] + ctx.files.srcs,
+        packages = packages,
+        modules = modules,
+        output = entry,
+        own_package = own.record,
+        defines = merge_dart_defines(ctx),
         native_assets_yaml = native_assets_yaml,
     )
+    dart_link_kernel_action(ctx, ctx.executable._kernel_tool, entry, linked, dill)
 
     # Thin launcher: run the self-contained dill with asserts enabled. The dill
     # carries all sources/imports, so runfiles need only the VM and (for code
@@ -174,7 +159,7 @@ def _dart_test_impl(ctx):
         DefaultInfo(executable = executable, runfiles = runfiles),
         env_info,
         # See `dart_binary`: analyzable and fixable without becoming a valid
-        # `deps` entry. Built from the pre-colocation `ctx.file.main`, because
+        # `deps` entry. Built from `ctx.file.main`, not the bootstrap, because
         # the analyze/fix rules stage by `short_path`.
         own.analyzable,
     ]
@@ -246,31 +231,73 @@ void main(List<String> _, SendPort sendPort) {{
 }}
 """
 
-def _write_bootstrap(ctx, main_path):
-    """Writes the entrypoint compiled in place of the test's own `main`.
+_FORWARDER = """\
+// Generated by rules_dart: runs `{test}`, which is compiled with its sources.
+import '{import_path}' as test;
 
-    The test file is imported by a path relative to the bootstrap, which is
-    what keeps its own relative imports and `part`s resolving exactly as they
-    do when it is compiled directly.
+Object? main(List<String> args) {{
+  final Function main = test.main;
+  return main is Function(Never) ? Function.apply(main, [args]) : Function.apply(main, const []);
+}}
+"""
+
+def _write_forwarder(ctx):
+    """Writes the entrypoint that calls a test run without `package:test`.
+
+    The test's own files are compiled as a module, with their line numbers;
+    this is the one file compiled against the modules, which records `main`.
 
     Args:
       ctx: The rule context.
-      main_path: Exec-root-relative path of the test's (possibly colocated)
-        main file.
+
+    Returns:
+      The forwarder File.
+    """
+    return _write_entrypoint(ctx, ctx.label.name + ".main.dart", _FORWARDER)
+
+def _write_bootstrap(ctx):
+    """Writes the entrypoint that runs the test under the `package:test` runner.
+
+    The test file is imported by a path relative to the bootstrap, so its own
+    relative imports and `part`s resolve exactly as when it is compiled
+    directly.
+
+    Args:
+      ctx: The rule context.
 
     Returns:
       The bootstrap File.
     """
-    bootstrap = ctx.actions.declare_file(ctx.label.name + ".vm_test.dart")
-    depth = len(bootstrap.dirname.split("/"))
+    return _write_entrypoint(ctx, ctx.label.name + ".vm_test.dart", _BOOTSTRAP)
+
+def _write_entrypoint(ctx, name, template):
+    """Writes a generated entrypoint importing the test file.
+
+    Both are read through the kernel roots, where a generated file and a
+    source file share one tree, so the import is the relative path between
+    their root-relative locations.
+
+    Args:
+      ctx: The rule context.
+      name: The file to declare.
+      template: The content, with `{test}` and `{import_path}`.
+
+    Returns:
+      The File.
+    """
+    out = ctx.actions.declare_file(name)
+    from_dir = kernel_root_path(out.short_path).rpartition("/")[0]
+    to = kernel_root_path(ctx.file.main.short_path)
+    to_dir, _, to_name = to.rpartition("/")
+    rel = relative_path(from_dir, to_dir)
     ctx.actions.write(
-        output = bootstrap,
-        content = _BOOTSTRAP.format(
+        output = out,
+        content = template.format(
             test = ctx.file.main.short_path,
-            import_path = "../" * depth + main_path,
+            import_path = to_name if rel == "." else rel + "/" + to_name,
         ),
     )
-    return bootstrap
+    return out
 
 dart_test = rule(
     implementation = _dart_test_impl,
@@ -287,6 +314,8 @@ dart_test = rule(
         "deps": attr.label_list(
             doc = "`dart_library` targets this test depends on.",
             providers = [DartInfo],
+            aspects = [vm_module_aspect],
+            cfg = module_defines_transition,
         ),
         "data": attr.label_list(
             doc = "Additional files needed at runtime. These are added to runfiles so they can be resolved via `Runfiles.rlocation()`.",
@@ -319,9 +348,9 @@ told where a runfile is (resolve it with `Runfiles.rlocation()`).""",
             executable = True,
             cfg = "exec",
         ),
-    }, **dict(WINDOWS_CONSTRAINT_ATTR, **dict(DART_ABI_CONSTRAINT_ATTRS, **dict(EXTRA_DART_DEFINES_ATTR, **EXECUTABLE_PACKAGE_ATTRS)))),
+    }, **dict(WINDOWS_CONSTRAINT_ATTR, **dict(DART_ABI_CONSTRAINT_ATTRS, **dict(EXTRA_DART_DEFINES_ATTR, **dict(MODULE_EXECUTABLE_ATTRS, **EXECUTABLE_PACKAGE_ATTRS))))),
     test = True,
-    toolchains = ["//dart:toolchain_type"] + COPY_TO_DIRECTORY_TOOLCHAINS,
+    toolchains = ["//dart:toolchain_type"],
     doc = (
         "Compiles a Dart test to a kernel at build time and runs it with " +
         "asserts enabled. A test with `package:test` in `deps` runs under " +

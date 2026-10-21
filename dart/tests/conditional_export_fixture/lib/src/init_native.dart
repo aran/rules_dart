@@ -1,0 +1,1 @@
+String platform() => 'native';

@@ -202,6 +202,7 @@ def dart_info(
 
     return _merged_dart_info(
         dep_infos = dep_infos,
+        dep_packages = {dep.label: dep[DartInfo].package_name for dep in deps},
         package_name = package_name,
         lib_root = lib_root,
         srcs = srcs,
@@ -243,6 +244,7 @@ def dart_info_no_package(deps = []):
     """
     return _merged_dart_info(
         dep_infos = [dep[DartInfo] for dep in deps],
+        dep_packages = {dep.label: dep[DartInfo].package_name for dep in deps},
         package_name = "",
         lib_root = "",
         srcs = [],
@@ -413,6 +415,7 @@ def derived_package_info(pkg, lib_root = None, code_assets = None, link_hook = N
 
 def _merged_dart_info(
         dep_infos,
+        dep_packages,
         package_name,
         lib_root,
         srcs,
@@ -427,6 +430,7 @@ def _merged_dart_info(
 
     Args:
       dep_infos: The `DartInfo` of each dependency.
+      dep_packages: Each dependency's label and package name, for `DartInfo.deps`.
       package_name: Value for `DartInfo.package_name`.
       lib_root: Value for `DartInfo.lib_root`.
       srcs: This target's own Dart sources.
@@ -440,6 +444,8 @@ def _merged_dart_info(
     return DartInfo(
         package_name = package_name,
         lib_root = lib_root,
+        srcs = list(srcs),
+        deps = dict(dep_packages),
         transitive_srcs = depset(
             direct = srcs,
             transitive = [info.transitive_srcs for info in dep_infos],

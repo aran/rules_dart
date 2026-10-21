@@ -1,0 +1,33 @@
+# A library whose Dart dependency is resolved through a toolchain, not an
+# attribute: the kernel module aspect has to reach the runtime through the
+# toolchain to compile the library, and a test that reaches the library has to
+# link the runtime.
+
+load("//dart:defs.bzl", "dart_test")
+load(":rules.bzl", "library_with_toolchain_runtime", "runtime_toolchain")
+
+toolchain_type(name = "toolchain_type")
+
+runtime_toolchain(
+    name = "runtime_toolchain_impl",
+    runtime = "//dart/tests/toolchain_dep_fixture/runtime",
+)
+
+toolchain(
+    name = "runtime_toolchain",
+    toolchain = ":runtime_toolchain_impl",
+    toolchain_type = ":toolchain_type",
+)
+
+library_with_toolchain_runtime(
+    name = "toolchain_dep_fixture",
+    package_name = "toolchain_dep_fixture",
+    srcs = ["lib/uses_runtime.dart"],
+)
+
+dart_test(
+    name = "toolchain_dep_test",
+    size = "small",
+    main = "test/toolchain_dep_test.dart",
+    deps = [":toolchain_dep_fixture"],
+)

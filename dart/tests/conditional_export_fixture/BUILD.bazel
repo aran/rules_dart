@@ -1,0 +1,27 @@
+load("//dart:defs.bzl", "dart_library", "dart_test")
+
+# A library whose web branch of a conditional export uses what only the web
+# branch of its dependency's conditional export provides. A whole-program VM
+# compile never reads the web files; a module compile must leave them out
+# instead of failing on them.
+dart_library(
+    name = "conditional_export_fixture",
+    package_name = "conditional_export_fixture",
+    srcs = [
+        "lib/init.dart",
+        "lib/src/init_native.dart",
+        "lib/src/init_web.dart",
+        "lib/src/web_helper.dart",
+    ],
+    # The analyzer resolves the VM branch of every conditional export, under
+    # which the web files do not compile; that is the point of the fixture.
+    tags = ["no-dart-analyze"],
+    deps = ["//dart/tests/conditional_export_fixture/cond_dep"],
+)
+
+dart_test(
+    name = "conditional_export_test",
+    size = "small",
+    main = "test/conditional_export_test.dart",
+    deps = [":conditional_export_fixture"],
+)

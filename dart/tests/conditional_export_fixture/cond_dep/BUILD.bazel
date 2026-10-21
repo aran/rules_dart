@@ -1,0 +1,14 @@
+load("//dart:defs.bzl", "dart_library")
+
+# A package that exports a different file on the web, one that only compiles
+# there. The VM module leaves that file out.
+dart_library(
+    name = "cond_dep",
+    package_name = "cond_dep",
+    srcs = [
+        "lib/cond_dep.dart",
+        "lib/src/vm.dart",
+        "lib/src/web.dart",
+    ],
+    visibility = ["//dart/tests/conditional_export_fixture:__pkg__"],
+)

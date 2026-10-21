@@ -34,6 +34,18 @@ load(
     _parse_data_asset_ids = "parse_data_asset_ids",
 )
 load(
+    "//dart/private:dart_module.bzl",
+    _DART_TOOLCHAIN_TYPES_ATTR = "DART_TOOLCHAIN_TYPES_ATTR",
+    _KERNEL_TOOL_ATTR = "KERNEL_TOOL_ATTR",
+    _collect_modules = "collect_modules",
+    _dart_entry_kernel_action = "dart_entry_kernel_action",
+    _dart_link_kernel_action = "dart_link_kernel_action",
+    _dart_module_aspect = "dart_module_aspect",
+    _kernel_package_config = "kernel_package_config",
+    _kernel_roots = "kernel_roots",
+    _module_defines_transition = "module_defines_transition",
+)
+load(
     "//dart/private:source_set.bzl",
     _COPY_TO_DIRECTORY_TOOLCHAINS = "COPY_TO_DIRECTORY_TOOLCHAINS",
     _colocate_entrypoint = "colocate_entrypoint",
@@ -115,3 +127,26 @@ COPY_TO_DIRECTORY_TOOLCHAINS = _COPY_TO_DIRECTORY_TOOLCHAINS
 dart_link_hook_actions = _dart_link_hook_actions
 link_hook_runner_attr = _link_hook_runner_attr
 parse_data_asset_ids = _parse_data_asset_ids
+
+# Per-library kernel compilation (see `dart_module.bzl`). A rule set with its own
+# platform makes its aspect once at top level, `dart_module_aspect(<label of a
+# DartKernelSdkInfo target>)`, attaches it to its executable's `deps` with
+# `cfg = module_defines_transition` (the executable's `defines` reach its
+# modules), compiles the entrypoint with `dart_entry_kernel_action` and links
+# with `dart_link_kernel_action`, merging
+# `KERNEL_TOOL_ATTR` into its `attrs`. `kernel_package_config` and
+# `kernel_roots` address sources through the same `org-dartlang-root:///` roots
+# the modules were compiled with.
+dart_module_aspect = _dart_module_aspect
+module_defines_transition = _module_defines_transition
+collect_modules = _collect_modules
+dart_entry_kernel_action = _dart_entry_kernel_action
+dart_link_kernel_action = _dart_link_kernel_action
+kernel_package_config = _kernel_package_config
+kernel_roots = _kernel_roots
+KERNEL_TOOL_ATTR = _KERNEL_TOOL_ATTR
+
+# A rule whose `DartInfo` dependencies come from a toolchain names the toolchain
+# types in a private `label_list` of this name, so the kernel module aspect
+# reaches them: `DART_TOOLCHAIN_TYPES_ATTR: attr.label_list(default = [...])`.
+DART_TOOLCHAIN_TYPES_ATTR = _DART_TOOLCHAIN_TYPES_ATTR

@@ -25,6 +25,43 @@ def _src_token(src_label):
         s = s.split(":")[-1]
     return s.replace("/", "_").replace(".", "_").replace("-", "_")
 
+def _sibling_deps(name, srcs, package_name, language_version, package, deps):
+    """The `deps` each codegen stage gets: `deps` plus the macro's other sources.
+
+    A generator for one file resolves the types it references in its siblings
+    (`user.dart` naming `Role` from `role.dart`), and `dart_codegen` sees
+    sources only through a library. That library is private to the codegen
+    stages and never a dependency of the wrapping `dart_library`, which holds
+    the same files: one file in two libraries is two copies of one library.
+
+    Args:
+      name: The macro's `name`.
+      srcs: The macro's `srcs`.
+      package_name: As for the macro.
+      language_version: As for the macro.
+      package: As for the macro.
+      deps: The `deps` the codegen stages would otherwise get.
+
+    Returns:
+      The `deps` list for each `dart_codegen`.
+    """
+    if len(srcs) < 2:
+        return deps
+    siblings = "_{name}_siblings".format(name = name)
+    dart_library(
+        name = siblings,
+        srcs = srcs,
+        deps = deps,
+        package_name = package_name,
+        language_version = language_version,
+        package = package,
+        # Sources for the generators, not a library: their generated parts
+        # exist only on the wrapping `dart_library`, which is what is analyzed.
+        tags = ["no-dart-analyze"],
+        visibility = ["//visibility:private"],
+    )
+    return deps + [":" + siblings]
+
 def shared_part_library(
         name,
         srcs,
@@ -67,6 +104,7 @@ def shared_part_library(
       **kwargs: Forwarded to the wrapping `dart_library` (which also
         receives `language_version`).
     """
+    codegen_deps = _sibling_deps(name, srcs, package_name, language_version, package, deps + [annotation_dep])
     combined_targets = []
     for src in srcs:
         token = _src_token(src)
@@ -83,7 +121,7 @@ def shared_part_library(
             package_name = package_name,
             language_version = language_version,
             package = package,
-            deps = deps + [annotation_dep],
+            deps = codegen_deps,
             config = config,
         )
         dart_codegen(
@@ -145,6 +183,7 @@ def library_builder_library(
       config: Optional builder options as a JSON string.
       **kwargs: Forwarded to the wrapping `dart_library`.
     """
+    codegen_deps = _sibling_deps(name, srcs, package_name, language_version, package, deps + [annotation_dep])
     gen_targets = []
     for src in srcs:
         token = _src_token(src)
@@ -157,7 +196,7 @@ def library_builder_library(
             package_name = package_name,
             language_version = language_version,
             package = package,
-            deps = deps + [annotation_dep],
+            deps = codegen_deps,
             config = config,
         )
         gen_targets.append(":" + gen_target)
