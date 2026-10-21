@@ -12,15 +12,8 @@
 import 'dart:math' as math;
 
 import 'directives.dart';
+import 'sources.dart';
 import 'uris.dart';
-
-class SourceFile {
-  const SourceFile(this.path, this.text);
-
-  /// The exec path, as given to Bazel actions and shown in messages.
-  final String path;
-  final String text;
-}
 
 /// A library of the target being compiled.
 class LibraryNode {

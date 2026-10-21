@@ -15,6 +15,12 @@ load(
     _generate_package_config_content = "generate_package_config_content",
     _runfiles_path = "runfiles_path",
 )
+load("//dart/private:dart_deps.bzl", _DART_TOOLCHAIN_TYPES_ATTR = "DART_TOOLCHAIN_TYPES_ATTR")
+load(
+    "//dart/private:dart_import_check.bzl",
+    _dart_import_check_aspect = "dart_import_check_aspect",
+    _import_check_validation = "import_check_validation",
+)
 load(
     "//dart/private:dart_info.bzl",
     _dart_analyzable_info = "dart_analyzable_info",
@@ -35,7 +41,6 @@ load(
 )
 load(
     "//dart/private:dart_module.bzl",
-    _DART_TOOLCHAIN_TYPES_ATTR = "DART_TOOLCHAIN_TYPES_ATTR",
     _KERNEL_TOOL_ATTR = "KERNEL_TOOL_ATTR",
     _collect_modules = "collect_modules",
     _dart_entry_kernel_action = "dart_entry_kernel_action",
@@ -150,3 +155,11 @@ KERNEL_TOOL_ATTR = _KERNEL_TOOL_ATTR
 # types in a private `label_list` of this name, so the kernel module aspect
 # reaches them: `DART_TOOLCHAIN_TYPES_ATTR: attr.label_list(default = [...])`.
 DART_TOOLCHAIN_TYPES_ATTR = _DART_TOOLCHAIN_TYPES_ATTR
+
+# Import checks (strict deps, files of the target's own package, layering) as
+# validation actions. An executable rule attaches `dart_import_check_aspect` to
+# its `deps` and returns `OutputGroupInfo(_validation =
+# import_check_validation(ctx, ctx.executable._kernel_tool, own_srcs,
+# own_package, ctx.attr.deps))`, merging `KERNEL_TOOL_ATTR` into its `attrs`.
+dart_import_check_aspect = _dart_import_check_aspect
+import_check_validation = _import_check_validation

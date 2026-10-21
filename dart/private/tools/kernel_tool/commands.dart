@@ -1,16 +1,19 @@
 import 'dart:io';
 
 import 'args.dart';
+import 'check_command.dart';
 import 'entry_command.dart';
 import 'link_command.dart';
 import 'module_command.dart';
 import 'worker_command.dart';
 
-// The three steps of a modular test build, driven from one binary so that
+// The steps of a modular test build, driven from one binary so that
 // Windows needs no shell:
 //
 //   module  one library target to kernel modules, with `kernel_worker`, and a
 //           manifest saying what each holds and whether it can be used
+//   check   what a target's files import against what it depends on, with no
+//           compiler, so that a library nothing compiles is checked too
 //   entry   a test's main file to a kernel file, with `frontend_server`,
 //           against the modules its imports reach
 //   link    those modules and the entry joined into one file the VM can run
@@ -20,7 +23,7 @@ import 'worker_command.dart';
 Future<int> runKernelTool(List<String> argv) async {
   if (argv.contains('--persistent_worker')) return runWorker(argv);
   if (argv.isEmpty || !isCommand(argv.first)) {
-    stderr.writeln('usage: kernel_tool <module|entry|link> @paramsfile');
+    stderr.writeln('usage: kernel_tool <module|check|entry|link> @paramsfile');
     return 64;
   }
   final command = argv.first;
@@ -29,6 +32,8 @@ Future<int> runKernelTool(List<String> argv) async {
     switch (command) {
       case 'module':
         return await runModule(args, err: stderr);
+      case 'check':
+        return await runCheck(args, err: stderr);
       case 'entry':
         return await runEntry(args);
       default:

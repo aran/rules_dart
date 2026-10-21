@@ -1,0 +1,10 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+dart_library(
+    name = "mid",
+    package_name = "import_check_mid",
+    srcs = ["lib/mid.dart"],
+    language_version = "3.11",
+    visibility = ["//import_check:__subpackages__"],
+    deps = ["//import_check/leaf"],
+)

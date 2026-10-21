@@ -1,0 +1,9 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+dart_library(
+    name = "leaf",
+    package_name = "import_check_leaf",
+    srcs = ["lib/leaf.dart"],
+    language_version = "3.11",
+    visibility = ["//import_check:__subpackages__"],
+)

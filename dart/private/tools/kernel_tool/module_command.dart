@@ -4,7 +4,7 @@ import 'args.dart';
 import 'compile.dart';
 import 'manifest.dart';
 import 'module_graph.dart';
-import 'policy.dart';
+import 'sources.dart';
 import 'uris.dart';
 
 /// `module`: one library target to kernel modules, with `kernel_worker`.
@@ -12,8 +12,9 @@ import 'uris.dart';
 /// The target's libraries are split into modules (`module_graph.dart`) and
 /// compiled in dependency order, each against the modules it needs alone.
 /// Nothing a module does wrong fails the action; the manifest records it, and
-/// it matters to whatever reaches that module. What fails the action is a
-/// target that imports what its BUILD file does not provide (`policy.dart`).
+/// it matters to whatever reaches that module. A library importing what its
+/// target does not depend on is `check`'s to report (`check_command.dart`); here
+/// it is a module that does not compile.
 ///
 /// [worker] is a compiler kept from an earlier run, if the caller has one (a
 /// Bazel worker); else one is started and stopped here. [digests] are those
@@ -35,45 +36,19 @@ Future<int> runModule(
     configRelative,
   );
   final deps = args.depManifests();
-  final depIndex = ModuleIndex(deps);
   final supported = supportedLibraries(
     File(args.one('libraries-spec')).readAsStringSync(),
     args.one('libraries-target'),
   );
 
   final source = readLibraries(
-    sources: _readSources(args.all('src')),
+    sources: readSources(args.all('src')),
     roots: roots,
     config: config,
     supported: supported,
   );
   final files = source.files;
   final libraries = source.libraries;
-
-  final violations = checkPolicy(
-    label: label,
-    libraries: libraries,
-    partFiles: source.partFiles,
-    config: config,
-    availablePackages: args.all('available-package').toSet(),
-    provided: depIndex.provides,
-    checkLayering: args.flag('check-layering'),
-    directPackages: args.all('direct-package').toSet(),
-    ownPackage: args.optional('package-name'),
-  );
-  final tolerate = args.flag('tolerate-policy');
-  if (violations.isNotEmpty && !tolerate) {
-    err.writeln(violations.map((v) => v.message).join('\n'));
-    return 1;
-  }
-  final violationsIn = <String, List<String>>{};
-  for (final v in violations) {
-    (violationsIn[v.library] ??= []).add(
-      v.message.startsWith('$label: ')
-          ? v.message.substring(label.length + 2)
-          : v.message,
-    );
-  }
 
   final planned = planModules(libraries: libraries, supported: supported);
   final manifest = Manifest(
@@ -104,7 +79,7 @@ Future<int> runModule(
       final record = manifest.modules[i];
 
       final reach = index.reach(plan.deps);
-      if (moduleVerdict(plan, target, violationsIn, reach) case final v?) {
+      if (moduleVerdict(plan, target, reach) case final v?) {
         record
           ..status = v.status
           ..reason = v.reason;
@@ -172,12 +147,10 @@ Future<int> runModule(
 }
 
 /// Whether [plan] is unusable without compiling it, and why: it imports a
-/// `dart:` library the platform lacks, it breaks a dependency rule, or it needs
-/// a module that is not ok. Null when it can be compiled.
+/// `dart:` library the platform lacks, or it needs a module that is not ok. Null when it can be compiled.
 ({String status, String reason})? moduleVerdict(
   PlannedModule plan,
   String target,
-  Map<String, List<String>> violationsIn,
   ModuleReach reach,
 ) {
   if (plan.unsupported.isNotEmpty) {
@@ -186,13 +159,6 @@ Future<int> runModule(
       reason:
           'is unsupported: ${plan.unsupported.join('; ')}, which the $target '
           'target does not provide',
-    );
-  }
-  final broken = [for (final uri in plan.libraries) ...?violationsIn[uri]];
-  if (broken.isNotEmpty) {
-    return (
-      status: statusFailed,
-      reason: 'breaks a dependency rule:\n${broken.join('\n')}',
     );
   }
   final unusable = reach.order.where((m) => !m.module.isOk).firstOrNull;
@@ -223,27 +189,4 @@ String _diagnostics(String output) {
     ...lines.take(maxLines),
     '... ${lines.length - maxLines} more lines',
   ].join('\n');
-}
-
-List<SourceFile> _readSources(List<String> srcs) {
-  final sources = <SourceFile>[];
-  for (final src in srcs) {
-    if (Directory(src).existsSync()) {
-      final found =
-          // Followed: a sandbox stages a tree artifact's files as links.
-          Directory(src)
-              .listSync(recursive: true, followLinks: true)
-              .whereType<File>()
-              .map((f) => f.path.replaceAll(r'\', '/'))
-              .where((p) => p.endsWith('.dart'))
-              .toList()
-            ..sort();
-      for (final path in found) {
-        sources.add(SourceFile(path, File(path).readAsStringSync()));
-      }
-    } else {
-      sources.add(SourceFile(src, File(src).readAsStringSync()));
-    }
-  }
-  return sources;
 }

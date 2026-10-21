@@ -1,4 +1,5 @@
 load("//dart:defs.bzl", "dart_binary", "dart_test")
+load("//dart/private:dart_binary.bzl", "dart_tool_binary")
 
 dart_binary(
     name = "noop",
@@ -91,6 +92,7 @@ dart_binary(
 
 _KERNEL_TOOL_SRCS = [
     "kernel_tool/args.dart",
+    "kernel_tool/check_command.dart",
     "kernel_tool/commands.dart",
     "kernel_tool/compile.dart",
     "kernel_tool/directives.dart",
@@ -100,6 +102,7 @@ _KERNEL_TOOL_SRCS = [
     "kernel_tool/module_command.dart",
     "kernel_tool/module_graph.dart",
     "kernel_tool/policy.dart",
+    "kernel_tool/sources.dart",
     "kernel_tool/uris.dart",
     "kernel_tool/worker_command.dart",
 ]
@@ -110,7 +113,8 @@ _KERNEL_TOOL_DEPS = [
     "@ext_pub_deps//:crypto",
 ]
 
-dart_binary(
+# Built without the import check, which it runs for everything else.
+dart_tool_binary(
     name = "kernel_tool",
     srcs = _KERNEL_TOOL_SRCS,
     compile_mode = "exe",

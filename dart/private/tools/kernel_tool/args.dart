@@ -8,7 +8,7 @@ const _optionsByCommand = {
     'runtime', 'snapshot', 'label', 'platform', 'target', 'libraries-spec',
     'libraries-target', 'package-config', 'multi-root', 'src', 'dep-modules',
     'dep-manifest', 'define', 'output-dir', 'manifest-output', 'package-name',
-    'lib-root', 'available-package', 'direct-package', //
+    'lib-root', //
   },
   'entry': {
     'runtime', 'snapshot', 'sdk-root', 'label', 'platform', 'target',
@@ -16,11 +16,15 @@ const _optionsByCommand = {
     'native-assets', 'main', 'output', 'selection-output', //
   },
   'link': {'label', 'entry', 'selection', 'dep-manifest', 'output'},
+  'check': {
+    'label', 'package-config', 'package-name', 'lib-root', 'multi-root', 'src',
+    'dep-file', 'available-package', 'direct-package', 'output', //
+  },
 };
 
 /// Options that stand alone, without a value.
 const _flagsByCommand = {
-  'module': {'check-layering', 'tolerate-policy'},
+  'check': {'check-layering'},
 };
 
 bool isCommand(String name) => _optionsByCommand.containsKey(name);

@@ -17,7 +17,8 @@ def _package_config_probe_test_impl(ctx):
     content = None
     for action in analysistest.target_actions(env):
         for out in action.outputs.to_list():
-            if out.basename.endswith("package_config.json"):
+            # The compile's, not the import check's.
+            if out.basename.endswith("package_config.json") and not out.basename.endswith(".import_check_package_config.json"):
                 content = action.content
     asserts.true(env, content != None, "expected a package_config.json write action")
     if content == None:

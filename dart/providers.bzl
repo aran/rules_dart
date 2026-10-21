@@ -239,3 +239,18 @@ only the modules it reaches.""",
         "exported": "dict[Label, Target]: On a target that is not a library (a toolchain), the libraries it holds, for a library that names one in `DartInfo.deps`. Empty on a library.",
     },
 )
+
+DartImportCheckInfo = provider(
+    doc = """The import checks of a target and everything it depends on, from \
+`dart_import_check_aspect`.
+
+Each library of this repository is checked once — its imports against its \
+own `deps` (strict deps, files of its own package, and, unless the \
+`dart_layering_check` feature is off, layering) — by a validation action \
+that compiles nothing. An executable puts `stamps` in its `_validation` output \
+group, so building it runs every check its libraries need.""",
+    fields = {
+        "stamps": "depset[File]: The check results of this target and its dependencies.",
+        "exported": "dict[Label, Target]: On a target that is not a library (a toolchain), the libraries it holds, for a library that names one in `DartInfo.deps`. Empty on a library.",
+    },
+)

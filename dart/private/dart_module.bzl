@@ -40,6 +40,15 @@ Flutter SDK and gets its own modules, and everything else here is shared.
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("//dart:providers.bzl", "DartInfo", "DartKernelSdkInfo", "DartModuleInfo")
 load("//dart/private:common.bzl", "KERNEL_FILESYSTEM_SCHEME", "own_package_record")
+load(
+    "//dart/private:dart_deps.bzl",
+    "direct_dart_deps",
+    "exported_libraries",
+    "forwarded_library",
+    "propagated_attrs",
+    "propagated_toolchains",
+    "reached_targets",
+)
 
 _KERNEL_TOOL = Label("//dart/private/tools:kernel_tool")
 
@@ -105,9 +114,6 @@ def kernel_package_config(packages):
 def _info_path(module):
     return module.path + ".json"
 
-def _package_name(pkg):
-    return pkg.package_name
-
 def _add_deps(args, modules):
     args.add_all(modules, before_each = "--dep-modules", expand_directories = False)
     args.add_all(modules, before_each = "--dep-manifest", map_each = _info_path, expand_directories = False)
@@ -117,48 +123,6 @@ def _new_args(ctx):
     args.use_param_file("@%s", use_always = True)
     args.set_param_file_format("multiline")
     return args
-
-def _add_layering_args(args, label, deps, indirect_deps):
-    """Asks the kernel tool to check that imports name only direct dependencies.
-
-    A package reached only through a dependency's dependency is the
-    dependency's business: importing it works only until that dependency
-    stops depending on it. So only the packages of `deps` themselves, and the
-    target's own, may be imported. A dependency without sources of its own (a
-    façade re-exporting its `deps`) stands for everything it reaches, and a
-    target's `DartInfo.indirect_deps` (a generator's imports) are accepted by
-    the package each of them has in its dependent's `DartInfo.deps`.
-
-    Only for targets of this repository: another repository's dependencies are
-    its own (a pub package's are generated from its pubspec), and its
-    imports are not this build's to police. A target or build turns the check
-    off with the `dart_layering_check` feature (`features =
-    ["-dart_layering_check"]`, or `--features=-dart_layering_check`), as
-    rules_cc's `layering_check`.
-
-    Args:
-      args: The tool's Args.
-      label: The target being compiled.
-      deps: The targets it depends on directly.
-      indirect_deps: Labels from its `DartInfo.indirect_deps`.
-    """
-    if label.workspace_name:
-        return
-    args.add("--check-layering")
-    facades = []
-    for dep in deps:
-        if DartInfo not in dep:
-            continue
-        dep_info = dep[DartInfo]
-        if dep_info.package_name:
-            args.add("--direct-package", dep_info.package_name)
-        if not getattr(dep_info, "srcs", None):
-            facades.append(dep_info.transitive_packages)
-        for wanted in indirect_deps:
-            package = getattr(dep_info, "deps", {}).get(wanted)
-            if package:
-                args.add("--direct-package", package)
-    args.add_all(depset(transitive = facades), before_each = "--direct-package", map_each = _package_name, uniquify = True)
 
 def module_defines(ctx):
     """The environment declarations a module compiles with.
@@ -176,90 +140,26 @@ def module_defines(ctx):
     """
     return ctx.attr._module_defines[BuildSettingInfo].value + ctx.attr._extra_dart_defines[BuildSettingInfo].value
 
-# A rule whose `DartInfo` dependencies come from a toolchain rather than an
-# attribute (`dart_proto_library`'s protobuf runtime) names the toolchain types
-# in a private `label_list` of this name, so the aspect reaches them too.
-DART_TOOLCHAIN_TYPES_ATTR = "_dart_toolchain_types"
-
-def _propagated_attrs(ctx):
-    # Every attribute but tools: a `DartInfo` dependency can arrive through
-    # any of them (`deps`, `dart_deps`, a forwarder's `library`), and which
-    # are dependencies is decided by `DartInfo.deps`, not by names.
-    return [
-        name
-        for name in dir(ctx.rule.attr)
-        if name != DART_TOOLCHAIN_TYPES_ATTR and not getattr(ctx.rule.attr, name).is_tool
-    ]
-
-def _propagated_toolchains(ctx):
-    types = getattr(ctx.rule.attr, DART_TOOLCHAIN_TYPES_ATTR, None)
-    return list(types.value) if types != None else []
-
-def _reached(ctx):
-    """Every target the aspect reached from this one: attributes and toolchains."""
-    reached = []
-    for name in dir(ctx.rule.attr):
-        if name == DART_TOOLCHAIN_TYPES_ATTR:
-            continue
-        value = getattr(ctx.rule.attr, name)
-        if type(value) == "dict":
-            value = value.keys()
-        elif type(value) != "list":
-            value = [value]
-        for dep in value:
-            if type(dep) == "Target" and DartModuleInfo in dep:
-                reached.append(dep)
-    for toolchain_type in getattr(ctx.rule.attr, DART_TOOLCHAIN_TYPES_ATTR, []):
-        toolchain = ctx.rule.toolchains[toolchain_type.label]
-        if toolchain != None and DartModuleInfo in toolchain:
-            reached.append(toolchain)
-    return reached
-
 def _module_aspect_impl(target, ctx):
     # The build-wide escape hatch: executables compile whole programs, and
     # nothing reads a module.
     if not ctx.attr._modular_kernel[BuildSettingInfo].value:
         return [DartModuleInfo(modules = depset(), manifests = depset(), exported = {})]
-    reached = _reached(ctx)
+    reached = reached_targets(ctx, DartModuleInfo)
 
     # Not a library: hand on the libraries it holds (a toolchain's runtime),
     # one hop, for the library that names them in its `DartInfo.deps`.
     if DartInfo not in target:
-        return [DartModuleInfo(
-            modules = depset(),
-            manifests = depset(),
-            exported = {dep.label: dep for dep in reached if DartInfo in dep},
-        )]
+        return [DartModuleInfo(modules = depset(), manifests = depset(), exported = exported_libraries(reached))]
     info = target[DartInfo]
 
     # A target that passes on a dependency's `DartInfo` (`dart_test_package`
     # handing on `package:test`'s library) passes on its modules too, rather
     # than compiling the same files a second time.
-    for dep in reached:
-        if DartInfo in dep and dep[DartInfo].srcs == info.srcs and dep[DartInfo].lib_root == info.lib_root:
-            return [dep[DartModuleInfo]]
-
-    by_label = {}
-    for dep in reached:
-        if DartInfo in dep:
-            by_label[dep.label] = dep
-    for dep in reached:
-        for label, exported in getattr(dep[DartModuleInfo], "exported", {}).items():
-            by_label.setdefault(label, exported)
-
-    # `getattr`: a provider built before `deps` existed names none; every
-    # library reached stands in for it.
-    wanted = getattr(info, "deps", None)
-    if wanted == None:
-        direct = [dep for dep in reached if DartInfo in dep]
-    else:
-        missing = [label for label in wanted if label not in by_label]
-        if missing:
-            fail(("%s: depends on %s, but the kernel module aspect cannot reach " +
-                  "%s through any attribute. A dependency taken from a toolchain " +
-                  "is reached only if the rule lists the toolchain type in `%s`.") %
-                 (ctx.label, missing[0], "it" if len(missing) == 1 else "them", DART_TOOLCHAIN_TYPES_ATTR))
-        direct = [by_label[label] for label in wanted]
+    forwarded = forwarded_library(info, reached)
+    if forwarded != None:
+        return [forwarded[DartModuleInfo]]
+    direct = direct_dart_deps(ctx, info, reached, DartModuleInfo)
     modules = _merge_modules([dep[DartModuleInfo] for dep in direct])
 
     # `getattr`: a provider built before `srcs` existed carries none, and
@@ -280,9 +180,6 @@ def _module_aspect_impl(target, ctx):
         packages = [own] if own else [],
         own_package = own,
         modules = modules,
-        available = info.transitive_packages,
-        deps = direct,
-        indirect_deps = getattr(info, "indirect_deps", []),
         defines = module_defines(ctx),
     )]
 
@@ -299,7 +196,7 @@ def _check_no_comma(define, source):
               "splits every `-D` value on commas, so they would see a " +
               "different value than the test does.") % (define, source))
 
-def _compile_modules(ctx, sdk, kernel_tool, name, srcs, packages, own_package, modules, available, deps, indirect_deps, defines):
+def _compile_modules(ctx, sdk, kernel_tool, name, srcs, packages, own_package, modules, defines):
     """Compiles `srcs` into kernel modules against `modules`.
 
     The sources are split as Dart's own modular build splits a package, finely:
@@ -319,9 +216,6 @@ def _compile_modules(ctx, sdk, kernel_tool, name, srcs, packages, own_package, m
         language version the sources take.
       own_package: The `DartPackageInfo` the sources belong to, or `None`.
       modules: `struct(modules, manifests)` of every dependency's modules.
-      available: Depset of every `DartPackageInfo` reachable.
-      deps: The direct dependency targets, for the layering check.
-      indirect_deps: Labels from `DartInfo.indirect_deps`.
       defines: Environment declarations beyond the platform's.
 
     Returns:
@@ -344,17 +238,9 @@ def _compile_modules(ctx, sdk, kernel_tool, name, srcs, packages, own_package, m
     if own_package != None:
         args.add("--package-name", own_package.package_name)
         args.add("--lib-root", own_package.lib_root)
-    if ctx.label.workspace_name:
-        # Another repository's dependencies are its own (a pub package's are
-        # generated from its pubspec): a file of it importing what none of
-        # them provides fails only an importer that reaches it.
-        args.add("--tolerate-policy")
     args.add_all(kernel_roots(srcs), before_each = "--multi-root")
     args.add_all(srcs, before_each = "--src", expand_directories = False)
     _add_deps(args, modules.modules)
-    args.add_all(available, before_each = "--available-package", map_each = _package_name, uniquify = True)
-    if "dart_layering_check" not in ctx.disabled_features:
-        _add_layering_args(args, ctx.label, deps, indirect_deps)
     args.add_all(sdk.defines + defines, before_each = "--define")
     args.add("--output-dir", out.path)
     args.add("--manifest-output", manifest)
@@ -410,8 +296,8 @@ def dart_module_aspect(kernel_sdk, extra_dart_defines = Label("//dart:extra_dart
     """
     return aspect(
         implementation = _module_aspect_impl,
-        attr_aspects = _propagated_attrs,
-        toolchains_aspects = _propagated_toolchains,
+        attr_aspects = propagated_attrs,
+        toolchains_aspects = propagated_toolchains,
         attrs = {
             "_kernel_sdk": attr.label(default = kernel_sdk, providers = [DartKernelSdkInfo]),
             "_kernel_tool": attr.label(default = _KERNEL_TOOL, executable = True, cfg = "exec"),
@@ -467,7 +353,6 @@ def dart_entry_kernel_action(
         srcs,
         packages,
         modules,
-        deps,
         output,
         own_package = None,
         defines = [],
@@ -475,13 +360,12 @@ def dart_entry_kernel_action(
     """Compiles an executable against the modules its entrypoint reaches.
 
     The executable's own files (`srcs`) are compiled into modules like any
-    library's, checked the same way and keeping their line numbers. `main` — a
+    library's, keeping their line numbers. `main` — a
     generated entrypoint such as a test bootstrap — is compiled on its own by
     `frontend_server`, because that is what records the program's `main` and
     `kernel_worker` never does; `frontend_server` drops the source positions
     of whatever it compiles against modules, which costs only `main`'s own
-    frames. `main` is generated, so its imports are not checked against
-    `deps`. Only the modules `main` reaches are compiled against and, by
+    frames. Only the modules `main` reaches are compiled against and, by
     `dart_link_kernel_action`, linked; reaching one that is unsupported on the
     platform or did not compile fails here, with its errors.
 
@@ -494,8 +378,6 @@ def dart_entry_kernel_action(
       packages: Every `DartPackageInfo` the executable sees, one per name, so
         its files get the language version of the package containing them.
       modules: `struct(modules, manifests)` from `collect_modules`.
-      deps: The executable's direct dependencies, whose packages alone its
-        own files may import.
       output: The entry `.dill` to write.
       own_package: The `DartPackageInfo` of the package the executable states
         it belongs to, or `None`.
@@ -516,9 +398,6 @@ def dart_entry_kernel_action(
         packages = packages,
         own_package = own_package,
         modules = modules,
-        available = depset(packages),
-        deps = deps,
-        indirect_deps = [],
         defines = defines,
     )
 

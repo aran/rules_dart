@@ -1,8 +1,20 @@
 // The rules Bazel adds to the compiler's: what a target may import. They are
-// BUILD-file hygiene, checked over every library of the target before it is
-// compiled, not only those a program reaches.
-import 'module_graph.dart';
+// BUILD-file hygiene, checked over every library of the target whether or not
+// a program reaches it, and over every branch of a conditional import: a
+// library has to declare what each branch needs.
 import 'uris.dart';
+
+/// A library of the target and what it can import.
+class ImportingFile {
+  const ImportingFile(this.path, this.imports);
+
+  /// The exec path, as shown in messages.
+  final String path;
+
+  /// Every URI an `import` or `export` can name, in whichever branch, in
+  /// [PackageConfig.canonical] form.
+  final List<String> imports;
+}
 
 class Violation {
   const Violation(this.library, this.message);
@@ -20,16 +32,16 @@ class Violation {
 ///   config names;
 /// - a file of the target's own package that nothing compiles: the target is
 ///   one of several that split a package, and lacks the one holding the file.
-///   [provided] says whether some module holds a file;
+///   [dependencyFiles] are the URIs of the files of its dependencies;
 /// - layering, with [checkLayering]: a package only a dependency's
-///   dependencies provide.
+///   dependencies provide, that is, not among [directPackages].
 List<Violation> checkPolicy({
   required String label,
-  required Map<String, LibraryNode> libraries,
+  required Map<String, ImportingFile> libraries,
   required Set<String> partFiles,
   required PackageConfig config,
   required Set<String> availablePackages,
-  required bool Function(String uri) provided,
+  required Set<String> dependencyFiles,
   bool checkLayering = false,
   Set<String> directPackages = const {},
   String? ownPackage,
@@ -46,27 +58,25 @@ List<Violation> checkPolicy({
       ownPackages.contains(config.packageOf(uri)) &&
       !libraries.containsKey(uri) &&
       !partFiles.contains(uri) &&
-      !provided(uri);
+      !dependencyFiles.contains(uri);
 
   final violations = <Violation>[];
   for (final uri in libraries.keys.toList()..sort()) {
     final lib = libraries[uri]!;
     final reported = <String>{};
     void add(String message) => violations.add(Violation(uri, message));
-    for (final import in lib.imports) {
-      if (import.selected case final selected? when unprovided(selected)) {
-        if (reported.add(selected)) {
-          add(
-            '$label: ${lib.path} imports $selected, a file of its own '
-            'package that neither $label nor any of its deps compiles. Add '
-            'the target that holds it to deps.',
-          );
-        }
+    for (final imported in lib.imports) {
+      if (!reported.add(imported)) continue;
+      if (unprovided(imported)) {
+        add(
+          '$label: ${lib.path} imports $imported, a file of its own '
+          'package that neither $label nor any of its deps compiles. Add '
+          'the target that holds it to deps.',
+        );
         continue;
       }
-      final imported = import.selected ?? import.defaultUri;
       final name = packageNameOf(imported);
-      if (name == null || !reported.add(imported)) continue;
+      if (name == null) continue;
       if (!availablePackages.contains(name) && !config.names.contains(name)) {
         add(
           '$label: ${lib.path} imports $imported, but no dependency of '
@@ -74,9 +84,7 @@ List<Violation> checkPolicy({
           'to deps.',
         );
       } else if (checkLayering &&
-          availablePackages.contains(name) &&
-          name != ownPackage &&
-          !config.names.contains(name) &&
+          !ownPackages.contains(name) &&
           !directPackages.contains(name)) {
         add(
           '$label: ${lib.path} imports $imported, but package "$name" is not '

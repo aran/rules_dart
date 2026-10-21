@@ -156,19 +156,13 @@ class ModuleIndex {
         for (final uri in module.libraries) {
           _byLibrary.putIfAbsent(uri, () => ref);
         }
-        _provided.addAll(module.libraries);
-        _provided.addAll(module.parts);
       }
     }
   }
 
   final _byLibrary = <String, ModuleRef>{};
-  final _provided = <String>{};
 
   ModuleRef? moduleOf(String libraryUri) => _byLibrary[libraryUri];
-
-  /// Whether some module holds [uri], as a library or a part.
-  bool provides(String uri) => _provided.contains(uri);
 
   /// The modules [uris] are in and everything they depend on. A dependency
   /// no manifest holds is skipped: it can only be a branch of a conditional

@@ -40,6 +40,7 @@ load(
     "module_defines_transition",
     "vm_module_aspect",
 )
+load("//dart/private:dart_import_check.bzl", "dart_import_check_aspect", "import_check_validation")
 load("//dart/private:dart_test_runner.bzl", "DartTestRunnerInfo")
 load("//dart/private:executable_package.bzl", "EXECUTABLE_PACKAGE_ATTRS", "executable_package")
 
@@ -169,6 +170,13 @@ def _dart_test_impl(ctx):
         # `deps` entry. Built from `ctx.file.main`, not the bootstrap, because
         # the analyze/fix rules stage by `short_path`.
         own.analyzable,
+        OutputGroupInfo(_validation = import_check_validation(
+            ctx,
+            ctx.executable._kernel_tool,
+            [ctx.file.main] + ctx.files.srcs,
+            own.record,
+            ctx.attr.deps,
+        )),
     ]
 
 def _link_modules(ctx, sdk, main, packages, own, native_assets_yaml, dill):
@@ -182,7 +190,6 @@ def _link_modules(ctx, sdk, main, packages, own, native_assets_yaml, dill):
         srcs = [ctx.file.main] + ctx.files.srcs,
         packages = packages,
         modules = collect_modules(ctx.attr.deps),
-        deps = ctx.attr.deps,
         output = entry,
         own_package = own.record,
         defines = merge_dart_defines(ctx),
@@ -340,7 +347,7 @@ dart_test = rule(
         "deps": attr.label_list(
             doc = "`dart_library` targets this test depends on.",
             providers = [DartInfo],
-            aspects = [vm_module_aspect],
+            aspects = [vm_module_aspect, dart_import_check_aspect],
             cfg = module_defines_transition,
         ),
         "data": attr.label_list(

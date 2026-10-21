@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:test/test.dart';
 
 import 'kernel_tool/args.dart';
+import 'kernel_tool/check_command.dart';
 import 'kernel_tool/commands.dart';
 import 'kernel_tool/compile.dart';
 import 'kernel_tool/directives.dart';
@@ -13,6 +14,7 @@ import 'kernel_tool/manifest.dart';
 import 'kernel_tool/module_command.dart';
 import 'kernel_tool/module_graph.dart';
 import 'kernel_tool/policy.dart';
+import 'kernel_tool/sources.dart';
 import 'kernel_tool/uris.dart';
 import 'kernel_tool/worker_command.dart';
 
@@ -517,17 +519,30 @@ import 'stub.dart' if (dart.library.io) 'src/io.dart' if (dart.library.html) 'sr
       Set<String> available = const {},
       bool layering = false,
       Set<String> direct = const {},
-      Set<String> provided = const {},
+      Set<String> depFiles = const {},
       String? own,
     }) {
-      final s = _sources(files);
+      final libraries = <String, ImportingFile>{};
+      final parts = <String>{};
+      for (final e in files.entries) {
+        final uri = _config.uriFor(rootRelative(e.key, _roots));
+        final d = readDirectives(e.key, e.value);
+        if (d.isPart) {
+          parts.add(uri);
+          continue;
+        }
+        libraries[uri] = ImportingFile(e.key, [
+          for (final directive in d.directives)
+            ...resolveImport(directive, uri, null, _config).candidates,
+        ]);
+      }
       return checkPolicy(
         label: '//app:lib',
-        libraries: s.libraries,
-        partFiles: s.partFiles,
+        libraries: libraries,
+        partFiles: parts,
         config: _config,
         availablePackages: available,
-        provided: provided.contains,
+        dependencyFiles: depFiles,
         checkLayering: layering,
         directPackages: direct,
         ownPackage: own,
@@ -535,18 +550,15 @@ import 'stub.dart' if (dart.library.io) 'src/io.dart' if (dart.library.html) 'sr
     }
 
     test('reports every import of a package no dependency provides', () {
-      final v = check(
-        {
-          'app/lib/a.dart': '''
+      final v = check({
+        'app/lib/a.dart': '''
 import 'package:missing/m.dart';
 import 'package:missing/n.dart';
 import 'package:missing/m.dart';
-import 'package:app/ok.dart';
+import 'package:app/a.dart';
 import 'package:rel/ok.dart';
 ''',
-        },
-        provided: {'package:app/ok.dart'},
-      );
+      });
       expect(v.map((v) => v.message), [
         '//app:lib: app/lib/a.dart imports package:missing/m.dart, but no '
             'dependency of //app:lib provides package "missing". Add the target '
@@ -579,11 +591,31 @@ import 'package:rel/ok.dart';
       expect(v.single.library, 'package:app/src/unused.dart');
     });
 
-    test('an undecidable import is checked at its default', () {
-      final v = check({
-        'app/lib/a.dart': "import 'package:one/a.dart' if (dart.vm.product) 'package:two/a.dart';",
-      });
-      expect(v.single.message, contains('package:one/a.dart'));
+    test('looks at every branch of a conditional import', () {
+      final v = check(
+        {
+          'app/lib/a.dart': '''
+import 'package:one/a.dart'
+    if (dart.library.io) 'package:two/a.dart'
+    if (dart.library.html) 'package:three/a.dart';
+''',
+        },
+        available: {'one'},
+      );
+      expect(v.map((v) => v.message), [
+        contains('package:two/a.dart'),
+        contains('package:three/a.dart'),
+      ]);
+    });
+
+    test('a part file is not checked as a library', () {
+      expect(
+        check({
+          'app/lib/a.dart': "part 'a.g.dart';",
+          'app/lib/a.g.dart': "part of 'a.dart';",
+        }, own: 'app'),
+        isEmpty,
+      );
     });
 
     test('a file of the own package that nothing compiles is reported', () {
@@ -593,7 +625,7 @@ import 'package:rel/ok.dart';
               "import 'package:app/missing.dart'; import 'b.dart';",
         },
         own: 'app',
-        provided: {'package:app/b.dart'},
+        depFiles: {'package:app/b.dart'},
       );
       expect(v.map((v) => v.message), [
         '//app:lib: app/lib/a.dart imports package:app/missing.dart, a file of its '
@@ -602,12 +634,12 @@ import 'package:rel/ok.dart';
       ]);
     });
 
-    test('a file a dependency compiles is not missing', () {
+    test('a file a dependency holds is not missing', () {
       expect(
         check(
           {'app/lib/a.dart': "import 'package:app/b.dart';"},
           own: 'app',
-          provided: {'package:app/b.dart'},
+          depFiles: {'package:app/b.dart'},
         ),
         isEmpty,
       );
@@ -626,7 +658,7 @@ import 'package:app/own.dart';
           files,
           available: {'direct', 'indirect'},
           own: 'app',
-          provided: {'package:app/own.dart'},
+          depFiles: {'package:app/own.dart'},
         ),
         isEmpty,
       );
@@ -636,7 +668,48 @@ import 'package:app/own.dart';
         layering: true,
         direct: {'direct'},
         own: 'app',
-        provided: {'package:app/own.dart'},
+        depFiles: {'package:app/own.dart'},
+      );
+      expect(v.map((v) => v.message), [
+        '//app:lib: app/lib/a.dart imports package:indirect/i.dart, but package '
+            '"indirect" is not a direct dependency of //app:lib, only of '
+            'something it depends on. Add the target that provides it to deps.',
+      ]);
+    });
+  });
+
+  group('checkPolicy with a config naming every reachable package', () {
+    // What `check` is given: the target's own package and every transitive
+    // one, so that dependency files map to URIs. A package being in it must
+    // not exempt an import from the layering check.
+    final everything = PackageConfig.parse('''
+{"configVersion": 2, "packages": [
+  {"name": "app", "rootUri": "org-dartlang-root:///app/", "packageUri": "lib/"},
+  {"name": "direct", "rootUri": "org-dartlang-root:///direct/", "packageUri": "lib/"},
+  {"name": "indirect", "rootUri": "org-dartlang-root:///indirect/", "packageUri": "lib/"}
+]}''', 'app/pc.json');
+
+    test('layering still reports a package only a dependency provides', () {
+      final uri = everything.uriFor(rootRelative('app/lib/a.dart', _roots));
+      final d = readDirectives(
+        'app/lib/a.dart',
+        "import 'package:direct/d.dart';\nimport 'package:indirect/i.dart';",
+      );
+      final v = checkPolicy(
+        label: '//app:lib',
+        libraries: {
+          uri: ImportingFile('app/lib/a.dart', [
+            for (final directive in d.directives)
+              ...resolveImport(directive, uri, null, everything).candidates,
+          ]),
+        },
+        partFiles: const {},
+        config: everything,
+        availablePackages: const {'app', 'direct', 'indirect'},
+        dependencyFiles: const {},
+        checkLayering: true,
+        directPackages: const {'direct'},
+        ownPackage: 'app',
       );
       expect(v.map((v) => v.message), [
         '//app:lib: app/lib/a.dart imports package:indirect/i.dart, but package '
@@ -660,9 +733,8 @@ import 'package:app/own.dart';
 
     ({String status, String reason})? verdict(
       PlannedModule p,
-      List<Manifest> deps, {
-      Map<String, List<String>> violations = const {},
-    }) => moduleVerdict(p, 'vm', violations, ModuleIndex(deps).reach(p.deps));
+      List<Manifest> deps,
+    ) => moduleVerdict(p, 'vm', ModuleIndex(deps).reach(p.deps));
 
     test('a module of usable dependencies can be compiled', () {
       final dep = _manifest('//d:d', [
@@ -682,19 +754,6 @@ import 'package:app/own.dart';
         'is unsupported: package:t/t.dart imports dart:html, which the vm '
         'target does not provide',
       );
-    });
-
-    test('a dependency rule broken in a tolerated target fails the module', () {
-      final v = verdict(
-        plan(),
-        [],
-        violations: {
-          'package:t/t.dart': ['t.dart imports package:dev/d.dart, but ...'],
-        },
-      )!;
-      expect(v.status, statusFailed);
-      expect(v.reason, startsWith('breaks a dependency rule:\n'));
-      expect(v.reason, contains('package:dev/d.dart'));
     });
 
     test('depending on an unsupported module fails, naming the cause', () {
@@ -736,7 +795,6 @@ import 'package:app/own.dart';
           reason: moduleVerdict(
             plan(deps: ['package:c/c.dart']),
             'vm',
-            const {},
             ModuleIndex([c]).reach(['package:c/c.dart']),
           )!.reason,
         ),
@@ -771,7 +829,6 @@ import 'package:app/own.dart';
       ]);
       final index = ModuleIndex([c, b, a]);
       expect(index.moduleOf('package:a/a.dart')!.manifest, a);
-      expect(index.provides('package:c/c.g.dart'), isTrue);
       expect(index.moduleOf('package:c/c.g.dart'), isNull);
       final reach = index.reach(['package:a/a.dart']);
       expect(reach.order.map((m) => m.manifest.label), [
@@ -967,7 +1024,7 @@ import 'package:app/own.dart';
         throwsA(isA<UsageException>()),
       );
       expect(
-        () => Args.parse('link', ['--check-layering']),
+        () => Args.parse('module', ['--check-layering']),
         throwsA(isA<UsageException>()),
       );
     });
@@ -1193,7 +1250,6 @@ import 'package:app/own.dart';
           'lib',
           {'app/lib/a.dart': "import 'package:dep/d.dart';"},
           deps: [('dep.modules', dep)],
-          extra: ['--available-package', 'dep'],
         );
         expect(await runArgs(args), 0);
         final modules = (manifestOf('lib')['modules'] as List)
@@ -1207,28 +1263,104 @@ import 'package:app/own.dart';
       },
     );
 
-    test('module refuses a package its deps do not provide', () async {
+    List<String> checkArgs(
+      Map<String, String> sources, {
+      List<String> depFiles = const [],
+      List<String> extra = const [],
+    }) {
       write('root/app/pc.json', _packageConfig);
-      final args = moduleArgs('lib', {
-        'app/lib/a.dart': "import 'package:missing/m.dart';",
-      });
-      expect(await runArgs(args), 1);
-      expect(File(path('lib.modules.json')).existsSync(), isFalse);
-    });
+      return [
+        'check',
+        '--label',
+        '//app:lib',
+        '--package-config',
+        path('root/app/pc.json'),
+        '--package-name',
+        'app',
+        '--lib-root',
+        'app',
+        '--multi-root',
+        path('root'),
+        for (final e in sources.entries) ...[
+          '--src',
+          write('root/${e.key}', e.value).path,
+        ],
+        for (final f in depFiles) ...['--dep-file', f],
+        '--output',
+        path('lib.check'),
+        ...extra,
+      ];
+    }
 
-    test('module with --tolerate-policy records the broken rule', () async {
-      write('root/app/pc.json', _packageConfig);
-      final args = moduleArgs(
-        'lib',
-        {'app/lib/a.dart': "import 'package:dev/d.dart';"},
-        extra: ['--tolerate-policy'],
+    test('check writes the stamp when every import is declared', () async {
+      final args = checkArgs(
+        {
+          'app/lib/a.dart': '''
+import 'package:dep/d.dart';
+import 'b.dart' if (dart.library.html) 'package:dep/web.dart';
+''',
+          'app/lib/b.dart': '',
+        },
+        extra: ['--available-package', 'dep'],
       );
       expect(await runArgs(args), 0);
-      final module =
-          (manifestOf('lib')['modules'] as List).single as Map<String, dynamic>;
-      expect(module['status'], 'failed');
-      expect(module['reason'], startsWith('breaks a dependency rule:\n'));
-      expect(module['reason'], contains('package "dev"'));
+      expect(File(path('lib.check')).readAsStringSync(), isEmpty);
+    });
+
+    test('check reports every violation and writes no stamp', () async {
+      final args = checkArgs({
+        'app/lib/a.dart': "import 'package:missing/m.dart';",
+        'app/lib/b.dart': "import 'package:also_missing/m.dart';",
+      });
+      final err = StringBuffer();
+      final code = await runCheck(Args.parse('check', args.skip(1)), err: err);
+      expect(code, 1);
+      expect(err.toString(), contains('package "missing"'));
+      expect(err.toString(), contains('package "also_missing"'));
+      expect(File(path('lib.check')).existsSync(), isFalse);
+    });
+
+    test(
+      'check sees a branch of a conditional import no platform takes',
+      () async {
+        final args = checkArgs({
+          'app/lib/a.dart': "import 'b.dart' if (dart.library.nothing) 'package:missing/m.dart';",
+          'app/lib/b.dart': '',
+        });
+        expect(await runArgs(args), 1);
+      },
+    );
+
+    test('check finds a file of the own package in the deps, tree directories included', () async {
+      write('dep_files/lib/b.dart', '');
+      final args = checkArgs(
+        {'app/lib/a.dart': "import 'package:app/b.dart';"},
+        depFiles: [path('dep_files')],
+      );
+      // `dep_files` is not under the multi-root, so the file is not at the URI
+      // `package:app/b.dart`: the import is still missing.
+      expect(await runArgs(args), 1);
+
+      write('root/app/lib/b.dart', '');
+      final inRoot = checkArgs(
+        {'app/lib/a.dart': "import 'package:app/b.dart';"},
+        depFiles: [path('root/app/lib')],
+      );
+      expect(await runArgs(inRoot), 0);
+    });
+
+    test('check applies layering when asked', () async {
+      final args = checkArgs(
+        {'app/lib/a.dart': "import 'package:indirect/i.dart';"},
+        extra: [
+          '--available-package',
+          'indirect',
+          '--check-layering',
+          '--direct-package',
+          'direct',
+        ],
+      );
+      expect(await runArgs(args), 1);
     });
 
     test(

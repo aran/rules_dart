@@ -129,6 +129,18 @@ jobs:
           fi
           bazel build //:dynamic_app_assets 2>&1 | grep -q "a Glyph is constructed at run time"
           echo "OK: link hook failure reported"
+      # A library importing a package only its dependency's dependency
+      # provides fails every executable that reaches it, through the import
+      # check's validation action, with no per-library compile involved.
+      - name: analysis_failure — expect the layering check to fail a binary's build
+        working-directory: e2e/analysis_failure
+        run: |
+          if bazel build //import_check/user:layering_bin 2>/dev/null; then
+            echo "ERROR: build should have failed the layering check"
+            exit 1
+          fi
+          bazel build //import_check/user:layering_bin 2>&1 | grep -q 'package "import_check_leaf" is not a direct dependency'
+          echo "OK: layering violation reported"
       # Each target in e2e/analysis_failure is expected red under the
       # `dart_analyze` aspect, which its `.bazelrc` applies under `bazel test`.
       # `check` builds one, expects the build to fail, and greps its output
