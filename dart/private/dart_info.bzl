@@ -143,7 +143,8 @@ def dart_info(
         code_assets = [],
         has_unreplaced_hook = "",
         version = "",
-        link_hook = None):
+        link_hook = None,
+        indirect_deps = []):
     """Builds a `DartInfo` for a library, merging its dependencies' closures.
 
     The caller supplies only what this target contributes itself; everything
@@ -179,6 +180,12 @@ def dart_info(
       version: The package's own resolved version, or "" when unknown. Only pub
         spokes know it; a hand-written `dart_library` leaves it empty.
       link_hook: The package's `hook/link.dart` File, or None.
+      indirect_deps: Labels of targets that one of `deps` depends on and this
+        target's sources import, for sources whose imports a generator
+        chooses: `dart_proto_library`'s code imports the `fixnum` its protobuf
+        runtime is built on. Found by package in a dependency's
+        `DartInfo.deps`, so nobody names them by hand; the layering check
+        accepts their packages as direct.
 
     Returns:
       A `DartInfo`.
@@ -189,6 +196,13 @@ def dart_info(
         fail(err)
 
     dep_infos = [dep[DartInfo] for dep in deps]
+    if indirect_deps:
+        # `getattr`: a dependency built before `deps` existed names none.
+        deps_of_deps = {dep_label: None for info in dep_infos for dep_label in getattr(info, "deps", [])}
+        for wanted in indirect_deps:
+            if wanted not in deps_of_deps:
+                fail(("%s: `indirect_deps` names %s, which none of its dependencies " +
+                      "depends on directly.") % (label, wanted))
 
     this_pkg = DartPackageInfo(
         package_name = package_name,
@@ -203,6 +217,7 @@ def dart_info(
     return _merged_dart_info(
         dep_infos = dep_infos,
         dep_packages = {dep.label: dep[DartInfo].package_name for dep in deps},
+        indirect_deps = indirect_deps,
         package_name = package_name,
         lib_root = lib_root,
         srcs = srcs,
@@ -245,6 +260,7 @@ def dart_info_no_package(deps = []):
     return _merged_dart_info(
         dep_infos = [dep[DartInfo] for dep in deps],
         dep_packages = {dep.label: dep[DartInfo].package_name for dep in deps},
+        indirect_deps = [],
         package_name = "",
         lib_root = "",
         srcs = [],
@@ -416,6 +432,7 @@ def derived_package_info(pkg, lib_root = None, code_assets = None, link_hook = N
 def _merged_dart_info(
         dep_infos,
         dep_packages,
+        indirect_deps,
         package_name,
         lib_root,
         srcs,
@@ -431,6 +448,7 @@ def _merged_dart_info(
     Args:
       dep_infos: The `DartInfo` of each dependency.
       dep_packages: Each dependency's label and package name, for `DartInfo.deps`.
+      indirect_deps: Value for `DartInfo.indirect_deps`.
       package_name: Value for `DartInfo.package_name`.
       lib_root: Value for `DartInfo.lib_root`.
       srcs: This target's own Dart sources.
@@ -446,6 +464,7 @@ def _merged_dart_info(
         lib_root = lib_root,
         srcs = list(srcs),
         deps = dict(dep_packages),
+        indirect_deps = list(indirect_deps),
         transitive_srcs = depset(
             direct = srcs,
             transitive = [info.transitive_srcs for info in dep_infos],

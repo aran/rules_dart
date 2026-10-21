@@ -31,6 +31,7 @@ dart_test(
     main = "check_dual_build_collisions_test.dart",
     deps = [
         ":check_dual_build_collisions_lib",
+        "@ext_pub_deps//:path",
         "@ext_pub_deps//:test",
     ],
 )

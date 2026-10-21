@@ -8,7 +8,7 @@ const _optionsByCommand = {
     'runtime', 'snapshot', 'label', 'platform', 'target', 'libraries-spec',
     'libraries-target', 'package-config', 'multi-root', 'src', 'dep-modules',
     'dep-manifest', 'define', 'output-dir', 'manifest-output', 'package-name',
-    'lib-root', 'available-package', //
+    'lib-root', 'available-package', 'direct-package', //
   },
   'entry': {
     'runtime', 'snapshot', 'sdk-root', 'label', 'platform', 'target',
@@ -20,7 +20,7 @@ const _optionsByCommand = {
 
 /// Options that stand alone, without a value.
 const _flagsByCommand = {
-  'module': {'tolerate-policy'},
+  'module': {'check-layering', 'tolerate-policy'},
 };
 
 bool isCommand(String name) => _optionsByCommand.containsKey(name);

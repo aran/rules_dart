@@ -57,6 +57,8 @@ Future<int> runModule(
     config: config,
     availablePackages: args.all('available-package').toSet(),
     provided: depIndex.provides,
+    checkLayering: args.flag('check-layering'),
+    directPackages: args.all('direct-package').toSet(),
     ownPackage: args.optional('package-name'),
   );
   final tolerate = args.flag('tolerate-policy');

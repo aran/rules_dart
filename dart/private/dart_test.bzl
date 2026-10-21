@@ -106,6 +106,7 @@ def _dart_test_impl(ctx):
         srcs = [ctx.file.main] + ctx.files.srcs,
         packages = packages,
         modules = modules,
+        deps = ctx.attr.deps,
         output = entry,
         own_package = own.record,
         defines = merge_dart_defines(ctx),

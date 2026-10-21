@@ -3,8 +3,9 @@ load("//dart:defs.bzl", "dart_library")
 # The library the fixture's toolchain supplies.
 dart_library(
     name = "runtime",
+    package_name = "toolchain_runtime",
     srcs = ["lib/runtime.dart"],
     language_version = "3.11",
-    package_name = "toolchain_runtime",
     visibility = ["//dart/tests/toolchain_dep_fixture:__pkg__"],
+    deps = ["//dart/tests/toolchain_dep_fixture/inner"],
 )

@@ -515,6 +515,8 @@ import 'stub.dart' if (dart.library.io) 'src/io.dart' if (dart.library.html) 'sr
     List<Violation> check(
       Map<String, String> files, {
       Set<String> available = const {},
+      bool layering = false,
+      Set<String> direct = const {},
       Set<String> provided = const {},
       String? own,
     }) {
@@ -526,6 +528,8 @@ import 'stub.dart' if (dart.library.io) 'src/io.dart' if (dart.library.html) 'sr
         config: _config,
         availablePackages: available,
         provided: provided.contains,
+        checkLayering: layering,
+        directPackages: direct,
         ownPackage: own,
       );
     }
@@ -607,6 +611,38 @@ import 'package:rel/ok.dart';
         ),
         isEmpty,
       );
+    });
+
+    test('layering: only direct dependencies and the own package', () {
+      final files = {
+        'app/lib/a.dart': '''
+import 'package:direct/d.dart';
+import 'package:indirect/i.dart';
+import 'package:app/own.dart';
+''',
+      };
+      expect(
+        check(
+          files,
+          available: {'direct', 'indirect'},
+          own: 'app',
+          provided: {'package:app/own.dart'},
+        ),
+        isEmpty,
+      );
+      final v = check(
+        files,
+        available: {'direct', 'indirect', 'app'},
+        layering: true,
+        direct: {'direct'},
+        own: 'app',
+        provided: {'package:app/own.dart'},
+      );
+      expect(v.map((v) => v.message), [
+        '//app:lib: app/lib/a.dart imports package:indirect/i.dart, but package '
+            '"indirect" is not a direct dependency of //app:lib, only of '
+            'something it depends on. Add the target that provides it to deps.',
+      ]);
     });
   });
 

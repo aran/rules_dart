@@ -20,7 +20,9 @@ class Violation {
 ///   config names;
 /// - a file of the target's own package that nothing compiles: the target is
 ///   one of several that split a package, and lacks the one holding the file.
-///   [provided] says whether some module holds a file.
+///   [provided] says whether some module holds a file;
+/// - layering, with [checkLayering]: a package only a dependency's
+///   dependencies provide.
 List<Violation> checkPolicy({
   required String label,
   required Map<String, LibraryNode> libraries,
@@ -28,6 +30,8 @@ List<Violation> checkPolicy({
   required PackageConfig config,
   required Set<String> availablePackages,
   required bool Function(String uri) provided,
+  bool checkLayering = false,
+  Set<String> directPackages = const {},
   String? ownPackage,
 }) {
   // Unstated (an executable's own files), the packages its files sit in.
@@ -68,6 +72,16 @@ List<Violation> checkPolicy({
           '$label: ${lib.path} imports $imported, but no dependency of '
           '$label provides package "$name". Add the target that provides it '
           'to deps.',
+        );
+      } else if (checkLayering &&
+          availablePackages.contains(name) &&
+          name != ownPackage &&
+          !config.names.contains(name) &&
+          !directPackages.contains(name)) {
+        add(
+          '$label: ${lib.path} imports $imported, but package "$name" is not '
+          'a direct dependency of $label, only of something it depends on. '
+          'Add the target that provides it to deps.',
         );
       }
     }

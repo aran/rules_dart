@@ -52,7 +52,9 @@ dart_test(
     deps = [
         ":builder_shim",
         "@ext_pub_deps//:analyzer",
+        "@ext_pub_deps//:bazel_worker",
         "@ext_pub_deps//:build",
+        "@ext_pub_deps//:package_config",
         "@ext_pub_deps//:path",
         "@ext_pub_deps//:test",
     ],
