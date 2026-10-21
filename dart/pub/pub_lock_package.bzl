@@ -58,15 +58,17 @@ def _pub_lock_package_impl(ctx):
     if pubspec_path.exists:
         pubspec_content = ctx.read(pubspec_path)
         all_deps = parse_pubspec_deps(pubspec_content)
-        available = {p: True for p in ctx.attr.lock_packages}
+        available = {p: True for p in ctx.attr.lock_packages + ctx.attr.explicit_packages}
         bazel_deps = sorted([d for d in all_deps if d in available])
         language_version = _derive_language_version(
             parse_pubspec_sdk_constraint(pubspec_content),
         )
 
-    # Build full label strings for sibling spoke repos.
+    # Build full label strings for sibling spoke repos; a package declared
+    # with `pub.package()` is its own repository, which wins over the locks.
+    explicit = {p: True for p in ctx.attr.explicit_packages}
     dep_labels = [
-        "@{hub}__{dep}//:{dep}".format(hub = ctx.attr.hub_name, dep = dep)
+        ("@{dep}//:{dep}" if dep in explicit else "@{hub}__{dep}//:{dep}").format(hub = ctx.attr.hub_name, dep = dep)
         for dep in bazel_deps
     ]
 
@@ -119,6 +121,10 @@ pub_lock_package = repository_rule(
         ),
         "lock_packages": attr.string_list(
             doc = "All hosted package names in the lock file (for dep filtering).",
+            default = [],
+        ),
+        "explicit_packages": attr.string_list(
+            doc = "Packages declared with `pub.package()`, which replace any lock's version: a dependency on one is a dependency on its own repository.",
             default = [],
         ),
         "ignore_hook": attr.bool(

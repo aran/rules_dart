@@ -240,6 +240,7 @@ def _pub_impl(ctx):
             base_url = pkg.url,
             hub_name = _SPOKE_PREFIX,
             lock_packages = all_package_names,
+            explicit_packages = sorted(explicit.keys()),
             code_assets = curated_code_assets(name, pkg.version),
             ignore_hook = name in ignore_hooks,
         )
