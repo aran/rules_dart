@@ -10,7 +10,7 @@ the test compiles only its own files against them and links the program (see
 
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("//dart:providers.bzl", "DartCodeAssetInfo", "DartInfo", "DartKernelSdkInfo")
-load("//dart/private:build_settings.bzl", "EXTRA_DART_DEFINES_ATTR", "merge_dart_defines")
+load("//dart/private:build_settings.bzl", "EXTRA_DART_DEFINES_ATTR", "merge_vm_dart_defines")
 load(
     "//dart/private:common.bzl",
     "DART_ABI_CONSTRAINT_ATTRS",
@@ -28,6 +28,7 @@ load(
     "runfiles_path",
     "target_dart_abi",
 )
+load("//dart/private:dart_import_check.bzl", "dart_import_check_aspect", "import_check_validation")
 load(
     "//dart/private:dart_module.bzl",
     "MODULE_EXECUTABLE_ATTRS",
@@ -40,7 +41,6 @@ load(
     "module_defines_transition",
     "vm_module_aspect",
 )
-load("//dart/private:dart_import_check.bzl", "dart_import_check_aspect", "import_check_validation")
 load("//dart/private:dart_test_runner.bzl", "DartTestRunnerInfo")
 load("//dart/private:executable_package.bzl", "EXECUTABLE_PACKAGE_ATTRS", "executable_package")
 
@@ -114,7 +114,7 @@ def _dart_test_impl(ctx):
             output_dill = dill,
             product = True,
             main_path = kernel_root_path(main.short_path),
-            defines = merge_dart_defines(ctx),
+            defines = merge_vm_dart_defines(ctx),
             native_assets_yaml = native_assets_yaml,
             roots = kernel_roots(srcs),
         )
@@ -192,7 +192,7 @@ def _link_modules(ctx, sdk, main, packages, own, native_assets_yaml, dill):
         modules = collect_modules(ctx.attr.deps),
         output = entry,
         own_package = own.record,
-        defines = merge_dart_defines(ctx),
+        defines = merge_vm_dart_defines(ctx),
         native_assets_yaml = native_assets_yaml,
     )
     dart_link_kernel_action(ctx, ctx.executable._kernel_tool, entry, linked, dill)

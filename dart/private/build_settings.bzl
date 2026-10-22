@@ -87,3 +87,40 @@ def merge_dart_defines(ctx):
     """
     validate_dart_defines(ctx.attr.defines, "the `defines` attribute of %s" % ctx.label)
     return list(ctx.attr.defines) + ctx.attr._extra_dart_defines[BuildSettingInfo].value
+
+def vm_define_comma_error(define, source):
+    """The error for a define the Dart VM's front end would cut, or `None`.
+
+    `gen_kernel` and `kernel_worker` split every `-D` value on commas, so
+    `-DA=x,y` reaches the program as `A=x`, silently (`dart compile js` and
+    `wasm` do not split). Refused rather than passed on.
+
+    Args:
+      define: A `KEY=VALUE` string.
+      source: Where it came from, for the message.
+
+    Returns:
+      An error message, or `None`.
+    """
+    if "," not in define:
+        return None
+    return ("`%s` (from %s): a Dart define's value cannot contain a comma when " +
+            "compiling for the Dart VM. Its front end splits every `-D` value on " +
+            "commas, so the program would see the value cut at the first one. " +
+            "Encode the value (base64, say) and decode it in the program.") % (define, source)
+
+def merge_vm_dart_defines(ctx):
+    """`merge_dart_defines` for a VM compile, which refuses a value with a comma.
+
+    Args:
+      ctx: Rule context carrying `defines` and `_extra_dart_defines`.
+
+    Returns:
+      The merged list of define strings, flag values last.
+    """
+    defines = merge_dart_defines(ctx)
+    for define in defines:
+        err = vm_define_comma_error(define, "the `defines` of %s or `--@rules_dart//dart:extra_dart_defines`" % ctx.label)
+        if err:
+            fail(err)
+    return defines

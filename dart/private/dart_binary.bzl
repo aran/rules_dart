@@ -1,7 +1,7 @@
 """Implementation of the dart_binary rule."""
 
 load("//dart:providers.bzl", "DartCodeAssetInfo", "DartCompileInfo", "DartInfo", "DartRecordedUsesInfo")
-load("//dart/private:build_settings.bzl", "EXTRA_DART_DEFINES_ATTR", "merge_dart_defines")
+load("//dart/private:build_settings.bzl", "EXTRA_DART_DEFINES_ATTR", "merge_vm_dart_defines")
 load(
     "//dart/private:common.bzl",
     "DART_ABI_CONSTRAINT_ATTRS",
@@ -17,9 +17,9 @@ load(
     "target_dart_abi",
 )
 load("//dart/private:dart_compile.bzl", "dart_compile_action", "front_end_flags", "recorded_uses_kind")
-load("//dart/private:executable_package.bzl", "EXECUTABLE_PACKAGE_ATTRS", "executable_package")
 load("//dart/private:dart_import_check.bzl", "dart_import_check_aspect", "import_check_validation")
 load("//dart/private:dart_module.bzl", "KERNEL_TOOL_ATTR")
+load("//dart/private:executable_package.bzl", "EXECUTABLE_PACKAGE_ATTRS", "executable_package")
 load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS", "colocate_executable")
 
 def binary_output_basename(name, compile_mode, is_windows):
@@ -103,7 +103,7 @@ def _dart_binary_impl(ctx):
     # filesystem rooted at the exec root so the output does not depend on where
     # the action ran (see `dart_kernel_action`), and `dart compile` turns it
     # into the requested output. A `kernel` is the first step's output itself.
-    defines = merge_dart_defines(ctx)
+    defines = merge_vm_dart_defines(ctx)
     fe_flags, compile_flags = front_end_flags(ctx.attr.dart_compile_flags)
     code_asset_libs = []
 

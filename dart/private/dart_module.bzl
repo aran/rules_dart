@@ -39,6 +39,7 @@ Flutter SDK and gets its own modules, and everything else here is shared.
 
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("//dart:providers.bzl", "DartInfo", "DartKernelSdkInfo", "DartModuleInfo")
+load("//dart/private:build_settings.bzl", "vm_define_comma_error")
 load("//dart/private:common.bzl", "KERNEL_FILESYSTEM_SCHEME", "own_package_record")
 load(
     "//dart/private:dart_deps.bzl",
@@ -190,11 +191,9 @@ def _merge_modules(infos):
     )
 
 def _check_no_comma(define, source):
-    if "," in define:
-        fail(("`%s` (from %s): a Dart define's value cannot contain a comma " +
-              "in a test. Its libraries are compiled by `kernel_worker`, which " +
-              "splits every `-D` value on commas, so they would see a " +
-              "different value than the test does.") % (define, source))
+    err = vm_define_comma_error(define, source)
+    if err:
+        fail(err)
 
 def _compile_modules(ctx, sdk, kernel_tool, name, srcs, packages, own_package, modules, defines):
     """Compiles `srcs` into kernel modules against `modules`.

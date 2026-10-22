@@ -192,7 +192,7 @@ Bazel's `-c` flag (`fastbuild`, `dbg`, `opt`) controls compiler flags automatica
 
 No define keys are reserved. rules_dart maps compilation mode to `--enable-asserts` and gen-snapshot options, and sets only the `dart.vm.*` defines `dart compile` itself sets, ahead of the user's, so a user value wins as it would under `dart compile`. (rules_flutter reserves `dart.vm.product` and friends because its build does set them.)
 
-One caveat, inherited from the Dart SDK and shared by the `defines` attribute: the VM front end (`dart compile exe|kernel`, `gen_kernel`, and `kernel_worker`, which compiles `dart_test`'s modules) splits a define **value** on commas, so `-DA=x,y` yields `A=x`. `dart compile js` does not split. A `dart_test` refuses a comma in a define rather than compile its libraries with a value its entrypoint does not see; elsewhere values containing commas are not portable across compile modes. The flag is declared `repeatable` so that Bazel itself never splits them — the limit is the compiler's, not the build system's.
+One caveat, inherited from the Dart SDK and shared by the `defines` attribute: the VM front end (`gen_kernel`, and `kernel_worker`, which compiles `dart_test`'s modules) splits a define **value** on commas, so `-DA=x,y` would reach the program as `A=x`. `dart compile js` and `wasm` do not split. Every VM program — `dart_binary` in any mode, `dart_test` — therefore refuses a comma in a define rather than build a program that silently sees a shorter value; encode such a value (base64, say) and decode it in the program. The flag is declared `repeatable` so that Bazel itself never splits them — the limit is the compiler's, not the build system's.
 
 ---
 
