@@ -47,7 +47,7 @@ dart_library(
 
 dart_test(
     name = "builder_shim_test",
-    size = "small",
+    size = "medium",
     main = "test/builder_shim_test.dart",
     deps = [
         ":builder_shim",

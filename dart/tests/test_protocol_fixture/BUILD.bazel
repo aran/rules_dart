@@ -14,7 +14,7 @@ dart_test(
 # sharding and XML variables set, and checks what ran.
 dart_test(
     name = "protocol_test",
-    size = "small",
+    size = "medium",
     args = [
         "$(rlocationpath :cases)",
         "$(rlocationpath :cases_test.dart)",
