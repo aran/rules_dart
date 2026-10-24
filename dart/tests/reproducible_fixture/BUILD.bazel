@@ -1,0 +1,18 @@
+load("//dart:defs.bzl", "dart_test")
+
+# One entrypoint compiled in two packages, `a` and `b`, to outputs of the same
+# name: each pair must be the same bytes. Run by the test below.
+exports_files(["bin/hello.dart"])
+
+dart_test(
+    name = "reproducible_test",
+    size = "small",
+    data = [
+        "//dart/tests/reproducible_fixture/a:hello",
+        "//dart/tests/reproducible_fixture/a:hello_aot",
+        "//dart/tests/reproducible_fixture/b:hello",
+        "//dart/tests/reproducible_fixture/b:hello_aot",
+    ],
+    main = "reproducible_test.dart",
+    deps = ["//dart/runfiles"],
+)

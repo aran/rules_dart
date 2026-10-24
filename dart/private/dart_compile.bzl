@@ -93,7 +93,8 @@ def dart_compile_action(
         target_os = "",
         target_arch = "",
         extra_flags = [],
-        recorded_uses = None):
+        recorded_uses = None,
+        runner = None):
     """Creates the `dart compile` action that turns a kernel into the output.
 
     The kernel comes from `dart_kernel_action`, which has already run the front
@@ -113,6 +114,10 @@ def dart_compile_action(
         recorded_uses: Optional output File for the uses of `@RecordUse`
             definitions the compiler records (`--recorded-uses`). Only the
             `exe` and `aot-snapshot` modes record.
+        runner: Optional `compile_runner` kernel File to compile through. For a
+            Mach-O `exe` or `aot-snapshot`, whose symbol table names the path
+            gen_snapshot wrote the snapshot to: the runner picks that path and
+            then removes it (see `compile_runner.dart`).
     """
     args = ctx.actions.args()
     args.add("compile")
@@ -139,13 +144,29 @@ def dart_compile_action(
     # Per-target extra flags (last, so they can override defaults)
     args.add_all(extra_flags)
 
-    args.add("-o", output)
+    # Through the runner, the command follows its own arguments, and the runner
+    # gives `-o` itself. Otherwise `-o` precedes the kernel: `jit-snapshot`
+    # hands everything after it to the training run.
+    if runner == None:
+        args.add("-o", output)
     args.add(kernel)
+
+    if runner != None:
+        runner_args = ctx.actions.args()
+        runner_args.add(runner)
+        runner_args.add("--output", output)
+        runner_args.add("--")
+        runner_args.add(dart_bin)
+        arguments = [runner_args, args]
+        direct = [kernel, runner]
+    else:
+        arguments = [args]
+        direct = [kernel]
 
     ctx.actions.run(
         executable = dart_bin,
-        arguments = [args],
-        inputs = depset(direct = [kernel], transitive = [sdk_files]),
+        arguments = arguments,
+        inputs = depset(direct = direct, transitive = [sdk_files]),
         outputs = outputs,
         mnemonic = "DartCompile",
         progress_message = "Compiling Dart %s %s" % (compile_mode, ctx.label),

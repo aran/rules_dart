@@ -1,5 +1,15 @@
 load("//dart:defs.bzl", "dart_binary", "dart_test")
-load("//dart/private:dart_binary.bzl", "dart_tool_binary")
+load("//dart/private:dart_binary.bzl", "dart_bootstrap_binary", "dart_tool_binary")
+
+# Every macOS `exe` and `aot-snapshot`, `kernel_tool` included, compiles
+# through it.
+dart_bootstrap_binary(
+    name = "compile_runner",
+    compile_mode = "kernel",
+    main = "compile_runner.dart",
+    visibility = ["//visibility:public"],
+    deps = ["@ext_pub_deps//:crypto"],
+)
 
 dart_binary(
     name = "noop",

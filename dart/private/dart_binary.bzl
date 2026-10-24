@@ -175,6 +175,7 @@ def _dart_binary_impl(ctx):
             target_arch = dart_sdk_info.target_arch,
             extra_flags = compile_flags,
             recorded_uses = compile_recorded_uses,
+            runner = _compile_runner(ctx, compile_mode),
         )
 
     # Resources ride the runfiles, not the compile. A dep's `lib/**` non-Dart
@@ -207,6 +208,14 @@ def _dart_binary_impl(ctx):
         own.analyzable,
     ] + recorded_uses_info + _import_checks(ctx, own)
 
+def _compile_runner(ctx, compile_mode):
+    # Only gen_snapshot's Mach-O output names where it was written.
+    if not hasattr(ctx.attr, "_compile_runner") or compile_mode not in ("exe", "aot-snapshot"):
+        return None
+    if not ctx.target_platform_has_constraint(ctx.attr._os_macos[platform_common.ConstraintValueInfo]):
+        return None
+    return ctx.file._compile_runner
+
 def _import_checks(ctx, own):
     # `dart_tool_binary` has no `kernel_tool` to check with: it builds it.
     if not hasattr(ctx.attr, "_kernel_tool"):
@@ -219,39 +228,49 @@ def _import_checks(ctx, own):
         ctx.attr.deps,
     ))]
 
-def _dart_binary_rule(check_imports):
+_COMPILE_RUNNER_ATTR = {
+    "_compile_runner": attr.label(
+        default = "//dart/private/tools:compile_runner",
+        allow_single_file = True,
+        cfg = "exec",
+    ),
+}
+
+def _dart_binary_rule(check_imports, compile_runner = True):
     return rule(
         implementation = _dart_binary_impl,
-        attrs = dict(KERNEL_TOOL_ATTR if check_imports else {}, **dict({
-            "main": attr.label(
-                doc = "The Dart entrypoint file containing a top-level `main()` function.",
-                mandatory = True,
-                allow_single_file = [".dart"],
-            ),
-            "srcs": attr.label_list(
-                doc = "Additional Dart source files that are part of this binary's package but not reachable via `deps`.",
-                allow_files = [".dart"],
-            ),
-            "deps": attr.label_list(
-                doc = "`dart_library` targets this binary depends on.",
-                providers = [DartInfo],
-                aspects = [dart_import_check_aspect] if check_imports else [],
-            ),
-            "data": attr.label_list(
-                doc = "Additional files needed at runtime. These are added to runfiles so they can be found via the runfiles tree when using `bazel run`.",
-                allow_files = True,
-            ),
-            "code_assets": attr.label_list(
-                doc = """Native code assets (e.g. `//dart/ext/sqlite3:code_asset`) the binary's \
+        attrs = dict(
+            KERNEL_TOOL_ATTR if check_imports else {},
+            **dict(_COMPILE_RUNNER_ATTR if compile_runner else {}, **dict({
+                "main": attr.label(
+                    doc = "The Dart entrypoint file containing a top-level `main()` function.",
+                    mandatory = True,
+                    allow_single_file = [".dart"],
+                ),
+                "srcs": attr.label_list(
+                    doc = "Additional Dart source files that are part of this binary's package but not reachable via `deps`.",
+                    allow_files = [".dart"],
+                ),
+                "deps": attr.label_list(
+                    doc = "`dart_library` targets this binary depends on.",
+                    providers = [DartInfo],
+                    aspects = [dart_import_check_aspect] if check_imports else [],
+                ),
+                "data": attr.label_list(
+                    doc = "Additional files needed at runtime. These are added to runfiles so they can be found via the runfiles tree when using `bazel run`.",
+                    allow_files = True,
+                ),
+                "code_assets": attr.label_list(
+                    doc = """Native code assets (e.g. `//dart/ext/sqlite3:code_asset`) the binary's \
     `@Native` FFI bindings resolve against. When set, the main is compiled to a kernel with the \
     code-asset mapping embedded (`gen_kernel --native-assets`) before the snapshot/exe is produced, \
     and the libraries are staged in runfiles so the Dart VM resolves them relative to the executable \
     at runtime. Each entry must provide `DartCodeAssetInfo` (see the `dart_code_asset` rule).""",
-                providers = [DartCodeAssetInfo],
-            ),
-            "code_assets_from_deps": attr.bool(
-                default = True,
-                doc = """Whether to pick up native code assets propagated through `deps`.
+                    providers = [DartCodeAssetInfo],
+                ),
+                "code_assets_from_deps": attr.bool(
+                    default = True,
+                    doc = """Whether to pick up native code assets propagated through `deps`.
 
     Leave this on for a program that runs the packages it depends on. Turn it off for a `dart_binary` \
     used purely as a *build tool* — a code generator, a linter — which imports pub packages for their \
@@ -262,9 +281,9 @@ def _dart_binary_rule(check_imports):
 
     Also suppresses the unreplaced-`hook/build.dart` diagnostic, on the same grounds — a tool that \
     never loads native code is unaffected by a package whose native code was not built.""",
-            ),
-            "compile_mode": attr.string(
-                doc = """\
+                ),
+                "compile_mode": attr.string(
+                    doc = """\
     The `dart compile` mode. Determines the output format:
 
     - `exe` (default): Self-contained native machine code. No Dart SDK needed at runtime. Best for deployment.
@@ -272,23 +291,24 @@ def _dart_binary_rule(check_imports):
     - `kernel`: Dart kernel binary (`.dill`). Requires `dart` to execute. Fastest compilation, useful for development.
     - `jit-snapshot`: JIT snapshot with trained profile data. Requires `dart` to execute. Fastest startup after warmup.
     """,
-                default = "exe",
-                values = ["exe", "aot-snapshot", "kernel", "jit-snapshot"],
-            ),
-            "dart_compile_flags": attr.string_list(
-                doc = "Extra flags passed to `dart compile` after compilation-mode defaults. Flags appear last so they can override defaults (e.g., `--extra-gen-snapshot-options=--optimization_level=3`). Front-end flags (`--enable-experiment`, `-D`/`--define`) go to the front-end step that precedes `dart compile`; in the `kernel` mode, which is that step alone, every flag does, and only those the front end (`gen_kernel`) accepts work.",
-            ),
-            "defines": attr.string_list(
-                doc = "Dart environment declarations (`key=value`). Each entry becomes a `-Dkey=value` flag.",
-            ),
-            "record_use": attr.bool(
-                doc = """Record the uses of `@RecordUse` definitions (`package:meta`) as \
+                    default = "exe",
+                    values = ["exe", "aot-snapshot", "kernel", "jit-snapshot"],
+                ),
+                "dart_compile_flags": attr.string_list(
+                    doc = "Extra flags passed to `dart compile` after compilation-mode defaults. Flags appear last so they can override defaults (e.g., `--extra-gen-snapshot-options=--optimization_level=3`). Front-end flags (`--enable-experiment`, `-D`/`--define`) go to the front-end step that precedes `dart compile`; in the `kernel` mode, which is that step alone, every flag does, and only those the front end (`gen_kernel`) accepts work.",
+                ),
+                "defines": attr.string_list(
+                    doc = "Dart environment declarations (`key=value`). Each entry becomes a `-Dkey=value` flag.",
+                ),
+                "record_use": attr.bool(
+                    doc = """Record the uses of `@RecordUse` definitions (`package:meta`) as \
     `<name>.recorded_uses.json`, provided as `DartRecordedUsesInfo` for `dart_link_hook`. \
     In the `exe` and `aot-snapshot` modes the compiler records them as it tree-shakes. The \
     `kernel` and `jit-snapshot` modes do not tree-shake, so nothing is recorded and the file is \
     the empty JSON object `{}` (`kind = "empty"`).""",
-            ),
-        }, **dict(DART_ABI_CONSTRAINT_ATTRS, **dict(EXTRA_DART_DEFINES_ATTR, **EXECUTABLE_PACKAGE_ATTRS)))),
+                ),
+            }, **dict(DART_ABI_CONSTRAINT_ATTRS, **dict(EXTRA_DART_DEFINES_ATTR, **EXECUTABLE_PACKAGE_ATTRS))))
+        ),
         executable = True,
         toolchains = ["//dart:toolchain_type"] + COPY_TO_DIRECTORY_TOOLCHAINS,
         doc = "Compiles a Dart application using `dart compile`.",
@@ -299,3 +319,8 @@ dart_binary = _dart_binary_rule(check_imports = True)
 # `kernel_tool` itself, which checks everyone else's imports: built without the
 # check, which would depend on it. Only for rules_dart's own tools.
 dart_tool_binary = _dart_binary_rule(check_imports = False)
+
+# `compile_runner`, which every macOS `exe` and `aot-snapshot` compiles
+# through: a `kernel`, which does not, built by a rule that does not depend on
+# it. Goes when `compile_runner` does (see its header).
+dart_bootstrap_binary = _dart_binary_rule(check_imports = False, compile_runner = False)

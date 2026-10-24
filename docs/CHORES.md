@@ -48,6 +48,14 @@ file at runtime — keep file lists current as the repo evolves.
 6. Regenerate lock files: `dart run tool/refresh_locks.dart`
 7. Run `bazel test //dart/tests/...` to verify unit tests pass
 8. Pick one e2e workspace and run `bazel build //...` to smoke-test
+9. If the new SDK contains dart-lang/sdk e2c6325 (Mach-O `--strip` fix), retire
+   `dart/private/tools/compile_runner.dart`: pass `--strip` to gen_snapshot
+   (`--extra-gen-snapshot-options`) on macOS `exe` and `aot-snapshot`
+   compiles, delete the runner and `dart_bootstrap_binary`, and keep
+   `//dart/tests/reproducible_fixture` passing on macOS. Check that stripped
+   stack traces still say enough; if not, keep the debugging info with
+   `--save-debugging-info` beside the output. Then delete this step and step 11
+   of `.claude/commands/bump-dart-sdk.md`
 
 **Verification**: `bazel test //dart/tests/...` passes; at least one e2e workspace builds.
 

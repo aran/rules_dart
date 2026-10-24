@@ -28,4 +28,6 @@ Bump the Dart SDK to version $ARGUMENTS.
 
 10. Pick one e2e workspace (e.g. `e2e/hello_world`) and run `bazel build //...` in it to verify the new SDK resolves correctly.
 
+11. Check whether the new SDK contains dart-lang/sdk e2c6325 (`git -C <sdk checkout> merge-base --is-ancestor`, or GitHub's compare of the release tag against e2c6325). If it does, follow CHORES.md step 9 to retire `compile_runner`, which ends by deleting that step and this one.
+
 11. Commit with message: `chore: bump Dart SDK to $ARGUMENTS`
