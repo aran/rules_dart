@@ -20,6 +20,12 @@ dart_binary(
 
 dart_binary(
     name = "analyze_runner",
+    srcs = [
+        "analysis_server.dart",
+        "analyzer.dart",
+        "dart_cli.dart",
+        "server_analyzer.dart",
+    ],
     compile_mode = "exe",
     main = "analyze_runner.dart",
     visibility = ["//dart:__subpackages__"],
@@ -27,6 +33,12 @@ dart_binary(
 
 dart_binary(
     name = "fix_runner",
+    srcs = [
+        "analysis_server.dart",
+        "analyzer.dart",
+        "dart_cli.dart",
+        "server_analyzer.dart",
+    ],
     compile_mode = "exe",
     main = "fix_runner.dart",
     visibility = ["//dart:__subpackages__"],

@@ -24,6 +24,18 @@ bool_flag(
     visibility = ["//visibility:public"],
 )
 
+# A workaround: on macOS the analysis server behind `dart analyze` and
+# `dart fix` was seen to hang forever in its shutdown, holding up the build.
+# Off (the default), the `dart_analyze` aspect's actions run the plain
+# commands, so a hang shows as a stuck action; on, they talk to the server
+# themselves and stop it when it will not shut down:
+#   bazel test //... --@rules_dart//dart:analysis_shutdown_workaround=true
+bool_flag(
+    name = "analysis_shutdown_workaround",
+    build_setting_default = False,
+    visibility = ["//visibility:public"],
+)
+
 # This is the target rule authors should put in their "toolchains"
 # attribute in order to get a runtime for the correct platform.
 # See https://docs.bazel.build/versions/main/toolchains.html#writing-rules-that-use-toolchains

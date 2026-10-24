@@ -157,6 +157,13 @@ jobs:
           # Named as the user's file, not as the staged copy under `src/`.
           echo "$out" | grep -q -- "- lib/bad.dart:4:7 -"
           echo "OK: expected analyzer failure detected, at the workspace path"
+      - name: analysis_failure — expect a diagnostic's related location at its workspace path
+        working-directory: e2e/analysis_failure
+        run: |
+          out=$(bazel test //context 2>&1 || true)
+          echo "$out" | grep -q "referenced_before_declaration"
+          echo "$out" | grep -q -- " - The declaration of 'x' is here at context/lib/context.dart:3:7"
+          echo "OK: related location named at the workspace path"
       - name: analysis_failure — expect a binary's entrypoint to be analyzed too
         working-directory: e2e/analysis_failure
         run: |

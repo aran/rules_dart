@@ -1,0 +1,8 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+# A diagnostic with a context message, which names a second location: both
+# must be the user's paths, not the staged copy under `src/`.
+dart_library(
+    name = "context",
+    srcs = ["lib/context.dart"],
+)

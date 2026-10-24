@@ -51,6 +51,7 @@ products into the workspace, so a fix and the analysis it answers can never see
 different projects.
 """
 
+load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("//dart:providers.bzl", "DartAnalysisOptionsInfo", "DartAnalyzableInfo", "DartInfo")
 load("//dart/private:common.bzl", "merge_package_records", "own_package_record", "writable_home_env")
 load("//dart/private:project_staging.bzl", "pubspec_stub", "stage_dart_project", "staged_pubspec_paths")
@@ -230,6 +231,10 @@ def stage_config_project(ctx, config, packages, files, own, name, sdk_version):
         sdk_version = sdk_version,
     )
 
+def _add_analyzer(ctx, args):
+    if not ctx.attr._analysis_shutdown_workaround[BuildSettingInfo].value:
+        args.add("--dart-cli")
+
 def _analyze(ctx, name, staged, sdk_inputs):
     """Declares the `dart analyze` action; returns the stamp it writes on success."""
     dart_sdk_info = ctx.toolchains[_TOOLCHAIN].dart_sdk_info
@@ -239,6 +244,7 @@ def _analyze(ctx, name, staged, sdk_inputs):
     args.add("--project", staged.proj_path)
     args.add("--stamp", stamp)
     args.add("--fatal-infos")
+    _add_analyzer(ctx, args)
     ctx.actions.run(
         executable = ctx.executable._analyze_tool,
         arguments = [args],
@@ -407,6 +413,7 @@ def _dart_analyze_aspect_impl(target, ctx):
     fix_args.add("--fixes", fixes.path)
     fix_args.add("--manifest", manifest)
     fix_args.add("--eligible", eligible)
+    _add_analyzer(ctx, fix_args)
     ctx.actions.run(
         executable = ctx.executable._fix_tool,
         arguments = [fix_args],
@@ -432,6 +439,9 @@ dart_analyze = aspect(
         "_config": attr.label(
             default = "//dart:analysis_config",
             providers = [DartAnalysisConfigInfo],
+        ),
+        "_analysis_shutdown_workaround": attr.label(
+            default = "//dart:analysis_shutdown_workaround",
         ),
         "_analyze_tool": attr.label(
             default = "//dart/private/tools:analyze_runner",

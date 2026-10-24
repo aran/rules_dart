@@ -8,6 +8,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'analyzer.dart';
+
 /// Recorded for every changed file outside the eligible set. One constant
 /// string: the manifest says *that* a fix was discarded, and the rule's
 /// excludes are what say why.
@@ -17,15 +19,18 @@ const _droppedReason = 'not write-back eligible';
 /// from the staged original is self-inflicted rather than a discarded fix.
 const _packageConfigPath = '.dart_tool/package_config.json';
 
-void main(List<String> args) {
+Future<void> main(List<String> args) async {
   String? dart;
   String? project;
   String? scratch;
   String? fixes;
   String? manifest;
   String? eligible;
+  var dartCli = false;
   for (var i = 0; i < args.length; i++) {
     switch (args[i]) {
+      case '--dart-cli':
+        dartCli = true;
       case '--dart':
         dart = args[++i];
       case '--project':
@@ -61,7 +66,11 @@ void main(List<String> args) {
   _copyTree(project, scratch);
   _absolutizePackageConfig(project, scratch);
 
-  final result = Process.runSync(dart, ['fix', '--apply', scratch]);
+  final result = await Analyzer(
+    dart,
+    cache: '$manifest.cache',
+    dartCli: dartCli,
+  ).fix(scratch);
   // Bazel echoes any action output, and this action runs whenever fixes are
   // asked for: its progress chatter is printed only when it fails. What it
   // changed is in the manifest.

@@ -477,6 +477,11 @@ bazel build //:fix --output_groups=+dart_fix_manifest  # what was fixed, and wha
 bazel build //:fix --output_groups=+dart_fix_fixes     # the fixed files themselves
 ```
 
+On macOS, I've seen dart analysis and dart fix hang after the analysis
+finished, because the Dart analysis server never shut down. If you hit this,
+please contact me or [open an issue](https://github.com/aran/rules_dart/issues),
+and try `--@rules_dart//dart:analysis_shutdown_workaround=true`.
+
 #### Checking targets `//...` does not reach
 
 The `.bazelrc` setup checks the targets a test run names, so it never reaches a

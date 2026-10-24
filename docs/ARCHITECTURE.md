@@ -186,6 +186,10 @@ Bazel's `-c` flag (`fastbuild`, `dbg`, `opt`) controls compiler flags automatica
 - **`dart_compile_flags`** (`string_list`): Extra flags appended after mode defaults. Appears last so user flags override defaults (e.g., `-O4` after `-O2` — dart2js uses last-wins). For the VM modes, front-end flags (`--enable-experiment`, `-D`/`--define`) go to the front-end action instead, since `dart compile` accepts them on a kernel and ignores them.
 - **`defines`** (`string_list`): Entries in `key=value` format. Each becomes a `-Dkey=value` flag passed to the compiler. These are resolved by the front end during constant evaluation, so they must reach the action that compiles source — for the VM modes that is the front-end action, not the `dart compile` step that consumes its kernel.
 
+### Analysis Server Shutdown Workaround
+
+`--@rules_dart//dart:analysis_shutdown_workaround` (off by default) is a workaround for a bug seen on macOS: the analysis server behind `dart analyze` and `dart fix` hung forever in its shutdown, closing its file watchers, and both commands report or write only after that shutdown. On, the analyze and fix actions talk to the server themselves, wait 10 seconds for it to shut down, then end it; on macOS they abort it, so the system's crash reporter records its threads in `~/Library/Logs/DiagnosticReports/dartaotruntime-*.ips`, and the action's log names the process. Off, they run `dart analyze` and `dart fix --apply` themselves, so a hang shows as an action that never finishes.
+
 ### Command-Line Defines
 
 `--@rules_dart//dart:extra_dart_defines=KEY=VALUE` appends environment declarations to every Dart compile, after any target-level `defines`. It is repeatable — one define per occurrence — so a `.bazelrc` config group can point a whole build at an environment without editing BUILD files, reaching binaries, tests, and web targets alike. On a key collision the flag wins, because every Dart compiler takes the last `-D` for a repeated key.

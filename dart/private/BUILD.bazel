@@ -172,6 +172,7 @@ bzl_library(
         ":project_staging",
         ":source_set",
         "//dart:providers",
+        "@bazel_skylib//rules:common_settings",
     ],
 )
 
