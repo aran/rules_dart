@@ -44,8 +44,6 @@ dart_test(
     name = "direct_test",
     size = "small",
     code_assets = [sqlite3_code_asset()],
-    # Its code assets are built for the target, so it runs there.
-    exec_group_compatible_with = {"test": HOST_CONSTRAINTS},
     main = "test/direct_test.dart",
     deps = [
         "@pub_deps//:sqlite3",

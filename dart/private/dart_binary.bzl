@@ -130,7 +130,7 @@ def _dart_binary_impl(ctx):
         native_assets_yaml = ctx.actions.declare_file(ctx.label.name + ".native_assets.yaml")
         ctx.actions.write(
             output = native_assets_yaml,
-            content = generate_native_assets_yaml(abi, entries),
+            content = generate_native_assets_yaml({abi: entries}),
         )
 
     kernel = output if compile_mode == "kernel" else ctx.actions.declare_file(ctx.label.name + ".app.dill")

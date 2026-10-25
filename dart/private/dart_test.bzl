@@ -72,42 +72,9 @@ def _dart_test_impl(ctx):
         )
     else:
         dill = ctx.actions.declare_file(ctx.label.name + ".dill")
-    runtime_libs = []
-
-    # Transitively propagated assets plus any named outright — see the same
-    # comment in `dart_binary`.
-    resolved_assets = resolve_code_assets(
-        ctx.label,
-        collect_transitive_code_assets(ctx.attr.deps),
-        [dep[DartCodeAssetInfo] for dep in ctx.attr.code_assets],
-    )
-
-    # The code-asset mapping is embedded in the kernel, with `relative` paths
-    # resolved against the dill at run time — the same as `dart_binary`. The
-    # `.so` libraries ship in runfiles.
-    native_assets_yaml = None
-    if resolved_assets:
-        abi = target_dart_abi(ctx)
-
-        # The libraries are built for the target, and the VM loads them where
-        # the test runs, which is anywhere with a Dart SDK unless told.
-        host = "%s_%s" % (dart_sdk_info.exec_os, dart_sdk_info.exec_arch)
-        if host != abi:
-            fail(("%s: the test's code assets are built for %s, but it runs on a %s host, " +
-                  "where the VM cannot load them. Pin it there with " +
-                  "`exec_group_compatible_with = {\"test\": [...]}` naming the target's " +
-                  "constraints: `HOST_CONSTRAINTS`, from `@platforms//host:constraints.bzl`, " +
-                  "when the target is the host.") % (ctx.label, abi, host))
-        entries, runtime_libs = code_asset_entries(
-            ctx.label,
-            resolved_assets,
-            dill.dirname,
-        )
-        native_assets_yaml = ctx.actions.declare_file(ctx.label.name + ".native_assets.yaml")
-        ctx.actions.write(
-            output = native_assets_yaml,
-            content = generate_native_assets_yaml(abi, entries),
-        )
+    target_sdk_info = ctx.toolchains["//dart:toolchain_type"].dart_sdk_info
+    dispatch = _dispatches(dart_sdk_info, target_sdk_info)
+    native_assets_yaml, runtime_libs = _code_assets(ctx, dart_sdk_info, target_sdk_info, dispatch, dill)
 
     if not ctx.attr._modular_kernel[BuildSettingInfo].value:
         # The whole program from source, as `dart_binary` compiles: what the
@@ -148,7 +115,7 @@ def _dart_test_impl(ctx):
         if key.startswith("RULES_DART_"):
             fail("%s: `env` cannot set %s; rules_dart uses the RULES_DART_ prefix to drive the test" % (ctx.label, key))
         env[key] = ctx.expand_location(value, ctx.attr.data)
-    launch = _launch(ctx, dart_sdk_info, ctx.toolchains["//dart:toolchain_type"].dart_sdk_info, env)
+    launch = _launch(ctx, dart_sdk_info, target_sdk_info, dispatch, env)
 
     # A dep's `lib/**` non-Dart files are part of the package at run time under
     # pub, and the dill carries only compiled code — so they come in here, the
@@ -179,6 +146,83 @@ def _dart_test_impl(ctx):
         )),
     ]
 
+def _abi(sdk):
+    """The code-asset ABI of the host an SDK runs on."""
+    return "%s_%s" % (sdk.exec_os, sdk.exec_arch)
+
+def _code_assets(ctx, test_sdk, target_sdk, dispatch, dill):
+    """The test's code-asset mapping, and the libraries it names.
+
+    The VM loads the libraries built for the host it runs on. When that is the
+    target, they are the ones `deps` and `code_assets` already build; when it
+    is not (a remote executor, a cross-compiled target), they are the same
+    targets built for the test's host, through `test_host_deps`. A test that
+    `bazel run` may start on the target carries both, each under its ABI.
+
+    Args:
+      ctx: The rule context.
+      test_sdk: The `DartSdkInfo` of the `test` group's host.
+      target_sdk: The `DartSdkInfo` of the target platform's toolchain.
+      dispatch: Whether the executable starts the target's VM on the target.
+      dill: The test's kernel, against which the mapping's paths resolve.
+
+    Returns:
+      `(native_assets_yaml, libraries)`: the mapping File, or `None` when the
+      test has no code assets, and the libraries for its runfiles.
+    """
+    for_target = resolve_code_assets(
+        ctx.label,
+        collect_transitive_code_assets(ctx.attr.deps),
+        [dep[DartCodeAssetInfo] for dep in ctx.attr.code_assets],
+    )
+    if not for_target:
+        return None, []
+    test_abi = _abi(test_sdk)
+    if not target_sdk.target_os and test_abi == _abi(target_sdk):
+        by_abi = {test_abi: for_target}
+    else:
+        host_deps = ctx.attr.test_host_deps
+        by_abi = {test_abi: resolve_code_assets(
+            ctx.label,
+            collect_transitive_code_assets([dep for dep in host_deps if DartInfo in dep]),
+            [dep[DartCodeAssetInfo] for dep in host_deps if DartCodeAssetInfo in dep],
+        )}
+        if dispatch:
+            by_abi[target_dart_abi(ctx)] = for_target
+
+    # The VM resolves a `relative` path against the dill's real location, the
+    # output tree when runfiles are symlinks and the runfiles tree when they
+    # are copies, as on a remote executor. A library from another
+    # configuration (the test's host's, or any transition's) is where the two
+    # trees disagree, so each one is linked in beside the dill, where they
+    # agree.
+    entries_by_abi = {}
+    libraries = []
+    for abi, assets in by_abi.items():
+        staged = [_stage_library(ctx, abi, index, asset) for index, asset in enumerate(assets)]
+        entries, libs = code_asset_entries(ctx.label, staged, dill.dirname)
+        entries_by_abi[abi] = entries
+        libraries.extend(libs)
+    native_assets_yaml = ctx.actions.declare_file(ctx.label.name + ".native_assets.yaml")
+    ctx.actions.write(
+        output = native_assets_yaml,
+        content = generate_native_assets_yaml(entries_by_abi),
+    )
+    return native_assets_yaml, libraries
+
+def _stage_library(ctx, abi, index, asset):
+    """`asset` with its library linked into this test's own output directory."""
+    if asset.dynamic_library == None:
+        return asset
+    staged = ctx.actions.declare_file("%s.native/%s/%d/%s" % (ctx.label.name, abi, index, asset.dynamic_library.basename))
+    ctx.actions.symlink(output = staged, target_file = asset.dynamic_library)
+    return DartCodeAssetInfo(
+        asset_id = asset.asset_id,
+        link_mode = asset.link_mode,
+        dynamic_library = staged,
+        system_uri = asset.system_uri,
+    )
+
 # How `uname -s`/`uname -m` name each host an SDK is published for.
 _UNAME = {
     ("linux", "arm64"): "Linux/aarch64",
@@ -187,28 +231,43 @@ _UNAME = {
     ("macos", "x64"): "Darwin/x86_64",
 }
 
-def _launch(ctx, test_sdk, target_sdk, env):
-    """The test's executable, with its runfiles and environment.
+def _dispatches(test_sdk, target_sdk):
+    """Whether the executable picks a VM by the machine it finds itself on.
 
     `bazel test` runs the executable on the `test` group's host, which may be
     a remote executor, but `bazel run` runs it here, on the target. When the
     two differ, the executable is a script that starts whichever launcher and
-    VM were built for the machine it finds itself on. A Windows host has no
-    shell to run one, and a cross-compiled target no VM to run, so there the
-    test runs only on its own host.
+    VM were built for the machine it is on. A Windows host has no shell to run
+    one, and a cross-compiled target no VM to run, so there the test runs only
+    on its own host.
+
+    Args:
+      test_sdk: The `DartSdkInfo` of the `test` group's host.
+      target_sdk: The `DartSdkInfo` of the target platform's toolchain.
+
+    Returns:
+      A bool.
+    """
+    test_host = (test_sdk.exec_os, test_sdk.exec_arch)
+    target_host = (target_sdk.exec_os, target_sdk.exec_arch)
+    return (test_host != target_host and not target_sdk.target_os and
+            test_host in _UNAME and target_host in _UNAME)
+
+def _launch(ctx, test_sdk, target_sdk, dispatch, env):
+    """The test's executable, with its runfiles and environment.
 
     Args:
       ctx: The rule context.
       test_sdk: The `DartSdkInfo` of the `test` group's host.
       target_sdk: The `DartSdkInfo` of the target platform's toolchain.
+      dispatch: Whether to start a VM by the machine the script is on (see
+        `_dispatches`).
       env: The test's environment, without the VM.
 
     Returns:
       `struct(executable, runfiles, env)`.
     """
-    test_host = (test_sdk.exec_os, test_sdk.exec_arch)
-    target_host = (target_sdk.exec_os, target_sdk.exec_arch)
-    if test_host == target_host or target_sdk.target_os or test_host not in _UNAME or target_host not in _UNAME:
+    if not dispatch:
         launcher = test_executable(ctx, ctx.attr._tool)
         return struct(
             executable = launcher.executable,
@@ -237,7 +296,7 @@ def _launch(ctx, test_sdk, target_sdk, env):
         "\n".join([
             "#!/bin/sh",
             "[ -n \"$RUNFILES_DIR\" ] || export RUNFILES_DIR=\"$0.runfiles\"",
-            "if [ \"$(uname -s)/$(uname -m)\" = '%s' ]; then" % _UNAME[test_host],
+            "if [ \"$(uname -s)/$(uname -m)\" = '%s' ]; then" % _UNAME[(test_sdk.exec_os, test_sdk.exec_arch)],
             start(launchers[0], test_sdk),
             "fi",
             start(launchers[1], target_sdk),
@@ -407,8 +466,16 @@ def _write_entrypoint(ctx, name, template):
     )
     return out
 
+def _dart_test_initializer(name, deps = None, code_assets = None, test_host_deps = None, **_attrs):
+    if test_host_deps != None:
+        fail("%s: `test_host_deps` is set by `dart_test` from `deps` and `code_assets`" % name)
+    if deps == None and code_assets == None:
+        return {}
+    return {"test_host_deps": (deps if deps != None else []) + (code_assets if code_assets != None else [])}
+
 dart_test = rule(
     implementation = _dart_test_impl,
+    initializer = _dart_test_initializer,
     attrs = dict({
         "main": attr.label(
             doc = "The Dart test file to run. Must contain a top-level `main()` function.",
@@ -442,6 +509,13 @@ with the code-asset mapping embedded (`gen_kernel --native-assets`), and the lib
 runfiles so the Dart VM resolves them — no `dart:ffi` ceremony in the test source. Each entry \
 must provide `DartCodeAssetInfo` (see the `dart_code_asset` rule).""",
             providers = [DartCodeAssetInfo],
+        ),
+        "test_host_deps": attr.label_list(
+            doc = """Set by the rule, never by hand: `deps` and `code_assets` again, built \
+for the host the test runs on. When that host is not the target (a remote executor, say), the \
+test loads the code assets built here.""",
+            providers = [[DartInfo], [DartCodeAssetInfo]],
+            cfg = config.exec("test"),
         ),
         "env": attr.string_dict(
             doc = """Environment variables set when the test runs. Values expand \
@@ -479,9 +553,10 @@ told where a runfile is (resolve it with `Runfiles.rlocation()`).""",
         "that package's runner, so `--test_filter`, `shard_count` and " +
         "per-case results work and Bazel's `timeout` is the only time limit. " +
         "It runs on any host with a Dart SDK, whatever the target platform, " +
-        "so a remote executor can run it; one that needs the target's own " +
-        "host (native `code_assets`, a binary from `data`, a tool such as " +
-        "`xcrun`) says so with `exec_group_compatible_with = {\"test\": [...]}`. " +
+        "so a remote executor can run it, with its native `code_assets` " +
+        "built for that host. One that needs the target's own host (a binary " +
+        "from `data`, a tool such as `xcrun`) says so with " +
+        "`exec_group_compatible_with = {\"test\": [...]}`. " +
         "`target_compatible_with` does not move the run."
     ),
 )

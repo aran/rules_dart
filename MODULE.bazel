@@ -56,6 +56,45 @@ http_archive(
 # without a warning. Dev-only: the C++ toolchain is the consuming module's call.
 bazel_dep(name = "apple_support", version = "2.10.1", dev_dependency = True)
 
+# A test's code assets are built for the host that runs it, which in a remote
+# build is a Linux arm64 executor: a C++ toolchain for it, with a sysroot, since
+# the executor has no C library headers. The Debian sysroot Chromium publishes
+# is the one toolchains_llvm's own tests use.
+bazel_dep(name = "toolchains_llvm", version = "1.12.0", dev_dependency = True)
+
+llvm = use_extension(
+    "@toolchains_llvm//toolchain/extensions:llvm.bzl",
+    "llvm",
+    dev_dependency = True,
+)
+llvm.toolchain(
+    name = "llvm_linux_arm64",
+    # The Chromium sysroot uses Debian's libstdc++ layout.
+    cxx_include_layout = {"linux-aarch64": "debian"},
+    exec_arch = "aarch64",
+    exec_os = "linux",
+    llvm_version = "19.1.7",
+)
+llvm.sysroot(
+    name = "llvm_linux_arm64",
+    label = "@org_chromium_sysroot_linux_arm64//sysroot",
+    targets = ["linux-aarch64"],
+)
+use_repo(llvm, "llvm_linux_arm64")
+
+sysroot = use_repo_rule("@toolchains_llvm//toolchain:sysroot.bzl", "sysroot")
+
+sysroot(
+    name = "org_chromium_sysroot_linux_arm64",
+    sha256 = "e39b700d8858d18868544c8c84922f6adfa8419f3f42471b92024ba38eff7aca",
+    urls = ["https://commondatastorage.googleapis.com/chrome-linux-sysroot/toolchain/2202c161310ffde63729f29d27fe7bb24a0bc540/debian_stretch_arm64_sysroot.tar.xz"],
+)
+
+register_toolchains(
+    "@llvm_linux_arm64//:cc-toolchain-aarch64-linux",
+    dev_dependency = True,
+)
+
 # Used by `dart_library`/`dart_source_set` to assemble generated + hand-written
 # sources into one directory (copy_to_directory). Regular (not dev) dep so
 # downstream modules get it; self-registers its copy toolchains.

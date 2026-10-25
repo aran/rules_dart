@@ -1221,31 +1221,31 @@ def code_asset_entries(label, assets, output_dir):
         ))
     return entries, libraries
 
-def generate_native_assets_yaml(abi, asset_entries):
+def generate_native_assets_yaml(entries_by_abi):
     """Generates the `native_assets.yaml` content for `gen_kernel --native-assets`.
 
     Emits the documented format (JSON, which is valid YAML); the VM reads it
-    as `vm:ffi:native-assets` kernel metadata.
+    as `vm:ffi:native-assets` kernel metadata, and looks up its own ABI.
 
     Args:
-      abi: The `<os>_<arch>` ABI key (see `target_dart_abi`).
-      asset_entries: List of `(asset_id, path_list)` tuples, where `path_list`
-        comes from `native_assets_path_list`.
+      entries_by_abi: Dict from `<os>_<arch>` ABI key (see `target_dart_abi`)
+        to a list of `(asset_id, path_list)` tuples, where `path_list` comes
+        from `native_assets_path_list`.
 
     Returns:
       String content of the native_assets.yaml file.
     """
-    assets = ", ".join([
-        '"{id}": [{path}]'.format(
-            id = asset_id,
-            path = ", ".join(['"%s"' % part for part in path_list]),
-        )
-        for (asset_id, path_list) in asset_entries
-    ])
-    return '{{"format-version": [1, 0, 0], "native-assets": {{"{abi}": {{{assets}}}}}}}\n'.format(
-        abi = abi,
-        assets = assets,
-    )
+    abis = []
+    for abi, asset_entries in entries_by_abi.items():
+        assets = ", ".join([
+            '"{id}": [{path}]'.format(
+                id = asset_id,
+                path = ", ".join(['"%s"' % part for part in path_list]),
+            )
+            for (asset_id, path_list) in asset_entries
+        ])
+        abis.append('"{abi}": {{{assets}}}'.format(abi = abi, assets = assets))
+    return '{{"format-version": [1, 0, 0], "native-assets": {{{abis}}}}}\n'.format(abis = ", ".join(abis))
 
 # The URI scheme every VM compile reads its sources through, rooted at the exec
 # root. See `dart_kernel_action`.

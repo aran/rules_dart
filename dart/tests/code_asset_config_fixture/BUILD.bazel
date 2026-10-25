@@ -1,0 +1,54 @@
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
+load("//dart:defs.bzl", "dart_code_asset", "dart_test")
+load(":transitioned_asset.bzl", "transitioned_asset")
+
+# A test whose code asset is built in another configuration than the test,
+# while the test's own configuration builds a library of the same name at the
+# same package path: the VM must load the one the asset names.
+
+bool_flag(
+    name = "transitioned",
+    build_setting_default = False,
+)
+
+config_setting(
+    name = "is_transitioned",
+    flag_values = {":transitioned": "True"},
+)
+
+cc_library(
+    name = "which",
+    srcs = ["which.cc"],
+    local_defines = select({
+        ":is_transitioned": ["WHICH=2"],
+        "//conditions:default": ["WHICH=1"],
+    }),
+)
+
+cc_shared_library(
+    name = "which_shared",
+    deps = [":which"],
+)
+
+dart_code_asset(
+    name = "asset",
+    asset_id = "package:code_asset_config_fixture/which.dart",
+    shared_library = ":which_shared",
+)
+
+transitioned_asset(
+    name = "transitioned_asset",
+    asset = ":asset",
+)
+
+dart_test(
+    name = "transitioned_asset_test",
+    size = "small",
+    code_assets = [":transitioned_asset"],
+    # The same library in the test's configuration, where a lookup that walks
+    # the wrong tree would find it.
+    data = [":asset"],
+    main = "transitioned_asset_test.dart",
+)

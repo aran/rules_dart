@@ -1,4 +1,3 @@
-load("@platforms//host:constraints.bzl", "HOST_CONSTRAINTS")
 load("@rules_dart//dart:defs.bzl", "dart_test")
 
 # Exemplar of a curated code asset attached by `pub.from_lock` alone: no
@@ -8,8 +7,6 @@ load("@rules_dart//dart:defs.bzl", "dart_test")
 dart_test(
     name = "webcrypto_test",
     size = "small",
-    # Its dependencies' code assets are built for the target, so it runs there.
-    exec_group_compatible_with = {"test": HOST_CONSTRAINTS},
     main = "test/webcrypto_test.dart",
     deps = [
         "@pub_deps//:test",

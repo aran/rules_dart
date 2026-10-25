@@ -1,4 +1,3 @@
-load("@platforms//host:constraints.bzl", "HOST_CONSTRAINTS")
 load("//dart:defs.bzl", "dart_binary", "dart_code_asset", "dart_test")
 load("//dart/tests:defines_test.bzl", "staged_defines_test")
 
@@ -60,7 +59,5 @@ dart_test(
     size = "small",
     code_assets = [":asset"],
     defines = ["CHANNEL=runtime"],
-    # The asset is built for this host, so the test runs here.
-    exec_group_compatible_with = {"test": HOST_CONSTRAINTS},
     main = "assert_channel.dart",
 )
