@@ -73,7 +73,20 @@ def assemble_source_dir(ctx, name, srcs, root_paths = ["."], replace_prefixes = 
     return dst
 
 def package_for(short_path, packages):
-    """Returns the package_name owning `short_path`, by longest matching `lib_root`.
+    """Returns the package_name owning `short_path` (see `package_record_for`).
+
+    Args:
+      short_path: A File's `short_path`.
+      packages: List of `DartPackageInfo` (read for `package_name` and `lib_root`).
+
+    Returns:
+      The matching `package_name`, or `None` if no package owns the path.
+    """
+    record = package_record_for(short_path, packages)
+    return record.package_name if record != None else None
+
+def package_record_for(short_path, packages):
+    """Returns the package record owning `short_path`, by longest matching `lib_root`.
 
     A package owns its `<lib_root>/lib/` subtree and nothing else in the
     directory: `lib/` is what a `package:` URI can reach, and staging strips
@@ -95,9 +108,11 @@ def package_for(short_path, packages):
       packages: List of `DartPackageInfo` (read for `package_name` and `lib_root`).
 
     Returns:
-      The matching `package_name`, or `None` if no package owns the path.
+      The matching record, or `None` if no package owns the path. A package
+      split across several `lib_root`s has a record per root, and the one
+      whose root holds the file is returned.
     """
-    best_name = None
+    best = None
     best_len = -1
     for p in packages:
         lr = p.lib_root
@@ -109,13 +124,13 @@ def package_for(short_path, packages):
         if not lr:
             # Root package: owns `lib/...` files. Lowest precedence.
             if under_lib and best_len < 0:
-                best_name = p.package_name
+                best = p
                 best_len = 0
         elif under_lib or short_path == lr:
             if len(lr) > best_len:
-                best_name = p.package_name
+                best = p
                 best_len = len(lr)
-    return best_name
+    return best
 
 def colocate_packages(ctx, packages, all_srcs, members = {}):
     """Co-locates each package's split source/generated files into one directory.

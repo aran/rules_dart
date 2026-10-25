@@ -150,8 +150,8 @@ void _copyFile(String from, String to) {
 /// Repoints the scratch copy's package config at the packages that live
 /// outside the copied tree.
 ///
-/// Only the project directory is copied; the pub packages its config reaches
-/// through `../../<name>.extpkgs/...` stay where the sandbox staged them, and
+/// Only the project directory is copied; the dependencies its config reaches
+/// through rootUris leading out of the project stay where they are, and
 /// a relative URI no longer finds them from wherever scratch is. Absolute URIs
 /// are how the copy keeps resolving those without copying pub trees or
 /// symlinking them in, which Windows cannot do unprivileged anyway.

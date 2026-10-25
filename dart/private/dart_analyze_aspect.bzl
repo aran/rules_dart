@@ -54,7 +54,7 @@ different projects.
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("//dart:providers.bzl", "DartAnalysisOptionsInfo", "DartAnalyzableInfo", "DartInfo")
 load("//dart/private:common.bzl", "merge_package_records", "own_package_record", "writable_home_env")
-load("//dart/private:project_staging.bzl", "pubspec_stub", "stage_dart_project", "staged_pubspec_paths")
+load("//dart/private:project_staging.bzl", "project_layout", "pubspec_stub", "stage_dart_project", "staged_pubspec_paths")
 load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS")
 
 # Analysis and formatting run on the build machine and produce nothing for the
@@ -172,7 +172,7 @@ def _wrapper_options(excluded):
             lines.append('    - "%s"' % path)
     return "\n".join(lines) + "\n"
 
-def stage_config_project(ctx, config, packages, files, own, name, sdk_version):
+def stage_config_project(ctx, config, packages, files, own, name, sdk_version, relocatable = False):
     """Stages a project holding every options file `config` lists.
 
     The one place a project is laid out for options to be found in: the
@@ -194,12 +194,14 @@ def stage_config_project(ctx, config, packages, files, own, name, sdk_version):
       name: Prefix for the staged paths.
       sdk_version: The toolchain SDK's version, the staged SDK constraint of a
         package that states no `language_version`.
+      relocatable: Whether the project is read through runfiles (see
+        `stage_dart_project`).
 
     Returns:
       The `stage_dart_project` struct.
     """
     packages = merge_package_records(packages + config.packages)
-    staged_files = files + config.files + config.options_files
+    layout = project_layout(packages, files + config.files + config.options_files, own)
     own_paths = [f.short_path for f in own]
     own_set = {f.path: True for f in own}
 
@@ -213,16 +215,16 @@ def stage_config_project(ctx, config, packages, files, own, name, sdk_version):
         if [p for p in own_paths if _is_under(p, f.short_path.rpartition("/")[0])]
     }
     excluded = {}
-    for f in staged_files:
-        if f.short_path.startswith("../") or f.path in own_set or f.path in governing:
+    for f in layout.src_files:
+        if f.path in own_set or f.path in governing:
             continue
         excluded["src/" + f.short_path] = True
-    excluded = sorted(excluded.keys()) + staged_pubspec_paths(packages)
+    excluded = sorted(excluded.keys()) + staged_pubspec_paths(layout)
 
     return stage_dart_project(
         ctx,
-        packages,
-        staged_files,
+        layout,
+        relocatable = relocatable,
         extra_proj_files = {
             "pubspec.yaml": pubspec_stub(packages, sdk_version = sdk_version),
             _OPTIONS_BASENAME: _wrapper_options(excluded),

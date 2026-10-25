@@ -11,7 +11,7 @@ load("//dart:providers.bzl", "DartInfo")
 load("//dart/private:build_settings.bzl", "EXTRA_DART_DEFINES_ATTR", "merge_dart_defines")
 load("//dart/private:common.bzl", "collect_transitive_resources", "collect_transitive_srcs", "writable_home_env")
 load("//dart/private:executable_package.bzl", "EXECUTABLE_PACKAGE_ATTRS", "executable_package")
-load("//dart/private:project_staging.bzl", "stage_dart_project")
+load("//dart/private:project_staging.bzl", "project_layout", "stage_dart_project")
 load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS")
 
 def _get_web_compilation_mode_flags(ctx, compile_mode):
@@ -63,7 +63,7 @@ def _dart_web_compile(ctx, compile_mode):
     all_srcs = ([ctx.file.main] + list(ctx.files.srcs) +
                 collect_transitive_srcs(ctx.attr.deps).to_list() +
                 collect_transitive_resources(ctx.attr.deps).to_list())
-    staged = stage_dart_project(ctx, packages, all_srcs)
+    staged = stage_dart_project(ctx, project_layout(packages, all_srcs, [ctx.file.main] + ctx.files.srcs))
 
     # `dart compile wasm` writes more than the module: the `.mjs` loader that
     # instantiates it, the `.support.js` feature check a page runs first, and

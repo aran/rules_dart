@@ -7,17 +7,25 @@ declared artifacts — no `mktemp`, no shell — as sibling outputs:
 
     <name>.proj/.dart_tool/package_config.json   (declared file)
     <name>.proj/src/...                          (tree artifact; workspace-relative paths)
-    <name>.proj/src/<lib_root>/pubspec.yaml      (stub, one per main-repo package)
-    <name>.extpkgs/<pkg>/...                     (one tree artifact per external package)
+    <name>.proj/src/<lib_root>/pubspec.yaml      (stub, one per home package)
+    <name>.pkgs/<pkg>/...                        (tree artifact, per assembled package)
 
-Main-repo sources (hand-written and generated) merge into one `src` tree at
-their workspace-relative paths, so every main-repo package's `lib_root` is a
-real directory under `src/`. External (pub) packages cannot share that tree —
-`copy_to_directory` maps external files repo-relative, so two pub spokes would
-collide at `lib/...` — and get one tree each, referenced from the config via a
-`../../` rootUri (package resolution follows rootUris outside the project dir).
+Only the *home* packages are copied into `src`: those whose root holds a file
+the action works on (the files `dart analyze` checks, a web app's
+entrypoint), with every file they own, plus the files no package owns. These
+have to be inside the project: a file belongs to the package whose rootUri
+contains it, and the analyzer reports only on files under the project.
 
-Each main-repo package root also receives a stub `pubspec.yaml`. Imports
+Every other package is only resolved against, and its rootUri leads out of the
+project to where its files already are, as `dart_binary`'s package config
+does. A package with no single
+location — its files split between the source tree and `bazel-out` — is
+assembled into `<name>.pkgs/<pkg>`; so is every dependency of a `relocatable`
+project, which is read through runfiles, where exec-root paths do not hold.
+External packages are assembled at their repo-relative paths (two pub spokes
+would collide at `lib/...` in one tree), hence one tree per package.
+
+Each home package root also receives a stub `pubspec.yaml`. Imports
 resolve through `package_config.json` alone, but the analyzer attributes a
 file to a package by walking up to the *nearest enclosing pubspec.yaml*
 (`findPackageFor` in `pkg/analyzer`'s pub workspace), and a family of lints —
@@ -34,7 +42,8 @@ on Dart 3.12.2), so options still come from the nearest `analysis_options.yaml`
 above each file, never from a pubspec's position.
 """
 
-load("//dart/private:source_set.bzl", "assemble_source_dir", "package_for")
+load("//dart/private:common.bzl", "package_root_of", "relative_path")
+load("//dart/private:source_set.bzl", "assemble_source_dir", "package_record_for")
 
 def mangle_package_dir(name):
     """Returns `name` with path-hostile characters replaced for use as a dir name.
@@ -66,39 +75,23 @@ def _external_sub_path(lib_root):
     parts = lib_root.split("/")
     return "/".join(parts[2:])
 
-def staged_package_config_content(packages, ext_staged, proj_name):
+def staged_package_config_content(packages, root_uris):
     """Builds package_config.json content for the staged-project layout.
-
-    The config lives at `<proj_name>.proj/.dart_tool/package_config.json`:
-    main-repo packages resolve to `../src[/<lib_root>]`, external packages to
-    `../../<proj_name>.extpkgs/<mangled>[/<sub>]`.
 
     Args:
       packages: List of DartPackageInfo providers.
-      ext_staged: Dict of package_name -> True for external packages that
-        actually have a staged tree (those without one are skipped — nothing
-        to point at).
-      proj_name: The staging name prefix (the rule's label name).
+      root_uris: Dict of `(package_name, lib_root)` to the record's rootUri,
+        relative to the config's directory. Records without one are skipped:
+        nothing is staged for them to point at.
 
     Returns:
       String content of the package_config.json file.
     """
     entries = []
     for pkg in packages:
-        if pkg.lib_root.startswith("../"):
-            if pkg.package_name not in ext_staged:
-                continue
-            root_uri = "../../{}.extpkgs/{}".format(
-                proj_name,
-                mangle_package_dir(pkg.package_name),
-            )
-            sub = _external_sub_path(pkg.lib_root)
-            if sub:
-                root_uri += "/" + sub
-        elif pkg.lib_root:
-            root_uri = "../src/" + pkg.lib_root
-        else:
-            root_uri = "../src"
+        root_uri = root_uris.get((pkg.package_name, pkg.lib_root))
+        if root_uri == None:
+            continue
         lv = ""
         if hasattr(pkg, "language_version") and pkg.language_version:
             lv = ', "languageVersion": "{lv}"'.format(lv = pkg.language_version)
@@ -175,30 +168,76 @@ def pubspec_stub(packages, name = "analyze_stub", sdk_version = ""):
             lines.append("  %s: any" % dep)
     return "\n".join(lines) + "\n"
 
-def main_package_roots(packages):
-    """Returns the main-repo package roots that receive a stub pubspec.
+def _root_contains(root, short_path):
+    return not root or short_path == root or short_path.startswith(root + "/")
 
-    One entry per distinct `lib_root`; when several package records share a
-    root (the split-package case), the lexically-first name wins so the choice
-    is deterministic. External (`../`-prefixed) packages are excluded — they
-    live outside the staged project and are never analyzed.
+def project_layout(packages, files, home_files):
+    """Decides which files a staged project holds and which it points out to.
+
+    A home package is the main-repo package whose root holds one of
+    `home_files` — the deepest such root, as Dart attributes a file. Its files
+    are staged under `src/` with the files no package owns; every other
+    package's files stay outside the project (see the module docstring).
 
     Args:
       packages: List of DartPackageInfo (from `collect_packages`).
+      files: Every File the project needs.
+      home_files: The Files the action works on.
+
+    Returns:
+      struct(
+        packages: `packages`,
+        home: dict of `(package_name, lib_root)` of each home package record,
+        src_files: the Files staged under `src/`,
+        dep_files: dict of `(package_name, lib_root)` to the Files of each
+          package record resolved from outside the project,
+      )
+    """
+    main = [p for p in packages if p.package_name and not p.lib_root.startswith("../")]
+    home = {}
+    for f in home_files:
+        best = None
+        for p in main:
+            if _root_contains(p.lib_root, f.short_path) and (best == None or len(p.lib_root) > len(best.lib_root)):
+                best = p
+        if best != None:
+            home[(best.package_name, best.lib_root)] = True
+
+    src_files = []
+    dep_files = {}
+    for f in files:
+        owner = package_record_for(f.short_path, packages)
+        if owner != None and (owner.package_name, owner.lib_root) not in home:
+            dep_files.setdefault((owner.package_name, owner.lib_root), []).append(f)
+        elif not f.short_path.startswith("../"):
+            src_files.append(f)
+
+        # An external file no package owns has no `package:` URI to serve;
+        # nothing could resolve it from the staged project.
+
+    return struct(packages = packages, home = home, src_files = src_files, dep_files = dep_files)
+
+def main_package_roots(layout):
+    """Returns the home package roots that receive a stub pubspec.
+
+    One entry per distinct `lib_root`; when several package records share a
+    root (the split-package case), the lexically-first name wins so the choice
+    is deterministic.
+
+    Args:
+      layout: The `project_layout` struct.
 
     Returns:
       Sorted list of (lib_root, package_name) tuples.
     """
     seen = {}
-    for pkg in packages:
-        if pkg.lib_root.startswith("../") or not pkg.package_name:
-            continue
-        prev = seen.get(pkg.lib_root)
-        if prev == None or pkg.package_name < prev:
-            seen[pkg.lib_root] = pkg.package_name
+    for package_name, lib_root in layout.home:
+        prev = seen.get(lib_root)
+        if prev == None or package_name < prev:
+            seen[lib_root] = package_name
     return sorted(seen.items())
 
-def staged_pubspec_paths(packages):
+def staged_pubspec_paths(layout):
     """Project-relative paths of the per-package stub pubspecs staging writes.
 
     The `dart_analyze` aspect composes its wrapper `analysis_options.yaml`
@@ -207,24 +246,50 @@ def staged_pubspec_paths(packages):
     returned by it.
 
     Args:
-      packages: List of DartPackageInfo (from `collect_packages`).
+      layout: The `project_layout` struct.
 
     Returns:
       Sorted list of `src/...` path strings, one per stub pubspec.
     """
     return [
         ("src/%s/pubspec.yaml" % lib_root) if lib_root else "src/pubspec.yaml"
-        for lib_root, _ in main_package_roots(packages)
+        for lib_root, _ in main_package_roots(layout)
     ]
 
-def stage_dart_project(ctx, packages, all_srcs, extra_proj_files = {}, name = None, sdk_version = ""):
+def _assembled_root(ctx, name, key, files, shared_name):
+    """Assembles one package record's files beside the project; returns its root."""
+    package_name, lib_root = key
+    dir_name = mangle_package_dir(package_name)
+    if shared_name:
+        # One name, several roots: a directory each.
+        dir_name += "/" + mangle_package_dir(lib_root)
+    if lib_root.startswith("../"):
+        tree = assemble_source_dir(
+            ctx,
+            "{}.pkgs/{}".format(name, dir_name),
+            files,
+            root_paths = [],
+            include_external_repositories = ["*"],
+        )
+        sub = _external_sub_path(lib_root)
+        return tree.path + "/" + sub if sub else tree.path, tree
+    tree = assemble_source_dir(
+        ctx,
+        "{}.pkgs/{}".format(name, dir_name),
+        files,
+        root_paths = [lib_root] if lib_root else [],
+    )
+    return tree.path, tree
+
+def stage_dart_project(ctx, layout, relocatable = False, extra_proj_files = {}, name = None, sdk_version = ""):
     """Stages packages and sources into a hermetic Dart project layout.
 
     Args:
       ctx: The rule context (must carry `COPY_TO_DIRECTORY_TOOLCHAINS`).
-      packages: List of DartPackageInfo (from `collect_packages`).
-      all_srcs: Flat list of Files to stage (the rule's own srcs/main plus the
-        flattened transitive closure).
+      layout: The `project_layout` struct.
+      relocatable: Whether the project is read somewhere other than the exec
+        root (through runfiles), so every dependency is assembled beside it
+        rather than referenced where it sits.
       extra_proj_files: Dict of `<filename> -> content string` written as
         declared files directly under `<name>.proj/` (e.g. a `pubspec.yaml`
         stub for `dart analyze`).
@@ -243,29 +308,17 @@ def stage_dart_project(ctx, packages, all_srcs, extra_proj_files = {}, name = No
       )
     """
     name = name or ctx.label.name
+    packages = layout.packages
 
-    ext_pkgs = [p for p in packages if p.lib_root.startswith("../")]
-    main_files = []
-    ext_files_by_pkg = {}
-    for f in all_srcs:
-        if f.short_path.startswith("../"):
-            # External files matching no package have no package: URI to
-            # serve; nothing can resolve them from the staged project.
-            owner = package_for(f.short_path, ext_pkgs)
-            if owner != None:
-                ext_files_by_pkg.setdefault(owner, []).append(f)
-        else:
-            main_files.append(f)
-
-    # One stub pubspec per main-repo package root (see the module docstring
-    # for why lints need it). The stubs cannot be declared at their final
-    # paths — `<name>.proj/src` is a tree artifact, and Bazel rejects declared
-    # files under a declared directory — so each is written to a sibling
+    # One stub pubspec per home package root (see the module docstring for
+    # why lints need it). The stubs cannot be declared at their final paths —
+    # `<name>.proj/src` is a tree artifact, and Bazel rejects declared files
+    # under a declared directory — so each is written to a sibling
     # `.pkgstubs` staging spot and mapped into place by the same
     # `copy_to_directory` that assembles the tree.
     stub_files = []
     replace_prefixes = {}
-    for lib_root, package_name in main_package_roots(packages):
+    for lib_root, package_name in main_package_roots(layout):
         stub = ctx.actions.declare_file("{}.pkgstubs/{}/pubspec.yaml".format(
             name,
             mangle_package_dir(lib_root) if lib_root else "_root",
@@ -280,30 +333,34 @@ def stage_dart_project(ctx, packages, all_srcs, extra_proj_files = {}, name = No
     src_tree = assemble_source_dir(
         ctx,
         name + ".proj/src",
-        main_files + stub_files,
-        # Keep workspace-relative paths: each package's lib_root must be a
-        # real directory under src/ for the rootUris above to hold.
+        layout.src_files + stub_files,
+        # Keep workspace-relative paths: each home package's lib_root must be
+        # a real directory under src/ for its rootUri to hold.
         root_paths = [],
         replace_prefixes = replace_prefixes,
     )
+    package_config = ctx.actions.declare_file(name + ".proj/.dart_tool/package_config.json")
 
     inputs = [src_tree]
-    ext_staged = {}
-    for pkg_name, files in ext_files_by_pkg.items():
-        tree = assemble_source_dir(
-            ctx,
-            "{}.extpkgs/{}".format(name, mangle_package_dir(pkg_name)),
-            files,
-            root_paths = [],
-            include_external_repositories = ["*"],
-        )
-        ext_staged[pkg_name] = True
-        inputs.append(tree)
+    root_uris = {}
+    for key in layout.home:
+        root_uris[key] = "../src/" + key[1] if key[1] else "../src"
+    names = {}
+    for package_name, _ in layout.dep_files:
+        names[package_name] = names.get(package_name, 0) + 1
+    for key, files in layout.dep_files.items():
+        roots = {package_root_of(f, key[1]): True for f in files}
+        if len(roots) == 1 and not relocatable:
+            root = roots.keys()[0]
+            inputs.extend(files)
+        else:
+            root, tree = _assembled_root(ctx, name, key, files, names[key[0]] > 1)
+            inputs.append(tree)
+        root_uris[key] = relative_path(package_config.dirname, root)
 
-    package_config = ctx.actions.declare_file(name + ".proj/.dart_tool/package_config.json")
     ctx.actions.write(
         output = package_config,
-        content = staged_package_config_content(packages, ext_staged, name),
+        content = staged_package_config_content(packages, root_uris),
     )
     inputs.append(package_config)
 

@@ -651,16 +651,29 @@ def resolve_package_roots(packages, all_srcs):
         if name == None or name in roots:
             continue
 
-        # The package-relative tail, stripped off the exec path to leave the
-        # root. Empty when the file *is* the package root (an assembled
-        # directory); otherwise "/lib/…", or "lib/…" for the root package,
-        # whose empty `lib_root` leaves a trailing slash to trim.
-        suffix = src.short_path[len(by_name[name].lib_root):]
-        exec_root = src.path[:len(src.path) - len(suffix)]
-        if exec_root.endswith("/"):
-            exec_root = exec_root[:-1]
-        roots[name] = exec_root
+        roots[name] = package_root_of(src, by_name[name].lib_root)
     return roots
+
+def package_root_of(src, lib_root):
+    """Returns the exec-root-relative root of the package `src` belongs to.
+
+    Args:
+        src: A File the package owns (see `package_for`).
+        lib_root: The owning package's `lib_root`.
+
+    Returns:
+        The exec path of the package root directory.
+    """
+
+    # The package-relative tail, stripped off the exec path to leave the
+    # root. Empty when the file *is* the package root (an assembled
+    # directory); otherwise "/lib/…", or "lib/…" for the root package,
+    # whose empty `lib_root` leaves a trailing slash to trim.
+    suffix = src.short_path[len(lib_root):]
+    exec_root = src.path[:len(src.path) - len(suffix)]
+    if exec_root.endswith("/"):
+        exec_root = exec_root[:-1]
+    return exec_root
 
 def generate_package_config(packages, all_srcs, config_file, roots = {}):
     """Generate package_config.json content using short_path-based lib_root.
