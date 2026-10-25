@@ -1,3 +1,4 @@
+load("@platforms//host:constraints.bzl", "HOST_CONSTRAINTS")
 load("//dart:defs.bzl", "dart_binary", "dart_code_asset", "dart_test")
 
 # Two exes from one entrypoint, differing only in whether a code asset adds a
@@ -29,6 +30,8 @@ dart_test(
         ":probe",
         ":probe_with_asset",
     ],
+    # It runs what was built for the target, so it runs there.
+    exec_group_compatible_with = {"test": HOST_CONSTRAINTS},
     main = "kernel_uri_test.dart",
     deps = ["//dart/runfiles"],
 )

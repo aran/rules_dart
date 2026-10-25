@@ -1,3 +1,4 @@
+load("@platforms//host:constraints.bzl", "HOST_CONSTRAINTS")
 load("//dart:defs.bzl", "dart_binary", "dart_test")
 load("//dart/private:dart_binary.bzl", "dart_bootstrap_binary", "dart_tool_binary")
 
@@ -77,6 +78,8 @@ dart_test(
         ":test_runner",
         ":test_runner_fixture",
     ],
+    # It runs what was built for the target, so it runs there.
+    exec_group_compatible_with = {"test": HOST_CONSTRAINTS},
     main = "test_runner_test.dart",
     deps = [
         "//dart/runfiles",

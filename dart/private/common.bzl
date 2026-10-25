@@ -2,6 +2,8 @@
 
 load("//dart:providers.bzl", "CODE_ASSET_LINK_MODES", "DartInfo", "DartPackageMetadataInfo")
 load("//dart/private:dart_info.bzl", "derived_package_info", "package_lib_prefix")
+load("//dart/private:exec_groups.bzl", "PORTABLE", "portable_sdk")
+load("//dart/private:resources.bzl", "kernel_resources")
 load("//dart/private:source_set.bzl", "needs_source_assembly", "package_for")
 
 # Official Bazel bash runfiles v3 initialization boilerplate.
@@ -68,39 +70,6 @@ def runfiles_path(f, workspace_name):
     if f.short_path.startswith("../"):
         return f.short_path[3:]
     return workspace_name + "/" + f.short_path
-
-def create_test_executable(ctx, tool, env, env_inherit = []):
-    """Create a test executable by symlinking a pre-compiled tool binary.
-
-    Handles .exe extension on Windows. Returns the executable file and a
-    RunEnvironmentInfo provider for passing configuration via env vars.
-
-    Args:
-        ctx: The rule context.
-        tool: The pre-compiled tool target (from a cfg="exec" attr).
-        env: Dict of environment variable names to values for RunEnvironmentInfo.
-        env_inherit: Names of variables passed through from the environment
-            the test is started in.
-
-    Returns:
-        Tuple of (executable File, RunEnvironmentInfo provider, tool runfiles).
-    """
-    is_windows = ctx.target_platform_has_constraint(
-        ctx.attr._windows_constraint[platform_common.ConstraintValueInfo],
-    )
-    ext = ".exe" if is_windows else ""
-    executable = ctx.actions.declare_file(ctx.label.name + ext)
-
-    ctx.actions.symlink(
-        output = executable,
-        target_file = tool[DefaultInfo].files_to_run.executable,
-        is_executable = True,
-    )
-
-    env_info = RunEnvironmentInfo(environment = env, inherited_environment = env_inherit)
-    tool_runfiles = tool[DefaultInfo].default_runfiles
-
-    return executable, env_info, tool_runfiles
 
 def package_code_assets(pkg):
     """Code assets declared on a `DartPackageInfo`, tolerating older producers.
@@ -511,36 +480,25 @@ def merge_package_records(merged):
             )
     return packages
 
-def noop_test_executable(ctx, tool):
-    """Symlinks the do-nothing binary as a test rule's executable.
+def test_executable(ctx, tool):
+    """Symlinks a pre-compiled launcher as a test rule's executable.
 
-    A test whose verdict is decided in a build action — the `dart_analyze`
-    aspect's, in this repository's own tests — has nothing left for the test
-    binary to check. It must still *be* a test, so it hands Bazel a
-    pass-through executable.
+    Keeps the launcher's `.exe` extension, which Windows needs to run it: the
+    launcher is built for the host the test runs on, whatever the target.
 
     Args:
-      ctx: The rule context (must carry `WINDOWS_CONSTRAINT_ATTR`).
-      tool: The `//dart/private/tools:noop` target.
+      ctx: The rule context.
+      tool: The launcher target, built for the `test` group.
 
     Returns:
-      `struct(executable, runfiles)` — the declared symlink and the tool's own
-      runfiles, for the caller to merge with whatever stamp it produced.
+      `struct(executable, runfiles)` — the declared symlink and the launcher's
+      own runfiles, for the caller to merge with its own.
     """
-    is_windows = ctx.target_platform_has_constraint(
-        ctx.attr._windows_constraint[platform_common.ConstraintValueInfo],
-    )
-    ext = ".exe" if is_windows else ""
+    binary = tool[DefaultInfo].files_to_run.executable
+    ext = ".exe" if binary.extension == "exe" else ""
     executable = ctx.actions.declare_file(ctx.label.name + ext)
-    ctx.actions.symlink(
-        output = executable,
-        target_file = tool[DefaultInfo].files_to_run.executable,
-        is_executable = True,
-    )
-    return struct(
-        executable = executable,
-        runfiles = tool[DefaultInfo].default_runfiles,
-    )
+    ctx.actions.symlink(output = executable, target_file = binary, is_executable = True)
+    return struct(executable = executable, runfiles = tool[DefaultInfo].default_runfiles)
 
 def writable_home_env(dart, beside):
     """The environment an SDK build action needs to have a writable home.
@@ -1299,7 +1257,6 @@ def kernel_uri(path):
 
 def dart_kernel_action(
         ctx,
-        dart_sdk_info,
         main,
         transitive_srcs,
         package_config,
@@ -1330,9 +1287,11 @@ def dart_kernel_action(
     front end folds, so they have to be right here; the step after sees only the
     folded result.
 
+    A kernel is the same whichever host compiles it, so this runs in
+    `PORTABLE`, with that host's SDK.
+
     Args:
-      ctx: The rule context.
-      dart_sdk_info: The `DartSdkInfo` from the toolchain.
+      ctx: The rule context; the rule declares `PORTABLE_EXEC_GROUPS`.
       main: The File holding the entrypoint, added to the inputs.
       transitive_srcs: Depset of transitive source Files.
       package_config: The build-time `package_config.json` File, or None.
@@ -1353,6 +1312,7 @@ def dart_kernel_action(
         the exec root, plus output directories when generated files are read
         where they lie rather than assembled into one directory first.
     """
+    dart_sdk_info = portable_sdk(ctx)
     tools = find_sdk_kernel_tools(dart_sdk_info)
 
     args = ctx.actions.args()
@@ -1387,6 +1347,8 @@ def dart_kernel_action(
         inputs = depset(direct = direct, transitive = transitive),
         outputs = [output_dill],
         mnemonic = "DartKernel",
+        resource_set = kernel_resources,
+        exec_group = PORTABLE,
         progress_message = "Compiling Dart kernel %s" % ctx.label,
         env = writable_home_env(dart_sdk_info.dart, output_dill),
     )

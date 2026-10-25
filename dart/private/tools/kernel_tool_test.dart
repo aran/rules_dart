@@ -1052,8 +1052,11 @@ import 'package:app/own.dart';
       // stdin a stray forked child holds open.
       final dir = Directory.systemTemp.createTempSync('serve_test');
       addTearDown(() => dir.deleteSync(recursive: true));
+      // It names itself, so the test needs no `ps`, which a minimal Linux
+      // image lacks; `exec` keeps the pid.
+      final pidFile = File('${dir.path}/compiler.pid');
       final script = File('${dir.path}/compiler.sh')
-        ..writeAsStringSync('exec sleep 600\n');
+        ..writeAsStringSync('echo \$\$ > ${pidFile.path}\nexec sleep 600\n');
       final kernel = KernelWorker('/bin/sh', script.path);
       final stop = StreamController<void>();
       final served = serve(
@@ -1064,7 +1067,7 @@ import 'package:app/own.dart';
         kernel.close,
         stop.stream,
       );
-      final compiler = await _child('sleep 600');
+      final compiler = await _pid(pidFile);
       stop.add(null);
       expect(await served, 143);
       expect(await _gone(compiler), isTrue);
@@ -1518,28 +1521,23 @@ import 'b.dart' if (dart.library.html) 'package:dep/web.dart';
   });
 }
 
-/// The pid of this process's child whose command is [command], once it runs.
-Future<int> _child(String command) async {
+/// The pid written to [file], once it is.
+Future<int> _pid(File file) async {
   for (var i = 0; i < 100; i++) {
-    final ps = await Process.run('ps', ['-Ao', 'pid=,ppid=,command=']);
-    for (final line in '${ps.stdout}'.split('\n')) {
-      final fields = line.trim().split(RegExp(r'\s+'));
-      if (fields.length > 2 &&
-          fields[1] == '$pid' &&
-          fields.skip(2).join(' ') == command) {
-        return int.parse(fields[0]);
-      }
-    }
+    final pid = file.existsSync()
+        ? int.tryParse(file.readAsStringSync().trim())
+        : null;
+    if (pid != null) return pid;
     await Future<void>.delayed(const Duration(milliseconds: 50));
   }
-  throw StateError('no child running $command');
+  throw StateError('nothing wrote a pid to ${file.path}');
 }
 
 /// Whether process [child] has exited within a few seconds.
 Future<bool> _gone(int child) async {
   for (var i = 0; i < 100; i++) {
-    final ps = await Process.run('ps', ['-o', 'pid=', '-p', '$child']);
-    if (ps.exitCode != 0) return true;
+    // A signal that leaves a running process be, and fails once it is gone.
+    if (!Process.killPid(child, ProcessSignal.sigcont)) return true;
     await Future<void>.delayed(const Duration(milliseconds: 50));
   }
   return false;

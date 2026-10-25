@@ -1,3 +1,4 @@
+load("@platforms//host:constraints.bzl", "HOST_CONSTRAINTS")
 load("//dart:defs.bzl", "dart_binary", "dart_library", "dart_test")
 
 dart_library(
@@ -19,6 +20,8 @@ dart_test(
     name = "runfiles_test",
     size = "small",
     data = [":create_probe"],
+    # It runs what was built for the target, so it runs there.
+    exec_group_compatible_with = {"test": HOST_CONSTRAINTS},
     main = "test/runfiles_test.dart",
     deps = [
         ":runfiles",

@@ -55,6 +55,7 @@ load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("//dart:providers.bzl", "DartAnalysisOptionsInfo", "DartAnalyzableInfo", "DartInfo")
 load("//dart/private:common.bzl", "merge_package_records", "own_package_record", "writable_home_env")
 load("//dart/private:project_staging.bzl", "project_layout", "pubspec_stub", "stage_dart_project", "staged_pubspec_paths")
+load("//dart/private:resources.bzl", "analysis_resources")
 load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS")
 
 # Analysis and formatting run on the build machine and produce nothing for the
@@ -253,6 +254,7 @@ def _analyze(ctx, name, staged, sdk_inputs):
         inputs = depset(direct = staged.inputs, transitive = [sdk_inputs]),
         outputs = [stamp],
         mnemonic = "DartAnalyze",
+        resource_set = analysis_resources,
         progress_message = "Analyzing Dart sources of %{label}",
         env = writable_home_env(dart_sdk_info.dart, stamp),
     )
@@ -422,6 +424,7 @@ def _dart_analyze_aspect_impl(target, ctx):
         inputs = depset(direct = staged.inputs + [eligible], transitive = [sdk_inputs]),
         outputs = [fixes, manifest, scratch],
         mnemonic = "DartFix",
+        resource_set = analysis_resources,
         progress_message = "Computing Dart fixes for %{label}",
         env = writable_home_env(dart_sdk_info.dart, manifest),
     )

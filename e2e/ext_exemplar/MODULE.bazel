@@ -51,3 +51,46 @@ pub.package(
     version = "11.0.0",
 )
 use_repo(pub, "pub_deps", "very_good_analysis")
+
+# Hermetic C++ toolchain for Linux arm64 execution platforms, so a C++ library
+# built for the exec platform (libsqlite3, which drift's code generator loads)
+# compiles when Bazel runs actions on a Linux arm64 worker. Only the
+# Linux-exec, Linux-target toolchain is registered: Mac builds keep the host's
+# toolchain, and the LLVM distribution is fetched only when this one is
+# selected. The worker image has no C library headers, so the toolchain brings
+# a sysroot: the Debian one Chromium publishes, which toolchains_llvm's own
+# tests use.
+bazel_dep(name = "toolchains_llvm", version = "1.12.0", dev_dependency = True)
+
+llvm = use_extension(
+    "@toolchains_llvm//toolchain/extensions:llvm.bzl",
+    "llvm",
+    dev_dependency = True,
+)
+llvm.toolchain(
+    name = "llvm_linux_arm64",
+    # The Chromium sysroot uses Debian's libstdc++ layout.
+    cxx_include_layout = {"linux-aarch64": "debian"},
+    exec_arch = "aarch64",
+    exec_os = "linux",
+    llvm_version = "19.1.7",
+)
+llvm.sysroot(
+    name = "llvm_linux_arm64",
+    label = "@org_chromium_sysroot_linux_arm64//sysroot",
+    targets = ["linux-aarch64"],
+)
+use_repo(llvm, "llvm_linux_arm64")
+
+sysroot = use_repo_rule("@toolchains_llvm//toolchain:sysroot.bzl", "sysroot")
+
+sysroot(
+    name = "org_chromium_sysroot_linux_arm64",
+    sha256 = "e39b700d8858d18868544c8c84922f6adfa8419f3f42471b92024ba38eff7aca",
+    urls = ["https://commondatastorage.googleapis.com/chrome-linux-sysroot/toolchain/2202c161310ffde63729f29d27fe7bb24a0bc540/debian_stretch_arm64_sysroot.tar.xz"],
+)
+
+register_toolchains(
+    "@llvm_linux_arm64//:cc-toolchain-aarch64-linux",
+    dev_dependency = True,
+)

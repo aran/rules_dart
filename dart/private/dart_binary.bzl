@@ -19,6 +19,7 @@ load(
 load("//dart/private:dart_compile.bzl", "dart_compile_action", "front_end_flags", "recorded_uses_kind")
 load("//dart/private:dart_import_check.bzl", "dart_import_check_aspect", "import_check_validation")
 load("//dart/private:dart_module.bzl", "KERNEL_TOOL_ATTR")
+load("//dart/private:exec_groups.bzl", "PORTABLE_EXEC_GROUPS")
 load("//dart/private:executable_package.bzl", "EXECUTABLE_PACKAGE_ATTRS", "executable_package")
 load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS", "colocate_executable")
 
@@ -135,7 +136,6 @@ def _dart_binary_impl(ctx):
     kernel = output if compile_mode == "kernel" else ctx.actions.declare_file(ctx.label.name + ".app.dill")
     dart_kernel_action(
         ctx = ctx,
-        dart_sdk_info = dart_sdk_info,
         main = main_input,
         transitive_srcs = depset(all_srcs),
         package_config = package_config,
@@ -310,7 +310,10 @@ def _dart_binary_rule(check_imports, compile_runner = True):
             }, **dict(DART_ABI_CONSTRAINT_ATTRS, **dict(EXTRA_DART_DEFINES_ATTR, **EXECUTABLE_PACKAGE_ATTRS))))
         ),
         executable = True,
+        # The default group compiles machine code for the target, so its SDK
+        # matches the target; the kernel before it is `portable`.
         toolchains = ["//dart:toolchain_type"] + COPY_TO_DIRECTORY_TOOLCHAINS,
+        exec_groups = PORTABLE_EXEC_GROUPS,
         doc = "Compiles a Dart application using `dart compile`.",
     )
 

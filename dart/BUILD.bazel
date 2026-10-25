@@ -133,6 +133,7 @@ bzl_library(
         "//dart/private:common",
         "//dart/private:dart_info",
         "//dart/private:dart_library",
+        "//dart/private:exec_groups",
         "//dart/private:source_set",
     ],
 )

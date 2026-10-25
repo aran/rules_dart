@@ -13,7 +13,7 @@ diagnostic or a formatting violation fails the build of this test, and the test
 binary itself passes through.
 """
 
-load("//dart/private:common.bzl", "WINDOWS_CONSTRAINT_ATTR", "noop_test_executable")
+load("//dart/private:common.bzl", "test_executable")
 load("//dart/private:dart_analyze_aspect.bzl", "NO_ANALYZE_TAG", "NO_FORMAT_TAG", "dart_analyze")
 
 _CHECKS = ["dart_analyze", "dart_format"]
@@ -29,7 +29,7 @@ def _dart_analysis_test_impl(ctx):
                   "source of its own, or is tagged both `%s` and `%s`. Drop it " +
                   "from `targets`.") % (ctx.label, target.label, NO_ANALYZE_TAG, NO_FORMAT_TAG))
         stamps.extend(checks)
-    noop = noop_test_executable(ctx, ctx.attr._tool)
+    noop = test_executable(ctx, ctx.attr._tool)
     return [DefaultInfo(
         executable = noop.executable,
         runfiles = ctx.runfiles(transitive_files = depset(transitive = stamps)).merge(noop.runfiles),
@@ -37,7 +37,7 @@ def _dart_analysis_test_impl(ctx):
 
 dart_analysis_test = rule(
     implementation = _dart_analysis_test_impl,
-    attrs = dict({
+    attrs = {
         "targets": attr.label_list(
             doc = "The Dart targets to check. Each gets both checks — analysis and the format check — less any its `no-dart-analyze` or `no-dart-format` tag removes.",
             aspects = [dart_analyze],
@@ -47,9 +47,9 @@ dart_analysis_test = rule(
         "_tool": attr.label(
             default = "//dart/private/tools:noop",
             executable = True,
-            cfg = "exec",
+            cfg = config.exec("test"),
         ),
-    }, **WINDOWS_CONSTRAINT_ATTR),
+    },
     test = True,
     doc = """Runs the `dart_analyze` aspect's checks on targets `bazel test //...` cannot reach.
 

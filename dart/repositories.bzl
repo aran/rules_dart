@@ -62,10 +62,14 @@ dart_toolchain(
     dart = "{dart_bin}",
     sdk_root = ":sdk_root",
     version = "{version}",
+    exec_os = "{exec_os}",
+    exec_arch = "{exec_arch}",
 )
 """.format(
         dart_bin = dart_bin,
         version = version,
+        exec_os = PLATFORMS[platform].dart_os,
+        exec_arch = PLATFORMS[platform].dart_arch,
     )
 
     # Generate cross-compilation toolchain targets for this SDK. These reuse
@@ -82,8 +86,12 @@ dart_toolchain(
     version = "{version}",
     target_os = "{target_os}",
     target_arch = "{target_arch}",
+    exec_os = "{exec_os}",
+    exec_arch = "{exec_arch}",
 )
 """.format(
+            exec_os = PLATFORMS[platform].dart_os,
+            exec_arch = PLATFORMS[platform].dart_arch,
             target_platform = target_platform,
             dart_bin = dart_bin,
             version = version,

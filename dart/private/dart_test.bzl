@@ -14,19 +14,18 @@ load("//dart/private:build_settings.bzl", "EXTRA_DART_DEFINES_ATTR", "merge_vm_d
 load(
     "//dart/private:common.bzl",
     "DART_ABI_CONSTRAINT_ATTRS",
-    "WINDOWS_CONSTRAINT_ATTR",
     "check_unreplaced_hooks",
     "code_asset_entries",
     "collect_transitive_code_assets",
     "collect_transitive_resources",
     "collect_transitive_srcs",
-    "create_test_executable",
     "dart_kernel_action",
     "generate_native_assets_yaml",
     "relative_path",
     "resolve_code_assets",
     "runfiles_path",
     "target_dart_abi",
+    "test_executable",
 )
 load("//dart/private:dart_import_check.bzl", "dart_import_check_aspect", "import_check_validation")
 load(
@@ -42,11 +41,12 @@ load(
     "vm_module_aspect",
 )
 load("//dart/private:dart_test_runner.bzl", "DartTestRunnerInfo")
+load("//dart/private:exec_groups.bzl", "EXEC_TOOLS_TOOLCHAIN", "PORTABLE_EXEC_GROUPS")
 load("//dart/private:executable_package.bzl", "EXECUTABLE_PACKAGE_ATTRS", "executable_package")
 
 def _dart_test_impl(ctx):
-    toolchain = ctx.toolchains["//dart:toolchain_type"]
-    dart_sdk_info = toolchain.dart_sdk_info
+    # The VM that runs the test, built for the host the test runs on.
+    dart_sdk_info = ctx.exec_groups["test"].toolchains[EXEC_TOOLS_TOOLCHAIN].dart_sdk_info
     workspace_name = ctx.workspace_name
     sdk = ctx.attr._kernel_sdk[DartKernelSdkInfo]
 
@@ -88,6 +88,16 @@ def _dart_test_impl(ctx):
     native_assets_yaml = None
     if resolved_assets:
         abi = target_dart_abi(ctx)
+
+        # The libraries are built for the target, and the VM loads them where
+        # the test runs, which is anywhere with a Dart SDK unless told.
+        host = "%s_%s" % (dart_sdk_info.exec_os, dart_sdk_info.exec_arch)
+        if host != abi:
+            fail(("%s: the test's code assets are built for %s, but it runs on a %s host, " +
+                  "where the VM cannot load them. Pin it there with " +
+                  "`exec_group_compatible_with = {\"test\": [...]}` naming the target's " +
+                  "constraints: `HOST_CONSTRAINTS`, from `@platforms//host:constraints.bzl`, " +
+                  "when the target is the host.") % (ctx.label, abi, host))
         entries, runtime_libs = code_asset_entries(
             ctx.label,
             resolved_assets,
@@ -107,7 +117,6 @@ def _dart_test_impl(ctx):
         ctx.actions.write(package_config, kernel_package_config(packages))
         dart_kernel_action(
             ctx = ctx,
-            dart_sdk_info = dart_sdk_info,
             main = main,
             transitive_srcs = depset(srcs),
             package_config = package_config,
@@ -125,7 +134,6 @@ def _dart_test_impl(ctx):
     # carries all sources/imports, so runfiles need only the VM and (for code
     # assets) the `.so` libraries.
     env = {
-        "RULES_DART_DART": runfiles_path(dart_sdk_info.dart, workspace_name),
         "RULES_DART_DILL": runfiles_path(dill, workspace_name),
     }
     runner_files = []
@@ -140,12 +148,7 @@ def _dart_test_impl(ctx):
         if key.startswith("RULES_DART_"):
             fail("%s: `env` cannot set %s; rules_dart uses the RULES_DART_ prefix to drive the test" % (ctx.label, key))
         env[key] = ctx.expand_location(value, ctx.attr.data)
-    executable, env_info, tool_runfiles = create_test_executable(
-        ctx,
-        ctx.attr._tool,
-        env = env,
-        env_inherit = ctx.attr.env_inherit,
-    )
+    launch = _launch(ctx, dart_sdk_info, ctx.toolchains["//dart:toolchain_type"].dart_sdk_info, env)
 
     # A dep's `lib/**` non-Dart files are part of the package at run time under
     # pub, and the dill carries only compiled code — so they come in here, the
@@ -153,19 +156,16 @@ def _dart_test_impl(ctx):
     runfiles = ctx.runfiles(
         files = [dill] + runtime_libs + runner_files + ctx.files.data,
         transitive_files = depset(
-            transitive = [
-                dart_sdk_info.tool_files,
-                collect_transitive_resources(ctx.attr.deps),
-            ],
+            transitive = [collect_transitive_resources(ctx.attr.deps)],
         ),
     )
-    runfiles = runfiles.merge(tool_runfiles)
+    runfiles = runfiles.merge(launch.runfiles)
     for data_dep in ctx.attr.data:
         runfiles = runfiles.merge(data_dep[DefaultInfo].default_runfiles)
 
     return [
-        DefaultInfo(executable = executable, runfiles = runfiles),
-        env_info,
+        DefaultInfo(executable = launch.executable, runfiles = runfiles),
+        RunEnvironmentInfo(environment = launch.env, inherited_environment = ctx.attr.env_inherit),
         # See `dart_binary`: analyzable and fixable without becoming a valid
         # `deps` entry. Built from `ctx.file.main`, not the bootstrap, because
         # the analyze/fix rules stage by `short_path`.
@@ -178,6 +178,81 @@ def _dart_test_impl(ctx):
             ctx.attr.deps,
         )),
     ]
+
+# How `uname -s`/`uname -m` name each host an SDK is published for.
+_UNAME = {
+    ("linux", "arm64"): "Linux/aarch64",
+    ("linux", "x64"): "Linux/x86_64",
+    ("macos", "arm64"): "Darwin/arm64",
+    ("macos", "x64"): "Darwin/x86_64",
+}
+
+def _launch(ctx, test_sdk, target_sdk, env):
+    """The test's executable, with its runfiles and environment.
+
+    `bazel test` runs the executable on the `test` group's host, which may be
+    a remote executor, but `bazel run` runs it here, on the target. When the
+    two differ, the executable is a script that starts whichever launcher and
+    VM were built for the machine it finds itself on. A Windows host has no
+    shell to run one, and a cross-compiled target no VM to run, so there the
+    test runs only on its own host.
+
+    Args:
+      ctx: The rule context.
+      test_sdk: The `DartSdkInfo` of the `test` group's host.
+      target_sdk: The `DartSdkInfo` of the target platform's toolchain.
+      env: The test's environment, without the VM.
+
+    Returns:
+      `struct(executable, runfiles, env)`.
+    """
+    test_host = (test_sdk.exec_os, test_sdk.exec_arch)
+    target_host = (target_sdk.exec_os, target_sdk.exec_arch)
+    if test_host == target_host or target_sdk.target_os or test_host not in _UNAME or target_host not in _UNAME:
+        launcher = test_executable(ctx, ctx.attr._tool)
+        return struct(
+            executable = launcher.executable,
+            runfiles = launcher.runfiles.merge(ctx.runfiles(transitive_files = test_sdk.tool_files)),
+            env = env | {"RULES_DART_DART": runfiles_path(test_sdk.dart, ctx.workspace_name)},
+        )
+
+    # The two launchers share a workspace path, so each is given its own name
+    # for the runfiles to hold both.
+    tools = [ctx.attr._tool, ctx.attr._target_tool]
+    launchers = []
+    for role, tool in zip(["test", "target"], tools):
+        launcher = ctx.actions.declare_file("%s.%s_launcher" % (ctx.label.name, role))
+        ctx.actions.symlink(output = launcher, target_file = tool[DefaultInfo].files_to_run.executable, is_executable = True)
+        launchers.append(launcher)
+
+    def start(launcher, sdk):
+        return "export RULES_DART_DART='%s'\nexec \"$RUNFILES_DIR/%s\" \"$@\"" % (
+            runfiles_path(sdk.dart, ctx.workspace_name),
+            runfiles_path(launcher, ctx.workspace_name),
+        )
+
+    executable = ctx.actions.declare_file(ctx.label.name)
+    ctx.actions.write(
+        executable,
+        "\n".join([
+            "#!/bin/sh",
+            "[ -n \"$RUNFILES_DIR\" ] || export RUNFILES_DIR=\"$0.runfiles\"",
+            "if [ \"$(uname -s)/$(uname -m)\" = '%s' ]; then" % _UNAME[test_host],
+            start(launchers[0], test_sdk),
+            "fi",
+            start(launchers[1], target_sdk),
+            "",
+        ]),
+        is_executable = True,
+    )
+    return struct(
+        executable = executable,
+        runfiles = ctx.runfiles(
+            files = launchers,
+            transitive_files = depset(transitive = [test_sdk.tool_files, target_sdk.tool_files]),
+        ).merge_all([t[DefaultInfo].default_runfiles for t in tools]),
+        env = env,
+    )
 
 def _link_modules(ctx, sdk, main, packages, own, native_assets_yaml, dill):
     """Compiles the test's own files and entrypoint against its modules, and links them."""
@@ -380,15 +455,33 @@ told where a runfile is (resolve it with `Runfiles.rlocation()`).""",
         "_tool": attr.label(
             default = "//dart/private/tools:test_runner",
             executable = True,
-            cfg = "exec",
+            cfg = config.exec("test"),
         ),
-    }, **dict(WINDOWS_CONSTRAINT_ATTR, **dict(DART_ABI_CONSTRAINT_ATTRS, **dict(EXTRA_DART_DEFINES_ATTR, **dict(MODULE_EXECUTABLE_ATTRS, **EXECUTABLE_PACKAGE_ATTRS))))),
+        # The same launcher for the target, which `bazel run` runs it on.
+        "_target_tool": attr.label(
+            default = "//dart/private/tools:test_runner",
+            executable = True,
+            cfg = "target",
+        ),
+    }, **dict(DART_ABI_CONSTRAINT_ATTRS, **dict(EXTRA_DART_DEFINES_ATTR, **dict(MODULE_EXECUTABLE_ATTRS, **EXECUTABLE_PACKAGE_ATTRS)))),
     test = True,
+    # A kernel runs on any host the SDK runs on. Bazel runs a test in the
+    # `test` group, which by default matches the target platform; this one
+    # asks only for an SDK. The compiles before it are `portable`, and the
+    # target's own SDK is what `bazel run` starts.
     toolchains = ["//dart:toolchain_type"],
+    exec_groups = PORTABLE_EXEC_GROUPS | {
+        "test": exec_group(toolchains = [EXEC_TOOLS_TOOLCHAIN]),
+    },
     doc = (
         "Compiles a Dart test to a kernel at build time and runs it with " +
         "asserts enabled. A test with `package:test` in `deps` runs under " +
         "that package's runner, so `--test_filter`, `shard_count` and " +
-        "per-case results work and Bazel's `timeout` is the only time limit."
+        "per-case results work and Bazel's `timeout` is the only time limit. " +
+        "It runs on any host with a Dart SDK, whatever the target platform, " +
+        "so a remote executor can run it; one that needs the target's own " +
+        "host (native `code_assets`, a binary from `data`, a tool such as " +
+        "`xcrun`) says so with `exec_group_compatible_with = {\"test\": [...]}`. " +
+        "`target_compatible_with` does not move the run."
     ),
 )

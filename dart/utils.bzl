@@ -51,6 +51,12 @@ load(
     _module_defines_transition = "module_defines_transition",
 )
 load(
+    "//dart/private:exec_groups.bzl",
+    _EXEC_TOOLS_TOOLCHAIN = "EXEC_TOOLS_TOOLCHAIN",
+    _PORTABLE = "PORTABLE",
+    _PORTABLE_EXEC_GROUPS = "PORTABLE_EXEC_GROUPS",
+)
+load(
     "//dart/private:source_set.bzl",
     _COPY_TO_DIRECTORY_TOOLCHAINS = "COPY_TO_DIRECTORY_TOOLCHAINS",
     _colocate_entrypoint = "colocate_entrypoint",
@@ -126,8 +132,8 @@ colocate_entrypoint = _colocate_entrypoint
 COPY_TO_DIRECTORY_TOOLCHAINS = _COPY_TO_DIRECTORY_TOOLCHAINS
 
 # Run link hooks from inside another rule, for one that compiles its own kernel
-# and so cannot depend on a `dart_link_hook` target without a cycle. The rule
-# declares the `//dart:exec_tools_toolchain_type` toolchain and merges
+# and so cannot depend on a `dart_link_hook` target without a cycle. The hooks
+# run in `PORTABLE`: the rule declares `PORTABLE_EXEC_GROUPS` and merges
 # `link_hook_runner_attr()` into its `attrs`.
 dart_link_hook_actions = _dart_link_hook_actions
 link_hook_runner_attr = _link_hook_runner_attr
@@ -142,6 +148,13 @@ parse_data_asset_ids = _parse_data_asset_ids
 # `KERNEL_TOOL_ATTR` into its `attrs`. `kernel_package_config` and
 # `kernel_roots` address sources through the same `org-dartlang-root:///` roots
 # the modules were compiled with.
+#
+# Those compiles, and the import checks below, run in the `PORTABLE` execution
+# group, on any host with a Dart SDK (`EXEC_TOOLS_TOOLCHAIN`), and the kernel
+# tool is built for that host: a rule merging `KERNEL_TOOL_ATTR` declares
+# `exec_groups = PORTABLE_EXEC_GROUPS`, or its own `PORTABLE` group naming
+# `EXEC_TOOLS_TOOLCHAIN` and any toolchains more. `dart_module_aspect`'s
+# `exec_toolchains` adds those to the aspect's.
 dart_module_aspect = _dart_module_aspect
 module_defines_transition = _module_defines_transition
 collect_modules = _collect_modules
@@ -150,6 +163,9 @@ dart_link_kernel_action = _dart_link_kernel_action
 kernel_package_config = _kernel_package_config
 kernel_roots = _kernel_roots
 KERNEL_TOOL_ATTR = _KERNEL_TOOL_ATTR
+PORTABLE = _PORTABLE
+PORTABLE_EXEC_GROUPS = _PORTABLE_EXEC_GROUPS
+EXEC_TOOLS_TOOLCHAIN = _EXEC_TOOLS_TOOLCHAIN
 
 # A rule whose `DartInfo` dependencies come from a toolchain names the toolchain
 # types in a private `label_list` of this name, so the kernel module aspect

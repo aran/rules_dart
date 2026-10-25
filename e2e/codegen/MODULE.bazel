@@ -10,6 +10,7 @@ local_path_override(
 # codegen target onto a target platform with no registered Dart toolchain, and
 # `build_test` asserts it still builds.
 bazel_dep(name = "bazel_skylib", version = "1.9.2")
+bazel_dep(name = "platforms", version = "1.1.0")
 
 dart = use_extension("@rules_dart//dart:extensions.bzl", "dart")
 dart.toolchain(dart_version = "3.13.5")

@@ -15,7 +15,7 @@ provider carrying it is still not something `deps` will accept.
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts")
 load("//dart:providers.bzl", "DartAnalyzableInfo", "DartInfo")
-load("//dart/private:common.bzl", "WINDOWS_CONSTRAINT_ATTR", "noop_test_executable")
+load("//dart/private:common.bzl", "test_executable")
 load("//dart/private:dart_analyze_aspect.bzl", "DartFixOutputsInfo", "dart_analyze")
 
 # The fixture's entrypoint and its dependency, by the suffix of their
@@ -29,7 +29,7 @@ def _checked_test_impl(group):
         groups = ctx.attr.target[OutputGroupInfo] if OutputGroupInfo in ctx.attr.target else None
         if groups == None or not hasattr(groups, group):
             fail("%s: the dart_analyze aspect has no %s check for %s" % (ctx.label, group, ctx.attr.target.label))
-        noop = noop_test_executable(ctx, ctx.attr._tool)
+        noop = test_executable(ctx, ctx.attr._tool)
         return [DefaultInfo(
             executable = noop.executable,
             runfiles = ctx.runfiles(transitive_files = getattr(groups, group)).merge(noop.runfiles),
@@ -37,14 +37,14 @@ def _checked_test_impl(group):
 
     return impl
 
-_CHECKED_TEST_ATTRS = dict({
+_CHECKED_TEST_ATTRS = {
     "target": attr.label(mandatory = True, aspects = [dart_analyze]),
     "_tool": attr.label(
         default = "//dart/private/tools:noop",
         executable = True,
-        cfg = "exec",
+        cfg = config.exec("test"),
     ),
-}, **WINDOWS_CONSTRAINT_ATTR)
+}
 
 # Passes when `target`'s analysis ran and found nothing: the aspect's stamp is
 # in the runfiles, and it is only written when `dart analyze` exits clean.

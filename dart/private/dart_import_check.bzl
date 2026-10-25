@@ -31,6 +31,7 @@ load(
     "reached_targets",
 )
 load("//dart/private:dart_module.bzl", "KERNEL_TOOL_ATTR", "kernel_package_config", "kernel_roots")
+load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS")
 
 LAYERING_CHECK_FEATURE = "dart_layering_check"
 
@@ -121,6 +122,7 @@ def dart_import_check_action(ctx, kernel_tool, name, srcs, own_package, deps, in
         inputs = depset(srcs + [package_config], transitive = [dep_srcs]),
         outputs = [result],
         mnemonic = "DartImportCheck",
+        exec_group = PORTABLE,
         progress_message = "Checking Dart imports of %{label}",
     )
     return result
@@ -152,6 +154,7 @@ dart_import_check_aspect = aspect(
     implementation = _import_check_aspect_impl,
     attr_aspects = propagated_attrs,
     toolchains_aspects = propagated_toolchains,
+    exec_groups = PORTABLE_EXEC_GROUPS,
     attrs = KERNEL_TOOL_ATTR,
     doc = "Checks the imports of every library an executable depends on; see `dart_import_check.bzl`.",
 )

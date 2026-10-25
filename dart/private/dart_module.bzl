@@ -50,8 +50,15 @@ load(
     "propagated_toolchains",
     "reached_targets",
 )
+load("//dart/private:exec_groups.bzl", "EXEC_TOOLS_TOOLCHAIN", "PORTABLE", "PORTABLE_EXEC_GROUPS")
 
 _KERNEL_TOOL = Label("//dart/private/tools:kernel_tool")
+
+# Built for the host of the `portable` actions that run it; a rule merging this
+# into its `attrs` declares `PORTABLE_EXEC_GROUPS`.
+KERNEL_TOOL_ATTR = {
+    "_kernel_tool": attr.label(default = _KERNEL_TOOL, executable = True, cfg = config.exec(PORTABLE)),
+}
 
 def kernel_root_path(short_path):
     """A `short_path` as a path under the kernel filesystem roots.
@@ -256,6 +263,7 @@ def _compile_modules(ctx, sdk, kernel_tool, name, srcs, packages, own_package, m
         tools = [sdk.kernel_worker, sdk.runtime],
         outputs = [out, manifest],
         mnemonic = "DartModule",
+        exec_group = PORTABLE,
         progress_message = "Compiling Dart modules %{label}",
         # `kernel_tool` keeps one `kernel_worker` running across targets, which
         # reads each dependency's kernel once instead of once per target. The
@@ -275,7 +283,7 @@ def _add_sdk_args(args, sdk):
     args.add("--platform", sdk.platform)
     args.add("--target", sdk.target)
 
-def dart_module_aspect(kernel_sdk, extra_dart_defines = Label("//dart:extra_dart_defines")):
+def dart_module_aspect(kernel_sdk, extra_dart_defines = Label("//dart:extra_dart_defines"), exec_toolchains = []):
     """Makes the aspect that compiles every `DartInfo` target to a kernel module.
 
     Call it at the top level of a `.bzl` file and assign the result, once per
@@ -284,11 +292,16 @@ def dart_module_aspect(kernel_sdk, extra_dart_defines = Label("//dart:extra_dart
     entrypoint against `DartModuleInfo.modules`, and link with
     `dart_link_kernel_action`.
 
+    The modules compile in `PORTABLE`, and `kernel_sdk` is built for the host
+    that group resolves to.
+
     Args:
       kernel_sdk: Label of a target providing `DartKernelSdkInfo`.
       extra_dart_defines: The command-line defines flag the executables read,
         so a dependency's module folds the same declarations as the
         entrypoint compiled against it.
+      exec_toolchains: Toolchain types `kernel_sdk` resolves besides the Dart
+        SDK, so the modules compile only on a host that has them.
 
     Returns:
       The aspect.
@@ -297,14 +310,20 @@ def dart_module_aspect(kernel_sdk, extra_dart_defines = Label("//dart:extra_dart
         implementation = _module_aspect_impl,
         attr_aspects = propagated_attrs,
         toolchains_aspects = propagated_toolchains,
-        attrs = {
-            "_kernel_sdk": attr.label(default = kernel_sdk, providers = [DartKernelSdkInfo]),
-            "_kernel_tool": attr.label(default = _KERNEL_TOOL, executable = True, cfg = "exec"),
+        exec_groups = {
+            PORTABLE: exec_group(toolchains = [EXEC_TOOLS_TOOLCHAIN] + exec_toolchains),
+        } if exec_toolchains else PORTABLE_EXEC_GROUPS,
+        attrs = KERNEL_TOOL_ATTR | {
+            "_kernel_sdk": _kernel_sdk_attr(kernel_sdk),
             "_extra_dart_defines": attr.label(default = extra_dart_defines),
             "_module_defines": attr.label(default = Label("//dart/private:module_defines")),
             "_modular_kernel": attr.label(default = Label("//dart:modular_kernel")),
         },
     )
+
+def _kernel_sdk_attr(kernel_sdk):
+    # Built for the host the modules compile on: the front end runs there.
+    return attr.label(default = kernel_sdk, providers = [DartKernelSdkInfo], cfg = config.exec(PORTABLE))
 
 vm_module_aspect = dart_module_aspect(Label("//dart/private:vm_kernel_sdk"))
 
@@ -324,13 +343,10 @@ module_defines_transition = transition(
 )
 
 # What an executable needs to compile its entrypoint and link: its `deps`,
-# through the module aspect and the defines transition, and the tools.
-KERNEL_TOOL_ATTR = {
-    "_kernel_tool": attr.label(default = _KERNEL_TOOL, executable = True, cfg = "exec"),
-}
-
+# through the module aspect and the defines transition, and the tools. The rule
+# declares `PORTABLE_EXEC_GROUPS`, where those compiles run.
 MODULE_EXECUTABLE_ATTRS = KERNEL_TOOL_ATTR | {
-    "_kernel_sdk": attr.label(default = Label("//dart/private:vm_kernel_sdk"), providers = [DartKernelSdkInfo]),
+    "_kernel_sdk": _kernel_sdk_attr(Label("//dart/private:vm_kernel_sdk")),
 }
 
 def collect_modules(deps):
@@ -426,6 +442,7 @@ def dart_entry_kernel_action(
         inputs = depset(inputs, transitive = [own.modules, own.manifests, sdk.tool_files]),
         outputs = [output, selection],
         mnemonic = "DartEntryKernel",
+        exec_group = PORTABLE,
         progress_message = "Compiling Dart entrypoint %{label}",
     )
     return struct(modules = own.modules, manifests = own.manifests, selection = selection)
@@ -457,6 +474,7 @@ def dart_link_kernel_action(ctx, kernel_tool, entry, linked, output):
         inputs = depset([entry, linked.selection], transitive = [linked.modules, linked.manifests]),
         outputs = [output],
         mnemonic = "DartLinkKernel",
+        exec_group = PORTABLE,
         progress_message = "Linking Dart kernel %{label}",
     )
 

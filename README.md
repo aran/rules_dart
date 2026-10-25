@@ -72,6 +72,24 @@ not reached only through a helper library: the runner comes with that target.
 A test whose `main` does not use `package:test` runs directly, and fails if
 given a filter or shards, because it has no cases to select.
 
+A test runs on any host with a Dart SDK, not only one matching the target
+platform, so a remote executor can run it. A test that needs the target's own
+host must say so: one with native `code_assets` (its own or its dependencies'),
+one that runs a binary from `data`, which is built for the target, or one that
+calls a host tool such as `xcrun` or `codesign`. `target_compatible_with` does
+not move the run; `exec_group_compatible_with` does:
+
+```starlark
+load("@platforms//host:constraints.bzl", "HOST_CONSTRAINTS")
+
+dart_test(
+    name = "ffi_test",
+    main = "ffi_test.dart",
+    code_assets = [":native"],
+    exec_group_compatible_with = {"test": HOST_CONSTRAINTS},
+)
+```
+
 ### Using pub.dev packages
 
 Declare individual packages with `pub.package()`:
