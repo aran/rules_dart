@@ -52,45 +52,29 @@ pub.package(
 )
 use_repo(pub, "pub_deps", "very_good_analysis")
 
-# Hermetic C++ toolchain for Linux arm64 execution platforms, so a C++ library
-# built for the exec platform (libsqlite3, which drift's code generator loads)
-# compiles when Bazel runs actions on a Linux arm64 worker. Only the
-# Linux-exec, Linux-target toolchain is registered: Mac builds keep the host's
-# toolchain, and the LLVM distribution is fetched only when this one is
-# selected. The worker image has no C library headers, so the toolchain brings
-# a sysroot: the Debian one Chromium publishes, which toolchains_llvm's own
-# tests use.
-bazel_dep(name = "toolchains_llvm", version = "1.12.0", dev_dependency = True)
+# A C++ toolchain for Linux arm64 execution platforms, so a C++ library built
+# for the host that runs a test (or for a code generator) compiles on a Linux
+# arm64 worker. hermetic-llvm's toolchain is one static binary with its own C
+# library, so the worker needs no headers or shared libraries. Only the
+# Linux-exec, Linux-target toolchain is registered: Mac builds keep the host's.
+bazel_dep(name = "llvm", version = "0.8.26", dev_dependency = True)
 
-llvm = use_extension(
-    "@toolchains_llvm//toolchain/extensions:llvm.bzl",
-    "llvm",
-    dev_dependency = True,
+llvm_tc = use_extension("@llvm//extensions:toolchain.bzl", "toolchain", dev_dependency = True)
+llvm_tc.exec(
+    arch = "aarch64",
+    os = "linux",
 )
-llvm.toolchain(
-    name = "llvm_linux_arm64",
-    # The Chromium sysroot uses Debian's libstdc++ layout.
-    cxx_include_layout = {"linux-aarch64": "debian"},
-    exec_arch = "aarch64",
-    exec_os = "linux",
-    llvm_version = "19.1.7",
+llvm_tc.target(
+    arch = "aarch64",
+    os = "linux",
 )
-llvm.sysroot(
-    name = "llvm_linux_arm64",
-    label = "@org_chromium_sysroot_linux_arm64//sysroot",
-    targets = ["linux-aarch64"],
-)
-use_repo(llvm, "llvm_linux_arm64")
-
-sysroot = use_repo_rule("@toolchains_llvm//toolchain:sysroot.bzl", "sysroot")
-
-sysroot(
-    name = "org_chromium_sysroot_linux_arm64",
-    sha256 = "e39b700d8858d18868544c8c84922f6adfa8419f3f42471b92024ba38eff7aca",
-    urls = ["https://commondatastorage.googleapis.com/chrome-linux-sysroot/toolchain/2202c161310ffde63729f29d27fe7bb24a0bc540/debian_stretch_arm64_sysroot.tar.xz"],
-)
+use_repo(llvm_tc, "llvm_toolchains")
 
 register_toolchains(
-    "@llvm_linux_arm64//:cc-toolchain-aarch64-linux",
+    "@llvm_toolchains//:all",
     dev_dependency = True,
 )
+
+# hermetic-llvm supports cgo from Go 1.27.
+go_sdk = use_extension("@rules_go//go:extensions.bzl", "go_sdk", dev_dependency = True)
+go_sdk.download(version = "1.27.3")
