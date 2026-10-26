@@ -19,6 +19,7 @@ load(
     "language_version_conflict_test",
     "package_and_inline_conflict_test",
 )
+load("//dart/tests:path_mapping_test.bzl", "path_mapping_test")
 
 exports_files(["gen.dart"])
 
@@ -140,4 +141,10 @@ package_and_inline_conflict_test(
     name = "package_and_inline_conflict_test",
     size = "small",
     target_under_test = ":double_declared",
+)
+
+path_mapping_test(
+    name = "model_g_path_mapping_test",
+    size = "small",
+    target_under_test = ":model_g",
 )

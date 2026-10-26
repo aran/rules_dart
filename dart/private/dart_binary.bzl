@@ -12,14 +12,13 @@ load(
     "collect_transitive_srcs",
     "dart_kernel_action",
     "generate_native_assets_yaml",
-    "generate_package_config",
     "resolve_code_assets",
     "stage_code_assets",
     "target_dart_abi",
 )
 load("//dart/private:dart_compile.bzl", "dart_compile_action", "front_end_flags", "recorded_uses_kind")
 load("//dart/private:dart_import_check.bzl", "dart_import_check_aspect", "import_check_validation")
-load("//dart/private:dart_module.bzl", "KERNEL_TOOL_ATTR")
+load("//dart/private:dart_module.bzl", "KERNEL_TOOL_ATTR", "kernel_package_config")
 load("//dart/private:exec_groups.bzl", "PORTABLE_EXEC_GROUPS")
 load("//dart/private:executable_package.bzl", "EXECUTABLE_PACKAGE_ATTRS", "executable_package")
 load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS", "colocate_executable")
@@ -78,18 +77,9 @@ def _dart_binary_impl(ctx):
         own.record,
     )
     packages = colocated.packages
-    main_input = colocated.main_input
-    main_arg = colocated.main_arg
     all_srcs = colocated.srcs
-
-    # Root resolution must see the rule's own inputs too: a package whose
-    # metadata comes from a srcs-less façade library resolves only via the
-    # files this rule supplies itself.
     package_config = ctx.actions.declare_file(ctx.label.name + ".package_config.json")
-    ctx.actions.write(
-        output = package_config,
-        content = generate_package_config(packages, all_srcs, package_config, colocated.roots),
-    )
+    ctx.actions.write(package_config, kernel_package_config(packages))
 
     # Determine output filename (Windows gets the `.exe` extension — see
     # `binary_output_basename`).
@@ -139,12 +129,12 @@ def _dart_binary_impl(ctx):
     kernel = output if compile_mode == "kernel" else ctx.actions.declare_file(ctx.label.name + ".app.dill")
     dart_kernel_action(
         ctx = ctx,
-        main = main_input,
+        main = colocated.main_input,
         transitive_srcs = depset(all_srcs),
         package_config = package_config,
         output_dill = kernel,
         product = compile_mode != "jit-snapshot",
-        main_path = main_arg,
+        main_in_dir = colocated.main_in_dir,
         defines = defines,
         # A `kernel` has no second step, so every flag belongs to the first.
         flags = fe_flags + compile_flags if compile_mode == "kernel" else fe_flags,

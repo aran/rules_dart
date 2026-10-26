@@ -1,6 +1,6 @@
 """Shared compilation action helpers for Dart."""
 
-load("//dart/private:common.bzl", "writable_home_env")
+load("//dart/private:common.bzl", "sdk_home")
 load("//dart/private:resources.bzl", "native_compile_resources")
 
 # The `dart compile` modes that tree-shake, and so can record the uses of
@@ -172,5 +172,5 @@ def dart_compile_action(
         mnemonic = "DartCompile",
         resource_set = native_compile_resources,
         progress_message = "Compiling Dart %s %s" % (compile_mode, ctx.label),
-        env = writable_home_env(dart_bin, output),
+        **sdk_home(dart_bin, output)
     )

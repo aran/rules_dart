@@ -48,9 +48,11 @@ load(
     "//dart/private:common.bzl",
     "DEFAULT_ROOT_LANGUAGE_VERSION",
     "PACKAGE_IDENTITY_ATTRS",
+    "PATH_MAPPING",
     "add_shim_contract_args",
     "asset_path_for",
     "dart_lib_root_for_package",
+    "format_literal",
     "resolve_package_identity",
     "same_package_library_dep_files",
     "synth_package_config",
@@ -97,15 +99,12 @@ def _dart_aggregate_codegen_impl(ctx):
         args.use_param_file("@%s", use_always = True)
         args.set_param_file_format("multiline")
     primary = ctx.files.srcs[0]
-    args.add("--input", primary.path)
+    args.add("--input", primary)
     args.add("--input-asset", asset_path_for(primary, lib_root))
     for output in outputs:
-        args.add("--output", output.path)
+        args.add("--output", output)
     for src in ctx.files.srcs[1:]:
-        args.add(
-            "--input-asset-extra",
-            "{}|{}".format(src.path, asset_path_for(src, lib_root)),
-        )
+        args.add("--input-asset-extra", src, format = "%s|" + format_literal(asset_path_for(src, lib_root)))
     extra_inputs = add_shim_contract_args(
         args,
         ctx,
@@ -129,7 +128,7 @@ def _dart_aggregate_codegen_impl(ctx):
             outputs = outputs,
             mnemonic = "DartAggregateCodegen",
             progress_message = "DartAggregateCodegen %s" % ctx.label,
-            execution_requirements = {
+            execution_requirements = PATH_MAPPING | {
                 "supports-workers": "1",
                 "requires-worker-protocol": "proto",
                 "worker-key-mnemonic": "DartAggregateCodegen",
@@ -138,7 +137,7 @@ def _dart_aggregate_codegen_impl(ctx):
     else:
         ctx.actions.run(
             executable = dart_sdk_info.dart,
-            arguments = [ctx.file.generator_script.path, args],
+            arguments = [ctx.actions.args().add(ctx.file.generator_script), args],
             inputs = depset(
                 direct = [ctx.file.generator_script] + direct_inputs,
                 transitive = transitive,
@@ -146,6 +145,7 @@ def _dart_aggregate_codegen_impl(ctx):
             outputs = outputs,
             mnemonic = "DartAggregateCodegen",
             progress_message = "DartAggregateCodegen %s" % ctx.label,
+            execution_requirements = PATH_MAPPING,
         )
 
     return [

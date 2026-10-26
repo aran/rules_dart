@@ -1,5 +1,6 @@
 load("//dart:defs.bzl", "dart_binary", "dart_js_binary", "dart_library", "dart_test")
 load("//dart/tests:package_config_test.bzl", "package_config_own_srcs_test")
+load("//dart/tests:path_mapping_test.bzl", "path_mapping_test")
 load("//dart/tests:web_test.bzl", "web_compile_hermetic_test")
 
 # Façade: carries the package metadata (name + lib_root) but no sources.
@@ -49,4 +50,16 @@ web_compile_hermetic_test(
     name = "web_compile_hermetic_test",
     size = "small",
     target_under_test = ":pc_web",
+)
+
+path_mapping_test(
+    name = "pc_web_path_mapping_test",
+    size = "small",
+    target_under_test = ":pc_web",
+)
+
+path_mapping_test(
+    name = "pc_test_path_mapping_test",
+    size = "small",
+    target_under_test = ":pc_test",
 )

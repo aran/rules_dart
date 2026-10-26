@@ -19,6 +19,7 @@ load(
     "recording_binary_test",
     "validation_runs_assetless_hook_test",
 )
+load("//dart/tests:path_mapping_test.bzl", "path_mapping_test")
 
 dart_library(
     name = "lib",
@@ -201,4 +202,16 @@ recorded_uses_not_json_test(
     name = "recorded_uses_not_json_test",
     size = "small",
     target_under_test = ":recorded_uses_not_json",
+)
+
+path_mapping_test(
+    name = "exe_path_mapping_test",
+    size = "small",
+    target_under_test = ":exe",
+)
+
+path_mapping_test(
+    name = "linked_path_mapping_test",
+    size = "small",
+    target_under_test = ":linked",
 )

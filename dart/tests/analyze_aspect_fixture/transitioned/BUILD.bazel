@@ -1,0 +1,11 @@
+load("//dart:defs.bzl", "dart_test")
+
+# Its `defines` build `gen_dep` in another configuration than the test's own.
+dart_test(
+    name = "transitioned_test",
+    size = "small",
+    defines = ["CHANNEL=transitioned"],
+    main = "test/transitioned_test.dart",
+    visibility = ["//dart/tests/analyze_aspect_fixture:__pkg__"],
+    deps = ["//dart/tests/analyze_aspect_fixture/transitioned/gen_dep"],
+)

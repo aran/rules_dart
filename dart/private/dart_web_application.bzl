@@ -9,7 +9,7 @@ The rules stage that layout hermetically from declared artifacts (see
 
 load("//dart:providers.bzl", "DartInfo")
 load("//dart/private:build_settings.bzl", "EXTRA_DART_DEFINES_ATTR", "merge_dart_defines")
-load("//dart/private:common.bzl", "collect_transitive_resources", "collect_transitive_srcs", "writable_home_env")
+load("//dart/private:common.bzl", "collect_transitive_resources", "collect_transitive_srcs", "format_literal", "sdk_home")
 load("//dart/private:exec_groups.bzl", "EXEC_TOOLS_TOOLCHAIN")
 load("//dart/private:executable_package.bzl", "EXECUTABLE_PACKAGE_ATTRS", "executable_package")
 load("//dart/private:project_staging.bzl", "project_layout", "stage_dart_project")
@@ -93,9 +93,7 @@ def _dart_web_compile(ctx, compile_mode):
 
     # The entrypoint is compiled from inside the staged tree so the compiler's
     # walk-up finds the sibling .dart_tool/package_config.json.
-    args.add(staged.src_tree.path + "/" + ctx.file.main.short_path)
-
-    env = writable_home_env(dart_sdk_info.dart, output)
+    args.add_all([staged.src_tree], format_each = "%s/" + format_literal(ctx.file.main.short_path), expand_directories = False)
 
     ctx.actions.run(
         executable = dart_sdk_info.dart,
@@ -107,7 +105,7 @@ def _dart_web_compile(ctx, compile_mode):
         outputs = outputs,
         mnemonic = "DartCompileWeb",
         progress_message = "Compiling Dart %s %s" % (compile_mode, ctx.label),
-        env = env,
+        **sdk_home(dart_sdk_info.dart, output)
     )
 
     return [

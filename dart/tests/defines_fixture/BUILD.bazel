@@ -1,5 +1,6 @@
 load("//dart:defs.bzl", "dart_binary", "dart_code_asset", "dart_test")
 load("//dart/tests:defines_test.bzl", "staged_defines_test")
+load("//dart/tests:path_mapping_test.bzl", "path_mapping_test")
 
 # Two `dart_binary` targets differing only in whether they carry a code asset,
 # which adds a mapping to the kernel step. Both declare `defines`, and one a
@@ -60,4 +61,10 @@ dart_test(
     code_assets = [":asset"],
     defines = ["CHANNEL=runtime"],
     main = "assert_channel.dart",
+)
+
+path_mapping_test(
+    name = "code_asset_test_path_mapping_test",
+    size = "small",
+    target_under_test = ":test_defines_with_code_asset_test",
 )

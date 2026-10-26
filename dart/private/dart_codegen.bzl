@@ -63,6 +63,7 @@ load(
     "//dart/private:common.bzl",
     "DEFAULT_ROOT_LANGUAGE_VERSION",
     "PACKAGE_IDENTITY_ATTRS",
+    "PATH_MAPPING",
     "add_shim_contract_args",
     "asset_path_for",
     "dart_lib_root_for_package",
@@ -147,10 +148,10 @@ def _dart_codegen_impl(ctx):
         # Bazel expands it into `WorkRequest.arguments` on the transport.
         args.use_param_file("@%s", use_always = True)
         args.set_param_file_format("multiline")
-        args.add("--input", src.path)
+        args.add("--input", src)
         args.add("--input-asset", asset_path_for(src, lib_root))
         for output in outputs:
-            args.add("--output", output.path)
+            args.add("--output", output)
         direct_inputs.extend(add_shim_contract_args(
             args,
             ctx,
@@ -172,7 +173,7 @@ def _dart_codegen_impl(ctx):
             outputs = outputs,
             mnemonic = "DartCodegen",
             progress_message = "DartCodegen %s" % ctx.label,
-            execution_requirements = {
+            execution_requirements = PATH_MAPPING | {
                 "supports-workers": "1",
                 "requires-worker-protocol": "proto",
                 # The worker key includes the shim binary path; using the
@@ -183,11 +184,11 @@ def _dart_codegen_impl(ctx):
         )
     else:
         # Run generator as a Dart script via the SDK's dart executable.
-        args.add(ctx.file.generator.path)
-        args.add("--input", src.path)
+        args.add(ctx.file.generator)
+        args.add("--input", src)
         args.add("--input-asset", asset_path_for(src, lib_root))
         for output in outputs:
-            args.add("--output", output.path)
+            args.add("--output", output)
         direct_inputs.extend(add_shim_contract_args(
             args,
             ctx,
@@ -210,6 +211,7 @@ def _dart_codegen_impl(ctx):
             outputs = outputs,
             mnemonic = "DartCodegen",
             progress_message = "DartCodegen %s" % ctx.label,
+            execution_requirements = PATH_MAPPING,
         )
 
     return [

@@ -256,6 +256,34 @@ def staged_pubspec_paths(layout):
         for lib_root, _ in main_package_roots(layout)
     ]
 
+def in_place_root(files, lib_root, output_root):
+    """Returns where a package's files sit, if the project can point there.
+
+    A rootUri is written into the package config as text, which path mapping
+    (`--experimental_output_paths=strip`) does not rewrite, while the action
+    reading it sees every output directory as `bazel-out/cfg/bin`. A relative
+    path survives that only between the source tree and the project's own
+    output directory, so a package built in another configuration — the deps
+    of a `dart_test` with `defines` — has to be assembled beside the project,
+    as one split between the source tree and `bazel-out` does.
+
+    Args:
+      files: The package record's Files.
+      lib_root: The package record's `lib_root`.
+      output_root: The project's own output root (`File.root.path`).
+
+    Returns:
+      The exec path of the package root, or None when the files have no
+      single root the project can name.
+    """
+    roots = {package_root_of(f, lib_root): True for f in files}
+    if len(roots) != 1:
+        return None
+    for f in files:
+        if not f.is_source and f.root.path != output_root:
+            return None
+    return roots.keys()[0]
+
 def _assembled_root(ctx, name, key, files, shared_name):
     """Assembles one package record's files beside the project; returns its root."""
     package_name, lib_root = key
@@ -300,7 +328,6 @@ def stage_dart_project(ctx, layout, relocatable = False, extra_proj_files = {}, 
 
     Returns:
       struct(
-        proj_path: exec path of the `<name>.proj` directory,
         src_tree: the `src` tree artifact File,
         package_config: the written package_config File,
         proj_files: dict of `extra_proj_files` name -> the File written,
@@ -349,9 +376,8 @@ def stage_dart_project(ctx, layout, relocatable = False, extra_proj_files = {}, 
     for package_name, _ in layout.dep_files:
         names[package_name] = names.get(package_name, 0) + 1
     for key, files in layout.dep_files.items():
-        roots = {package_root_of(f, key[1]): True for f in files}
-        if len(roots) == 1 and not relocatable:
-            root = roots.keys()[0]
+        root = None if relocatable else in_place_root(files, key[1], package_config.root.path)
+        if root != None:
             inputs.extend(files)
         else:
             root, tree = _assembled_root(ctx, name, key, files, names[key[0]] > 1)
@@ -372,7 +398,6 @@ def stage_dart_project(ctx, layout, relocatable = False, extra_proj_files = {}, 
         proj_files[filename] = extra
 
     return struct(
-        proj_path = src_tree.dirname,
         src_tree = src_tree,
         package_config = package_config,
         proj_files = proj_files,

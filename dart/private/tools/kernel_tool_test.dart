@@ -1451,14 +1451,14 @@ import 'b.dart' if (dart.library.html) 'package:dep/web.dart';
       write('a.modules.json', a.toJson());
       write('b.modules.json', b.toJson());
       write('entry.dill', 'ENTRY');
-      write('a0.dill', 'A0');
-      write('b0.dill', 'B0');
+      write('a.modules/0.dill', 'A0');
+      write('b.modules/0.dill', 'B0');
       write(
         'selection.json',
         jsonEncode({
           'modules': [
-            {'label': '//b:b', 'id': 0, 'dill': path('b0.dill')},
-            {'label': '//a:a', 'id': 0, 'dill': path('a0.dill')},
+            {'label': '//b:b', 'id': 0},
+            {'label': '//a:a', 'id': 0},
           ],
         }),
       );
@@ -1491,13 +1491,14 @@ import 'b.dart' if (dart.library.html) 'package:dep/web.dart';
       write('a.modules.json', a.toJson());
       write('b.modules.json', b.toJson());
       write('entry.dill', 'ENTRY');
-      write('x.dill', 'X');
+      write('a.modules/0.dill', 'X');
+      write('b.modules/0.dill', 'X');
       write(
         'selection.json',
         jsonEncode({
           'modules': [
-            {'label': '//a:a', 'id': 0, 'dill': path('x.dill')},
-            {'label': '//b:b', 'id': 0, 'dill': path('x.dill')},
+            {'label': '//a:a', 'id': 0},
+            {'label': '//b:b', 'id': 0},
           ],
         }),
       );

@@ -27,6 +27,7 @@ load(
     "//dart/private:common.bzl",
     "DEFAULT_ROOT_LANGUAGE_VERSION",
     "PACKAGE_IDENTITY_ATTRS",
+    "PATH_MAPPING",
     "add_shim_contract_args",
     "asset_path_for",
     "dart_lib_root_for_package",
@@ -81,10 +82,10 @@ def _dart_sqlcodegen_impl(ctx):
     args = ctx.actions.args()
     args.use_param_file("@%s", use_always = True)
     args.set_param_file_format("multiline")
-    args.add("--input", src.path)
+    args.add("--input", src)
     args.add("--input-asset", asset_path_for(src, lib_root))
     for output in outputs:
-        args.add("--output", output.path)
+        args.add("--output", output)
 
     direct = [src] + list(ctx.files.data)
     direct.extend(add_shim_contract_args(
@@ -107,7 +108,7 @@ def _dart_sqlcodegen_impl(ctx):
         outputs = outputs,
         mnemonic = "DartSqlCodegen",
         progress_message = "DartSqlCodegen %s" % ctx.label,
-        execution_requirements = {
+        execution_requirements = PATH_MAPPING | {
             "supports-workers": "1",
             "requires-worker-protocol": "proto",
             "worker-key-mnemonic": "DartSqlCodegen",

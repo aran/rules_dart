@@ -195,6 +195,12 @@ _merge_adopts_link_hook_test = unittest.make(_merge_adopts_link_hook_test_impl)
 def _actions(env, mnemonic):
     return [a for a in analysistest.target_actions(env) if a.mnemonic == mnemonic]
 
+def _has_path_arg(argv, prefix, file):
+    # The output directory in an argument is the mapped one when the build maps
+    # output paths (`--experimental_output_paths=strip`), so only the part
+    # under it is compared.
+    return [a for a in argv if a.startswith(prefix + "bazel-out/") and a.endswith("/" + file.short_path)] != []
+
 def _recording_binary_test_impl(ctx):
     # The compile action itself records: its argv carries the flag and its
     # outputs the file the provider names.
@@ -207,7 +213,7 @@ def _recording_binary_test_impl(ctx):
     asserts.equals(env, 1, len(compiles))
     asserts.true(
         env,
-        "--recorded-uses=" + info.file.path in compiles[0].argv,
+        _has_path_arg(compiles[0].argv, "--recorded-uses=", info.file),
         "missing --recorded-uses: %s" % compiles[0].argv,
     )
     asserts.true(env, info.file in compiles[0].outputs.to_list())
@@ -278,7 +284,7 @@ def _link_hook_actions_test_impl(ctx):
     asserts.equals(env, "data/index.json", assets[0].name)
     asserts.true(env, assets[0].file.short_path.endswith(target.label.name + "/link_hook_fixture/data/index.json"))
     asserts.true(env, assets[0].file in runs[0].outputs.to_list())
-    asserts.true(env, "data/index.json=" + assets[0].file.path in argv, str(argv))
+    asserts.true(env, _has_path_arg(argv, "data/index.json=", assets[0].file), str(argv))
     asserts.equals(env, [assets[0].file], target[DefaultInfo].files.to_list())
 
     recorded = ctx.attr.recorded_uses_basename

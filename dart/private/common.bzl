@@ -500,22 +500,28 @@ def test_executable(ctx, tool):
     ctx.actions.symlink(output = executable, target_file = binary, is_executable = True)
     return struct(executable = executable, runfiles = tool[DefaultInfo].default_runfiles)
 
-def writable_home_env(dart, beside):
-    """The environment an SDK build action needs to have a writable home.
+def sdk_home(dart, beside):
+    """The `ctx.actions.run` arguments that give an SDK action a writable home.
 
-    Windows `dart.exe` takes a POSIX `/tmp` literally and crashes, so it is
-    pointed at a directory that exists on the platform running it instead.
+    POSIX gets `/tmp`. Windows `dart.exe` takes a POSIX `/tmp` literally and
+    crashes, so it is pointed at the directory of `beside` instead. That is a
+    path in a string, which path mapping does not rewrite, so only the POSIX
+    action opts into path mapping (Windows has no sandbox to map in locally).
 
     Args:
       dart: The SDK's `dart` File, whose basename identifies the platform.
       beside: A File whose directory serves as the Windows home.
 
     Returns:
-      A dict for `ctx.actions.run(env = ...)`.
+      A dict of `env` and `execution_requirements`, to pass as
+      `ctx.actions.run(..., **sdk_home(dart, beside))`.
     """
     if dart.basename.endswith(".exe"):
-        return {"USERPROFILE": beside.dirname, "LOCALAPPDATA": beside.dirname}
-    return {"HOME": "/tmp"}
+        return {
+            "env": {"USERPROFILE": beside.dirname, "LOCALAPPDATA": beside.dirname},
+            "execution_requirements": {},
+        }
+    return {"env": {"HOME": "/tmp"}, "execution_requirements": PATH_MAPPING}
 
 def relative_path(from_dir, to_dir):
     """Compute the relative path from one directory to another.
@@ -633,7 +639,7 @@ def package_root_of(src, lib_root):
         exec_root = exec_root[:-1]
     return exec_root
 
-def generate_package_config(packages, all_srcs, config_file, roots = {}):
+def generate_package_config(packages, all_srcs, config_file):
     """Generate package_config.json content using short_path-based lib_root.
 
     Resolves exec-root paths from source files, then computes relative
@@ -643,10 +649,6 @@ def generate_package_config(packages, all_srcs, config_file, roots = {}):
         packages: List of DartPackageInfo providers.
         all_srcs: List of File objects from the transitive source closure.
         config_file: The output File for package_config.json (used for dirname).
-        roots: Dict of package name to exec-root-relative root, for packages
-            whose root no file in `all_srcs` reveals — an executable's own
-            package with no `lib/` files (see `colocate_executable`). A root
-            found from the files wins.
 
     Returns:
         String content of the package_config.json file.
@@ -654,8 +656,7 @@ def generate_package_config(packages, all_srcs, config_file, roots = {}):
     if not packages:
         return '{"configVersion": 2, "packages": []}\n'
 
-    exec_roots = dict(roots)
-    exec_roots.update(resolve_package_roots(packages, all_srcs))
+    exec_roots = resolve_package_roots(packages, all_srcs)
     config_dir = config_file.dirname
 
     entries = []
@@ -1302,13 +1303,61 @@ def generate_native_assets_yaml(entries_by_abi):
         abis.append('"{abi}": {{{assets}}}'.format(abi = abi, assets = assets))
     return '{{"format-version": [1, 0, 0], "native-assets": {{{abis}}}}}\n'.format(abis = ", ".join(abis))
 
+# The execution requirement of an action whose arguments and inputs name no
+# configuration's output directory except through its Files, so that under
+# `--experimental_output_paths=strip` one result serves every configuration
+# that builds the same thing. A path in a string, or in a file's content,
+# breaks that: it names one configuration, and inside the sandbox of a mapped
+# action it does not exist.
+PATH_MAPPING = {"supports-path-mapping": "1"}
+
 # The URI scheme every VM compile reads its sources through, rooted at the exec
 # root. See `dart_kernel_action`.
 KERNEL_FILESYSTEM_SCHEME = "org-dartlang-root"
 
-def kernel_uri(path):
-    """The `KERNEL_FILESYSTEM_SCHEME` URI of an exec-root-relative path."""
-    return KERNEL_FILESYSTEM_SCHEME + ":///" + path
+def kernel_root_path(short_path):
+    """A `short_path` as a path under the kernel filesystem roots.
+
+    A file of another repository has a `short_path` of `../<repo>/…` but sits
+    at `external/<repo>/…` under the exec root and the output directories.
+
+    Args:
+      short_path: A `File.short_path`, or a `lib_root`.
+
+    Returns:
+      The root-relative path.
+    """
+    return "external/" + short_path[3:] if short_path.startswith("../") else short_path
+
+def _kernel_root(f):
+    rel = kernel_root_path(f.short_path)
+    if f.path != rel and f.path.endswith("/" + rel):
+        return f.path[:-len(rel) - 1]
+    return None
+
+def add_kernel_roots(args, flag, files):
+    """Adds the kernel filesystem roots `files` are found under, output directories first.
+
+    The exec root, plus the output directory of each generated file; a file's
+    root is what is left of its path once its `short_path` is taken off. The
+    output directories come first so a generated file wins over a stale copy
+    at the same path in the source tree: a sandbox hides the stale one, but a
+    persistent worker runs in the exec root, where it is visible.
+
+    The roots are worked out from the Files as the action's arguments are
+    written, so they are the paths the action sees when Bazel maps its output
+    paths (`--experimental_output_paths=strip`).
+
+    Args:
+      args: The `Args` to add them to.
+      flag: The flag each root follows.
+      files: A list or depset of Files a compile reads from source.
+    """
+    args.add_all(files, map_each = _kernel_root, before_each = flag, uniquify = True, expand_directories = False)
+    args.add(flag, ".")
+
+def _kernel_uri(f):
+    return KERNEL_FILESYSTEM_SCHEME + ":///" + f.path
 
 def dart_kernel_action(
         ctx,
@@ -1317,11 +1366,10 @@ def dart_kernel_action(
         package_config,
         output_dill,
         product,
-        main_path = None,
+        main_in_dir = None,
         defines = [],
         flags = [],
-        native_assets_yaml = None,
-        roots = ["."]):
+        native_assets_yaml = None):
     """Runs the Dart front end (`gen_kernel`) to produce a kernel `.dill`.
 
     Every VM compile goes through here first, and `dart compile` then turns the
@@ -1331,9 +1379,12 @@ def dart_kernel_action(
     reach every part of the output. `dart compile` given a source path names
     the entrypoint `file:///<absolute path>`, so the bytes depended on where
     the action ran — the sandbox directory, the output base. Here the sources
-    are read through `KERNEL_FILESYSTEM_SCHEME`, rooted at the exec root, so the
-    entrypoint is `org-dartlang-root:///<exec path>` wherever it was built, and
-    its relative imports resolve within that root exactly as they do on disk.
+    are read through `KERNEL_FILESYSTEM_SCHEME`, rooted at the exec root and
+    the output directories the sources lie in (`add_kernel_roots`), so the
+    entrypoint is `org-dartlang-root:///<path in the workspace>` wherever and
+    in whichever configuration it was built, and its relative imports resolve
+    within those roots exactly as they do on disk. `package_config` names its
+    packages the same way (`kernel_package_config`).
 
     The other flags are the ones `dart compile` itself passes to the front end
     (`generateKernelHelper` in `pkg/dart2native`): the platform dill and
@@ -1349,13 +1400,13 @@ def dart_kernel_action(
       ctx: The rule context; the rule declares `PORTABLE_EXEC_GROUPS`.
       main: The File holding the entrypoint, added to the inputs.
       transitive_srcs: Depset of transitive source Files.
-      package_config: The build-time `package_config.json` File, or None.
+      package_config: The `kernel_package_config` File, or None.
       output_dill: The output `.dill` File to produce.
       product: Whether the kernel is for a product runtime: an AOT snapshot or
         executable, or a `dart compile kernel` file. False for the JIT VM that
         builds a `jit-snapshot`.
-      main_path: Optional exec-root-relative path to compile instead of
-        `main.path` (e.g. a path inside an assembled `main` directory).
+      main_in_dir: When `main` is a directory, the entrypoint's path inside
+        it.
       defines: Environment declarations; each entry becomes a `-D` flag. This
         action runs the front end, so it is the only stage where they can still
         reach constant evaluation.
@@ -1363,9 +1414,6 @@ def dart_kernel_action(
       native_assets_yaml: Optional `native_assets.yaml` File, embedded as the
         `vm:ffi:native-assets` mapping. The libraries it names are a run-time
         (runfiles) dependency, not inputs.
-      roots: The filesystem roots `KERNEL_FILESYSTEM_SCHEME` reads through:
-        the exec root, plus output directories when generated files are read
-        where they lie rather than assembled into one directory first.
     """
     dart_sdk_info = portable_sdk(ctx)
     tools = find_sdk_kernel_tools(dart_sdk_info)
@@ -1376,16 +1424,19 @@ def dart_kernel_action(
     args.add("-Ddart.vm.product=" + ("true" if product else "false"))
     args.add_all(["-Ddart.vm.asan=false", "-Ddart.vm.msan=false", "-Ddart.vm.tsan=false"])
     args.add("--filesystem-scheme", KERNEL_FILESYSTEM_SCHEME)
-    args.add_all(roots, before_each = "--filesystem-root")
+    add_kernel_roots(args, "--filesystem-root", depset([main], transitive = [transitive_srcs] if transitive_srcs != None else []))
     if package_config != None:
-        args.add("--packages", kernel_uri(package_config.path))
+        args.add_all([package_config], before_each = "--packages", map_each = _kernel_uri)
     if native_assets_yaml != None:
         args.add("--native-assets", native_assets_yaml)
     for d in defines:
         args.add("-D" + d)
     args.add_all(flags)
     args.add("-o", output_dill)
-    args.add(kernel_uri(main_path if main_path != None else main.path))
+    main_path = kernel_root_path(main.short_path)
+    if main_in_dir != None:
+        main_path += "/" + main_in_dir
+    args.add(KERNEL_FILESYSTEM_SCHEME + ":///" + main_path)
 
     direct = [main]
     if package_config != None:
@@ -1405,7 +1456,7 @@ def dart_kernel_action(
         resource_set = kernel_resources,
         exec_group = PORTABLE,
         progress_message = "Compiling Dart kernel %s" % ctx.label,
-        env = writable_home_env(dart_sdk_info.dart, output_dill),
+        **sdk_home(dart_sdk_info.dart, output_dill)
     )
 
 def asset_path_for(file, lib_root):
@@ -1538,7 +1589,7 @@ def add_shim_contract_args(
     """Appends the typed shim-contract flags to `args`.
 
     Covers `--package`, `--root-language-version`, `--dep` (repeatable —
-    `<exec_path>|<asset_path>` form — one per entry in `auto_stage_srcs`
+    `<path>|<asset_path>` form — one per entry in `auto_stage_srcs`
     and `asset_deps`), `--part`, `--config`, `--package-config`,
     `--sdk-path`. Callers add `--input`, `--output`, and `--input-asset`
     themselves (those are specific to the calling impl's per-src /
@@ -1589,26 +1640,28 @@ def add_shim_contract_args(
         if src.path in seen:
             continue
         seen[src.path] = True
-        asset = asset_path_for(src, lib_root)
-        args.add("--dep", "{}|{}".format(src.path, asset))
+        args.add("--dep", src, format = "%s|" + format_literal(asset_path_for(src, lib_root)))
         extra_inputs.append(src)
     for src in asset_deps:
         if src.path in seen:
             continue
         seen[src.path] = True
-        asset = asset_path_for(src, lib_root)
-        args.add("--dep", "{}|{}".format(src.path, asset))
+        args.add("--dep", src, format = "%s|" + format_literal(asset_path_for(src, lib_root)))
         extra_inputs.append(src)
     for part in ctx.files.parts:
-        args.add("--part", part.path)
+        args.add("--part", part)
         extra_inputs.append(part)
     if ctx.attr.config:
         args.add("--config", ctx.attr.config)
     if ctx.file.package_config:
-        args.add("--package-config", ctx.file.package_config.path)
+        args.add("--package-config", ctx.file.package_config)
         extra_inputs.append(ctx.file.package_config)
     elif synth_pc != None:
-        args.add("--package-config", synth_pc.path)
+        args.add("--package-config", synth_pc)
         extra_inputs.append(synth_pc)
-    args.add("--sdk-path", sdk_path_from_dart(sdk_dart))
+    args.add_all([sdk_dart], before_each = "--sdk-path", map_each = sdk_path_from_dart)
     return extra_inputs
+
+def format_literal(text):
+    """`text` escaped for an `Args` format string, in which `%` is special."""
+    return text.replace("%", "%%")

@@ -23,9 +23,10 @@ load(
     "collect_packages",
     "collect_transitive_resources",
     "collect_transitive_srcs",
+    "format_literal",
     "generate_package_config",
     "package_link_hook",
-    "writable_home_env",
+    "sdk_home",
 )
 load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS", "portable_sdk")
 
@@ -170,7 +171,7 @@ def dart_link_hook_actions(ctx, runner, recorded_uses, deps, data_asset_ids, nam
         args.add("--dart", sdk.dart)
         args.add("--packages", package_config)
         args.add("--package-name", package_name)
-        args.add("--package-root", link_hook_package_root(hook))
+        args.add_all([hook], before_each = "--package-root", map_each = link_hook_package_root)
         args.add("--hook", hook)
         args.add("--recorded-uses", recorded_uses)
         args.add("--output", link_output)
@@ -182,7 +183,7 @@ def dart_link_hook_actions(ctx, runner, recorded_uses, deps, data_asset_ids, nam
                 "%s/%s/%s" % (name, package_name, asset.name),
             )
             outputs.append(out)
-            args.add("--data-asset", "%s=%s" % (asset.name, out.path))
+            args.add("--data-asset", out, format = format_literal(asset.name) + "=%s")
             asset_infos.append(struct(
                 package = asset.package,
                 name = asset.name,
@@ -200,7 +201,7 @@ def dart_link_hook_actions(ctx, runner, recorded_uses, deps, data_asset_ids, nam
             mnemonic = "DartLinkHook",
             exec_group = PORTABLE,
             progress_message = "Running link hook of %s for %s" % (package_name, ctx.label),
-            env = writable_home_env(sdk.dart, link_output),
+            **sdk_home(sdk.dart, link_output)
         )
     return struct(assets = asset_infos, validation_outputs = link_outputs)
 

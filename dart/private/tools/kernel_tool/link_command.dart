@@ -21,7 +21,6 @@ Future<int> runLink(Args args) async {
               as Map)['modules']
           as List;
   final selected = <ModuleRef>[];
-  final dills = <ModuleRef, String>{};
   for (final entry in selection.cast<Map<String, dynamic>>()) {
     final manifest = manifests[entry['label']];
     if (manifest == null) {
@@ -31,9 +30,7 @@ Future<int> runLink(Args args) async {
       );
       return 1;
     }
-    final ref = ModuleRef(manifest, manifest.modules[entry['id'] as int]);
-    selected.add(ref);
-    dills[ref] = entry['dill'] as String;
+    selected.add(ModuleRef(manifest, manifest.modules[entry['id'] as int]));
   }
 
   final unique = uniqueModules(selected);
@@ -46,7 +43,9 @@ Future<int> runLink(Args args) async {
   // module whose library declares one names it too.
   await concatenate([
     args.one('entry'),
-    for (final ref in unique.kept) dills[ref]!,
+    // Where this action sees the module, which need not be where the entry
+    // compile saw it: one entry can serve several configurations.
+    for (final ref in unique.kept) ref.dillPath!,
   ], args.one('output'));
   return 0;
 }

@@ -7,6 +7,8 @@ co-location. These are used by both rules_dart and rules_flutter.
 
 load(
     "//dart/private:common.bzl",
+    _PATH_MAPPING = "PATH_MAPPING",
+    _add_kernel_roots = "add_kernel_roots",
     _collect_packages = "collect_packages",
     _collect_transitive_resources = "collect_transitive_resources",
     _collect_transitive_srcs = "collect_transitive_srcs",
@@ -47,7 +49,6 @@ load(
     _dart_link_kernel_action = "dart_link_kernel_action",
     _dart_module_aspect = "dart_module_aspect",
     _kernel_package_config = "kernel_package_config",
-    _kernel_roots = "kernel_roots",
     _module_defines_transition = "module_defines_transition",
 )
 load(
@@ -119,6 +120,12 @@ generate_package_config = _generate_package_config
 generate_dev_package_config = _generate_dev_package_config
 generate_package_config_content = _generate_package_config_content
 runfiles_path = _runfiles_path
+
+# The execution requirements of an action that may run once for every
+# configuration building the same thing (`--experimental_output_paths=strip`):
+# add them to an action whose arguments reach output paths only through Files
+# (`Args.add`, `add_all`, `map_each`) and whose generated inputs name none.
+PATH_MAPPING = _PATH_MAPPING
 derive_lib_root = _derive_lib_root
 derive_package_name = _derive_package_name
 
@@ -146,8 +153,8 @@ parse_data_asset_ids = _parse_data_asset_ids
 # modules), compiles the entrypoint with `dart_entry_kernel_action` and links
 # with `dart_link_kernel_action`, merging
 # `KERNEL_TOOL_ATTR` into its `attrs`. `kernel_package_config` and
-# `kernel_roots` address sources through the same `org-dartlang-root:///` roots
-# the modules were compiled with.
+# `add_kernel_roots` address sources through the same `org-dartlang-root:///`
+# roots the modules were compiled with.
 #
 # Those compiles, and the import checks below, run in the `PORTABLE` execution
 # group, on any host with a Dart SDK (`EXEC_TOOLS_TOOLCHAIN`), and the kernel
@@ -161,7 +168,7 @@ collect_modules = _collect_modules
 dart_entry_kernel_action = _dart_entry_kernel_action
 dart_link_kernel_action = _dart_link_kernel_action
 kernel_package_config = _kernel_package_config
-kernel_roots = _kernel_roots
+add_kernel_roots = _add_kernel_roots
 KERNEL_TOOL_ATTR = _KERNEL_TOOL_ATTR
 PORTABLE = _PORTABLE
 PORTABLE_EXEC_GROUPS = _PORTABLE_EXEC_GROUPS

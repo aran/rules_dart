@@ -53,7 +53,7 @@ different projects.
 
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("//dart:providers.bzl", "DartAnalysisOptionsInfo", "DartAnalyzableInfo", "DartInfo")
-load("//dart/private:common.bzl", "merge_package_records", "own_package_record", "writable_home_env")
+load("//dart/private:common.bzl", "merge_package_records", "own_package_record", "sdk_home")
 load("//dart/private:project_staging.bzl", "project_layout", "pubspec_stub", "stage_dart_project", "staged_pubspec_paths")
 load("//dart/private:resources.bzl", "analysis_resources")
 load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS")
@@ -234,6 +234,12 @@ def stage_config_project(ctx, config, packages, files, own, name, sdk_version, r
         sdk_version = sdk_version,
     )
 
+def _project_dir(src_tree):
+    return src_tree.dirname
+
+def _add_project(args, staged):
+    args.add_all([staged.src_tree], before_each = "--project", map_each = _project_dir, expand_directories = False)
+
 def _add_analyzer(ctx, args):
     if not ctx.attr._analysis_shutdown_workaround[BuildSettingInfo].value:
         args.add("--dart-cli")
@@ -244,7 +250,7 @@ def _analyze(ctx, name, staged, sdk_inputs):
     stamp = ctx.actions.declare_file(name + ".analyzed")
     args = ctx.actions.args()
     args.add("--dart", dart_sdk_info.dart)
-    args.add("--project", staged.proj_path)
+    _add_project(args, staged)
     args.add("--stamp", stamp)
     args.add("--fatal-infos")
     _add_analyzer(ctx, args)
@@ -256,7 +262,7 @@ def _analyze(ctx, name, staged, sdk_inputs):
         mnemonic = "DartAnalyze",
         resource_set = analysis_resources,
         progress_message = "Analyzing Dart sources of %{label}",
-        env = writable_home_env(dart_sdk_info.dart, stamp),
+        **sdk_home(dart_sdk_info.dart, stamp)
     )
     return stamp
 
@@ -315,7 +321,7 @@ def _format(ctx, name, staged, sdk_inputs, own_paths, language_version):
     stamp = ctx.actions.declare_file(name + ".formatted")
     args = ctx.actions.args()
     args.add("--dart", dart_sdk_info.dart)
-    args.add("--project", staged.proj_path)
+    _add_project(args, staged)
     args.add("--manifest", manifest)
     args.add("--stamp", stamp)
 
@@ -329,7 +335,7 @@ def _format(ctx, name, staged, sdk_inputs, own_paths, language_version):
         outputs = [stamp],
         mnemonic = "DartFormat",
         progress_message = "Checking Dart formatting of %{label}",
-        env = writable_home_env(dart_sdk_info.dart, stamp),
+        **sdk_home(dart_sdk_info.dart, stamp)
     )
     return stamp
 
@@ -412,9 +418,9 @@ def _dart_analyze_aspect_impl(target, ctx):
     scratch = ctx.actions.declare_directory(name + ".scratch")
     fix_args = ctx.actions.args()
     fix_args.add("--dart", dart_sdk_info.dart)
-    fix_args.add("--project", staged.proj_path)
-    fix_args.add("--scratch", scratch.path)
-    fix_args.add("--fixes", fixes.path)
+    _add_project(fix_args, staged)
+    fix_args.add_all([scratch], before_each = "--scratch", expand_directories = False)
+    fix_args.add_all([fixes], before_each = "--fixes", expand_directories = False)
     fix_args.add("--manifest", manifest)
     fix_args.add("--eligible", eligible)
     _add_analyzer(ctx, fix_args)
@@ -426,7 +432,7 @@ def _dart_analyze_aspect_impl(target, ctx):
         mnemonic = "DartFix",
         resource_set = analysis_resources,
         progress_message = "Computing Dart fixes for %{label}",
-        env = writable_home_env(dart_sdk_info.dart, manifest),
+        **sdk_home(dart_sdk_info.dart, manifest)
     )
 
     return [

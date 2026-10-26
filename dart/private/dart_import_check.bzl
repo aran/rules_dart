@@ -20,7 +20,7 @@ imports what none of them provides fails only a program that reaches it.
 """
 
 load("//dart:providers.bzl", "DartImportCheckInfo", "DartInfo")
-load("//dart/private:common.bzl", "own_package_record")
+load("//dart/private:common.bzl", "PATH_MAPPING", "add_kernel_roots", "own_package_record")
 load(
     "//dart/private:dart_deps.bzl",
     "direct_dart_deps",
@@ -30,7 +30,7 @@ load(
     "propagated_toolchains",
     "reached_targets",
 )
-load("//dart/private:dart_module.bzl", "KERNEL_TOOL_ATTR", "kernel_package_config", "kernel_roots")
+load("//dart/private:dart_module.bzl", "KERNEL_TOOL_ATTR", "kernel_package_config")
 load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS")
 
 LAYERING_CHECK_FEATURE = "dart_layering_check"
@@ -108,7 +108,9 @@ def dart_import_check_action(ctx, kernel_tool, name, srcs, own_package, deps, in
     if own_package != None:
         args.add("--package-name", own_package.package_name)
         args.add("--lib-root", own_package.lib_root)
-    args.add_all(kernel_roots(srcs) + [ctx.bin_dir.path], before_each = "--multi-root", uniquify = True)
+
+    # The result is in the output directory a generated dependency is read from.
+    add_kernel_roots(args, "--multi-root", srcs + [result])
     args.add_all(srcs, before_each = "--src", expand_directories = False)
     args.add_all(dep_srcs, before_each = "--dep-file", map_each = _path, expand_directories = False)
     args.add_all(packages, before_each = "--available-package", map_each = _package_name, uniquify = True)
@@ -124,6 +126,7 @@ def dart_import_check_action(ctx, kernel_tool, name, srcs, own_package, deps, in
         mnemonic = "DartImportCheck",
         exec_group = PORTABLE,
         progress_message = "Checking Dart imports of %{label}",
+        execution_requirements = PATH_MAPPING,
     )
     return result
 

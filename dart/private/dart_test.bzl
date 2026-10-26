@@ -21,6 +21,7 @@ load(
     "collect_transitive_srcs",
     "dart_kernel_action",
     "generate_native_assets_yaml",
+    "kernel_root_path",
     "relative_path",
     "resolve_code_assets",
     "runfiles_path",
@@ -36,8 +37,6 @@ load(
     "dart_entry_kernel_action",
     "dart_link_kernel_action",
     "kernel_package_config",
-    "kernel_root_path",
-    "kernel_roots",
     "module_defines_transition",
     "vm_module_aspect",
 )
@@ -90,10 +89,8 @@ def _dart_test_impl(ctx):
             package_config = package_config,
             output_dill = dill,
             product = True,
-            main_path = kernel_root_path(main.short_path),
             defines = merge_vm_dart_defines(ctx),
             native_assets_yaml = native_assets_yaml,
-            roots = kernel_roots(srcs),
         )
     else:
         _link_modules(ctx, sdk, main, packages, own, native_assets_yaml, dill)

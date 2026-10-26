@@ -217,20 +217,21 @@ def colocate_entrypoint(ctx, main, own_srcs):
       own_srcs: The rule's own `srcs` Files (not those from `deps`).
 
     Returns:
-      `(main_input, main_arg, extra_inputs)` — `main_input` is the File to add to
-      action inputs (the assembled directory when assembled, else `main`);
-      `main_arg` is the path string to pass as the compile target; `extra_inputs`
+      `(main_input, main_in_dir, extra_inputs)` — `main_input` is the File to
+      add to action inputs (the assembled directory when assembled, else
+      `main`); `main_in_dir` is the entrypoint's path inside that directory, or
+      `None` when `main_input` is `main` itself; `extra_inputs`
       are `own_srcs` to add as inputs when not assembled (empty when assembled).
     """
     if not needs_source_assembly(own_srcs):
-        return main, main.path, own_srcs
+        return main, None, own_srcs
 
     # `.entrysrcs` (vs packages' `.pkgsrcs`) so this dir can't collide with a package dir.
     assembled = assemble_source_dir(ctx, ctx.label.name + ".main.entrysrcs", [main] + own_srcs)
     rel = main.short_path
     if ctx.label.package and rel.startswith(ctx.label.package + "/"):
         rel = rel[len(ctx.label.package) + 1:]
-    return assembled, assembled.path + "/" + rel, []
+    return assembled, rel, []
 
 def colocate_executable(ctx, packages, dep_srcs, main, own_srcs, own_package = None):
     """Co-locates an executable's dependencies and its own sources for one compile.
@@ -251,15 +252,15 @@ def colocate_executable(ctx, packages, dep_srcs, main, own_srcs, own_package = N
       own_package: The executable's own `DartPackageInfo`, or `None`.
 
     Returns:
-      `struct(packages, srcs, main_input, main_arg, roots)`: the rewritten
-      package list; every File the compile reads; the File holding the
-      entrypoint and the path to compile; and exec-root package roots for
-      `generate_package_config` that no `lib/` file can reveal.
+      `struct(packages, srcs, main_input, main_in_dir)`: the rewritten
+      package list; every File the compile reads; and the File holding the
+      entrypoint with, when it is a directory, the entrypoint's path inside
+      it.
     """
     if own_package == None:
         packages, srcs = colocate_packages(ctx, packages, dep_srcs)
-        main_input, main_arg, own_inputs = colocate_entrypoint(ctx, main, own_srcs)
-        return struct(packages = packages, srcs = srcs + own_inputs, main_input = main_input, main_arg = main_arg, roots = {})
+        main_input, main_in_dir, own_inputs = colocate_entrypoint(ctx, main, own_srcs)
+        return struct(packages = packages, srcs = srcs + own_inputs, main_input = main_input, main_in_dir = main_in_dir)
 
     name = own_package.package_name
     root = own_package.lib_root
@@ -269,12 +270,10 @@ def colocate_executable(ctx, packages, dep_srcs, main, own_srcs, own_package = N
         if p.package_name == name and p.lib_root != root:
             # Assembled: the directory is the package root, entrypoint inside.
             assembled = [f for f in srcs if f.short_path == p.lib_root][0]
-            return struct(packages = packages, srcs = srcs, main_input = assembled, main_arg = assembled.path + "/" + rel, roots = {})
+            return struct(packages = packages, srcs = srcs, main_input = assembled, main_in_dir = rel)
 
-    # Not assembled: every member is a source file where it stands, so the root
-    # is the directory containing them, found from the entrypoint's own path.
-    exec_root = main.path[:len(main.path) - len(rel)].rstrip("/")
-    return struct(packages = packages, srcs = srcs, main_input = main, main_arg = main.path, roots = {name: exec_root})
+    # Not assembled: every member is a source file where it stands.
+    return struct(packages = packages, srcs = srcs, main_input = main, main_in_dir = None)
 
 def _dart_source_set_impl(ctx):
     dst = assemble_source_dir(

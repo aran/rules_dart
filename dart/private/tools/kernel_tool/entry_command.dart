@@ -114,7 +114,7 @@ Future<int> runEntry(Args args) async {
     const JsonEncoder.withIndent('  ').convert({
       'modules': [
         for (final m in reach.order)
-          {'label': m.manifest.label, 'id': m.module.id, 'dill': m.dillPath},
+          {'label': m.manifest.label, 'id': m.module.id},
       ],
     }),
   );

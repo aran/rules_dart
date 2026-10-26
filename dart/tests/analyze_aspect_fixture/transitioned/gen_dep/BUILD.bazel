@@ -1,0 +1,19 @@
+load("@bazel_skylib//rules:write_file.bzl", "write_file")
+load("//dart:defs.bzl", "dart_library")
+
+# A package wholly generated, so analysis resolves it where it sits in
+# `bazel-out`.
+write_file(
+    name = "gen",
+    out = "lib/gen.dart",
+    content = [
+        "const String greeting = 'hello';",
+        "",
+    ],
+)
+
+dart_library(
+    name = "gen_dep",
+    srcs = ["lib/gen.dart"],
+    visibility = ["//dart/tests/analyze_aspect_fixture/transitioned:__pkg__"],
+)

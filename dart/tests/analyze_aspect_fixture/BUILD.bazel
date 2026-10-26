@@ -39,6 +39,16 @@ analyzed_test(
     target = "//dart/tests/analyze_aspect_fixture/nested",
 )
 
+# A dependency built in another configuration than the target, here by
+# `dart_test`'s `defines`. Its rootUri has to hold under
+# `--experimental_output_paths=strip` too, which a build of this target with
+# that flag checks: Bazel refuses a transition on it.
+analyzed_test(
+    name = "transitioned_dep_test",
+    size = "small",
+    target = "//dart/tests/analyze_aspect_fixture/transitioned:transitioned_test",
+)
+
 # A generated file is never checked, though its hand-written sibling is.
 analyzed_test(
     name = "generated_skipped_test",
