@@ -1,0 +1,68 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
+load("//dart:defs.bzl", "dart_binary", "dart_code_asset", "dart_test")
+load(":manifest_test.bzl", "one_path_test")
+
+# One shared library serving two packages' asset ids: the VM must open one
+# path for both, so the OS loader returns one image.
+
+cc_library(
+    name = "counter",
+    srcs = ["counter.cc"],
+)
+
+cc_shared_library(
+    name = "counter_shared",
+    deps = [":counter"],
+)
+
+dart_code_asset(
+    name = "a",
+    asset_id = "package:a/a.dart",
+    shared_library = ":counter_shared",
+)
+
+dart_code_asset(
+    name = "b",
+    asset_id = "package:b/b.dart",
+    shared_library = ":counter_shared",
+)
+
+dart_test(
+    name = "shared_library_asset_test",
+    size = "small",
+    code_assets = [
+        ":a",
+        ":b",
+    ],
+    main = "shared_library_asset_test.dart",
+)
+
+dart_binary(
+    name = "shared_library_asset_bin",
+    code_assets = [
+        ":a",
+        ":b",
+    ],
+    main = "shared_library_asset_test.dart",
+)
+
+one_path_test(
+    name = "binary_manifest_test",
+    size = "small",
+    asset_ids = [
+        "package:a/a.dart",
+        "package:b/b.dart",
+    ],
+    target_under_test = ":shared_library_asset_bin",
+)
+
+one_path_test(
+    name = "test_manifest_test",
+    size = "small",
+    asset_ids = [
+        "package:a/a.dart",
+        "package:b/b.dart",
+    ],
+    target_under_test = ":shared_library_asset_test",
+)

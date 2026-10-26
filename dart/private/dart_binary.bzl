@@ -14,6 +14,7 @@ load(
     "generate_native_assets_yaml",
     "generate_package_config",
     "resolve_code_assets",
+    "stage_code_assets",
     "target_dart_abi",
 )
 load("//dart/private:dart_compile.bzl", "dart_compile_action", "front_end_flags", "recorded_uses_kind")
@@ -113,7 +114,9 @@ def _dart_binary_impl(ctx):
     # its assets), or named outright. The explicit attr stays valid for
     # hand-written cases; it is simply no longer the only mechanism. The
     # mapping is embedded in the kernel, its `relative` paths resolved against
-    # the final executable at run time.
+    # the final executable at run time: each library is linked into
+    # `<name>.native/` beside it, so the path holds wherever the executable and
+    # that directory go together.
     resolved_assets = resolve_code_assets(
         ctx.label,
         collect_transitive_code_assets(ctx.attr.deps) if ctx.attr.code_assets_from_deps else [],
@@ -124,7 +127,7 @@ def _dart_binary_impl(ctx):
         abi = target_dart_abi(ctx)
         entries, code_asset_libs = code_asset_entries(
             ctx.label,
-            resolved_assets,
+            _stage_libraries(ctx, resolved_assets),
             output.dirname,
         )
         native_assets_yaml = ctx.actions.declare_file(ctx.label.name + ".native_assets.yaml")
@@ -193,7 +196,7 @@ def _dart_binary_impl(ctx):
 
     return [
         DefaultInfo(
-            files = depset([output]),
+            files = depset([output] + code_asset_libs),
             executable = output,
             runfiles = runfiles,
         ),
@@ -207,6 +210,24 @@ def _dart_binary_impl(ctx):
         # `short_path`, and a colocated copy's is inside the assembled directory.
         own.analyzable,
     ] + recorded_uses_info + _import_checks(ctx, own)
+
+def _stage_libraries(ctx, assets):
+    directory = ctx.label.name + ".native"
+    owners = {}
+    for asset in assets:
+        library = asset.dynamic_library
+        if library == None:
+            continue
+        previous = owners.get(library.basename)
+        if previous and previous[0] != library:
+            fail("%s: code assets %s and %s both have a library named %s, and a binary's libraries share one directory" % (
+                ctx.label,
+                previous[1],
+                asset.asset_id,
+                library.basename,
+            ))
+        owners[library.basename] = (library, asset.asset_id)
+    return stage_code_assets(ctx, assets, lambda _index: directory)
 
 def _compile_runner(ctx, compile_mode):
     # Only gen_snapshot's Mach-O output names where it was written.
@@ -264,8 +285,8 @@ def _dart_binary_rule(check_imports, compile_runner = True):
                     doc = """Native code assets (e.g. `//dart/ext/sqlite3:code_asset`) the binary's \
     `@Native` FFI bindings resolve against. When set, the main is compiled to a kernel with the \
     code-asset mapping embedded (`gen_kernel --native-assets`) before the snapshot/exe is produced, \
-    and the libraries are staged in runfiles so the Dart VM resolves them relative to the executable \
-    at runtime. Each entry must provide `DartCodeAssetInfo` (see the `dart_code_asset` rule). An entry replaces the asset with the same id that `deps` supply, so a binary can load a differently built library under that id.""",
+    and the libraries are linked into `<name>.native/` beside the executable, where the Dart VM \
+    finds them at runtime: to install the binary, copy the executable and that directory together, following links (`cp -RL`), because the files there are symlinks into the output tree. Each entry must provide `DartCodeAssetInfo` (see the `dart_code_asset` rule). An entry replaces the asset with the same id that `deps` supply, so a binary can load a differently built library under that id.""",
                     providers = [DartCodeAssetInfo],
                 ),
                 "code_assets_from_deps": attr.bool(

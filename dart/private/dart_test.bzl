@@ -24,6 +24,7 @@ load(
     "relative_path",
     "resolve_code_assets",
     "runfiles_path",
+    "stage_code_assets",
     "target_dart_abi",
     "test_executable",
 )
@@ -199,7 +200,11 @@ def _code_assets(ctx, test_sdk, target_sdk, dispatch, dill):
     entries_by_abi = {}
     libraries = []
     for abi, assets in by_abi.items():
-        staged = [_stage_library(ctx, abi, index, asset) for index, asset in enumerate(assets)]
+        staged = stage_code_assets(
+            ctx,
+            assets,
+            lambda index: "%s.native/%s/%d" % (ctx.label.name, abi, index),
+        )
         entries, libs = code_asset_entries(ctx.label, staged, dill.dirname)
         entries_by_abi[abi] = entries
         libraries.extend(libs)
@@ -209,19 +214,6 @@ def _code_assets(ctx, test_sdk, target_sdk, dispatch, dill):
         content = generate_native_assets_yaml(entries_by_abi),
     )
     return native_assets_yaml, libraries
-
-def _stage_library(ctx, abi, index, asset):
-    """`asset` with its library linked into this test's own output directory."""
-    if asset.dynamic_library == None:
-        return asset
-    staged = ctx.actions.declare_file("%s.native/%s/%d/%s" % (ctx.label.name, abi, index, asset.dynamic_library.basename))
-    ctx.actions.symlink(output = staged, target_file = asset.dynamic_library)
-    return DartCodeAssetInfo(
-        asset_id = asset.asset_id,
-        link_mode = asset.link_mode,
-        dynamic_library = staged,
-        system_uri = asset.system_uri,
-    )
 
 # How `uname -s`/`uname -m` name each host an SDK is published for.
 _UNAME = {

@@ -1,6 +1,6 @@
 """Shared utilities for Dart rules."""
 
-load("//dart:providers.bzl", "CODE_ASSET_LINK_MODES", "DartInfo", "DartPackageMetadataInfo")
+load("//dart:providers.bzl", "CODE_ASSET_LINK_MODES", "DartCodeAssetInfo", "DartInfo", "DartPackageMetadataInfo")
 load("//dart/private:dart_info.bzl", "derived_package_info", "package_lib_prefix")
 load("//dart/private:exec_groups.bzl", "PORTABLE", "portable_sdk")
 load("//dart/private:resources.bzl", "kernel_resources")
@@ -1228,12 +1228,53 @@ def code_asset_entries(label, assets, output_dir):
         relative_lib_path = ""
         if info.dynamic_library != None:
             relative_lib_path = relative_path(output_dir, info.dynamic_library.path)
-            libraries.append(info.dynamic_library)
+            if info.dynamic_library not in libraries:
+                libraries.append(info.dynamic_library)
         entries.append((
             info.asset_id,
             native_assets_path_list(label, info.link_mode, relative_lib_path, info.system_uri),
         ))
     return entries, libraries
+
+def stage_code_assets(ctx, assets, directory):
+    """`assets` with each library linked into the target's own package, once.
+
+    A `relative` manifest path from the target's output to a file the target
+    declares itself holds wherever the two travel together: bazel-bin, any
+    runfiles tree, or a copy of both.
+
+    Several ids may name one library, as when one shared library serves
+    several packages. They share one link, so the OS loader opens one image
+    for all of them; two links would load two copies of the library.
+
+    Args:
+      ctx: The target's rule context.
+      assets: List of `DartCodeAssetInfo`.
+      directory: Function from a library's index among the distinct libraries
+        to the directory, relative to the target's package, to link it into.
+
+    Returns:
+      List of `DartCodeAssetInfo` parallel to `assets`, each naming its linked
+      library, or the asset itself when it has no library.
+    """
+    links = {}
+    staged = []
+    for asset in assets:
+        library = asset.dynamic_library
+        if library == None:
+            staged.append(asset)
+            continue
+        if library not in links:
+            link = ctx.actions.declare_file("%s/%s" % (directory(len(links)), library.basename))
+            ctx.actions.symlink(output = link, target_file = library)
+            links[library] = link
+        staged.append(DartCodeAssetInfo(
+            asset_id = asset.asset_id,
+            link_mode = asset.link_mode,
+            dynamic_library = links[library],
+            system_uri = asset.system_uri,
+        ))
+    return staged
 
 def generate_native_assets_yaml(entries_by_abi):
     """Generates the `native_assets.yaml` content for `gen_kernel --native-assets`.

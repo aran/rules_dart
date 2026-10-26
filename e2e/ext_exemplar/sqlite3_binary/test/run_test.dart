@@ -31,4 +31,31 @@ void main() {
     // `channel: UNSET` with no build-time diagnostic.
     expect(result.stdout, contains('channel: bazel-e2e'));
   });
+
+  test('the binary runs when copied out with its `.native` directory', () {
+    final r = Runfiles.create();
+    final exeName = Platform.isWindows ? 'app.exe' : 'app';
+    final exe = File(r.rlocation('_main/sqlite3_binary/$exeName'));
+    // What an install copies: the executable and the directory of libraries
+    // beside it, links resolved. libsqlite3 comes from another repository,
+    // so a path that held only in bazel-out or runfiles would fail here.
+    final native = Directory('${exe.parent.path}/app.native');
+    final dest = Directory.systemTemp.createTempSync('sqlite3_binary');
+    addTearDown(() => dest.deleteSync(recursive: true));
+    final copied = exe.copySync('${dest.path}/$exeName');
+    if (!Platform.isWindows) {
+      Process.runSync('chmod', ['+x', copied.path]);
+    }
+    final libs = Directory('${dest.path}/app.native')..createSync();
+    for (final lib in native.listSync().whereType<File>()) {
+      lib.copySync('${libs.path}/${lib.uri.pathSegments.last}');
+    }
+    final result = Process.runSync(copied.path, []);
+    expect(
+      result.exitCode,
+      0,
+      reason: 'stdout=${result.stdout}\nstderr=${result.stderr}',
+    );
+    expect(result.stdout, contains('sqlite3 ok: hello'));
+  });
 }
