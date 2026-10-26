@@ -507,7 +507,7 @@ declarations are resolved by the front end at that point — the VM cannot suppl
 `@Native` FFI bindings resolve against. When set, the test's `main` is compiled to a kernel \
 with the code-asset mapping embedded (`gen_kernel --native-assets`), and the libraries ship in \
 runfiles so the Dart VM resolves them — no `dart:ffi` ceremony in the test source. Each entry \
-must provide `DartCodeAssetInfo` (see the `dart_code_asset` rule).""",
+must provide `DartCodeAssetInfo` (see the `dart_code_asset` rule). An entry replaces the asset with the same id that `deps` supply, so a test can load a differently built library under that id.""",
             providers = [DartCodeAssetInfo],
         ),
         "test_host_deps": attr.label_list(

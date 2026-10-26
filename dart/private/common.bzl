@@ -1167,11 +1167,14 @@ def _asset_identity(asset):
 def resolve_code_assets(label, transitive_assets, explicit_assets):
     """Unions transitively-propagated code assets with explicitly named ones.
 
-    An asset id may legitimately arrive many times — through a diamond, or
-    because the user named explicitly what a dependency already supplies. Those
-    collapse. Two *different* assets claiming one id do not: the Dart VM
-    resolves an id to exactly one library, so silently keeping either one would
-    pick a native library by graph-traversal order.
+    An asset id may legitimately arrive many times, through a diamond, and
+    those collapse. Two *different* assets claiming one id through `deps` do
+    not: the Dart VM resolves an id to exactly one library, so silently keeping
+    either one would pick a native library by graph-traversal order. An asset
+    named in the `code_assets` attr is a choice rather than an accident of the
+    graph, so it replaces whatever `deps` supply under its id: how a test loads
+    a differently built library under the id its package declares, and how a
+    target settles two `deps` that claim one id with different libraries.
 
     Args:
       label: The consuming target's label, for error messages.
@@ -1181,9 +1184,19 @@ def resolve_code_assets(label, transitive_assets, explicit_assets):
     Returns:
       List of `DartCodeAssetInfo`, one per asset id, in a stable order.
     """
+    explicit = _unique_code_assets(label, explicit_assets)
+    named = {asset.asset_id: True for asset in explicit}
+    return _unique_code_assets(label, [
+        asset
+        for asset in transitive_assets
+        if asset.asset_id not in named
+    ]) + explicit
+
+def _unique_code_assets(label, assets):
+    """`assets` with duplicates collapsed, failing on two definitions of one id."""
     by_id = {}
     order = []
-    for asset in list(transitive_assets) + list(explicit_assets):
+    for asset in assets:
         previous = by_id.get(asset.asset_id)
         if previous == None:
             by_id[asset.asset_id] = asset
@@ -1191,7 +1204,8 @@ def resolve_code_assets(label, transitive_assets, explicit_assets):
         elif _asset_identity(previous) != _asset_identity(asset):
             fail(("%s: code asset id `%s` is claimed twice with different " +
                   "definitions: %s and %s. The Dart VM resolves an asset id to " +
-                  "exactly one library, so drop one of the declarations.") %
+                  "exactly one library, so drop one of the declarations, or name " +
+                  "the one to use in this target's `code_assets`.") %
                  (label, asset.asset_id, _asset_identity(previous), _asset_identity(asset)))
     return [by_id[asset_id] for asset_id in order]
 

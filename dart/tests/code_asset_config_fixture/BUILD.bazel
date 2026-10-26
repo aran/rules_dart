@@ -1,7 +1,7 @@
 load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
-load("//dart:defs.bzl", "dart_code_asset", "dart_test")
+load("//dart:defs.bzl", "dart_code_asset", "dart_library", "dart_test")
 load(":transitioned_asset.bzl", "transitioned_asset")
 
 # A test whose code asset is built in another configuration than the test,
@@ -51,4 +51,21 @@ dart_test(
     # the wrong tree would find it.
     data = [":asset"],
     main = "transitioned_asset_test.dart",
+)
+
+# The package that owns the asset, carrying the ordinary build of it.
+dart_library(
+    name = "owner",
+    package_name = "code_asset_config_fixture",
+    code_assets = [":asset"],
+)
+
+# The same test, but the asset reaches it through `deps`, and the transitioned
+# build named in `code_assets` replaces it.
+dart_test(
+    name = "replaced_asset_test",
+    size = "small",
+    code_assets = [":transitioned_asset"],
+    main = "transitioned_asset_test.dart",
+    deps = [":owner"],
 )

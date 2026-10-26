@@ -27,3 +27,19 @@ dart_library(
     tags = ["manual"],
     visibility = ["//dart/tests:__subpackages__"],
 )
+
+# `prop_b` again, split across a second target that backs the same id with a
+# different library: two definitions of one id reached through `deps`.
+dart_code_asset(
+    name = "alt_code_asset",
+    asset_id = "package:prop_b/src/ffi/prop_b.g.dart",
+    shared_library = "//dart/tests/cc_fixture:empty_shared_alt",
+)
+
+dart_library(
+    name = "b_alt",
+    package_name = "prop_b",
+    code_assets = [":alt_code_asset"],
+    tags = ["manual"],
+    visibility = ["//dart/tests:__subpackages__"],
+)

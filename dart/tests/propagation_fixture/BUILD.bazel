@@ -37,20 +37,40 @@ ownership_violation_test(
 )
 
 # Same asset id as the one `prop_b` propagates, but backed by a different
-# library. The Dart VM resolves an id to exactly one library, so taking either
-# silently would pick by graph-traversal order.
+# library and named outright: it replaces the propagated one, which is how a
+# target loads a differently built library under a package's id.
 dart_code_asset(
-    name = "conflicting_asset",
+    name = "replacing_asset",
     asset_id = "package:prop_b/src/ffi/prop_b.g.dart",
     shared_library = "//dart/tests/cc_fixture:empty_shared_alt",
 )
 
 dart_binary(
+    name = "replacing_app",
+    code_assets = [":replacing_asset"],
+    main = "main.dart",
+    deps = ["//dart/tests/propagation_fixture/a"],
+)
+
+manifest_contains_test(
+    name = "replacing_asset_in_manifest_test",
+    size = "small",
+    expected_asset_ids = ["package:prop_b/src/ffi/prop_b.g.dart"],
+    expected_libraries = ["libempty_alt"],
+    target_under_test = ":replacing_app",
+)
+
+# Two dependencies propagating different libraries under one id. The Dart VM
+# resolves an id to exactly one library, so taking either silently would pick
+# by graph-traversal order.
+dart_binary(
     name = "conflicting_app",
-    code_assets = [":conflicting_asset"],
     main = "main.dart",
     tags = ["manual"],
-    deps = ["//dart/tests/propagation_fixture/a"],
+    deps = [
+        "//dart/tests/propagation_fixture/a",
+        "//dart/tests/propagation_fixture/b:b_alt",
+    ],
 )
 
 asset_conflict_test(

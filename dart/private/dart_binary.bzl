@@ -265,7 +265,7 @@ def _dart_binary_rule(check_imports, compile_runner = True):
     `@Native` FFI bindings resolve against. When set, the main is compiled to a kernel with the \
     code-asset mapping embedded (`gen_kernel --native-assets`) before the snapshot/exe is produced, \
     and the libraries are staged in runfiles so the Dart VM resolves them relative to the executable \
-    at runtime. Each entry must provide `DartCodeAssetInfo` (see the `dart_code_asset` rule).""",
+    at runtime. Each entry must provide `DartCodeAssetInfo` (see the `dart_code_asset` rule). An entry replaces the asset with the same id that `deps` supply, so a binary can load a differently built library under that id.""",
                     providers = [DartCodeAssetInfo],
                 ),
                 "code_assets_from_deps": attr.bool(
