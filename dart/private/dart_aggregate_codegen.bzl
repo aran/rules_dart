@@ -57,11 +57,11 @@ load(
     "same_package_library_dep_files",
     "synth_package_config",
 )
+load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS", "portable_sdk")
 
 def _dart_aggregate_codegen_impl(ctx):
     identity = resolve_package_identity(ctx)
-    toolchain = ctx.toolchains["//dart:exec_tools_toolchain_type"]
-    dart_sdk_info = toolchain.dart_sdk_info
+    dart_sdk_info = portable_sdk(ctx)
 
     if ctx.file.generator_script and ctx.executable.generator_bin:
         fail("%s: only one of `generator_bin` or `generator_script` may be set." %
@@ -127,6 +127,7 @@ def _dart_aggregate_codegen_impl(ctx):
             inputs = depset(direct = direct_inputs, transitive = transitive),
             outputs = outputs,
             mnemonic = "DartAggregateCodegen",
+            exec_group = PORTABLE,
             progress_message = "DartAggregateCodegen %s" % ctx.label,
             execution_requirements = PATH_MAPPING | {
                 "supports-workers": "1",
@@ -144,6 +145,7 @@ def _dart_aggregate_codegen_impl(ctx):
             ),
             outputs = outputs,
             mnemonic = "DartAggregateCodegen",
+            exec_group = PORTABLE,
             progress_message = "DartAggregateCodegen %s" % ctx.label,
             execution_requirements = PATH_MAPPING,
         )
@@ -189,7 +191,7 @@ dart_aggregate_codegen = rule(
                   "rules_dart shim CLI contract. Mutually exclusive " +
                   "with `generator_script`.",
             executable = True,
-            cfg = "exec",
+            cfg = config.exec(PORTABLE),
         ),
         "generator_script": attr.label(
             doc = "A `.dart` script to run via `dart run` as the " +
@@ -241,7 +243,7 @@ dart_aggregate_codegen = rule(
             allow_files = True,
         ),
     } | PACKAGE_IDENTITY_ATTRS,
-    toolchains = ["//dart:exec_tools_toolchain_type"],
+    exec_groups = PORTABLE_EXEC_GROUPS,
     doc = "Runs a package-level aggregate Dart code generator, producing " +
           "one or more declared outputs per target.",
 )

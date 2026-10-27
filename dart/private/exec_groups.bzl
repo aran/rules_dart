@@ -10,7 +10,9 @@ produce machine code for the target (`dart compile exe`) stay in the rule's
 default group, whose toolchain matches the target.
 
 Every tool such an action runs comes from `config.exec(PORTABLE)`, so it is
-built for the same host the action runs on.
+built for the same host the action runs on. A named group, unlike the rule's
+default group, keeps its toolchain under `--incompatible_auto_exec_groups`, so
+tool and SDK agree with the flag on or off.
 """
 
 PORTABLE = "portable"

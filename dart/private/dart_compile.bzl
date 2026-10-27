@@ -3,6 +3,8 @@
 load("//dart/private:common.bzl", "sdk_home")
 load("//dart/private:resources.bzl", "native_compile_resources")
 
+_DART_TOOLCHAIN = Label("//dart:toolchain_type")
+
 # The `dart compile` modes that tree-shake, and so can record the uses of
 # `@RecordUse` definitions: what survives tree-shaking is the set of uses.
 RECORDING_COMPILE_MODES = ("exe", "aot-snapshot")
@@ -170,6 +172,8 @@ def dart_compile_action(
         inputs = depset(direct = direct, transitive = [sdk_files]),
         outputs = outputs,
         mnemonic = "DartCompile",
+        # `dart_bin` is the target toolchain's: machine code for the target.
+        toolchain = _DART_TOOLCHAIN,
         resource_set = native_compile_resources,
         progress_message = "Compiling Dart %s %s" % (compile_mode, ctx.label),
         **sdk_home(dart_bin, output)

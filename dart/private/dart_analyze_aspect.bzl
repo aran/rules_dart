@@ -54,17 +54,17 @@ different projects.
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("//dart:providers.bzl", "DartAnalysisOptionsInfo", "DartAnalyzableInfo", "DartInfo")
 load("//dart/private:common.bzl", "merge_package_records", "own_package_record", "sdk_home")
+load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS", "portable_sdk")
 load("//dart/private:project_staging.bzl", "project_layout", "pubspec_stub", "stage_dart_project", "staged_pubspec_paths")
 load("//dart/private:resources.bzl", "analysis_resources")
 load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS")
 
 # Analysis and formatting run on the build machine and produce nothing for the
-# target, so the SDK is chosen by the execution platform alone — the type the
-# codegen rules use, for the same reason. With the target-platform type, a
+# target, so they run in `PORTABLE`, whose SDK is chosen by the execution
+# platform alone, as the codegen rules' is. With the target-platform type, a
 # target that transitions to a platform no Dart SDK is registered for (an
 # Android bundle, say) failed toolchain resolution before the aspect could even
 # see it was not Dart.
-_TOOLCHAIN = "//dart:exec_tools_toolchain_type"
 
 _OPTIONS_BASENAME = "analysis_options.yaml"
 
@@ -246,7 +246,7 @@ def _add_analyzer(ctx, args):
 
 def _analyze(ctx, name, staged, sdk_inputs):
     """Declares the `dart analyze` action; returns the stamp it writes on success."""
-    dart_sdk_info = ctx.toolchains[_TOOLCHAIN].dart_sdk_info
+    dart_sdk_info = portable_sdk(ctx)
     stamp = ctx.actions.declare_file(name + ".analyzed")
     args = ctx.actions.args()
     args.add("--dart", dart_sdk_info.dart)
@@ -260,6 +260,7 @@ def _analyze(ctx, name, staged, sdk_inputs):
         inputs = depset(direct = staged.inputs, transitive = [sdk_inputs]),
         outputs = [stamp],
         mnemonic = "DartAnalyze",
+        exec_group = PORTABLE,
         resource_set = analysis_resources,
         progress_message = "Analyzing Dart sources of %{label}",
         **sdk_home(dart_sdk_info.dart, stamp)
@@ -312,7 +313,7 @@ def _format(ctx, name, staged, sdk_inputs, own_paths, language_version):
     project: the staged tree also holds dependencies and rulesets, none of
     which are this target's to format.
     """
-    dart_sdk_info = ctx.toolchains[_TOOLCHAIN].dart_sdk_info
+    dart_sdk_info = portable_sdk(ctx)
     manifest = ctx.actions.declare_file(name + ".format_manifest")
     ctx.actions.write(
         output = manifest,
@@ -334,6 +335,7 @@ def _format(ctx, name, staged, sdk_inputs, own_paths, language_version):
         inputs = depset(direct = staged.inputs + [manifest], transitive = [sdk_inputs]),
         outputs = [stamp],
         mnemonic = "DartFormat",
+        exec_group = PORTABLE,
         progress_message = "Checking Dart formatting of %{label}",
         **sdk_home(dart_sdk_info.dart, stamp)
     )
@@ -380,10 +382,10 @@ def _dart_analyze_aspect_impl(target, ctx):
         info.transitive_srcs.to_list() + info.transitive_resources.to_list() + entry + own.values(),
         own.values(),
         name,
-        ctx.toolchains[_TOOLCHAIN].dart_sdk_info.version,
+        portable_sdk(ctx).version,
     )
 
-    dart_sdk_info = ctx.toolchains[_TOOLCHAIN].dart_sdk_info
+    dart_sdk_info = portable_sdk(ctx)
     sdk_inputs = depset(direct = [dart_sdk_info.dart], transitive = [dart_sdk_info.tool_files])
 
     tags = getattr(ctx.rule.attr, "tags", [])
@@ -430,6 +432,7 @@ def _dart_analyze_aspect_impl(target, ctx):
         inputs = depset(direct = staged.inputs + [eligible], transitive = [sdk_inputs]),
         outputs = [fixes, manifest, scratch],
         mnemonic = "DartFix",
+        exec_group = PORTABLE,
         resource_set = analysis_resources,
         progress_message = "Computing Dart fixes for %{label}",
         **sdk_home(dart_sdk_info.dart, manifest)
@@ -457,19 +460,20 @@ dart_analyze = aspect(
         "_analyze_tool": attr.label(
             default = "//dart/private/tools:analyze_runner",
             executable = True,
-            cfg = "exec",
+            cfg = config.exec(PORTABLE),
         ),
         "_fix_tool": attr.label(
             default = "//dart/private/tools:fix_runner",
             executable = True,
-            cfg = "exec",
+            cfg = config.exec(PORTABLE),
         ),
         "_format_tool": attr.label(
             default = "//dart/private/tools:format_runner",
             executable = True,
-            cfg = "exec",
+            cfg = config.exec(PORTABLE),
         ),
     },
-    toolchains = [_TOOLCHAIN] + COPY_TO_DIRECTORY_TOOLCHAINS,
+    toolchains = COPY_TO_DIRECTORY_TOOLCHAINS,
+    exec_groups = PORTABLE_EXEC_GROUPS,
     doc = "Runs `dart analyze` and `dart format` on a Dart target's own files; see `@rules_dart//dart:analyze.bzl`.",
 )

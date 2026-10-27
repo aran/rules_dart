@@ -71,6 +71,7 @@ load(
     "same_package_library_dep_files",
     "synth_package_config",
 )
+load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS", "portable_sdk")
 
 def compute_codegen_output_name(src_path, output_suffix):
     """Compute the output file path for a codegen source file.
@@ -92,9 +93,9 @@ def compute_codegen_output_name(src_path, output_suffix):
 
 def _dart_codegen_impl(ctx):
     identity = resolve_package_identity(ctx)
-    toolchain = ctx.toolchains["//dart:exec_tools_toolchain_type"]
-    dart = toolchain.dart_sdk_info.dart
-    sdk_files = toolchain.dart_sdk_info.tool_files
+    sdk = portable_sdk(ctx)
+    dart = sdk.dart
+    sdk_files = sdk.tool_files
 
     if ctx.file.generator and ctx.executable.generator_bin:
         fail("%s: only one of `generator` or `generator_bin` may be set." %
@@ -172,6 +173,7 @@ def _dart_codegen_impl(ctx):
             ),
             outputs = outputs,
             mnemonic = "DartCodegen",
+            exec_group = PORTABLE,
             progress_message = "DartCodegen %s" % ctx.label,
             execution_requirements = PATH_MAPPING | {
                 "supports-workers": "1",
@@ -210,6 +212,7 @@ def _dart_codegen_impl(ctx):
             ),
             outputs = outputs,
             mnemonic = "DartCodegen",
+            exec_group = PORTABLE,
             progress_message = "DartCodegen %s" % ctx.label,
             execution_requirements = PATH_MAPPING,
         )
@@ -260,7 +263,7 @@ dart_codegen = rule(
                   "rules_dart shim CLI contract. Mutually exclusive with " +
                   "`generator`.",
             executable = True,
-            cfg = "exec",
+            cfg = config.exec(PORTABLE),
         ),
         "output_suffixes": attr.string_list(
             doc = "One or more suffixes appended to the input stem to " +
@@ -334,7 +337,7 @@ dart_codegen = rule(
             allow_files = True,
         ),
     } | PACKAGE_IDENTITY_ATTRS,
-    toolchains = ["//dart:exec_tools_toolchain_type"],
+    exec_groups = PORTABLE_EXEC_GROUPS,
     doc = "Runs a per-file Dart code generator, producing one or more " +
           "sibling outputs per input.",
 )

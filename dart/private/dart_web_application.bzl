@@ -10,7 +10,7 @@ The rules stage that layout hermetically from declared artifacts (see
 load("//dart:providers.bzl", "DartInfo")
 load("//dart/private:build_settings.bzl", "EXTRA_DART_DEFINES_ATTR", "merge_dart_defines")
 load("//dart/private:common.bzl", "collect_transitive_resources", "collect_transitive_srcs", "format_literal", "sdk_home")
-load("//dart/private:exec_groups.bzl", "EXEC_TOOLS_TOOLCHAIN")
+load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS", "portable_sdk")
 load("//dart/private:executable_package.bzl", "EXECUTABLE_PACKAGE_ATTRS", "executable_package")
 load("//dart/private:project_staging.bzl", "project_layout", "stage_dart_project")
 load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS")
@@ -53,7 +53,7 @@ def _dart_web_compile(ctx, compile_mode):
     """
 
     # JavaScript and WebAssembly are the same whichever host compiles them.
-    dart_sdk_info = ctx.toolchains[EXEC_TOOLS_TOOLCHAIN].dart_sdk_info
+    dart_sdk_info = portable_sdk(ctx)
 
     own = executable_package(ctx, [ctx.file.main] + ctx.files.srcs)
     packages = own.packages
@@ -104,6 +104,7 @@ def _dart_web_compile(ctx, compile_mode):
         ),
         outputs = outputs,
         mnemonic = "DartCompileWeb",
+        exec_group = PORTABLE,
         progress_message = "Compiling Dart %s %s" % (compile_mode, ctx.label),
         **sdk_home(dart_sdk_info.dart, output)
     )
@@ -149,14 +150,16 @@ _WEB_BINARY_ATTRS = {
 dart_js_binary = rule(
     implementation = _dart_js_binary_impl,
     attrs = _WEB_BINARY_ATTRS,
-    toolchains = [EXEC_TOOLS_TOOLCHAIN] + COPY_TO_DIRECTORY_TOOLCHAINS,
+    toolchains = COPY_TO_DIRECTORY_TOOLCHAINS,
+    exec_groups = PORTABLE_EXEC_GROUPS,
     doc = "Compiles a Dart web application to JavaScript via `dart compile js`.",
 )
 
 dart_wasm_binary = rule(
     implementation = _dart_wasm_binary_impl,
     attrs = _WEB_BINARY_ATTRS,
-    toolchains = [EXEC_TOOLS_TOOLCHAIN] + COPY_TO_DIRECTORY_TOOLCHAINS,
+    toolchains = COPY_TO_DIRECTORY_TOOLCHAINS,
+    exec_groups = PORTABLE_EXEC_GROUPS,
     doc = "Compiles a Dart web application to WebAssembly via `dart compile wasm`. Requires a browser with WasmGC support.\n\n" +
           "Outputs `<name>.wasm`, the `<name>.mjs` loader that instantiates it, `<name>.support.js`, and " +
           "`<name>.wasm.map` unless `dart_compile_flags` has `--no-source-maps`. Each file but the module is " +

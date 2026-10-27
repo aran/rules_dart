@@ -32,6 +32,11 @@ test --output_groups=+dart_analyze
 test --output_groups=+dart_format
 common --//dart:analysis_config=//:analysis_config
 
+# Automatic execution groups: an action must name the toolchain its tools come
+# from, or run in an exec group. The rules support both settings; this
+# workspace runs with them on and the e2e workspaces with Bazel's default.
+common --incompatible_auto_exec_groups
+
 # Load any settings specific to the current user.
 # .bazelrc.user should appear in .gitignore so that settings are not shared with team members
 # This needs to be last statement in this
