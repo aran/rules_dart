@@ -1,6 +1,5 @@
 load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
 load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
-load("@platforms//host:constraints.bzl", "HOST_CONSTRAINTS")
 load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_fix", "dart_library", "dart_test")
 
 # The red end of the red/green pair, and the fixture the whole workspace exists
@@ -123,8 +122,6 @@ dart_test(
         ":manifest",
         "//clean:lib/model.dart",
     ],
-    # It runs what was built for the target, so it runs there.
-    exec_group_compatible_with = {"test": HOST_CONSTRAINTS},
     main = "test/write_back_test.dart",
     deps = ["@rules_dart//dart/runfiles"],
 )

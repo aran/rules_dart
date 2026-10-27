@@ -44,6 +44,10 @@ load("//dart/private:dart_test_runner.bzl", "DartTestRunnerInfo")
 load("//dart/private:exec_groups.bzl", "EXEC_TOOLS_TOOLCHAIN", "PORTABLE_EXEC_GROUPS")
 load("//dart/private:executable_package.bzl", "EXECUTABLE_PACKAGE_ATTRS", "executable_package")
 
+# Bazel's own test exec group asks for this; its default toolchain requires a
+# host matching the target platform.
+_DEFAULT_TEST_TOOLCHAIN = "@bazel_tools//tools/test:default_test_toolchain_type"
+
 def _dart_test_impl(ctx):
     # The VM that runs the test, built for the host the test runs on.
     dart_sdk_info = ctx.exec_groups["test"].toolchains[EXEC_TOOLS_TOOLCHAIN].dart_sdk_info
@@ -528,24 +532,27 @@ told where a runfile is (resolve it with `Runfiles.rlocation()`).""",
         ),
     }, **dict(DART_ABI_CONSTRAINT_ATTRS, **dict(EXTRA_DART_DEFINES_ATTR, **dict(MODULE_EXECUTABLE_ATTRS, **EXECUTABLE_PACKAGE_ATTRS)))),
     test = True,
-    # A kernel runs on any host the SDK runs on. Bazel runs a test in the
-    # `test` group, which by default matches the target platform; this one
-    # asks only for an SDK. The compiles before it are `portable`, and the
-    # target's own SDK is what `bazel run` starts.
+    # The compiles are `portable`. The run keeps Bazel's default test
+    # toolchain, which puts it on a host matching the target, as for any
+    # other test rule: its `data` is built for the target. A root module that
+    # registers its own toolchain for that type lets tests run elsewhere; the
+    # run needs only an SDK for its host, and the target's own SDK is what
+    # `bazel run` starts.
     toolchains = ["//dart:toolchain_type"],
     exec_groups = PORTABLE_EXEC_GROUPS | {
-        "test": exec_group(toolchains = [EXEC_TOOLS_TOOLCHAIN]),
+        "test": exec_group(toolchains = [
+            EXEC_TOOLS_TOOLCHAIN,
+            config_common.toolchain_type(_DEFAULT_TEST_TOOLCHAIN, mandatory = False),
+        ]),
     },
     doc = (
         "Compiles a Dart test to a kernel at build time and runs it with " +
         "asserts enabled. A test with `package:test` in `deps` runs under " +
         "that package's runner, so `--test_filter`, `shard_count` and " +
         "per-case results work and Bazel's `timeout` is the only time limit. " +
-        "It runs on any host with a Dart SDK, whatever the target platform, " +
-        "so a remote executor can run it, with its native `code_assets` " +
-        "built for that host. One that needs the target's own host (a binary " +
-        "from `data`, a tool such as `xcrun`) says so with " +
-        "`exec_group_compatible_with = {\"test\": [...]}`. " +
-        "`target_compatible_with` does not move the run."
+        "Like any Bazel test it runs on a host matching the target platform, " +
+        "unless the root module registers its own toolchain for " +
+        "`@bazel_tools//tools/test:default_test_toolchain_type`; on another " +
+        "host it loads native `code_assets` built for that host."
     ),
 )

@@ -1,4 +1,3 @@
-load("@platforms//host:constraints.bzl", "HOST_CONSTRAINTS")
 load("//dart:defs.bzl", "dart_analysis_options", "dart_format", "dart_library", "dart_test")
 
 dart_library(
@@ -50,8 +49,6 @@ dart_test(
         ":format",
         ":format_config",
     ],
-    # It runs what was built for the target, so it runs there.
-    exec_group_compatible_with = {"test": HOST_CONSTRAINTS},
     main = "format_run_test.dart",
     deps = [
         "//dart/runfiles",

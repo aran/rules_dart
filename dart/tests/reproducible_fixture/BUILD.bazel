@@ -1,4 +1,3 @@
-load("@platforms//host:constraints.bzl", "HOST_CONSTRAINTS")
 load("//dart:defs.bzl", "dart_test")
 
 # One entrypoint compiled in two packages, `a` and `b`, to outputs of the same
@@ -14,8 +13,6 @@ dart_test(
         "//dart/tests/reproducible_fixture/b:hello",
         "//dart/tests/reproducible_fixture/b:hello_aot",
     ],
-    # It runs what was built for the target, so it runs there.
-    exec_group_compatible_with = {"test": HOST_CONSTRAINTS},
     main = "reproducible_test.dart",
     deps = ["//dart/runfiles"],
 )

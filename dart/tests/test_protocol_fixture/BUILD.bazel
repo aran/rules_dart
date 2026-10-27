@@ -1,4 +1,3 @@
-load("@platforms//host:constraints.bzl", "HOST_CONSTRAINTS")
 load("//dart:defs.bzl", "dart_test")
 
 # The test the protocol harness drives. `manual`: run on its own it fails
@@ -24,8 +23,6 @@ dart_test(
         ":cases",
         ":cases_test.dart",
     ],
-    # It runs what was built for the target, so it runs there.
-    exec_group_compatible_with = {"test": HOST_CONSTRAINTS},
     main = "protocol_test.dart",
     deps = [
         "//dart/runfiles",
