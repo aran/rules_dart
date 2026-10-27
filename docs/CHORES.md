@@ -32,6 +32,9 @@ file at runtime — keep file lists current as the repo evolves.
 - `e2e/dual_build/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
 - `e2e/ext_exemplar/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
 - `e2e/fix/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
+- `e2e/link_hook/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
+- `e2e/analyze_composition/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
+- `e2e/analyze_composition/dep_module/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
 - `README.md` — `dart.toolchain(dart_version = "...")` in installation snippet
 - `dart/tests/versions_test.bzl` — asserted version key in `_smoke_test_impl`
 - `dart/runfiles/pubspec.yaml` — `environment.sdk` constraint (published to
