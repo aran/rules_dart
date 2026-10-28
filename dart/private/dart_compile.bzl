@@ -97,7 +97,8 @@ def dart_compile_action(
         target_arch = "",
         extra_flags = [],
         recorded_uses = None,
-        runner = None):
+        runner = None,
+        cross_tools = None):
     """Creates the `dart compile` action that turns a kernel into the output.
 
     The kernel comes from `dart_kernel_action`, which has already run the front
@@ -121,6 +122,9 @@ def dart_compile_action(
             Mach-O `exe` or `aot-snapshot`, whose symbol table names the path
             gen_snapshot wrote the snapshot to: the runner picks that path and
             then removes it (see `compile_runner.dart`).
+        cross_tools: `DartSdkInfo.cross_tools` of a cross toolchain: what
+            `dart compile` would download for the target, and the home to give
+            it so it finds them there instead.
     """
     args = ctx.actions.args()
     args.add("compile")
@@ -166,15 +170,23 @@ def dart_compile_action(
         arguments = [args]
         direct = [kernel]
 
+    home = sdk_home(dart_bin, output)
+    transitive = [sdk_files]
+    if cross_tools != None and compile_mode in RECORDING_COMPILE_MODES:
+        # The modes that take the target flags. dartdev reads only this cache
+        # from the home it is given, so a read-only one serves.
+        home["env"]["APPDATA" if dart_bin.basename.endswith(".exe") else "HOME"] = cross_tools.home
+        transitive.append(cross_tools.files)
+
     ctx.actions.run(
         executable = dart_bin,
         arguments = arguments,
-        inputs = depset(direct = direct, transitive = [sdk_files]),
+        inputs = depset(direct = direct, transitive = transitive),
         outputs = outputs,
         mnemonic = "DartCompile",
         # `dart_bin` is the target toolchain's: machine code for the target.
         toolchain = _DART_TOOLCHAIN,
         resource_set = native_compile_resources,
         progress_message = "Compiling Dart %s %s" % (compile_mode, ctx.label),
-        **sdk_home(dart_bin, output)
+        **home
     )

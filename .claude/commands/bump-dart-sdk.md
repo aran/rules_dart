@@ -4,9 +4,9 @@ Bump the Dart SDK to version $ARGUMENTS.
 
 1. Read `docs/CHORES.md` § "Dart SDK Version Bump" for the complete file list.
 
-2. Run `dart run tool/fetch_sdk_hashes.dart $ARGUMENTS` to get SHA-256 hashes for all platforms. If the script fails, stop and report the error.
+2. Run `dart run tool/fetch_sdk_hashes.dart $ARGUMENTS` to get SHA-256 hashes for all platforms and cross-compilation binaries. If the script fails, stop and report the error.
 
-3. Add the new version entry to `dart/private/versions.bzl` in the `TOOL_VERSIONS` dict, inserting it as the **first** entry (newest on top).
+3. The script prints two entries. Add the first to `dart/private/versions.bzl`'s `TOOL_VERSIONS` dict and the second to its `CROSS_TOOL_VERSIONS` dict, each as the **first** entry (newest on top).
 
 4. Update `dart_version` in all MODULE.bazel files listed in CHORES.md:
 
@@ -30,4 +30,4 @@ Bump the Dart SDK to version $ARGUMENTS.
 
 11. Check whether the new SDK contains dart-lang/sdk e2c6325 (`git -C <sdk checkout> merge-base --is-ancestor`, or GitHub's compare of the release tag against e2c6325). If it does, follow CHORES.md step 9 to retire `compile_runner`, which ends by deleting that step and this one.
 
-11. Commit with message: `chore: bump Dart SDK to $ARGUMENTS`
+12. Commit with message: `chore: bump Dart SDK to $ARGUMENTS`

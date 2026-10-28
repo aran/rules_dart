@@ -148,6 +148,7 @@ bzl_library(
     name = "toolchain",
     srcs = ["toolchain.bzl"],
     visibility = ["//visibility:public"],
+    deps = ["//dart/private:toolchains_repo"],
 )
 
 bzl_library(

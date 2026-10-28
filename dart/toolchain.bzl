@@ -1,5 +1,7 @@
 """This module implements the Dart SDK toolchain rule."""
 
+load("//dart/private:toolchains_repo.bzl", "SDK_CACHE_DIR")
+
 DartSdkInfo = provider(
     doc = "Information about the Dart SDK provided by the toolchain.",
     fields = {
@@ -11,8 +13,26 @@ DartSdkInfo = provider(
         "target_arch": "str: Cross-compilation target architecture (`x64`, `arm64`), or empty for native.",
         "exec_os": "str: The OS the SDK's own binaries run on (`macos`, `linux`, `windows`).",
         "exec_arch": "str: The architecture the SDK's own binaries run on (`x64`, `arm64`).",
+        "cross_tools": "struct | None: For a cross toolchain, what `dart compile` needs for the target that the SDK does not ship: `files`, a depset to add to the action's inputs, and `home`, the directory to give it as its home so it finds them. None for native.",
     },
 )
+
+def _cross_tools(ctx):
+    if not ctx.files.sdk_cache:
+        return None
+    cache = "/%s/%s/" % (SDK_CACHE_DIR, ctx.attr.version)
+    homes = {}
+    for f in ctx.files.sdk_cache:
+        home, sep, _ = f.path.rpartition(cache)
+        if not sep:
+            fail("%s: `sdk_cache` file %s is not under a `%s` directory" % (ctx.label, f.path, cache))
+        homes[home] = None
+    if len(homes) != 1:
+        fail("%s: `sdk_cache` files are under more than one home: %s" % (ctx.label, sorted(homes)))
+    return struct(
+        files = depset(ctx.files.sdk_cache),
+        home = homes.keys()[0],
+    )
 
 def _dart_toolchain_impl(ctx):
     sdk_root = ctx.attr.sdk_root
@@ -27,6 +47,7 @@ def _dart_toolchain_impl(ctx):
         target_arch = ctx.attr.target_arch,
         exec_os = ctx.attr.exec_os,
         exec_arch = ctx.attr.exec_arch,
+        cross_tools = _cross_tools(ctx),
     )
 
     template_variables = platform_common.TemplateVariableInfo({
@@ -59,6 +80,10 @@ dart_toolchain = rule(
         "sdk_root": attr.label(
             doc = "A filegroup containing all SDK files. Used as action inputs when invoking the compiler.",
             mandatory = True,
+        ),
+        "sdk_cache": attr.label(
+            doc = "For a cross toolchain, the files `dart compile` would otherwise download for the target, at `<home>/" + SDK_CACHE_DIR + "/<version>/<basename>`. Typically a `dart_cross_tools` repository's `:sdk_cache`.",
+            allow_files = True,
         ),
         "version": attr.string(
             doc = "The SDK version string (e.g. `3.11.0`).",

@@ -169,6 +169,7 @@ def _dart_binary_impl(ctx):
             extra_flags = compile_flags,
             recorded_uses = compile_recorded_uses,
             runner = _compile_runner(ctx, compile_mode),
+            cross_tools = dart_sdk_info.cross_tools,
         )
 
     # Resources ride the runfiles, not the compile. A dep's `lib/**` non-Dart

@@ -2,7 +2,8 @@
 ///
 /// Usage: dart run tool/fetch_sdk_hashes.dart <version>
 ///
-/// Prints a formatted `versions.bzl` dict entry ready to paste.
+/// Prints the version's `versions.bzl` entries ready to paste: one for
+/// `TOOL_VERSIONS`, then one for `CROSS_TOOL_VERSIONS`.
 /// Uses only dart:io and dart:convert — no pubspec needed.
 library;
 
@@ -16,6 +17,29 @@ const platforms = [
   'linux-arm64',
   'windows-x64',
 ];
+
+/// `CROSS_TARGETS` in `dart/private/toolchains_repo.bzl`, in archive spelling.
+const crossTargets = {
+  'macos_arm64': ['linux_x64', 'linux_arm64', 'linux_riscv64', 'linux_arm'],
+  'macos_x64': ['linux_x64', 'linux_arm64', 'linux_riscv64', 'linux_arm'],
+  'linux_x64': ['linux_arm64', 'linux_riscv64', 'linux_arm'],
+  'linux_arm64': ['linux_x64', 'linux_riscv64', 'linux_arm'],
+  'windows_x64': ['linux_x64', 'linux_arm64', 'linux_riscv64', 'linux_arm'],
+};
+
+/// The files `dart compile` fetches for a cross target: each pair's
+/// `gen_snapshot`, and each target's `dartaotruntime`.
+List<String> crossToolFiles() {
+  final files = <String>{};
+  for (final MapEntry(key: host, value: targets) in crossTargets.entries) {
+    for (final target in targets) {
+      final exe = host.startsWith('windows') ? '.exe' : '';
+      files.add('gen_snapshot_${host}_$target$exe');
+      files.add('dartaotruntime_$target');
+    }
+  }
+  return files.toList()..sort();
+}
 
 Future<void> main(List<String> args) async {
   if (args.length != 1) {
@@ -48,7 +72,33 @@ Future<void> main(List<String> args) async {
     stdout.writeln('        "$platform": "${hashes[platform]}",');
   }
   stdout.writeln('    },');
+
+  final crossHashes = <String, String>{};
+  final crossClient = HttpClient();
+  try {
+    await Future.wait([
+      for (final file in crossToolFiles())
+        _hashUrl(crossClient, _releaseUrl(version, file)).then((hash) {
+          if (hash == null) {
+            stderr.writeln('Failed to fetch hash for $file');
+            exit(1);
+          }
+          crossHashes[file] = hash;
+        }),
+    ]);
+  } finally {
+    crossClient.close();
+  }
+  stdout.writeln('    "$version": {');
+  for (final file in crossToolFiles()) {
+    stdout.writeln('        "$file": "${crossHashes[file]}",');
+  }
+  stdout.writeln('    },');
 }
+
+String _releaseUrl(String version, String file) =>
+    'https://storage.googleapis.com/dart-archive/channels/stable/release/'
+    '$version/sdk/$file';
 
 /// Tries the .sha256sum file first; falls back to downloading the zip and
 /// computing sha256 locally.
@@ -72,9 +122,7 @@ Future<String?> _fetchSha256sumFile(
   String version,
   String platform,
 ) async {
-  final url =
-      'https://storage.googleapis.com/dart-archive/channels/stable/release/'
-      '$version/sdk/dartsdk-$platform-release.zip.sha256sum';
+  final url = _releaseUrl(version, 'dartsdk-$platform-release.zip.sha256sum');
 
   try {
     final request = await client.getUrl(Uri.parse(url));
@@ -100,11 +148,10 @@ Future<String?> _downloadAndHash(
   HttpClient client,
   String version,
   String platform,
-) async {
-  final url =
-      'https://storage.googleapis.com/dart-archive/channels/stable/release/'
-      '$version/sdk/dartsdk-$platform-release.zip';
+) => _hashUrl(client, _releaseUrl(version, 'dartsdk-$platform-release.zip'));
 
+/// Downloads [url] and computes its SHA-256 locally.
+Future<String?> _hashUrl(HttpClient client, String url) async {
   try {
     final request = await client.getUrl(Uri.parse(url));
     final response = await request.close();
@@ -113,7 +160,7 @@ Future<String?> _downloadAndHash(
       return null;
     }
 
-    // Stream through sha256 to avoid buffering the entire zip in memory.
+    // Stream through sha256 to avoid buffering the entire file in memory.
     final proc = await Process.start('shasum', ['-a', '256']);
     await response.pipe(proc.stdin);
     final output = await proc.stdout.transform(utf8.decoder).join();

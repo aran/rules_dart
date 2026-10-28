@@ -13,8 +13,9 @@ load(
     "PLATFORMS",
     "TARGET_ONLY_PLATFORMS",
     "TARGET_PLATFORMS",
+    "cross_tool_files",
 )
-load("//dart/private:versions.bzl", "TOOL_VERSIONS")
+load("//dart/private:versions.bzl", "CROSS_TOOL_VERSIONS", "TOOL_VERSIONS")
 load(":small_suite.bzl", "small_unittest_suite")
 
 # Dart's `--target-arch` vocabulary (`dart compile exe --help`).
@@ -141,10 +142,41 @@ def _checksums_cover_every_host_test_impl(ctx):
 
     return unittest.end(env)
 
+def _cross_checksums_cover_every_pair_test_impl(ctx):
+    env = unittest.begin(ctx)
+
+    # A cross toolchain exists for every pinned version, and `dart_cross_tools`
+    # does CROSS_TOOL_VERSIONS[version][basename], which hard errors on a miss.
+    asserts.equals(
+        env,
+        sorted(TOOL_VERSIONS.keys()),
+        sorted(CROSS_TOOL_VERSIONS.keys()),
+        "CROSS_TOOL_VERSIONS must pin exactly the TOOL_VERSIONS versions",
+    )
+
+    # Every pair's files, and no others: an extra would be a checksum for a
+    # file no repository fetches.
+    want = {}
+    for exec_platform, targets in CROSS_TARGETS.items():
+        for target in targets:
+            files = cross_tool_files(exec_platform, target)
+            want[files.gen_snapshot] = None
+            want[files.dartaotruntime] = None
+    for version, checksums in CROSS_TOOL_VERSIONS.items():
+        asserts.equals(
+            env,
+            sorted(want.keys()),
+            sorted(checksums.keys()),
+            "CROSS_TOOL_VERSIONS[%s] does not match the CROSS_TARGETS files" % version,
+        )
+
+    return unittest.end(env)
+
 _t0_test = unittest.make(_target_platforms_is_the_union_test_impl)
 _t1_test = unittest.make(_cross_targets_resolve_test_impl)
 _t2_test = unittest.make(_platform_metadata_shape_test_impl)
 _t3_test = unittest.make(_checksums_cover_every_host_test_impl)
+_t4_test = unittest.make(_cross_checksums_cover_every_pair_test_impl)
 
 def toolchains_test_suite(name):
-    small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test)
+    small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test, _t4_test)
