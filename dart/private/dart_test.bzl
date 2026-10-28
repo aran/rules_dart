@@ -44,9 +44,10 @@ load("//dart/private:dart_test_runner.bzl", "DartTestRunnerInfo")
 load("//dart/private:exec_groups.bzl", "EXEC_TOOLS_TOOLCHAIN", "PORTABLE_EXEC_GROUPS")
 load("//dart/private:executable_package.bzl", "EXECUTABLE_PACKAGE_ATTRS", "executable_package")
 
-# Bazel's own test exec group asks for this; its default toolchain requires a
-# host matching the target platform.
-_DEFAULT_TEST_TOOLCHAIN = "@bazel_tools//tools/test:default_test_toolchain_type"
+# Places the run. rules_dart's default toolchain for it requires a host
+# matching the target platform, as Bazel's own test toolchain does. Optional,
+# as Bazel's type is: a test whose target no host matches runs on another.
+_TEST_HOST_TOOLCHAIN = "//dart:test_host_toolchain_type"
 
 def _dart_test_impl(ctx):
     # The VM that runs the test, built for the host the test runs on.
@@ -532,17 +533,17 @@ told where a runfile is (resolve it with `Runfiles.rlocation()`).""",
         ),
     }, **dict(DART_ABI_CONSTRAINT_ATTRS, **dict(EXTRA_DART_DEFINES_ATTR, **dict(MODULE_EXECUTABLE_ATTRS, **EXECUTABLE_PACKAGE_ATTRS)))),
     test = True,
-    # The compiles are `portable`. The run keeps Bazel's default test
-    # toolchain, which puts it on a host matching the target, as for any
-    # other test rule: its `data` is built for the target. A root module that
-    # registers its own toolchain for that type lets tests run elsewhere; the
-    # run needs only an SDK for its host, and the target's own SDK is what
-    # `bazel run` starts.
+    # The compiles are `portable`. The run asks for rules_dart's own test host
+    # type in place of Bazel's, so a root module can move Dart tests off the
+    # target's host without moving every other test rule. Its default puts
+    # the run on a host matching the target, as for any other test rule:
+    # `data` is built for the target. The run needs only an SDK for its host,
+    # and the target's own SDK is what `bazel run` starts.
     toolchains = ["//dart:toolchain_type"],
     exec_groups = PORTABLE_EXEC_GROUPS | {
         "test": exec_group(toolchains = [
             EXEC_TOOLS_TOOLCHAIN,
-            config_common.toolchain_type(_DEFAULT_TEST_TOOLCHAIN, mandatory = False),
+            config_common.toolchain_type(_TEST_HOST_TOOLCHAIN, mandatory = False),
         ]),
     },
     doc = (
@@ -551,8 +552,9 @@ told where a runfile is (resolve it with `Runfiles.rlocation()`).""",
         "that package's runner, so `--test_filter`, `shard_count` and " +
         "per-case results work and Bazel's `timeout` is the only time limit. " +
         "Like any Bazel test it runs on a host matching the target platform, " +
-        "unless the root module registers its own toolchain for " +
-        "`@bazel_tools//tools/test:default_test_toolchain_type`; on another " +
-        "host it loads native `code_assets` built for that host."
+        "unless the root module registers " +
+        "`@rules_dart//dart:test_on_any_host` (or its own toolchain for " +
+        "`@rules_dart//dart:test_host_toolchain_type`); on another host it " +
+        "loads native `code_assets` built for that host."
     ),
 )

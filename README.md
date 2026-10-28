@@ -72,21 +72,26 @@ not reached only through a helper library: the runner comes with that target.
 A test whose `main` does not use `package:test` runs directly, and fails if
 given a filter or shards, because it has no cases to select.
 
-A test runs on any host with a Dart SDK, not only one matching the target
-platform, so a remote executor can run it. Its native `code_assets` (its own or
-its dependencies') are built for whichever host runs it. A test that needs the
-target's own host must say so: one that runs a binary from `data`, which is
-built for the target, or one that calls a host tool such as `xcrun` or
-`codesign`. `target_compatible_with` does not move the run;
-`exec_group_compatible_with` does:
+Like any Bazel test, a `dart_test` runs on a host matching the target
+platform, since its `data` is built for the target. A root module that runs
+tests on a remote executor can let Dart tests run on any host with a Dart SDK,
+without moving other rules' tests:
 
 ```starlark
-load("@platforms//host:constraints.bzl", "HOST_CONSTRAINTS")
+register_toolchains("@rules_dart//dart:test_on_any_host")
+```
 
+A test placed on another host loads native `code_assets` (its own or its
+dependencies') built for that host. One that still needs the target's own host,
+because it runs a binary from `data` or calls a host tool such as `xcrun` or
+`codesign`, pins its run with `exec_group_compatible_with`
+(`target_compatible_with` does not move the run):
+
+```starlark
 dart_test(
     name = "codesign_test",
     main = "codesign_test.dart",
-    exec_group_compatible_with = {"test": HOST_CONSTRAINTS},
+    exec_group_compatible_with = {"test": ["@platforms//os:macos"]},
 )
 ```
 
