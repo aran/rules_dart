@@ -16,12 +16,11 @@ _L = "//pkg:consumer"
 def _asset(asset_id, owner_path = "libfoo.so", link_mode = "dynamic_loading_bundle", system_uri = ""):
     """A DartCodeAssetInfo stand-in.
 
-    `dynamic_library` needs only an `owner`, since `resolve_code_assets`
-    compares producing targets rather than `File`s.
+    `dynamic_library` needs only the `owner` and `path` of a `File`.
     """
     library = None
     if link_mode == "dynamic_loading_bundle":
-        library = struct(owner = owner_path)
+        library = struct(owner = owner_path, path = owner_path)
     return DartCodeAssetInfo(
         asset_id = asset_id,
         link_mode = link_mode,
@@ -440,6 +439,34 @@ version_conflict_test = analysistest.make(
 
 asset_conflict_test = analysistest.make(
     _asset_conflict_test_impl,
+    expect_failure = True,
+)
+
+def _opt_mode_transition_impl(_settings, _attr):
+    return {"//command_line_option:compilation_mode": "opt"}
+
+_opt_mode_transition = transition(
+    implementation = _opt_mode_transition_impl,
+    inputs = [],
+    outputs = ["//command_line_option:compilation_mode"],
+)
+
+def _opt_mode_impl(ctx):
+    return [ctx.attr.dep[0][DartInfo]]
+
+opt_mode = rule(
+    implementation = _opt_mode_impl,
+    attrs = {"dep": attr.label(providers = [DartInfo], cfg = _opt_mode_transition)},
+    doc = "Forwards a `dart_library`'s `DartInfo` built with `-c opt`.",
+)
+
+def _two_configurations_test_impl(ctx):
+    env = analysistest.begin(ctx)
+    asserts.expect_failure(env, "built in two configurations")
+    return analysistest.end(env)
+
+two_configurations_test = analysistest.make(
+    _two_configurations_test_impl,
     expect_failure = True,
 )
 

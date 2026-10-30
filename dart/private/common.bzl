@@ -1156,11 +1156,12 @@ def check_unreplaced_hooks(label, packages):
     )
 
 def code_asset_identity(asset):
-    """A configuration-independent identity for a code asset.
+    """The identity two code assets share exactly when they are one library.
 
-    Compares the *producing target*, not the `File`: the same
-    `cc_shared_library` analysed in two configurations yields two different
-    `File`s, which is a diamond rather than a conflict.
+    Compares the library `File`, so one target built in two configurations is
+    two libraries: a transition that reaches it changed a setting it may be
+    built with (`-c`, a platform, a copt), and nothing at analysis time can
+    tell whether the bytes still agree.
 
     Args:
       asset: A `DartCodeAssetInfo`.
@@ -1168,8 +1169,8 @@ def code_asset_identity(asset):
     Returns:
       A tuple that two assets share exactly when they define one library.
     """
-    owner = str(asset.dynamic_library.owner) if asset.dynamic_library != None else ""
-    return (asset.link_mode, asset.system_uri, owner)
+    library = asset.dynamic_library.path if asset.dynamic_library != None else ""
+    return (asset.link_mode, asset.system_uri, library)
 
 def resolve_code_assets(label, transitive_assets, explicit_assets):
     """Unions transitively-propagated code assets with explicitly named ones.
@@ -1209,11 +1210,22 @@ def _unique_code_assets(label, assets):
             by_id[asset.asset_id] = asset
             order.append(asset.asset_id)
         elif code_asset_identity(previous) != code_asset_identity(asset):
+            same_target = (
+                previous.dynamic_library != None and asset.dynamic_library != None and
+                previous.dynamic_library.owner == asset.dynamic_library.owner
+            )
             fail(("%s: code asset id `%s` is claimed twice with different " +
                   "definitions: %s and %s. The Dart VM resolves an asset id to " +
-                  "exactly one library, so drop one of the declarations, or name " +
-                  "the one to use in this target's `code_assets`.") %
-                 (label, asset.asset_id, code_asset_identity(previous), code_asset_identity(asset)))
+                  "exactly one library, so %s, or name the one to use in this " +
+                  "target's `code_assets`.") % (
+                label,
+                asset.asset_id,
+                code_asset_identity(previous),
+                code_asset_identity(asset),
+                ("this is %s built in two configurations: a transition between " +
+                 "here and one of them changes a setting it is built with; reset " +
+                 "that setting before the library") % asset.dynamic_library.owner if same_target else "drop one of the declarations",
+            ))
     return [by_id[asset_id] for asset_id in order]
 
 def code_asset_entries(label, assets, output_dir):
