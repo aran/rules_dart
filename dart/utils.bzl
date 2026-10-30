@@ -9,12 +9,16 @@ load(
     "//dart/private:common.bzl",
     _PATH_MAPPING = "PATH_MAPPING",
     _add_kernel_roots = "add_kernel_roots",
+    _code_asset_identity = "code_asset_identity",
     _collect_packages = "collect_packages",
+    _collect_transitive_code_assets = "collect_transitive_code_assets",
     _collect_transitive_resources = "collect_transitive_resources",
     _collect_transitive_srcs = "collect_transitive_srcs",
     _generate_dev_package_config = "generate_dev_package_config",
     _generate_package_config = "generate_package_config",
     _generate_package_config_content = "generate_package_config_content",
+    _package_code_assets = "package_code_assets",
+    _resolve_code_assets = "resolve_code_assets",
     _runfiles_path = "runfiles_path",
 )
 load("//dart/private:dart_deps.bzl", _DART_TOOLCHAIN_TYPES_ATTR = "DART_TOOLCHAIN_TYPES_ATTR")
@@ -120,6 +124,17 @@ generate_package_config = _generate_package_config
 generate_dev_package_config = _generate_dev_package_config
 generate_package_config_content = _generate_package_config_content
 runfiles_path = _runfiles_path
+
+# Code asset resolution, as `dart_binary` and `dart_test` do it, for a rule set
+# that stages a program's native libraries itself. `resolve_code_assets` unions
+# what `collect_transitive_code_assets` reaches with a target's own
+# `code_assets`, one asset per id, and fails on two definitions of one id as
+# `code_asset_identity` tells them apart. `package_code_assets` reads one
+# `DartPackageInfo`'s assets.
+code_asset_identity = _code_asset_identity
+collect_transitive_code_assets = _collect_transitive_code_assets
+package_code_assets = _package_code_assets
+resolve_code_assets = _resolve_code_assets
 
 # The execution requirements of an action that may run once for every
 # configuration building the same thing (`--experimental_output_paths=strip`):

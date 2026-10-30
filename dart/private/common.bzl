@@ -1155,12 +1155,18 @@ def check_unreplaced_hooks(label, packages):
         (label, "\n".join(lines))
     )
 
-def _asset_identity(asset):
+def code_asset_identity(asset):
     """A configuration-independent identity for a code asset.
 
     Compares the *producing target*, not the `File`: the same
     `cc_shared_library` analysed in two configurations yields two different
     `File`s, which is a diamond rather than a conflict.
+
+    Args:
+      asset: A `DartCodeAssetInfo`.
+
+    Returns:
+      A tuple that two assets share exactly when they define one library.
     """
     owner = str(asset.dynamic_library.owner) if asset.dynamic_library != None else ""
     return (asset.link_mode, asset.system_uri, owner)
@@ -1202,12 +1208,12 @@ def _unique_code_assets(label, assets):
         if previous == None:
             by_id[asset.asset_id] = asset
             order.append(asset.asset_id)
-        elif _asset_identity(previous) != _asset_identity(asset):
+        elif code_asset_identity(previous) != code_asset_identity(asset):
             fail(("%s: code asset id `%s` is claimed twice with different " +
                   "definitions: %s and %s. The Dart VM resolves an asset id to " +
                   "exactly one library, so drop one of the declarations, or name " +
                   "the one to use in this target's `code_assets`.") %
-                 (label, asset.asset_id, _asset_identity(previous), _asset_identity(asset)))
+                 (label, asset.asset_id, code_asset_identity(previous), code_asset_identity(asset)))
     return [by_id[asset_id] for asset_id in order]
 
 def code_asset_entries(label, assets, output_dir):
