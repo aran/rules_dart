@@ -159,17 +159,13 @@ def _dart_binary_impl(ctx):
     if compile_mode != "kernel":
         dart_compile_action(
             ctx = ctx,
-            dart_bin = dart_sdk_info.dart,
-            sdk_files = dart_sdk_info.tool_files,
+            sdk = dart_sdk_info,
             kernel = kernel,
             output = output,
             compile_mode = compile_mode,
-            target_os = dart_sdk_info.target_os,
-            target_arch = dart_sdk_info.target_arch,
             extra_flags = compile_flags,
             recorded_uses = compile_recorded_uses,
             runner = _compile_runner(ctx, compile_mode),
-            cross_tools = dart_sdk_info.cross_tools,
         )
 
     # Resources ride the runfiles, not the compile. A dep's `lib/**` non-Dart

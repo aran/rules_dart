@@ -500,7 +500,7 @@ def test_executable(ctx, tool):
     ctx.actions.symlink(output = executable, target_file = binary, is_executable = True)
     return struct(executable = executable, runfiles = tool[DefaultInfo].default_runfiles)
 
-def sdk_home(dart, beside):
+def sdk_home(sdk, beside):
     """The `ctx.actions.run` arguments that give an SDK action a writable home.
 
     POSIX gets `/tmp`. Windows `dart.exe` takes a POSIX `/tmp` literally and
@@ -509,14 +509,14 @@ def sdk_home(dart, beside):
     action opts into path mapping (Windows has no sandbox to map in locally).
 
     Args:
-      dart: The SDK's `dart` File, whose basename identifies the platform.
+      sdk: The `DartSdkInfo` whose `dart` the action runs.
       beside: A File whose directory serves as the Windows home.
 
     Returns:
       A dict of `env` and `execution_requirements`, to pass as
-      `ctx.actions.run(..., **sdk_home(dart, beside))`.
+      `ctx.actions.run(..., **sdk_home(sdk, beside))`.
     """
-    if dart.basename.endswith(".exe"):
+    if sdk.exec_os == "windows":
         return {
             "env": {"USERPROFILE": beside.dirname, "LOCALAPPDATA": beside.dirname},
             "execution_requirements": {},
@@ -1462,7 +1462,7 @@ def dart_kernel_action(
         resource_set = kernel_resources,
         exec_group = PORTABLE,
         progress_message = "Compiling Dart kernel %s" % ctx.label,
-        **sdk_home(dart_sdk_info.dart, output_dill)
+        **sdk_home(dart_sdk_info, output_dill)
     )
 
 def asset_path_for(file, lib_root):

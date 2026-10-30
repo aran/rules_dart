@@ -201,7 +201,7 @@ def dart_link_hook_actions(ctx, runner, recorded_uses, deps, data_asset_ids, nam
             mnemonic = "DartLinkHook",
             exec_group = PORTABLE,
             progress_message = "Running link hook of %s for %s" % (package_name, ctx.label),
-            **sdk_home(sdk.dart, link_output)
+            **sdk_home(sdk, link_output)
         )
     return struct(assets = asset_infos, validation_outputs = link_outputs)
 

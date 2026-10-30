@@ -106,7 +106,7 @@ def _dart_web_compile(ctx, compile_mode):
         mnemonic = "DartCompileWeb",
         exec_group = PORTABLE,
         progress_message = "Compiling Dart %s %s" % (compile_mode, ctx.label),
-        **sdk_home(dart_sdk_info.dart, output)
+        **sdk_home(dart_sdk_info, output)
     )
 
     return [

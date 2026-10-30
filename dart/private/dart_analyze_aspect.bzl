@@ -263,7 +263,7 @@ def _analyze(ctx, name, staged, sdk_inputs):
         exec_group = PORTABLE,
         resource_set = analysis_resources,
         progress_message = "Analyzing Dart sources of %{label}",
-        **sdk_home(dart_sdk_info.dart, stamp)
+        **sdk_home(dart_sdk_info, stamp)
     )
     return stamp
 
@@ -337,7 +337,7 @@ def _format(ctx, name, staged, sdk_inputs, own_paths, language_version):
         mnemonic = "DartFormat",
         exec_group = PORTABLE,
         progress_message = "Checking Dart formatting of %{label}",
-        **sdk_home(dart_sdk_info.dart, stamp)
+        **sdk_home(dart_sdk_info, stamp)
     )
     return stamp
 
@@ -435,7 +435,7 @@ def _dart_analyze_aspect_impl(target, ctx):
         exec_group = PORTABLE,
         resource_set = analysis_resources,
         progress_message = "Computing Dart fixes for %{label}",
-        **sdk_home(dart_sdk_info.dart, manifest)
+        **sdk_home(dart_sdk_info, manifest)
     )
 
     return [
