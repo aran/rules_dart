@@ -53,7 +53,7 @@ different projects.
 
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("//dart:providers.bzl", "DartAnalysisOptionsInfo", "DartAnalyzableInfo", "DartInfo")
-load("//dart/private:common.bzl", "merge_package_records", "own_package_record", "sdk_home")
+load("//dart/private:common.bzl", "PATH_MAPPING", "SDK_ENV", "merge_package_records", "own_package_record")
 load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS", "portable_sdk")
 load("//dart/private:project_staging.bzl", "project_layout", "pubspec_stub", "stage_dart_project", "staged_pubspec_paths")
 load("//dart/private:resources.bzl", "analysis_resources")
@@ -263,7 +263,8 @@ def _analyze(ctx, name, staged, sdk_inputs):
         exec_group = PORTABLE,
         resource_set = analysis_resources,
         progress_message = "Analyzing Dart sources of %{label}",
-        **sdk_home(dart_sdk_info, stamp)
+        env = SDK_ENV,
+        execution_requirements = PATH_MAPPING,
     )
     return stamp
 
@@ -337,7 +338,8 @@ def _format(ctx, name, staged, sdk_inputs, own_paths, language_version):
         mnemonic = "DartFormat",
         exec_group = PORTABLE,
         progress_message = "Checking Dart formatting of %{label}",
-        **sdk_home(dart_sdk_info, stamp)
+        env = SDK_ENV,
+        execution_requirements = PATH_MAPPING,
     )
     return stamp
 
@@ -435,7 +437,8 @@ def _dart_analyze_aspect_impl(target, ctx):
         exec_group = PORTABLE,
         resource_set = analysis_resources,
         progress_message = "Computing Dart fixes for %{label}",
-        **sdk_home(dart_sdk_info, manifest)
+        env = SDK_ENV,
+        execution_requirements = PATH_MAPPING,
     )
 
     return [

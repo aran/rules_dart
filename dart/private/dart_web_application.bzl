@@ -9,7 +9,7 @@ The rules stage that layout hermetically from declared artifacts (see
 
 load("//dart:providers.bzl", "DartInfo")
 load("//dart/private:build_settings.bzl", "EXTRA_DART_DEFINES_ATTR", "merge_dart_defines")
-load("//dart/private:common.bzl", "collect_transitive_resources", "collect_transitive_srcs", "format_literal", "sdk_home")
+load("//dart/private:common.bzl", "PATH_MAPPING", "SDK_ENV", "collect_transitive_resources", "collect_transitive_srcs", "format_literal")
 load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS", "portable_sdk")
 load("//dart/private:executable_package.bzl", "EXECUTABLE_PACKAGE_ATTRS", "executable_package")
 load("//dart/private:project_staging.bzl", "project_layout", "stage_dart_project")
@@ -106,7 +106,8 @@ def _dart_web_compile(ctx, compile_mode):
         mnemonic = "DartCompileWeb",
         exec_group = PORTABLE,
         progress_message = "Compiling Dart %s %s" % (compile_mode, ctx.label),
-        **sdk_home(dart_sdk_info, output)
+        env = SDK_ENV,
+        execution_requirements = PATH_MAPPING,
     )
 
     return [

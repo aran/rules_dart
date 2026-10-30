@@ -500,28 +500,11 @@ def test_executable(ctx, tool):
     ctx.actions.symlink(output = executable, target_file = binary, is_executable = True)
     return struct(executable = executable, runfiles = tool[DefaultInfo].default_runfiles)
 
-def sdk_home(sdk, beside):
-    """The `ctx.actions.run` arguments that give an SDK action a writable home.
-
-    POSIX gets `/tmp`. Windows `dart.exe` takes a POSIX `/tmp` literally and
-    crashes, so it is pointed at the directory of `beside` instead. That is a
-    path in a string, which path mapping does not rewrite, so only the POSIX
-    action opts into path mapping (Windows has no sandbox to map in locally).
-
-    Args:
-      sdk: The `DartSdkInfo` whose `dart` the action runs.
-      beside: A File whose directory serves as the Windows home.
-
-    Returns:
-      A dict of `env` and `execution_requirements`, to pass as
-      `ctx.actions.run(..., **sdk_home(sdk, beside))`.
-    """
-    if sdk.exec_os == "windows":
-        return {
-            "env": {"USERPROFILE": beside.dirname, "LOCALAPPDATA": beside.dirname},
-            "execution_requirements": {},
-        }
-    return {"env": {"HOME": "/tmp"}, "execution_requirements": PATH_MAPPING}
+# The environment of an action that runs the SDK's `dart`, which suppresses its
+# analytics: dartdev otherwise records them under the home directory. No action
+# needs a home of its own; one that compiles for a cross target adds the home
+# its `cross_tools` names.
+SDK_ENV = {"DASH__SUPPRESS_ANALYTICS": "true"}
 
 def relative_path(from_dir, to_dir):
     """Compute the relative path from one directory to another.
@@ -1474,7 +1457,8 @@ def dart_kernel_action(
         resource_set = kernel_resources,
         exec_group = PORTABLE,
         progress_message = "Compiling Dart kernel %s" % ctx.label,
-        **sdk_home(dart_sdk_info, output_dill)
+        env = SDK_ENV,
+        execution_requirements = PATH_MAPPING,
     )
 
 def asset_path_for(file, lib_root):

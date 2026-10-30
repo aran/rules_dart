@@ -20,13 +20,14 @@ and lists both sets.
 load("//dart:providers.bzl", "DartDataAssetInfo", "DartInfo", "DartRecordedUsesInfo")
 load(
     "//dart/private:common.bzl",
+    "PATH_MAPPING",
+    "SDK_ENV",
     "collect_packages",
     "collect_transitive_resources",
     "collect_transitive_srcs",
     "format_literal",
     "generate_package_config",
     "package_link_hook",
-    "sdk_home",
 )
 load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS", "portable_sdk")
 
@@ -201,7 +202,8 @@ def dart_link_hook_actions(ctx, runner, recorded_uses, deps, data_asset_ids, nam
             mnemonic = "DartLinkHook",
             exec_group = PORTABLE,
             progress_message = "Running link hook of %s for %s" % (package_name, ctx.label),
-            **sdk_home(sdk, link_output)
+            env = SDK_ENV,
+            execution_requirements = PATH_MAPPING,
         )
     return struct(assets = asset_infos, validation_outputs = link_outputs)
 

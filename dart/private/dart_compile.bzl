@@ -1,6 +1,6 @@
 """Shared compilation action helpers for Dart."""
 
-load("//dart/private:common.bzl", "sdk_home")
+load("//dart/private:common.bzl", "PATH_MAPPING", "SDK_ENV")
 load("//dart/private:resources.bzl", "native_compile_resources")
 
 _DART_TOOLCHAIN = Label("//dart:toolchain_type")
@@ -161,12 +161,12 @@ def dart_compile_action(
         arguments = [args]
         direct = [kernel]
 
-    home = sdk_home(sdk, output)
+    env = dict(SDK_ENV)
     transitive = [sdk.tool_files]
     if sdk.cross_tools != None and compile_mode in RECORDING_COMPILE_MODES:
         # The modes that take the target flags. dartdev reads only this cache
         # from the home it is given, so a read-only one serves.
-        home["env"]["APPDATA" if sdk.exec_os == "windows" else "HOME"] = sdk.cross_tools.home
+        env["APPDATA" if sdk.exec_os == "windows" else "HOME"] = sdk.cross_tools.home
         transitive.append(sdk.cross_tools.files)
 
     ctx.actions.run(
@@ -179,5 +179,6 @@ def dart_compile_action(
         toolchain = _DART_TOOLCHAIN,
         resource_set = native_compile_resources,
         progress_message = "Compiling Dart %s %s" % (compile_mode, ctx.label),
-        **home
+        env = env,
+        execution_requirements = PATH_MAPPING,
     )

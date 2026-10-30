@@ -12,8 +12,8 @@
 // macOS a crash report of its threads: the record of the hang when it happens.
 //
 // The server is started as `dart analyze` starts it, with its cache in a
-// directory the action owns. Its default, `$HOME/.dartServer`, is under the
-// `/tmp` home a build action gets, which every action on the machine shares.
+// directory the action owns. Its default, `$HOME/.dartServer`, is outside
+// the action and shared by every process with that home.
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
