@@ -12,9 +12,10 @@ def _bundle(path):
 
 def _single_asset_test_impl(ctx):
     env = unittest.begin(ctx)
-    result = generate_native_assets_yaml({
-        "macos_arm64": [("package:sqlite3/src/ffi/libsqlite3.g.dart", _bundle("../ext/sqlite3/libsqlite3.dylib"))],
-    })
+    result = generate_native_assets_yaml(
+        "macos_arm64",
+        [("package:sqlite3/src/ffi/libsqlite3.g.dart", _bundle("../ext/sqlite3/libsqlite3.dylib"))],
+    )
     asserts.equals(
         env,
         '{"format-version": [1, 0, 0], "native-assets": {"macos_arm64": ' +
@@ -25,9 +26,10 @@ def _single_asset_test_impl(ctx):
 
 def _multi_asset_test_impl(ctx):
     env = unittest.begin(ctx)
-    result = generate_native_assets_yaml({
-        "linux_x64": [("a", _bundle("liba.so")), ("b", _bundle("../x/libb.so"))],
-    })
+    result = generate_native_assets_yaml(
+        "linux_x64",
+        [("a", _bundle("liba.so")), ("b", _bundle("../x/libb.so"))],
+    )
     asserts.true(env, '"native-assets": {"linux_x64": {' in result)
     asserts.true(env, '"a": ["relative", "liba.so"]' in result)
     asserts.true(env, '"b": ["relative", "../x/libb.so"]' in result)
@@ -35,7 +37,7 @@ def _multi_asset_test_impl(ctx):
 
 def _empty_assets_test_impl(ctx):
     env = unittest.begin(ctx)
-    result = generate_native_assets_yaml({"windows_x64": []})
+    result = generate_native_assets_yaml("windows_x64", [])
     asserts.equals(
         env,
         '{"format-version": [1, 0, 0], "native-assets": {"windows_x64": {}}}\n',
@@ -93,11 +95,11 @@ def _path_list_covers_vocabulary_test_impl(ctx):
 
 def _manifest_mixed_link_modes_test_impl(ctx):
     env = unittest.begin(ctx)
-    result = generate_native_assets_yaml({"linux_x64": [
+    result = generate_native_assets_yaml("linux_x64", [
         ("bundled", _bundle("libb.so")),
         ("sys", native_assets_path_list(_L, "dynamic_loading_system", "", "libc.so.6")),
         ("proc", native_assets_path_list(_L, "dynamic_loading_process", "", "")),
-    ]})
+    ])
     asserts.true(env, '"bundled": ["relative", "libb.so"]' in result)
     asserts.true(env, '"sys": ["system", "libc.so.6"]' in result)
     asserts.true(env, '"proc": ["process"]' in result)
@@ -110,30 +112,13 @@ def _cross_only_abi_test_impl(ctx):
     # `//dart/tests/cross_fixture`, which drives a real cross-configured build.
     env = unittest.begin(ctx)
     for abi in ["linux_riscv64", "linux_arm"]:
-        result = generate_native_assets_yaml({abi: [("a", _bundle("liba.so"))]})
+        result = generate_native_assets_yaml(abi, [("a", _bundle("liba.so"))])
         asserts.equals(
             env,
             '{"format-version": [1, 0, 0], "native-assets": {"%s": ' % abi +
             '{"a": ["relative", "liba.so"]}}}\n',
             result,
         )
-    return unittest.end(env)
-
-def _two_abis_test_impl(ctx):
-    # A test whose host is not its target carries libraries for both, and the
-    # VM picks its own ABI's.
-    env = unittest.begin(ctx)
-    result = generate_native_assets_yaml({
-        "linux_arm64": [("a", _bundle("linux/liba.so"))],
-        "macos_arm64": [("a", _bundle("macos/liba.dylib"))],
-    })
-    asserts.equals(
-        env,
-        '{"format-version": [1, 0, 0], "native-assets": {' +
-        '"linux_arm64": {"a": ["relative", "linux/liba.so"]}, ' +
-        '"macos_arm64": {"a": ["relative", "macos/liba.dylib"]}}}\n',
-        result,
-    )
     return unittest.end(env)
 
 _t0_test = unittest.make(_single_asset_test_impl)
@@ -146,7 +131,6 @@ _t6_test = unittest.make(_path_list_process_test_impl)
 _t7_test = unittest.make(_path_list_covers_vocabulary_test_impl)
 _t8_test = unittest.make(_manifest_mixed_link_modes_test_impl)
 _t9_test = unittest.make(_cross_only_abi_test_impl)
-_t10_test = unittest.make(_two_abis_test_impl)
 
 def native_assets_test_suite(name):
     small_unittest_suite(
@@ -161,5 +145,4 @@ def native_assets_test_suite(name):
         _t7_test,
         _t8_test,
         _t9_test,
-        _t10_test,
     )

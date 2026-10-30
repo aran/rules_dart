@@ -483,12 +483,15 @@ def merge_package_records(merged):
 def test_executable(ctx, tool):
     """Symlinks a pre-compiled launcher as a test rule's executable.
 
-    Keeps the launcher's `.exe` extension, which Windows needs to run it: the
-    launcher is built for the host the test runs on, whatever the target.
+    Keeps the launcher's `.exe` extension, which Windows needs to run it. The
+    launcher must be built for the host the test runs on: with `cfg = "target"`
+    where the test is itself built for that host, as `dart_test` is, or with
+    `config.exec("test")` where it must run on the test execution group's host
+    whatever the target, as the analysis tests do.
 
     Args:
       ctx: The rule context.
-      tool: The launcher target, built for the `test` group.
+      tool: The launcher target, built for the host the test runs on.
 
     Returns:
       `struct(executable, runfiles)` — the declared symlink and the launcher's
@@ -1278,31 +1281,31 @@ def stage_code_assets(ctx, assets, directory):
         ))
     return staged
 
-def generate_native_assets_yaml(entries_by_abi):
+def generate_native_assets_yaml(abi, asset_entries):
     """Generates the `native_assets.yaml` content for `gen_kernel --native-assets`.
 
     Emits the documented format (JSON, which is valid YAML); the VM reads it
-    as `vm:ffi:native-assets` kernel metadata, and looks up its own ABI.
+    as `vm:ffi:native-assets` kernel metadata.
 
     Args:
-      entries_by_abi: Dict from `<os>_<arch>` ABI key (see `target_dart_abi`)
-        to a list of `(asset_id, path_list)` tuples, where `path_list` comes
-        from `native_assets_path_list`.
+      abi: The `<os>_<arch>` ABI key (see `target_dart_abi`).
+      asset_entries: List of `(asset_id, path_list)` tuples, where `path_list`
+        comes from `native_assets_path_list`.
 
     Returns:
       String content of the native_assets.yaml file.
     """
-    abis = []
-    for abi, asset_entries in entries_by_abi.items():
-        assets = ", ".join([
-            '"{id}": [{path}]'.format(
-                id = asset_id,
-                path = ", ".join(['"%s"' % part for part in path_list]),
-            )
-            for (asset_id, path_list) in asset_entries
-        ])
-        abis.append('"{abi}": {{{assets}}}'.format(abi = abi, assets = assets))
-    return '{{"format-version": [1, 0, 0], "native-assets": {{{abis}}}}}\n'.format(abis = ", ".join(abis))
+    assets = ", ".join([
+        '"{id}": [{path}]'.format(
+            id = asset_id,
+            path = ", ".join(['"%s"' % part for part in path_list]),
+        )
+        for (asset_id, path_list) in asset_entries
+    ])
+    return '{{"format-version": [1, 0, 0], "native-assets": {{"{abi}": {{{assets}}}}}}}\n'.format(
+        abi = abi,
+        assets = assets,
+    )
 
 # The execution requirement of an action whose arguments and inputs name no
 # configuration's output directory except through its Files, so that under

@@ -1,6 +1,6 @@
 """The execution group rules_dart's platform-independent actions run in.
 
-A kernel, an import check, a test run or a web compile reads and writes the
+A kernel, an import check or a web compile reads and writes the
 same bytes whichever host runs it, so it needs only a Dart SDK built for that
 host: the exec-tools toolchain, which, unlike `//dart:toolchain_type`, does not
 tie the host to the target platform. Such an action runs in `portable`, which

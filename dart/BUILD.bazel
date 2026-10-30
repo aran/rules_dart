@@ -56,31 +56,6 @@ toolchain_type(
     visibility = ["//visibility:public"],
 )
 
-# Places `dart_test` runs. The default toolchain, registered by rules_dart,
-# requires a host matching the target platform. A root module lets Dart tests
-# run on other hosts (a remote executor) without moving other rules' tests:
-#   register_toolchains("@rules_dart//dart:test_on_any_host")
-# or registers its own `toolchain` for this type, pinned with
-# `exec_compatible_with`.
-toolchain_type(
-    name = "test_host_toolchain_type",
-    visibility = ["//visibility:public"],
-)
-
-toolchain(
-    name = "test_on_target_host",
-    toolchain = "@bazel_tools//tools/test:empty_toolchain",
-    toolchain_type = ":test_host_toolchain_type",
-    use_target_platform_constraints = True,
-)
-
-toolchain(
-    name = "test_on_any_host",
-    toolchain = "@bazel_tools//tools/test:empty_toolchain",
-    toolchain_type = ":test_host_toolchain_type",
-    visibility = ["//visibility:public"],
-)
-
 resolved_toolchain(
     name = "resolved_toolchain",
     # Marked manual so that `bazel test //...` passes

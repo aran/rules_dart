@@ -72,28 +72,11 @@ not reached only through a helper library: the runner comes with that target.
 A test whose `main` does not use `package:test` runs directly, and fails if
 given a filter or shards, because it has no cases to select.
 
-Like any Bazel test, a `dart_test` runs on a host matching the target
-platform, since its `data` is built for the target. A root module that runs
-tests on a remote executor can let Dart tests run on any host with a Dart SDK,
-without moving other rules' tests:
-
-```starlark
-register_toolchains("@rules_dart//dart:test_on_any_host")
-```
-
-A test placed on another host loads native `code_assets` (its own or its
-dependencies') built for that host. One that still needs the target's own host,
-because it runs a binary from `data` or calls a host tool such as `xcrun` or
-`codesign`, pins its run with `exec_group_compatible_with`
-(`target_compatible_with` does not move the run):
-
-```starlark
-dart_test(
-    name = "codesign_test",
-    main = "codesign_test.dart",
-    exec_group_compatible_with = {"test": ["@platforms//os:macos"]},
-)
-```
+Like any Bazel test, a `dart_test` is built for the target platform, native
+`code_assets` and the Dart VM included, and runs on a host matching it. To run
+tests on another host, a remote Linux executor say, build them for that host's
+platform: with `--platforms`, or per test with a platform transition such as
+`platform_transition_test` from `aspect_bazel_lib`.
 
 ### Using pub.dev packages
 
@@ -618,8 +601,6 @@ The [`e2e/`](e2e/) directory contains complete working examples:
 
 > **Note**: Only the `exe` and `aot-snapshot` compile modes cross-compile via
 > `--platforms`. `kernel` and `jit-snapshot` are VM formats that ignore target
-> flags, and `dart_test` always runs on the host. Linux targets are `linux-x64`,
-> `linux-arm64`, `linux-riscv64` and `linux-arm` (armv7, selected by
-> `@platforms//cpu:armv7`), reachable from every supported host. Cross-compiling
-> fetches SDK artifacts at action time, so it needs network access. See
-> [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for details.
+> flags. Linux targets are `linux-x64`, `linux-arm64`, `linux-riscv64` and
+> `linux-arm` (armv7, selected by `@platforms//cpu:armv7`), reachable from every
+> supported host. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for details.

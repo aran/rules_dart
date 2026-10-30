@@ -57,8 +57,8 @@ http_archive(
 bazel_dep(name = "apple_support", version = "2.10.1", dev_dependency = True)
 
 # A C++ toolchain for Linux arm64 execution platforms, so a C++ library built
-# for the host that runs a test (or for a code generator) compiles on a Linux
-# arm64 worker. hermetic-llvm's toolchain is one static binary with its own C
+# for a Linux arm64 platform (a test run there, a code generator) compiles on a
+# Linux arm64 worker. hermetic-llvm's toolchain is one static binary with its own C
 # library, so the worker needs no headers or shared libraries. Only the
 # Linux-exec, Linux-target toolchain is registered: Mac builds keep the host's.
 bazel_dep(name = "llvm", version = "0.8.26", dev_dependency = True)
@@ -99,9 +99,6 @@ dart.toolchain(dart_version = "3.13.7")
 use_repo(dart, "dart_toolchains")
 
 register_toolchains("@dart_toolchains//:all")
-
-# By default a `dart_test` runs on a host matching its target platform.
-register_toolchains("//dart:test_on_target_host")
 
 # A toolchain supplying a Dart library, for the kernel module aspect's test.
 register_toolchains(
