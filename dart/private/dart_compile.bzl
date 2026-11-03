@@ -69,7 +69,8 @@ def front_end_flags(flags):
     `dart compile` runs the front end itself when given source, so a user flag
     meant for it (`--enable-experiment`, a `-D` define) worked there. Given the
     kernel `dart_kernel_action` produced, it accepts them and ignores them: the
-    front end has already run. They go to that action instead.
+    front end has already run. They go to that action instead. `--verbosity`
+    filters the messages of both steps, so it goes to both.
 
     A flag given its value as the next element (`["-D", "A=1"]`) takes that
     element with it.
@@ -82,16 +83,24 @@ def front_end_flags(flags):
     """
     front_end = []
     rest = []
-    takes_value = False
+    pending = None
     for f in flags:
-        if takes_value:
-            front_end.append(f)
-            takes_value = False
+        if pending != None:
+            for dest in pending:
+                dest.append(f)
+            pending = None
+            continue
+        if f.startswith("--verbosity"):
+            dests = [front_end, rest]
         elif f.startswith("--enable-experiment") or f.startswith("-D") or f.startswith("--define"):
-            front_end.append(f)
-            takes_value = f in ("-D", "--define", "--enable-experiment")
+            dests = [front_end]
         else:
             rest.append(f)
+            continue
+        for dest in dests:
+            dest.append(f)
+        if f in ("-D", "--define", "--enable-experiment", "--verbosity"):
+            pending = dests
     return front_end, rest
 
 def dart_compile_action(

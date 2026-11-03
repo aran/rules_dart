@@ -70,7 +70,7 @@ def _splits_front_end_flags_test_impl(ctx):
         "--define=B=2",
         "--verbosity=all",
     ])
-    asserts.equals(env, ["--enable-experiment=x", "-DA=1", "--define=B=2"], front_end)
+    asserts.equals(env, ["--enable-experiment=x", "-DA=1", "--define=B=2", "--verbosity=all"], front_end)
     asserts.equals(env, ["--extra-gen-snapshot-options=--optimization_level=3", "--verbosity=all"], rest)
     return unittest.end(env)
 
@@ -87,7 +87,7 @@ def _splits_separate_values_test_impl(ctx):
         "--enable-experiment",
         "x",
     ])
-    asserts.equals(env, ["-D", "A=1", "--define", "B=2", "--enable-experiment", "x"], front_end)
+    asserts.equals(env, ["-D", "A=1", "--verbosity", "error", "--define", "B=2", "--enable-experiment", "x"], front_end)
     asserts.equals(env, ["--verbosity", "error"], rest)
     return unittest.end(env)
 

@@ -188,7 +188,7 @@ Bazel's `-c` flag (`fastbuild`, `dbg`, `opt`) controls compiler flags automatica
 
 ### Per-Target Attributes
 
-- **`dart_compile_flags`** (`string_list`): Extra flags appended after mode defaults. Appears last so user flags override defaults (e.g., `-O4` after `-O2` — dart2js uses last-wins). For the VM modes, front-end flags (`--enable-experiment`, `-D`/`--define`) go to the front-end action instead, since `dart compile` accepts them on a kernel and ignores them.
+- **`dart_compile_flags`** (`string_list`): Extra flags appended after mode defaults. Appears last so user flags override defaults (e.g., `-O4` after `-O2` — dart2js uses last-wins). For the VM modes, front-end flags (`--enable-experiment`, `-D`/`--define`) go to the front-end action instead, since `dart compile` accepts them on a kernel and ignores them; `--verbosity` goes to both.
 - **`defines`** (`string_list`): Entries in `key=value` format. Each becomes a `-Dkey=value` flag passed to the compiler. These are resolved by the front end during constant evaluation, so they must reach the action that compiles source — for the VM modes that is the front-end action, not the `dart compile` step that consumes its kernel.
 
 ### Analysis Server Shutdown Workaround

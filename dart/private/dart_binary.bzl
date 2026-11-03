@@ -115,7 +115,7 @@ def _dart_binary_impl(ctx):
         product = compile_mode != "jit-snapshot",
         defines = defines,
         # A `kernel` has no second step, so every flag belongs to the first.
-        flags = fe_flags + compile_flags if compile_mode == "kernel" else fe_flags,
+        flags = ctx.attr.dart_compile_flags if compile_mode == "kernel" else fe_flags,
         native_assets_yaml = native_assets_yaml,
     )
 
@@ -279,7 +279,7 @@ def _dart_binary_rule(check_imports, compile_runner = True):
                     values = ["exe", "aot-snapshot", "kernel", "jit-snapshot"],
                 ),
                 "dart_compile_flags": attr.string_list(
-                    doc = "Extra flags passed to `dart compile` after compilation-mode defaults. Flags appear last so they can override defaults (e.g., `--extra-gen-snapshot-options=--optimization_level=3`). Front-end flags (`--enable-experiment`, `-D`/`--define`) go to the front-end step that precedes `dart compile`; in the `kernel` mode, which is that step alone, every flag does, and only those the front end (`gen_kernel`) accepts work.",
+                    doc = "Extra flags passed to `dart compile` after compilation-mode defaults. Flags appear last so they can override defaults (e.g., `--extra-gen-snapshot-options=--optimization_level=3`). Front-end flags (`--enable-experiment`, `-D`/`--define`) go to the front-end step that precedes `dart compile`, and `--verbosity` to both; in the `kernel` mode, which is that step alone, every flag does, and only those the front end (`gen_kernel`) accepts work.",
                 ),
                 "defines": attr.string_list(
                     doc = "Dart environment declarations (`key=value`). Each entry becomes a `-Dkey=value` flag.",
