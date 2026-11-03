@@ -56,7 +56,7 @@ manifest_contains_test(
     name = "replacing_asset_in_manifest_test",
     size = "small",
     expected_asset_ids = ["package:prop_b/src/ffi/prop_b.g.dart"],
-    expected_libraries = ["libempty_alt"],
+    expected_libraries = ["empty_alt"],
     target_under_test = ":replacing_app",
 )
 

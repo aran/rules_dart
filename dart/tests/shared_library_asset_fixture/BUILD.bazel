@@ -13,6 +13,11 @@ cc_library(
 
 cc_shared_library(
     name = "counter_shared",
+    # On Windows a DLL exports nothing unless told to.
+    features = select({
+        "@platforms//os:windows": ["windows_export_all_symbols"],
+        "//conditions:default": [],
+    }),
     deps = [":counter"],
 )
 
