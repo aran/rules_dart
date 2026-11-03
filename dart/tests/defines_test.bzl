@@ -74,6 +74,23 @@ def _splits_front_end_flags_test_impl(ctx):
     asserts.equals(env, ["--extra-gen-snapshot-options=--optimization_level=3", "--verbosity=all"], rest)
     return unittest.end(env)
 
+def _splits_separate_values_test_impl(ctx):
+    # A value given as the next element goes with its flag.
+    env = unittest.begin(ctx)
+    front_end, rest = front_end_flags([
+        "-D",
+        "A=1",
+        "--verbosity",
+        "error",
+        "--define",
+        "B=2",
+        "--enable-experiment",
+        "x",
+    ])
+    asserts.equals(env, ["-D", "A=1", "--define", "B=2", "--enable-experiment", "x"], front_end)
+    asserts.equals(env, ["--verbosity", "error"], rest)
+    return unittest.end(env)
+
 # --- dart_define_error ---
 
 def _accepts_usable_defines_test_impl(ctx):
@@ -100,6 +117,7 @@ def _rejects_empty_key_test_impl(ctx):
     return unittest.end(env)
 
 _splits_test = unittest.make(_splits_front_end_flags_test_impl)
+_splits_separate_values_test = unittest.make(_splits_separate_values_test_impl)
 _accepts_usable_test = unittest.make(_accepts_usable_defines_test_impl)
 _rejects_empty_test = unittest.make(_rejects_empty_define_test_impl)
 _rejects_empty_key_test = unittest.make(_rejects_empty_key_test_impl)
@@ -113,6 +131,7 @@ def defines_test_suite(name):
     small_unittest_suite(
         name,
         _splits_test,
+        _splits_separate_values_test,
         _accepts_usable_test,
         _rejects_empty_test,
         _rejects_empty_key_test,

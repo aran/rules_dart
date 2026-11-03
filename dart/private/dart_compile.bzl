@@ -71,6 +71,9 @@ def front_end_flags(flags):
     kernel `dart_kernel_action` produced, it accepts them and ignores them: the
     front end has already run. They go to that action instead.
 
+    A flag given its value as the next element (`["-D", "A=1"]`) takes that
+    element with it.
+
     Args:
         flags: The `dart_compile_flags` list.
 
@@ -79,9 +82,14 @@ def front_end_flags(flags):
     """
     front_end = []
     rest = []
+    takes_value = False
     for f in flags:
-        if f.startswith("--enable-experiment") or f.startswith("-D") or f.startswith("--define"):
+        if takes_value:
             front_end.append(f)
+            takes_value = False
+        elif f.startswith("--enable-experiment") or f.startswith("-D") or f.startswith("--define"):
+            front_end.append(f)
+            takes_value = f in ("-D", "--define", "--enable-experiment")
         else:
             rest.append(f)
     return front_end, rest
