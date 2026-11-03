@@ -40,7 +40,7 @@ Flutter SDK and gets its own modules, and everything else here is shared.
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("//dart:providers.bzl", "DartInfo", "DartKernelSdkInfo", "DartModuleInfo")
 load("//dart/private:build_settings.bzl", "vm_define_comma_error")
-load("//dart/private:common.bzl", "KERNEL_FILESYSTEM_SCHEME", "PATH_MAPPING", "add_kernel_roots", "kernel_root_path", "own_package_record")
+load("//dart/private:common.bzl", "KERNEL_FILESYSTEM_SCHEME", "PATH_MAPPING", "add_kernel_roots", "collect_transitive_srcs", "dart_kernel_action", "kernel_root_path", "own_package_record")
 load(
     "//dart/private:dart_deps.bzl",
     "direct_dart_deps",
@@ -82,6 +82,38 @@ def kernel_package_config(packages):
             lv,
         ))
     return '{\n  "configVersion": 2,\n  "packages": [\n%s\n  ]\n}\n' % ",\n".join(entries)
+
+def whole_program_kernel(ctx, main, packages, output_dill, product, defines = [], flags = [], native_assets_yaml = None):
+    """Compiles an executable's whole program from source into one kernel.
+
+    The program is the rule's `main`, its own `srcs`, and every source its
+    `deps` reach. Each is read where it stands: the front end searches the exec
+    root and each output directory (`dart_kernel_action`), so generated and
+    checked-in files of one directory resolve together.
+
+    Args:
+      ctx: The rule context; the rule has `main`, `srcs` and `deps`.
+      main: The entrypoint File: `ctx.file.main`, or one generated around it.
+      packages: The `DartPackageInfo` records the program compiles against.
+      output_dill: The `.dill` File to produce.
+      product: See `dart_kernel_action`.
+      defines: See `dart_kernel_action`.
+      flags: See `dart_kernel_action`.
+      native_assets_yaml: See `dart_kernel_action`.
+    """
+    package_config = ctx.actions.declare_file(ctx.label.name + ".package_config.json")
+    ctx.actions.write(package_config, kernel_package_config(packages))
+    dart_kernel_action(
+        ctx = ctx,
+        main = main,
+        transitive_srcs = depset([ctx.file.main] + ctx.files.srcs, transitive = [collect_transitive_srcs(ctx.attr.deps)]),
+        package_config = package_config,
+        output_dill = output_dill,
+        product = product,
+        defines = defines,
+        flags = flags,
+        native_assets_yaml = native_assets_yaml,
+    )
 
 def _info_path(module):
     return module.path + ".json"

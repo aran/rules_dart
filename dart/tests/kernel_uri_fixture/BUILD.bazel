@@ -1,7 +1,8 @@
-load("//dart:defs.bzl", "dart_binary", "dart_code_asset", "dart_test")
+load("@bazel_skylib//rules:write_file.bzl", "write_file")
+load("//dart:defs.bzl", "dart_binary", "dart_code_asset", "dart_library", "dart_test")
 
-# Two exes from one entrypoint, differing only in whether a code asset adds a
-# mapping to the kernel step. Run by the test below.
+# Exes from one entrypoint, differing in what reaches the kernel step. Run by
+# the test below.
 
 dart_binary(
     name = "probe",
@@ -22,11 +23,33 @@ dart_binary(
     main = "bin/probe.dart",
 )
 
+# A generated file among the binary's own `srcs`, beside the entrypoint, while
+# the file its relative import names comes from `deps`: the entrypoint keeps its
+# URI, and the import still resolves where the file stands.
+write_file(
+    name = "generated",
+    out = "bin/generated.dart",
+    content = ["const generated = true;"],
+)
+
+dart_library(
+    name = "where",
+    srcs = ["lib/where.dart"],
+)
+
+dart_binary(
+    name = "probe_beside_generated",
+    srcs = [":generated"],
+    main = "bin/probe.dart",
+    deps = [":where"],
+)
+
 dart_test(
     name = "kernel_uri_test",
     size = "small",
     data = [
         ":probe",
+        ":probe_beside_generated",
         ":probe_with_asset",
     ],
     main = "kernel_uri_test.dart",

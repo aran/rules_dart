@@ -16,7 +16,7 @@ const _entrypoint =
 
 void main() {
   final runfiles = Runfiles.create();
-  for (final name in ['probe', 'probe_with_asset']) {
+  for (final name in ['probe', 'probe_with_asset', 'probe_beside_generated']) {
     final exe = runfiles.rlocation(
       '_main/dart/tests/kernel_uri_fixture/$name${Platform.isWindows ? '.exe' : ''}',
     );

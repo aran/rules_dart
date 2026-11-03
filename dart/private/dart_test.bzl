@@ -18,8 +18,6 @@ load(
     "code_asset_entries",
     "collect_transitive_code_assets",
     "collect_transitive_resources",
-    "collect_transitive_srcs",
-    "dart_kernel_action",
     "generate_native_assets_yaml",
     "kernel_root_path",
     "relative_path",
@@ -36,9 +34,9 @@ load(
     "collect_modules",
     "dart_entry_kernel_action",
     "dart_link_kernel_action",
-    "kernel_package_config",
     "module_defines_transition",
     "vm_module_aspect",
+    "whole_program_kernel",
 )
 load("//dart/private:dart_test_runner.bzl", "DartTestRunnerInfo")
 load("//dart/private:exec_groups.bzl", "PORTABLE_EXEC_GROUPS")
@@ -77,14 +75,10 @@ def _dart_test_impl(ctx):
     if not ctx.attr._modular_kernel[BuildSettingInfo].value:
         # The whole program from source, as `dart_binary` compiles: what the
         # build-wide escape hatch falls back to.
-        srcs = collect_transitive_srcs(ctx.attr.deps).to_list() + [ctx.file.main, main] + ctx.files.srcs
-        package_config = ctx.actions.declare_file(ctx.label.name + ".package_config.json")
-        ctx.actions.write(package_config, kernel_package_config(packages))
-        dart_kernel_action(
-            ctx = ctx,
+        whole_program_kernel(
+            ctx,
             main = main,
-            transitive_srcs = depset(srcs),
-            package_config = package_config,
+            packages = packages,
             output_dill = dill,
             product = True,
             defines = merge_vm_dart_defines(ctx),

@@ -64,7 +64,6 @@ load(
 load(
     "//dart/private:source_set.bzl",
     _COPY_TO_DIRECTORY_TOOLCHAINS = "COPY_TO_DIRECTORY_TOOLCHAINS",
-    _colocate_entrypoint = "colocate_entrypoint",
     _colocate_packages = "colocate_packages",
 )
 
@@ -147,10 +146,9 @@ derive_package_name = _derive_package_name
 # Source co-location: assemble a package whose hand-written and generated files
 # straddle the source tree and `bazel-out` into one tree-artifact directory, so
 # `part` directives and a single `rootUri` resolve at compile time. Any rule
-# calling `colocate_packages`/`colocate_entrypoint` must declare
+# calling `colocate_packages` must declare
 # `COPY_TO_DIRECTORY_TOOLCHAINS` in its `toolchains`.
 colocate_packages = _colocate_packages
-colocate_entrypoint = _colocate_entrypoint
 COPY_TO_DIRECTORY_TOOLCHAINS = _COPY_TO_DIRECTORY_TOOLCHAINS
 
 # Run link hooks from inside another rule, for one that compiles its own kernel

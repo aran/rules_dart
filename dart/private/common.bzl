@@ -1370,7 +1370,6 @@ def dart_kernel_action(
         package_config,
         output_dill,
         product,
-        main_in_dir = None,
         defines = [],
         flags = [],
         native_assets_yaml = None):
@@ -1402,15 +1401,13 @@ def dart_kernel_action(
 
     Args:
       ctx: The rule context; the rule declares `PORTABLE_EXEC_GROUPS`.
-      main: The File holding the entrypoint, added to the inputs.
+      main: The entrypoint `.dart` File.
       transitive_srcs: Depset of transitive source Files.
       package_config: The `kernel_package_config` File, or None.
       output_dill: The output `.dill` File to produce.
       product: Whether the kernel is for a product runtime: an AOT snapshot or
         executable, or a `dart compile kernel` file. False for the JIT VM that
         builds a `jit-snapshot`.
-      main_in_dir: When `main` is a directory, the entrypoint's path inside
-        it.
       defines: Environment declarations; each entry becomes a `-D` flag. This
         action runs the front end, so it is the only stage where they can still
         reach constant evaluation.
@@ -1437,10 +1434,7 @@ def dart_kernel_action(
         args.add("-D" + d)
     args.add_all(flags)
     args.add("-o", output_dill)
-    main_path = kernel_root_path(main.short_path)
-    if main_in_dir != None:
-        main_path += "/" + main_in_dir
-    args.add(KERNEL_FILESYSTEM_SCHEME + ":///" + main_path)
+    args.add(KERNEL_FILESYSTEM_SCHEME + ":///" + kernel_root_path(main.short_path))
 
     direct = [main]
     if package_config != None:

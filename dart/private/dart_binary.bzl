@@ -9,8 +9,6 @@ load(
     "code_asset_entries",
     "collect_transitive_code_assets",
     "collect_transitive_resources",
-    "collect_transitive_srcs",
-    "dart_kernel_action",
     "generate_native_assets_yaml",
     "resolve_code_assets",
     "stage_code_assets",
@@ -18,10 +16,9 @@ load(
 )
 load("//dart/private:dart_compile.bzl", "dart_compile_action", "front_end_flags", "recorded_uses_kind")
 load("//dart/private:dart_import_check.bzl", "dart_import_check_aspect", "import_check_validation")
-load("//dart/private:dart_module.bzl", "KERNEL_TOOL_ATTR", "kernel_package_config")
+load("//dart/private:dart_module.bzl", "KERNEL_TOOL_ATTR", "whole_program_kernel")
 load("//dart/private:exec_groups.bzl", "PORTABLE_EXEC_GROUPS")
 load("//dart/private:executable_package.bzl", "EXECUTABLE_PACKAGE_ATTRS", "executable_package")
-load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS", "colocate_executable")
 
 def binary_output_basename(name, compile_mode, is_windows):
     """Returns a `dart_binary`'s output filename with the platform exe extension.
@@ -56,9 +53,6 @@ def _dart_binary_impl(ctx):
     toolchain = ctx.toolchains["//dart:toolchain_type"]
     dart_sdk_info = toolchain.dart_sdk_info
 
-    # Co-locate each dep package's source+generated (and split-across-targets)
-    # files into one real directory, and the binary's own `main` with any
-    # generated sibling sources, so the compile resolves everything.
     own = executable_package(ctx, [ctx.file.main] + ctx.files.srcs)
     packages = own.packages
 
@@ -66,20 +60,6 @@ def _dart_binary_impl(ctx):
         hook_err = check_unreplaced_hooks(ctx.label, packages)
         if hook_err != None:
             fail(hook_err)
-
-    # The one flatten per rule: colocation inspects per-file paths.
-    colocated = colocate_executable(
-        ctx,
-        packages,
-        collect_transitive_srcs(ctx.attr.deps).to_list(),
-        ctx.file.main,
-        ctx.files.srcs,
-        own.record,
-    )
-    packages = colocated.packages
-    all_srcs = colocated.srcs
-    package_config = ctx.actions.declare_file(ctx.label.name + ".package_config.json")
-    ctx.actions.write(package_config, kernel_package_config(packages))
 
     # Determine output filename (Windows gets the `.exe` extension — see
     # `binary_output_basename`).
@@ -127,14 +107,12 @@ def _dart_binary_impl(ctx):
         )
 
     kernel = output if compile_mode == "kernel" else ctx.actions.declare_file(ctx.label.name + ".app.dill")
-    dart_kernel_action(
-        ctx = ctx,
-        main = colocated.main_input,
-        transitive_srcs = depset(all_srcs),
-        package_config = package_config,
+    whole_program_kernel(
+        ctx,
+        main = ctx.file.main,
+        packages = packages,
         output_dill = kernel,
         product = compile_mode != "jit-snapshot",
-        main_in_dir = colocated.main_in_dir,
         defines = defines,
         # A `kernel` has no second step, so every flag belongs to the first.
         flags = fe_flags + compile_flags if compile_mode == "kernel" else fe_flags,
@@ -192,9 +170,7 @@ def _dart_binary_impl(ctx):
             compile_mode = compile_mode,
         ),
         # What makes the `dart_analyze` aspect and `dart_fix` reach this entrypoint
-        # without making this target a legal `deps` entry. Built from the
-        # pre-colocation `ctx.file.main` on purpose: staging goes by
-        # `short_path`, and a colocated copy's is inside the assembled directory.
+        # without making this target a legal `deps` entry.
         own.analyzable,
     ] + recorded_uses_info + _import_checks(ctx, own)
 
@@ -320,7 +296,7 @@ def _dart_binary_rule(check_imports, compile_runner = True):
         executable = True,
         # The default group compiles machine code for the target, so its SDK
         # matches the target; the kernel before it is `portable`.
-        toolchains = ["//dart:toolchain_type"] + COPY_TO_DIRECTORY_TOOLCHAINS,
+        toolchains = ["//dart:toolchain_type"],
         exec_groups = PORTABLE_EXEC_GROUPS,
         doc = "Compiles a Dart application using `dart compile`.",
     )
