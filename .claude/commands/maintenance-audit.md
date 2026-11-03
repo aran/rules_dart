@@ -17,7 +17,7 @@ Run a read-only audit of all maintenance chores. Do NOT make any changes — onl
    **Documentation accuracy**: Check:
 
    - Does the examples table in `README.md` cover every `e2e/` directory that
-     demonstrates a user-facing feature? (`smoke` is the BCR test module and
+     demonstrates a user-facing feature? (`smoke` is a minimal test module and
      `analysis_failure` is a negative CI fixture — both are correctly absent.)
    - Are the version strings in the `README.md` installation snippet current?
    - Does `docs/ARCHITECTURE.md` still describe the rules and providers that

@@ -15,7 +15,7 @@ Bump the Dart SDK to version $ARGUMENTS.
 
 5. Update the `dart_version` in the `README.md` installation snippet.
 
-6. Leave `dart/runfiles/pubspec.yaml`'s `environment.sdk` alone unless the new SDK actually falls outside it. That package is published to pub.dev, so its lower bound stays as low as remains compatible rather than tracking the newest SDK (see CHORES.md).
+6. Leave `dart/runfiles/pubspec.yaml`'s `environment.sdk` alone unless the new SDK actually falls outside it. Its lower bound stays as low as remains compatible rather than tracking the newest SDK (see CHORES.md).
 
 7. Update `dart/tests/versions_test.bzl`:
 

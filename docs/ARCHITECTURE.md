@@ -204,4 +204,3 @@ One caveat, inherited from the Dart SDK and shared by the `defines` attribute: t
 | Gazelle tests         | `dev/`                      | gazelle_generation_test + shell test                       |
 | E2e integration tests | `e2e/*/`                    | Full build scenarios in isolated workspaces                |
 | CI                    | `.github/workflows/ci.yaml` | All e2e folders on Bazel 9.x                               |
-| BCR presubmit         | `.bcr/presubmit.yml`        | Multi-platform × Bazel 9.x                                 |

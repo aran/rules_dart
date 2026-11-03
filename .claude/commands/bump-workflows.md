@@ -15,7 +15,7 @@ Update GitHub Actions versions in all workflow files to their latest releases.
 4. Update each `uses:` reference to the latest version. Keep `actions/checkout`
    consistent across all workflow files.
 
-5. For reusable workflows (`bazel-contrib/.github`, `bazel-contrib/publish-to-bcr`),
+5. For reusable workflows (`bazel-contrib/.github`),
    review changelogs for new inputs or breaking changes before updating.
 
 6. Commit with message: `chore: bump GitHub Actions versions`

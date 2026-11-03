@@ -3,8 +3,6 @@
 # NOTE: The version field is intentionally omitted. Leaving it unset (the
 # default "") prevents issues when the module is used via non-registry
 # overrides (e.g. https://github.com/bazel-contrib/rules_go/issues/4380).
-# The publish-to-bcr GitHub Action patches in the release version when
-# submitting to the Bazel Central Registry.
 #
 # NOTE: compatibility_level is omitted (defaults to 0). Bumping it is very
 # disruptive — as soon as a module is requested at two different compatibility

@@ -34,9 +34,8 @@ file at runtime — keep file lists current as the repo evolves.
 - `e2e/fix/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
 - `README.md` — `dart.toolchain(dart_version = "...")` in installation snippet
 - `dart/tests/versions_test.bzl` — asserted version key in `_smoke_test_impl`
-- `dart/runfiles/pubspec.yaml` — `environment.sdk` constraint (published to
-  pub.dev; keep the lower bound as low as stays compatible rather than tracking
-  the newest SDK)
+- `dart/runfiles/pubspec.yaml` — `environment.sdk` constraint (keep the lower
+  bound as low as stays compatible rather than tracking the newest SDK)
 
 **Procedure**:
 
@@ -85,14 +84,13 @@ file at runtime — keep file lists current as the repo evolves.
 - `.github/workflows/ci.yaml` — `bazel_versions:` must match `.bazelversion`; the
   reusable workflow sets `USE_BAZEL_VERSION` from it, so a stale value means CI
   never tests the version developers run locally
-- `.bcr/presubmit.yml` — `bazel:` matrix value (if major version changes)
 - `docs/ARCHITECTURE.md` — prose naming the major Bazel version, currently
   "Bazel 9.x" (if major version changes)
 
 **Procedure**:
 
 1. Update all `.bazelversion` files to the new version
-2. If the major version changed, update `.bcr/presubmit.yml` matrix and `docs/ARCHITECTURE.md`
+2. If the major version changed, update `docs/ARCHITECTURE.md`
 3. Regenerate lock files: `dart run tool/refresh_locks.dart`
 4. Run `bazel test //dart/tests/...` to verify
 
@@ -220,10 +218,9 @@ cannot, it is a cross-only target and costs no checksums.
   who bring their own cc toolchain
 - `docs/ARCHITECTURE.md` — platform list, toolchain counts, cross matrix
 
-Explicitly **not** needed: `versions.bzl`, `tool/fetch_sdk_hashes.dart`, and
-`.bcr/presubmit.yml`. A cross toolchain reuses the host SDK's `dart` binary, so
-no SDK is downloaded for the target and no checksum exists to fetch. BCR CI has
-no runner for these CPUs either.
+Explicitly **not** needed: `versions.bzl` and `tool/fetch_sdk_hashes.dart`. A
+cross toolchain reuses the host SDK's `dart` binary, so no SDK is downloaded for
+the target and no checksum exists to fetch.
 
 Before hard-coding the ELF table, confirm the real header bytes:
 
@@ -242,7 +239,6 @@ file /tmp/x /tmp/x.aot
   `repositories.bzl` hard-errors on a missing key
 - `tool/fetch_sdk_hashes.dart` — add to the `platforms` list, then re-run it for
   every pinned version
-- `.bcr/presubmit.yml` — add to the matrix if BCR has a runner
 
 **Verification**: `bazel test //dart/tests/...` — `toolchains_test.bzl` asserts
 the table invariants, including that every pinned version's checksum set matches
@@ -277,11 +273,11 @@ byte-level architecture check.
 
 ## In-repo Dart Package Maintenance
 
-**Trigger**: Periodic or before a release.
+**Trigger**: Periodic.
 
 **Packages**: `dart/runfiles/`
 
-Each in-repo Dart package is publishable to pub.dev. Maintenance includes:
+Maintenance includes:
 
 - **SDK constraint**: The `environment.sdk` lower bound in `pubspec.yaml`
   tracks the project's minimum supported Dart SDK. Updated by `/bump-dart-sdk`.
@@ -313,10 +309,7 @@ Each in-repo Dart package is publishable to pub.dev. Maintenance includes:
 
 - **Lock file**: `pubspec.lock` is refreshed automatically by
   `tool/refresh_locks.dart`.
-- **Version**: Committed as `0.0.0-dev`. The real version is injected from
-  the git tag at publish time by the release workflow.
-- **Publishing**: Handled automatically by the `pub-publish` job in the
-  release workflow (`.github/workflows/release.yaml`).
+- **Version**: Committed as `0.0.0-dev`. This fork does not publish it.
 
 **Verification**: `dart pub get` succeeds; `dart pub outdated` reports no
 critical updates.
@@ -342,22 +335,6 @@ outdated dependencies.
 **Verification**: CI workflow runs all e2e workspaces.
 
 **Automation**: `/maintenance-audit` detects drift.
-
----
-
-## BCR Presubmit Config
-
-**Trigger**: When changing the test module or Bazel version requirements.
-
-**Files**:
-
-- `.bcr/presubmit.yml` — module_path, platform matrix, bazel matrix
-
-**Procedure**: Update the YAML to match current requirements.
-
-**Verification**: BCR presubmit passes after publishing.
-
-**Automation**: Manual — changes are rare and coupled to other chores.
 
 ---
 
@@ -449,10 +426,8 @@ buildifier and commitizen revs silently drifted as a result.
 
 **Dependencies** (all `uses:` references across workflows):
 
-- Actions: `actions/checkout`, `amannn/action-semantic-pull-request`,
-  `dart-lang/setup-dart`, `smlx/ccv`, `j178/prek-action`
-- Reusable workflows: `bazel-contrib/.github` (CI + release),
-  `bazel-contrib/publish-to-bcr`
+- Actions: `actions/checkout`, `bazel-contrib/setup-bazel`, `j178/prek-action`
+- Reusable workflows: `bazel-contrib/.github` (CI)
 
 **Procedure**:
 
