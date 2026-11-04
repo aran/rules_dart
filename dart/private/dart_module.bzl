@@ -224,7 +224,7 @@ def _compile_modules(ctx, sdk, kernel_tool, name, srcs, packages, own_package, m
         _check_no_comma(define, "the executable's `defines` or the extra defines flag")
     base = "%s.%s" % (name, sdk.target)
     out = ctx.actions.declare_directory(base + ".modules")
-    manifest = ctx.actions.declare_file(out.basename + ".json")
+    manifest = ctx.actions.declare_file(out.basename + ".json", sibling = out)
     package_config = ctx.actions.declare_file(base + ".module_package_config.json")
     ctx.actions.write(package_config, kernel_package_config(packages))
 

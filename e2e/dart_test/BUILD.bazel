@@ -81,3 +81,13 @@ dart_test(
     main = "test/hangs_until_killed_test.dart",
     tags = ["manual"],
 )
+
+# A target name with a slash, as a name derived from `test/sub/` would have.
+# Every output the test's compile declares must land where the next action
+# reads it.
+dart_test(
+    name = "sub/nested_test",
+    size = "small",
+    main = "test/sub/nested_test.dart",
+    deps = ["//utils"],
+)

@@ -78,7 +78,9 @@ def staged_package_config_content(packages, ext_staged, proj_name):
       ext_staged: Dict of package_name -> True for external packages that
         actually have a staged tree (those without one are skipped — nothing
         to point at).
-      proj_name: The staging name prefix (the rule's label name).
+      proj_name: The staging name prefix (the rule's label name). It may hold
+        a slash; the `.extpkgs` trees sit beside the `.proj` directory, so the
+        rootUri names only its last segment.
 
     Returns:
       String content of the package_config.json file.
@@ -89,7 +91,7 @@ def staged_package_config_content(packages, ext_staged, proj_name):
             if pkg.package_name not in ext_staged:
                 continue
             root_uri = "../../{}.extpkgs/{}".format(
-                proj_name,
+                proj_name.rsplit("/", 1)[-1],
                 mangle_package_dir(pkg.package_name),
             )
             sub = _external_sub_path(pkg.lib_root)
