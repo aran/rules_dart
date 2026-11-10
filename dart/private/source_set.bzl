@@ -18,7 +18,9 @@ same assembly as a standalone, package-agnostic primitive (consumed via
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory_bin_action")
 load("//dart/private:dart_info.bzl", "derived_package_info", "package_lib_prefix")
 
-COPY_TO_DIRECTORY_TOOLCHAINS = ["@bazel_lib//lib:copy_to_directory_toolchain_type"]
+# A `Label`, so a rule in another module that declares these toolchains finds
+# rules_dart's `bazel_lib` whether or not it depends on `bazel_lib` itself.
+COPY_TO_DIRECTORY_TOOLCHAINS = [Label("@bazel_lib//lib:copy_to_directory_toolchain_type")]
 
 def needs_source_assembly(srcs):
     """Whether `srcs` must be assembled into one directory before compilation.
