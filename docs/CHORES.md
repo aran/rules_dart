@@ -481,8 +481,8 @@ pinned to something else in this repo:
 
 **Dependencies** (all `uses:` references across workflows):
 
-- Actions: `actions/checkout`, `amannn/action-semantic-pull-request`,
-  `dart-lang/setup-dart`, `smlx/ccv`, `j178/prek-action`
+- Actions: `actions/checkout`, `bazel-contrib/setup-bazel`,
+  `dart-lang/setup-dart`, `smlx/ccv`
 - Reusable workflows: `bazel-contrib/.github` (CI + release),
   `bazel-contrib/publish-to-bcr`
 
