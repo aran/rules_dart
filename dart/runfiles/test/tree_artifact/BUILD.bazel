@@ -1,0 +1,30 @@
+load("//dart:defs.bzl", "dart_test")
+load(":tree.bzl", "tree")
+
+tree(name = "out_dir")
+
+# Note: this only fails without the fix under --strategy=TestRunner=local;
+# the default sandbox hides it. The real guard is the "RUNFILES_MANIFEST_FILE"
+# and "RUNFILES_DIR only" cases in //dart/runfiles:runfiles_test, which build
+# the manifest-only layouts by hand. This target checks the end-to-end wiring.
+#
+# Property: a file inside a tree artifact in `data` is reachable through
+# rlocation however Bazel lays out runfiles. Run it also as
+#   bazel test --noenable_runfiles --strategy=TestRunner=local \
+#       //dart/runfiles/test/tree_artifact:tree_artifact_test
+# where the runfiles directory holds only a MANIFEST that lists the directory.
+# (The sandbox builds a symlink forest for the test regardless of
+# --noenable_runfiles, which hides the bug; the local strategy does not.)
+dart_test(
+    name = "tree_artifact_test",
+    size = "small",
+    data = [
+        ":out_dir",
+        "//dart/runfiles:lookup_probe",
+    ],
+    main = "tree_artifact_test.dart",
+    deps = [
+        "//dart/runfiles",
+        "@ext_pub_deps//:test",
+    ],
+)

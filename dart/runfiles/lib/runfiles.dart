@@ -95,6 +95,13 @@ class Runfiles {
       manifest = _parseManifest(manifestFile);
     }
 
+    // A manifest inside the runfiles directory is all that remains of the
+    // tree under `--noenable_runfiles`; the official libraries read it too.
+    if (manifest == null && directory != null) {
+      final inside = File('$directory/MANIFEST');
+      if (inside.existsSync()) manifest = _parseManifest(inside.path);
+    }
+
     // 3-6. Probe from executable path
     if (directory == null && manifest == null) {
       // Use Platform.executable (not resolvedExecutable) to preserve the
@@ -155,6 +162,11 @@ class Runfiles {
 
   /// Returns the absolute path to a runfile.
   ///
+  /// An absolute [path] is returned unchanged. A path with an empty, `.` or
+  /// `..` segment throws [ArgumentError], as the official libraries refuse
+  /// it. In manifest mode a path inside a listed directory (a tree
+  /// artifact) resolves against the nearest listed prefix.
+  ///
   /// [path] is the runfiles-relative path. The first segment is treated
   /// as an *apparent* repo name and looked up in `_repo_mapping` to find
   /// the *canonical* repo Bazel actually wrote into runfiles (e.g.
@@ -168,17 +180,51 @@ class Runfiles {
   /// preserves backwards compatibility for already-canonical paths and
   /// for non-bzlmod (WORKSPACE) builds where _repo_mapping is absent.
   String rlocation(String path, {String? sourceRepo}) {
+    if (_isAbsolute(path)) return path;
+    _checkNormalized(path);
     final source = sourceRepo ?? _defaultSourceRepo;
     final translated = _applyRepoMapping(path, source);
 
     // Manifest takes priority — it's the source of truth on Windows and
     // in manifest-only mode.
-    final mapped = _manifest?[translated];
-    if (mapped != null) return mapped;
+    final manifest = _manifest;
+    if (manifest != null) {
+      // Exact entry first, then the nearest listed ancestor directory
+      // (a tree artifact is one entry for everything under it).
+      var prefix = translated;
+      var suffix = '';
+      while (true) {
+        final mapped = manifest[prefix];
+        if (mapped != null) return '$mapped$suffix';
+        final slash = prefix.lastIndexOf('/');
+        if (slash < 0) break;
+        suffix = prefix.substring(slash) + suffix;
+        prefix = prefix.substring(0, slash);
+      }
+    }
 
     if (_directory != null) return '$_directory/$translated';
 
     throw StateError('Could not resolve runfile: $path');
+  }
+
+  static final _windowsAbsolute = RegExp(r'^[A-Za-z]:[\\/]');
+
+  static bool _isAbsolute(String path) =>
+      path.startsWith('/') ||
+      path.startsWith(r'\\') ||
+      _windowsAbsolute.hasMatch(path);
+
+  static void _checkNormalized(String path) {
+    if (path.isEmpty ||
+        path.split('/').any((s) => s.isEmpty || s == '.' || s == '..')) {
+      throw ArgumentError.value(
+        path,
+        'path',
+        'must be a normalized runfiles path with no empty, "." or ".." '
+            'segments',
+      );
+    }
   }
 
   String _applyRepoMapping(String path, String sourceRepo) {
@@ -193,17 +239,31 @@ class Runfiles {
 
   /// Parses a Bazel runfiles manifest file.
   ///
-  /// Each line is `<runfiles-path> <real-path>`, separated by a single space.
+  /// A plain line is `<runfiles-path> <real-path>`, split at the first
+  /// space. A line starting with a space is escaped: both fields use `\s`
+  /// for a space, `\n` for a newline and `\b` for a backslash.
   static Map<String, String> _parseManifest(String path) {
     final result = <String, String>{};
     for (final line in File(path).readAsLinesSync()) {
-      final idx = line.indexOf(' ');
-      if (idx > 0) {
-        result[line.substring(0, idx)] = line.substring(idx + 1);
+      final escaped = line.startsWith(' ');
+      final body = escaped ? line.substring(1) : line;
+      final idx = body.indexOf(' ');
+      if (idx <= 0) continue;
+      var key = body.substring(0, idx);
+      var value = body.substring(idx + 1);
+      if (escaped) {
+        key = _unescape(key);
+        value = _unescape(value);
       }
+      result[key] = value;
     }
     return result;
   }
+
+  static String _unescape(String s) => s.replaceAllMapped(
+    RegExp(r'\\([snb])'),
+    (m) => const {'s': ' ', 'n': '\n', 'b': '\\'}[m[1]]!,
+  );
 
   /// Parses bzlmod `_repo_mapping` file *content* into a
   /// `(sourceCanonical, apparent) → targetCanonical` table. Each line is

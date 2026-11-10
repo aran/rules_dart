@@ -222,6 +222,258 @@ void main() {
       expect(rest, ['found']);
     });
   });
+
+  group('rlocation through Runfiles.create() in every discovery mode', () {
+    // Property: `rlocation` resolves every path the official runfiles
+    // libraries (Java, Python, C++, Go) resolve, whichever way Bazel handed
+    // the runfiles over: RUNFILES_DIR, RUNFILES_MANIFEST_FILE, or a MANIFEST
+    // inside RUNFILES_DIR (all that `--noenable_runfiles` leaves there).
+    // Each case runs a real `Runfiles.create()` in a child process, because
+    // manifest parsing is only reachable from the environment.
+    late Directory tmp;
+    late String probe;
+    final sep = Platform.pathSeparator;
+
+    setUpAll(() {
+      final exe = Platform.isWindows ? 'lookup_probe.exe' : 'lookup_probe';
+      probe = Runfiles.create().rlocation('_main/dart/runfiles/$exe');
+    });
+    setUp(() => tmp = Directory.systemTemp.createTempSync('runfiles_modes'));
+    tearDown(() => tmp.deleteSync(recursive: true));
+
+    File write(String rel, String content) => File('${tmp.path}$sep$rel')
+      ..createSync(recursive: true)
+      ..writeAsStringSync(content);
+
+    /// Runs `lookup_probe` with exactly [env] and returns one line per path.
+    Future<List<String>> lookup(
+      Map<String, String> env,
+      List<String> paths,
+    ) async {
+      final r = await Process.run(
+        probe,
+        paths,
+        environment: env,
+        includeParentEnvironment: false,
+      );
+      expect(r.exitCode, 0, reason: 'create() failed: ${r.stderr}');
+      return const LineSplitter()
+          .convert(r.stdout as String)
+          .map((l) => jsonDecode(l) as String)
+          .toList();
+    }
+
+    group('RUNFILES_MANIFEST_FILE', () {
+      test('exact entry resolves', () async {
+        final m = write('m', '_main/a.txt /real/a.txt\n');
+        expect(
+          await lookup({'RUNFILES_MANIFEST_FILE': m.path}, ['_main/a.txt']),
+          ['/real/a.txt'],
+        );
+      });
+
+      test('a file inside a tree artifact resolves through the directory '
+          'entry (Java/Python/C++/Go prefix walk)', () async {
+        final m = write('m', '_main/pkg/out.dir /real/out.dir\n');
+        expect(
+          await lookup(
+            {'RUNFILES_MANIFEST_FILE': m.path},
+            ['_main/pkg/out.dir/f.txt', '_main/pkg/out.dir/sub/deeper/g.txt'],
+          ),
+          ['/real/out.dir/f.txt', '/real/out.dir/sub/deeper/g.txt'],
+        );
+      });
+
+      test('an exact entry beats a shorter prefix, the nearest prefix beats '
+          'a farther one', () async {
+        final m = write(
+          'm',
+          '_main/out /real/outer\n'
+              '_main/out/sub /real/inner\n'
+              '_main/out/sub/x.txt /real/exact.txt\n',
+        );
+        expect(
+          await lookup(
+            {'RUNFILES_MANIFEST_FILE': m.path},
+            ['_main/out/sub/x.txt', '_main/out/sub/y.txt', '_main/out/z.txt'],
+          ),
+          ['/real/exact.txt', '/real/inner/y.txt', '/real/outer/z.txt'],
+        );
+      });
+
+      test('a prefix must end on a path-segment boundary', () async {
+        final m = write('m', '_main/out /real/out\n');
+        expect(
+          await lookup(
+            {'RUNFILES_MANIFEST_FILE': m.path},
+            ['_main/outer/f.txt'],
+          ),
+          ['ERROR'],
+        );
+      });
+
+      test(
+        'the prefix walk also works when a runfiles directory is set too',
+        () async {
+          final m = write('m', '_main/out.dir /real/out.dir\n');
+          final dir = Directory('${tmp.path}${sep}rf')..createSync();
+          expect(
+            await lookup(
+              {'RUNFILES_MANIFEST_FILE': m.path, 'RUNFILES_DIR': dir.path},
+              ['_main/out.dir/f.txt'],
+            ),
+            ['/real/out.dir/f.txt'],
+          );
+        },
+      );
+
+      test('repo mapping applies before the prefix walk', () async {
+        final mapping = write('mapping', ',baz,baz+\n');
+        final m = write(
+          'm',
+          '_repo_mapping ${mapping.path}\n'
+              'baz+/out.dir /real/out.dir\n',
+        );
+        expect(
+          await lookup(
+            {'RUNFILES_MANIFEST_FILE': m.path},
+            ['baz/out.dir/f.txt'],
+          ),
+          ['/real/out.dir/f.txt'],
+        );
+      });
+
+      test(
+        'a target path containing spaces survives (unescaped legacy line)',
+        () async {
+          final m = write('m', '_main/a.txt /real/with space/a.txt\n');
+          expect(
+            await lookup({'RUNFILES_MANIFEST_FILE': m.path}, ['_main/a.txt']),
+            ['/real/with space/a.txt'],
+          );
+        },
+      );
+
+      // Bazel writes " <escaped path> <escaped target>" when either holds a
+      // space, newline or backslash: \s = space, \n = newline, \b = backslash.
+      test('escaped line: spaces in the runfiles path', () async {
+        final m = write('m', ' _main/my\\sfile.txt /real/file.txt\n');
+        expect(
+          await lookup(
+            {'RUNFILES_MANIFEST_FILE': m.path},
+            ['_main/my file.txt'],
+          ),
+          ['/real/file.txt'],
+        );
+      });
+
+      test('escaped line: spaces in the target', () async {
+        final m = write('m', ' _main/a.txt /real/my\\sdir/a.txt\n');
+        expect(
+          await lookup({'RUNFILES_MANIFEST_FILE': m.path}, ['_main/a.txt']),
+          ['/real/my dir/a.txt'],
+        );
+      });
+
+      test('escaped line: newline and backslash in path and target', () async {
+        final m = write('m', ' _main/a\\nb\\bc.txt /real/x\\ny\\bz.txt\n');
+        expect(
+          await lookup(
+            {'RUNFILES_MANIFEST_FILE': m.path},
+            ['_main/a\nb\\c.txt'],
+          ),
+          ['/real/x\ny\\z.txt'],
+        );
+      });
+
+      test('escaped line in a tree artifact prefix walk', () async {
+        final m = write('m', ' _main/my\\sout.dir /real/my\\sout.dir\n');
+        expect(
+          await lookup(
+            {'RUNFILES_MANIFEST_FILE': m.path},
+            ['_main/my out.dir/f.txt'],
+          ),
+          ['/real/my out.dir/f.txt'],
+        );
+      });
+
+      test('an escaped line does not break the lines around it', () async {
+        final m = write(
+          'm',
+          '_main/a.txt /real/a.txt\n'
+              ' _main/b\\sc.txt /real/bc.txt\n'
+              '_main/d.txt /real/d.txt\n',
+        );
+        expect(
+          await lookup(
+            {'RUNFILES_MANIFEST_FILE': m.path},
+            ['_main/a.txt', '_main/b c.txt', '_main/d.txt'],
+          ),
+          ['/real/a.txt', '/real/bc.txt', '/real/d.txt'],
+        );
+      });
+    });
+
+    group('RUNFILES_DIR only', () {
+      test('plain directory resolves by joining', () async {
+        final dir = Directory('${tmp.path}${sep}rf')..createSync();
+        expect(await lookup({'RUNFILES_DIR': dir.path}, ['_main/a.txt']), [
+          '${dir.path}/_main/a.txt',
+        ]);
+      });
+
+      test('a MANIFEST inside the directory is used (all that is left under '
+          '--noenable_runfiles)', () async {
+        final dir = Directory('${tmp.path}${sep}rf')..createSync();
+        File('${dir.path}${sep}MANIFEST')
+            .writeAsStringSync('_main/a.txt /real/a.txt\n');
+        expect(await lookup({'RUNFILES_DIR': dir.path}, ['_main/a.txt']), [
+          '/real/a.txt',
+        ]);
+      });
+
+      test('a tree artifact file resolves through the MANIFEST inside the '
+          'directory', () async {
+        final dir = Directory('${tmp.path}${sep}rf')..createSync();
+        File('${dir.path}${sep}MANIFEST')
+            .writeAsStringSync('_main/pkg/out.dir /real/out.dir\n');
+        expect(
+          await lookup({'RUNFILES_DIR': dir.path}, ['_main/pkg/out.dir/f.txt']),
+          ['/real/out.dir/f.txt'],
+        );
+      });
+
+      test('an escaped MANIFEST inside the directory is understood', () async {
+        final dir = Directory('${tmp.path}${sep}rf')..createSync();
+        File('${dir.path}${sep}MANIFEST')
+            .writeAsStringSync(' _main/a\\sb.txt /real/a\\sb.txt\n');
+        expect(await lookup({'RUNFILES_DIR': dir.path}, ['_main/a b.txt']), [
+          '/real/a b.txt',
+        ]);
+      });
+    });
+
+    group('every official library agrees on these', () {
+      test('an absolute path is returned unchanged', () async {
+        final dir = Directory('${tmp.path}${sep}rf')..createSync();
+        final abs = '${tmp.path}${sep}elsewhere.txt';
+        expect(await lookup({'RUNFILES_DIR': dir.path}, [abs]), [abs]);
+      });
+
+      // Java throws, Python raises, Go returns an error, C++ returns "":
+      // all refuse. Dart's contract is a throw (or anything but a path).
+      test('a path with a `..` or `.` segment is refused', () async {
+        final dir = Directory('${tmp.path}${sep}rf')..createSync();
+        expect(
+          await lookup(
+            {'RUNFILES_DIR': dir.path},
+            ['_main/../etc/passwd', '_main/./a.txt'],
+          ),
+          ['ERROR', 'ERROR'],
+        );
+      });
+    });
+  });
 }
 
 /// Points the directory symlink at [link] to [target], replacing any

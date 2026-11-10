@@ -15,10 +15,22 @@ dart_binary(
     deps = [":runfiles"],
 )
 
+# Run by runfiles_test under hand-built RUNFILES_DIR / RUNFILES_MANIFEST_FILE
+# environments; prints what rlocation returns for each argument.
+dart_binary(
+    name = "lookup_probe",
+    main = "test/lookup_probe.dart",
+    visibility = ["//dart/runfiles/test:__subpackages__"],
+    deps = [":runfiles"],
+)
+
 dart_test(
     name = "runfiles_test",
     size = "small",
-    data = [":create_probe"],
+    data = [
+        ":create_probe",
+        ":lookup_probe",
+    ],
     main = "test/runfiles_test.dart",
     deps = [
         ":runfiles",
