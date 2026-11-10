@@ -83,7 +83,9 @@ class Workspace {
 void main(List<String> args) {
   final runfiles = Runfiles.create();
   gazelleBin = runfiles.rlocation(args[0]);
-  final samples = args.skip(1).toList();
+  final splitAt = args.indexOf('--split');
+  final samples = args.sublist(1, splitAt);
+  final split = args.sublist(splitAt + 1);
 
   // ---- Basic generation from the sample sources -------------------------
   var w = Workspace();
@@ -389,6 +391,56 @@ abstract class Event with _\$Event {
     ':analysis_options',
     'the empty config still lists a removed options target',
   );
+  w.dispose();
+
+  // ---- a package split over BUILD files under lib/, against goldens -----
+  // The checked-in `split/**/BUILD.bazel` are what Gazelle writes for the
+  // checked-in sources, plus the `exports_files` that lets this test read
+  // them; this workspace's `bazel test //split/...` builds them.
+  const export =
+      '\nexports_files(\n    glob(["*"]),\n'
+      '    visibility = ["//:__pkg__"],\n)\n';
+  w = Workspace();
+  w.markRoot();
+  final goldens = <String, String>{};
+  for (final rlocation in split) {
+    final rel = rlocation.substring(rlocation.indexOf('/') + 1);
+    final content = File(runfiles.rlocation(rlocation)).readAsStringSync();
+    if (rel.endsWith('/BUILD.bazel')) {
+      goldens[rel] = content;
+    } else {
+      w.write(rel, content);
+    }
+  }
+  w.gazelle();
+  for (final MapEntry(key: rel, value: golden) in goldens.entries) {
+    if (!golden.endsWith(export)) {
+      fail('$rel: golden does not end with its exports_files');
+    } else if (!w.exists(rel)) {
+      fail('$rel not generated');
+    } else if (w.read(rel) !=
+        golden.substring(0, golden.length - export.length)) {
+      fail('$rel differs from the checked-in golden:\n${w.read(rel)}');
+    } else {
+      stdout.writeln('PASS: $rel matches its golden');
+    }
+  }
+  // Over the checked-in form, a run changes nothing.
+  goldens.forEach(w.write);
+  w.gazelle();
+  for (final MapEntry(key: rel, value: golden) in goldens.entries) {
+    if (w.read(rel) != golden) {
+      fail('a run over the checked-in $rel changed it:\n${w.read(rel)}');
+    }
+  }
+  final generated = Directory(w.path('split'))
+      .listSync(recursive: true)
+      .whereType<File>()
+      .map((f) => f.path.substring(w.root.path.length + 1))
+      .where((rel) => rel.endsWith('/BUILD.bazel'));
+  for (final rel in generated) {
+    if (!goldens.containsKey(rel)) fail('$rel generated, with no golden');
+  }
   w.dispose();
 
   if (failed) {

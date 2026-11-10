@@ -64,13 +64,15 @@ func (d *dartLang) generateDartRules(args language.GenerateArgs) language.Genera
 	// `produces=` extension.
 	dartFiles = filterOutGeneratedFiles(dartFiles, registry)
 
-	// Classify files by conventional directory.
+	// Classify files by conventional directory of their pub package (the
+	// repository root when no pubspec.yaml is above them).
+	pkgRoot := pubspecRoot(args.Dir, args.Rel)
 	var libFiles, binFiles, testFiles []DartFileInfo
 	for _, f := range dartFiles {
 		switch {
-		case isInDir(args.Rel, "test") || strings.HasSuffix(f.Path, "_test.dart"):
+		case isInDir(args.Rel, path.Join(pkgRoot, "test")) || strings.HasSuffix(f.Path, "_test.dart"):
 			testFiles = append(testFiles, f)
-		case isInDir(args.Rel, "bin"):
+		case isInDir(args.Rel, path.Join(pkgRoot, "bin")):
 			binFiles = append(binFiles, f)
 		default:
 			libFiles = append(libFiles, f)
@@ -141,7 +143,7 @@ func (d *dartLang) generateDartRules(args language.GenerateArgs) language.Genera
 			macroRule := buildMacroRule(args, f, flatBuilders[0])
 			if macroRule != nil {
 				gen = append(gen, macroRule)
-				imports = append(imports, collectImports([]DartFileInfo{f}))
+				imports = append(imports, collectImports(args, []DartFileInfo{f}))
 				continue
 			}
 		}
@@ -158,7 +160,7 @@ func (d *dartLang) generateDartRules(args language.GenerateArgs) language.Genera
 		}
 		libRule := buildAnnotatedLibrary(args, f, libSrcs)
 		gen = append(gen, libRule)
-		imports = append(imports, collectImports([]DartFileInfo{f}))
+		imports = append(imports, collectImports(args, []DartFileInfo{f}))
 	}
 
 	// Plain dart_library for unannotated lib/ sources (the common case).
@@ -168,7 +170,25 @@ func (d *dartLang) generateDartRules(args language.GenerateArgs) language.Genera
 			plain = append(plain, f)
 		}
 	}
-	if len(plain) > 0 {
+	place := placeDir(args.Rel)
+	if len(plain) > 0 && place.Err != nil {
+		log.Printf("dart: %v; no dart_library generated for %s", place.Err, strings.Join(fileNames(plain), ", "))
+	} else if len(plain) > 0 && place.Split {
+		// One directory of a package rooted above it: named for the
+		// directory, and placed in the package by its name.
+		r := rule.NewRule("dart_library", path.Base(args.Rel))
+		srcs := fileNames(plain)
+		sort.Strings(srcs)
+		r.SetAttr("srcs", srcs)
+		r.SetAttr("visibility", []string{"//visibility:public"})
+		if decl, _ := packageDeclFor(args); decl != "" {
+			r.SetAttr("package", decl)
+		} else {
+			r.SetAttr("package_name", packageNameIn(args.Config, args.Rel))
+		}
+		gen = append(gen, r)
+		imports = append(imports, collectImports(args, plain))
+	} else if len(plain) > 0 {
 		r := rule.NewRule("dart_library", libraryName(args.Rel, args.Dir, args.Config))
 		srcs := fileNames(plain)
 		sort.Strings(srcs)
@@ -187,7 +207,7 @@ func (d *dartLang) generateDartRules(args language.GenerateArgs) language.Genera
 			r.SetAttr("package_name", r.Name())
 		}
 		gen = append(gen, r)
-		imports = append(imports, collectImports(plain))
+		imports = append(imports, collectImports(args, plain))
 	}
 
 	for _, f := range binFiles {
@@ -195,7 +215,7 @@ func (d *dartLang) generateDartRules(args language.GenerateArgs) language.Genera
 		r := rule.NewRule("dart_binary", name)
 		r.SetAttr("main", f.Path)
 		gen = append(gen, r)
-		imports = append(imports, collectImports([]DartFileInfo{f}))
+		imports = append(imports, collectImports(args, []DartFileInfo{f}))
 	}
 
 	for _, f := range testFiles {
@@ -207,7 +227,7 @@ func (d *dartLang) generateDartRules(args language.GenerateArgs) language.Genera
 			r.SetAttr("tags", tags)
 		}
 		gen = append(gen, r)
-		imports = append(imports, collectImports([]DartFileInfo{f}))
+		imports = append(imports, collectImports(args, []DartFileInfo{f}))
 	}
 
 	return language.GenerateResult{
@@ -410,7 +430,7 @@ func emitCodegenStages(
 				r.SetAttr("config", stage.Builder.Config)
 			}
 		}
-		setPackageIdentity(r, args, libraryName(args.Rel, args.Dir, args.Config))
+		setPackageIdentity(r, args, packageNameIn(args.Config, args.Rel))
 		rules = append(rules, r)
 		labels = append(labels, ":"+name)
 	}
@@ -475,7 +495,7 @@ func buildMacroRule(
 	r := rule.NewRule(kind, name)
 	r.SetAttr("srcs", []string{f.Path})
 	r.SetAttr("visibility", []string{"//visibility:public"})
-	setPackageIdentity(r, args, libraryName(args.Rel, args.Dir, args.Config))
+	setPackageIdentity(r, args, packageNameIn(args.Config, args.Rel))
 	if info.RuntimeDep != "" && info.RuntimeDep != defaultRuntimeDeps[nodeKey(info)] {
 		r.SetAttr("annotation_dep", info.RuntimeDep)
 	}
@@ -507,7 +527,7 @@ func buildAnnotatedLibrary(
 	// another. dart_library's fallback is still correct for a library Gazelle
 	// emits with no codegen beside it; it is only wrong next to a rule that
 	// already committed to a name.
-	setPackageIdentity(r, args, libraryName(args.Rel, args.Dir, args.Config))
+	setPackageIdentity(r, args, packageNameIn(args.Config, args.Rel))
 	return r
 }
 
@@ -566,7 +586,7 @@ func warnOnPackageNameOverlap(args language.GenerateArgs) {
 	if decl == "" || declaredName == "" {
 		return
 	}
-	derived := libraryName(args.Rel, args.Dir, args.Config)
+	derived := packageNameIn(args.Config, args.Rel)
 	if derived == "" || derived == declaredName {
 		return
 	}
@@ -580,7 +600,7 @@ func warnOnPackageNameOverlap(args language.GenerateArgs) {
 }
 
 func setPackageIdentity(r *rule.Rule, args language.GenerateArgs, pkgName string) {
-	if decl, _ := packageDeclLabel(args); decl != "" {
+	if decl, _ := packageDeclFor(args); decl != "" {
 		r.SetAttr("package", decl)
 		return
 	}
@@ -606,7 +626,9 @@ func resolvedLanguageVersion(args language.GenerateArgs) string {
 	return FindPubspecLanguageVersion(args.Dir, args.Rel)
 }
 
-// libraryName determines the dart_library target name.
+// libraryName determines the dart_library target name: a directive's or
+// pubspec's package name, else the name of the package root's directory, as
+// `dart_library` derives it.
 func libraryName(rel string, dir string, c *config.Config) string {
 	if c.Exts != nil {
 		if name, ok := c.Exts["dart_package_name"].(string); ok && name != "" {
@@ -616,7 +638,10 @@ func libraryName(rel string, dir string, c *config.Config) string {
 	if name := FindPubspecName(dir, rel); name != "" {
 		return name
 	}
-	if rel == "" {
+	if p := placeDir(rel); p.Err == nil && p.Root != "" {
+		return path.Base(p.Root)
+	}
+	if rel == "" || rel == "lib" {
 		return "lib"
 	}
 	return path.Base(rel)
@@ -634,20 +659,53 @@ func fileNames(files []DartFileInfo) []string {
 	return names
 }
 
+// importSet is what a rule's files import: the packages they name, and the
+// `package:` URI of each file imported by one, relative imports included, so
+// a dep can resolve to the rule that holds the file.
 type importSet struct {
 	packages map[string]bool
+	uris     map[string]map[string]bool // package name -> imported file URIs
 }
 
-func collectImports(files []DartFileInfo) *importSet {
-	is := &importSet{packages: make(map[string]bool)}
+func collectImports(args language.GenerateArgs, files []DartFileInfo) *importSet {
+	place := placeDir(args.Rel)
+	self := packageNameIn(args.Config, args.Rel)
+	is := &importSet{
+		packages: make(map[string]bool),
+		uris:     make(map[string]map[string]bool),
+	}
 	for _, f := range files {
+		file := path.Join(args.Rel, f.Path)
 		for _, imp := range f.Imports {
-			if imp.IsPackage {
-				is.packages[imp.Package] = true
+			uri := ""
+			if place.Err == nil {
+				uri = importedURI(self, place.Root, file, imp)
 			}
+			if uri == "" {
+				if imp.IsPackage {
+					is.packages[imp.Package] = true
+				}
+				continue
+			}
+			pkg := strings.SplitN(strings.TrimPrefix(uri, "package:"), "/", 2)[0]
+			is.packages[pkg] = true
+			if is.uris[pkg] == nil {
+				is.uris[pkg] = make(map[string]bool)
+			}
+			is.uris[pkg][uri] = true
 		}
 	}
 	return is
+}
+
+// SortedURIs returns the file URIs imported from pkg, sorted.
+func (is *importSet) SortedURIs(pkg string) []string {
+	var uris []string
+	for u := range is.uris[pkg] {
+		uris = append(uris, u)
+	}
+	sort.Strings(uris)
+	return uris
 }
 
 func (is *importSet) SortedPackages() []string {

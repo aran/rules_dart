@@ -75,6 +75,7 @@ func (*dartLang) Configure(c *config.Config, rel string, f *rule.File) {
 	// separately so dart_builder configuration is decoupled from the
 	// existing single-line directives above.
 	configureBuilderDirectives(c, f)
+	configurePackageDecl(c, rel, f)
 }
 
 func (*dartLang) Kinds() map[string]rule.KindInfo {

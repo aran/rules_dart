@@ -25,12 +25,38 @@ _SAMPLES = [
     "test/greeter_test.dart",
 ]
 
+# A package split over one BUILD file per directory of its `lib/`, checked in
+# as Gazelle generates it: `gazelle_test` regenerates the BUILD files from the
+# sources and compares, and `bazel test //split/...` builds them.
+_SPLIT_SOURCES = [
+    "//split/bin:describe.dart",
+    "//split/lib:a.dart",
+    "//split/lib/src/model:model.dart",
+    "//split/lib/src/util:util.dart",
+    "split/pubspec.yaml",
+    "//split/test:split_test.dart",
+]
+
+_SPLIT_GOLDENS = [
+    "//split/bin:BUILD.bazel",
+    "//split/lib:BUILD.bazel",
+    "//split/lib/src/model:BUILD.bazel",
+    "//split/lib/src/util:BUILD.bazel",
+    "//split/test:BUILD.bazel",
+]
+
+_SPLIT_ARGS = ["--split"] + [
+    "$(rlocationpath %s)" % f
+    for f in _SPLIT_SOURCES + _SPLIT_GOLDENS
+]
+
 dart_test(
     name = "gazelle_test",
     size = "small",
     args = ["$(rlocationpath :gazelle_bin)"] +
-           ["$(rlocationpath %s)" % f for f in _SAMPLES],
-    data = _SAMPLES + [":gazelle_bin"],
+           ["$(rlocationpath %s)" % f for f in _SAMPLES] +
+           _SPLIT_ARGS,
+    data = _SAMPLES + _SPLIT_SOURCES + _SPLIT_GOLDENS + [":gazelle_bin"],
     main = "gazelle_test.dart",
     deps = ["@rules_dart//dart/runfiles"],
 )

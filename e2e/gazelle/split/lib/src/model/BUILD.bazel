@@ -1,0 +1,14 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+dart_library(
+    name = "model",
+    package_name = "split",
+    srcs = ["model.dart"],
+    visibility = ["//visibility:public"],
+    deps = ["//split/lib/src/util"],
+)
+
+exports_files(
+    glob(["*"]),
+    visibility = ["//:__pkg__"],
+)

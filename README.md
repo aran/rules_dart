@@ -432,9 +432,19 @@ bazel run //:gazelle
 ```
 
 Gazelle will scan `lib/`, `bin/`, and `test/` directories, emitting
-`dart_library`, `dart_binary`, and `dart_test` targets respectively. It
+`dart_library`, `dart_binary`, and `dart_test` targets respectively; for a
+package in a subdirectory, the ones beside its `pubspec.yaml`. It
 resolves `import` statements to determine `deps`, including support for
 `show` and `deferred` import modifiers.
+
+Each directory under `lib/` gets its own `dart_library`, named for the
+directory, in the package rooted above `lib/` (see
+[Where a package's root is](#where-a-packages-root-is)). An imported file,
+by `package:` URI or relative path, resolves to the rule that lists it; only
+an import of a file no generated or hand-written rule lists by name (a pub
+package's, or one in a `glob`) resolves by package name. A file two rules list
+is logged rather than guessed; a `# gazelle:resolve dart package:<pkg>/<path>
+<label>` directive picks one.
 
 #### Directives
 
