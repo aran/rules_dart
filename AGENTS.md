@@ -72,3 +72,9 @@ Tooling these repositories share lives in overhead, a module in rules_dart's
 `overhead/` that each takes as a dev dependency: the commit policy, release
 notes and release workflows, the tool pins, the lock checks. Change it there,
 not in a copy. What only one repository needs stays in that repository.
+
+## Public repository
+
+This repository is public: it names only itself and the public projects it
+depends on or serves, never private ones, and a comment that came from a
+downstream report describes the behaviour, not who reported it.
