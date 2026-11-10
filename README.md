@@ -756,6 +756,20 @@ build fails if a hook emits a different set, or if it fails itself, with the
 hook's message. Pub packages that ship a link hook get `link_hook` set by
 `pub.from_lock()`.
 
+## Flags
+
+Every command-line setting rules_dart reads. Set one per invocation or in
+`.bazelrc` (`common --@rules_dart//dart:<name>=<value>`).
+
+| Flag                                               | Default | What it does                                                                                                                                                  |
+| -------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--@rules_dart//dart:analysis_config=<label>`      | none    | The `dart_analysis_config` whose options analysis, fixes and formatting use.                                                                                  |
+| `--@rules_dart//dart:analysis_worker`              | on      | Runs analysis and fixes in persistent workers, one analysis server each; off runs `dart analyze`/`dart fix` per action.                                       |
+| `--@rules_dart//dart:extra_dart_defines=KEY=VALUE` | none    | Adds an environment declaration to every Dart compile, after target `defines`; repeat for more.                                                               |
+| `--@rules_dart//dart:modular_kernel`               | on      | Compiles each library once into kernel modules that tests link; off compiles each test's whole program from source and stops checking imports against `deps`. |
+| `--@rules_dart//dart:outline_kernel`               | on      | Compiles dependents against outlines of their dependencies' modules; turn off with a Dart SDK whose kernel format differs from the one rules_dart pins.       |
+| `--@rules_dart//dart:track_creation_locations`     | off     | Compiles VM kernels with `--track-creation-locations` (`--track-widget-creation`).                                                                            |
+
 ## Examples
 
 The [`e2e/`](e2e/) directory contains complete working examples:
