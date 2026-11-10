@@ -20,6 +20,7 @@ import 'dart:isolate';
 import 'package:analyzer/dart/analysis/analysis_context_collection.dart';
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/analysis/session.dart';
+import 'package:analyzer/dart/analysis/utilities.dart';
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/file_system/file_system.dart' as fs;
@@ -713,11 +714,101 @@ Future<void> _runWithStaging(
     // No matching emission (the builder saw no relevant annotations):
     // write an empty file, since Bazel still requires the declared output.
     if (match != null) claimed.add(match);
-    await File(
-      outPath,
-    ).writeAsBytes(match != null ? emitted[match]! : const <int>[]);
+    await File(outPath).writeAsBytes(
+      match != null
+          ? _relativizeStagingUris(emitted[match]!, match, stagingDir)
+          : const <int>[],
+    );
   }
 }
+
+/// Rewrites every `import`, `export` and `part` URI in [bytes] that points
+/// into [stagingDir] to a path relative to [outputId], and fails if the
+/// staging dir is named anywhere else in the output.
+///
+/// A library outside `lib/` has no `package:` URI, so the analyzer gives it a
+/// `file:` URI under the staging dir, and generators that write a library's
+/// own URI into their output (stacked's router and locator) would emit the
+/// build's temporary path: code that does not compile, and different bytes on
+/// every run. The relative form is what a user would write, and is the same
+/// wherever the action runs. Any other mention of the staging dir has no
+/// correct rewrite, so it is an error rather than a silently uncacheable
+/// output.
+List<int> _relativizeStagingUris(
+  List<int> bytes,
+  AssetId outputId,
+  Directory stagingDir,
+) {
+  final roots = {
+    stagingDir.absolute.path,
+    stagingDir.resolveSymbolicLinksSync(),
+  };
+  final needles = {
+    for (final root in roots) ...[
+      root,
+      Uri.directory(root).toString().replaceFirst(RegExp(r'/$'), ''),
+    ],
+  };
+  bool mentionsStaging(String text) => needles.any(text.contains);
+
+  final String text;
+  try {
+    text = utf8.decode(bytes);
+  } on FormatException {
+    if (mentionsStaging(latin1.decode(bytes))) {
+      throw StateError(_stagingLeak(outputId));
+    }
+    return bytes;
+  }
+  if (!mentionsStaging(text)) return bytes;
+
+  String? relativize(String value) {
+    final uri = Uri.tryParse(value);
+    if (uri == null || !uri.isScheme('file')) return null;
+    final path = p.fromUri(uri);
+    for (final root in roots) {
+      if (!p.isWithin(root, path)) continue;
+      final asset = p.posix.joinAll(p.split(p.relative(path, from: root)));
+      return Uri(
+        path: p.posix.relative(asset, from: p.posix.dirname(outputId.path)),
+      ).toString();
+    }
+    return null;
+  }
+
+  final unit = parseString(content: text, throwIfDiagnostics: false).unit;
+  final uris = <StringLiteral>[
+    for (final directive in unit.directives)
+      ...switch (directive) {
+        NamespaceDirective(:final uri, :final configurations) => [
+          uri,
+          for (final c in configurations) c.uri,
+        ],
+        UriBasedDirective(:final uri) => [uri],
+        PartOfDirective(:final uri?) => [uri],
+        _ => const <StringLiteral>[],
+      },
+  ];
+  final edits = <(int, int, String)>[];
+  for (final literal in uris) {
+    final value = literal.stringValue;
+    final relative = value == null ? null : relativize(value);
+    if (relative != null) {
+      edits.add((literal.offset, literal.end, "'$relative'"));
+    }
+  }
+  var out = text;
+  for (final (start, end, replacement) in edits.reversed) {
+    out = out.replaceRange(start, end, replacement);
+  }
+  if (mentionsStaging(out)) throw StateError(_stagingLeak(outputId));
+  return utf8.encode(out);
+}
+
+String _stagingLeak(AssetId outputId) =>
+    '${outputId.path}: the generator wrote the build\'s temporary staging '
+    'path outside an import, export or part URI, so the output would not '
+    'compile elsewhere and would differ on every run.';
 
 /// Picks the emitted AssetId from [emitted] that corresponds to the
 /// declared Bazel output at [declaredPath], excluding any already-[claimed]

@@ -225,6 +225,17 @@ Key behaviours:
   through the PackageConfig so elements reached via transitive import
   walking still resolve.
 
+A library outside `lib/` (`bin/`, `test/`, `web/`) has no `package:` URI,
+so the analyzer names it by a `file:` URI under the shim's temporary staging
+directory, and a generator that writes a library's own URI into its output
+(stacked's router and locator do) would emit that temporary path. After the
+builder runs, the shim parses each output with the analyzer's `parseString`
+and rewrites every `import`, `export` and `part` URI under the staging
+directory to the relative path a user would write (`import 'app.dart';` for a
+generator run on `bin/app.dart`). The staging directory named anywhere else
+in an output fails the action: there is no correct rewrite for it, and the
+output would neither compile elsewhere nor be the same on two runs.
+
 ## The `BuildStep`
 
 `_ShimBuildStep` wires reader + writer + resolver + a `ResourceManager`.

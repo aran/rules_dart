@@ -1287,6 +1287,128 @@ void main() {
     );
   });
 
+  // A generator that writes the input library's own URI into its output (as
+  // stacked's router and locator do) sees a `file:` URI for inputs outside
+  // lib/, which names the shim's temporary staging dir. Generated code must
+  // not depend on where the action ran: it must compile, and it must be the
+  // same bytes on every run so it can be cached.
+  group('generated output identity', () {
+    late Directory tmp;
+
+    setUp(() async {
+      tmp = await Directory.systemTemp.createTemp('shim_identity_');
+    });
+
+    tearDown(() async {
+      if (await tmp.exists()) await tmp.delete(recursive: true);
+    });
+
+    /// Runs [emit] as the builder over [asset] staged under [root], and
+    /// returns the generated output, or the diagnostics if the action
+    /// failed.
+    Future<({String? output, String diagnostics})> generateUnder(
+      Directory root,
+      String asset,
+      String Function(Uri inputUri) emit,
+    ) async {
+      final input = File(p.join(tmp.path, 'input.dart'))
+        ..writeAsStringSync('class Main {}');
+      final outDir = await Directory(
+        p.join(tmp.path, 'out', p.basename(root.path)),
+      ).create(recursive: true);
+      final out = File(
+        p.join(outDir.path, '${p.basenameWithoutExtension(asset)}.g.dart'),
+      );
+      final diagnostics = <String>[];
+      exitCode = 0;
+      await runShim(
+        [
+          '--input',
+          input.path,
+          '--input-asset',
+          asset,
+          '--output',
+          out.path,
+          '--package',
+          'fixture',
+          '--root-language-version',
+          '3.11',
+        ],
+        (_) => _CapturingBuilder((step) async {
+          final lib = await step.resolver.libraryFor(step.inputId);
+          await step.writeAsString(
+            step.inputId.changeExtension('.g.dart'),
+            emit(lib.firstFragment.source.uri),
+          );
+        }),
+        stagingRoot: root,
+        writeDiagnostic: diagnostics.add,
+      );
+      final failed = exitCode != 0;
+      exitCode = 0;
+      return (
+        output: failed ? null : out.readAsStringSync(),
+        diagnostics: diagnostics.join('\n'),
+      );
+    }
+
+    String directives(Uri uri) =>
+        "import '$uri' as _i1;\n"
+        "export '$uri' show Main;\n"
+        'void f(_i1.Main m) {}\n';
+
+    for (final (asset, relative) in [
+      ('lib/main.dart', 'package:fixture/main.dart'),
+      ('bin/main.dart', 'main.dart'),
+      ('test/main_test.dart', 'main_test.dart'),
+      ('test/sub/main_test.dart', 'main_test.dart'),
+    ]) {
+      test('$asset: output names no temp path and is the same wherever '
+          'the action runs', () async {
+        final a = await Directory(p.join(tmp.path, 'tmp_a')).create();
+        final b = await Directory(p.join(tmp.path, 'tmp_b_longer')).create();
+        final underA = await generateUnder(a, asset, directives);
+        final underB = await generateUnder(b, asset, directives);
+        expect(underA.output, isNotNull, reason: underA.diagnostics);
+        expect(underA.output, underB.output, reason: 'depends on TMPDIR');
+        expect(underA.output, isNot(contains('shim_')));
+        expect(underA.output, isNot(contains(tmp.path)));
+        expect(
+          underA.output,
+          "import '$relative' as _i1;\n"
+          "export '$relative' show Main;\n"
+          'void f(_i1.Main m) {}\n',
+        );
+      });
+    }
+
+    test('a staging URI to a sibling file becomes a relative path', () async {
+      final out = await generateUnder(
+        await Directory(p.join(tmp.path, 'stage')).create(),
+        'bin/main.dart',
+        (uri) =>
+            "import '${uri.resolve('sub/views.dart')}';\n"
+            "part '${uri.resolve('../lib/part.dart')}';\n",
+      );
+      expect(out.output, isNotNull, reason: out.diagnostics);
+      expect(
+        out.output,
+        "import 'sub/views.dart';\npart '../lib/part.dart';\n",
+      );
+    });
+
+    test('the staging path anywhere but a directive URI fails the '
+        'action', () async {
+      final out = await generateUnder(
+        await Directory(p.join(tmp.path, 'stage')).create(),
+        'bin/main.dart',
+        (uri) => "// generated from $uri\nconst source = '${uri.path}';\n",
+      );
+      expect(out.output, isNull, reason: 'the action must fail');
+      expect(out.diagnostics, contains('temporary staging'));
+    });
+  });
+
   group('unemitted outputs', () {
     late Directory tmp;
     setUp(() async {
