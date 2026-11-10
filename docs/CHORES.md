@@ -12,7 +12,11 @@ file at runtime — keep file lists current as the repo evolves.
 **Files**:
 
 - `dart/private/versions.bzl` — add new version entry to `TOOL_VERSIONS` and to `CROSS_TOOL_VERSIONS`
-- `MODULE.bazel` — `dart.toolchain(dart_version = "...")`
+- `MODULE.bazel` — `dart.toolchain(dart_version = "...")`, and the SDK
+  source archive the outline stripper builds `pkg/kernel` from:
+  `_DART_SDK_SOURCE`, `_DART_SDK_SOURCE_SHA256` and both `strip_prefix`es,
+  and each `dart_library`'s `language_version` if that package's pubspec
+  raised its SDK constraint
 - `e2e/hello_world/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
 - `e2e/library_deps/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
 - `e2e/dart_test/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
@@ -54,17 +58,28 @@ file at runtime — keep file lists current as the repo evolves.
    `//dart/tests/sdk_files` means the SDK moved or added a file one of its
    uses reads: update that use's entry in `SDK_FILE_SETS`
    (`dart/toolchain.bzl`) and its pin in `sdk_files_test.bzl`
-8. Pick one e2e workspace and run `bazel build //...` to smoke-test
-9. If the new SDK contains dart-lang/sdk e2c6325 (Mach-O `--strip` fix), retire
-   `dart/private/tools/compile_runner.dart`: pass `--strip` to gen_snapshot
-   (`--extra-gen-snapshot-options`) on macOS `exe` and `aot-snapshot`
-   compiles, delete the runner and `dart_bootstrap_binary`, and keep
-   `//dart/tests/reproducible_fixture` passing on macOS. Check that stripped
-   stack traces still say enough; if not, keep the debugging info with
-   `--save-debugging-info` beside the output. Then delete this step and step 11
-   of `.claude/commands/bump-dart-sdk.md`
+8. Re-pin the outline stripper's `pkg/kernel`: download
+   `https://github.com/dart-lang/sdk/archive/refs/tags/{version}.tar.gz` twice
+   and check the two SHA-256s agree before writing it into `MODULE.bazel`.
+   Build `//dart/private/tools:outline_tool`: a new `ProcedureStubKind` or
+   other API change fails its compile, and must be classified in
+   `kernel_outline.dart`, not defaulted. Read the VM's modular transforms
+   (`pkg/vm/lib/modular/target/vm.dart`, `performModularTransformationsOnLibraries`)
+   for any new one that reads a dependency's bodies, and add what it reads to
+   the stripper's allowlist and to `//dart/tests/outline_fixture`. Then run the
+   guard, which must pass:
+   `bazel test --config=deep //dart/tests/outline_fixture:outline_guard_test`
+9. Pick one e2e workspace and run `bazel build //...` to smoke-test
+10. If the new SDK contains dart-lang/sdk e2c6325 (Mach-O `--strip` fix), retire
+    `dart/private/tools/compile_runner.dart`: pass `--strip` to gen_snapshot
+    (`--extra-gen-snapshot-options`) on macOS `exe` and `aot-snapshot`
+    compiles, delete the runner and `dart_bootstrap_binary`, and keep
+    `//dart/tests/reproducible_fixture` passing on macOS. Check that stripped
+    stack traces still say enough; if not, keep the debugging info with
+    `--save-debugging-info` beside the output. Then delete this step
 
-**Verification**: `bazel test //dart/tests/...` passes; at least one e2e workspace builds.
+**Verification**: `bazel test //dart/tests/...` passes; the outline guard
+passes under `--config=deep`; at least one e2e workspace builds.
 
 **Automation**: `/bump-dart-sdk {version}` slash command.
 

@@ -1,0 +1,14 @@
+load("//dart:defs.bzl", "dart_library")
+load("//dart/tests:outline_guard.bzl", "variant_source")
+
+variant_source(
+    name = "src",
+    out = "lib/plain.dart",
+)
+
+dart_library(
+    name = "plain",
+    package_name = "outline_plain",
+    srcs = [":src"],
+    visibility = ["//dart/tests/outline_fixture:__subpackages__"],
+)

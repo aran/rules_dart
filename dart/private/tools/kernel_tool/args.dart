@@ -8,7 +8,7 @@ const _optionsByCommand = {
     'runtime', 'snapshot', 'label', 'platform', 'target', 'libraries-spec',
     'libraries-target', 'package-config', 'multi-root', 'src', 'dep-modules',
     'dep-manifest', 'define', 'output-dir', 'manifest-output', 'package-name',
-    'lib-root', //
+    'lib-root', 'outline-tool', 'outline-dir', //
   },
   'entry': {
     'runtime', 'snapshot', 'sdk-root', 'label', 'platform', 'target',

@@ -1,0 +1,13 @@
+load("//dart:defs.bzl", "dart_library")
+
+dart_library(
+    name = "dependents",
+    package_name = "outline_dependents",
+    srcs = glob(["lib/*.dart"]),
+    visibility = ["//dart/tests/outline_fixture:__pkg__"],
+    deps = [
+        "//dart/tests/outline_fixture/ffi",
+        "//dart/tests/outline_fixture/lang",
+        "//dart/tests/outline_fixture/plain",
+    ],
+)

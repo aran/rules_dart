@@ -309,6 +309,11 @@ alias(
 
 vm_kernel_sdk(
     name = "vm_kernel_sdk",
+    # Unset when the flag is off, so the SDK source it builds from is not fetched.
+    outline_tool = select({
+        "//dart:is_outline_kernel": "//dart/private/tools:outline_tool",
+        "//conditions:default": None,
+    }),
     visibility = ["//visibility:public"],
 )
 

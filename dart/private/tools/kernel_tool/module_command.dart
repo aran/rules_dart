@@ -71,6 +71,9 @@ Future<int> runModule(
   final index = ModuleIndex(deps, own: manifest);
   final digested = Digests(digests);
   final shared = worker != null;
+  // The dependencies' kernel files the modules were compiled against, which
+  // the outlines refer to.
+  final read = <String>{};
   try {
     var compiled = 0;
     for (var i = 0; i < planned.length; i++) {
@@ -87,6 +90,10 @@ Future<int> runModule(
 
       final output = '$outputDir/$i.dill';
       final summaries = [for (final m in reach.order) m.dillPath!];
+      read.addAll([
+        for (final m in reach.order)
+          if (m.manifest != manifest) m.dillPath!,
+      ]);
       final sources = [...plan.libraries, ...plan.parts];
       worker ??= KernelWorker(args.one('runtime'), args.one('snapshot'));
       final result = await worker.compile(
@@ -141,8 +148,61 @@ Future<int> runModule(
     if (!shared) await worker?.close();
   }
 
+  if (args.optional('outline-tool') case final tool?) {
+    final outlined = await _outline(tool, args, manifest, read);
+    if (outlined != null) {
+      err.writeln('$label: $outlined');
+      return 1;
+    }
+  }
   File(args.one('manifest-output')).writeAsStringSync(manifest.toJson());
   return 0;
+}
+
+/// Writes the outline of each of [manifest]'s modules that compiled to
+/// `--outline-dir`, under the same name, with `--outline-tool`: what
+/// dependents compile against. [read] are the dependencies' kernel files the
+/// modules were compiled against. Returns the tool's complaint, if it has one.
+Future<String?> _outline(
+  String tool,
+  Args args,
+  Manifest manifest,
+  Set<String> read,
+) async {
+  final outlineDir = args.one('outline-dir');
+  Directory(outlineDir).createSync(recursive: true);
+  final compiled = [
+    for (final m in manifest.modules)
+      if (m.dill case final dill?) dill,
+  ];
+  if (compiled.isEmpty) return null;
+  // Every dependency's kernel file is named, more than a Windows command line
+  // holds for a package with many, so they go in a params file.
+  final scratch = Directory.systemTemp.createTempSync('kernel_outline');
+  try {
+    final params = File('${scratch.path}/params')
+      ..writeAsStringSync(
+        [
+          for (final dill in [args.one('platform'), ...read]) ...[
+            '--load',
+            dill,
+          ],
+          for (final dill in compiled) ...[
+            '--module',
+            '${manifest.dir}/$dill',
+            '--outline',
+            '$outlineDir/$dill',
+          ],
+        ].map((line) => '$line\n').join(),
+      );
+    final result = await Process.run(File(tool).absolute.path, [
+      '@${params.path}',
+    ]);
+    if (result.exitCode == 0) return null;
+    return '${result.stdout}${result.stderr}'.trimRight();
+  } finally {
+    scratch.deleteSync(recursive: true);
+  }
 }
 
 /// Whether [plan] is unusable without compiling it, and why: it imports a

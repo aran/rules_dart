@@ -32,10 +32,11 @@ test --output_groups=+dart_analyze
 test --output_groups=+dart_format
 common --//dart:analysis_config=//:analysis_config
 
-# Minutes-long tests are tagged `deep` and left out of a plain `bazel test`;
-# `bazel test --config=deep //...` runs them alone.
+# Tests tagged `deep` take minutes, or guard what only a toolchain bump can
+# break, and are left out by default. `--config=deep` runs them too: before a
+# merge, and in every Dart SDK bump (docs/CHORES.md).
 test --test_tag_filters=-deep
-test:deep --test_tag_filters=deep
+test:deep --test_tag_filters=
 
 # Automatic execution groups: an action must name the toolchain its tools come
 # from, or run in an exec group. The rules support both settings; this

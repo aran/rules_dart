@@ -24,6 +24,28 @@ bool_flag(
     visibility = ["//visibility:public"],
 )
 
+# Whether, under `modular_kernel`, a library's dependents compile against its
+# modules' outlines (their kernel without function bodies) rather than the full
+# kernel. On (the default), an edit inside a function body recompiles only the
+# library's own modules: its dependents' compiles read the same outline, and
+# Bazel reuses them. A library declaring a mixin, or written before Dart 3.0,
+# keeps its source positions in its outline, so an edit there that moves code
+# recompiles its dependents too. Off, they compile against full kernels:
+#   bazel test //... --@rules_dart//dart:outline_kernel=false
+# The outlines are made with the `pkg/kernel` of the Dart SDK rules_dart pins,
+# so with another SDK whose kernel format differs, this must be off.
+bool_flag(
+    name = "outline_kernel",
+    build_setting_default = True,
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "is_outline_kernel",
+    flag_values = {":outline_kernel": "true"},
+    visibility = ["//dart/private:__pkg__"],
+)
+
 # On (the default), the `dart_analyze` aspect's analyze and fix actions run in
 # persistent workers, each keeping one analysis server for the requests of a
 # build. Off, every action runs a fresh `dart analyze` or `dart fix`:

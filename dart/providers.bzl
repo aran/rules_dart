@@ -219,6 +219,7 @@ aspect is otherwise the same code.""",
         "libraries_target": "str: The entry in `libraries_spec` to read (its `include` entries are followed).",
         "defines": "list[str]: Environment declarations the platform itself fixes, e.g. `dart.vm.product=true`.",
         "tool_files": "depset[File]: What the tools read at run time beyond the files named above; the actions take nothing else of the SDK. Empty for the VM, whose front end reads only its snapshot, its runtime and the platform.",
+        "outline_tool": "FilesToRunProvider or None: Writes the outlines dependents compile against (`outline_tool [--load <dill>]... [--module <dill> --outline <dill>]...`, or the same in an `@paramsfile`, one per line), run by the module action. None, or unset, compiles them against full modules.",
     },
 )
 
@@ -230,9 +231,13 @@ A target's sources are split as Dart's own modular build splits a package — \
 one module per strongly connected component of their imports — and compiled into a directory of `.dill`s beside a \
 `<directory>.json` manifest naming each module's libraries, its imports, and \
 whether it compiled. An executable compiles its entrypoint against, and links, \
-only the modules it reaches.""",
+only the modules it reaches.
+
+Modules compile against their dependencies' `outlines`, which an edit inside a \
+function body leaves unchanged; only the link reads the full `modules`.""",
     fields = {
         "modules": "depset[File]: This target's module directory and every dependency's, dependencies first.",
+        "outlines": "depset[File]: What dependents compile against, one directory per directory in `modules`, with the same files: `<directory>.outlines`, the modules without their function bodies, when the kernel SDK has an `outline_tool`; else the module directories themselves.",
         "manifests": "depset[File]: The `<directory>.json` manifest of each directory in `modules`.",
         "exported": "dict[Label, Target]: On a target that is not a library (a toolchain), the libraries it holds, for a library that names one in `DartInfo.deps`. Empty on a library.",
     },

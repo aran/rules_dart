@@ -247,3 +247,26 @@ dart_test(
         "@ext_pub_deps//:test",
     ],
 )
+
+# Strips a target's kernel modules to the outlines dependents compile against
+# (`--@rules_dart//dart:outline_kernel`). Built on the pinned SDK tag's own
+# `pkg/kernel`, which must match the SDK whose modules it reads.
+dart_tool_binary(
+    name = "outline_tool",
+    compile_mode = "exe",
+    main = "kernel_outline.dart",
+    visibility = ["//dart:__subpackages__"],
+    deps = ["@dart_sdk_pkg_kernel//:kernel"],
+)
+
+dart_test(
+    name = "kernel_outline_test",
+    size = "small",
+    args = ["$(rlocationpath :outline_tool)"],
+    data = [":outline_tool"],
+    main = "kernel_outline_test.dart",
+    deps = [
+        "//dart/runfiles",
+        "@ext_pub_deps//:test",
+    ],
+)

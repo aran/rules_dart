@@ -115,8 +115,14 @@ def whole_program_kernel(ctx, main, packages, output_dill, product, defines = []
         native_assets_yaml = native_assets_yaml,
     )
 
+_OUTLINES = ".outlines"
+
 def _info_path(module):
-    return module.path + ".json"
+    # A module directory's manifest, for the directory or its outlines.
+    path = module.path
+    if path.endswith(_OUTLINES):
+        path = path[:-len(_OUTLINES)]
+    return path + ".json"
 
 def _add_deps(args, modules):
     args.add_all(modules, before_each = "--dep-modules", expand_directories = False)
@@ -156,13 +162,13 @@ def _module_aspect_impl(target, ctx):
     # The build-wide escape hatch: executables compile whole programs, and
     # nothing reads a module.
     if not ctx.attr._modular_kernel[BuildSettingInfo].value:
-        return [DartModuleInfo(modules = depset(), manifests = depset(), exported = {})]
+        return [DartModuleInfo(modules = depset(), outlines = depset(), manifests = depset(), exported = {})]
     reached = reached_targets(ctx, DartModuleInfo)
 
     # Not a library: hand on the libraries it holds (a toolchain's runtime),
     # one hop, for the library that names them in its `DartInfo.deps`.
     if DartInfo not in target:
-        return [DartModuleInfo(modules = depset(), manifests = depset(), exported = exported_libraries(reached))]
+        return [DartModuleInfo(modules = depset(), outlines = depset(), manifests = depset(), exported = exported_libraries(reached))]
     info = target[DartInfo]
 
     # A target that passes on a dependency's `DartInfo` (`dart_test_package`
@@ -178,7 +184,7 @@ def _module_aspect_impl(target, ctx):
     # contributes no modules rather than failing.
     srcs = [f for f in getattr(info, "srcs", []) if f.is_directory or f.extension == "dart"]
     if not srcs:
-        return [DartModuleInfo(modules = modules.modules, manifests = modules.manifests)]
+        return [DartModuleInfo(modules = modules.modules, outlines = modules.outlines, manifests = modules.manifests)]
 
     # Only the target's own packages: its dependencies are read from their
     # modules, which name every library they hold.
@@ -198,6 +204,7 @@ def _module_aspect_impl(target, ctx):
 def _merge_modules(infos):
     return struct(
         modules = depset(transitive = [i.modules for i in infos], order = "postorder"),
+        outlines = depset(transitive = [i.outlines for i in infos], order = "postorder"),
         manifests = depset(transitive = [i.manifests for i in infos], order = "postorder"),
     )
 
@@ -227,7 +234,8 @@ def _compile_modules(ctx, sdk, kernel_tool, name, srcs, packages, own_packages, 
       own_packages: The `DartPackageInfo` records the sources belong to: one,
         none for an executable stating no package, several for packages that
         depend on each other.
-      modules: `struct(modules, manifests)` of every dependency's modules.
+      modules: `struct(modules, outlines, manifests)` of every dependency's
+        modules; the sources compile against the outlines.
       defines: Environment declarations beyond the platform's.
 
     Returns:
@@ -252,22 +260,35 @@ def _compile_modules(ctx, sdk, kernel_tool, name, srcs, packages, own_packages, 
         args.add("--lib-root", own.lib_root)
     add_kernel_roots(args, "--multi-root", srcs)
     args.add_all(srcs, before_each = "--src", expand_directories = False)
-    _add_deps(args, modules.modules)
+    _add_deps(args, modules.outlines)
     args.add_all(sdk.defines + defines, before_each = "--define")
     args.add_all([out], before_each = "--output-dir", expand_directories = False)
     args.add("--manifest-output", manifest)
+
+    # Dependents compile against the modules' outlines, which an edit inside a
+    # function body leaves as they were, so Bazel reuses their compiles.
+    outlines = out
+    outputs = [out, manifest]
+    tools = [sdk.kernel_worker, sdk.runtime]
+    outline_tool = getattr(sdk, "outline_tool", None)
+    if outline_tool != None:
+        outlines = ctx.actions.declare_directory(out.basename + _OUTLINES, sibling = out)
+        outputs.append(outlines)
+        tools.append(outline_tool)
+        args.add("--outline-tool", outline_tool.executable)
+        args.add_all([outlines], before_each = "--outline-dir", expand_directories = False)
 
     ctx.actions.run(
         executable = kernel_tool,
         arguments = ["module", _snapshot_args(ctx, sdk.kernel_worker), args],
         inputs = depset(
             srcs + [package_config, sdk.libraries_spec, sdk.platform, sdk.kernel_worker, sdk.runtime],
-            transitive = [modules.modules, modules.manifests, sdk.tool_files],
+            transitive = [modules.outlines, modules.manifests, sdk.tool_files],
         ),
         # The SDK's compiler is a tool, so that a different one (a new SDK, a
         # different snapshot) is a different worker, not the old one reused.
-        tools = [sdk.kernel_worker, sdk.runtime],
-        outputs = [out, manifest],
+        tools = tools,
+        outputs = outputs,
         mnemonic = "DartModule",
         exec_group = PORTABLE,
         progress_message = "Compiling Dart modules %{label}",
@@ -281,6 +302,7 @@ def _compile_modules(ctx, sdk, kernel_tool, name, srcs, packages, own_packages, 
     )
     return DartModuleInfo(
         modules = depset([out], transitive = [modules.modules], order = "postorder"),
+        outlines = depset([outlines], transitive = [modules.outlines], order = "postorder"),
         manifests = depset([manifest], transitive = [modules.manifests], order = "postorder"),
     )
 
@@ -362,7 +384,7 @@ def collect_modules(deps):
       deps: Targets carrying `DartModuleInfo` (through the aspect).
 
     Returns:
-      `struct(modules, manifests)` of depsets.
+      `struct(modules, outlines, manifests)` of depsets.
     """
     return _merge_modules([dep[DartModuleInfo] for dep in deps if DartModuleInfo in dep])
 
@@ -398,7 +420,7 @@ def dart_entry_kernel_action(
       srcs: The executable's own source Files (its entrypoint among them).
       packages: Every `DartPackageInfo` the executable sees, one per name, so
         its files get the language version of the package containing them.
-      modules: `struct(modules, manifests)` from `collect_modules`.
+      modules: `struct(modules, outlines, manifests)` from `collect_modules`.
       output: The entry `.dill` to write.
       own_package: The `DartPackageInfo` of the package the executable states
         it belongs to, or `None`.
@@ -432,7 +454,7 @@ def dart_entry_kernel_action(
     args.add_all([sdk.platform], before_each = "--sdk-root", map_each = _dirname)
     args.add("--package-config", package_config)
     add_kernel_roots(args, "--multi-root", [main])
-    _add_deps(args, own.modules)
+    _add_deps(args, own.outlines)
     args.add_all(sdk.defines + defines, before_each = "--define")
     inputs = [main, package_config, sdk.platform, sdk.frontend_server, sdk.runtime]
     if native_assets_yaml != None:
@@ -445,7 +467,7 @@ def dart_entry_kernel_action(
     ctx.actions.run(
         executable = kernel_tool,
         arguments = ["entry", _snapshot_args(ctx, sdk.frontend_server), args],
-        inputs = depset(inputs, transitive = [own.modules, own.manifests, sdk.tool_files]),
+        inputs = depset(inputs, transitive = [own.outlines, own.manifests, sdk.tool_files]),
         outputs = [output, selection],
         mnemonic = "DartEntryKernel",
         exec_group = PORTABLE,
@@ -518,10 +540,16 @@ def _vm_kernel_sdk_impl(ctx):
         defines = ["dart.vm.product=true", "dart.vm.asan=false", "dart.vm.msan=false", "dart.vm.tsan=false"],
         # The tools read the files named above and nothing else of the SDK.
         tool_files = depset(),
+        outline_tool = ctx.attr.outline_tool[DefaultInfo].files_to_run if ctx.attr.outline_tool else None,
     )]
 
 vm_kernel_sdk = rule(
     implementation = _vm_kernel_sdk_impl,
     toolchains = ["//dart:toolchain_type"],
+    attrs = {
+        # Built for the platform this target is configured for: the host the
+        # modules compile on, since the aspect builds it in that exec group.
+        "outline_tool": attr.label(executable = True, cfg = "target"),
+    },
     doc = "The `DartKernelSdkInfo` for the Dart VM, from the resolved Dart toolchain.",
 )

@@ -1,0 +1,63 @@
+load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
+load("//dart:defs.bzl", "dart_test")
+load("//dart/tests:outline_guard.bzl", "VARIANTS", "outline_guard_modules")
+
+# The guard on outline kernels (`--@rules_dart//dart:outline_kernel`): every
+# dependent module compiled against outlines is byte-identical to the one
+# compiled against full kernels, over the constructs the VM's cross-module
+# transforms read; and edits inside function bodies leave outlines unchanged,
+# except in files declaring mixins when the edit moves code. A step of every
+# Dart SDK bump (docs/CHORES.md); in the `deep` tier, so `--config=deep` runs it.
+
+# Which version of the edited files the libraries are built from.
+string_flag(
+    name = "variant",
+    build_setting_default = "base",
+    values = VARIANTS,
+)
+
+[
+    config_setting(
+        name = variant,
+        flag_values = {":variant": variant},
+        visibility = ["//dart/tests/outline_fixture:__subpackages__"],
+    )
+    for variant in VARIANTS
+]
+
+# Outlines exist only for modular kernels; the whole-program escape hatch
+# (`--@rules_dart//dart:modular_kernel=false`) has none to guard.
+config_setting(
+    name = "whole_program",
+    flag_values = {"//dart:modular_kernel": "false"},
+)
+
+_MODULAR_ONLY = select({
+    ":whole_program": ["@platforms//:incompatible"],
+    "//conditions:default": [],
+})
+
+outline_guard_modules(
+    name = "modules",
+    changed = ["//dart/tests/outline_fixture/lang"],
+    dependents = ["//dart/tests/outline_fixture/dependents"],
+    target_compatible_with = _MODULAR_ONLY,
+    unchanged = [
+        "//dart/tests/outline_fixture/ffi",
+        "//dart/tests/outline_fixture/plain",
+    ],
+)
+
+dart_test(
+    name = "outline_guard_test",
+    size = "medium",
+    args = ["$(rlocationpath :modules)"],
+    data = [":modules"],
+    main = "outline_guard_test.dart",
+    tags = ["deep"],
+    target_compatible_with = _MODULAR_ONLY,
+    deps = [
+        "//dart/runfiles",
+        "@ext_pub_deps//:test",
+    ],
+)

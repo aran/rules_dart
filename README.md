@@ -97,6 +97,16 @@ dart_test(
 )
 ```
 
+Each library is compiled once into kernel modules that every test reaching it
+links. A library's dependents compile against its modules' outlines, which
+leave out function bodies, so an edit inside a body recompiles that library
+alone, plus the links of the tests that reach it. In a file that declares a
+mixin, an edit that moves code also recompiles the library's dependents. The
+outlines are made with the SDK source of the Dart version rules_dart pins. With
+an SDK whose kernel format differs, the build fails and says so; turn them off
+with `--@rules_dart//dart:outline_kernel=false`, and dependents compile against
+full kernels.
+
 ### Using pub.dev packages
 
 Declare individual packages with `pub.package()`:

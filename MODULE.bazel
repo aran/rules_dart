@@ -51,6 +51,53 @@ http_archive(
     urls = ["https://pub.dev/api/archives/webcrypto-0.6.1.tar.gz"],
 )
 
+# The SDK's own `pkg/kernel`, unmodified, at the tag of the Dart SDK above, for
+# the outline stripper (//dart/private/tools:outline_tool). It is not
+# published, so it comes from the tag's source archive, with the one package it
+# imports from the same archive. Re-pinned with every SDK bump (docs/CHORES.md).
+# Fetched only when `--@rules_dart//dart:outline_kernel` is on and a test builds.
+_DART_SDK_SOURCE = "https://github.com/dart-lang/sdk/archive/refs/tags/3.13.7.tar.gz"
+
+_DART_SDK_SOURCE_SHA256 = "cd2a1450f33cfeb35f180d33b836ab92a663d1335ee7f953ae3ebcb20308c99d"
+
+http_archive(
+    name = "dart_sdk_pkg_kernel",
+    build_file_content = """\
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+dart_library(
+    name = "kernel",
+    srcs = glob(["lib/**/*.dart"]),
+    language_version = "3.13",
+    package_name = "kernel",
+    visibility = ["//visibility:public"],
+    deps = ["@dart_sdk_pkg_fe_analyzer_shared//:_fe_analyzer_shared"],
+)
+""",
+    sha256 = _DART_SDK_SOURCE_SHA256,
+    strip_prefix = "sdk-3.13.7/pkg/kernel",
+    urls = [_DART_SDK_SOURCE],
+)
+
+http_archive(
+    name = "dart_sdk_pkg_fe_analyzer_shared",
+    build_file_content = """\
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+dart_library(
+    name = "_fe_analyzer_shared",
+    srcs = glob(["lib/**/*.dart"]),
+    language_version = "3.11",
+    package_name = "_fe_analyzer_shared",
+    visibility = ["//visibility:public"],
+    deps = ["@ext_pub_deps//:meta"],
+)
+""",
+    sha256 = _DART_SDK_SOURCE_SHA256,
+    strip_prefix = "sdk-3.13.7/pkg/_fe_analyzer_shared",
+    urls = [_DART_SDK_SOURCE],
+)
+
 # On macOS, rules_cc leaves C++ to apple_support's toolchain. 2.9.0 builds that
 # toolchain's helper tools for macOS 11, the oldest Xcode 27's libc++ accepts
 # without a warning. Dev-only: the C++ toolchain is the consuming module's call.
