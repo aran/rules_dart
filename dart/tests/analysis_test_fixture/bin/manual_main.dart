@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:analysis_test_fixture/manual.dart';
 
-void main() => print(manual());
+void main() => stdout.writeln(manual());

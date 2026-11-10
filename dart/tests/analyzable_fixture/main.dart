@@ -4,5 +4,7 @@
 import 'package:analyzable_dep/dep.dart';
 
 void main() {
+  // Also compiled for the web, where `dart:io` does not exist.
+  // ignore: avoid_print
   print(greeting());
 }

@@ -3,6 +3,8 @@
 ///
 /// The front end `gen_kernel` splits a `-D` value on commas, so `hello,world`
 /// reached the program as `hello`. Every argument is `name=rlocationpath`.
+library;
+
 import 'dart:io';
 
 import 'package:runfiles/runfiles.dart';
@@ -19,7 +21,7 @@ void main(List<String> args) {
     );
     final out = '${result.stdout}'.trim();
     if (result.exitCode == 0 && out == 'hello,world;1,2') {
-      print('ok: $name');
+      stdout.writeln('ok: $name');
     } else {
       failures++;
       stderr.writeln(

@@ -2,6 +2,8 @@
 ///
 /// `EXPECT` is the dependency's flavor and greeting, then the entrypoint's: the
 /// two must be the same environment.
+library;
+
 import 'dart:io';
 
 import 'package:runfiles/runfiles.dart';

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 void main() {
-  print('cross');
+  stdout.writeln('cross');
 }

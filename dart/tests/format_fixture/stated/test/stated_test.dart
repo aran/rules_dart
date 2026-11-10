@@ -1,4 +1,5 @@
 // Compiles only at a language version below 3.7, which this test states.
+// ignore_for_file: no_wildcard_variable_uses
 String describe(String alpha, String beta, String gamma) => '$alpha $gamma';
 
 void main() {
