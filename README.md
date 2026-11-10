@@ -1037,7 +1037,7 @@ For first-party builders (`json_serializable`, `freezed`, `built_value`,
 `freezed_library`, …) under `dart/ext/<builder>/defs.bzl`. Gazelle discovers
 the matching annotations in sources and emits the macro automatically. See
 [`docs/ext.md`](./docs/ext.md) for the shim contract, worker behaviour, and
-dual-build migration guide when coexisting with `build_runner`. Two more
+the guards for generated files checked into a source tree. Two more
 `dart/ext` packages are not builders but Bazel builds of a package's native
 library: `sqlite3` (`sqlite3_code_asset()`) and `webcrypto` (see
 [Native code assets](#native-code-assets)).
@@ -1655,7 +1655,6 @@ The [`e2e/`](e2e/) directory contains complete working examples:
 | [`pub_root_newer`](e2e/pub_root_newer/)                     | A root lock above a dependency's `pub.package()` wins, warning that it raised it                |
 | [`codegen`](e2e/codegen/)                                   | `dart_codegen`/`dart_aggregate_codegen` over parts, re-exports and source sets                  |
 | [`ext_exemplar`](e2e/ext_exemplar/)                         | One package per bundled `dart/ext` builder, plus native `code_assets`, sqlite3/webcrypto        |
-| [`dual_build`](e2e/dual_build/)                             | Collision detection between Bazel-generated and `build_runner`-generated sources                |
 | [`link_hook`](e2e/link_hook/)                               | `record_use` and a package's `hook/link.dart` emitting a data asset via `dart_link_hook`        |
 
 > **Note**: Only the `exe` and `aot-snapshot` compile modes cross-compile via

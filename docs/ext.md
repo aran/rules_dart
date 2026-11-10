@@ -45,13 +45,7 @@ dart/ext/
 ├── go_router/
 ├── copy_with_extension_gen/
 ├── stacked/                   Six independent LibraryBuilders.
-├── drift/                     Four-stage: prep + discover/analyzer/driftBuilder.
-└── tools/
-    └── check_dual_build_collisions
-                               Walks a source tree for committed `build_runner`
-                               outputs that would collide with Bazel codegen
-                               outputs. Uses the same extension catalog as
-                               Gazelle's filter.
+└── drift/                     Four-stage: prep + discover/analyzer/driftBuilder.
 ```
 
 Every shim binary is a `dart_binary(compile_mode="exe")`. In worker mode
@@ -120,7 +114,7 @@ the shim verbatim as `--config`:
   none.
 - Keys and values are builder-defined — the same names the builder accepts
   under `options:` in `build.yaml`. rules_dart does not read `build.yaml`
-  (see [Dual-build coexistence](#dual-build-coexistence)); `config` is the
+  (see [build.yaml](#buildyaml)); `config` is the
   per-target replacement. Gazelle writes it from the package's `build.yaml`
   (see [build.yaml](#buildyaml)), or from the
   `# gazelle:dart_builder_config <Annotation> <json-string>` directive (see
@@ -385,88 +379,35 @@ choose the files it runs on. `# gazelle:exclude build.yaml` in the package
 root's BUILD file has Gazelle not read the file, for a package that keeps it
 for build_runner alone.
 
-## Dual-build coexistence
+## Generated files in the source tree
 
-rules_dart does not run `build_runner` and supports no system-wide install of
-it (see the [README](../README.md#command-map)). A checkout migrating from
-`build_runner` may still hold files it wrote, and a pipeline that has not yet
-dropped it; the guarantees below keep the first from breaking the Bazel build
-and Bazel's files from breaking the second:
+A package that publishes carries its generated files (`.g.dart`,
+`.freezed.dart`, …) in its source tree, as `build_runner`'s README requires,
+so a checkout can hold a `lib/user.g.dart` next to a `dart_codegen` target
+that produces `lib/user.g.dart`. rules_dart never runs `build_runner`; three
+independent mechanisms keep the checked-in file from breaking the Bazel
+build. Each has a dedicated test.
 
-### 1. `build_runner`-generated files in the source tree don't break Bazel
-
-Three independent mechanisms guard this. Each has a dedicated test.
-
-- **Gazelle drops stale files from generated BUILD files.**
+- **Gazelle drops the files from generated BUILD files.**
   `filterOutGeneratedFiles` in `gazelle/dart/generate.go` excludes every
   registered `produces=` extension (`.g.dart`, `.freezed.dart`,
   `.mocks.dart`, …) from `dart_library.srcs`. Pinned by the
-  `dev/testdata/dual_build_coexistence` fixture (first-time generation)
-  and `dev/testdata/dual_build_coexistence_update` (rewrite of an
-  existing BUILD whose `srcs` still lists the stale files).
+  `dev/testdata/dart_generated_in_source_tree` fixture (first-time
+  generation) and `dev/testdata/dart_generated_in_source_tree_update`
+  (rewrite of an existing BUILD whose `srcs` still lists the files).
 - **`dart_library` fails the build if a hand-written `srcs` lists a
   collision.** If two files in `srcs` resolve to the same
-  package-relative path — e.g. a committed `lib/user.g.dart` next to a
+  package-relative path — e.g. a checked-in `lib/user.g.dart` next to a
   `dart_codegen` target producing `lib/user.g.dart` — `dart_library`
   fails with a diagnostic pointing at both paths. Pinned by unit tests
   in `dart/tests:library_test`.
-- **Runfiles layout favours the declared output.** Even when a stale
+- **Runfiles layout favours the declared output.** Even when a checked-in
   `lib/user.g.dart` lives next to its source, the `dart_test`'s
   runfiles tree gets the `bazel-out/` version, not the source-tree
-  copy. Pinned by `e2e/ext_exemplar/dual_build_sample/`: its committed
+  copy. Pinned by `e2e/ext_exemplar/source_tree_generated/`: its checked-in
   `lib/user.g.dart` returns intentionally-wrong values (`STALE_NAME`,
   `-999`), so the JSON round-trip assertions in `user_test.dart` would
   fail if that file ever leaked into runfiles.
-
-### 2. Bazel scaffolding doesn't break `build_runner`
-
-`package:build`'s asset discovery walks only `lib/`, `test/`, `bin/`,
-`web/`, `tool/` — never the repo root, where `BUILD.bazel`,
-`MODULE.bazel`, and `bazel-*` convenience symlinks live. Pinned by
-`e2e/dual_build/run_build_runner_test`, which runs a real `pub get` and
-`build_runner` with the pinned SDK and so needs the network.
-
-### Recommendations
-
-- **`.gitignore`** generated file extensions so `build_runner`'s leftover
-  output doesn't enter VCS:
-
-  ```
-  .dart_tool/
-  **/*.g.dart
-  **/*.freezed.dart
-  **/*.mocks.dart
-  **/*.config.dart
-  **/*.module.dart
-  **/*.drift.dart
-  **/*.gr.dart
-  **/*.locator.dart
-  **/*.router.dart
-  **/*.form.dart
-  **/*.logger.dart
-  **/*.dialogs.dart
-  **/*.bottomsheets.dart
-  ```
-
-- **`bazel run @rules_dart//dart/ext/tools:check_dual_build_collisions
--- path/to/repo`** flags every source-tree file matching a generator's
-  produced extension. Non-zero exit on findings; useful as a pre-commit
-  hook. Reads the extensions `baseline_generated_extensions.txt` lists,
-  which Gazelle's `filterOutGeneratedFiles` also filters from a copy in the
-  plugin's module; a test keeps the two copies the same.
-
-- **`build.yaml`** is not read by rules_dart. Builder options set there
-  apply only under `build_runner`. Pass equivalent options via the
-  macro's `config = "{...}"` argument (per-target), the
-  `# gazelle:dart_builder_config` directive (per-directory), or let Gazelle
-  write them from `build.yaml` (see [build.yaml](#buildyaml)).
-
-### Out of scope
-
-- Permanent coexistence as a production mode.
-- Byte-identical output between the two tools.
-- `build_runner` daemon interop.
-- `PostProcessBuilder` and other `build_runner`-specific hooks.
 
 ## Equivalence with `build_runner`
 
@@ -522,5 +463,5 @@ Cross-cutting scenarios that aren't tied to a single builder:
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
 | `e2e/ext_exemplar/cascade_two_stage/`     | Multi-annotation chain on one file (freezed → json cascade); DAG topological ordering + combining integration |
 | `e2e/ext_exemplar/multi_shard_combining/` | Multiple SharedPart builders on one source (json + copy_with) merged into one `.g.dart`                       |
-| `e2e/ext_exemplar/dual_build_sample/`     | Source-tree `.g.dart` files committed by `build_runner` don't leak into Bazel runfiles                        |
+| `e2e/ext_exemplar/source_tree_generated/` | A `.g.dart` checked into the source tree doesn't leak into Bazel runfiles                                    |
 | `e2e/ext_exemplar/unique_extension/`      | Custom `output_suffixes` on `dart_codegen` — the rules-layer customisation path                               |

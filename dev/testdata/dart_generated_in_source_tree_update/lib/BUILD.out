@@ -1,0 +1,12 @@
+# gazelle:dart_package_name generated_in_source_tree_update
+
+load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_library")
+
+json_serializable_library(
+    name = "user",
+    package_name = "generated_in_source_tree_update",
+    srcs = ["user.dart"],
+    annotation_dep = "@json_annotation",
+    visibility = ["//visibility:public"],
+    deps = ["@json_annotation"],
+)

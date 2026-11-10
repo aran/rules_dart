@@ -20,8 +20,8 @@ var baselineGeneratedExtensionsRaw string
 // baselineGeneratedExtensions is the full well-known set of Dart codegen
 // output extensions. When `.g.dart` arrives as a combining-shim output
 // (not produced by any individual Builder registration) it still needs to
-// be filtered; same for common build_runner extensions users may have
-// committed during migration.
+// be filtered; same for the extensions of generators rules_dart has no
+// builder for, whose output a package ships checked in.
 var baselineGeneratedExtensions = func() []string {
 	var out []string
 	for _, line := range strings.Split(baselineGeneratedExtensionsRaw, "\n") {

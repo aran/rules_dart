@@ -1,4 +1,4 @@
-import 'package:dual_build_sample/user.dart';
+import 'package:source_tree_generated/user.dart';
 import 'package:test/test.dart';
 
 void main() {

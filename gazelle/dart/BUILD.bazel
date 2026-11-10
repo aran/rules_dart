@@ -33,8 +33,6 @@ go_library(
     ],
 )
 
-exports_files(["baseline_generated_extensions.txt"])
-
 go_test(
     name = "dart_test",
     size = "small",

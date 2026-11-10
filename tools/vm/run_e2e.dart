@@ -56,7 +56,6 @@ const _ciFolders = [
   'e2e/pub_root_newer',
   'e2e/pub_package_padded',
   'e2e/ext_exemplar',
-  'e2e/dual_build',
   'e2e/fix',
   'e2e/no_pubspec',
   'e2e/analyze_composition',

@@ -9,7 +9,7 @@ load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_libr
 
 json_serializable_library(
     name = "user",
-    package_name = "dual_build_sample",
+    package_name = "source_tree_generated",
     srcs = ["lib/user.dart"],
     language_version = "3.11",
     visibility = ["//visibility:public"],
