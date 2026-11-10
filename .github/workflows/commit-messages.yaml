@@ -9,3 +9,6 @@ permissions:
 jobs:
   check:
     uses: ./.github/workflows/overhead-commit-messages.yaml
+    with:
+      # Bump to start the Bazel caches afresh (see CACHE_VERSION in ci.yaml).
+      cache-version: "1"

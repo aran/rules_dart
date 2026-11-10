@@ -11,6 +11,12 @@ on:
     - cron: "0 9 * * 1"
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
+env:
+  # Part of every setup-bazel cache key below. A cache restored on an exact key
+  # hit is never saved again, so it freezes at whatever the first run put in
+  # it; bump this number to start the caches afresh. The Commit messages
+  # workflow (commit-messages.yaml) passes its own: bump that one too.
+  CACHE_VERSION: "1"
 concurrency:
   # Cancel previous actions from the same PR or branch except 'main' branch.
   # See https://docs.github.com/en/actions/using-jobs/using-concurrency and https://docs.github.com/en/actions/learn-github-actions/contexts for more info.
@@ -560,6 +566,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: bazel-contrib/setup-bazel@0.19.1
         with:
+          cache-version: ${{ env.CACHE_VERSION }}
           bazelisk-cache: true
           disk-cache: ${{ github.job }}
           repository-cache: true
@@ -579,6 +586,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: bazel-contrib/setup-bazel@0.19.1
         with:
+          cache-version: ${{ env.CACHE_VERSION }}
           bazelisk-cache: true
           repository-cache: true
       - name: Query the whole published module from a consumer
@@ -594,6 +602,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: bazel-contrib/setup-bazel@0.19.1
         with:
+          cache-version: ${{ env.CACHE_VERSION }}
           bazelisk-cache: true
           repository-cache: true
       - name: MODULE.bazel.lock files
@@ -610,6 +619,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: bazel-contrib/setup-bazel@0.19.1
         with:
+          cache-version: ${{ env.CACHE_VERSION }}
           bazelisk-cache: true
           repository-cache: true
       - run: bazel run --noincompatible_auto_exec_groups @overhead//:bazel_env -- update-symlink

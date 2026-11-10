@@ -14,6 +14,12 @@
 name: Commit messages
 on:
   workflow_call:
+    inputs:
+      cache-version:
+        description: >-
+          Part of the Bazel cache keys. A cache restored on an exact key hit is never saved again, so it freezes; bump this to start it afresh.
+        type: string
+        default: "1"
 permissions:
   contents: read
 jobs:
@@ -27,6 +33,7 @@ jobs:
           fetch-depth: 0
       - uses: bazel-contrib/setup-bazel@0.19.1
         with:
+          cache-version: ${{ inputs.cache-version }}
           bazelisk-cache: true
           disk-cache: ${{ github.workflow }}
           repository-cache: true
