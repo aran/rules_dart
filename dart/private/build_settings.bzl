@@ -61,6 +61,11 @@ dart_defines_flag = rule(
     # skylib's `string_list_flag` splits a value on commas, which would turn
     # `-DA=1,2` into two broken entries before the compiler ever sees it.
     build_setting = config.string_list(flag = True, repeatable = True),
+    attrs = {
+        # Read by Bazel, as on skylib's flags, and only where a target sets
+        # it: `scope = "target"` resets the flag on every exec transition.
+        "scope": attr.string(),
+    },
     doc = "A repeatable list of Dart environment declarations (`KEY=VALUE`), " +
           "appended after a target's own `defines` so the command line wins " +
           "on a key collision.",

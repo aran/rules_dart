@@ -238,9 +238,11 @@ dart_analysis_config(
 # An executable's environment, carried to its dependencies' kernel modules by
 # the transition of `executable_defines_config`. Not a flag:
 # `--@rules_dart//dart:extra_dart_defines` is the command-line way in.
+# `scope = "target"` keeps it out of the exec configuration, as that flag.
 string_list_setting(
     name = "module_defines",
     build_setting_default = [],
+    scope = "target",
     visibility = ["//visibility:public"],
 )
 

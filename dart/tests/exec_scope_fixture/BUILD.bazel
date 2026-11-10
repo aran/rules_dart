@@ -1,0 +1,33 @@
+"""App settings stop at the exec configuration.
+
+`:holder` reaches `:tool` through a plain `cfg = "exec"`; `:probe` reaches it once from the test's
+own configuration and once from one with every app setting changed. The test
+asserts that both reach the same exec configuration and the same compile.
+"""
+
+load("//dart:defs.bzl", "dart_analysis_config", "dart_binary")
+load("//dart/tests:exec_scope_test.bzl", "exec_scope_holder", "exec_scope_probe", "exec_scope_test")
+
+dart_binary(
+    name = "tool",
+    main = "main.dart",
+)
+
+dart_analysis_config(name = "other_analysis_config")
+
+exec_scope_holder(
+    name = "holder",
+    tool = ":tool",
+)
+
+exec_scope_probe(
+    name = "probe",
+    changed = ":holder",
+    plain = ":holder",
+)
+
+exec_scope_test(
+    name = "exec_scope_test",
+    size = "small",
+    target_under_test = ":probe",
+)

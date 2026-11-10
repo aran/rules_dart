@@ -1779,7 +1779,11 @@ may also import the program's own files under the package's `lib/`. Pub packages
 ## Flags
 
 Every command-line setting rules_dart reads. Set one per invocation or in
-`.bazelrc` (`common --@rules_dart//dart:<name>=<value>`).
+`.bazelrc` (`common --@rules_dart//dart:<name>=<value>`). All but
+`modular_kernel` and `outline_kernel` describe the program being built, not the
+tools that build it: they do not reach the exec configuration, so build tools
+(codegen builders, any `cfg = "exec"` Dart tool) are built the same whatever
+they are set to.
 
 | Flag                                               | Default | What it does                                                                                                                                                  |
 | -------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |

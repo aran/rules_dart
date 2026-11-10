@@ -7,9 +7,13 @@ load("//dart/private:resolved_toolchain.bzl", "resolved_toolchain")
 # Dart environment declarations folded into every Dart compile, after any
 # target-level `defines`. Repeatable — one define per occurrence:
 #   bazel build //app --@rules_dart//dart:extra_dart_defines=FOO=bar
+# They describe the app: `scope = "target"` keeps them out of the exec
+# configuration, so build tools are compiled without them, and a new value
+# does not rebuild the tools.
 dart_defines_flag(
     name = "extra_dart_defines",
     build_setting_default = [],
+    scope = "target",
     visibility = ["//visibility:public"],
 )
 
@@ -49,6 +53,8 @@ bool_flag(
 bool_flag(
     name = "kernel_list",
     build_setting_default = True,
+    # No build tool reads it: `scope = "target"` keeps it from reconfiguring them.
+    scope = "target",
     visibility = ["//visibility:public"],
 )
 
@@ -63,6 +69,8 @@ bool_flag(
 bool_flag(
     name = "runner_snapshot",
     build_setting_default = False,
+    # No build tool reads it: `scope = "target"` keeps it from reconfiguring them.
+    scope = "target",
     visibility = ["//visibility:public"],
 )
 
@@ -98,6 +106,8 @@ config_setting(
 bool_flag(
     name = "analysis_worker",
     build_setting_default = True,
+    # No build tool reads it: `scope = "target"` keeps it from reconfiguring them.
+    scope = "target",
     visibility = ["//visibility:public"],
 )
 
@@ -229,6 +239,8 @@ bzl_library(
 label_flag(
     name = "analysis_config",
     build_setting_default = "//dart/private:empty_analysis_config",
+    # No build tool reads it: `scope = "target"` keeps it from reconfiguring them.
+    scope = "target",
     visibility = ["//visibility:public"],
 )
 
