@@ -82,7 +82,7 @@ say: `language_version = ""` remains legal and keeps its meaning, which
 `dart_info_fixture`'s `empty_language_version_test` pins.
 """
 
-load("//dart:providers.bzl", "DartAnalyzableInfo", "DartCodeAssetInfo", "DartInfo", "DartPackageInfo")
+load("//dart:providers.bzl", "DartAnalyzableInfo", "DartCodeAssetInfo", "DartDataAssetInfo", "DartInfo", "DartPackageInfo")
 
 def package_lib_prefix(package_root):
     """Returns the short_path prefix under which a package's importable files live.
@@ -136,6 +136,37 @@ def check_code_asset_ownership(label, package_name, assets):
                  "`dart_package_metadata` of the package its id names.") %
                 (label, asset.asset_id, prefix)
             )
+    return None
+
+def check_data_asset_ownership(label, package_name, assets):
+    """Checks that every data asset is the package's own, and named once.
+
+    Upstream requires a build hook's `DataAsset.package` to be the hook's own
+    package, and its names to be unique within it: the id
+    `package:<package>/<name>` is how Dart code finds the file.
+
+    Args:
+      label: The owning rule's label (included in the error message).
+      package_name: The package name this target declares.
+      assets: List of `struct(package, name, file, id)`.
+
+    Returns:
+      An error message string on the first problem, else `None`.
+    """
+    seen = {}
+    for asset in assets:
+        if asset.package != package_name:
+            return (
+                ("%s: data asset id `%s` is not namespaced to this package. " +
+                 "Expected it to start with `package:%s/`, because a data " +
+                 "asset is owned by the package declaring it. Move the asset " +
+                 "to the `dart_package_metadata` of the package its id names.") %
+                (label, asset.id, package_name)
+            )
+        if asset.id in seen:
+            return ("%s: data asset id `%s` is declared twice, by `%s` and `%s`." %
+                    (label, asset.id, seen[asset.id].short_path, asset.file.short_path))
+        seen[asset.id] = asset.file
     return None
 
 def dart_info_with_summaries(
@@ -268,11 +299,12 @@ def dart_package_info(
         package_root,
         language_version,
         code_assets = [],
+        data_assets = [],
         unreplaced_hook = "",
         version = "",
         link_hook = None,
         license_file = None):
-    """Builds the `DartPackageInfo` a package's own facts make, checking its code assets.
+    """Builds the `DartPackageInfo` a package's own facts make, checking its assets.
 
     For a rule author whose rule states a package's facts itself. A rule whose
     target names a `dart_package_metadata` builds its record with
@@ -294,6 +326,8 @@ def dart_package_info(
         package under newer semantics than its pubspec allows. `""` remains a
         legal, meaningful value; only not answering is refused.
       code_assets: Targets providing `DartCodeAssetInfo` that this package owns.
+      data_assets: Targets providing `DartDataAssetInfo` whose assets this
+        package owns.
       unreplaced_hook: Path of a pub build hook with no Bazel replacement,
         or "".
       version: The package's own resolved version, or "" when unknown. Only pub
@@ -306,9 +340,13 @@ def dart_package_info(
       A `DartPackageInfo`.
     """
     own_assets = [dep[DartCodeAssetInfo] for dep in code_assets]
-    err = check_code_asset_ownership(label, package_name, own_assets)
-    if err != None:
-        fail(err)
+    own_data = data_assets_of(data_assets)
+    for err in [
+        check_code_asset_ownership(label, package_name, own_assets),
+        check_data_asset_ownership(label, package_name, own_data),
+    ]:
+        if err != None:
+            fail(err)
     return _package_record(
         label = label,
         package_name = package_name,
@@ -316,11 +354,23 @@ def dart_package_info(
         version = version,
         language_version = language_version,
         code_assets = tuple(own_assets),
+        data_assets = tuple(own_data),
         unreplaced_hook = unreplaced_hook,
         link_hook = link_hook,
         license_file = license_file,
         metadata = None,
     )
+
+def data_assets_of(targets):
+    """The data assets of targets providing `DartDataAssetInfo`, in order.
+
+    Args:
+      targets: Targets providing `DartDataAssetInfo`.
+
+    Returns:
+      List of `struct(package, name, file, id)`.
+    """
+    return [asset for t in targets for asset in t[DartDataAssetInfo].assets.to_list()]
 
 def package_info_from_metadata(label, metadata, package_root):
     """Builds the `DartPackageInfo` of a target that names a `dart_package_metadata`.
@@ -347,13 +397,14 @@ def package_info_from_metadata(label, metadata, package_root):
         version = metadata.version,
         language_version = metadata.language_version,
         code_assets = metadata.code_assets,
+        data_assets = metadata.data_assets,
         unreplaced_hook = metadata.unreplaced_hook,
         link_hook = metadata.link_hook,
         license_file = metadata.license_file,
         metadata = metadata.label,
     )
 
-def _package_record(label, package_name, package_root, version, language_version, code_assets, unreplaced_hook, link_hook, license_file, metadata):
+def _package_record(label, package_name, package_root, version, language_version, code_assets, data_assets, unreplaced_hook, link_hook, license_file, metadata):
     if not package_name:
         fail(("%s: `package_name` is empty. A target that contributes no " +
               "package is what `dart_info_no_package()` and " +
@@ -365,6 +416,7 @@ def _package_record(label, package_name, package_root, version, language_version
         version = version,
         language_version = language_version,
         code_assets = code_assets,
+        data_assets = data_assets,
         unreplaced_hook = unreplaced_hook,
         link_hook = link_hook,
         license_file = license_file,
@@ -523,6 +575,7 @@ def derived_package_info(
         version = None,
         language_version = None,
         code_assets = None,
+        data_assets = None,
         unreplaced_hook = None,
         link_hook = None,
         license_file = None):
@@ -550,6 +603,7 @@ def derived_package_info(
       language_version: Replacement `language_version` string (`""` for none
         stated), or `None` to keep `pkg`'s.
       code_assets: Replacement `code_assets` tuple, or `None` to keep `pkg`'s.
+      data_assets: Replacement `data_assets` tuple, or `None` to keep `pkg`'s.
       unreplaced_hook: Replacement `unreplaced_hook` string (`""` for
         none), or `None` to keep `pkg`'s.
       link_hook: Replacement `link_hook` File, or `None` to keep `pkg`'s.
@@ -572,6 +626,9 @@ def derived_package_info(
         ),
         code_assets = (
             getattr(pkg, "code_assets", ()) if code_assets == None else code_assets
+        ),
+        data_assets = (
+            getattr(pkg, "data_assets", ()) if data_assets == None else data_assets
         ),
         unreplaced_hook = (
             getattr(pkg, "unreplaced_hook", "") if unreplaced_hook == None else unreplaced_hook

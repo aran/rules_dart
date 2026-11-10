@@ -5,13 +5,14 @@ so the hook is never run and no binary is compiled. The behaviour the hooks
 produce is `e2e/link_hook`'s to show.
 """
 
-load("//dart:defs.bzl", "dart_binary", "dart_code_asset", "dart_library", "dart_link_hook", "dart_package_metadata")
+load("//dart:defs.bzl", "dart_binary", "dart_code_asset", "dart_data_asset", "dart_library", "dart_link_hook", "dart_package_metadata")
 load(
     "//dart/tests:link_hook_test.bzl",
     "asset_without_hook_test",
     "empty_recording_binary_test",
     "library_records_link_hook_test",
     "link_hook_actions_test",
+    "link_hook_data_assets_test",
     "malformed_asset_id_test",
     "not_recording_binary_test",
     "own_package_not_named_test",
@@ -21,9 +22,18 @@ load(
 )
 load("//dart/tests:path_mapping_test.bzl", "path_mapping_test")
 
+# What the package's build hook would route to its link hook.
+dart_data_asset(
+    name = "raw",
+    src = "raw.json",
+    asset_id = "package:link_hook_fixture/data/raw.json",
+    tags = ["manual"],
+)
+
 dart_package_metadata(
     name = "pubspec-metadata",
     package_name = "link_hook_fixture",
+    data_assets = [":raw"],
     link_hook = "hook/link.dart",
 )
 
@@ -157,6 +167,45 @@ link_hook_actions_test(
     size = "small",
     recorded_uses_basename = "uses.json",
     target_under_test = ":linked_own_package",
+)
+
+# The hook receives its package's declared data asset; the declared asset of
+# the package without a hook ships beside what the hook emits.
+dart_link_hook(
+    name = "linked_with_data",
+    data_assets = ["package:link_hook_fixture/data/index.json"],
+    recorded_uses = "uses.json",
+    tags = ["manual"],
+    deps = [
+        ":lib",
+        "//dart/tests/link_hook_fixture/plain_data",
+    ],
+)
+
+link_hook_data_assets_test(
+    name = "link_hook_data_assets_test",
+    size = "small",
+    target_under_test = ":linked_with_data",
+)
+
+# The same, with the hook's package the program's own and no library of it in
+# `deps`: its assets are the hook's input as a dependency's would be.
+dart_link_hook(
+    name = "linked_own_package_with_data",
+    data_assets = ["package:link_hook_fixture/data/index.json"],
+    package = ":pubspec-metadata",
+    recorded_uses = "uses.json",
+    tags = ["manual"],
+    deps = [
+        "//dart/tests/link_hook_fixture/dep",
+        "//dart/tests/link_hook_fixture/plain_data",
+    ],
+)
+
+link_hook_data_assets_test(
+    name = "link_hook_own_package_data_assets_test",
+    size = "small",
+    target_under_test = ":linked_own_package_with_data",
 )
 
 # A program in the package, linked without naming it: its hook would not run.

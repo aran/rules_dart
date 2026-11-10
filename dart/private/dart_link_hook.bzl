@@ -1,10 +1,18 @@
 """The `dart_link_hook` rule.
 
 Runs the `hook/link.dart` of every package in a `dart_library` closure over an
-executable's recorded uses, and collects the data assets the hooks emit. This
-is the Bazel counterpart of the link step `dart build` runs: there, each
+executable's recorded uses, and collects the data assets the program ships.
+This is the Bazel counterpart of the link step `dart build` runs: there, each
 package's link hook sees which of its `@RecordUse` definitions survived
 tree-shaking and decides what to ship.
+
+A package's build hook, when linking is enabled, routes its data assets to the
+package's own link hook (`ToLinkHook`), which receives them as
+`LinkInput.assets` and emits what of them the program needs. The data assets a
+`dart_package_metadata` declares stand in for what that build hook emits, so a
+package with a link hook hands its declared ones to the hook, and the declared
+assets of packages without one ship as they are. What the target provides is
+both: the program's data assets after linking.
 
 One action per package with a link hook, each hermetic: the hook runs on the
 exec toolchain's `dart` against a `package_config.json` synthesised from the
@@ -20,19 +28,23 @@ an asset that is not declared, or not emitting one that is, fails the action
 and lists both sets.
 """
 
-load("//dart:providers.bzl", "DartDataAssetInfo", "DartInfo", "DartPackageMetadataInfo", "DartRecordedUsesInfo")
+load("//dart:providers.bzl", "DartDataAssetInfo", "DartInfo", "DartRecordedUsesInfo")
 load(
     "//dart/private:common.bzl",
     "PATH_MAPPING",
     "SDK_ENV",
     "collect_transitive_resources",
     "collect_transitive_srcs",
+    "executable_package_record",
     "format_literal",
+    "package_identity_attrs",
     "package_link_hook",
     "program_packages",
     "resolve_package_identity",
+    "unique_data_assets",
 )
-load("//dart/private:dart_info.bzl", "package_info_from_metadata", "package_lib_prefix")
+load("//dart/private:dart_data_asset.bzl", "data_asset", "parse_data_asset_ids")
+load("//dart/private:dart_info.bzl", "package_lib_prefix")
 load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS", "portable_sdk")
 load(
     "//dart/private:project_staging.bzl",
@@ -41,33 +53,6 @@ load(
     "staged_package_config_content",
 )
 load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS")
-
-def parse_data_asset_ids(label, ids):
-    """Splits declared data asset ids into package and name.
-
-    Args:
-      label: The rule's label, for messages.
-      ids: The `data_assets` strings, each `package:<package>/<name>`.
-
-    Returns:
-      `(assets, error)`: a list of `struct(package, name, id)` in declaration
-      order, and None; or None and an error string.
-    """
-    assets = []
-    seen = {}
-    for asset_id in ids:
-        rest = asset_id[len("package:"):] if asset_id.startswith("package:") else ""
-        package, _, name = rest.partition("/")
-        segments = name.split("/")
-        if not package or not name or "" in segments or "." in segments or ".." in segments:
-            return None, ("%s: data asset id `%s` is not of the form " +
-                          "`package:<package>/<name>`, with `<name>` a relative " +
-                          "path.") % (label, asset_id)
-        if asset_id in seen:
-            return None, "%s: data asset id `%s` is declared twice." % (label, asset_id)
-        seen[asset_id] = True
-        assets.append(struct(package = package, name = name, id = asset_id))
-    return assets, None
 
 def recorded_uses_file_error(label, files):
     """Checks a `recorded_uses` target without `DartRecordedUsesInfo`.
@@ -183,25 +168,28 @@ def dart_link_hook_actions(ctx, runner, recorded_uses, package, package_files, d
       runner: The link-hook runner executable (`ctx.executable._link_hook_runner`).
       recorded_uses: The recorded-uses JSON File.
       package: The program's own `DartPackageInfo`, or `None` for a program
-        in no package. Its link hook runs as a dependency's does
-        (`program_packages`).
+        in no package. Its link hook runs and its data assets ship as a
+        dependency's do (`program_packages`).
       package_files: The program's own Files under that package's `lib/`
         (its sources and resources there; `[]` when it has none), which the
         package's link hook may import as any package's hook imports its
         own `lib/`. A file elsewhere fails.
       deps: Targets providing `DartInfo`; their closure is linked with the
         program's own package.
-      data_asset_ids: The declared ids, each `package:<package>/<name>`.
+      data_asset_ids: The ids of the assets the hooks emit, each
+        `package:<package>/<name>`.
       name: Prefix for declared outputs, unique within the package.
 
     Returns:
       A struct: `assets` (a list of `struct(package, name, file, id)`, the
-      content of `DartDataAssetInfo`), and `validation_outputs` (Files to
-      put in an `_validation` output group, so every hook runs whenever the
-      target builds even if it emits no asset).
+      content of `DartDataAssetInfo`: the program's data assets after linking,
+      what the hooks emit and the declared assets of packages without a hook),
+      and `validation_outputs` (Files to put in an `_validation` output group,
+      so every hook runs whenever the target builds even if it emits no
+      asset).
     """
     sdk = portable_sdk(ctx)
-    declared, err = parse_data_asset_ids(ctx.label, data_asset_ids)
+    emitted, err = parse_data_asset_ids(ctx.label, data_asset_ids)
     if err != None:
         fail(err)
 
@@ -211,11 +199,26 @@ def dart_link_hook_actions(ctx, runner, recorded_uses, package, package_files, d
         for pkg in packages
         if package_link_hook(pkg) != None
     }
-    for asset in declared:
+    for asset in emitted:
         if asset.package not in hooks:
             fail(("%s: data asset `%s` is declared for package `%s`, which has " +
                   "no link hook in the program's packages. Packages with one: %s.") %
                  (ctx.label, asset.id, asset.package, sorted(hooks.keys()) or "none"))
+
+    # The data assets the packages' build hooks would emit, as their
+    # `dart_package_metadata` declares them. A package with a link hook hands
+    # its own to the hook, which decides what of them ships, as a build hook
+    # does when linking is enabled; the others ship as they are.
+    package_assets, err = unique_data_assets(packages)
+    if err != None:
+        fail(err)
+    hook_inputs = {name: [] for name in hooks}
+    asset_infos = []
+    for asset in package_assets:
+        if asset.package in hooks:
+            hook_inputs[asset.package].append(asset)
+        else:
+            asset_infos.append(asset)
 
     err = package_files_error(ctx.label, package, package_files)
     if err != None:
@@ -254,7 +257,6 @@ def dart_link_hook_actions(ctx, runner, recorded_uses, package, package_files, d
     for root in roots.values():
         package_inputs.extend(root.files)
 
-    asset_infos = []
     link_outputs = []
     for package_name in sorted(hooks.keys()):
         root = roots[hook_keys[package_name]]
@@ -279,8 +281,11 @@ def dart_link_hook_actions(ctx, runner, recorded_uses, package, package_files, d
         )
         args.add("--recorded-uses", recorded_uses)
         args.add("--output", link_output)
+        inputs = [asset.file for asset in hook_inputs[package_name]]
+        for asset in hook_inputs[package_name]:
+            args.add("--input-data-asset", asset.file, format = format_literal(asset.name) + "=%s")
         outputs = [link_output]
-        for asset in declared:
+        for asset in emitted:
             if asset.package != package_name:
                 continue
             out = ctx.actions.declare_file(
@@ -288,17 +293,12 @@ def dart_link_hook_actions(ctx, runner, recorded_uses, package, package_files, d
             )
             outputs.append(out)
             args.add("--data-asset", out, format = format_literal(asset.name) + "=%s")
-            asset_infos.append(struct(
-                package = asset.package,
-                name = asset.name,
-                file = out,
-                id = asset.id,
-            ))
+            asset_infos.append(data_asset(asset.package, asset.name, out))
         ctx.actions.run(
             executable = runner,
             arguments = [args],
             inputs = depset(
-                [recorded_uses] + package_inputs,
+                [recorded_uses] + package_inputs + inputs,
                 # The hook is a script, which `dart` runs in the VM.
                 transitive = [sdk.files.run],
             ),
@@ -312,8 +312,8 @@ def dart_link_hook_actions(ctx, runner, recorded_uses, package, package_files, d
     return struct(assets = asset_infos, validation_outputs = link_outputs)
 
 def _dart_link_hook_impl(ctx):
-    metadata = resolve_package_identity(ctx).metadata
-    package = package_info_from_metadata(ctx.label, metadata, metadata.package_root) if metadata != None else None
+    identity = resolve_package_identity(ctx)
+    package = executable_package_record(ctx.label, identity) if identity.metadata != None else None
 
     # A program's own files in its package's `lib/` come with its uses; a
     # plain JSON file brings none, and the package's files are its libraries'.
@@ -352,25 +352,25 @@ format the Dart compiler writes.""",
         ),
         "deps": attr.label_list(
             doc = """`dart_library` targets whose closure is linked, with the program's own \
-`package`. Every package there with a `link_hook` has its hook run; packages without one are \
-skipped. Usually the same `deps` as the `dart_binary` named in `recorded_uses`.""",
+`package`. Every package there with a `link_hook` has its hook run, receiving the `data_assets` \
+its `dart_package_metadata` declares as `LinkInput.assets`; the declared data assets of packages \
+without one are provided as they are. Usually the same `deps` as the `dart_binary` named in \
+`recorded_uses`.""",
             providers = [DartInfo],
-        ),
-        "package": attr.label(
-            doc = """The `dart_package_metadata` of the program's own package, the `package` of \
-the `dart_binary` named in `recorded_uses` (which must agree). It is linked as a package in \
-`deps` is: its link hook runs. Unset, the program is in no package.""",
-            providers = [DartPackageMetadataInfo],
         ),
         "data_assets": attr.string_list(
             doc = """The ids (`package:<package>/<name>`) of the data assets the hooks emit. \
 Bazel needs every output named before the hooks run, so each one is declared here; the build \
 fails if a hook emits an asset not listed, or does not emit one that is. Each lands at \
-`<target>/<package>/<name>` and is provided through `DartDataAssetInfo`.""",
+`<target>/<package>/<name>` and is provided through `DartDataAssetInfo`, beside the declared \
+data assets of packages without a link hook.""",
         ),
-    } | link_hook_runner_attr(),
+    } | package_identity_attrs(doc = """The `dart_package_metadata` of the program's own \
+package, the `package` of the `dart_binary` named in `recorded_uses` (which must agree). It is \
+linked as a package in `deps` is: its link hook runs and its data assets ship. Unset, the \
+program is in no package.""") | link_hook_runner_attr(),
     provides = [DartDataAssetInfo],
     exec_groups = PORTABLE_EXEC_GROUPS,
     toolchains = COPY_TO_DIRECTORY_TOOLCHAINS,
-    doc = "Runs the `hook/link.dart` of each package in `deps` over an executable's recorded uses and collects the data assets they emit.",
+    doc = "Runs the `hook/link.dart` of each package in `deps` over an executable's recorded uses and provides the data assets the program ships.",
 )

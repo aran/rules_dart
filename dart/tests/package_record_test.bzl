@@ -67,6 +67,7 @@ def _meta(label, package_name = "app", package_root = "app", language_version = 
         language_version = language_version,
         version = version,
         code_assets = code_assets,
+        data_assets = (),
         unreplaced_hook = "",
         link_hook = link_hook,
         license_file = license_file,

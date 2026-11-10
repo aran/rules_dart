@@ -13,10 +13,10 @@ import (
 // A package's hooks live in its hook/ directory, and Gazelle states each on
 // the package's `dart_package_metadata`, at its root (metadata.go).
 //
-// hook/build.dart builds native code when pub gets the package. rules_dart
-// never runs it, and fails every binary and test that reaches the package
-// unless the metadata's `code_assets` replace what it builds. So Gazelle
-// states it, and the build says what to do.
+// hook/build.dart builds native code and data assets when pub gets the
+// package. rules_dart never runs it, and fails every binary and test that
+// reaches the package unless the metadata's `code_assets` and `data_assets`
+// replace what it builds. So Gazelle states it, and the build says what to do.
 //
 // hook/link.dart decides what the package ships from a program's recorded
 // uses; `dart_link_hook` runs it from the metadata's `link_hook`, and its

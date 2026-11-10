@@ -1,0 +1,77 @@
+"""Fixtures for the `analysistest`s in `//dart/tests:data_asset_test.bzl`.
+
+A first-party package whose `hook/build.dart` emits a data asset, which a
+`dart_data_asset` stands in for. Nothing here is built: every target an
+assertion reads is tagged `manual`.
+"""
+
+load("//dart:defs.bzl", "dart_binary", "dart_data_asset", "dart_library", "dart_package_metadata")
+load(
+    "//dart/tests:data_asset_test.bzl",
+    "data_asset_provider_test",
+    "library_carries_data_assets_test",
+    "malformed_data_asset_id_test",
+    "replaced_hook_analyzes_test",
+)
+
+dart_data_asset(
+    name = "greeting",
+    src = "greeting.txt",
+    asset_id = "package:data_asset_fixture/greeting.txt",
+    tags = ["manual"],
+    visibility = ["//dart/tests/data_asset_fixture:__subpackages__"],
+)
+
+data_asset_provider_test(
+    name = "data_asset_provider_test",
+    size = "small",
+    target_under_test = ":greeting",
+)
+
+dart_data_asset(
+    name = "malformed",
+    src = "greeting.txt",
+    asset_id = "data_asset_fixture/greeting.txt",
+    tags = ["manual"],
+)
+
+malformed_data_asset_id_test(
+    name = "malformed_data_asset_id_test",
+    size = "small",
+    target_under_test = ":malformed",
+)
+
+# The declared data asset replaces what the build hook would emit.
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "data_asset_fixture",
+    build_hook = "hook/build.dart",
+    data_assets = [":greeting"],
+    tags = ["manual"],
+)
+
+dart_library(
+    name = "lib",
+    srcs = ["lib/greeting.dart"],
+    package = ":pubspec-metadata",
+    tags = ["manual"],
+)
+
+library_carries_data_assets_test(
+    name = "library_carries_data_assets_test",
+    size = "small",
+    target_under_test = ":lib",
+)
+
+dart_binary(
+    name = "bin",
+    main = "main.dart",
+    tags = ["manual"],
+    deps = [":lib"],
+)
+
+replaced_hook_analyzes_test(
+    name = "replaced_hook_analyzes_test",
+    size = "small",
+    target_under_test = ":bin",
+)

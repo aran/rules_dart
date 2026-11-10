@@ -1,0 +1,16 @@
+load("//dart:defs.bzl", "dart_package_metadata")
+load("//dart/tests:data_asset_test.bzl", "misowned_data_asset_test")
+
+# A data asset whose id names another package.
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "misowned",
+    data_assets = ["//dart/tests/data_asset_fixture:greeting"],
+    tags = ["manual"],
+)
+
+misowned_data_asset_test(
+    name = "misowned_data_asset_test",
+    size = "small",
+    target_under_test = ":pubspec-metadata",
+)

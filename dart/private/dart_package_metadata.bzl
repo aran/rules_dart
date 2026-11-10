@@ -1,7 +1,7 @@
 """The `dart_package_metadata` rule: a Dart package's facts, declared once."""
 
-load("//dart:providers.bzl", "DartCodeAssetInfo", "DartPackageMetadataInfo")
-load("//dart/private:dart_info.bzl", "check_code_asset_ownership")
+load("//dart:providers.bzl", "DartCodeAssetInfo", "DartDataAssetInfo", "DartPackageMetadataInfo")
+load("//dart/private:dart_info.bzl", "check_code_asset_ownership", "check_data_asset_ownership", "data_assets_of")
 load("//dart/private:package_root.bzl", "locate_package_root")
 
 def link_hook_error(label, package_root, link_hook):
@@ -47,20 +47,20 @@ def build_hook_error(label, package_root, build_hook):
                 "got `%s`.") % (label, expected, build_hook.short_path)
     return None
 
-def unreplaced_build_hook(build_hook, code_assets):
+def unreplaced_build_hook(build_hook, assets):
     """The package-relative path of a build hook nothing replaces, or "".
 
-    rules_dart does not run a build hook. Code assets the package owns replace
-    what it would build, as curated ones replace a pub package's.
+    rules_dart does not run a build hook. The code and data assets the package
+    owns replace what it would build, as curated ones replace a pub package's.
 
     Args:
         build_hook: The `build_hook` File, or None.
-        code_assets: The package's own `code_assets`.
+        assets: The package's own `code_assets` and `data_assets`.
 
     Returns:
         `hook/build.dart`, or "" when there is no hook or it is replaced.
     """
-    if build_hook == None or code_assets:
+    if build_hook == None or assets:
         return ""
     return "hook/build.dart"
 
@@ -70,10 +70,12 @@ def _dart_package_metadata_impl(ctx):
         fail("%s: %s" % (ctx.label, root.error))
     package_root = root.root
     assets = [a[DartCodeAssetInfo] for a in ctx.attr.code_assets]
+    data_assets = data_assets_of(ctx.attr.data_assets)
     for err in [
         link_hook_error(ctx.label, package_root, ctx.file.link_hook),
         build_hook_error(ctx.label, package_root, ctx.file.build_hook),
         check_code_asset_ownership(ctx.label, ctx.attr.package_name, assets),
+        check_data_asset_ownership(ctx.label, ctx.attr.package_name, data_assets),
     ]:
         if err != None:
             fail(err)
@@ -84,7 +86,8 @@ def _dart_package_metadata_impl(ctx):
         language_version = ctx.attr.language_version,
         version = ctx.attr.version,
         code_assets = tuple(assets),
-        unreplaced_hook = unreplaced_build_hook(ctx.file.build_hook, assets),
+        data_assets = tuple(data_assets),
+        unreplaced_hook = unreplaced_build_hook(ctx.file.build_hook, assets + data_assets),
         link_hook = ctx.file.link_hook,
         license_file = ctx.file.license_file,
     )]
@@ -108,11 +111,11 @@ dart_package_metadata = rule(
         ),
         "build_hook": attr.label(
             doc = """The package's `hook/build.dart`, if it has one. rules_dart never runs a \
-build hook: the native code it would build comes from `code_assets` instead. A package with a \
-`build_hook` and no `code_assets` fails every `dart_binary`/`dart_test` that reaches it, rather \
-than building a program whose `@Native` bindings fail to resolve at run time. Must be the file at \
-`hook/build.dart` under the package root. Leave it unset for a hook whose native code nothing \
-here uses.""",
+build hook: the native code it would build comes from `code_assets` instead, and the data assets \
+it would emit from `data_assets`. A package with a `build_hook` and neither fails every \
+`dart_binary`/`dart_test` that reaches it, rather than building a program whose `@Native` \
+bindings fail to resolve at run time. Must be the file at `hook/build.dart` under the package \
+root. Leave it unset for a hook whose assets nothing here uses.""",
             allow_single_file = [".dart"],
         ),
         "link_hook": attr.label(
@@ -128,6 +131,15 @@ They reach every `dart_binary`/`dart_test` that depends on any library of the pa
 or transitively, and every one in the package (its `package`) — matching upstream, where depending \
 on a package gets you its assets with no opt-in, and the root package is like any other. Each `asset_id` must be namespaced to `package_name`.""",
             providers = [DartCodeAssetInfo],
+        ),
+        "data_assets": attr.label_list(
+            doc = """Data assets this package owns (see the `dart_data_asset` rule): the files \
+its build hook would emit as `DataAsset`s. They reach every program that depends on any library \
+of the package, directly or transitively, or is in it, through `collect_transitive_data_assets`; when the \
+package has a `link_hook`, `dart_link_hook` hands them to it as `LinkInput.assets` instead, as a \
+build hook routes its data assets to its own link hook when linking. Each `asset_id` must be \
+`package:<package_name>/<name>`, each name once.""",
+            providers = [DartDataAssetInfo],
         ),
     },
     provides = [DartPackageMetadataInfo],
@@ -178,8 +190,8 @@ directory and states nothing else.
 
 Gazelle writes it at each package root, named `pubspec-metadata`, from
 `pubspec.yaml`, `hook/` and the license file; it adopts one already there,
-whatever its name, and keeps a hand-written `code_assets`. Pub's spoke
-repositories write one per package.
+whatever its name, and keeps a hand-written `code_assets` and `data_assets`.
+Pub's spoke repositories write one per package.
 
 Not to be confused with `pub.package()`, the module extension tag that fetches a
 published package from pub.dev. This declares facts about a package in the

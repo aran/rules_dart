@@ -65,6 +65,18 @@ def package_code_assets(pkg):
     """
     return pkg.code_assets if hasattr(pkg, "code_assets") else ()
 
+def package_data_assets(pkg):
+    """Data assets declared on a `DartPackageInfo`, tolerating older producers.
+
+    Args:
+      pkg: A `DartPackageInfo`.
+
+    Returns:
+      Tuple of `struct(package, name, file, id)`; empty when the field is
+      absent.
+    """
+    return getattr(pkg, "data_assets", ())
+
 def package_link_hook(pkg):
     """A `DartPackageInfo`'s `hook/link.dart`, tolerating older producers.
 
@@ -165,6 +177,53 @@ def collect_transitive_code_assets(package, deps):
     for pkg in program_packages(package, deps):
         assets.extend(list(package_code_assets(pkg)))
     return assets
+
+def collect_transitive_data_assets(package, deps):
+    """Collects the data assets of every package of a program.
+
+    The data assets a program ships when nothing links it, as a build hook
+    routes them to the application bundle then; `dart_link_hook` gives a
+    linked program's.
+
+    Args:
+      package: The program's own `DartPackageInfo`, or `None`; see
+        `program_packages`.
+      deps: List of targets providing `DartInfo`.
+
+    Returns:
+      List of `struct(package, name, file, id)`, one per id, the program's own
+      package's first, then in dependency order. Fails when two records of one
+      package name different files for one id: an application bundles one
+      file per id.
+    """
+    assets, err = unique_data_assets(program_packages(package, deps))
+    if err != None:
+        fail(err)
+    return assets
+
+def unique_data_assets(packages):
+    """The data assets of `packages`, one per id; what `collect_transitive_data_assets` returns.
+
+    Args:
+      packages: List of `DartPackageInfo`, merged as `collect_packages` merges them.
+
+    Returns:
+      `(assets, error)`: the list and None, or None and an error string.
+    """
+    by_id = {}
+    for pkg in packages:
+        for asset in package_data_assets(pkg):
+            previous = by_id.get(asset.id)
+            if previous == None:
+                by_id[asset.id] = asset
+            elif previous.file != asset.file:
+                return None, (("data asset id `%s` names two files, `%s` and `%s`: " +
+                               "two records of package `%s` declare it differently. " +
+                               "An application bundles one file per id; declare the " +
+                               "package's data assets once, on its " +
+                               "`dart_package_metadata`.") %
+                              (asset.id, previous.file.short_path, asset.file.short_path, asset.package))
+    return by_id.values(), None
 
 def own_packages(info):
     """Returns the `DartPackageInfo` records of the packages a `DartInfo` itself contributes.
@@ -493,6 +552,7 @@ def codegen_identity(identity):
         language_version = "",
         version = "",
         code_assets = (),
+        data_assets = (),
         unreplaced_hook = "",
         link_hook = None,
         license_file = None,
@@ -711,14 +771,14 @@ def merge_package_records(merged):
     different declarations or two records state different values of any of
     those fields.
 
-    Code assets union instead, each once: dropping a later record's assets
-    would silently lose a native library, and the failure would surface at
-    runtime as an unresolved `@Native` symbol. `resolve_code_assets` fails
-    later if — and only if — two assets genuinely claim one id, which is the
-    case the Dart VM cannot resolve either. Code assets replace a build hook,
-    so the merged package's hook is unreplaced when any record names one and no
-    record supplies code assets: a hub curating `code_assets` replaces the hook
-    another hub still flags.
+    Code and data assets union instead, each once: dropping a later record's
+    assets would silently lose a native library, and the failure would surface
+    at runtime as an unresolved `@Native` symbol. `resolve_code_assets` and
+    `collect_transitive_data_assets` fail later if — and only if — two assets
+    genuinely claim one id, which is the case the Dart VM cannot resolve either.
+    Assets replace a build hook, so the merged package's hook is unreplaced
+    when any record names one and no record supplies assets: a hub curating
+    `code_assets` replaces the hook another hub still flags.
 
     Split out from `collect_packages` because the dedup and union rules are a
     pure function of the record list, which makes them directly testable
@@ -759,12 +819,19 @@ def _merge_one(records):
             if asset not in code_assets:
                 code_assets.append(asset)
     code_assets = tuple(code_assets)
+    data_assets = []
+    for pkg in records:
+        for asset in package_data_assets(pkg):
+            if asset not in data_assets:
+                data_assets.append(asset)
+    data_assets = tuple(data_assets)
     merged = derived_package_info(
         kept,
         version = _first_stated(records, lambda p: getattr(p, "version", ""), ""),
         language_version = _first_stated(records, lambda p: getattr(p, "language_version", ""), ""),
         code_assets = code_assets,
-        unreplaced_hook = "" if code_assets else _first_stated(records, lambda p: getattr(p, "unreplaced_hook", ""), ""),
+        data_assets = data_assets,
+        unreplaced_hook = "" if code_assets or data_assets else _first_stated(records, lambda p: getattr(p, "unreplaced_hook", ""), ""),
         link_hook = _first_stated(records, package_link_hook, None),
         license_file = _first_stated(records, package_license_file, None),
     )
@@ -1442,14 +1509,16 @@ def check_unreplaced_hooks(label, packages):
         for pkg in offenders
     ]
     return (
-        ("%s depends on package(s) that build native code with a hook " +
+        ("%s depends on package(s) that build assets with a hook " +
          "rules_dart does not run:\n%s\n\n" +
-         "Their `@Native` bindings will not resolve at runtime. A target's own " +
-         "`code_assets` do not replace a package's hook; the package's must.\n" +
+         "Their `@Native` bindings will not resolve at runtime, and their data " +
+         "assets will be missing. A target's own `code_assets` do not replace a " +
+         "package's hook; the package's must.\n" +
          "  - For your own package: build the native code with Bazel and " +
          "name its `dart_code_asset` in the `code_assets` of the package's " +
-         "`dart_package_metadata`, or remove its `build_hook` if the native " +
-         "code is genuinely unused here.\n" +
+         "`dart_package_metadata`, and each file the hook emits as a data " +
+         "asset as a `dart_data_asset` in its `data_assets`; or remove its " +
+         "`build_hook` if what it builds is genuinely unused here.\n" +
          "  - For a pub package: if its native code is genuinely unused here, list " +
          "it in `pub.from_lock(ignore_hooks = [...])` or set " +
          "`pub.package(ignore_hook = True)`; otherwise map it with " +

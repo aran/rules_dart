@@ -16,10 +16,11 @@ Load this file from your BUILD files to access the following rules:
 - `dart_aggregate_codegen`: Runs a package-level aggregate code generator over all sources.
 - `dart_sqlcodegen`: Like `dart_codegen` but accepts non-Dart inputs (e.g. `.drift` files).
 - `dart_code_asset`: Binds a Bazel-built native dynamic library to a Dart code-asset id, for use in `dart_test`/`dart_binary` `code_assets`.
-- `dart_link_hook`: Runs packages' `hook/link.dart` over a `dart_binary`'s recorded uses and collects the data assets they emit.
+- `dart_data_asset`: Binds a file to a Dart data-asset id, for the `data_assets` of a `dart_package_metadata`.
+- `dart_link_hook`: Runs packages' `hook/link.dart` over a `dart_binary`'s recorded uses and provides the data assets the program ships.
 """
 
-load("//dart:providers.bzl", _DartCodeAssetInfo = "DartCodeAssetInfo")
+load("//dart:providers.bzl", _DartCodeAssetInfo = "DartCodeAssetInfo", _DartDataAssetInfo = "DartDataAssetInfo")
 load("//dart/private:dart_aggregate_codegen.bzl", _dart_aggregate_codegen = "dart_aggregate_codegen")
 load("//dart/private:dart_analysis_options.bzl", _dart_analysis_options = "dart_analysis_options")
 load("//dart/private:dart_analysis_test.bzl", _dart_analysis_test = "dart_analysis_test")
@@ -27,6 +28,7 @@ load("//dart/private:dart_analyze_aspect.bzl", _dart_analysis_config = "dart_ana
 load("//dart/private:dart_binary.bzl", _dart_binary = "dart_binary")
 load("//dart/private:dart_code_asset.bzl", _dart_code_asset = "dart_code_asset")
 load("//dart/private:dart_codegen.bzl", _dart_codegen = "dart_codegen")
+load("//dart/private:dart_data_asset.bzl", _dart_data_asset = "dart_data_asset")
 load("//dart/private:dart_library.bzl", _dart_library = "dart_library")
 load("//dart/private:dart_link_hook.bzl", _dart_link_hook = "dart_link_hook")
 load("//dart/private:dart_package_metadata.bzl", _dart_package_metadata = "dart_package_metadata")
@@ -49,5 +51,7 @@ dart_codegen = _dart_codegen
 dart_aggregate_codegen = _dart_aggregate_codegen
 dart_sqlcodegen = _dart_sqlcodegen
 dart_code_asset = _dart_code_asset
+dart_data_asset = _dart_data_asset
 dart_link_hook = _dart_link_hook
 DartCodeAssetInfo = _DartCodeAssetInfo
+DartDataAssetInfo = _DartDataAssetInfo

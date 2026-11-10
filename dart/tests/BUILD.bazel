@@ -5,6 +5,7 @@ load(":code_asset_test.bzl", "code_asset_test_suite")
 load(":codegen_test.bzl", "codegen_test_suite")
 load(":common_test.bzl", "common_test_suite")
 load(":dart_binary_test.bzl", "dart_binary_test_suite")
+load(":data_asset_test.bzl", "data_asset_test_suite")
 load(":defines_test.bzl", "defines_test_suite")
 load(":import_check_test.bzl", "import_check_test_suite")
 load(":library_test.bzl", "library_test_suite")
@@ -46,6 +47,8 @@ defines_test_suite(name = "defines_test")
 native_assets_test_suite(name = "native_assets_test")
 
 code_asset_test_suite(name = "code_asset_test")
+
+data_asset_test_suite(name = "data_asset_test")
 
 propagation_test_suite(name = "propagation_test")
 

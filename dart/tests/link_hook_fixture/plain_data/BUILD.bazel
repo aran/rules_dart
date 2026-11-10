@@ -1,0 +1,22 @@
+load("//dart:defs.bzl", "dart_data_asset", "dart_library", "dart_package_metadata")
+
+# A package with a data asset and no link hook: it ships as it is.
+dart_data_asset(
+    name = "banner",
+    src = "banner.txt",
+    asset_id = "package:plain_data/banner.txt",
+    tags = ["manual"],
+)
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "plain_data",
+    data_assets = [":banner"],
+)
+
+dart_library(
+    name = "plain_data",
+    srcs = ["lib/banner.dart"],
+    package = ":pubspec-metadata",
+    visibility = ["//dart/tests/link_hook_fixture:__pkg__"],
+)

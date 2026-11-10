@@ -1,5 +1,5 @@
 load("@rules_dart//dart:defs.bzl", "dart_analysis_config", "dart_analysis_options", "dart_binary", "dart_link_hook", "dart_test")
-load(":in_rule.bzl", "in_rule_assets")
+load(":in_rule.bzl", "in_rule_assets", "unlinked_assets")
 
 exports_files(["pubspec.lock"])
 
@@ -123,6 +123,136 @@ dart_test(
         ":in_rule_assets",
     ],
     main = "index_test.dart",
+    deps = ["@rules_dart//dart/runfiles"],
+)
+
+# Declared data assets. `sounds` declares what its build hook emits and has a
+# link hook, which receives them and keeps the sounds the program uses;
+# `banner` declares one and has no link hook, so it ships as it is.
+dart_binary(
+    name = "sounds_app",
+    main = "sounds_app.dart",
+    record_use = True,
+    deps = [
+        "//banner",
+        "//sounds",
+    ],
+)
+
+dart_link_hook(
+    name = "sounds_app_assets",
+    data_assets = ["package:sounds/chime.txt"],
+    recorded_uses = ":sounds_app",
+    deps = [
+        "//banner",
+        "//sounds",
+    ],
+)
+
+# Not linked, a program ships every declared asset.
+unlinked_assets(
+    name = "sounds_app_unlinked_assets",
+    deps = [
+        "//banner",
+        "//sounds",
+    ],
+)
+
+dart_test(
+    name = "linked_assets_test",
+    size = "small",
+    args = [
+        "'$(rlocationpaths :sounds_app_assets)'",
+        "banner.txt=welcome",
+        "chime.txt=ding",
+    ],
+    data = [":sounds_app_assets"],
+    main = "assets_test.dart",
+    deps = ["@rules_dart//dart/runfiles"],
+)
+
+dart_test(
+    name = "unlinked_assets_test",
+    size = "small",
+    args = [
+        "'$(rlocationpaths :sounds_app_unlinked_assets)'",
+        "banner.txt=welcome",
+        "bell.txt=dong",
+        "chime.txt=ding",
+    ],
+    data = [":sounds_app_unlinked_assets"],
+    main = "assets_test.dart",
+    deps = ["@rules_dart//dart/runfiles"],
+)
+
+# The program's own package, `jingle`, declares data assets and a link hook,
+# and no library of it is in `deps`: linked, its hook keeps the tune; not
+# linked, the program ships both of its sounds.
+_JINGLE_DEPS = [
+    "//sounds",
+    "@pub_deps//:data_assets",
+    "@pub_deps//:hooks",
+]
+
+dart_link_hook(
+    name = "jingle_assets",
+    data_assets = [
+        "package:jingle/tune.txt",
+        "package:sounds/chime.txt",
+    ],
+    package = "//jingle:pubspec-metadata",
+    recorded_uses = "//jingle:app",
+    deps = _JINGLE_DEPS,
+)
+
+in_rule_assets(
+    name = "jingle_in_rule_assets",
+    data_assets = [
+        "package:jingle/tune.txt",
+        "package:sounds/chime.txt",
+    ],
+    package = "//jingle:pubspec-metadata",
+    recorded_uses = "//jingle:app",
+    deps = _JINGLE_DEPS,
+)
+
+unlinked_assets(
+    name = "jingle_unlinked_assets",
+    package = "//jingle:pubspec-metadata",
+    deps = _JINGLE_DEPS,
+)
+
+[
+    dart_test(
+        name = name + "_test",
+        size = "small",
+        args = [
+            "'$(rlocationpaths :%s)'" % name,
+            "chime.txt=ding",
+            "tune.txt=tune",
+        ],
+        data = [":" + name],
+        main = "assets_test.dart",
+        deps = ["@rules_dart//dart/runfiles"],
+    )
+    for name in [
+        "jingle_assets",
+        "jingle_in_rule_assets",
+    ]
+]
+
+dart_test(
+    name = "jingle_unlinked_assets_test",
+    size = "small",
+    args = [
+        "'$(rlocationpaths :jingle_unlinked_assets)'",
+        "bell.txt=dong",
+        "chime.txt=ding",
+        "hum.txt=hum",
+        "tune.txt=tune",
+    ],
+    data = [":jingle_unlinked_assets"],
+    main = "assets_test.dart",
     deps = ["@rules_dart//dart/runfiles"],
 )
 

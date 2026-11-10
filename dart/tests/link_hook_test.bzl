@@ -16,12 +16,8 @@ load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts", "unittest")
 load("//dart:providers.bzl", "DartDataAssetInfo", "DartInfo", "DartRecordedUsesInfo")
 load("//dart/private:common.bzl", "merge_package_records", "package_link_hook")
 load("//dart/private:dart_compile.bzl", "recorded_uses_kind")
-load(
-    "//dart/private:dart_link_hook.bzl",
-    "package_files_error",
-    "parse_data_asset_ids",
-    "recorded_uses_file_error",
-)
+load("//dart/private:dart_data_asset.bzl", "parse_data_asset_ids")
+load("//dart/private:dart_link_hook.bzl", "package_files_error", "recorded_uses_file_error")
 load("//dart/private:dart_package_metadata.bzl", "link_hook_error")
 
 # buildifier: disable=bzl-visibility
@@ -325,6 +321,33 @@ link_hook_actions_test = analysistest.make(
     _link_hook_actions_test_impl,
     attrs = {"recorded_uses_basename": attr.string()},
 )
+
+def _link_hook_data_assets_test_impl(ctx):
+    # The hook's package's declared asset is the hook's input, by name, and
+    # not shipped itself: the hook decides. The declared asset of the package
+    # without a hook ships as it is, beside what the hook emits.
+    env = analysistest.begin(ctx)
+    target = analysistest.target_under_test(env)
+    runs = _actions(env, "DartLinkHook")
+    asserts.equals(env, 1, len(runs))
+    argv = runs[0].argv
+    raw = [f for f in runs[0].inputs.to_list() if f.short_path == "dart/tests/link_hook_fixture/raw.json"]
+    asserts.equals(env, 1, len(raw), str(runs[0].inputs.to_list()))
+    asserts.true(env, "data/raw.json=" + raw[0].path in argv, str(argv))
+    asserts.equals(env, 1, len([a for a in argv if a == "--input-data-asset"]), str(argv))
+
+    assets = target[DartDataAssetInfo].assets.to_list()
+    asserts.equals(
+        env,
+        sorted(["package:plain_data/banner.txt", "package:link_hook_fixture/data/index.json"]),
+        sorted([a.id for a in assets]),
+    )
+    banner = [a for a in assets if a.package == "plain_data"][0]
+    asserts.equals(env, "dart/tests/link_hook_fixture/plain_data/banner.txt", banner.file.short_path)
+    asserts.equals(env, sorted([a.file.short_path for a in assets]), sorted([f.short_path for f in target[DefaultInfo].files.to_list()]))
+    return analysistest.end(env)
+
+link_hook_data_assets_test = analysistest.make(_link_hook_data_assets_test_impl)
 
 def _validation_runs_assetless_hook_test_impl(ctx):
     # A hook whose package declares no assets still runs, as a validation

@@ -25,6 +25,7 @@ dart_package_metadata(
     name = "metadata",
     package_name = "old",
     code_assets = [":native"],
+    data_assets = [":data"],
     language_version = "3.10",
     license_file = "LICENSE",
     link_hook = "//hook:link",
@@ -52,6 +53,9 @@ dart_package_metadata(
 	}
 	if assets := got.AttrStrings("code_assets"); len(assets) != 1 || assets[0] != ":native" {
 		t.Errorf("code_assets = %v, want [:native]", assets)
+	}
+	if assets := got.AttrStrings("data_assets"); len(assets) != 1 || assets[0] != ":data" {
+		t.Errorf("data_assets = %v, want [:data]", assets)
 	}
 }
 
@@ -87,5 +91,8 @@ func TestRemovedFactAttrsManaged(t *testing.T) {
 	}
 	if dartKinds(defaultBuilders())["dart_package_metadata"].MergeableAttrs["code_assets"] {
 		t.Error("dart_package_metadata manages code_assets, which only a person states")
+	}
+	if dartKinds(defaultBuilders())["dart_package_metadata"].MergeableAttrs["data_assets"] {
+		t.Error("dart_package_metadata manages data_assets, which only a person states")
 	}
 }

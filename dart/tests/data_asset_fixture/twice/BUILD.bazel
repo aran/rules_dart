@@ -1,0 +1,33 @@
+load("//dart:defs.bzl", "dart_data_asset", "dart_package_metadata")
+load("//dart/tests:data_asset_test.bzl", "data_asset_declared_twice_test")
+
+dart_data_asset(
+    name = "one",
+    src = "one.txt",
+    asset_id = "package:twice/a.txt",
+    tags = ["manual"],
+)
+
+dart_data_asset(
+    name = "other",
+    src = "other.txt",
+    asset_id = "package:twice/a.txt",
+    tags = ["manual"],
+)
+
+# Two files under one id.
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "twice",
+    data_assets = [
+        ":one",
+        ":other",
+    ],
+    tags = ["manual"],
+)
+
+data_asset_declared_twice_test(
+    name = "data_asset_declared_twice_test",
+    size = "small",
+    target_under_test = ":pubspec-metadata",
+)

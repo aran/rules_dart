@@ -19,6 +19,7 @@ load(
     _code_asset_identity = "code_asset_identity",
     _collect_packages = "collect_packages",
     _collect_transitive_code_assets = "collect_transitive_code_assets",
+    _collect_transitive_data_assets = "collect_transitive_data_assets",
     _collect_transitive_resources = "collect_transitive_resources",
     _collect_transitive_srcs = "collect_transitive_srcs",
     _derive_package_name = "derive_package_name",
@@ -28,6 +29,7 @@ load(
     _generate_package_config_content = "generate_package_config_content",
     _merged_package_record = "merged_package_record",
     _package_code_assets = "package_code_assets",
+    _package_data_assets = "package_data_assets",
     _package_identity_attrs = "package_identity_attrs",
     _package_license_file = "package_license_file",
     _program_packages = "program_packages",
@@ -41,6 +43,7 @@ load(
     _COVERAGE_ATTRS = "COVERAGE_ATTRS",
     _test_coverage = "test_coverage",
 )
+load("//dart/private:dart_data_asset.bzl", _parse_data_asset_ids = "parse_data_asset_ids")
 load("//dart/private:dart_deps.bzl", _DART_TOOLCHAIN_TYPES_ATTR = "DART_TOOLCHAIN_TYPES_ATTR")
 load(
     "//dart/private:dart_import_check.bzl",
@@ -61,7 +64,6 @@ load(
     "//dart/private:dart_link_hook.bzl",
     _dart_link_hook_actions = "dart_link_hook_actions",
     _link_hook_runner_attr = "link_hook_runner_attr",
-    _parse_data_asset_ids = "parse_data_asset_ids",
 )
 load(
     "//dart/private:dart_module.bzl",
@@ -166,7 +168,7 @@ resolve_package_identity = _resolve_package_identity
 executable_package_record = _executable_package_record
 
 # The `DartPackageInfo` record of a package a target contributes, from what the
-# rule states about it; checks that its code assets are namespaced to it.
+# rule states about it; checks that its code and data assets are namespaced to it.
 dart_package_info = _dart_package_info
 
 # The `DartPackageInfo` record of a target that names a `dart_package_metadata`
@@ -251,13 +253,12 @@ generate_dev_package_config = _generate_dev_package_config
 generate_package_config_content = _generate_package_config_content
 runfiles_path = _runfiles_path
 
-# A program's packages: its own package's record (`package_info_from_metadata`
-# of its declaration, or the record a rule whose sources are its package builds;
-# `None` for a program in no package) and every package its `deps` reach,
-# merged. The helpers below that collect what a program ships take the same
-# `(package, deps)`, so the program's own package ships its assets and runs its
-# link hook exactly as a dependency's does, as upstream's hooks runner treats
-# the root package.
+# A program's packages: its own package's record (`executable_package_record`,
+# or the record a rule whose sources are its package builds; `None` for a
+# program in no package) and every package its `deps` reach, merged. The helpers
+# below that collect what a program ships take the same `(package, deps)`, so
+# the program's own package ships its assets and runs its link hook exactly as
+# a dependency's does, as upstream's hooks runner treats the root package.
 program_packages = _program_packages
 
 # Code asset resolution, as `dart_binary` and `dart_test` do it, for a rule set
@@ -270,6 +271,16 @@ code_asset_identity = _code_asset_identity
 collect_transitive_code_assets = _collect_transitive_code_assets
 package_code_assets = _package_code_assets
 resolve_code_assets = _resolve_code_assets
+
+# The data assets a program ships when nothing links it (a debug build), for a
+# bundler: `collect_transitive_data_assets(package, deps)`, every one of the
+# program's packages' `data_assets`, one per id, each a
+# `struct(package, name, file, id)` as `DartDataAssetInfo.assets` holds it. A
+# linked program's are what `dart_link_hook_actions` returns, which hands the
+# assets of a package with a link hook to the hook. `package_data_assets` reads
+# one `DartPackageInfo`'s.
+collect_transitive_data_assets = _collect_transitive_data_assets
+package_data_assets = _package_data_assets
 
 # The license text of one `DartPackageInfo`, or `None`, for a bundler building
 # an app's license page. Read it off `collect_packages()`'s records, not the raw

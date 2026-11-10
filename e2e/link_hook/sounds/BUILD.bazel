@@ -1,0 +1,40 @@
+load("@rules_dart//dart:defs.bzl", "dart_data_asset", "dart_library", "dart_package_metadata")
+
+# What `hook/build.dart` emits, declared: rules_dart does not run a build hook.
+# A program that is linked hands both to `hook/link.dart`, which keeps the
+# sounds the program uses; one that is not ships both.
+[
+    dart_data_asset(
+        name = sound,
+        src = "assets/%s.txt" % sound,
+        asset_id = "package:sounds/%s.txt" % sound,
+    )
+    for sound in [
+        "bell",
+        "chime",
+    ]
+]
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "sounds",
+    build_hook = "hook/build.dart",
+    data_assets = [
+        ":bell",
+        ":chime",
+    ],
+    link_hook = "hook/link.dart",
+)
+
+dart_library(
+    name = "sounds",
+    srcs = glob(["lib/**/*.dart"]),
+    package = ":pubspec-metadata",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@pub_deps//:data_assets",
+        "@pub_deps//:hooks",
+        "@pub_deps//:meta",
+        "@pub_deps//:record_use",
+    ],
+)

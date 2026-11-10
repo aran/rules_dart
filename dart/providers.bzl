@@ -70,7 +70,8 @@ collecting its output can check that both name the same package.""",
         "language_version": "str: Dart language version implied by the package's `environment.sdk` constraint, in `<major>.<minor>` form. Empty when the package states none.",
         "version": "str: The package's own resolved version; empty when unknown, as for a hand-written package.",
         "code_assets": "tuple[DartCodeAssetInfo]: Native code assets the package owns.",
-        "unreplaced_hook": "str: `hook/build.dart` when the package has a build hook and no `code_assets` replace it; empty otherwise.",
+        "data_assets": "tuple[struct]: Data assets the package owns, each as `DartDataAssetInfo.assets` holds one.",
+        "unreplaced_hook": "str: `hook/build.dart` when the package has a build hook and no `code_assets` or `data_assets` replace it; empty otherwise.",
         "link_hook": "File or None: The package's `hook/link.dart`.",
         "license_file": "File or None: The package's license text.",
     },
@@ -85,7 +86,8 @@ DartPackageInfo = provider(
         "version": "str: The package's own version, as resolved by pub (e.g. `2.2.0`). Optional; empty string when unknown, which is what a `dart_library` written by hand and a producer predating this field both carry. Recorded so that two records for one package name can be checked for agreement — see `package_agreement_error`.",
         "language_version": "str: Dart language version implied by the package's `environment.sdk` constraint, in `<major>.<minor>` form. Optional; empty string when unknown.",
         "code_assets": "tuple[DartCodeAssetInfo]: Native code assets this package owns. A tuple rather than a list because `DartPackageInfo` is carried in a depset, whose elements must be hashable.",
-        "unreplaced_hook": "str: Path of a `hook/build.dart` this package ships that has no Bazel replacement (empty when none). Merged across a package's records: unreplaced when any states one and none has `code_assets`. Acted on by `dart_binary`/`dart_test`.",
+        "data_assets": "tuple[struct]: Data assets this package owns, each as `DartDataAssetInfo.assets` holds one. Optional; absent from a record built by a producer predating the field. Read them with `collect_transitive_data_assets()` from `//dart:utils.bzl`.",
+        "unreplaced_hook": "str: Path of a `hook/build.dart` this package ships that has no Bazel replacement (empty when none). Merged across a package's records: unreplaced when any states one and none has `code_assets` or `data_assets`. Acted on by `dart_binary`/`dart_test`.",
         "link_hook": "File or None: The package's `hook/link.dart`, which `dart_link_hook` runs. Optional; `None` when the package has none, and absent from a record built by a producer predating the field.",
         "license_file": "File or None: The package's license text — for a pub package, the `NOTICES` file at its root if it has one, else its `LICENSE`, the file `flutter build` collects for the license page. Optional; `None` when the package has none, and absent from a record built by a producer predating the field. Read it with `package_license_file()` from `//dart:utils.bzl`.",
         "metadata": "Label or None: The `dart_package_metadata` the record was built from (`package_info_from_metadata()`), or `None` for a package that names none. Records of one package rooted at one directory must name the same one. Optional; absent from a record built by a producer predating the field.",
@@ -182,7 +184,12 @@ DartDataAssetInfo = provider(
     doc = """Data assets: files a Dart program reads at run time by asset id, \
 the counterpart of `DartCodeAssetInfo` for data rather than native code.
 
-Produced by `dart_link_hook` from the data assets its link hooks emit. Carries \
+Produced by `dart_data_asset`, one asset a package declares in the \
+`data_assets` of its `dart_package_metadata`, standing in for one its build \
+hook would emit; and by `dart_link_hook`, the data assets a linked program \
+ships: what its link hooks emit, and the declared assets of packages without \
+one. A program nothing links ships its packages' declared assets, which \
+`collect_transitive_data_assets()` from `//dart:utils.bzl` returns. Carries \
 only what upstream's `DataAsset` carries — package, name, file — and no \
 bundling paths: where the file lands inside an application is the bundler's \
 decision (rules_flutter's, for a Flutter app).""",

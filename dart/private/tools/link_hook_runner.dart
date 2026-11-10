@@ -1,14 +1,16 @@
 // Runs one package's `hook/link.dart` for `dart_link_hook`.
 //
-// Builds the hook's `LinkInput` (package, roots, recorded uses), runs the hook
-// on the hermetic SDK's `dart`, checks its `LinkOutput`, and copies each data
-// asset it emits to the output Bazel declared for that asset's id.
+// Builds the hook's `LinkInput` (package, roots, recorded uses, and the data
+// assets the package declares, which its build hook would have routed to it),
+// runs the hook on the hermetic SDK's `dart`, checks its `LinkOutput`, and
+// copies each data asset it emits to the output Bazel declared for that
+// asset's id.
 //
 // Usage:
 //   link_hook_runner --dart <dart> --packages <package_config.json>
 //       --package-name <name> --package-root <dir>
 //       --recorded-uses <json> --output <link_output.json>
-//       [--data-asset <name>=<path>]...
+//       [--input-data-asset <name>=<path>]... [--data-asset <name>=<path>]...
 import 'dart:convert';
 import 'dart:io';
 
@@ -24,16 +26,21 @@ Future<void> main(List<String> arguments) async {
     ..addOption('package-root', mandatory: true)
     ..addOption('recorded-uses', mandatory: true)
     ..addOption('output', mandatory: true)
+    ..addMultiOption('input-data-asset', splitCommas: false)
     ..addMultiOption('data-asset', splitCommas: false);
   final args = parser.parse(arguments);
   final packageName = args.option('package-name')!;
 
-  // Declared data assets, by name within the package.
-  final declared = <String, String>{};
-  for (final entry in args.multiOption('data-asset')) {
-    final at = entry.indexOf('=');
-    declared[entry.substring(0, at)] = entry.substring(at + 1);
-  }
+  // Data assets, by name within the package: those the hook receives, and
+  // those it is declared to emit.
+  Map<String, String> byName(String option) => {
+    for (final entry in args.multiOption(option))
+      entry.substring(0, entry.indexOf('=')): entry.substring(
+        entry.indexOf('=') + 1,
+      ),
+  };
+  final received = byName('input-data-asset');
+  final declared = byName('data-asset');
 
   final scratch = Directory.systemTemp.createTempSync('dart_link_hook_');
   try {
@@ -41,6 +48,14 @@ Future<void> main(List<String> arguments) async {
       packageName: packageName,
       packageRoot: Directory(args.option('package-root')!).absolute,
       recordedUses: File(args.option('recorded-uses')!).absolute,
+      assets: [
+        for (final MapEntry(key: name, value: path) in received.entries)
+          DataAsset(
+            package: packageName,
+            name: name,
+            file: File(path).absolute.uri,
+          ),
+      ],
       scratch: scratch,
     );
     final inputFile = File('${scratch.path}/input.json')
@@ -75,6 +90,10 @@ Future<void> main(List<String> arguments) async {
 
     final errors = [
       ...await ProtocolBase.validateLinkOutput(input, output),
+      for (final asset in output.assets.data)
+        if (asset.package != packageName)
+          'emitted `${asset.id}`, a data asset of another package; '
+              'dart_link_hook gives a hook only its own package\'s',
       ...await DataAssetsExtension().validateLinkOutput(input, output),
       for (final asset in output.assets.encodedAssets)
         if (!asset.isDataAsset)
@@ -135,6 +154,7 @@ LinkInput _linkInput({
   required String packageName,
   required Directory packageRoot,
   required File recordedUses,
+  required List<DataAsset> assets,
   required Directory scratch,
 }) {
   final builder = LinkInputBuilder()
@@ -145,7 +165,7 @@ LinkInput _linkInput({
       outputFile: File('${scratch.path}/output.json').uri,
     )
     ..setupLink(
-      assets: [],
+      assets: [for (final asset in assets) asset.encode()],
       assetsFromLinking: [],
       recordedUsesFile: recordedUses.uri,
     )

@@ -1,0 +1,43 @@
+load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_data_asset", "dart_package_metadata")
+
+# An application package with assets and a link hook of its own, and no
+# library: the program is the package, and its hook and assets are linked as a
+# dependency's are.
+[
+    dart_data_asset(
+        name = sound,
+        src = "assets/%s.txt" % sound,
+        asset_id = "package:jingle/%s.txt" % sound,
+    )
+    for sound in [
+        "hum",
+        "tune",
+    ]
+]
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "jingle",
+    build_hook = "hook/build.dart",
+    data_assets = [
+        ":hum",
+        ":tune",
+    ],
+    link_hook = "hook/link.dart",
+    visibility = ["//visibility:public"],
+)
+
+dart_binary(
+    name = "app",
+    srcs = ["lib/jingle.dart"],
+    main = "bin/main.dart",
+    package = ":pubspec-metadata",
+    record_use = True,
+    visibility = ["//visibility:public"],
+    deps = [
+        "//sounds",
+        # The imports of the package's hooks.
+        "@pub_deps//:data_assets",
+        "@pub_deps//:hooks",
+    ],
+)

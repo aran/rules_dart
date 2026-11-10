@@ -1,0 +1,1 @@
+const banner = 1;

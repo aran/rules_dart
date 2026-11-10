@@ -31,7 +31,7 @@ import (
 // metadataName, and a `dart_package_metadata` already at the root is the
 // package's, whatever its name, and is an error where the root's BUILD file
 // holds two. Gazelle rewrites what it writes there and keeps the rest, such as
-// `code_assets`, which only a person states; a `# keep` attribute stays as it
+// `code_assets` and `data_assets`, which only a person states; a `# keep` attribute stays as it
 // is, and is an error where it disagrees with a directive or the pubspec.
 
 // metadataName is the name Gazelle gives a `dart_package_metadata` it

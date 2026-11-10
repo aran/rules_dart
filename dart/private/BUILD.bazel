@@ -424,6 +424,16 @@ bzl_library(
 )
 
 bzl_library(
+    name = "dart_data_asset",
+    srcs = ["dart_data_asset.bzl"],
+    visibility = ["//dart:__subpackages__"],
+    deps = [
+        ":runtime",
+        "//dart:providers",
+    ],
+)
+
+bzl_library(
     name = "exec_groups",
     srcs = ["exec_groups.bzl"],
     visibility = ["//dart:__subpackages__"],

@@ -950,8 +950,8 @@ with codegen targets gets one stating its library's name.
 `pubspec.yaml`, the directives and the package's files, and `# keep` on one
 makes it yours.** A `dart_package_metadata` already at the root is the
 package's, whatever its name: Gazelle merges into it and keeps what it does not
-write (`code_assets`, `version`), and fails when the root's BUILD file holds
-two. One with no `pubspec.yaml` or directive
+write (`code_assets`, `data_assets`, `version`), and fails when the root's
+BUILD file holds two. One with no `pubspec.yaml` or directive
 beside it is itself the source of its name and version. A `# keep` attribute,
 a directive and the `pubspec.yaml` must agree: where two state a package's name
 or language version differently, Gazelle reports each disagreement, naming both
@@ -1013,9 +1013,9 @@ A package's `hook/build.dart` is its metadata's `build_hook`, and its
 `hook/link.dart` its metadata's `link_hook`: Gazelle puts each hook in a
 `filegroup` in `hook/` and names it on the package's `dart_package_metadata`.
 A build hook fails every binary and test that reaches the package until the
-metadata's `code_assets` supply what the hook would build (see
-[Native code assets](#native-code-assets)); `code_assets` is yours: Gazelle
-never writes or removes it. A link hook's imports are the `deps` of the
+metadata's `code_assets` and `data_assets` supply what the hook would build (see
+[Native code assets](#native-code-assets) and [Data assets](#data-assets));
+both are yours: Gazelle never writes or removes them. A link hook's imports are the `deps` of the
 package's library,
 for `dart_link_hook` to run it (see
 [Recorded uses and link hooks](#recorded-uses-and-link-hooks)). A package
@@ -1131,6 +1131,7 @@ a pubspec gives has a home in Bazel:
 | The versions in `pubspec.lock`, `dependency_overrides` | `pub.package()` pins, each with `version` and `sha256` (see [Using pub.dev packages](#using-pubdev-packages)). A pin in the root module decides. |
 | `hook/build.dart`, `hook/link.dart` | `build_hook` and `link_hook` on the `dart_package_metadata`. |
 | Native libraries a hook would build | `code_assets` on the `dart_package_metadata` (see [Native code assets](#native-code-assets)). |
+| Data assets a hook would emit | `data_assets` on the `dart_package_metadata` (see [Data assets](#data-assets)). |
 | The license file | `license_file` on the `dart_package_metadata`. |
 | `executables:` | A `dart_binary`. |
 
@@ -1859,6 +1860,59 @@ dart_binary(
 )
 ```
 
+### Data assets
+
+A package's `hook/build.dart` can also emit data assets: files a program
+loads by id, `package:<package>/<name>`, at run time (a Flutter app through
+`rootBundle`). rules_dart does not run the hook; `dart_data_asset` binds a
+file, written by hand or by any rule, to the id the hook would give it, and the
+package's `dart_package_metadata` names it in `data_assets`:
+
+```starlark
+load("@rules_dart//dart:defs.bzl", "dart_data_asset", "dart_library", "dart_package_metadata")
+
+dart_data_asset(
+    name = "chime",
+    src = "assets/chime.wav",
+    asset_id = "package:sounds/chime.wav",
+)
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "sounds",
+    build_hook = "hook/build.dart",
+    data_assets = [":chime"],
+)
+
+dart_library(
+    name = "sounds",
+    srcs = glob(["lib/**/*.dart"]),
+    package = ":pubspec-metadata",
+)
+```
+
+- Each id must be in the declaring package (`package:sounds/...` above), and
+  each name in it once, as upstream requires of a build hook's assets; anything
+  else fails the `dart_package_metadata`.
+- Data assets, like code assets, replace the build hook: a package whose hook
+  emits only data assets builds once they are declared.
+- They reach every program over any library of the package, and every program
+  in the package (its `package`), as upstream treats the root package like any
+  other. A program nothing
+  links (a debug build) ships them all. A linked one ships what
+  [`dart_link_hook`](#recorded-uses-and-link-hooks) provides: when linking, a
+  build hook sends its data assets to the package's own link hook, so the
+  declared assets of a package with a `link_hook` are that hook's input, and it
+  decides which ship; those of packages without one ship as they are.
+- `DartDataAssetInfo` carries each asset's package, name, file and id, and
+  no place in an application: where the file lands is the bundler's decision
+  (rules_flutter's, for a Flutter app). `dart_binary` and `dart_test` bundle
+  none, since the Dart VM has no way yet to load one. A rule set bundling them
+  reads a program's with `collect_transitive_data_assets(package, deps)` from
+  `@rules_dart//dart:utils.bzl`, passing the program's own package record, or
+  takes a linked program's from the `assets` that `dart_link_hook_actions`
+  returns.
+
 ### Recorded uses and link hooks
 
 A package can ship a `hook/link.dart` that decides what to include from how the
@@ -1866,7 +1920,7 @@ program uses the package: the compiler records each constant instance of a
 `@RecordUse` class (and each constant call to a `@RecordUse` static method)
 that survives tree-shaking. `dart_binary(record_use = True)` writes those uses
 beside the executable, and `dart_link_hook` runs the link hooks in its `deps`
-over them and collects the data assets they emit.
+over them and provides the data assets the program ships.
 
 ```starlark
 load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_library", "dart_link_hook", "dart_package_metadata")
@@ -1903,9 +1957,13 @@ Uses are recorded in the `exe` and `aot-snapshot` modes; in `kernel` the hooks
 see none. The data assets a hook emits are declared by
 id in `data_assets`, since Bazel names every output before the hooks run; the
 build fails if a hook emits a different set, or if it fails itself, with the
-hook's message. The program's own package is linked like those in `deps`: name
-it in `package`, as the `dart_binary` in `recorded_uses` does (the two must
-agree), and its hook runs. A link hook's imports are `deps` of the package's
+hook's message. Each hook receives its package's declared
+[data assets](#data-assets) as `input.assets.data`, as a build hook routes
+them to it, and the target provides what the hooks emit together with the
+declared data assets of the packages that have no link hook. The program's own
+package is linked like those in `deps`: name it in `package`, as the
+`dart_binary` in `recorded_uses` does (the two must agree), and its hook runs
+and its data assets ship. A link hook's imports are `deps` of the package's
 library, as pub requires, or of the program for its own package's hook, which
 may also import the program's own files under the package's `lib/`. Pub packages that ship a link hook get `link_hook` set by
 `pub.from_lock()`, and Gazelle sets it for your own (see [Hooks](#hooks)).
@@ -1973,7 +2031,7 @@ The [`e2e/`](e2e/) directory contains complete working examples:
 | [`pub_root_newer`](e2e/pub_root_newer/)                     | A root lock above a dependency's `pub.package()` wins, silently                                 |
 | [`codegen`](e2e/codegen/)                                   | `dart_codegen`/`dart_aggregate_codegen` over parts, re-exports and source sets                  |
 | [`ext_exemplar`](e2e/ext_exemplar/)                         | One package per bundled `dart/ext` builder, plus native `code_assets`, sqlite3/webcrypto        |
-| [`link_hook`](e2e/link_hook/)                               | `record_use` and a package's `hook/link.dart` emitting a data asset via `dart_link_hook`        |
+| [`link_hook`](e2e/link_hook/)                               | `record_use`, `hook/link.dart` emitting data assets via `dart_link_hook`, declared data assets  |
 
 > **Note**: Only the `exe` and `aot-snapshot` compile modes cross-compile via
 > `--platforms`. `kernel` is a VM format that ignores target
