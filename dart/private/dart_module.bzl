@@ -303,9 +303,9 @@ def _compile_modules(ctx, sdk, kernel_tool, name, srcs, packages, own_packages, 
         mnemonic = "DartModule",
         exec_group = PORTABLE,
         progress_message = "Compiling Dart modules %{label}",
-        # `kernel_tool` keeps one `kernel_worker` running across targets, which
-        # reads each dependency's kernel once instead of once per target. The
-        # last argument is the params file Bazel requires of a worker.
+        # `kernel_tool` keeps one `kernel_worker` running across targets, and
+        # shows each request's compiler only that request's declared sources.
+        # The last argument is the params file Bazel requires of a worker.
         execution_requirements = PATH_MAPPING | {
             "supports-workers": "1",
             "requires-worker-protocol": "proto",

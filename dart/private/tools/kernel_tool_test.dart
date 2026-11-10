@@ -8,6 +8,7 @@ import 'kernel_tool/args.dart';
 import 'kernel_tool/check_command.dart';
 import 'kernel_tool/commands.dart';
 import 'kernel_tool/compile.dart';
+import 'kernel_tool/declared_view.dart';
 import 'kernel_tool/directives.dart';
 import 'kernel_tool/entry_command.dart';
 import 'kernel_tool/frontend_command.dart';
@@ -1180,6 +1181,74 @@ import 'package:app/own.dart';
     });
   });
 
+  group('DeclaredView', () {
+    test('a root is a file: URI the compiler resolves to that directory', () {
+      for (final (path, windows, back) in [
+        ('C:/Users/me/Temp/view/_main', true, r'C:\Users\me\Temp\view\_main\'),
+        ('/tmp/view/_main', false, '/tmp/view/_main/'),
+      ]) {
+        final resolved = Uri.base.resolve(rootArgument(path, windows: windows));
+        expect(resolved.scheme, 'file');
+        expect(resolved.toFilePath(windows: windows), back);
+      }
+    });
+
+    test('holds the declared files at the paths kernel roots map to', () {
+      // Laid out as Bazel lays out an exec root, a sibling repository beside
+      // it; paths are relative to the exec root, the working directory.
+      final top = Directory.systemTemp.createTempSync('kernel_tool_test_');
+      final home = Directory.current;
+      addTearDown(() {
+        Directory.current = home;
+        top.deleteSync(recursive: true);
+      });
+      void write(String path) => File('${top.path}/$path')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(path);
+      for (final path in [
+        '_main/app/lib/a.dart',
+        '_main/app/lib/undeclared.dart',
+        '_main/out/bin/app/lib/a.dart',
+        '_main/out/bin/app/gen/g.dart',
+        '_main/out/bin/app/gen/h.dart',
+        'repo/lib/r.dart',
+      ]) {
+        write(path);
+      }
+      Directory.current = '${top.path}/_main';
+
+      final view = DeclaredView.stage(
+        // A file may come more than once: an executable's `main` is also in
+        // its `srcs`, a directory is passed beside a file in it, a path is
+        // spelled two ways.
+        paths: [
+          'app/lib',
+          'app/lib/a.dart',
+          './app/lib/a.dart',
+          'out/bin/app/gen',
+          'out/bin/app/gen/g.dart',
+          '../repo/lib/r.dart',
+          '../repo/lib/r.dart',
+        ],
+        // A tree artifact may be declared whole, or file by file.
+        declared: ['./app/lib/a.dart', 'out/bin/app/gen', '../repo/lib/r.dart'],
+        roots: ['out/bin', '.', '../repo'],
+      );
+      addTearDown(view.delete);
+      String? read(String root, String path) {
+        final file = File('${view.of(root)}/$path');
+        return file.existsSync() ? file.readAsStringSync() : null;
+      }
+
+      expect(read('out/bin', 'app/lib/a.dart'), isNull);
+      expect(read('.', 'app/lib/a.dart'), '_main/app/lib/a.dart');
+      expect(read('.', 'app/lib/undeclared.dart'), isNull);
+      expect(read('out/bin', 'app/gen/g.dart'), '_main/out/bin/app/gen/g.dart');
+      expect(read('out/bin', 'app/gen/h.dart'), '_main/out/bin/app/gen/h.dart');
+      expect(read('../repo', 'lib/r.dart'), 'repo/lib/r.dart');
+    });
+  });
+
   group('runFrontend', () {
     late Directory dir;
     setUp(() => dir = Directory.systemTemp.createTempSync('kernel_tool_test_'));
@@ -1428,6 +1497,33 @@ import 'package:app/own.dart';
           modules.single['reason'],
           'depends on package:dep/d.dart (//dep:dep), which does not compile\n'
           'd.dart:1:1: Error: no',
+        );
+      },
+    );
+
+    test(
+      'module fails, without compiling, a module that names a file: URI',
+      () async {
+        write('root/app/pc.json', _packageConfig);
+        final args = moduleArgs('lib', {
+          'app/lib/a.dart': "part 'file:///elsewhere/p.dart';",
+          'app/lib/b.dart':
+              "import 'dart:core' if (dart.library.nowhere) "
+              "'file:///elsewhere/c.dart';",
+        });
+        expect(await runArgs(args), 0);
+        final modules = (manifestOf('lib')['modules'] as List)
+            .cast<Map<String, dynamic>>();
+        expect(modules.map((m) => m['status']), ['failed', 'failed']);
+        expect(
+          modules.first['reason'],
+          "names 'file:///elsewhere/p.dart' (in package:app/a.dart), a file: "
+          'URI, which the compiler would read from outside the inputs the '
+          'build declares',
+        );
+        expect(
+          modules.last['reason'],
+          contains("names 'file:///elsewhere/c.dart' (in package:app/b.dart)"),
         );
       },
     );

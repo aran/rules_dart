@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'args.dart';
 import 'compile.dart';
+import 'declared_view.dart';
 import 'manifest.dart';
 import 'module_graph.dart';
 import 'sources.dart';
@@ -18,12 +19,15 @@ import 'uris.dart';
 ///
 /// [worker] is a compiler kept from an earlier run, if the caller has one (a
 /// Bazel worker); else one is started and stopped here. [digests] are those
-/// Bazel gave for the action's inputs. Messages go to [err].
+/// Bazel gave for the action's inputs. With [declaredInputs], the paths a work
+/// request declares, the compiler finds sources only among those
+/// (`declared_view.dart`); a sandbox needs no such list. Messages go to [err].
 Future<int> runModule(
   Args args, {
   required StringSink err,
   KernelWorker? worker,
   Map<String, List<int>> digests = const {},
+  List<String>? declaredInputs,
 }) async {
   final label = args.one('label');
   final outputDir = args.one('output-dir');
@@ -74,6 +78,16 @@ Future<int> runModule(
   // The dependencies' kernel files the modules were compiled against, which
   // the outlines refer to.
   final read = <String>{};
+  final view = declaredInputs == null
+      ? null
+      : DeclaredView.stage(
+          paths: [configPath, ...args.all('src')],
+          declared: declaredInputs,
+          roots: roots,
+        );
+  final compilerRoots = view == null
+      ? roots
+      : [for (final root in roots) rootArgument(view.of(root))];
   try {
     var compiled = 0;
     for (var i = 0; i < planned.length; i++) {
@@ -107,7 +121,7 @@ Future<int> runModule(
             '--track-creation-locations',
           '--multi-root-scheme',
           rootScheme,
-          for (final root in roots) ...['--multi-root', root],
+          for (final root in compilerRoots) ...['--multi-root', root],
           '--packages-file',
           rootUri(configRelative),
           '--no-summary-only',
@@ -148,6 +162,7 @@ Future<int> runModule(
     }
   } finally {
     if (!shared) await worker?.close();
+    view?.delete();
   }
 
   if (args.optional('outline-tool') case final tool?) {
@@ -207,13 +222,26 @@ Future<String?> _outline(
   }
 }
 
-/// Whether [plan] is unusable without compiling it, and why: it imports a
-/// `dart:` library the platform lacks, or it needs a module that is not ok. Null when it can be compiled.
+/// Whether [plan] is unusable without compiling it, and why: it names a
+/// `file:` URI, imports a `dart:` library the platform lacks, or needs a
+/// module that is not ok. Null when it can be compiled.
 ({String status, String reason})? moduleVerdict(
   PlannedModule plan,
   String target,
   ModuleReach reach,
 ) {
+  // The compiler reads a `file:` URI wherever the host has the file, so the
+  // module would depend on what the build never declared.
+  if (plan.fileUris.isNotEmpty) {
+    final one = plan.fileUris.length == 1;
+    return (
+      status: statusFailed,
+      reason:
+          'names ${plan.fileUris.join(', ')}, '
+          '${one ? 'a file: URI' : 'file: URIs'}, which the compiler would '
+          'read from outside the inputs the build declares',
+    );
+  }
   if (plan.unsupported.isNotEmpty) {
     return (
       status: statusUnsupported,

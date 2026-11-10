@@ -131,6 +131,7 @@ _KERNEL_TOOL_SRCS = [
     "kernel_tool/check_command.dart",
     "kernel_tool/commands.dart",
     "kernel_tool/compile.dart",
+    "kernel_tool/declared_view.dart",
     "kernel_tool/directives.dart",
     "kernel_tool/entry_command.dart",
     "kernel_tool/frontend_command.dart",
@@ -186,6 +187,27 @@ dart_test(
     main = "frontend_command_test.dart",
     deps = [
         "//dart/runfiles",
+        "@ext_pub_deps//:test",
+    ],
+)
+
+# `kernel_tool module` as a persistent worker over the SDK's real
+# `kernel_worker`: a request reads only the inputs it declares.
+dart_test(
+    name = "module_worker_test",
+    size = "small",
+    args = [
+        "$(rlocationpath :kernel_tool)",
+        "$(rlocationpath //dart/tests/sdk_files:copy_kernel)",
+    ],
+    data = [
+        ":kernel_tool",
+        "//dart/tests/sdk_files:copy_kernel",
+    ],
+    main = "module_worker_test.dart",
+    deps = [
+        "//dart/runfiles",
+        "@ext_pub_deps//:bazel_worker",
         "@ext_pub_deps//:test",
     ],
 )

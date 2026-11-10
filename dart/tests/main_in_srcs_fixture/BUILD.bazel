@@ -1,0 +1,13 @@
+load("//dart:defs.bzl", "dart_test")
+
+# `main` named in `srcs` too, so the test's own module compile is handed the
+# same file twice.
+dart_test(
+    name = "main_in_srcs_test",
+    size = "small",
+    srcs = [
+        "main_in_srcs_test.dart",
+        "support.dart",
+    ],
+    main = "main_in_srcs_test.dart",
+)

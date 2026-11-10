@@ -22,6 +22,7 @@ class LibraryNode {
     required this.path,
     required this.imports,
     required this.parts,
+    this.fileUris = const [],
   });
 
   final String uri;
@@ -34,6 +35,10 @@ class LibraryNode {
 
   /// URIs of the part files that library names and the target holds.
   final List<String> parts;
+
+  /// The `file:` URIs it or its parts name, as written, in any branch: files
+  /// the compiler would read off the host, whatever the build declares.
+  final List<String> fileUris;
 
   /// The libraries this one pulls in, `dart:` ones apart.
   Iterable<String> get reached sync* {
@@ -62,6 +67,7 @@ class PlannedModule {
     required this.parts,
     required this.deps,
     required this.unsupported,
+    this.fileUris = const [],
   });
 
   /// Library URIs, sorted; parts are not listed.
@@ -73,6 +79,9 @@ class PlannedModule {
 
   /// One line for each import of a `dart:` library the platform lacks.
   final List<String> unsupported;
+
+  /// Each `file:` URI a library names, with the library.
+  final List<String> fileUris;
 }
 
 /// The strongly connected components of the graph over [nodes], each after
@@ -152,6 +161,10 @@ PlannedModule _plannedModule(
         for (final dart in lib.unsupportedDart(supported))
           '${lib.uri} imports $dart',
     ],
+    fileUris: [
+      for (final lib in component)
+        for (final uri in lib.fileUris) "'$uri' (in ${lib.uri})",
+    ],
   );
 }
 
@@ -194,6 +207,10 @@ Sources readLibraries({
       for (final part in entry.value.parts)
         config.canonical(resolveUri(uri, part)),
     ];
+    final held = [
+      for (final part in parts)
+        if (partFiles.contains(part)) part,
+    ];
     libraries[uri] = LibraryNode(
       uri: uri,
       path: files[uri]!.path,
@@ -201,11 +218,20 @@ Sources readLibraries({
         for (final d in entry.value.directives)
           resolveImport(d, uri, supported, config),
       ],
-      parts: [
-        for (final part in parts)
-          if (partFiles.contains(part)) part,
+      parts: held,
+      fileUris: [
+        for (final d in [entry.value, for (final p in held) directives[p]!])
+          ..._fileUris(d),
       ],
     );
   }
   return Sources(files, libraries, partFiles);
 }
+
+Iterable<String> _fileUris(Directives directives) => [
+  for (final d in directives.directives) ...[
+    d.uri,
+    for (final c in d.configurations) c.uri,
+  ],
+  ...directives.parts,
+].where((written) => Uri.tryParse(written)?.isScheme('file') ?? false);
