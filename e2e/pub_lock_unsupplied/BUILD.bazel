@@ -1,0 +1,21 @@
+load(":checks.bzl", "pub_graph_check")
+
+exports_files(["pubspec.lock"])
+
+# Property: a dependency a hosted package declares, and the lock lists, is never
+# silently dropped from that package's dependencies. Here `petitparser` is an
+# `sdk` package in the lock, which `pub.from_lock()` does not fetch and no
+# `resolve` maps, so THIS WORKSPACE MUST FAIL TO BUILD, naming `xml`'s
+# dependency on `petitparser` and how to supply it (CI's expected-failure job
+# checks it).
+# Losing the edge quietly would break `package:petitparser` imports in `xml` far
+# from the cause.
+
+pub_graph_check(
+    name = "hosted_package_keeps_unsupplied_dependency",
+    direct_deps = [
+        "collection",
+        "petitparser",
+    ],
+    target = "@ovr//:xml",
+)

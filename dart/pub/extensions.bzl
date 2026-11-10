@@ -2,7 +2,7 @@
 
 load("//dart/ext:registry.bzl", "curated_code_assets")
 load("//dart/pub:pub_lock_hub.bzl", "pub_lock_hub")
-load("//dart/pub:pub_lock_library.bzl", "index_repo", "library_repo", "pub_lock_index", "pub_lock_library", "source_repo")
+load("//dart/pub:pub_lock_library.bzl", "index_repo", "library_repo", "pub_lock_index", "pub_lock_library", "pub_lock_resolved", "source_repo")
 load("//dart/pub:pub_lock_package.bzl", "pub_lock_git_package", "pub_lock_package")
 load("//dart/pub:yaml_parser.bzl", "parse_pubspec_lock")
 load("//dart/pub/private:pub_archive.bzl", "check_pub_archive_sha256")
@@ -66,8 +66,88 @@ _from_lock = tag_class(
             default = "error",
             values = ["error", "upgrade"],
         ),
+        "resolve": attr.string_keyed_label_dict(
+            doc = "Locked packages served by a target of yours instead of what the lock " +
+                  "describes, each package name with the target that builds that package " +
+                  "(its `DartPackageInfo` must carry that name, which is checked when the " +
+                  "target is analyzed). Every `path` package in the lock must be listed; a " +
+                  "`hosted`, `git` or `sdk` package may be. A listed package is that target " +
+                  "for the whole build: its hub label aliases it, and every locked package " +
+                  "that depends on it depends on the target. The lock's version of it is not " +
+                  "checked. A name the lock does not list is an error, as is a package two " +
+                  "`from_lock` calls map to different targets.",
+            default = {},
+        ),
     },
 )
+
+def _resolved_packages(locks, explicit):
+    """Decides which locked packages a workspace target serves, from `resolve`.
+
+    Fails, naming each problem of a `from_lock` call, where it maps a name its
+    lock does not list or leaves a `path` package of its lock unmapped. A
+    mapped package is one target for the whole build, as every package is one
+    repository, so two calls mapping it to different targets fail, as does one
+    mapping a package `pub.package()` also declares.
+
+    Args:
+      locks: Every lock, as `_pub_impl` parses them.
+      explicit: The winning `pub.package()` declaration per name.
+
+    Returns:
+      Package name -> `struct(target, lock_label)`.
+    """
+    resolved = {}
+    for lock in locks:
+        tag = lock.tag
+        stale = sorted([name for name in tag.resolve if name not in lock.packages])
+        unmapped = sorted([
+            name
+            for name, info in lock.packages.items()
+            if info.get("source") == "path" and name not in tag.resolve
+        ])
+        problems = []
+        if unmapped:
+            problems.append(
+                ("  - it lists %s as `path` %s, which only a target of yours can supply. " +
+                 "Map each to the target that builds it: resolve = {%s}") % (
+                    ", ".join(["`%s`" % n for n in unmapped]),
+                    "packages" if len(unmapped) > 1 else "package",
+                    ", ".join(['"%s": "//..."' % n for n in unmapped]),
+                ),
+            )
+        if stale:
+            problems.append(
+                "  - `resolve` maps %s, which the lock does not list. Remove %s." % (
+                    ", ".join(["`%s`" % n for n in stale]),
+                    "them" if len(stale) > 1 else "it",
+                ),
+            )
+        if problems:
+            fail("pub.from_lock(name = \"%s\", lock = \"%s\"):\n%s" % (tag.name, tag.lock, "\n".join(problems)))
+
+        for name, target in tag.resolve.items():
+            if name in explicit:
+                fail(
+                    ("Package \"%s\" is declared with `pub.package()` and mapped to %s by " +
+                     "the `resolve` of the `pub.from_lock()` for %s. Each package is one " +
+                     "repository or one target; keep one of the two.") % (name, target, tag.lock),
+                )
+            first = resolved.setdefault(name, struct(target = target, lock_label = str(tag.lock)))
+            if first.target != target:
+                fail(
+                    ("Package \"%s\" is mapped to different targets:\n" +
+                     "  - %s (by the `resolve` of the `pub.from_lock()` for %s)\n" +
+                     "  - %s (by the `resolve` of the `pub.from_lock()` for %s)\n" +
+                     "rules_dart builds one copy of each package; map it to one target.") % (
+                        name,
+                        first.target,
+                        first.lock_label,
+                        target,
+                        tag.lock,
+                    ),
+                )
+    return resolved
 
 def _explicit_packages(ctx, root_lock_names):
     """Decides which `pub.package()` declaration supplies each package it names.
@@ -208,6 +288,9 @@ def _pub_impl(ctx):
             for pkg in mod.tags.package:
                 root_repos[pkg.name] = root_repos.get(pkg.name, True) and ctx.is_dev_dependency(pkg)
 
+    # Packages a workspace target serves, by `resolve`.
+    resolved_targets = _resolved_packages(locks, explicit)
+
     for name, pkg in explicit.items():
         check_pub_archive_sha256(name, pkg.version, pkg.sha256, "pub.package()")
         pub_package(
@@ -235,8 +318,8 @@ def _pub_impl(ctx):
     # Git packages, each with the one commit every lock that lists it pins.
     git_registry = {}
 
-    # Packages a lock lists that no repository is fetched for (path and SDK
-    # sources), with how the first such lock lists each.
+    # Packages a lock lists that no repository is fetched for (SDK sources,
+    # unless mapped), with how the first such lock lists each.
     non_hosted = {}
 
     for lock in locks:
@@ -248,16 +331,16 @@ def _pub_impl(ctx):
 
         hub_packages.setdefault(hub_name, {})
 
-        # Hosted and git packages are fetched. Collect every other package
-        # and report once per lock file — Flutter locks routinely list many
+        # Hosted and git packages are fetched, and path packages are mapped.
+        # Collect every other package and report once per lock file — Flutter locks routinely list many
         # sdk-source packages, so a per-package print would drown the useful
         # signal.
         skipped_by_source = {}
 
         for name, info in lock.packages.items():
-            # A package declared with `pub.package()` is that repository,
-            # however the lock lists it.
-            if name in explicit:
+            # A package declared with `pub.package()` is that repository, and
+            # one `resolve` maps is that target, however the lock lists it.
+            if name in explicit or name in resolved_targets:
                 hub_packages[hub_name][name] = True
                 continue
 
@@ -304,7 +387,7 @@ def _pub_impl(ctx):
                 if source == "sdk":
                     remedy = "provided by the Dart/Flutter SDK, not fetched by pub"
                 else:
-                    remedy = "declare via pub.package() or a local dart_library"
+                    remedy = "map it with `resolve` or declare it with pub.package()"
                 details.append("  - %s (%s): %s" % (
                     source,
                     remedy,
@@ -399,12 +482,13 @@ def _pub_impl(ctx):
     unsupplied = {
         name: why
         for name, why in non_hosted.items()
-        if name not in fetched
+        if name not in fetched and name not in resolved_targets
     }
     pub_lock_index(
         name = index_repo(_SPOKE_PREFIX),
         versions = fetched,
         explicit_packages = explicit_names,
+        resolved_packages = sorted(resolved_targets.keys()),
         unsupplied = unsupplied,
     )
     for name, pkg in git_registry.items():
@@ -440,6 +524,13 @@ def _pub_impl(ctx):
             spoke_prefix = _SPOKE_PREFIX,
         )
 
+    for name, resolved in resolved_targets.items():
+        pub_lock_resolved(
+            name = library_repo(_SPOKE_PREFIX, name),
+            package_name = name,
+            actual = str(resolved.target),
+        )
+
     def library_label(name):
         if name in explicit:
             return "@{name}//:{name}".format(name = name)
@@ -448,7 +539,7 @@ def _pub_impl(ctx):
     # A package another module declared, which the root's lock supplies
     # instead, keeps its repository name for that module's `use_repo`.
     for name, modules in explicit_packages.overridden.items():
-        if name not in fetched:
+        if name not in fetched and name not in resolved_targets:
             fail(
                 ("Package \"%s\" is declared with `pub.package()` by %s, and the root " +
                  "module's lock lists it as %s, which `pub.from_lock()` does not fetch. " +

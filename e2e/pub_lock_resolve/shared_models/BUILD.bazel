@@ -1,0 +1,10 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+# The lock's `path` package. It reaches `petitparser` through the hub, as a
+# locked package would, and so gets the fork.
+dart_library(
+    name = "shared_models",
+    srcs = ["lib/shared_models.dart"],
+    visibility = ["//visibility:public"],
+    deps = ["@pub//:petitparser"],
+)

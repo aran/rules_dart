@@ -34,7 +34,7 @@ def unsupplied_dependency_error(package, version, dep, why):
       package: The package with the dependency.
       version: Its version.
       dep: The package it depends on.
-      why: How the lock lists `dep`, e.g. "a `path` package in @//:pubspec.lock".
+      why: How the lock lists `dep`, e.g. "a `sdk` package in @//:pubspec.lock".
 
     Returns:
       The message.
@@ -42,11 +42,10 @@ def unsupplied_dependency_error(package, version, dep, why):
     return (
         "pub.from_lock(): `{package}` {version} depends on `{dep}`, which is {why}. " +
         "`pub.from_lock()` fetches only hosted and git packages, so nothing supplies `{dep}`, " +
-        "and `{package}` would be built without it. Either let pub resolve `{dep}` " +
-        "from a package repository (drop the `dependency_overrides` or path " +
-        "dependency that put it in the lock, and run `dart pub get`), or declare it " +
-        "with `pub.package(name = \"{dep}\", version = ..., sha256 = ...)`. Flutter " +
-        "SDK packages come from rules_flutter's pub extension."
+        "and `{package}` would be built without it. Map it to a target that builds it, " +
+        "with `resolve = {{\"{dep}\": ...}}` on the `pub.from_lock()` that lists it, or " +
+        "declare it with `pub.package(name = \"{dep}\", version = ..., sha256 = ...)`. " +
+        "Flutter SDK packages come from rules_flutter's pub extension."
     ).format(package = package, version = version, dep = dep, why = why)
 
 def _read_index(ctx):
@@ -59,12 +58,14 @@ def _pub_lock_library_impl(ctx):
     index = _read_index(ctx)
     fetched = index["versions"]
     explicit = {p: True for p in index["explicit"]}
+    resolved = {p: True for p in index["resolved"]}
     unsupplied = index["unsupplied"]
-    known = fetched | explicit | unsupplied
+    known = fetched | explicit | resolved | unsupplied
 
     # Every package this one reaches through fetched packages. A package
     # declared with `pub.package()` is its own repository, whose dependencies
-    # the declaration states, so the walk stops there.
+    # the declaration states, and one `resolve` maps is a workspace target,
+    # whose dependencies its BUILD file states, so the walk stops at both.
     graph = dependency_graph(
         ctx.attr.package_name,
         lambda p: [d for d in read_pubspec_dependencies(ctx, source_repo(prefix, p)) if d in known],
@@ -109,6 +110,7 @@ def _pub_lock_index_impl(ctx):
     ctx.file(_INDEX, json.encode({
         "versions": ctx.attr.versions,
         "explicit": ctx.attr.explicit_packages,
+        "resolved": ctx.attr.resolved_packages,
         "unsupplied": ctx.attr.unsupplied,
     }))
     return ctx.repo_metadata(reproducible = True)
@@ -122,7 +124,32 @@ pub_lock_index = repository_rule(
     attrs = {
         "versions": attr.string_dict(doc = "Every package with a source repository, with its version."),
         "explicit_packages": attr.string_list(doc = "Packages declared with `pub.package()`: a dependency on one is on its own repository."),
+        "resolved_packages": attr.string_list(doc = "Packages `resolve` maps to a workspace target: a dependency on one is on its library repository, which passes the target on."),
         "unsupplied": attr.string_dict(doc = "Packages a lock lists that nothing fetches, each with how the lock lists it. Depending on one is an error."),
     },
     doc = "The packages every `pub_lock_library` of one extension plans against.",
+)
+
+def _pub_lock_resolved_impl(ctx):
+    ctx.file("BUILD.bazel", """\
+load("@rules_dart//dart/pub/private:pub_resolved_package.bzl", "pub_resolved_package")
+
+pub_resolved_package(
+    name = "{name}",
+    package_name = "{name}",
+    actual = "{actual}",
+    visibility = ["//visibility:public"],
+)
+""".format(name = ctx.attr.package_name, actual = ctx.attr.actual))
+    return ctx.repo_metadata(reproducible = True)
+
+# The library repository of a package `resolve` maps, where every library
+# repository depending on the package already looks for it.
+pub_lock_resolved = repository_rule(
+    implementation = _pub_lock_resolved_impl,
+    attrs = {
+        "package_name": attr.string(mandatory = True, doc = "The package."),
+        "actual": attr.string(mandatory = True, doc = "The canonical label of the workspace target serving it."),
+    },
+    doc = "A `pub.from_lock()` package's library, served by the workspace target `resolve` maps it to.",
 )

@@ -49,6 +49,7 @@ jobs:
           "e2e/pub_hub_surface",
           "e2e/pub_lock_cycle",
           "e2e/pub_lock_git",
+          "e2e/pub_lock_resolve",
           "e2e/pub_member_kind",
           "e2e/pub_override_root_lock",
           "e2e/pub_package_padded",
@@ -146,7 +147,7 @@ jobs:
       - name: pub_package_conflict — expect two modules' declarations to fail, naming both
         working-directory: e2e/pub_package_conflict
         run: |
-          if out=$(bazel build //... 2>&1); then
+          if out=$(bazel build @pub//:path 2>&1); then
             echo "ERROR: build should have failed: mod_b and mod_c declare different versions of path"
             exit 1
           fi
@@ -164,15 +165,25 @@ jobs:
           echo "$out" | grep -q "newer_dep requests 99.0.0"
           echo "$out" | grep -q "allow_upgrade_by_dependencies = True"
           echo "OK: expected toolchain upgrade refusal detected"
-      - name: pub_lock_path_override — expect a dependency on an unfetched path package to fail
-        working-directory: e2e/pub_lock_path_override
+      - name: pub_lock_unsupplied — expect a dependency on an unsupplied sdk package to fail
+        working-directory: e2e/pub_lock_unsupplied
         run: |
           if out=$(bazel build //... 2>&1); then
-            echo "ERROR: build should have failed: xml depends on the path package petitparser"
+            echo "ERROR: build should have failed: xml depends on the sdk package petitparser"
             exit 1
           fi
           echo "$out" | grep -q "nothing supplies \`petitparser\`"
           echo "OK: expected unsupplied dependency detected"
+      - name: pub_lock_resolve_invalid — expect unmapped path packages and a stale mapping to fail, naming each
+        working-directory: e2e/pub_lock_resolve_invalid
+        run: |
+          if out=$(bazel build @pub//:path 2>&1); then
+            echo "ERROR: build should have failed: path packages unmapped, and http mapped but not locked"
+            exit 1
+          fi
+          echo "$out" | grep -q "it lists \`models\`, \`utils\` as \`path\` packages"
+          echo "$out" | grep -q "\`resolve\` maps \`http\`, which the lock does not list"
+          echo "OK: expected resolve errors detected"
       # Every pub archive is checked against a pinned digest: a lock entry or a
       # `pub.package()` without one, or two locks disagreeing on one, fails.
       - name: pub_lock_unpinned — expect a lock entry without sha256 to be refused

@@ -1,4 +1,4 @@
-module(name = "pub_lock_path_override_e2e")
+module(name = "pub_lock_unsupplied_e2e")
 
 bazel_dep(name = "rules_dart", version = "0.0.0")
 bazel_dep(name = "platforms", version = "1.1.0")

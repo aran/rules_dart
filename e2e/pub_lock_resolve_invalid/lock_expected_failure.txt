@@ -1,0 +1,7 @@
+# This workspace fails on purpose; `bazel run @overhead//locks` passes a
+# step that fails printing each line below.
+# The lock's `path` packages are not mapped, and `resolve` maps a package the
+# lock does not list; resolving the module refuses both at once, as the
+# expected-failure CI job asserts.
+it lists `models`, `utils` as `path` packages
+`resolve` maps `http`, which the lock does not list

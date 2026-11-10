@@ -35,3 +35,13 @@ bzl_library(
     visibility = ["//dart/pub:__subpackages__"],
     deps = [":pub_archive"],
 )
+
+bzl_library(
+    name = "pub_resolved_package",
+    srcs = ["pub_resolved_package.bzl"],
+    visibility = ["//dart/pub:__subpackages__"],
+    deps = [
+        "//dart:providers",
+        "//dart/private:dart_test",
+    ],
+)

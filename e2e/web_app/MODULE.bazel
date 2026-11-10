@@ -18,6 +18,7 @@ pub = use_extension("@rules_dart//dart/pub:extensions.bzl", "pub")
 pub.from_lock(
     name = "pub_deps",
     lock = "//:pubspec.lock",
+    resolve = {"greet": "//greet"},
 )
 
 # Lint-only: reached through //:options, never through pubspec.lock, so it does

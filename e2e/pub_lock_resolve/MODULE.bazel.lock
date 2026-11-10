@@ -262,8 +262,8 @@
     },
     "@@rules_dart+//dart/pub:extensions.bzl%pub": {
       "general": {
-        "bzlTransitiveDigest": "SiJNv7e1XDIMxdctfuHA58eVFe52txrkXFvAjmPWnic=",
-        "usagesDigest": "hW7+C0muawC8uMQwgWM2JjLdt0dllDoqcZoq6qqvJrw=",
+        "bzlTransitiveDigest": "xVtzZ7hAJLe6g2vKbdVpNIFOUYuevmSqdIFIVYQC7Ok=",
+        "usagesDigest": "ZO12hu1ep9dGX2Hdm828+p8xeQuFC2vYZ70aeYDbhnU=",
         "recordedInputs": [
           "REPO_MAPPING:rules_dart+,pubspec_reader_linux-arm64 rules_dart++pubspec_reader+pubspec_reader_linux-arm64",
           "REPO_MAPPING:rules_dart+,pubspec_reader_linux-x64 rules_dart++pubspec_reader+pubspec_reader_linux-x64",
@@ -271,7 +271,8 @@
           "REPO_MAPPING:rules_dart+,pubspec_reader_macos-x64 rules_dart++pubspec_reader+pubspec_reader_macos-x64",
           "REPO_MAPPING:rules_dart+,pubspec_reader_windows-x64 rules_dart++pubspec_reader+pubspec_reader_windows-x64",
           "REPO_MAPPING:rules_dart+,yaml.bzl yaml.bzl+",
-          "FILE:@@//pubspec.lock 89ae3688055fcbc5fc25b12e9c659affaf1840a1f379f17b7c565aab2430e12b",
+          "FILE:@@//pubspec.lock dfe9b8e8fefbf76f510a6dbd3b625d6d9c3c4d5f129a4d355c5823c488704b1b",
+          "FILE:@@//bad/pubspec.lock de1fffd4ee62cbfd84ac913ba93e9fe7d3395706f01f92ce456abd626dc1845e",
           "FILE:@@rules_dart+//dart/ext/pubspec.lock ae866f3a1d4ebad9a74f9b9efab33c74dfbf904ae0d69dfe94192029d4955188"
         ],
         "generatedRepoSpecs": {
@@ -374,9 +375,12 @@
                 "yaml_edit": "2.2.4"
               },
               "explicit_packages": [],
-              "unsupplied": {
-                "petitparser": "a `path` package in @@//:pubspec.lock"
-              }
+              "resolved_packages": [
+                "characters",
+                "petitparser",
+                "shared_models"
+              ],
+              "unsupplied": {}
             }
           },
           "dart_pub__collection": {
@@ -2055,13 +2059,44 @@
               "spoke_prefix": "dart_pub"
             }
           },
-          "ovr": {
+          "dart_pub_lib__petitparser": {
+            "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_library.bzl%pub_lock_resolved",
+            "attributes": {
+              "package_name": "petitparser",
+              "actual": "'@@//third_party/petitparser:petitparser'"
+            }
+          },
+          "dart_pub_lib__shared_models": {
+            "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_library.bzl%pub_lock_resolved",
+            "attributes": {
+              "package_name": "shared_models",
+              "actual": "'@@//shared_models:shared_models'"
+            }
+          },
+          "dart_pub_lib__characters": {
+            "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_library.bzl%pub_lock_resolved",
+            "attributes": {
+              "package_name": "characters",
+              "actual": "'@@//not_characters:not_characters'"
+            }
+          },
+          "pub": {
             "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_hub.bzl%pub_lock_hub",
             "attributes": {
               "packages": {
                 "collection": "@dart_pub_lib__collection//:collection",
                 "meta": "@dart_pub_lib__meta//:meta",
+                "petitparser": "@dart_pub_lib__petitparser//:petitparser",
+                "shared_models": "@dart_pub_lib__shared_models//:shared_models",
                 "xml": "@dart_pub_lib__xml//:xml"
+              }
+            }
+          },
+          "bad": {
+            "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_hub.bzl%pub_lock_hub",
+            "attributes": {
+              "packages": {
+                "characters": "@dart_pub_lib__characters//:characters"
               }
             }
           },
@@ -2167,7 +2202,8 @@
         },
         "moduleExtensionMetadata": {
           "explicitRootModuleDirectDeps": [
-            "ovr"
+            "pub",
+            "bad"
           ],
           "explicitRootModuleDirectDevDeps": [],
           "useAllRepos": "NO",

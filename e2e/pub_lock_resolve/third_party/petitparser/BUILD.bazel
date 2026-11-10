@@ -1,0 +1,9 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+# A fork of `package:petitparser`, served to every locked package in place of
+# the version the lock pins.
+dart_library(
+    name = "petitparser",
+    srcs = ["lib/petitparser.dart"],
+    visibility = ["//visibility:public"],
+)

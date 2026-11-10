@@ -46,6 +46,7 @@ const _ciFolders = [
   'e2e/pub_hub_surface',
   'e2e/pub_lock_cycle',
   'e2e/pub_lock_git',
+  'e2e/pub_lock_resolve',
   'e2e/pub_member_kind',
   'e2e/pub_override_root_lock',
   'e2e/pub_package_padded',
@@ -243,9 +244,14 @@ const _expectedFailureChecks = [
     'newer_dep requests 99.0.0',
   ),
   _ExpectedFailure(
-    'e2e/pub_lock_path_override',
+    'e2e/pub_lock_unsupplied',
     '//...',
     'nothing supplies `petitparser`',
+  ),
+  _ExpectedFailure(
+    'e2e/pub_lock_resolve_invalid',
+    '@pub//:path',
+    'it lists `models`, `utils` as `path` packages',
   ),
   // Every pub archive is checked against a pinned digest.
   _ExpectedFailure(

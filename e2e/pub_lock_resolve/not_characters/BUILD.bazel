@@ -1,0 +1,9 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+# Package `not_characters`, which the `bad` hub's `resolve` maps `characters`
+# to.
+dart_library(
+    name = "not_characters",
+    srcs = ["lib/not_characters.dart"],
+    visibility = ["//visibility:public"],
+)

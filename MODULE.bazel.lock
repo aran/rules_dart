@@ -294,7 +294,7 @@
   "moduleExtensions": {
     "//dart/pub:extensions.bzl%pub": {
       "general": {
-        "bzlTransitiveDigest": "SiJNv7e1XDIMxdctfuHA58eVFe52txrkXFvAjmPWnic=",
+        "bzlTransitiveDigest": "xVtzZ7hAJLe6g2vKbdVpNIFOUYuevmSqdIFIVYQC7Ok=",
         "usagesDigest": "0+3c4sSN2vc7x1/y7HdP42yAhA9LS1h/fRTJdUpRt4g=",
         "recordedInputs": [
           "REPO_MAPPING:,pubspec_reader_linux-arm64 +pubspec_reader+pubspec_reader_linux-arm64",
@@ -404,6 +404,7 @@
                 "yaml_edit": "2.2.4"
               },
               "explicit_packages": [],
+              "resolved_packages": [],
               "unsupplied": {}
             }
           },
