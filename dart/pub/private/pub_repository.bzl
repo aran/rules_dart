@@ -3,17 +3,14 @@
 load("//dart/pub:yaml_parser.bzl", "parse_pubspec_sdk_constraint")
 load("//dart/pub/private:build_content.bzl", "make_dart_library_build_content")
 load("//dart/pub/private:language_version.bzl", "derive_language_version")
+load("//dart/pub/private:pub_archive.bzl", "fetch_pub_archive")
 
 def _pub_package_impl(ctx):
-    url = "https://pub.dev/api/archives/{name}-{version}.tar.gz".format(
-        name = ctx.attr.package_name,
+    fetch_pub_archive(
+        ctx,
+        package_name = ctx.attr.package_name,
         version = ctx.attr.version,
-    )
-
-    ctx.download_and_extract(
-        url = url,
-        sha256 = ctx.attr.sha256 if ctx.attr.sha256 else "",
-        type = "tar.gz",
+        sha256 = ctx.attr.sha256,
     )
 
     # Read the package's pubspec.yaml so we can mirror pub's per-package
@@ -36,6 +33,7 @@ def _pub_package_impl(ctx):
     )
 
     ctx.file("BUILD.bazel", build_content)
+    return ctx.repo_metadata(reproducible = True)
 
 pub_package = repository_rule(
     implementation = _pub_package_impl,
@@ -49,7 +47,8 @@ pub_package = repository_rule(
             mandatory = True,
         ),
         "sha256": attr.string(
-            doc = "SHA256 hash of the package archive for integrity verification. Optional.",
+            doc = "SHA256 hash of the package archive, as pubspec.lock records it.",
+            mandatory = True,
         ),
         "deps": attr.string_list(
             doc = "Repository names of pub packages this package depends on.",

@@ -1,0 +1,6 @@
+exports_files(["pubspec.lock"])
+
+# Property: every pub package's bytes are verified against a pinned digest.
+# This workspace must FAIL to build, with an error naming the missing `sha256`;
+# a successful build means `path` was downloaded unverified.
+# Check: `bazel build @deps//:path` fails and its output contains "sha256".

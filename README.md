@@ -115,7 +115,9 @@ use_repo(pub, "pub_deps")
 ```
 
 Each hosted package is downloaded into its own external repository for better
-caching and parallelism. Packages are available as `@pub_deps//:package_name`:
+caching and parallelism. Each archive is verified against the `sha256` the lock
+records; a lock written by a pub older than 2.19 has none and is refused, so
+run `dart pub get` to rewrite it. Packages are available as `@pub_deps//:package_name`:
 
 ```starlark
 dart_binary(

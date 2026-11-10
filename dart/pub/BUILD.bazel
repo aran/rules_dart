@@ -13,6 +13,7 @@ bzl_library(
     deps = [
         ":yaml_parser",
         "//dart/pub/private:build_content",
+        "//dart/pub/private:pub_archive",
     ],
 )
 
@@ -30,6 +31,7 @@ bzl_library(
         ":pub_lock_hub",
         ":pub_lock_package",
         ":yaml_parser",
+        "//dart/pub/private:pub_archive",
         "//dart/pub/private:pub_repository",
         "//dart/pub/private:version",
     ],

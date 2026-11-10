@@ -1,0 +1,22 @@
+module(name = "pub_archive_links_e2e")
+
+bazel_dep(name = "rules_dart", version = "0.0.0")
+local_path_override(
+    module_name = "rules_dart",
+    path = "../..",
+)
+
+dart = use_extension("@rules_dart//dart:extensions.bzl", "dart")
+dart.toolchain(dart_version = "3.13.7")
+use_repo(dart, "dart_toolchains")
+
+register_toolchains("@dart_toolchains//:all")
+
+# `generated.lock` is written by check.dart: it lists hostile archives served
+# from a file:// registry in a temp dir.
+pub = use_extension("@rules_dart//dart/pub:extensions.bzl", "pub")
+pub.from_lock(
+    name = "deps",
+    lock = "//:generated.lock",
+)
+use_repo(pub, "deps")

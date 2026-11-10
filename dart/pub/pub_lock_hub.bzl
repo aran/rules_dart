@@ -19,6 +19,10 @@ alias(
         ))
     ctx.file("BUILD.bazel", "\n\n".join(aliases) + "\n")
 
+    # Its contents are its attributes', so a new output base takes it from
+    # the repository contents cache.
+    return ctx.repo_metadata(reproducible = True)
+
 pub_lock_hub = repository_rule(
     implementation = _pub_lock_hub_impl,
     attrs = {

@@ -1,0 +1,5 @@
+exports_files(["generated.lock"])
+
+# Property: nothing a fetched pub archive contains can refer outside the
+# package. Run `dart check.dart` in this directory; it exits non-zero and names
+# each violation.

@@ -4,6 +4,7 @@ load("//dart/ext:registry.bzl", "curated_code_assets")
 load("//dart/pub:pub_lock_hub.bzl", "pub_lock_hub")
 load("//dart/pub:pub_lock_package.bzl", "pub_lock_package")
 load("//dart/pub:yaml_parser.bzl", "parse_pubspec_lock")
+load("//dart/pub/private:pub_archive.bzl", "check_pub_archive_sha256")
 load("//dart/pub/private:pub_repository.bzl", "pub_package")
 load("//dart/pub/private:version.bzl", "semver_gt")
 
@@ -91,6 +92,7 @@ def _pub_impl(ctx):
                 root_repos[pkg.name] = root_repos.get(pkg.name, True) and ctx.is_dev_dependency(pkg)
 
     for name, pkg in explicit.items():
+        check_pub_archive_sha256(name, pkg.version, pkg.sha256, "pub.package()")
         pub_package(
             name = name,
             package_name = name,
@@ -142,9 +144,12 @@ def _pub_impl(ctx):
 
                 desc = info.get("description", {})
                 url = desc.get("url", "https://pub.dev")
+                version = info.get("version", "")
+                sha256 = desc.get("sha256", "")
+                check_pub_archive_sha256(name, version, sha256, str(lock_tag.lock))
                 entry = struct(
-                    version = info.get("version", ""),
-                    sha256 = desc.get("sha256", ""),
+                    version = version,
+                    sha256 = sha256,
                     hub_name = hub_name,
                     lock_label = str(lock_tag.lock),
                     on_version_conflict = lock_tag.on_version_conflict,
@@ -189,6 +194,21 @@ def _pub_impl(ctx):
     # Resolve each package to a single version
     resolved = {}  # pkg_name -> {version, sha256, url}
     for name, pkg in registry.items():
+        # One archive per version: locks that pin it to different digests
+        # cannot all describe what is fetched, whichever is listed first.
+        digests = {}
+        for e in pkg.entries:
+            first = digests.setdefault(e.version, e)
+            if first.sha256 != e.sha256:
+                fail(
+                    "Package \"%s\" %s has conflicting sha256 digests across lock files:\n" % (name, e.version) +
+                    "  - %s (from \"%s\", %s)\n" % (first.sha256, first.hub_name, first.lock_label) +
+                    "  - %s (from \"%s\", %s)\n" % (e.sha256, e.hub_name, e.lock_label) +
+                    "\nAt most one of them describes the archive the registry serves. " +
+                    "`dart pub get` in each workspace checks its lock's digests against the " +
+                    "registry and reports a wrong one.",
+                )
+
         if len(pkg.entries) == 1:
             e = pkg.entries[0]
             resolved[name] = struct(version = e.version, sha256 = e.sha256, url = pkg.url)

@@ -1,0 +1,23 @@
+module(name = "pub_package_blank_sha_e2e")
+
+bazel_dep(name = "rules_dart", version = "0.0.0")
+local_path_override(
+    module_name = "rules_dart",
+    path = "../..",
+)
+
+dart = use_extension("@rules_dart//dart:extensions.bzl", "dart")
+dart.toolchain(dart_version = "3.13.7")
+use_repo(dart, "dart_toolchains")
+
+register_toolchains("@dart_toolchains//:all")
+
+# `sha256` is mandatory on `pub.package`; an empty string states no digest at
+# all and must be refused, not read as "do not verify".
+pub = use_extension("@rules_dart//dart/pub:extensions.bzl", "pub")
+pub.package(
+    name = "path",
+    sha256 = "",
+    version = "1.9.1",
+)
+use_repo(pub, "path")

@@ -11,6 +11,7 @@
 /// exits non-zero if any folder failed.
 ///
 /// The Linux-only *expected failure* workspaces (`pub_lock_conflict`,
+/// `pub_lock_unpinned`, `pub_package_blank_sha`, `pub_lock_digest_conflict`,
 /// `analysis_failure`, `link_hook`) must fail to build with a specific error;
 /// they are checked separately on Linux.
 library;
@@ -39,6 +40,7 @@ const _ciFolders = [
   'e2e/pub_lock_cross_module',
   'e2e/pub_lock_dedup',
   'e2e/pub_lock_upgrade',
+  'e2e/pub_package_padded',
   'e2e/ext_exemplar',
   'e2e/dual_build',
   'e2e/fix',
@@ -218,6 +220,22 @@ const _expectedFailureChecks = [
     'e2e/pub_lock_conflict',
     '//:app',
     'conflicting versions across lock files',
+  ),
+  // Every pub archive is checked against a pinned digest.
+  _ExpectedFailure(
+    'e2e/pub_lock_unpinned',
+    '@deps//:path',
+    'No sha256 is pinned for pub package "path"',
+  ),
+  _ExpectedFailure(
+    'e2e/pub_package_blank_sha',
+    '@path//:path',
+    'No sha256 is pinned for pub package "path"',
+  ),
+  _ExpectedFailure(
+    'e2e/pub_lock_digest_conflict',
+    '@deps_a//:path',
+    'conflicting sha256 digests across lock files',
   ),
   // The `dart_analyze` aspect's red paths, each with an error string no other
   // target shares, so a grep hit cannot be another target's.

@@ -1,0 +1,10 @@
+exports_files([
+    "lock_a.lock",
+    "lock_b.lock",
+])
+
+# Property: one package version has one digest; locks that disagree are an
+# error whichever is listed first. This workspace must FAIL to build, with an
+# error naming `sha256`. (lock_a's digest is the real one, so a build that
+# quietly uses the first lock succeeds.)
+# Check: `bazel build @deps_a//:path` fails and its output contains "sha256".

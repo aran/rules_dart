@@ -3,52 +3,34 @@
 Each hosted package gets its own external repository (spoke), with the hub
 repo providing aliases for backward-compatible `@hub//:pkg` labels.
 
-Also re-exports `make_dart_library_build_content` as a public Starlark
-helper. Other Bazel rule sets (notably rules_flutter's `flutter_pub_package`,
-the `flutter pub get` analog) reuse this helper to emit the same
-`dart_library` shape for non-plugin packages without duplicating the format.
+Also re-exports public Starlark helpers for other Bazel rule sets (notably
+rules_flutter's `flutter_pub_package`, the `flutter pub get` analog):
+`fetch_pub_archive` (with `check_pub_archive_sha256`) fetches a hosted package
+exactly as rules_dart's own pub rules do, and `make_dart_library_build_content`
+emits the same `dart_library` shape for non-plugin packages.
 """
 
 load("//dart/pub:yaml_parser.bzl", "parse_pubspec_deps", "parse_pubspec_sdk_constraint")
 load("//dart/pub/private:build_content.bzl", _classify_pub_hooks = "classify_pub_hooks", _make_dart_library_build_content = "make_dart_library_build_content")
 load("//dart/pub/private:language_version.bzl", _derive_language_version = "derive_language_version")
+load("//dart/pub/private:pub_archive.bzl", _check_pub_archive_sha256 = "check_pub_archive_sha256", _fetch_pub_archive = "fetch_pub_archive")
 
 # Re-export for consumers outside //dart/pub (rules_flutter's
 # flutter_pub_package). Loading the private bzl directly would trip
 # buildifier's bzl-visibility check, so we expose it via this public file.
 derive_language_version = _derive_language_version
 make_dart_library_build_content = _make_dart_library_build_content
+fetch_pub_archive = _fetch_pub_archive
+check_pub_archive_sha256 = _check_pub_archive_sha256
 
 def _pub_lock_package_impl(ctx):
-    url = "{base}/packages/{name}/versions/{version}.tar.gz".format(
-        base = ctx.attr.base_url,
-        name = ctx.attr.package_name,
+    fetch_pub_archive(
+        ctx,
+        package_name = ctx.attr.package_name,
         version = ctx.attr.version,
+        sha256 = ctx.attr.sha256,
+        base_url = ctx.attr.base_url,
     )
-
-    # pub.dev serves some tarballs with trailing garbage past the gzip
-    # stream (observed as of 2026-04 on `nested@1.0.0`, among others).
-    # Bazel's built-in `download_and_extract` uses a strict Java gzip
-    # decoder that errors on the trailing bytes — but the archive itself
-    # is a valid tar.gz (GNU `tar -xzf` accepts it, `gunzip -t` reports
-    # "trailing garbage ignored").
-    #
-    # We download the archive, then extract with the system `tar`
-    # command, which tolerates the trailing bytes. The sha256 still
-    # verifies the download so integrity is preserved.
-    ctx.download(
-        url = url,
-        output = "_archive.tar.gz",
-        sha256 = ctx.attr.sha256 if ctx.attr.sha256 else "",
-    )
-    result = ctx.execute(["tar", "-xzf", "_archive.tar.gz"])
-    if result.return_code != 0:
-        fail("tar -xzf failed for {url}:\nstdout: {out}\nstderr: {err}".format(
-            url = url,
-            out = result.stdout,
-            err = result.stderr,
-        ))
-    ctx.delete("_archive.tar.gz")
 
     # Read pubspec.yaml to discover deps + the package's SDK constraint, the
     # latter so we can mirror pub's per-package languageVersion behaviour.
@@ -95,6 +77,7 @@ def _pub_lock_package_impl(ctx):
     )
 
     ctx.file("BUILD.bazel", build_content)
+    return ctx.repo_metadata(reproducible = True)
 
 pub_lock_package = repository_rule(
     implementation = _pub_lock_package_impl,
@@ -108,8 +91,8 @@ pub_lock_package = repository_rule(
             mandatory = True,
         ),
         "sha256": attr.string(
-            doc = "SHA256 hash of the package archive.",
-            default = "",
+            doc = "SHA256 hash of the package archive, as pubspec.lock records it.",
+            mandatory = True,
         ),
         "base_url": attr.string(
             doc = "Base URL for the pub repository.",

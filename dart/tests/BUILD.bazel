@@ -11,6 +11,7 @@ load(":native_assets_test.bzl", "native_assets_test_suite")
 load(":project_staging_test.bzl", "project_staging_test_suite")
 load(":propagation_test.bzl", "propagation_test_suite")
 load(":provider_shape_test.bzl", "provider_shape_probe")
+load(":pub_archive_test.bzl", "pub_archive_test_suite")
 load(":registry_test.bzl", "registry_test_suite")
 load(":semver_test.bzl", "semver_test_suite")
 load(":source_set_test.bzl", "source_set_test_suite")
@@ -53,6 +54,8 @@ language_version_test_suite(name = "language_version_test")
 library_test_suite(name = "library_test")
 
 link_hook_test_suite(name = "link_hook_test")
+
+pub_archive_test_suite(name = "pub_archive_test")
 
 semver_test_suite(name = "semver_test")
 
