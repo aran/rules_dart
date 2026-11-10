@@ -45,13 +45,14 @@ carries every field through and overrides only what is named.
 rules that provide it: it is a `DartInfo` plus the sources that belong to no
 package's `lib/`, and the tempting alternative — a provider with its own
 `transitive_*` fields — is precisely the second enumeration point everything
-above exists to prevent. Its two constructors therefore nest a `DartInfo` some
-constructor above built, instead of restating any part of it:
-`dart_analyzable_info()` nests a `dart_info_no_package()` for an entrypoint that
-contributes nothing, and `dart_analyzable_info_with_packages()` nests a
-`dart_info()` for a target whose sources *are* packages — the shape a
-downstream `flutter_test` has, and the one that made hand-building the outer
-provider look like the only option.
+above exists to prevent. Its two constructors therefore mirror the two above and
+nest the `DartInfo` each builds, instead of restating any part of it:
+`dart_analyzable_info()` takes `dart_info()`'s arguments and nests its result,
+for a target whose sources *are* packages — the shape a downstream
+`flutter_test` has, and the one that made hand-building the outer provider look
+like the only option — and `dart_analyzable_info_no_package()` takes
+`dart_info_no_package()`'s and nests that, for an entrypoint that contributes
+nothing.
 
 So construction goes through here and reading does not: `DartInfo` stays public
 and is indexed directly by every consumer. The one deliberate exception is
@@ -245,7 +246,7 @@ def dart_package_info(
     if not package_name:
         fail(("%s: `package_name` is empty. A target that contributes no " +
               "package is what `dart_info_no_package()` and " +
-              "`dart_analyzable_info()` are for.") % label)
+              "`dart_analyzable_info_no_package()` are for.") % label)
     own_assets = [dep[DartCodeAssetInfo] for dep in code_assets]
     err = check_code_asset_ownership(label, package_name, own_assets)
     if err != None:
@@ -300,100 +301,105 @@ def dart_info_no_package(deps = []):
         packages = [],
     )
 
-def dart_analyzable_info(deps = [], srcs = []):
-    """Builds a `DartAnalyzableInfo` for an executable target.
+def dart_analyzable_info(
+        label,
+        packages,
+        deps = [],
+        srcs = [],
+        resources = [],
+        entry_srcs = []):
+    """Builds a `DartAnalyzableInfo` for an executable that contributes packages.
 
-    The third constructor, and the one place `DartAnalyzableInfo` is built. It
-    adds no depset of its own beyond `srcs`: the closure is the `DartInfo` that
+    The executable's counterpart of `dart_info()`, taking the same arguments
+    with the same meanings, and the one place `DartAnalyzableInfo` is built for
+    a target whose sources *are* packages. A downstream `flutter_test` is one
+    shape: it names a `package_name` and its sources are that package's `lib/`
+    files, which import each other by `package:` URI. A library whose analysis
+    closure differs from its compile closure is another: `flutter_library` adds
+    `sky_engine` for the analyzer alone, and a Flutter pub library over a
+    dependency cycle does that for several packages at once. Without a package
+    record those imports have no package to resolve against and every one of
+    them reports `uri_does_not_exist`; the analyzer is right, because nothing in
+    a package-less closure names the package they ask for.
+
+    The nested `DartInfo` is built by `dart_info()` and the wrapper enumerates
+    no field of it, which is what keeps a rule in this position from writing
+    `DartAnalyzableInfo(dart_info = dart_info(...))` by hand — a second
+    construction site for the outer provider, and precisely what this file
+    exists to prevent.
+
+    `srcs` and `entry_srcs` are told apart by `package:` reachability: a file
+    under a package's `lib/` is reachable as `package:<package_name>/…` and
+    belongs in `srcs`; a file outside every `lib/` (a `test/` entrypoint, a
+    `bin/` main) belongs in `entry_srcs`, which no `DartPackageInfo` can name.
+    Staging places both by `short_path`, so analysis would resolve either way
+    and a `lib/` file in `entry_srcs` would only be invisible to every
+    `DartInfo` consumer. So that is refused: an `entry_srcs` file under one of
+    this target's own packages' `lib/` fails the build, naming the file.
+
+    Args:
+      label: The constructing rule's label, for error messages.
+      packages: The `DartPackageInfo` records this target contributes, each
+        from `dart_package_info()`. At least one: an executable contributing no
+        package is what `dart_analyzable_info_no_package()` is for.
+      deps: Targets providing `DartInfo` whose closures are merged in.
+      srcs: This target's own Dart sources that are its packages' `lib/` files,
+        exactly as `dart_info(srcs)`.
+      resources: This target's own non-Dart files under its packages' `lib/`.
+      entry_srcs: The target's own entrypoint sources, outside every package's
+        `lib/`. Pass the rule's own `File`s, before any colocation copy:
+        consumers stage by `short_path`, and a colocated copy's is the
+        assembled directory's.
+
+    Returns:
+      A `DartAnalyzableInfo` whose nested `DartInfo` records these packages.
+    """
+    info = dart_info(
+        label = label,
+        packages = packages,
+        deps = deps,
+        srcs = srcs,
+        resources = resources,
+    )
+    for f in entry_srcs:
+        for p in packages:
+            if f.short_path.startswith(package_lib_prefix(p.package_root)):
+                fail(("%s: `entry_srcs` file `%s` is under the `lib/` of package " +
+                      "`%s`, so `package:%s/…` reaches it. A package's own `lib/` " +
+                      "files belong in `srcs`; `entry_srcs` is for files outside " +
+                      "every `lib/`.") % (label, f.short_path, p.package_name, p.package_name))
+    return DartAnalyzableInfo(
+        dart_info = info,
+        entry_srcs = depset(entry_srcs),
+    )
+
+def dart_analyzable_info_no_package(deps = [], entry_srcs = []):
+    """Builds a `DartAnalyzableInfo` for an executable that contributes no package.
+
+    The executable's counterpart of `dart_info_no_package()`. It adds no depset
+    of its own beyond `entry_srcs`: the closure is the `DartInfo` that
     `dart_info_no_package()` already knows how to merge, carried whole rather
     than re-enumerated field by field — which is the mistake this file exists to
     prevent, and which a provider with its own `transitive_*` fields would
     reintroduce one merge at a time.
 
-    `srcs` is the one thing that `DartInfo` genuinely cannot carry. An
+    `entry_srcs` is the one thing that `DartInfo` genuinely cannot carry. An
     entrypoint contributes no package (under pub it belongs to the root package
     but lives outside its `lib/`), so no `DartPackageInfo` can name it and no
     `package:` URI reaches it — but the analyzer still has to see it.
 
     Args:
       deps: Targets providing `DartInfo` whose closures the entrypoint reaches.
-      srcs: The target's own entrypoint sources (its `main` and `srcs`). Pass
-        the rule's own `File`s, before any colocation copy: consumers stage by
-        `short_path`, and a colocated copy's is the assembled directory's.
+      entry_srcs: The target's own entrypoint sources (its `main` and `srcs`).
+        Pass the rule's own `File`s, before any colocation copy: consumers stage
+        by `short_path`, and a colocated copy's is the assembled directory's.
 
     Returns:
       A `DartAnalyzableInfo`.
     """
     return DartAnalyzableInfo(
         dart_info = dart_info_no_package(deps = deps),
-        srcs = depset(srcs),
-        package_srcs = depset(),
-    )
-
-def dart_analyzable_info_with_packages(
-        label,
-        packages,
-        deps = [],
-        srcs = [],
-        package_srcs = [],
-        resources = []):
-    """Builds a `DartAnalyzableInfo` for a target that contributes packages.
-
-    The sibling of `dart_analyzable_info()`, for what its narrow signature
-    cannot state: a target whose sources *are* one or more packages. A
-    downstream `flutter_test` is one shape — it names a `package_name` and its
-    sources are that package's `lib/` files, which import each other by
-    `package:` URI. A library whose analysis closure differs from its compile
-    closure is another: `flutter_library` adds `sky_engine` for the analyzer
-    alone, and a Flutter pub library over a dependency cycle does that for
-    several packages at once. Built through `dart_analyzable_info()`, those
-    imports have no package record to resolve against and every one of them
-    reports `uri_does_not_exist`; the analyzer is right, because nothing in a
-    package-less closure names the package they ask for.
-
-    So this nests a `dart_info()` where the other nests a
-    `dart_info_no_package()`, and that is the whole difference. Neither
-    enumerates a `DartInfo` field, which is what keeps a rule in this position
-    from writing `DartAnalyzableInfo(dart_info = dart_info(...))` by hand — a
-    second construction site for the outer provider, and precisely what this
-    file exists to prevent.
-
-    The two source lists are not interchangeable, and swapping them fails
-    silently rather than loudly: staging places both by `short_path`, so
-    analysis resolves either way, and a `lib/` file routed through `srcs` is
-    merely invisible to every `DartInfo` consumer downstream. Split them by
-    `package:` reachability — a file under a package's `lib/`, reachable as
-    `package:<package_name>/…`, belongs in `package_srcs`; a file outside it (a
-    `test/` entrypoint, a `bin/` main) belongs in `srcs`, which no
-    `DartPackageInfo` can name.
-
-    Args:
-      label: The constructing rule's label, for error messages.
-      packages: The `DartPackageInfo` records this target contributes, each
-        from `dart_package_info()`. At least one: an executable contributing no
-        package is what `dart_analyzable_info()` is for.
-      deps: Targets providing `DartInfo` whose closures are merged in.
-      srcs: The target's own sources belonging to no package's `lib/` — its
-        entrypoint. Pass the rule's own `File`s, before any colocation copy:
-        consumers stage by `short_path`, and a colocated copy's is the assembled
-        directory's.
-      package_srcs: The target's own sources that *are* its packages' `lib/`
-        files, reachable as `package:<package_name>/…`.
-      resources: This target's own non-Dart files under its packages' `lib/`.
-
-    Returns:
-      A `DartAnalyzableInfo` whose nested `DartInfo` records these packages.
-    """
-    return DartAnalyzableInfo(
-        dart_info = dart_info(
-            label = label,
-            packages = packages,
-            deps = deps,
-            srcs = package_srcs,
-            resources = resources,
-        ),
-        srcs = depset(srcs),
-        package_srcs = depset(package_srcs),
+        entry_srcs = depset(entry_srcs),
     )
 
 def derived_package_info(

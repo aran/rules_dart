@@ -150,11 +150,11 @@ def _analyzable_provider_test_impl(ctx):
 
     # The entrypoint, which no `DartInfo` can carry: it is under no package's
     # `lib/`, so no `DartPackageInfo` names it and no `package:` URI reaches it.
-    srcs = sorted([f.short_path for f in analyzable.srcs.to_list()])
+    srcs = sorted([f.short_path for f in analyzable.entry_srcs.to_list()])
     asserts.true(
         env,
         [p for p in srcs if p.endswith(_ENTRYPOINT)] != [],
-        "the entrypoint is missing from DartAnalyzableInfo.srcs: %s" % srcs,
+        "the entrypoint is missing from DartAnalyzableInfo.entry_srcs: %s" % srcs,
     )
 
     # And the closure around it, which one is: staging the entrypoint alone

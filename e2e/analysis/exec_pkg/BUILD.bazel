@@ -2,7 +2,7 @@ load(":rules.bzl", "pkg_executable")
 
 # An executable that also contributes a package, declared by a rule outside
 # rules_dart. Two things are under test here that the in-repo fixtures cannot
-# reach: that `dart_analyzable_info_with_packages` is genuinely public — loaded
+# reach: that `dart_analyzable_info` is genuinely public — loaded
 # through `@rules_dart//dart:utils.bzl` from a separate module — and that the
 # closure it builds survives `package:very_good_analysis`, where an unresolved
 # import is one of many ways to fail rather than the only one.
@@ -10,7 +10,7 @@ load(":rules.bzl", "pkg_executable")
 pkg_executable(
     name = "exec",
     package_name = "analysis_exec",
-    srcs = ["main.dart"],
-    package_srcs = glob(["lib/**/*.dart"]),
+    srcs = glob(["lib/**/*.dart"]),
+    entry_srcs = ["main.dart"],
     deps = ["//mylib"],
 )

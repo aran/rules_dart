@@ -45,7 +45,7 @@ load(
 load(
     "//dart/private:dart_info.bzl",
     _dart_analyzable_info = "dart_analyzable_info",
-    _dart_analyzable_info_with_packages = "dart_analyzable_info_with_packages",
+    _dart_analyzable_info_no_package = "dart_analyzable_info_no_package",
     _dart_info = "dart_info",
     _dart_info_no_package = "dart_info_no_package",
     _dart_package_info = "dart_package_info",
@@ -133,22 +133,22 @@ dart_package_info = _dart_package_info
 # and no code assets to declare, and the signature says so.
 dart_info_no_package = _dart_info_no_package
 
-# For an executable rule — a binary, a test — whose entrypoint belongs to no
-# package's `lib/` and so can appear in no `DartInfo`. Returns the wrapper
-# the `dart_analyze` aspect reads, nesting a `dart_info_no_package()` closure
-# beside those sources. Deliberately not what an executable returns for
-# `deps` to see: `deps` requires `DartInfo`, and a binary is not a dependency.
+# For an executable rule — a binary, a test — that also contributes packages: a
+# downstream test rule whose `srcs` are its package's `lib/` files plus an
+# entrypoint outside them, or a library whose analysis closure adds dependencies
+# its compile does not (`flutter_library`'s `sky_engine`). Takes `dart_info()`'s
+# arguments and nests its result, so the target's own `package:<self>/…` imports
+# resolve under the `dart_analyze` aspect rather than reporting
+# `uri_does_not_exist`; `entry_srcs` adds the entrypoints outside every `lib/`,
+# and a `lib/` file there is refused. Deliberately not what an executable
+# returns for `deps` to see: `deps` requires `DartInfo`, and a binary is not a
+# dependency.
 dart_analyzable_info = _dart_analyzable_info
 
-# The same wrapper for a target that contributes packages — a downstream test
-# rule whose `srcs` are its package's `lib/` files plus an entrypoint outside
-# them, or a library whose analysis closure adds dependencies its compile does
-# not (`flutter_library`'s `sky_engine`). Routes the packages through
-# [dart_info], so the target's own `package:<self>/…` imports resolve under the
-# `dart_analyze` aspect rather than reporting `uri_does_not_exist`. The source
-# split is the thing to get right: `srcs` stays the package-less entrypoint,
-# `package_srcs` the packages' own files.
-dart_analyzable_info_with_packages = _dart_analyzable_info_with_packages
+# The same wrapper for an executable that contributes no package, mirroring
+# `dart_info_no_package`: takes `deps` and the `entry_srcs` that belong to no
+# package's `lib/`, and nests a `dart_info_no_package()` closure beside them.
+dart_analyzable_info_no_package = _dart_analyzable_info_no_package
 
 # Every package a target's deps reach, one record per package: a package's
 # records (one per `dart_library` of a split package, one per pub hub supplying

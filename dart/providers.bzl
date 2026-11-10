@@ -94,7 +94,7 @@ state a `package`, `package_name` or `language_version`. A library needs nothing
 the analyzable closure, and the aspect accepts either provider, which is what \
 keeps `dart_proto_library` analyzable without adopting anything. The aspect \
 checks a target's own files: its `DefaultInfo` `.dart` files (a library's \
-sources) plus this provider's `srcs`.
+sources), its nested `DartInfo.srcs` and this provider's `entry_srcs`.
 
 The separation is what makes an entrypoint analyzable without making it a valid \
 dependency. Every `deps` attribute in this rule set and downstream ones gates on \
@@ -106,17 +106,16 @@ structurally: consumable by whoever asks for it, invisible to whoever asks for \
 `DartInfo`.
 
 Build one with either constructor in `//dart:utils.bzl`, never by hand. \
-`dart_analyzable_info()` builds the nested `DartInfo` through \
-`dart_info_no_package()`, for an entrypoint that contributes no package — under \
-pub it belongs to the root package but sits outside its `lib/`. \
-`dart_analyzable_info_with_packages()` builds it through `dart_info()`, for a \
-target whose sources *are* packages: without their records its own \
-`package:<self>/…` imports resolve against nothing and every one of them \
-reports `uri_does_not_exist`.""",
+`dart_analyzable_info()` takes `dart_info()`'s arguments and builds the nested \
+`DartInfo` through it, for a target whose sources *are* packages: without their \
+records its own `package:<self>/…` imports resolve against nothing and every \
+one of them reports `uri_does_not_exist`. `dart_analyzable_info_no_package()` \
+takes `dart_info_no_package()`'s and builds it through that, for an entrypoint \
+that contributes no package — under pub it belongs to the root package but sits \
+outside its `lib/`.""",
     fields = {
-        "dart_info": "DartInfo: the dependency closure, as the `dart_analyzable_info*()` constructors build it — package-less, or carrying this target's own package records.",
-        "srcs": "depset[File]: the target's own sources that belong to no package's `lib/` — its `main`, a `test/` entrypoint — and which therefore no `DartPackageInfo` can name. Sources that *are* a package's `lib/` files ride the nested `DartInfo` instead.",
-        "package_srcs": "depset[File]: the target's own sources that *are* its packages' `lib/` files — the ones `dart_analyzable_info_with_packages()` was given; empty for a package-less target. Named separately because the nested `DartInfo` holds them only inside its transitive closure, beside every dependency's, and a target's `DefaultInfo` (a web bundle, a test executable) need not list its sources at all. Optional: a producer built against a rules_dart without the field omits it.",
+        "dart_info": "DartInfo: the dependency closure, as the `dart_analyzable_info*()` constructors build it — package-less, or carrying this target's own package records. Its `srcs` are the target's own `lib/` files, which a target's `DefaultInfo` (a web bundle, a test executable) need not list.",
+        "entry_srcs": "depset[File]: the target's own sources that belong to no package's `lib/` — its `main`, a `test/` entrypoint — and which therefore no `DartPackageInfo` can name. Sources that *are* a package's `lib/` files ride the nested `DartInfo` instead.",
     },
 )
 

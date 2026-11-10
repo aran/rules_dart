@@ -9,7 +9,7 @@ Applied from the command line, in `.bazelrc`:
 
 it checks each Dart target named on the command line (it does not propagate
 along `deps`), and only that target's *own* files: its `DefaultInfo` `.dart`
-files plus its `DartAnalyzableInfo.srcs`. Each check is its own output group
+files plus its `DartAnalyzableInfo.entry_srcs`. Each check is its own output group
 and its own actions — `dart_analyze` for the analyzer, `dart_format` for the
 format check — so a project runs whichever of the two its `--output_groups`
 names, and only that one. Its in-repository dependencies are staged so their imports resolve and excluded so they are not re-checked — each
@@ -414,12 +414,11 @@ def _dart_analyze_aspect_impl(target, ctx):
     # external files are never checked.
     if DartAnalyzableInfo in target:
         info = target[DartAnalyzableInfo].dart_info
-        entry = target[DartAnalyzableInfo].srcs.to_list()
+        entry = target[DartAnalyzableInfo].entry_srcs.to_list()
 
         # A package's own `lib/` files, which a target's `DefaultInfo` (a web
-        # bundle, a test executable) need not list. Absent from records built
-        # against an older rules_dart.
-        package_srcs = getattr(target[DartAnalyzableInfo], "package_srcs", depset()).to_list()
+        # bundle, a test executable) need not list.
+        package_srcs = list(info.srcs)
     else:
         info = target[DartInfo]
         entry = []

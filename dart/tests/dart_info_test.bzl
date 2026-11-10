@@ -28,7 +28,8 @@ load("//dart:providers.bzl", "DartAnalyzableInfo", "DartCodeAssetInfo", "DartInf
 load("//dart/private:common.bzl", "package_code_assets")
 load(
     "//dart/private:dart_info.bzl",
-    "dart_analyzable_info_with_packages",
+    "dart_analyzable_info",
+    "dart_analyzable_info_no_package",
     "dart_info",
     "dart_info_no_package",
     "dart_package_info",
@@ -82,8 +83,8 @@ facade_library = rule(
 
 def _wrapper_executable_impl(ctx):
     return [
-        DefaultInfo(files = depset(ctx.files.srcs + ctx.files.package_srcs)),
-        dart_analyzable_info_with_packages(
+        DefaultInfo(files = depset(ctx.files.srcs + ctx.files.entry_srcs)),
+        dart_analyzable_info(
             label = ctx.label,
             packages = [dart_package_info(
                 label = ctx.label,
@@ -94,8 +95,8 @@ def _wrapper_executable_impl(ctx):
             )],
             deps = ctx.attr.deps,
             srcs = ctx.files.srcs,
-            package_srcs = ctx.files.package_srcs,
             resources = ctx.files.resources,
+            entry_srcs = ctx.files.entry_srcs,
         ),
     ]
 
@@ -103,7 +104,7 @@ wrapper_executable = rule(
     implementation = _wrapper_executable_impl,
     attrs = {
         "srcs": attr.label_list(allow_files = [".dart"]),
-        "package_srcs": attr.label_list(allow_files = [".dart"]),
+        "entry_srcs": attr.label_list(allow_files = [".dart"]),
         "resources": attr.label_list(allow_files = True),
         "deps": attr.label_list(providers = [DartInfo]),
         "code_assets": attr.label_list(providers = [DartCodeAssetInfo]),
@@ -111,7 +112,26 @@ wrapper_executable = rule(
         "language_version": attr.string(),
     },
     doc = "An executable that also contributes a package, built through " +
-          "`dart_analyzable_info_with_packages()`.",
+          "`dart_analyzable_info()`.",
+)
+
+def _bare_executable_impl(ctx):
+    return [
+        DefaultInfo(files = depset(ctx.files.entry_srcs)),
+        dart_analyzable_info_no_package(
+            deps = ctx.attr.deps,
+            entry_srcs = ctx.files.entry_srcs,
+        ),
+    ]
+
+bare_executable = rule(
+    implementation = _bare_executable_impl,
+    attrs = {
+        "entry_srcs": attr.label_list(allow_files = [".dart"]),
+        "deps": attr.label_list(providers = [DartInfo]),
+    },
+    doc = "An executable contributing no package, built through " +
+          "`dart_analyzable_info_no_package()`.",
 )
 
 def _short_paths(dep):
@@ -301,12 +321,18 @@ def _analyzable_with_package_test_impl(ctx):
     # The entrypoint is in the outer field and *only* there: it belongs to no
     # package's `lib/`, so a `DartInfo` carrying it would be claiming a
     # `package:` URI reaches it.
-    entry = sorted([f.short_path for f in analyzable.srcs.to_list()])
+    entry = sorted([f.short_path for f in analyzable.entry_srcs.to_list()])
     asserts.equals(env, 1, len(entry), "expected exactly one entrypoint: %s" % entry)
     asserts.true(
         env,
         entry[0].endswith("/entry.dart"),
-        "the entrypoint is missing from DartAnalyzableInfo.srcs: %s" % entry,
+        "the entrypoint is missing from DartAnalyzableInfo.entry_srcs: %s" % entry,
+    )
+    asserts.equals(
+        env,
+        ["dart/tests/dart_info_fixture/lib/owned.dart"],
+        sorted([f.short_path for f in info.srcs]),
+        "the package's own sources are `DartInfo.srcs`, the field readers use",
     )
     asserts.true(
         env,
@@ -317,6 +343,64 @@ def _analyzable_with_package_test_impl(ctx):
     return analysistest.end(env)
 
 analyzable_with_package_test = analysistest.make(_analyzable_with_package_test_impl)
+
+def _analyzable_no_package_test_impl(ctx):
+    env = analysistest.begin(ctx)
+    target = analysistest.target_under_test(env)
+
+    # The same separation as with a package: analyzable, never a legal dep.
+    asserts.true(env, DartAnalyzableInfo in target, "must provide DartAnalyzableInfo")
+    asserts.false(env, DartInfo in target, "must NOT provide DartInfo")
+    if DartAnalyzableInfo not in target:
+        return analysistest.end(env)
+
+    analyzable = target[DartAnalyzableInfo]
+    info = analyzable.dart_info
+
+    # The entrypoint rides `entry_srcs` alone; the nested closure is the
+    # dependency's, with no package record of the executable's own.
+    asserts.equals(
+        env,
+        ["dart/tests/dart_info_fixture/entry.dart"],
+        sorted([f.short_path for f in analyzable.entry_srcs.to_list()]),
+    )
+    asserts.equals(env, 0, len(info.packages))
+    asserts.equals(env, 0, len(info.srcs))
+    asserts.equals(
+        env,
+        ["info_dep"],
+        sorted([p.package_name for p in info.transitive_packages.to_list()]),
+    )
+    srcs = _short_paths(info.transitive_srcs)
+    asserts.true(
+        env,
+        [p for p in srcs if p.endswith("/lib/dep.dart")] != [],
+        "dependency's source missing from transitive_srcs: %s" % srcs,
+    )
+    asserts.true(
+        env,
+        [p for p in srcs if p.endswith("/entry.dart")] == [],
+        "the entrypoint leaked into transitive_srcs: %s" % srcs,
+    )
+
+    return analysistest.end(env)
+
+analyzable_no_package_test = analysistest.make(_analyzable_no_package_test_impl)
+
+def _entry_srcs_under_lib_test_impl(ctx):
+    env = analysistest.begin(ctx)
+    asserts.expect_failure(
+        env,
+        "`entry_srcs` file `dart/tests/dart_info_fixture/lib/owned.dart` is under the `lib/` of package `exec_pkg`",
+    )
+    return analysistest.end(env)
+
+# The silent swap, now refused: a package's own `lib/` file passed as an
+# entrypoint would analyze fine yet be invisible to every `DartInfo` reader.
+entry_srcs_under_lib_test = analysistest.make(
+    _entry_srcs_under_lib_test_impl,
+    expect_failure = True,
+)
 
 def _no_package_name_test_impl(ctx):
     env = analysistest.begin(ctx)

@@ -11,7 +11,7 @@ on.
 """
 
 load("@rules_dart//dart:providers.bzl", "DartInfo")
-load("@rules_dart//dart:utils.bzl", "dart_analyzable_info_with_packages", "dart_info", "runtime_reset")
+load("@rules_dart//dart:utils.bzl", "dart_analyzable_info", "dart_info", "runtime_reset")
 load("@rules_dart//dart/pub:pub_library.bzl", "DartPackageMemberInfo", "dart_package_member_info")
 
 FancyMemberInfo = provider(
@@ -76,11 +76,11 @@ def _fancy_library_impl(ctx):
         ),
         # The analyzer sees one more package than the compiler, as
         # `flutter_library`'s `sky_engine`.
-        dart_analyzable_info_with_packages(
+        dart_analyzable_info(
             label = ctx.label,
             packages = packages,
             deps = ctx.attr.deps + [ctx.attr._engine],
-            package_srcs = srcs,
+            srcs = srcs,
             resources = resources,
         ),
         FancyInfo(

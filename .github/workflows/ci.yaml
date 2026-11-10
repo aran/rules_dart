@@ -461,7 +461,7 @@ jobs:
           bazel test //:bad_bin 2>&1 | grep -q "unused_import"
           echo "OK: expected analyzer failure detected"
       # A `flutter_library` lists its files in `DefaultInfo` and leaves
-      # `DartAnalyzableInfo.srcs` empty; they are its own files all the same.
+      # `DartAnalyzableInfo.entry_srcs` empty; they are its own files all the same.
       - name: analysis_failure — expect a flutter_library-shaped target to be analyzed
         working-directory: e2e/analysis_failure
         run: |

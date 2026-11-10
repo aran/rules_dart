@@ -66,7 +66,7 @@ aspect_applies_test(
 )
 
 # A `flutter_library`'s files arrive through `DefaultInfo`, not
-# `DartAnalyzableInfo.srcs`, which is empty.
+# `DartAnalyzableInfo.entry_srcs`, which is empty.
 aspect_applies_test(
     name = "flutter_shaped_applies_test",
     size = "small",

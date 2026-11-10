@@ -1,7 +1,10 @@
 load("//dart:defs.bzl", "dart_code_asset", "dart_library")
 load(
     "//dart/tests:dart_info_test.bzl",
+    "analyzable_no_package_test",
     "analyzable_with_package_test",
+    "bare_executable",
+    "entry_srcs_under_lib_test",
     "facade_library",
     "forwards_closures_test",
     "language_version_passthrough_test",
@@ -118,10 +121,10 @@ dart_code_asset(
 wrapper_executable(
     name = "exec",
     package_name = "exec_pkg",
-    srcs = ["entry.dart"],
+    srcs = ["lib/owned.dart"],
     code_assets = [":exec_asset"],
+    entry_srcs = ["entry.dart"],
     language_version = "3.11",
-    package_srcs = ["lib/owned.dart"],
     resources = ["lib/owned.yaml"],
     # Two packages rooted at one directory, which no package_config may hold:
     # a provider-shape fixture, not a project the analyzer can resolve.
@@ -141,7 +144,7 @@ analyzable_with_package_test(
 wrapper_executable(
     name = "unnamed_exec",
     package_name = "",
-    srcs = ["entry.dart"],
+    entry_srcs = ["entry.dart"],
     tags = ["manual"],
 )
 
@@ -164,4 +167,37 @@ misowned_asset_test(
     name = "misowned_asset_test",
     size = "small",
     target_under_test = ":misowned_wrapper",
+)
+
+# An executable contributing no package: the entrypoint outside every `lib/`
+# and a dependency's closure, nothing of its own in `DartInfo`.
+bare_executable(
+    name = "bare_exec",
+    entry_srcs = ["entry.dart"],
+    # `entry.dart` imports the package `:exec` states, which this target does
+    # not: a provider-shape fixture, not a project the analyzer can resolve.
+    tags = ["no-dart-analyze"],
+    deps = [":dep"],
+)
+
+analyzable_no_package_test(
+    name = "analyzable_no_package_test",
+    size = "small",
+    target_under_test = ":bare_exec",
+)
+
+# A package's own `lib/` file handed over as an entrypoint is the swap the docs
+# used to warn failed silently; the constructor refuses it.
+wrapper_executable(
+    name = "misplaced_entry",
+    package_name = "exec_pkg",
+    entry_srcs = ["lib/owned.dart"],
+    language_version = "3.11",
+    tags = ["manual"],
+)
+
+entry_srcs_under_lib_test(
+    name = "entry_srcs_under_lib_test",
+    size = "small",
+    target_under_test = ":misplaced_entry",
 )

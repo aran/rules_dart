@@ -2,7 +2,7 @@
 
 The shape a `flutter_test` has: the target names a package and its sources are
 that package's `lib/` files, plus an entrypoint outside them. Reaching
-`DartAnalyzableInfo` through `dart_analyzable_info()` would leave those `lib/`
+`DartAnalyzableInfo` through `dart_analyzable_info_no_package()` would leave those `lib/`
 files in no package record, and every `package:analysis_exec/…` import — the
 entrypoint's and the ones the `lib/` files make of each other — would report
 `uri_does_not_exist`.
@@ -13,12 +13,12 @@ re-export is exercised rather than assumed.
 """
 
 load("@rules_dart//dart:providers.bzl", "DartInfo")
-load("@rules_dart//dart:utils.bzl", "dart_analyzable_info_with_packages", "dart_package_info")
+load("@rules_dart//dart:utils.bzl", "dart_analyzable_info", "dart_package_info")
 
 def _pkg_executable_impl(ctx):
     return [
-        DefaultInfo(files = depset(ctx.files.srcs + ctx.files.package_srcs)),
-        dart_analyzable_info_with_packages(
+        DefaultInfo(files = depset(ctx.files.entry_srcs + ctx.files.srcs)),
+        dart_analyzable_info(
             label = ctx.label,
             packages = [dart_package_info(
                 label = ctx.label,
@@ -28,18 +28,18 @@ def _pkg_executable_impl(ctx):
             )],
             deps = ctx.attr.deps,
             srcs = ctx.files.srcs,
-            package_srcs = ctx.files.package_srcs,
+            entry_srcs = ctx.files.entry_srcs,
         ),
     ]
 
 pkg_executable = rule(
     implementation = _pkg_executable_impl,
     attrs = {
-        "srcs": attr.label_list(
+        "entry_srcs": attr.label_list(
             allow_files = [".dart"],
             doc = "Sources outside the package's `lib/` — the entrypoint.",
         ),
-        "package_srcs": attr.label_list(
+        "srcs": attr.label_list(
             allow_files = [".dart"],
             doc = "The package's own `lib/` sources.",
         ),

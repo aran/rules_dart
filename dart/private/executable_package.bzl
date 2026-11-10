@@ -21,7 +21,7 @@ pure, so each can be tested by calling it.
 
 load("//dart:providers.bzl", "DartInfo")
 load("//dart/private:common.bzl", "PACKAGE_IDENTITY_ATTRS", "codegen_identity_error", "merge_package_records", "resolve_package_identity")
-load("//dart/private:dart_info.bzl", "dart_analyzable_info", "dart_analyzable_info_with_packages", "dart_package_info", "package_lib_prefix")
+load("//dart/private:dart_info.bzl", "dart_analyzable_info", "dart_analyzable_info_no_package", "dart_package_info", "package_lib_prefix")
 load("//dart/private:dart_library.bzl", "derive_package_name", "locate_package_root")
 
 # The identity attributes of every executable rule: `package` from
@@ -191,7 +191,7 @@ def executable_package(ctx, own_srcs):
         return struct(
             record = None,
             packages = merge_package_records(dep_packages),
-            analyzable = dart_analyzable_info(deps = ctx.attr.deps, srcs = own_srcs),
+            analyzable = dart_analyzable_info_no_package(deps = ctx.attr.deps, entry_srcs = own_srcs),
         )
 
     identity = resolve_package_identity(ctx)
@@ -220,7 +220,7 @@ def executable_package(ctx, own_srcs):
     # The package's `lib/` files are reachable as `package:` URIs and join the
     # package's sources; the rest (the entrypoint) belong to no `lib/`.
     prefix = package_lib_prefix(root)
-    analyzable = dart_analyzable_info_with_packages(
+    analyzable = dart_analyzable_info(
         label = ctx.label,
         packages = [dart_package_info(
             label = ctx.label,
@@ -229,8 +229,8 @@ def executable_package(ctx, own_srcs):
             language_version = identity.language_version,
         )],
         deps = ctx.attr.deps,
-        srcs = [f for f in own_srcs if not f.short_path.startswith(prefix)],
-        package_srcs = [f for f in own_srcs if f.short_path.startswith(prefix)],
+        srcs = [f for f in own_srcs if f.short_path.startswith(prefix)],
+        entry_srcs = [f for f in own_srcs if not f.short_path.startswith(prefix)],
     )
 
     # The record alone, not looked up in the closure, which may hold a

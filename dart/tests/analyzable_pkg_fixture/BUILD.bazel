@@ -6,19 +6,19 @@ load("//dart/tests:dart_info_test.bzl", "wrapper_executable")
 # Analysis is where this constructor is actually load-bearing: the provider
 # assertions next door prove the package record reaches the nested `DartInfo`,
 # but only the analyzer proves that record is what makes
-# `package:analyzable_pkg/…` resolve. Built through `dart_analyzable_info()`
-# instead, every import in these three files reports `uri_does_not_exist` and
-# this target goes red.
+# `package:analyzable_pkg/…` resolve. Built through
+# `dart_analyzable_info_no_package()` instead, every import in these three files
+# reports `uri_does_not_exist` and this target goes red.
 
 wrapper_executable(
     name = "exec",
     package_name = "analyzable_pkg",
-    srcs = ["main.dart"],
-    language_version = "3.11",
-    package_srcs = [
+    srcs = [
         "lib/model.dart",
         "lib/view.dart",
     ],
+    entry_srcs = ["main.dart"],
+    language_version = "3.11",
 )
 
 analyzed_test(
