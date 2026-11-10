@@ -1,5 +1,5 @@
-# Non-hermetic (network + writable FS). Enable with:
-#   bazel test //:run_build_runner_test --test_tag_filters=+manual
+# Non-hermetic (network + writable FS), so `manual`: run it by name,
+#   bazel test //:run_build_runner_test
 #
 # Fixture files are prefixed `fixture_` rather than nested in `fixture/` so
 # the fake BUILD.bazel the script writes into the tempdir doesn't create a

@@ -15,28 +15,8 @@ as the repo evolves.
   `CROSS_TOOL_VERSIONS` and to `SOURCE_VERSIONS` (the source archive the
   outline stripper builds `pkg/kernel` from)
 - `MODULE.bazel` — `dart.toolchain(dart_version = "...")`
-- `e2e/hello_world/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
-- `e2e/library_deps/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
-- `e2e/dart_test/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
-- `e2e/dart_test_pkg/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
-- `e2e/analysis/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
-- `e2e/analysis_failure/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
-- `e2e/web_app/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
-- `e2e/pub_deps/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
-- `e2e/pub_lock/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
-- `e2e/gazelle/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
-- `e2e/cross_compile/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
-- `e2e/pub_lock_conflict/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
-- `e2e/pub_lock_cross_module/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
-- `e2e/pub_lock_dedup/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
-- `e2e/pub_lock_upgrade/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
-- `e2e/codegen/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
-- `e2e/dual_build/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
-- `e2e/ext_exemplar/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
-- `e2e/fix/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
-- `e2e/link_hook/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
-- `e2e/analyze_composition/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
-- `e2e/analyze_composition/dep_module/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
+- every e2e and nested `MODULE.bazel` that pins one, the same
+  `dart.toolchain(dart_version = "...")` (`git grep -l 'dart_version = '`)
 - `README.md` — `dart.toolchain(dart_version = "...")` in installation snippet
 - `dart/tests/versions_test.bzl` — asserted version key in `_smoke_test_impl`
 - `dart/runfiles/pubspec.yaml` — `environment.sdk` constraint (published to
@@ -92,27 +72,8 @@ passes under `--config=deep`; at least one e2e workspace builds.
 
 **Files**:
 
-- `.bazelversion`
-- `e2e/smoke/.bazelversion`
-- `e2e/hello_world/.bazelversion`
-- `e2e/library_deps/.bazelversion`
-- `e2e/dart_test/.bazelversion`
-- `e2e/dart_test_pkg/.bazelversion`
-- `e2e/analysis/.bazelversion`
-- `e2e/analysis_failure/.bazelversion`
-- `e2e/web_app/.bazelversion`
-- `e2e/pub_deps/.bazelversion`
-- `e2e/pub_lock/.bazelversion`
-- `e2e/gazelle/.bazelversion`
-- `e2e/cross_compile/.bazelversion`
-- `e2e/pub_lock_conflict/.bazelversion`
-- `e2e/pub_lock_cross_module/.bazelversion`
-- `e2e/pub_lock_dedup/.bazelversion`
-- `e2e/pub_lock_upgrade/.bazelversion`
-- `e2e/codegen/.bazelversion`
-- `e2e/dual_build/.bazelversion`
-- `e2e/ext_exemplar/.bazelversion`
-- `e2e/fix/.bazelversion`
+- every `.bazelversion` (`git ls-files '*.bazelversion'`): the root's and each
+  nested workspace's
 - `.github/workflows/ci.yaml` — `bazel_versions:` must match `.bazelversion`; the
   reusable workflow sets `USE_BAZEL_VERSION` from it, so a stale value means CI
   never tests the version developers run locally
@@ -144,16 +105,8 @@ passes under `--config=deep`; at least one e2e workspace builds.
 - `MODULE.bazel` — the `webcrypto_pub_archive` `http_archive` (not on BCR): a
   new `package:webcrypto` release means a new url and sha256, and moving the
   `webcrypto` bound in `dart/ext/registry.bzl` to that exact version
-- E2e workspaces that duplicate deps:
-  - `e2e/smoke/MODULE.bazel` — `bazel_skylib`, `rules_shell`
-  - `e2e/codegen/MODULE.bazel` — `bazel_skylib`
-  - `e2e/gazelle/MODULE.bazel` — `bazel_skylib`, `gazelle`, `rules_shell`,
-    `apple_support`
-  - `e2e/cross_compile/MODULE.bazel` — `platforms`, `rules_platform`
-  - `e2e/dual_build/MODULE.bazel` — `rules_shell`
-  - `e2e/ext_exemplar/MODULE.bazel` — `gazelle`, `rules_go`, `sqlite3`,
-    `rules_cc`, `platforms`, `apple_support`
-  - `e2e/fix/MODULE.bazel` — `bazel_skylib`
+- E2e workspaces that declare the same deps:
+  `git grep -n 'bazel_dep(' -- 'e2e/*MODULE.bazel'`
 - `e2e/ext_exemplar/sqlite3_binary/test/direct_test.dart` — asserts the exact
   `sqlite3.version.libVersion` string, so a `sqlite3` bump fails this test until
   the literal is updated to match
@@ -338,10 +291,8 @@ Each in-repo Dart package is publishable to pub.dev. Maintenance includes:
   `go_router_builder` declares a Flutter environment constraint), then
   the same `upgrade` with each pinned workspace's `--directory`, refresh the touched
   `MODULE.bazel.lock`s, and verify with `//dart/ext/...`,
-  `e2e/codegen`, and a consuming app. The analyzer 10→13 and 13→14 bumps
-  needed no shim changes — every shim compiled and analyzed clean
-  unchanged — so expect builder majors to be cheap unless a builder
-  entrypoint signature changes.
+  `e2e/codegen`, and a consuming app. A shim needs changing only when a
+  builder's entrypoint signature changes, so builder majors are usually cheap.
 
 - **Lock file**: `pubspec.lock` is refreshed by
   `bazel run //tool:pub_locks -- --refresh`.

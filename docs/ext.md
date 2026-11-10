@@ -207,7 +207,7 @@ not speak. `e2e/codegen/tools/BUILD.bazel` is the worked example.
 ## The Resolver
 
 `_ShimAnalyzerResolver` in `builder_shim.dart` implements the
-`package:build` `Resolver` interface over `package:analyzer` 10.x. It is
+`package:build` `Resolver` interface over `package:analyzer`. It is
 the piece that must stay bug-compatible with `build_resolvers` (the
 upstream Resolver implementation), since every Builder talks through it.
 
@@ -383,7 +383,8 @@ Three independent mechanisms guard this. Each has a dedicated test.
 `web/`, `tool/` — never the repo root, where `BUILD.bazel`,
 `MODULE.bazel`, and `bazel-*` convenience symlinks live. Pinned by
 `e2e/dual_build/run_build_runner_test` (tagged `manual` because it runs
-real `dart pub get`; enable in CI with `--test_tag_filters=+manual`).
+real `dart pub get`, so only `bazel test //:run_build_runner_test` in that
+workspace runs it).
 
 ### Recommendations
 
@@ -433,7 +434,8 @@ equivalent rules_dart target configuration produces bit-identical Builder
 output and preserves ordering constraints. The argument:
 
 1. **Identical Builder execution.** We call `Builder.build(BuildStep)`
-   using `package:build` 4.x + `package:analyzer` 10.x. Given the same
+   using `package:build` and `package:analyzer` at the versions
+   `dart/ext/pubspec.lock` pins. Given the same
    inputs, config, and Resolver state, `build()` is deterministic. Our
    Resolver is bug-compatible with `build_resolvers` for the behaviour
    bundled builders depend on (URI canonicalisation,

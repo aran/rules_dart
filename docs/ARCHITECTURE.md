@@ -6,7 +6,7 @@
 
 - Downloads published Dart SDK releases (not building from source)
 - Uses bzlmod exclusively, targeting Bazel 9.x
-- Is designed for future extension by a `rules_flutter` rule set
+- Is designed for extension by other rule sets, such as `rules_flutter`
 
 ---
 
@@ -25,7 +25,7 @@
 | `DartCodeAssetInfo`       | Asset        | One native code asset: asset id, link mode, dynamic library or system URI                                                                       |
 | `DartDataAssetInfo`       | Asset        | Data assets a `dart_link_hook` collected: `package`, `name`, `file`, `id` per asset; no bundling paths                                          |
 
-**DartInfo contains zero Flutter concepts.** A future `rules_flutter` wraps/extends, never modifies.
+**DartInfo contains zero Flutter concepts.** `rules_flutter` wraps/extends it, never modifies it.
 
 **A library contributes its packages, usually one.** `DartInfo.packages` holds the `DartPackageInfo` records of the packages a target itself contributes: one for a library, none for a target that only groups others (`dart_info_no_package()`), and several for one library pub generates. Pub allows packages to depend on each other (`dio` imports `dio_web_adapter`, which imports `dio`); Bazel does not allow a dependency cycle, so such packages are one target, and each keeps its own name, `lib_root` and language version. Nothing downstream needs to know: `package_config.json` lists records, a module compile splits a target's sources into modules by their imports whatever packages they belong to, and the layering check accepts every package a direct dependency contributes, which is why `DartInfo.deps` maps each dependency to the names of all its packages.
 
