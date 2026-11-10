@@ -970,9 +970,13 @@ def _pub_impl(ctx):
             packages = {name: library_label(name) for name in packages},
         )
 
+    # The repositories are fixed by the tags and the locks read above: a
+    # hosted package without a sha256 or a git package without a commit id
+    # fails, so nothing depends on what a server holds on the day.
     return ctx.extension_metadata(
         root_module_direct_deps = [name for name, dev in root_repos.items() if not dev],
         root_module_direct_dev_deps = [name for name, dev in root_repos.items() if dev],
+        reproducible = True,
     )
 
 pub = module_extension(

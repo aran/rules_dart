@@ -126,12 +126,13 @@ passes under `--config=deep`; at least one e2e workspace builds.
 
 ## Lock File Refresh
 
-**Trigger**: After any change to `MODULE.bazel` files or their transitive deps —
-and after any change to a `.bzl` file reachable from a module extension. A lock
-records each extension's `bzlTransitiveDigest`, so editing (or merely adding a
-load to) anything in `dart/pub/extensions.bzl`'s closure invalidates the lock of
-**every** workspace using it, not just the one whose `MODULE.bazel` moved. Under
-`--lockfile_mode=error`, which `.bazelrc` sets, that is a hard CI failure.
+**Trigger**: After any change to `MODULE.bazel` files or their transitive deps.
+A lock holds the module graph and the results of the extensions that are not
+marked reproducible, each with its `bzlTransitiveDigest`: a dependency bump that
+changes one of those extensions invalidates the lock of **every** workspace
+using it. Under `--lockfile_mode=error`, which `.bazelrc` sets, that is a hard CI
+failure. rules_dart's own extensions are reproducible, so Bazel keeps their
+results in the output base, not the lock, and editing them changes no lock.
 
 **Workspaces**: every directory with a tracked `MODULE.bazel`, found by
 `bazel run @overhead//locks:check`, except a module inside another e2e workspace
