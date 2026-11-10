@@ -601,6 +601,11 @@ program's kernels through runfiles, `writeKernelList` writes a list naming
 them, and `joinKernels` joins them for a program that takes a single kernel
 file, in memory on Linux and in a temporary file elsewhere.
 
+Such a rule set honours the escape hatch too: it merges `MODULAR_KERNEL_ATTR`
+from `@rules_dart//dart:utils.bzl` and, when `modular_kernel(ctx)` is false,
+compiles its whole program with `dart_whole_program_kernel_action`.
+`dart_entry_kernel_action` fails if called then, since no module was compiled.
+
 A test's `defines` are configuration: its dependencies' modules are compiled in
 the same environment as its entrypoint. A rule set's executable gets that
 environment from `executable_defines_config` in `@rules_dart//dart:utils.bzl`,

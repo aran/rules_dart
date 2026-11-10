@@ -130,6 +130,13 @@ KERNEL_LIST_ATTR = {
     ),
 }
 
+MODULAR_KERNEL_ATTR = {
+    "_modular_kernel": attr.label(
+        doc = "The //dart:modular_kernel build setting.",
+        default = Label("//dart:modular_kernel"),
+    ),
+}
+
 RUNNER_SNAPSHOT_ATTR = {
     "_runner_snapshot": attr.label(
         doc = "The //dart:runner_snapshot build setting.",
@@ -147,6 +154,21 @@ def runner_snapshot(ctx):
       A bool.
     """
     return ctx.attr._runner_snapshot[BuildSettingInfo].value
+
+def modular_kernel(ctx):
+    """Whether this configuration compiles executables against kernel modules.
+
+    Off (`--@rules_dart//dart:modular_kernel=false`, the build-wide escape
+    hatch), the module aspect compiles nothing, and an executable compiles its
+    whole program from source.
+
+    Args:
+      ctx: Rule or aspect context carrying `_modular_kernel`.
+
+    Returns:
+      A bool.
+    """
+    return ctx.attr._modular_kernel[BuildSettingInfo].value
 
 def kernel_list(ctx):
     """Whether this configuration links a test's program as a kernel list.

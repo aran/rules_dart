@@ -39,7 +39,7 @@ Flutter SDK and gets its own modules, and everything else here is shared.
 
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("//dart:providers.bzl", "DartInfo", "DartKernelSdkInfo", "DartModuleInfo")
-load("//dart/private:build_settings.bzl", "module_define_comma_error", "track_creation_locations", "validate_dart_defines")
+load("//dart/private:build_settings.bzl", "MODULAR_KERNEL_ATTR", "modular_kernel", "module_define_comma_error", "track_creation_locations", "validate_dart_defines")
 load("//dart/private:common.bzl", "KERNEL_FILESYSTEM_SCHEME", "PATH_MAPPING", "VM_SANITIZER_DEFINES", "add_kernel_roots", "bootstrap_kernel_action", "collect_transitive_srcs", "dart_kernel_action", "kernel_root_path", "own_packages")
 load(
     "//dart/private:dart_deps.bzl",
@@ -297,7 +297,7 @@ def _module_aspect_impl(target, ctx):
     # The build-wide escape hatch: executables compile whole programs, and
     # nothing reads a module.
     defines = module_defines(ctx)
-    if not ctx.attr._modular_kernel[BuildSettingInfo].value:
+    if not modular_kernel(ctx):
         return [DartModuleInfo(modules = depset(), outlines = depset(), manifests = depset(), exported = {}, defines = defines)]
     reached = reached_targets(ctx, DartModuleInfo)
 
@@ -508,12 +508,11 @@ def dart_module_aspect(
         exec_groups = {
             PORTABLE: exec_group(toolchains = [EXEC_TOOLS_TOOLCHAIN] + exec_toolchains),
         } if exec_toolchains else PORTABLE_EXEC_GROUPS,
-        attrs = KERNEL_TOOL_ATTR | {
+        attrs = KERNEL_TOOL_ATTR | MODULAR_KERNEL_ATTR | {
             "_kernel_sdk": _kernel_sdk_attr(kernel_sdk),
             "_extra_dart_defines": attr.label(default = extra_dart_defines),
             "_track_creation_locations": attr.label(default = track_creation_locations),
             "_module_defines": attr.label(default = Label("//dart/private:module_defines")),
-            "_modular_kernel": attr.label(default = Label("//dart:modular_kernel")),
         },
     )
 
@@ -666,6 +665,16 @@ def _check_same_environment(ctx, modules, defines):
                   "and the rule's `_extra_dart_defines` names the flag its module aspect reads.") %
                  (ctx.label, defines, label, theirs))
 
+def _check_modular(ctx):
+    # Under the escape hatch the aspect compiles no module, so an entrypoint
+    # compiled against them would find none of its dependencies' sources.
+    if not hasattr(ctx.attr, "_modular_kernel"):
+        fail("%s: the rule must merge `MODULAR_KERNEL_ATTR` into its `attrs`, and compile its whole program with `dart_whole_program_kernel_action` when `modular_kernel(ctx)` is false" % ctx.label)
+    if not modular_kernel(ctx):
+        fail(("%s: `--@rules_dart//dart:modular_kernel` is off, so no module is compiled, and its rule compiles its " +
+              "entrypoint against modules. A rule calling `dart_entry_kernel_action` compiles its whole program " +
+              "from source with `dart_whole_program_kernel_action` when `modular_kernel(ctx)` is false.") % ctx.label)
+
 def dart_entry_kernel_action(
         ctx,
         sdk,
@@ -690,6 +699,11 @@ def dart_entry_kernel_action(
     `dart_link_kernel_action`, linked; reaching one that is unsupported on the
     platform or did not compile fails here, with its errors.
 
+    The rule merges `MODULAR_KERNEL_ATTR` into its `attrs`. Under the escape
+    hatch, when `modular_kernel(ctx)` is false, no module is compiled: the
+    rule compiles its whole program with `dart_whole_program_kernel_action`
+    instead, and this fails if called.
+
     Args:
       ctx: The rule context.
       sdk: The `DartKernelSdkInfo`.
@@ -712,6 +726,8 @@ def dart_entry_kernel_action(
       sees, its own included, and the File naming those `main` reaches, to
       link with the entry.
     """
+
+    _check_modular(ctx)
 
     # The environment is the rule's configuration, not an argument, so that
     # the entrypoint cannot be compiled in another than its modules.

@@ -10,9 +10,8 @@ or manifest; or, with `--@rules_dart//dart:kernel_list=false`, one joined
 kernel.
 """
 
-load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("//dart:providers.bzl", "DartCodeAssetInfo", "DartInfo", "DartKernelSdkInfo")
-load("//dart/private:build_settings.bzl", "EXTRA_DART_DEFINES_ATTR", "KERNEL_LIST_ATTR", "RUNNER_SNAPSHOT_ATTR", "TRACK_CREATION_LOCATIONS_ATTR", "kernel_list", "runner_snapshot", "track_creation_locations")
+load("//dart/private:build_settings.bzl", "EXTRA_DART_DEFINES_ATTR", "KERNEL_LIST_ATTR", "MODULAR_KERNEL_ATTR", "RUNNER_SNAPSHOT_ATTR", "TRACK_CREATION_LOCATIONS_ATTR", "kernel_list", "modular_kernel", "runner_snapshot", "track_creation_locations")
 load(
     "//dart/private:common.bzl",
     "DART_ABI_CONSTRAINT_ATTRS",
@@ -81,7 +80,7 @@ def _dart_test_impl(ctx):
     else:
         dill = ctx.actions.declare_file(ctx.label.name + ".dill")
     native_assets_yaml, runtime_libs = _code_assets(ctx, own.record, dill)
-    modular = ctx.attr._modular_kernel[BuildSettingInfo].value
+    modular = modular_kernel(ctx)
 
     # What the program needs beside it: the kernels a kernel list names.
     program_files = depset()
@@ -500,7 +499,6 @@ entry does not run. A target none of whose cases remain fails. \
 `--test_env=DART_TEST_EXCLUDE_TAGS=<selector>` drops more for one run. Needs `package:test` in \
 `deps`.""",
         ),
-        "_modular_kernel": attr.label(default = Label("//dart:modular_kernel")),
         # Run by the launcher under `bazel coverage`, and in runfiles only then.
         "_coverage_collector": attr.label(
             default = "//dart/private/tools:coverage_collector",
@@ -512,7 +510,7 @@ entry does not run. A target none of whose cases remain fails. \
             executable = True,
             cfg = "target",
         ),
-    }, **dict(COVERAGE_ATTRS, **dict(DART_ABI_CONSTRAINT_ATTRS, **dict(KERNEL_LIST_ATTR, **dict(RUNNER_SNAPSHOT_ATTR, **dict(EXTRA_DART_DEFINES_ATTR, **dict(TRACK_CREATION_LOCATIONS_ATTR, **dict(MODULE_EXECUTABLE_ATTRS, **dict(PROGRAM_KERNEL_SDK_ATTR, **dict(_ENVIRONMENT.attrs, **EXECUTABLE_PACKAGE_ATTRS)))))))))),
+    }, **dict(COVERAGE_ATTRS, **dict(DART_ABI_CONSTRAINT_ATTRS, **dict(KERNEL_LIST_ATTR, **dict(MODULAR_KERNEL_ATTR, **dict(RUNNER_SNAPSHOT_ATTR, **dict(EXTRA_DART_DEFINES_ATTR, **dict(TRACK_CREATION_LOCATIONS_ATTR, **dict(MODULE_EXECUTABLE_ATTRS, **dict(PROGRAM_KERNEL_SDK_ATTR, **dict(_ENVIRONMENT.attrs, **EXECUTABLE_PACKAGE_ATTRS))))))))))),
     test = True,
     # The compiles are `portable`. The run is Bazel's own `test` group, which
     # puts it on a host matching the target: everything it runs, the VM and

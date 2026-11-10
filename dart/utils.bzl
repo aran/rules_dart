@@ -8,8 +8,10 @@ co-location. These are used by both rules_dart and rules_flutter.
 load(
     "//dart/private:build_settings.bzl",
     _KERNEL_LIST_ATTR = "KERNEL_LIST_ATTR",
+    _MODULAR_KERNEL_ATTR = "MODULAR_KERNEL_ATTR",
     _TRACK_CREATION_LOCATIONS_ATTR = "TRACK_CREATION_LOCATIONS_ATTR",
     _kernel_list = "kernel_list",
+    _modular_kernel = "modular_kernel",
     _track_creation_locations = "track_creation_locations",
 )
 load(
@@ -355,6 +357,13 @@ parse_data_asset_ids = _parse_data_asset_ids
 # `add_kernel_roots` address sources through the same `org-dartlang-root:///`
 # roots the modules were compiled with.
 #
+# `--@rules_dart//dart:modular_kernel=false` is the build-wide escape hatch:
+# the aspect compiles no module, and every executable compiles its whole
+# program from source. A rule merges `MODULAR_KERNEL_ATTR` into its `attrs`
+# and, when `modular_kernel(ctx)` is false, compiles with
+# `dart_whole_program_kernel_action` (below) rather than
+# `dart_entry_kernel_action`, which fails if called then.
+#
 # `--@rules_dart//dart:track_creation_locations` must be the same for the modules
 # and the entrypoint: the aspect reads it itself, and a rule passes
 # `track_creation_locations(ctx)` to `dart_entry_kernel_action`, merging
@@ -431,6 +440,8 @@ dart_compile_action = _dart_compile_action
 KERNEL_TOOL_ATTR = _KERNEL_TOOL_ATTR
 KERNEL_LIST_ATTR = _KERNEL_LIST_ATTR
 kernel_list = _kernel_list
+MODULAR_KERNEL_ATTR = _MODULAR_KERNEL_ATTR
+modular_kernel = _modular_kernel
 TRACK_CREATION_LOCATIONS_ATTR = _TRACK_CREATION_LOCATIONS_ATTR
 track_creation_locations = _track_creation_locations
 PORTABLE = _PORTABLE
