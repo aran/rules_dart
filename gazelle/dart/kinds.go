@@ -1,6 +1,10 @@
 package dart
 
-import "github.com/bazelbuild/bazel-gazelle/rule"
+import (
+	"sort"
+
+	"github.com/bazelbuild/bazel-gazelle/rule"
+)
 
 // macroKindInfo is the common KindInfo for every per-builder convenience
 // macro (e.g. `json_serializable_codegen`), which writes a builder's codegen
@@ -20,24 +24,42 @@ var macroKindInfo = rule.KindInfo{
 	ResolveAttrs: map[string]bool{"deps": true},
 }
 
-// macroKinds lists every convenience-macro rule kind Gazelle may emit.
-// Each entry MUST have a backing builderInfo in defaultBuilders(). The six
-// stacked sub-builders are listed because `@StackedApp` drives five of
-// them (router/locator/dialog/bottomsheet/logger) simultaneously; the
-// sixth (`stacked_form_codegen`) covers `@FormView` independently.
-var macroKinds = []string{
-	"json_serializable_codegen",
-	"freezed_codegen",
-	"built_value_codegen",
-	"mockito_codegen",
-	"copy_with_codegen",
-	"drift_codegen",
-	"stacked_router_codegen",
-	"stacked_locator_codegen",
-	"stacked_logger_codegen",
-	"stacked_dialog_codegen",
-	"stacked_bottomsheet_codegen",
-	"stacked_form_codegen",
+// macroKinds is every convenience-macro rule kind Gazelle may emit for
+// builders: the macro of each, sorted.
+func macroKinds(builders []*builderInfo) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, b := range builders {
+		if k := macroRuleKind(b.Macro); k != "" && !seen[k] {
+			seen[k] = true
+			out = append(out, k)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// macroLoads is one rule.LoadInfo per file holding the macros of builders,
+// in the order builders first name them.
+func macroLoads(builders []*builderInfo) []rule.LoadInfo {
+	var out []rule.LoadInfo
+	index := map[string]int{}
+	seen := map[string]bool{}
+	for _, b := range builders {
+		file, kind := macroFile(b.Macro), macroRuleKind(b.Macro)
+		if kind == "" || seen[b.Macro] {
+			continue
+		}
+		seen[b.Macro] = true
+		i, ok := index[file]
+		if !ok {
+			i = len(out)
+			index[file] = i
+			out = append(out, rule.LoadInfo{Name: file})
+		}
+		out[i].Symbols = append(out[i].Symbols, kind)
+	}
+	return out
 }
 
 // removedFactAttrs are the package facts a rule of the package stated
@@ -49,9 +71,11 @@ var removedFactAttrs = []string{
 	"package_name", "language_version", "build_hook", "link_hook", "license_file",
 }
 
-var dartKinds = func() map[string]rule.KindInfo {
+// dartKinds is every rule kind Gazelle writes, the macros of builders
+// included.
+func dartKinds(builders []*builderInfo) map[string]rule.KindInfo {
 	m := map[string]rule.KindInfo{}
-	for _, k := range macroKinds {
+	for _, k := range macroKinds(builders) {
 		m[k] = withRemovedFacts(macroKindInfo)
 	}
 	for k, v := range _primitiveDartKinds {
@@ -63,7 +87,7 @@ var dartKinds = func() map[string]rule.KindInfo {
 		m[k] = v
 	}
 	return m
-}()
+}
 
 // withRemovedFacts is k managing removedFactAttrs too.
 func withRemovedFacts(k rule.KindInfo) rule.KindInfo {

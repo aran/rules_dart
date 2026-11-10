@@ -361,9 +361,29 @@ depends in `deps` on the other packages those files import:
 
 ### Directives
 
-The built-in builder set is not extensible via directive — if you need a
-custom builder, hand-write a `dart_codegen` target. Directives below
-tune _registered_ builders:
+A builder another module ships (see
+[Builders from other rule sets](#builders-from-other-rule-sets)) is
+registered by a directive in the BUILD file at the repository's root, for
+the whole repository:
+
+```
+# gazelle:dart_builder <Annotation> macro=<file>%<symbol> shim=<label> produces=<ext>[,<ext>] runtime_dep=<label> [key=<package>:<builder>]
+```
+
+`macro` is the builder's codegen macro, which Gazelle writes for a source
+carrying only that annotation, loading it from `<file>`; `shim` is its shim
+binary, which Gazelle runs in a `dart_codegen` stage for a source carrying
+other builders' annotations too; `produces` is the extensions it writes, a
+single `.<name>.g.part` making it a SharedPartBuilder whose part the
+combining shim merges into `<src>.g.dart`; `runtime_dep` is the library of
+its annotation, the macro's default `annotation_dep`; `key` is its
+build.yaml key, whose options become its `config`. The macro is a rule kind
+Gazelle must know before it reads any directory, so the directive is read
+from the root alone, as Gazelle reads `# gazelle:repository_macro` from the
+WORKSPACE file; in any other BUILD file it is an error, as is an annotation
+or macro name already registered.
+
+The directives below tune registered builders:
 
 - `# gazelle:dart_builder_runtime_dep <Annotation> <label>` overrides
   the runtime Dart library the package's `dart_library` and the builder's
@@ -414,7 +434,8 @@ separator:
 Every other part of the file fails generation, named by its path, before any
 BUILD file is written: a target other than `$default`, a target's `sources`,
 a builder's `generate_for`, `enabled`, `dev_options` or `release_options`,
-`global_options`, a builder outside the table (source_gen's
+`global_options`, a builder outside the table and the `key`s of
+`dart_builder` directives (source_gen's
 `combining_builder` too, whose shim takes no options), and a `build.<name>.yaml`. A codegen macro's `srcs`
 choose the files it runs on. `# gazelle:exclude build.yaml` in the package
 root's BUILD file has Gazelle not read the file, for a package that keeps it

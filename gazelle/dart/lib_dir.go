@@ -38,13 +38,14 @@ func (d *dartLang) libDirRules(args language.GenerateArgs, root string) language
 	if f == nil {
 		return language.GenerateResult{}
 	}
+	deletable := deletableKinds(d.builders())
 	var own []string
 	for _, r := range f.Rules {
-		if !gazelleLibRule(r, args.Rel) {
+		if !gazelleLibRule(r, args.Rel, deletable) {
 			own = append(own, fmt.Sprintf("%s `%s`", r.Kind(), r.Name()))
 			continue
 		}
-		for _, attr := range handAttrs(r) {
+		for _, attr := range handAttrs(r, d.Kinds()) {
 			own = append(own, fmt.Sprintf("`%s` on %s `%s`", attr, r.Kind(), r.Name()))
 		}
 	}
@@ -81,12 +82,12 @@ func (d *dartLang) libDirRules(args language.GenerateArgs, root string) language
 // gazelleLibRule reports whether a rule under lib/ is one Gazelle wrote
 // in directory rel: a library, a codegen target or the `filegroup` named for
 // the directory, not marked `# keep`.
-func gazelleLibRule(r *rule.Rule, rel string) bool {
+func gazelleLibRule(r *rule.Rule, rel string, deletable map[string]bool) bool {
 	if r.ShouldKeep() {
 		return false
 	}
 	switch {
-	case r.Kind() == "dart_library", deletableKinds[r.Kind()]:
+	case r.Kind() == "dart_library", deletable[r.Kind()]:
 		return true
 	case r.Kind() == "filegroup":
 		return r.Name() == path.Base(rel)
@@ -97,8 +98,8 @@ func gazelleLibRule(r *rule.Rule, rel string) bool {
 // handAttrs is the attributes of r, a rule of a kind Gazelle writes, that
 // Gazelle does not manage or that are marked `# keep`: what was written by
 // hand, such as a library's `code_assets`.
-func handAttrs(r *rule.Rule) []string {
-	managed := dartKinds[r.Kind()].MergeableAttrs
+func handAttrs(r *rule.Rule, kinds map[string]rule.KindInfo) []string {
+	managed := kinds[r.Kind()].MergeableAttrs
 	var out []string
 	for _, k := range r.AttrKeys() {
 		// A library's code_assets Gazelle moves onto the metadata only from

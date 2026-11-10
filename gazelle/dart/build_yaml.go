@@ -65,7 +65,8 @@ func (s *buildYamlState) configsOf(root string, files []string, c *config.Config
 				continue
 			}
 			var problems []string
-			cfgs, problems = builderOptions(data, knownBuilderKeys)
+			registry, _ := c.Exts[extKeyBuilderRegistry].(*builderRegistry)
+			cfgs, problems = builderOptions(data, registry.keys())
 			for _, p := range problems {
 				errs.add(fmt.Sprintf("dart: %s: %s. %s", file, p, buildYamlRemedy(name)))
 			}
@@ -78,18 +79,6 @@ func (s *buildYamlState) configsOf(root string, files []string, c *config.Config
 	s.byRoot[root] = cfgs
 	return cfgs
 }
-
-// knownBuilderKeys are the build.yaml keys of the builders whose options
-// Gazelle carries into their targets.
-var knownBuilderKeys = func() map[string]bool {
-	m := map[string]bool{}
-	for _, b := range defaultBuilders() {
-		if b.Key != "" {
-			m[b.Key] = true
-		}
-	}
-	return m
-}()
 
 // builderOptions is the options build.yaml content states for each builder
 // in known, as JSON objects by builder key, and a description of each part

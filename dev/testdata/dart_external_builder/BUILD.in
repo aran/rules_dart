@@ -1,0 +1,1 @@
+# gazelle:dart_builder Greeting macro=@greeting_rules//ext:defs.bzl%greeting_codegen shim=@greeting_rules//ext:shim produces=.greeting.g.part runtime_dep=@pub_deps//:greeting key=greeting_builder

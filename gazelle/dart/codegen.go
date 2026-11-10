@@ -346,7 +346,7 @@ func addRuntimeDeps(is *importSet, builders []*builderInfo) {
 // overridesRuntimeDep reports whether a `dart_builder_runtime_dep`
 // directive states builder b's runtime library.
 func overridesRuntimeDep(b *builderInfo) bool {
-	return b.RuntimeDep != "" && b.RuntimeDep != defaultRuntimeDeps[nodeKey(b)]
+	return b.RuntimeDep != "" && b.RuntimeDep != b.defaultRuntimeDep
 }
 
 // dropPackage removes package pkg from what is imports.
@@ -406,26 +406,23 @@ func macroRuleKind(macro string) string {
 	return macro[pct+1:]
 }
 
-// defaultRuntimeDeps maps each shipped builder registration (keyed by
-// nodeKey) to its default RuntimeDep, which tells a
-// `dart_builder_runtime_dep` directive's label from the default: a
-// directive's label is used as stated, the default is resolved as an import
-// of its package (runtimePackage) and stated on a macro only where that
-// differs from the macro's own default.
-var defaultRuntimeDeps = func() map[string]string {
-	m := map[string]string{}
-	for _, b := range defaultBuilders() {
-		m[nodeKey(b)] = b.RuntimeDep
+// macroFile is the `.bzl` file a `<file>%<symbol>` macro is loaded from.
+func macroFile(macro string) string {
+	pct := strings.LastIndex(macro, "%")
+	if pct < 0 {
+		return ""
 	}
-	return m
-}()
+	return macro[:pct]
+}
 
 // runtimePackage is the Dart package of a builder's default runtime
 // library (`json_annotation` for `@pub_deps//:json_annotation`), which
 // Gazelle resolves as it resolves an import of that package; "" when the
-// builder has none.
+// builder has none. The default tells a `dart_builder_runtime_dep`
+// directive's label from it: a directive's label is used as stated, and
+// stated on a macro, where the default is the macro's own.
 func runtimePackage(b *builderInfo) string {
-	dep := defaultRuntimeDeps[nodeKey(b)]
+	dep := b.defaultRuntimeDep
 	if i := strings.LastIndex(dep, ":"); i >= 0 {
 		return dep[i+1:]
 	}

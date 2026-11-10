@@ -240,7 +240,8 @@ func TestConfigAbsentWhenNothingToList(t *testing.T) {
 	if r == nil || len(r.AttrStrings("options")) != 0 {
 		t.Errorf("want config kept with empty options; gen=%v", res.Gen)
 	}
-	if _, ok := dartKinds["dart_analysis_config"]; !ok || len(dartKinds["dart_analysis_config"].NonEmptyAttrs) != 0 {
+	kinds := dartKinds(defaultBuilders())
+	if _, ok := kinds["dart_analysis_config"]; !ok || len(kinds["dart_analysis_config"].NonEmptyAttrs) != 0 {
 		t.Errorf("config kind must have no NonEmptyAttrs, or the merger deletes it when empty")
 	}
 }

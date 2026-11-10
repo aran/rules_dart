@@ -26,6 +26,15 @@ type dartLang struct {
 	stale     staleBuildFiles
 	// mode is Gazelle's -mode: "fix" (the default), "print" or "diff".
 	mode string
+	// external is the builders the repository root's `dart_builder`
+	// directives register (external.go).
+	external []*builderInfo
+}
+
+// builders is every registered builder: the shipped ones, then the
+// repository's.
+func (d *dartLang) builders() []*builderInfo {
+	return append(defaultBuilders(), d.external...)
 }
 
 // NewLanguage creates a new Dart language extension for Gazelle.
@@ -38,11 +47,22 @@ func (*dartLang) Name() string { return dartName }
 func (*dartLang) RegisterFlags(fs *flag.FlagSet, cmd string, c *config.Config) {}
 
 // CheckFlags reads Gazelle's -mode, which decides whether a BUILD file
-// under a package's lib/ is deleted (lib_dir.go).
+// under a package's lib/ is deleted (lib_dir.go), and the builders the
+// repository's root registers, whose macros are rule kinds Gazelle must know
+// before it reads any directory (external.go).
 func (d *dartLang) CheckFlags(fs *flag.FlagSet, c *config.Config) error {
 	if f := fs.Lookup("mode"); f != nil {
 		d.mode = f.Value.String()
 	}
+	external, err := rootBuilders(c)
+	if err != nil {
+		return err
+	}
+	d.external = external
+	if c.Exts == nil {
+		c.Exts = map[string]interface{}{}
+	}
+	c.Exts[extKeyExternalBuilders] = external
 	return nil
 }
 
@@ -50,9 +70,9 @@ func (*dartLang) KnownDirectives() []string {
 	return []string{
 		keyPackageName,
 		"dart_pub_deps_repo",
-		// Directives that tune *registered* (built-in) builders. Custom
-		// builder registration is not supported via directive — hand-write
-		// a `dart_codegen` target if you need one.
+		// A builder from another module, at the repository's root
+		// (external.go), and directives that tune registered builders.
+		keyBuilder,
 		"dart_builder_runtime_dep",
 		"dart_builder_config",
 		// The `language_version` of the package, for a package whose
@@ -61,7 +81,7 @@ func (*dartLang) KnownDirectives() []string {
 	}
 }
 
-func (*dartLang) Configure(c *config.Config, rel string, f *rule.File) {
+func (d *dartLang) Configure(c *config.Config, rel string, f *rule.File) {
 	if _, ok := c.Exts[extKeyBuilderRegistry]; !ok {
 		// The shipped builders, which a directory with no BUILD file above
 		// it uses too.
@@ -85,6 +105,9 @@ func (*dartLang) Configure(c *config.Config, rel string, f *rule.File) {
 			c.Exts["dart_pub_deps_repo"] = d.Value
 		}
 	}
+	if rel != "" {
+		d.refuseNestedBuilders(rel, f)
+	}
 	// Merge dart_builder* directives into the per-config registry. Done
 	// separately so dart_builder configuration is decoupled from the
 	// existing single-line directives above.
@@ -92,55 +115,11 @@ func (*dartLang) Configure(c *config.Config, rel string, f *rule.File) {
 	configurePackageDecl(c, rel, f)
 }
 
-func (*dartLang) Kinds() map[string]rule.KindInfo {
-	return dartKinds
+func (d *dartLang) Kinds() map[string]rule.KindInfo {
+	return dartKinds(d.builders())
 }
 
-// macroLoadInfos returns one rule.LoadInfo per shipped per-builder macro,
-// pointing each rule kind at the correct `defs.bzl` under `dart/ext/<builder>/`.
-// Kept in sync with `defaultBuilders()` in builder_registry.go — a separate
-// test (`TestMacroKindsBackedByDefaultBuilders`) enforces the invariant.
-func macroLoadInfos() []rule.LoadInfo {
-	return []rule.LoadInfo{
-		{
-			Name:    "@rules_dart//dart/ext/json_serializable:defs.bzl",
-			Symbols: []string{"json_serializable_codegen"},
-		},
-		{
-			Name:    "@rules_dart//dart/ext/freezed:defs.bzl",
-			Symbols: []string{"freezed_codegen"},
-		},
-		{
-			Name:    "@rules_dart//dart/ext/built_value:defs.bzl",
-			Symbols: []string{"built_value_codegen"},
-		},
-		{
-			Name:    "@rules_dart//dart/ext/mockito:defs.bzl",
-			Symbols: []string{"mockito_codegen"},
-		},
-		{
-			Name:    "@rules_dart//dart/ext/copy_with_extension_gen:defs.bzl",
-			Symbols: []string{"copy_with_codegen"},
-		},
-		{
-			Name:    "@rules_dart//dart/ext/drift:defs.bzl",
-			Symbols: []string{"drift_codegen"},
-		},
-		{
-			Name: "@rules_dart//dart/ext/stacked:defs.bzl",
-			Symbols: []string{
-				"stacked_router_codegen",
-				"stacked_locator_codegen",
-				"stacked_logger_codegen",
-				"stacked_dialog_codegen",
-				"stacked_bottomsheet_codegen",
-				"stacked_form_codegen",
-			},
-		},
-	}
-}
-
-func (*dartLang) Loads() []rule.LoadInfo {
+func (d *dartLang) Loads() []rule.LoadInfo {
 	return append(
 		[]rule.LoadInfo{
 			{
@@ -148,11 +127,11 @@ func (*dartLang) Loads() []rule.LoadInfo {
 				Symbols: []string{"dart_library", "dart_binary", "dart_test", "dart_codegen", "dart_aggregate_codegen", "dart_sqlcodegen", "dart_analysis_options", "dart_analysis_config", "dart_package_metadata"},
 			},
 		},
-		macroLoadInfos()...,
+		macroLoads(d.builders())...,
 	)
 }
 
-func (*dartLang) ApparentLoads(moduleToApparentName func(string) string) []rule.LoadInfo {
+func (d *dartLang) ApparentLoads(moduleToApparentName func(string) string) []rule.LoadInfo {
 	return append(
 		[]rule.LoadInfo{
 			{
@@ -160,7 +139,7 @@ func (*dartLang) ApparentLoads(moduleToApparentName func(string) string) []rule.
 				Symbols: []string{"dart_library", "dart_binary", "dart_test", "dart_codegen", "dart_aggregate_codegen", "dart_sqlcodegen", "dart_analysis_options", "dart_analysis_config", "dart_package_metadata"},
 			},
 		},
-		macroLoadInfos()...,
+		macroLoads(d.builders())...,
 	)
 }
 

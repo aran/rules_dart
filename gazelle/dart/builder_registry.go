@@ -61,6 +61,11 @@ type builderInfo struct {
 	// (`<package>:<builder>`), whose `options` there become Config. Empty
 	// for a builder whose options Gazelle cannot carry into its targets.
 	Key string
+
+	// defaultRuntimeDep is the RuntimeDep the registration states, before
+	// any `dart_builder_runtime_dep` directive: its macro's default
+	// `annotation_dep`.
+	defaultRuntimeDep string
 }
 
 // clone returns a shallow copy of this builderInfo. Slice fields are
@@ -103,7 +108,8 @@ const extKeyBuilderRegistry = "dart_builder_registry"
 // via Gazelle's shallow `c.Exts` copy.
 //
 // If no registry is present, a fresh one is created and pre-populated with
-// the rules_dart-shipped defaults.
+// the registered builders: the rules_dart-shipped defaults and those the
+// repository root's `dart_builder` directives register (external.go).
 func builderRegistryOf(c *config.Config) *builderRegistry {
 	if c.Exts == nil {
 		c.Exts = map[string]interface{}{}
@@ -114,7 +120,7 @@ func builderRegistryOf(c *config.Config) *builderRegistry {
 		return clone
 	}
 	r := &builderRegistry{byAnnotation: map[string][]*builderInfo{}}
-	for _, info := range defaultBuilders() {
+	for _, info := range registeredBuilders(c) {
 		r.byAnnotation[info.Annotation] = append(
 			r.byAnnotation[info.Annotation],
 			info.clone(),
@@ -122,6 +128,23 @@ func builderRegistryOf(c *config.Config) *builderRegistry {
 	}
 	c.Exts[extKeyBuilderRegistry] = r
 	return r
+}
+
+// keys is the build.yaml keys of the registry's builders, those whose
+// options Gazelle carries into their targets.
+func (r *builderRegistry) keys() map[string]bool {
+	m := map[string]bool{}
+	if r == nil {
+		return m
+	}
+	for _, infos := range r.byAnnotation {
+		for _, b := range infos {
+			if b.Key != "" {
+				m[b.Key] = true
+			}
+		}
+	}
+	return m
 }
 
 // clone returns a deep copy of the registry, whose builderInfos can be
@@ -147,6 +170,14 @@ func (r *builderRegistry) clone() *builderRegistry {
 //
 // Keep this list aligned with `dart/ext/`'s subdirectories.
 func defaultBuilders() []*builderInfo {
+	builders := shippedBuilders()
+	for _, b := range builders {
+		b.defaultRuntimeDep = b.RuntimeDep
+	}
+	return builders
+}
+
+func shippedBuilders() []*builderInfo {
 	return []*builderInfo{
 		{
 			Annotation: "JsonSerializable",
@@ -291,7 +322,8 @@ func defaultBuilders() []*builderInfo {
 
 // configureBuilderDirectives merges `dart_builder_runtime_dep` and
 // `dart_builder_config` directives from f into the registry on c. These
-// directives configure *built-in* builders; they do not register new ones.
+// directives configure registered builders; `dart_builder` registers one, at
+// the repository's root only (external.go).
 //
 // Idempotent within a directory: re-declaring an annotation overwrites the
 // prior directive value. Applies to every registered builderInfo for the

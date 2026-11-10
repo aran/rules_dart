@@ -15,7 +15,7 @@ func mergeMetadata(t *testing.T, build string, gen *rule.Rule) *rule.Rule {
 		t.Fatal(err)
 	}
 	dst := f.Rules[0]
-	rule.MergeRules(gen, dst, dartKinds["dart_package_metadata"].MergeableAttrs, "BUILD.bazel")
+	rule.MergeRules(gen, dst, dartKinds(defaultBuilders())["dart_package_metadata"].MergeableAttrs, "BUILD.bazel")
 	return dst
 }
 
@@ -75,17 +75,17 @@ dart_package_metadata(
 func TestRemovedFactAttrsManaged(t *testing.T) {
 	// Every kind Gazelle writes for a package removes the inline facts an
 	// old BUILD file states on it.
-	for _, kind := range append([]string{"dart_library", "dart_binary", "dart_test", "dart_codegen", "dart_aggregate_codegen", "dart_sqlcodegen"}, macroKinds...) {
+	for _, kind := range append([]string{"dart_library", "dart_binary", "dart_test", "dart_codegen", "dart_aggregate_codegen", "dart_sqlcodegen"}, macroKinds(defaultBuilders())...) {
 		for _, a := range append([]string{"package"}, removedFactAttrs...) {
-			if !dartKinds[kind].MergeableAttrs[a] {
+			if !dartKinds(defaultBuilders())[kind].MergeableAttrs[a] {
 				t.Errorf("%s does not manage %s", kind, a)
 			}
 		}
 	}
-	if !dartKinds["dart_library"].MergeableAttrs["code_assets"] {
+	if !dartKinds(defaultBuilders())["dart_library"].MergeableAttrs["code_assets"] {
 		t.Error("dart_library does not manage code_assets")
 	}
-	if dartKinds["dart_package_metadata"].MergeableAttrs["code_assets"] {
+	if dartKinds(defaultBuilders())["dart_package_metadata"].MergeableAttrs["code_assets"] {
 		t.Error("dart_package_metadata manages code_assets, which only a person states")
 	}
 }

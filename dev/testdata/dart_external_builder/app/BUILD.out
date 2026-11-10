@@ -1,0 +1,71 @@
+load("@greeting_rules//ext:defs.bzl", "greeting_codegen")
+load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library", "dart_package_metadata")
+
+greeting_codegen(
+    name = "person_codegen",
+    srcs = ["lib/person.dart"],
+    annotation_dep = "@greeting",
+    config = "{\"salutation\":\"Hello\"}",
+    package = ":pubspec",
+    deps = ["@greeting"],
+)
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "app",
+    language_version = "3.11",
+    visibility = ["//app:__subpackages__"],
+)
+
+dart_codegen(
+    name = "_user_greeting_gen",
+    src = "lib/user.dart",
+    config = "{\"salutation\":\"Hello\"}",
+    generator_bin = "@greeting_rules//ext:shim",
+    output_suffixes = [".greeting.g.part"],
+    package = ":pubspec",
+    deps = [
+        "@greeting",
+        "@json_annotation",
+    ],
+)
+
+dart_codegen(
+    name = "_user_json_serializable_gen",
+    src = "lib/user.dart",
+    generator_bin = "@rules_dart//dart/ext/json_serializable:shim",
+    output_suffixes = [".json_serializable.g.part"],
+    package = ":pubspec",
+    deps = [
+        "@greeting",
+        "@json_annotation",
+    ],
+)
+
+dart_codegen(
+    name = "_user_combined",
+    src = "lib/user.dart",
+    generator_bin = "@rules_dart//dart/ext/_shared/combining_shim:bin",
+    output_suffixes = [".g.dart"],
+    package = ":pubspec",
+    parts = [
+        ":_user_greeting_gen",
+        ":_user_json_serializable_gen",
+    ],
+)
+
+dart_library(
+    name = "app",
+    srcs = [
+        "lib/person.dart",
+        "lib/user.dart",
+        ":_user_combined",
+        ":person_codegen",
+    ],
+    package = ":pubspec",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@greeting",
+        "@json_annotation",
+    ],
+)

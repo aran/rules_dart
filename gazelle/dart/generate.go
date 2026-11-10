@@ -134,7 +134,7 @@ func (d *dartLang) generateDartRules(args language.GenerateArgs) language.Genera
 		imports = append(imports, collectRepoImports(args, files))
 	}
 
-	empty := append(staleCodegenRules(args.File, gen), helperTests(args.File, helpers)...)
+	empty := append(staleCodegenRules(args.File, gen, deletableKinds(d.builders())), helperTests(args.File, helpers)...)
 	empty = append(append(empty, stale...), staleLibs...)
 	if layout == "test" {
 		empty = append(empty, staleFilegroups(args.File, args.Rel, gen)...)
@@ -439,24 +439,24 @@ func testTags(args language.GenerateArgs, f DartFileInfo) []string {
 // dart_library / dart_binary / dart_test are NEVER deleted so hand-written
 // targets (e.g. srcs=[] aggregator libraries) survive regeneration.
 // `# keep` remains the escape hatch for hand-written codegen rules.
-var deletableKinds = func() map[string]bool {
+func deletableKinds(builders []*builderInfo) map[string]bool {
 	m := map[string]bool{
 		"dart_codegen":           true,
 		"dart_aggregate_codegen": true,
 		"dart_sqlcodegen":        true,
 	}
-	for _, k := range macroKinds {
+	for _, k := range macroKinds(builders) {
 		m[k] = true
 	}
 	return m
-}()
+}
 
 // staleCodegenRules returns empty-rule markers for every existing rule of
 // a deletable kind whose name was not regenerated this pass, or was
 // regenerated as another kind: a source whose annotations changed moves
 // between macros, or between a macro and a codegen chain. Gazelle's merger
 // deletes the matching rules from the BUILD file.
-func staleCodegenRules(f *rule.File, gen []*rule.Rule) []*rule.Rule {
+func staleCodegenRules(f *rule.File, gen []*rule.Rule, deletable map[string]bool) []*rule.Rule {
 	if f == nil {
 		return nil
 	}
@@ -466,7 +466,7 @@ func staleCodegenRules(f *rule.File, gen []*rule.Rule) []*rule.Rule {
 	}
 	var empty []*rule.Rule
 	for _, existing := range f.Rules {
-		if kind, ok := generated[existing.Name()]; (ok && kind == existing.Kind()) || !deletableKinds[existing.Kind()] {
+		if kind, ok := generated[existing.Name()]; (ok && kind == existing.Kind()) || !deletable[existing.Kind()] {
 			continue
 		}
 		empty = append(empty, rule.NewRule(existing.Kind(), existing.Name()))

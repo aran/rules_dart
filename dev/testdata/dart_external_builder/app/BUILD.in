@@ -1,0 +1,11 @@
+load("@greeting_rules//ext:defs.bzl", "greeting_codegen")
+
+greeting_codegen(
+    name = "person_codegen",
+    srcs = ["lib/stale.dart"],
+)
+
+greeting_codegen(
+    name = "gone_codegen",
+    srcs = ["lib/gone.dart"],
+)
