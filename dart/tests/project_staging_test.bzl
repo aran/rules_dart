@@ -1,7 +1,7 @@
 """Unit tests for project_staging.bzl."""
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
-load("//dart/private:project_staging.bzl", "in_place_root", "main_package_roots", "project_layout", "pubspec_stub", "staged_package_config_content")
+load("//dart/private:project_staging.bzl", "in_place_root", "main_package_roots", "project_layout", "pubspec_stub", "staged_package_config_content", "test_working_directory")
 load(":small_suite.bzl", "small_unittest_suite")
 
 def _pkg(name, language_version = "", package_root = ""):
@@ -128,6 +128,35 @@ def _dependencies_test_impl(ctx):
     )
     return unittest.end(env)
 
+def _test_working_directory_test_impl(ctx):
+    env = unittest.begin(ctx)
+
+    def where(short_path, packages):
+        found = test_working_directory(short_path, packages, "_main")
+        return (found.runfiles_path, found.test_path)
+
+    # In the package whose root is the deepest holding the test, wherever its
+    # BUILD file is.
+    nested = [_pkg("app", package_root = ""), _pkg("greeter", package_root = "pkgs/greeter")]
+    asserts.equals(env, ("_main/pkgs/greeter", "test/a_test.dart"), where("pkgs/greeter/test/a_test.dart", nested))
+    asserts.equals(env, ("_main", "test/a_test.dart"), where("test/a_test.dart", nested))
+    asserts.equals(env, ("_main", "pkgs/other/a_test.dart"), where("pkgs/other/a_test.dart", nested))
+
+    # A package that does not hold the test, or none at all: its repository's
+    # root, where Bazel runs a test.
+    asserts.equals(env, ("_main", "utils_test.dart"), where("utils_test.dart", [_pkg("utils", package_root = "utils")]))
+    asserts.equals(env, ("_main", "test/a_test.dart"), where("test/a_test.dart", []))
+
+    # Pub packages and other repositories' packages never hold a main-repository
+    # test; an unnamed record is no package.
+    asserts.equals(env, ("_main", "test/a_test.dart"), where("test/a_test.dart", [_pkg("dep", package_root = "../dep+"), _pkg("", package_root = "")]))
+
+    # A test in another repository runs in that repository's runfiles.
+    ext = [_pkg("app", package_root = ""), _pkg("lib", package_root = "../ext+/pkgs/lib")]
+    asserts.equals(env, ("ext+/pkgs/lib", "test/a_test.dart"), where("../ext+/pkgs/lib/test/a_test.dart", ext))
+    asserts.equals(env, ("ext+", "test/a_test.dart"), where("../ext+/test/a_test.dart", ext))
+    return unittest.end(env)
+
 _t0_test = unittest.make(_sdk_from_language_version_test_impl)
 _t1_test = unittest.make(_sdk_prerelease_test_impl)
 _t2_test = unittest.make(_sdk_toolchain_version_test_impl)
@@ -136,6 +165,7 @@ _t4_test = unittest.make(_layout_deepest_root_test_impl)
 _t5_test = unittest.make(_config_skips_unstaged_test_impl)
 _t6_test = unittest.make(_in_place_test_impl)
 _t7_test = unittest.make(_dependencies_test_impl)
+_t8_test = unittest.make(_test_working_directory_test_impl)
 
 def project_staging_test_suite(name):
-    small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test, _t4_test, _t5_test, _t6_test, _t7_test)
+    small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test, _t4_test, _t5_test, _t6_test, _t7_test, _t8_test)

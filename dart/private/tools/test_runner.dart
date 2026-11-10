@@ -48,16 +48,30 @@ Future<void> main(List<String> args) async {
             program: config['dill'] as String,
             // The runner finds the suite by the test's path below its
             // precompiled directory.
-            keep: switch (config['test_path']) {
-              final String test => '$test.vm_test.vm.app.dill',
-              _ => (config['dill'] as String).split('/').last,
-            },
+            keep: config.containsKey('runner')
+                ? '${config['test_path']}.vm_test.vm.app.dill'
+                : (config['dill'] as String).split('/').last,
             codeAssetLibraries: (config['code_asset_libraries'] as List)
                 .cast<String>(),
             into: scratch.directory('k'),
           )
         : r.rlocation(config['dill'] as String);
   } on KernelListException catch (e) {
+    stderr.writeln('dart_test: $e');
+    scratch.delete();
+    exit(1);
+  }
+
+  final testPath = config['test_path'] as String;
+  final String workingDirectory;
+  try {
+    workingDirectory = testWorkingDirectory(
+      runfiles: r,
+      directory: config['working_directory'] as String,
+      testPath: testPath,
+      scratch: () => scratch.directory('runfiles.'),
+    );
+  } on TestWorkingDirectoryException catch (e) {
     stderr.writeln('dart_test: $e');
     scratch.delete();
     exit(1);
@@ -73,7 +87,15 @@ Future<void> main(List<String> args) async {
   );
   final int code;
   if (runnerKey == null) {
-    code = await _runDirectly(dart, dill, args, environment, tags, coverage);
+    code = await _runDirectly(
+      dart,
+      dill,
+      args,
+      environment,
+      tags,
+      coverage,
+      workingDirectory,
+    );
   } else {
     final snapshot = config['runner_snapshot'] as Map<String, dynamic>?;
     code = await _runUnderRunner(
@@ -87,11 +109,11 @@ Future<void> main(List<String> args) async {
               digest: File(r.rlocation(snapshot['digest'] as String))
                   .readAsStringSync(),
             ),
-      testSource: r.rlocation(config['test_main'] as String),
-      testPath: config['test_path'] as String,
+      testPath: testPath,
       tags: tags,
       args: args,
       environment: environment,
+      workingDirectory: workingDirectory,
       tmp: scratch.directory('dart_test.'),
       coverage: coverage,
     );
@@ -341,6 +363,7 @@ Future<int> _runDirectly(
   Map<String, String> environment,
   TagSelection tags,
   CoverageRun? coverage,
+  String workingDirectory,
 ) async {
   final env = Platform.environment;
   // A plain `main` has no notion of test cases, so there is nothing to filter
@@ -368,11 +391,18 @@ Future<int> _runDirectly(
     return 1;
   }
   if (coverage != null) {
-    return coverage.runDirectly(dart, dill, args, environment);
+    return coverage.runDirectly(
+      dart,
+      dill,
+      args,
+      environment,
+      workingDirectory,
+    );
   }
   final vm = await Process.start(
     dart,
     ['--enable-asserts', dill, ...args],
+    workingDirectory: workingDirectory,
     environment: environment,
     includeParentEnvironment: false,
     mode: ProcessStartMode.inheritStdio,
@@ -440,6 +470,7 @@ class CoverageRun {
     String dill,
     List<String> args,
     Map<String, String> environment,
+    String workingDirectory,
   ) async {
     final info = '$_scratch${Platform.pathSeparator}vm_service.json';
     final collecting = await Process.start(
@@ -458,6 +489,7 @@ class CoverageRun {
         dill,
         ...args,
       ],
+      workingDirectory: workingDirectory,
       environment: environment,
       includeParentEnvironment: false,
       mode: ProcessStartMode.inheritStdio,
@@ -483,11 +515,11 @@ Future<int> _runUnderRunner({
   required String dill,
   required String runner,
   required String Function()? snapshotKey,
-  required String testSource,
   required String testPath,
   required TagSelection tags,
   required List<String> args,
   required Map<String, String> environment,
+  required String workingDirectory,
   required Directory tmp,
   required CoverageRun? coverage,
 }) async {
@@ -495,13 +527,9 @@ Future<int> _runUnderRunner({
 
   // The runner loads the precompiled suite from `<dir>/<path>.vm_test.vm.app.dill`
   // — which is where `dart_test` put the dill, so it is loaded in place — and
-  // reads the test's source at `<path>` relative to its working directory for
-  // its annotations. The suite runs as an isolate inside the runner, so the
-  // runner's working directory is the test's: Bazel's contract makes that the
-  // runfiles workspace root, where `data` is found by workspace-relative path.
-  // Only where runfiles cannot hold the source at that relative path (Windows
-  // has only a manifest) is the workspace's runfiles laid out in a scratch
-  // directory from the manifest, to run in.
+  // reads the test's source at `<path>` from its working directory, the
+  // test's package root, for its annotations. The suite runs as an isolate
+  // inside the runner, so the runner's working directory is the test's.
   final suffix = '/$testPath.vm_test.vm.app.dill';
   final normalized = dill.replaceAll(r'\', '/');
   if (!normalized.endsWith(suffix)) {
@@ -509,24 +537,6 @@ Future<int> _runUnderRunner({
     return 1;
   }
   final precompiled = dill.substring(0, dill.length - suffix.length);
-  final inPlace = File(testPath).existsSync();
-  if (!inPlace) {
-    // The workspace's runfiles are laid out in the scratch directory, so `data`
-    // is found by workspace-relative path as it is in a runfiles tree.
-    final manifest = env['RUNFILES_MANIFEST_FILE'];
-    final workspace = env['TEST_WORKSPACE'];
-    if (manifest != null && workspace != null) {
-      materializeWorkspace(
-        manifest: File(manifest).readAsLinesSync(),
-        workspace: workspace,
-        into: tmp.path,
-      );
-    }
-    final inScratch = File(_join(tmp.path, testPath));
-    if (!inScratch.existsSync()) {
-      File(testSource).copySync(inScratch.path);
-    }
-  }
 
   final filter = env['TESTBRIDGE_TEST_ONLY'];
   final totalShards = env['TEST_TOTAL_SHARDS'];
@@ -543,10 +553,10 @@ Future<int> _runUnderRunner({
 
   // The runner's own arguments, after the program it starts from.
   final timeout = '--timeout=${_suiteTimeout(env)}';
-  // The runner reads `dart_test.yaml` from its working directory, here the
-  // runfiles root, where a package's own file never is and the workspace's
-  // would apply only by accident. A path that does not exist means none: what
-  // the file would set, the target says (README, Tests).
+  // The runner reads `dart_test.yaml` from its working directory, the
+  // package root, where a package's own file is if a target's `data` happens
+  // to hold it. A path that does not exist means none: what the file would
+  // set, the target says (README, Tests).
   final noConfiguration =
       '--configuration=${_join(tmp.path, 'no_project_config/dart_test.yaml')}';
   final runnerArguments = [
@@ -582,7 +592,6 @@ Future<int> _runUnderRunner({
     // no LOCALAPPDATA for the runner to read at all.
     'DART_TEST_CONFIG': _join(tmp.path, 'no_global_config/DartTest.yaml'),
   };
-  final workingDirectory = inPlace ? null : tmp.path;
 
   // With the cache, the runner starts from its snapshot, or from its kernel
   // with a snapshot trained after the test (`runner_snapshot.dart`).
@@ -758,22 +767,74 @@ Future<int> _noteUnselected({
   return 0;
 }
 
-/// Lays out `workspace`'s runfiles under [into] from the lines of a runfiles
-/// manifest, each `<runfiles path> <real path>`.
+/// Why a test has no directory to run in.
+class TestWorkingDirectoryException implements Exception {
+  TestWorkingDirectoryException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+/// The directory a test runs in: runfiles path [directory], its package root,
+/// which holds the test file at [testPath].
 ///
-/// Where Bazel builds no runfiles tree (Windows by default) the manifest is all
-/// there is, and a test's working directory would hold none of its `data`. A
-/// real path that is a directory (a tree artifact is one entry) is copied whole.
-void materializeWorkspace({
+/// That is the directory in [runfiles]' tree. Where there is no tree holding
+/// it (Windows by default, or `--noenable_runfiles`), the manifest is all
+/// there is, and the runfiles of [directory]'s repository are laid out from it
+/// under a directory [scratch] makes, so that the test finds its `data` at the
+/// same paths from where it runs.
+String testWorkingDirectory({
+  required Runfiles runfiles,
+  required String directory,
+  required String testPath,
+  required Directory Function() scratch,
+}) {
+  String under(String base, String relative) =>
+      [base, ...relative.split('/')].join(Platform.pathSeparator);
+  final tree = runfiles.environment['RUNFILES_DIR'];
+  if (tree != null) {
+    final inTree = under(tree, directory);
+    if (File(under(inTree, testPath)).existsSync()) return inTree;
+  }
+  final manifest = runfiles.environment['RUNFILES_MANIFEST_FILE'];
+  if (manifest == null) {
+    throw TestWorkingDirectoryException(
+      'the runfiles tree ${tree ?? '(none)'} does not hold $directory/'
+      '$testPath, and there is no runfiles manifest to lay it out from',
+    );
+  }
+  final into = scratch().path;
+  _materializeRepository(
+    manifest: File(manifest).readAsLinesSync(),
+    repository: directory.split('/').first,
+    into: into,
+  );
+  final laidOut = under(into, directory);
+  if (!File(under(laidOut, testPath)).existsSync()) {
+    throw TestWorkingDirectoryException(
+      'the runfiles manifest $manifest does not list $directory/$testPath',
+    );
+  }
+  return laidOut;
+}
+
+/// Lays out [repository]'s runfiles under [into] from the lines of a runfiles
+/// manifest, each `<runfiles path> <real path>`, at their runfiles paths.
+///
+/// A real path that is a directory (a tree artifact is one entry) is copied
+/// whole.
+void _materializeRepository({
   required List<String> manifest,
-  required String workspace,
+  required String repository,
   required String into,
 }) {
-  final prefix = '$workspace/';
+  final prefix = '$repository/';
   for (final line in manifest) {
     final space = line.indexOf(' ');
     if (space < 0 || !line.startsWith(prefix)) continue;
-    final relative = line.substring(prefix.length, space);
+    final relative = line.substring(0, space);
     final real = line.substring(space + 1);
     final destination = _join(into, relative);
     if (Directory(real).existsSync()) {

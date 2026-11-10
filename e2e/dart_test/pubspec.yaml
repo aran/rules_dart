@@ -6,3 +6,5 @@ dependencies:
     path: mathlib
   utils:
     path: utils
+  working_dir:
+    path: working_dir

@@ -163,6 +163,41 @@ def _deepest_root_record(short_path, index):
             return record
     return index.get("")
 
+def test_working_directory(short_path, packages, workspace_name):
+    """Where a test runs, as `dart test` runs it: in its package's root.
+
+    The package is the one whose root is the deepest directory holding the
+    test, among the packages its build knows (its own and its closure's) in
+    its own repository, as Dart gives a file to the innermost package. A test
+    no such package holds runs at its repository's root, where Bazel runs
+    every test.
+
+    Args:
+      short_path: The test file's `short_path`.
+      packages: The test's `DartPackageInfo` records.
+      workspace_name: The main repository's runfiles directory name.
+
+    Returns:
+      `struct(runfiles_path, test_path)`: the runfiles path of the directory to
+      run in, and the test file's path from it.
+    """
+    if short_path.startswith("../"):
+        repo_root = "/".join(short_path.split("/")[:2])
+        same_repo = [p for p in packages if p.package_name and (p.package_root == repo_root or p.package_root.startswith(repo_root + "/"))]
+    else:
+        repo_root = ""
+        same_repo = [p for p in packages if p.package_name and not p.package_root.startswith("../")]
+    record = _deepest_root_record(short_path, package_record_index(same_repo))
+    root = record.package_root if record != None else repo_root
+    if root.startswith("../"):
+        run_dir = root[3:]
+    else:
+        run_dir = workspace_name + "/" + root if root else workspace_name
+    return struct(
+        runfiles_path = run_dir,
+        test_path = short_path[len(root) + 1:] if root else short_path,
+    )
+
 def project_layout(packages, files, home_files):
     """Decides which files a staged project holds and which it points out to.
 

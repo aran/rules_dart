@@ -46,6 +46,7 @@ load(
 load("//dart/private:dart_test_runner.bzl", "DartTestRunnerInfo")
 load("//dart/private:exec_groups.bzl", "PORTABLE_EXEC_GROUPS")
 load("//dart/private:executable_package.bzl", "EXECUTABLE_PACKAGE_ATTRS", "executable_package")
+load("//dart/private:project_staging.bzl", "test_working_directory")
 
 # The test's `defines` are the environment of its dependencies' modules too.
 _ENVIRONMENT = executable_defines_config()
@@ -58,6 +59,7 @@ def _dart_test_impl(ctx):
 
     own = executable_package(ctx, [ctx.file.main] + ctx.files.srcs)
     packages = own.packages
+    where = test_working_directory(ctx.file.main.short_path, packages, workspace_name)
     runner = _test_runner(ctx, packages)
 
     hook_err = check_unreplaced_hooks(ctx.label, packages)
@@ -74,7 +76,7 @@ def _dart_test_impl(ctx):
         # is loaded in place: code-asset paths are relative to the dill, and a
         # copy elsewhere would leave them pointing at nothing.
         dill = ctx.actions.declare_file(
-            "%s.precompiled/%s.vm_test.vm.app.dill" % (ctx.label.name, _test_path(ctx)),
+            "%s.precompiled/%s.vm_test.vm.app.dill" % (ctx.label.name, where.test_path),
         )
     else:
         dill = ctx.actions.declare_file(ctx.label.name + ".dill")
@@ -99,13 +101,20 @@ def _dart_test_impl(ctx):
         program_files = _link_modules(ctx, sdk, main, packages, own, native_assets_yaml, dill)
 
     # Thin launcher: run the compiled program with asserts enabled. It carries
-    # all sources/imports, so runfiles need only the VM, the kernels and (for
-    # code assets) the `.so` libraries. What to run is in a file beside the
+    # all sources/imports, so runfiles need only the VM, the kernels, the test
+    # file and (for code assets) the `.so` libraries. What to run is in a file beside the
     # launcher, not in its environment, so that the test runs its own program
     # however it is started, as another target's `data` included.
     config = {
         "dart": runfiles_path(dart_sdk_info.dart, workspace_name),
         "dill": runfiles_path(dill, workspace_name),
+        # The test runs in its package's root, as under `dart test`. The test
+        # file, at its path from there, tells the launcher that a runfiles tree
+        # holds that directory; the runner also reads it for its annotations
+        # (`@TestOn`, `@Timeout`, `@Tags`) and names the suite after it.
+        "working_directory": where.runfiles_path,
+        "test_main": runfiles_path(ctx.file.main, workspace_name),
+        "test_path": where.test_path,
     }
     if modular and kernel_list(ctx):
         # The launcher writes the list again naming each kernel where it found
@@ -113,15 +122,11 @@ def _dart_test_impl(ctx):
         # (see `_code_assets`).
         config["kernel_list"] = True
         config["code_asset_libraries"] = [runfiles_path(lib, workspace_name) for lib in runtime_libs]
-    runner_files = []
+    launcher_files = [ctx.file.main]
     config.update(_tag_selection(ctx, runner))
     if runner:
-        # The runner reads the test file for its annotations (`@TestOn`,
-        # `@Timeout`, `@Tags`) and names the suite after it.
         config["runner"] = runfiles_path(runner.runner, workspace_name)
-        config["test_main"] = runfiles_path(ctx.file.main, workspace_name)
-        config["test_path"] = _test_path(ctx)
-        runner_files = [runner.runner, ctx.file.main]
+        launcher_files.append(runner.runner)
         if runner_snapshot(ctx):
             # What names the cached snapshot: the runner, by its digest, and
             # the VM that runs it. A snapshot of another runner, or made by
@@ -130,7 +135,7 @@ def _dart_test_impl(ctx):
                 "digest": runfiles_path(runner.digest, workspace_name),
                 "vm": "%s-%s-%s" % (dart_sdk_info.version, dart_sdk_info.exec_os, dart_sdk_info.exec_arch),
             }
-            runner_files.append(runner.digest)
+            launcher_files.append(runner.digest)
     coverage = test_coverage(ctx, packages, [ctx.file.main] + ctx.files.srcs, ctx.attr.deps)
     if coverage:
         config["coverage"] = {
@@ -152,7 +157,7 @@ def _dart_test_impl(ctx):
     # pub, and the dill carries only compiled code — so they come in here, the
     # same way `dart_binary` stages them, and are reached with `rlocation`.
     runfiles = ctx.runfiles(
-        files = [dill, config_file] + runtime_libs + runner_files + ctx.files.data,
+        files = [dill, config_file] + runtime_libs + launcher_files + ctx.files.data,
         transitive_files = depset(
             # The VM that runs the kernel, and no more of the SDK: a test that
             # runs SDK commands itself takes `@rules_dart//dart` in `data`.
@@ -309,21 +314,6 @@ def _tag_selection(ctx, runner):
         selection[attr] = selectors
     return selection
 
-def _test_path(ctx):
-    """The test's path as the runner names it.
-
-    That is its `short_path`, with a file from another repository placed under
-    `external/` rather than above the root.
-
-    Args:
-      ctx: The rule context.
-
-    Returns:
-      The forward-slashed relative path.
-    """
-    path = ctx.file.main.short_path
-    return "external/" + path[3:] if path.startswith("../") else path
-
 _BOOTSTRAP = """\
 // Generated by rules_dart: runs `{test}` under the `package:test` runner.
 import 'dart:convert';
@@ -436,7 +426,7 @@ dart_test = rule(
             cfg = _ENVIRONMENT.cfg,
         ),
         "data": attr.label_list(
-            doc = "Additional files needed at runtime. These are added to runfiles so they can be resolved via `Runfiles.rlocation()`.",
+            doc = "Additional files needed at runtime. These are added to runfiles, where the test reads them by their paths from its package's root, where it runs, or resolves them with `Runfiles.rlocation()`.",
             allow_files = True,
         ),
         "defines": attr.string_list(
@@ -504,6 +494,8 @@ entry does not run. A target none of whose cases remain fails. \
         "asserts enabled. A test with `package:test` in `deps` runs under " +
         "that package's runner, so `--test_filter`, `shard_count` and " +
         "per-case results work and Bazel's `timeout` is the only time limit. " +
+        "It runs in its package's root inside its runfiles, as `dart test` " +
+        "runs it, or at its repository's root when no package holds it. " +
         "Like any Bazel test it is built for the target platform and runs on " +
         "a host matching it; to run it elsewhere, build it for that platform " +
         "(`--platforms`, or a platform transition such as " +

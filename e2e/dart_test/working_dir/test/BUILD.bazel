@@ -1,0 +1,12 @@
+load("@rules_dart//dart:defs.bzl", "dart_test")
+
+# A test in a BUILD file below its package's root runs in that root, as
+# `dart test` runs every test of a package, and finds its `data` at its path
+# from there.
+dart_test(
+    name = "working_dir_test",
+    size = "small",
+    data = ["fixtures/greeting.txt"],
+    main = "working_dir_test.dart",
+    deps = ["//working_dir"],
+)

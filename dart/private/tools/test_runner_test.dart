@@ -114,11 +114,12 @@ void main(List<String> args) {
     tearDown(() => tmp.deleteSync(recursive: true));
 
     /// Runs the launcher at runfiles path [rlocationPath] as `bazel test`
-    /// would, with [environment] added.
+    /// would, with [environment] added, and its runfiles from [manifest] alone
+    /// when that is given.
     Future<ProcessResult> run(
       String rlocationPath, {
       Map<String, String> environment = const {},
-      String? workingDirectory,
+      String? manifest,
     }) => Process.run(
       runfiles.rlocation(rlocationPath),
       const [],
@@ -127,14 +128,15 @@ void main(List<String> args) {
           if (!key.startsWith('TESTBRIDGE_') &&
               !key.startsWith('TEST_SHARD') &&
               key != 'TEST_TOTAL_SHARDS' &&
-              !key.startsWith('DART_TEST_'))
+              !key.startsWith('DART_TEST_') &&
+              (manifest == null || !key.startsWith('RUNFILES_')))
             key: value,
         'XML_OUTPUT_FILE': '${tmp.path}/test.xml',
         'RULES_DART_RUNNER_SNAPSHOT_DIR': '${tmp.path}/cache',
+        'RUNFILES_MANIFEST_FILE': ?manifest,
         ...environment,
       },
       includeParentEnvironment: false,
-      workingDirectory: workingDirectory,
     );
 
     /// The cases [result] ran, from its report, after checking it passed.
@@ -237,21 +239,22 @@ void main(List<String> args) {
     });
 
     // The runner looks for `dart_test.yaml` in its working directory, the
-    // runfiles root, where no package's own file is. What the file would set,
-    // the target says.
+    // test's package root, which a target's `data` may give one. What the
+    // file would set, the target says. The fixture is in no package, so it
+    // runs at its repository's root, where a manifest can add the file.
     test('a dart_test.yaml where the runner runs is not read', () async {
+      final yaml = File('${tmp.path}/dart_test.yaml')
+        ..writeAsStringSync('include_tags: absent\n');
       final config = configOf(runfiles.rlocation(args[1]));
-      // The runner runs where the test's source is at its path, as it is
-      // in the runfiles root.
-      File('${tmp.path}/root/${config['test_path']}')
-        ..createSync(recursive: true)
+      final listed = File(
+        Platform.environment['RUNFILES_MANIFEST_FILE'] ??
+            _manifestOf(Platform.environment['RUNFILES_DIR']!, tmp.path),
+      ).readAsStringSync();
+      final manifest = File('${tmp.path}/MANIFEST.with_yaml')
         ..writeAsStringSync(
-          File(runfiles.rlocation(config['test_main'] as String))
-              .readAsStringSync(),
+          '$listed${config['working_directory']}/dart_test.yaml ${yaml.path}\n',
         );
-      File('${tmp.path}/root/dart_test.yaml')
-          .writeAsStringSync('include_tags: absent\n');
-      final result = await run(args[1], workingDirectory: '${tmp.path}/root');
+      final result = await run(args[1], manifest: manifest.path);
       expect(ran(result), ['runs under the runner']);
     });
   });

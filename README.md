@@ -401,6 +401,19 @@ tests on another host, a remote Linux executor say, build them for that host's
 platform: with `--platforms`, or per test with a platform transition such as
 `platform_transition_test` from `aspect_bazel_lib`.
 
+A test runs in its package's root, as `dart test` runs it, so a test reads its
+`data` by its path from there (`File('test/fixtures/input.json')`) and
+`Directory.current` is that root, inside the test's runfiles. Its package is the
+one whose root is the deepest directory holding the test file, among its own
+and its `deps`' packages in the same repository, wherever its BUILD file sits:
+a test in `pkgs/app/test/BUILD.bazel` that depends on `//pkgs/app` runs in
+`pkgs/app`. A test no package of its repository holds runs at the repository's
+root, where Bazel starts every test. Only the test's `data` is there, not the
+whole package; `Runfiles.rlocation()` still finds a file by its runfiles path
+from anywhere. Where Bazel builds no runfiles tree (Windows by default), the
+launcher lays out the test's repository from the runfiles manifest and runs it
+there.
+
 A test carries only the part of the Dart SDK that runs its compiled code: the
 `dart` launcher and the VM. A test that runs SDK commands itself, such as
 `dart compile` or `dart analyze`, adds `@rules_dart//dart` to its `data`, which

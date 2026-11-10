@@ -1,0 +1,10 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+# Every case is excluded if the runner reads this file; it reads none.
+exports_files(["dart_test.yaml"])
+
+dart_library(
+    name = "greeter",
+    srcs = glob(["lib/**/*.dart"]),
+    visibility = ["//greeter:__subpackages__"],
+)

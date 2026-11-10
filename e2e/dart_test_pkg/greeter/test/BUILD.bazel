@@ -1,0 +1,18 @@
+load("@rules_dart//dart:defs.bzl", "dart_test")
+
+# Under `package:test`'s runner, a test in a BUILD file below its package's
+# root runs in that root, as `dart test` runs it: the runner reads the test's
+# annotations from its path there, and the test reads its `data` the same way.
+dart_test(
+    name = "greeter_test",
+    size = "small",
+    data = [
+        "fixtures/greeting.txt",
+        "//greeter:dart_test.yaml",
+    ],
+    main = "greeter_test.dart",
+    deps = [
+        "//greeter",
+        "@pub_deps//:test",
+    ],
+)
