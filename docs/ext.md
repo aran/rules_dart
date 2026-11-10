@@ -354,14 +354,16 @@ tune _registered_ builders:
   package's `build.yaml` states other options for the same builder, Gazelle
   fails naming both.
 - `# gazelle:dart_language_version <major>.<minor>` states the
-  `language_version` attr for a package whose `pubspec.yaml` does not.
+  `language_version` of the package's `dart_package_metadata`, for a package
+  whose `pubspec.yaml` does not.
   When unset, Gazelle derives it from the lower bound of the
   `environment.sdk` constraint in the `pubspec.yaml` at the package's root;
   a directive that disagrees with it is an error.
 
 Every macro takes `package`, the `dart_package_metadata` of the sources'
 package, and forwards it to every rule it emits; the `dart_library` collecting
-the outputs names the same one.
+the outputs names the same one. Gazelle writes that metadata at the package's
+root and names it on every macro, codegen target and library it writes.
 
 ### build.yaml
 

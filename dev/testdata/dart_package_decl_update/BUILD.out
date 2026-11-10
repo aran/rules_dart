@@ -4,6 +4,7 @@ dart_package_metadata(
     name = "pkg",
     package_name = "decl_fixture",
     language_version = "3.11",
+    visibility = ["//:__subpackages__"],
 )
 
 dart_codegen(

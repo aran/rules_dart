@@ -1,12 +1,18 @@
-load("@rules_dart//dart:defs.bzl", "dart_library")
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
 
 # gazelle:dart_package_name from_directive
 # gazelle:dart_language_version 3.12
 
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "from_directive",
+    language_version = "3.12",
+    visibility = ["//from_directive:__subpackages__"],
+)
+
 dart_library(
     name = "from_directive",
-    package_name = "from_directive",
     srcs = ["lib/shout.dart"],
-    language_version = "3.12",
+    package = ":pubspec",
     visibility = ["//visibility:public"],
 )

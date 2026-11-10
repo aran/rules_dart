@@ -8,26 +8,26 @@ import (
 	"github.com/bazelbuild/bazel-gazelle/label"
 	"github.com/bazelbuild/bazel-gazelle/language"
 	"github.com/bazelbuild/bazel-gazelle/rule"
-	"github.com/bazelbuild/bazel-gazelle/walk"
 )
 
 // A package's hooks live in its hook/ directory, and Gazelle states each on
-// the library of the package, at its root.
+// the package's `dart_package_metadata`, at its root (metadata.go).
 //
 // hook/build.dart builds native code when pub gets the package. rules_dart
-// never runs it, and fails every binary and test that reaches a library
-// stating it in `build_hook` unless the package's `code_assets` replace what
-// it builds. So Gazelle states it, and the build says what to do.
+// never runs it, and fails every binary and test that reaches the package
+// unless the metadata's `code_assets` replace what it builds. So Gazelle
+// states it, and the build says what to do.
 //
 // hook/link.dart decides what the package ships from a program's recorded
-// uses; `dart_link_hook` runs it from the `link_hook` of the package's
-// library, and its imports are that library's dependencies, as pub requires.
+// uses; `dart_link_hook` runs it from the metadata's `link_hook`, and its
+// imports are the dependencies of the package's library, as pub requires.
 //
 // A package has Gazelle not see a hook with `# gazelle:exclude
 // hook/build.dart` (or `hook/link.dart`).
 
 // hookKind is one of a package's hooks: its file in hook/, the filegroup
-// Gazelle holds it in there, and the `dart_library` attribute naming it.
+// Gazelle holds it in there, and the `dart_package_metadata` attribute
+// naming it.
 type hookKind struct {
 	file, target, attr string
 }
@@ -40,12 +40,16 @@ var (
 
 // visibleFiles is the regular files of directory rel that Gazelle sees:
 // those no `# gazelle:exclude` excludes. Nil when the directory is absent.
-func visibleFiles(rel string) []string {
-	di, err := walk.GetDirInfo(rel)
+func (s *scanState) visibleFiles(rel string) []string {
+	list := s.list
+	if list == nil {
+		list = gazelleDir
+	}
+	_, files, err := list(rel)
 	if err != nil {
 		return nil
 	}
-	return di.RegularFiles
+	return files
 }
 
 func hasFile(files []string, name string) bool {
@@ -57,56 +61,38 @@ func hasFile(files []string, name string) bool {
 	return false
 }
 
-// hookLabel is the label, relative to directory from, of the hook of the
-// package rooted at root, or "" when it has none Gazelle sees.
-func hookLabel(h hookKind, root, from string) string {
+// hookLabel is the label, relative to the package's root, of the hook of
+// the package rooted at root, or "" when it has none Gazelle sees.
+func (s *scanState) hookLabel(h hookKind, root string) string {
 	dir := path.Join(root, "hook")
-	if !hasFile(visibleFiles(dir), h.file) {
+	if !hasFile(s.visibleFiles(dir), h.file) {
 		return ""
 	}
-	return label.New("", dir, h.target).Rel("", from).String()
+	return label.New("", dir, h.target).Rel("", root).String()
 }
 
-// setHooks states the hooks of the package rooted at root on r, the library
-// at its root, and returns the link hook's imports, named from the
-// repository root, for r's dependencies.
-func setHooks(r *rule.Rule, repoRoot, root, from string) []DartFileInfo {
-	for _, h := range hookKinds {
-		if l := hookLabel(h, root, from); l != "" {
-			r.SetAttr(h.attr, l)
-		}
-	}
-	if hookLabel(linkHook, root, from) == "" {
+// linkHookImports is the link hook of the package rooted at root, with its
+// imports, named from the repository root, for the deps of lib, the
+// package's library; nil when it has none.
+func (s *scanState) linkHookImports(repoRoot, root, lib string) []DartFileInfo {
+	if s.hookLabel(linkHook, root) == "" {
 		return nil
 	}
 	rel := path.Join(root, "hook", linkHook.file)
 	imports, err := ParseDartFile(filepath.Join(repoRoot, filepath.FromSlash(rel)))
 	if err != nil {
-		log.Printf("dart: %s: %v; its imports are not in %s's deps", rel, err, r.Name())
+		log.Printf("dart: %s: %v; its imports are not in %s's deps", rel, err, lib)
 		return nil
 	}
 	return []DartFileInfo{{Path: rel, Imports: imports}}
 }
 
-// logUnstatedHooks says when a package has hooks and Gazelle writes no
-// library of its lib/ to state them on.
-func logUnstatedHooks(root string) {
-	for _, h := range hookKinds {
-		if hookLabel(h, root, "") == "" {
-			continue
-		}
-		log.Printf("dart: %s has a hook and %s holds no library Gazelle writes "+
-			"to state it on; give a hand-written `dart_library` of the package "+
-			"`%s = %q`", path.Join(root, "hook", h.file), libDirOf(root), h.attr,
-			label.New("", path.Join(root, "hook"), h.target).String())
-	}
-}
-
 // hookRules is what Gazelle writes in a package's hook/ directory: a
-// filegroup holding each hook, visible to the package's root, where its library is, and nothing for
-// the hooks' imports, which the library's dependencies carry. A
-// `dart_library` of the directory's files, which earlier Gazelle versions
-// wrote, is deleted, as is a hook's filegroup once the hook is gone.
+// filegroup holding each hook, visible to the package's root, where its
+// metadata is, and nothing for the hooks' imports, which the package
+// library's dependencies carry. A `dart_library` of the directory's files,
+// which earlier Gazelle versions wrote, is deleted, as is a hook's filegroup
+// once the hook is gone.
 func hookRules(args language.GenerateArgs, root string) language.GenerateResult {
 	var res language.GenerateResult
 	gone := map[string]bool{}

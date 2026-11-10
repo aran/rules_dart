@@ -155,6 +155,10 @@ func (d *dartLang) codegenRules(args language.GenerateArgs, scan *packageScan, r
 		plans[file.Path] = p
 	}
 	reach := packageReach(scan.lib, packageNameIn(args.Config, root), root)
+	pkg := ""
+	if m := d.metadataOf(args.Config, root); m != nil {
+		pkg = m.labelFrom(args.Rel)
+	}
 
 	var gen []*rule.Rule
 	var imports []interface{}
@@ -187,7 +191,7 @@ func (d *dartLang) codegenRules(args language.GenerateArgs, scan *packageScan, r
 			return out
 		}
 		files := append([]DartFileInfo{file}, reached...)
-		rules, is := emitCodegen(args, p, files, visible)
+		rules, is := emitCodegen(args, pkg, p, files, visible)
 		gen = append(gen, rules...)
 		imports = append(imports, is...)
 		srcs = append(srcs, p.librarySrcs()...)
@@ -230,10 +234,11 @@ func packageReach(lib []DartFileInfo, self, root string) func(file string) []Dar
 	}
 }
 
-// emitCodegen writes the plan's rules, with each rule's imports: those of
-// files, the source then what it reaches, repo-relative, less its own
-// package's, which its rules see through visible.
-func emitCodegen(args language.GenerateArgs, p *codegenPlan, files []DartFileInfo, visible func(*builderInfo) []string) ([]*rule.Rule, []interface{}) {
+// emitCodegen writes the plan's rules, each naming pkg, the package's
+// metadata, when it has one, with each rule's imports: those of files, the
+// source then what it reaches, repo-relative, less its own package's, which
+// its rules see through visible.
+func emitCodegen(args language.GenerateArgs, pkg string, p *codegenPlan, files []DartFileInfo, visible func(*builderInfo) []string) ([]*rule.Rule, []interface{}) {
 	self := packageNameIn(args.Config, args.Rel)
 	importsOf := func() *importSet {
 		is := collectRepoImports(args, files)
@@ -247,15 +252,14 @@ func emitCodegen(args language.GenerateArgs, p *codegenPlan, files []DartFileInf
 		if assets := visible(b); len(assets) > 0 {
 			r.SetAttr("asset_deps", assets)
 		}
-		setPackageIdentity(r, args, self)
-		if b.RuntimeDep != "" && b.RuntimeDep != defaultRuntimeDeps[nodeKey(b)] {
-			r.SetAttr("annotation_dep", b.RuntimeDep)
-		}
+		setPackage(r, pkg)
 		if b.Config != "" {
 			r.SetAttr("config", b.Config)
 		}
 		is := importsOf()
-		if b.RuntimeDep == defaultRuntimeDeps[nodeKey(b)] {
+		if overridesRuntimeDep(b) {
+			r.SetAttr("annotation_dep", b.RuntimeDep)
+		} else {
 			is.annotationPackage = runtimePackage(b)
 			is.annotationDefault = b.RuntimeDep
 		}
@@ -277,7 +281,7 @@ func emitCodegen(args language.GenerateArgs, p *codegenPlan, files []DartFileInf
 				parts = append(parts, ":"+p.names[id])
 			}
 			r.SetAttr("parts", parts)
-			setPackageIdentity(r, args, self)
+			setPackage(r, pkg)
 			rules = append(rules, r)
 			imports = append(imports, nil)
 			continue
@@ -301,25 +305,40 @@ func emitCodegen(args language.GenerateArgs, p *codegenPlan, files []DartFileInf
 		if stage.Builder.Config != "" {
 			r.SetAttr("config", stage.Builder.Config)
 		}
-		setPackageIdentity(r, args, self)
+		setPackage(r, pkg)
 		rules = append(rules, r)
 		// A generator resolves the source, so each stage depends on its
 		// builder's runtime library too.
 		is := importsOf()
-		addRuntimeDep(is, stage.Builder)
+		addRuntimeDeps(is, []*builderInfo{stage.Builder})
 		imports = append(imports, is)
 	}
 	return rules, imports
 }
 
-// addRuntimeDep adds to is the runtime library of builder b: a directive's
-// label as stated, the default as an import of its package.
-func addRuntimeDep(is *importSet, b *builderInfo) {
-	if b.RuntimeDep != defaultRuntimeDeps[nodeKey(b)] {
-		is.labels = append(is.labels, b.RuntimeDep)
-	} else if pkg := runtimePackage(b); pkg != "" {
-		is.packages[pkg] = true
+// setPackage names pkg, the package's metadata, on r, when it has one.
+func setPackage(r *rule.Rule, pkg string) {
+	if pkg != "" {
+		r.SetAttr("package", pkg)
 	}
+}
+
+// addRuntimeDeps adds to is the runtime library of each of builders: a
+// directive's label as stated, the default as an import of its package.
+func addRuntimeDeps(is *importSet, builders []*builderInfo) {
+	for _, b := range builders {
+		if overridesRuntimeDep(b) {
+			is.labels = append(is.labels, b.RuntimeDep)
+		} else if pkg := runtimePackage(b); pkg != "" {
+			is.packages[pkg] = true
+		}
+	}
+}
+
+// overridesRuntimeDep reports whether a `dart_builder_runtime_dep`
+// directive states builder b's runtime library.
+func overridesRuntimeDep(b *builderInfo) bool {
+	return b.RuntimeDep != "" && b.RuntimeDep != defaultRuntimeDeps[nodeKey(b)]
 }
 
 // stageTargetName returns the synthetic Bazel target name for a stage of

@@ -1,7 +1,7 @@
 # dart_lang_version_absent
 
-Fixture pinning Gazelle's output when no language version is derivable:
-no `# gazelle:dart_language_version` directive and no pubspec.yaml. The
-emitted macro call must simply omit `language_version` — which requires
-the builder macros to accept its absence (the rule layer applies a safe
-default).
+Gazelle's output when no language version is derivable: no
+`# gazelle:dart_language_version` directive and no pubspec.yaml. The package's
+`dart_package_metadata` states none, so the package has the SDK's own. The
+package is at the repository's root, which gives no name, and has a codegen
+target, so the metadata states the library's name, `lib`, for both.

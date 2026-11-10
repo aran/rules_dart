@@ -1,29 +1,34 @@
-load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library")
+load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library", "dart_package_metadata")
 load("@rules_dart//dart/ext/copy_with_extension_gen:defs.bzl", "copy_with_codegen")
 load("@rules_dart//dart/ext/drift:defs.bzl", "drift_codegen")
 load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_codegen")
 
 # gazelle:dart_builder_config CopyWith {"copy_with_null": true}
 
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "build_yaml_fixture",
+    language_version = "3.11",
+    visibility = ["//:__subpackages__"],
+)
+
 dart_codegen(
     name = "_event_freezed_gen",
-    package_name = "build_yaml_fixture",
     src = "lib/event.dart",
     generator_bin = "@rules_dart//dart/ext/freezed:shim",
-    language_version = "3.11",
     output_suffixes = [".freezed.dart"],
+    package = ":pubspec",
     deps = ["@freezed_annotation"],
 )
 
 dart_codegen(
     name = "_event_json_serializable_gen",
-    package_name = "build_yaml_fixture",
     src = "lib/event.dart",
     asset_deps = [":_event_freezed_gen"],
     config = "{\"explicit_to_json\":true,\"field_rename\":\"pascal\"}",
     generator_bin = "@rules_dart//dart/ext/json_serializable:shim",
-    language_version = "3.11",
     output_suffixes = [".json_serializable.g.part"],
+    package = ":pubspec",
     deps = [
         "@freezed_annotation",
         "@json_annotation",
@@ -32,47 +37,42 @@ dart_codegen(
 
 dart_codegen(
     name = "_event_combined",
-    package_name = "build_yaml_fixture",
     src = "lib/event.dart",
     generator_bin = "@rules_dart//dart/ext/_shared/combining_shim:bin",
-    language_version = "3.11",
     output_suffixes = [".g.dart"],
+    package = ":pubspec",
     parts = [":_event_json_serializable_gen"],
 )
 
 copy_with_codegen(
     name = "profile_codegen",
-    package_name = "build_yaml_fixture",
     srcs = ["lib/profile.dart"],
     annotation_dep = "@copy_with_extension",
     config = "{\"copy_with_null\": true}",
-    language_version = "3.11",
+    package = ":pubspec",
     deps = ["@copy_with_extension"],
 )
 
 drift_codegen(
     name = "store_codegen",
-    package_name = "build_yaml_fixture",
     srcs = ["lib/store.dart"],
     annotation_dep = "@drift",
     config = "{\"store_date_time_values_as_text\":true}",
-    language_version = "3.11",
+    package = ":pubspec",
     deps = ["@drift"],
 )
 
 json_serializable_codegen(
     name = "user_codegen",
-    package_name = "build_yaml_fixture",
     srcs = ["lib/user.dart"],
     annotation_dep = "@json_annotation",
     config = "{\"explicit_to_json\":true,\"field_rename\":\"pascal\"}",
-    language_version = "3.11",
+    package = ":pubspec",
     deps = ["@json_annotation"],
 )
 
 dart_library(
     name = "build_yaml_fixture",
-    package_name = "build_yaml_fixture",
     srcs = [
         "lib/event.dart",
         "lib/profile.dart",
@@ -84,7 +84,7 @@ dart_library(
         ":store_codegen",
         ":user_codegen",
     ],
-    language_version = "3.11",
+    package = ":pubspec",
     visibility = ["//visibility:public"],
     deps = [
         "@copy_with_extension",

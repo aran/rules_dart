@@ -1,0 +1,5 @@
+filegroup(
+    name = "build",
+    srcs = ["build.dart"],
+    visibility = ["//:__pkg__"],
+)

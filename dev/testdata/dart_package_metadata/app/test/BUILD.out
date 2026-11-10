@@ -1,0 +1,11 @@
+load("@rules_dart//dart:defs.bzl", "dart_test")
+
+dart_test(
+    name = "app_test",
+    main = "app_test.dart",
+    package = "//app:pubspec",
+    deps = [
+        "//app",
+        "@test",
+    ],
+)

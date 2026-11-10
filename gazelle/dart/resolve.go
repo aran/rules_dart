@@ -26,26 +26,19 @@ func (d *dartLang) Imports(c *config.Config, r *rule.Rule, f *rule.File) []resol
 
 // importSpecs is what a rule in Bazel package rel provides: the `package:`
 // URI of each of its sources, and the package itself, by its rule name and
-// `package_name`.
+// its package's name.
 func (d *dartLang) importSpecs(c *config.Config, r *rule.Rule, rel string) []resolve.ImportSpec {
 	if !indexedKinds[r.Kind()] {
 		return nil
 	}
 	place := placeDir(rel)
-	pkgName := r.AttrString("package_name")
+	pkgName := libraryPackageName(c, r, place)
 	specs := []resolve.ImportSpec{{Lang: dartName, Imp: r.Name()}}
-	if pkgName != "" && pkgName != r.Name() {
+	if pkgName != r.Name() {
 		specs = append(specs, resolve.ImportSpec{Lang: dartName, Imp: pkgName})
 	}
 	if place.Err != nil {
 		return specs
-	}
-	if pkgName == "" {
-		if d, ok := c.Exts[extKeyPackageDecl].(*packageDecl); ok && d != nil && r.AttrString("package") != "" {
-			pkgName = d.PackageName
-		} else {
-			pkgName = r.Name()
-		}
 	}
 	for _, src := range r.AttrStrings("srcs") {
 		if src == "" || strings.ContainsAny(src[:1], "@:/") {
@@ -56,6 +49,23 @@ func (d *dartLang) importSpecs(c *config.Config, r *rule.Rule, rel string) []res
 		}
 	}
 	return specs
+}
+
+// libraryPackageName is the Dart package of r, a library at place: the one
+// its `package` declares, which Gazelle writes from the facts stated for its
+// root, or else the name of its root's directory, or, at the repository's
+// root, its own name, as `dart_library` names it.
+func libraryPackageName(c *config.Config, r *rule.Rule, place placement) string {
+	if place.Err == nil && r.AttrString("package") != "" {
+		if name := statedPackageName(c, place.Root); name != "" {
+			return name
+		}
+		return libraryName(place.Root, c)
+	}
+	if place.Err == nil && place.Root != "" {
+		return path.Base(place.Root)
+	}
+	return r.Name()
 }
 
 // Embeds returns rules that this rule embeds (not used for Dart).

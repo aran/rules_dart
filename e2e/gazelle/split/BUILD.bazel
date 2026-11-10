@@ -1,13 +1,19 @@
-load("@rules_dart//dart:defs.bzl", "dart_library")
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "split",
+    language_version = "3.11",
+    visibility = ["//split:__subpackages__"],
+)
 
 dart_library(
     name = "split",
-    package_name = "split",
     srcs = [
         "lib/a.dart",
         "lib/src/model/model.dart",
         "lib/src/util/util.dart",
     ],
-    language_version = "3.11",
+    package = ":pubspec",
     visibility = ["//visibility:public"],
 )

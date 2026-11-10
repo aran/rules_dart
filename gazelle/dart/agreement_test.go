@@ -45,8 +45,10 @@ func agreementErrors(t *testing.T, rel, pubspec string, decl *packageDecl, direc
 
 func TestAgreement(t *testing.T) {
 	const pubspec = "name: from_pubspec\nenvironment:\n  sdk: ^3.13.0\n"
+	// A declaration whose attributes are marked `# keep`; Gazelle rewrites
+	// one whose are not, so it never disagrees.
 	decl := func(name, version string) *packageDecl {
-		return &packageDecl{Rel: "pkg", Name: "package", PackageName: name, LanguageVersion: version}
+		return &packageDecl{Rel: "pkg", Name: "package", PackageName: name, LanguageVersion: version, KeepName: true, KeepVersion: true}
 	}
 	for _, tt := range []struct {
 		name       string
@@ -69,6 +71,10 @@ func TestAgreement(t *testing.T) {
 		{
 			name: "directives without a pubspec", rel: "pkg",
 			directives: map[string]string{keyPackageName: "x", keyLanguageVersion: "3.13"},
+		},
+		{
+			name: "declaration not kept, differing from pubspec", rel: "pkg", pubspec: pubspec,
+			decl: &packageDecl{Rel: "pkg", Name: "package", PackageName: "from_decl", LanguageVersion: "3.10"},
 		},
 		{
 			name: "name: declaration and pubspec", rel: "pkg", pubspec: pubspec,
@@ -94,7 +100,7 @@ func TestAgreement(t *testing.T) {
 		{
 			name: "version: a declaration stating none, and a pubspec", rel: "pkg", pubspec: pubspec,
 			decl: decl("from_pubspec", ""),
-			want: [][]string{{"language version", "none by dart_package_metadata //pkg:package", `"3.13"`, "pkg/pubspec.yaml"}},
+			want: [][]string{{"language version", "none by dart_package_metadata //pkg:package (`# keep`)", `"3.13"`, "pkg/pubspec.yaml"}},
 		},
 		{
 			name: "version: declaration and directive", rel: "pkg",

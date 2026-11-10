@@ -4,6 +4,6 @@ load("@rules_dart//dart:defs.bzl", "dart_package_metadata")
 
 dart_package_metadata(
     name = "pkg",
-    package_name = "declared_name",
+    package_name = "declared_name",  # keep
     language_version = "3.11",
 )

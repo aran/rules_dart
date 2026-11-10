@@ -16,6 +16,7 @@ dart_test(
         "names.dart",
     ],
     main = "greeter_test.dart",
+    package = "//:pubspec",
     deps = [
         "//:helpers_fixture",
         "@meta",
@@ -26,5 +27,6 @@ dart_test(
 dart_test(
     name = "plain_test",
     main = "plain_test.dart",
+    package = "//:pubspec",
     deps = ["@test"],
 )

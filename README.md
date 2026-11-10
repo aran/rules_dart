@@ -843,31 +843,48 @@ Add directives as comments in a `BUILD.bazel` file to control generation:
   `package:shelf/shelf.dart` are resolved to `@pub_deps//:shelf`.
 
 - **`# gazelle:dart_package_name my_app`** — the package's name, for a
-  package whose `pubspec.yaml` does not state it or that has none. In a
-  directory that already declares a `dart_package_metadata`, Gazelle emits
-  `package = ":pkg"` on the rules it generates instead of an inline
-  `package_name`.
+  package whose `pubspec.yaml` does not state it or that has none. Gazelle
+  writes it as the `package_name` of the package's `dart_package_metadata`.
 
 - **`# gazelle:dart_language_version 3.13`** — the package's language
-  version, likewise.
+  version, likewise, as the metadata's `language_version`.
 
 - **`# gazelle:resolve dart foo //third_party:foo`** — overrides
   automatic dependency resolution for a Dart package (the `foo` of
   `package:foo/...` imports), mapping it to an explicit Bazel target.
 
-#### pubspec.yaml
+#### pubspec.yaml and the package's metadata
 
-A `pubspec.yaml` at a package's root states the package's name (`name`) and
-language version (the lower bound of `environment.sdk`), so most projects need
-no directives at all. A stated language version, wherever it is stated, is on
-every library Gazelle writes for the package, generated and plain alike. A package needs no `pubspec.yaml`: without one, its
-name is its root directory's, unless a directive or `dart_package_metadata`
-states one.
+Gazelle states a package's facts once, on a `dart_package_metadata` named
+`pubspec` in the BUILD file at its root (`pubspec_metadata` for a package
+itself named `pubspec`), and every rule it writes for the package names it with
+`package`: the library and codegen targets, and the binaries and tests of the
+root, `bin/` and `test/` (`package = "//my_app:pubspec"`). It writes there:
 
-Each fact is stated once. Where a `dart_package_metadata`, a directive and a
-`pubspec.yaml` state a package's name or language version differently, Gazelle
-reports each disagreement, naming both values and where each is stated, and
-fails without writing any BUILD file.
+- `package_name` and `language_version`: from a `pubspec.yaml` at the root
+  (`name`, and the lower bound of `environment.sdk`), or the directives
+  above, so most projects need no directives at all;
+- `build_hook` and `link_hook`: the package's hooks (see [Hooks](#hooks));
+- `license_file`: the root's `NOTICES`, or else `LICENSE`, by exact name, as
+  `pub.from_lock()` chooses.
+
+A package needs no `pubspec.yaml`. One that nothing states a fact of has no
+metadata, and its rules name none: the rules name it after its root
+directory. At the repository's root, which has no directory name, a package
+with codegen targets gets one stating its library's name.
+
+**The attributes above are output: each run rewrites them from
+`pubspec.yaml`, the directives and the package's files, and `# keep` on one
+makes it yours.** A `dart_package_metadata` already at the root, under any
+name, is the package's: Gazelle merges into it and keeps what it does not
+write (`code_assets`, `version`). One with no `pubspec.yaml` or directive
+beside it is itself the source of its name and version. A `# keep` attribute,
+a directive and the `pubspec.yaml` must agree: where two state a package's name
+or language version differently, Gazelle reports each disagreement, naming both
+values and where each is stated, and fails without writing any BUILD file. Gazelle
+removes `package_name`, `language_version`, `build_hook`, `link_hook` and
+`license_file` from the rules of a BUILD file written before the metadata held
+them, and moves a library's `code_assets` onto the metadata.
 
 #### build.yaml
 
@@ -909,12 +926,14 @@ builder are a disagreement, as for the package's name.
 
 #### Hooks
 
-A package's `hook/build.dart` is its library's `build_hook`, and its
-`hook/link.dart` its library's `link_hook`: Gazelle puts each hook in a
-`filegroup` in `hook/` and names it on the package's `dart_library`. A build hook fails every binary and test that reaches the package
-until the package's `code_assets` supply what the hook would build (see
+A package's `hook/build.dart` is its metadata's `build_hook`, and its
+`hook/link.dart` its metadata's `link_hook`: Gazelle puts each hook in a
+`filegroup` in `hook/` and names it on the package's `dart_package_metadata`.
+A build hook fails every binary and test that reaches the package until the
+metadata's `code_assets` supply what the hook would build (see
 [Native code assets](#native-code-assets)); `code_assets` is yours: Gazelle
-never writes or removes it. A link hook's imports are that library's `deps`,
+never writes or removes it. A link hook's imports are the `deps` of the
+package's library,
 for `dart_link_hook` to run it (see
 [Recorded uses and link hooks](#recorded-uses-and-link-hooks)). A package
 whose hook nothing here uses has Gazelle not see it, with

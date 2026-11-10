@@ -43,9 +43,9 @@ type buildYamlState struct {
 }
 
 // configsOf returns the builder options the build.yaml of the package
-// rooted at root states, by builder key, recording an error in errs for
-// each part of it Gazelle cannot carry into the build.
-func (s *buildYamlState) configsOf(root string, c *config.Config, errs *generationErrors) map[string]string {
+// rooted at root, whose files are files, states, by builder key, recording
+// an error in errs for each part of it Gazelle cannot carry into the build.
+func (s *buildYamlState) configsOf(root string, files []string, c *config.Config, errs *generationErrors) map[string]string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if cfgs, ok := s.byRoot[root]; ok {
@@ -55,7 +55,7 @@ func (s *buildYamlState) configsOf(root string, c *config.Config, errs *generati
 		s.byRoot = map[string]map[string]string{}
 	}
 	var cfgs map[string]string
-	for _, name := range visibleFiles(root) {
+	for _, name := range files {
 		file := path.Join(root, name)
 		switch {
 		case name == "build.yaml":
@@ -217,7 +217,7 @@ func (d *dartLang) withBuildYaml(args language.GenerateArgs, registry *builderRe
 	if err != nil || registry == nil {
 		return registry
 	}
-	cfgs := d.buildYaml.configsOf(root, args.Config, &d.errs)
+	cfgs := d.buildYaml.configsOf(root, d.scan.visibleFiles(root), args.Config, &d.errs)
 	if len(cfgs) == 0 {
 		return registry
 	}

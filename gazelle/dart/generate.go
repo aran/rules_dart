@@ -54,13 +54,21 @@ func (d *dartLang) generateDartRules(args language.GenerateArgs) language.Genera
 	if ownsLib {
 		gen, imports, staleLibs = d.packageLibraryRules(args)
 	}
+	// The package's facts, at its root.
+	layout, root := layoutOf(args.Rel)
+	if layout == "" {
+		root = place.Root
+		if m := d.metadataOf(args.Config, root); m != nil {
+			gen = append([]*rule.Rule{d.metadataRule(args.Config, root, m, args.File)}, gen...)
+			imports = append([]interface{}{nil}, imports...)
+		}
+	}
 	if len(dartFiles) == 0 && len(gen) == 0 {
 		return language.GenerateResult{}
 	}
 	d.checkAgreement(args)
 
 	// Classify files by the conventional directory of their package.
-	layout, _ := layoutOf(args.Rel)
 	var libFiles, binFiles, testFiles []DartFileInfo
 	helpers := map[string]DartFileInfo{}
 	for _, f := range dartFiles {
@@ -91,7 +99,6 @@ func (d *dartLang) generateDartRules(args language.GenerateArgs) language.Genera
 	// A test-tree directory another directory imports from holds what it
 	// lends (package_scan.go).
 	if layout == "test" {
-		_, root := layoutOf(args.Rel)
 		scan := d.scan.scanOf(args.Config, root)
 		if lent := scan.lent[args.Rel]; len(lent) > 0 {
 			gen = append(gen, sourcesFilegroup(args.Rel, lent,
@@ -104,6 +111,7 @@ func (d *dartLang) generateDartRules(args language.GenerateArgs) language.Genera
 		name := strings.TrimSuffix(f.Path, ".dart")
 		r := rule.NewRule("dart_binary", name)
 		r.SetAttr("main", f.Path)
+		d.setPackage(r, args.Config, root, args.Rel)
 		gen = append(gen, r)
 		imports = append(imports, collectImports(args, []DartFileInfo{f}))
 	}
@@ -121,6 +129,7 @@ func (d *dartLang) generateDartRules(args language.GenerateArgs) language.Genera
 			r.SetAttr("tags", tags)
 		}
 		d.setTestPlatforms(args, f, r)
+		d.setPackage(r, args.Config, root, args.Rel)
 		gen = append(gen, r)
 		imports = append(imports, collectRepoImports(args, files))
 	}
@@ -157,26 +166,18 @@ func (d *dartLang) packageLibraryRules(args language.GenerateArgs) ([]*rule.Rule
 	gen, imports, genSrcs, runtime := d.codegenRules(args, scan, registry)
 
 	r := rule.NewRule("dart_library", libraryName(root, args.Config))
-	// The name is stated only where something states it; unstated,
-	// dart_library derives the same one from the target's name.
-	name := ""
-	if statedPackageName(args.Config, root) != "" {
-		name = r.Name()
-	}
-	setPackageIdentity(r, args, name)
+	d.setPackage(r, args.Config, root, args.Rel)
 	srcs := make([]string, 0, len(scan.lib)+len(genSrcs))
 	for _, f := range scan.lib {
 		srcs = append(srcs, relTo(root, f.Path))
 	}
 	r.SetAttr("srcs", append(srcs, genSrcs...))
-	// The package's hooks, on its library (hook.go).
-	files := append(append([]DartFileInfo(nil), scan.lib...), setHooks(r, args.Config.RepoRoot, root, args.Rel)...)
+	// The link hook's imports are the library's dependencies (hook.go).
+	files := append(append([]DartFileInfo(nil), scan.lib...), d.scan.linkHookImports(args.Config.RepoRoot, root, r.Name())...)
 	r.SetAttr("visibility", []string{"//visibility:public"})
 	is := collectRepoImports(args, files)
 	// What the builders generate imports their runtime libraries.
-	for _, b := range runtime {
-		addRuntimeDep(is, b)
-	}
+	addRuntimeDeps(is, runtime)
 	gen = append(gen, r)
 	imports = append(imports, is)
 	return gen, imports, staleSourceLibraries(args.File, root, scan, r.Name())
@@ -256,6 +257,7 @@ func (d *dartLang) scriptRules(args language.GenerateArgs, files []DartFileInfo,
 			sort.Strings(srcs)
 			r.SetAttr("srcs", srcs)
 		}
+		d.setPackage(r, args.Config, args.Rel, args.Rel)
 		gen = append(gen, r)
 		imports = append(imports, collectRepoImports(args, held))
 	}
@@ -472,61 +474,9 @@ func staleCodegenRules(f *rule.File, gen []*rule.Rule) []*rule.Rule {
 	return empty
 }
 
-// setPackageIdentity states the Dart package a generated rule belongs to,
-// either by reference to the directory's `dart_package_metadata` or inline:
-// pkgName, when not "", and the language version, when one is stated. Every
-// rule Gazelle writes for a package's lib/ states it so, the generated and the
-// plain alike, since a version stated once applies to all of them.
-func setPackageIdentity(r *rule.Rule, args language.GenerateArgs, pkgName string) {
-	if decl := packageDeclFor(args); decl != "" {
-		r.SetAttr("package", decl)
-		return
-	}
-	if pkgName != "" {
-		r.SetAttr("package_name", pkgName)
-	}
-	if lv := resolvedLanguageVersion(args); lv != "" {
-		r.SetAttr("language_version", lv)
-	}
-}
-
-// resolvedLanguageVersion returns the language_version to propagate onto
-// emitted codegen rules / macros: the `# gazelle:dart_language_version`
-// directive's, or else the one the pubspec.yaml at the package's root derives
-// from its `environment.sdk` constraint. `checkAgreement` has made sure the
-// two do not disagree.
-func resolvedLanguageVersion(args language.GenerateArgs) string {
-	if f := directiveFact(args.Config, keyLanguageVersion); f != nil {
-		return f.Value
-	}
-	if root, err := packageRootOf(args.Rel); err == nil {
-		_, lv := pubspecFacts(args.Config, root)
-		return lv
-	}
-	return ""
-}
-
-// statedPackageName is the package name a `dart_package_metadata`, a
-// directive or the pubspec.yaml at the package's root states for a
-// directory, or "" when none does. `checkAgreement` has made sure they do not
-// disagree.
-func statedPackageName(c *config.Config, rel string) string {
-	if d := packageDeclIn(c, rel); d != nil {
-		return d.PackageName
-	}
-	if f := directiveFact(c, keyPackageName); f != nil {
-		return f.Value
-	}
-	if root, err := packageRootOf(rel); err == nil {
-		name, _ := pubspecFacts(c, root)
-		return name
-	}
-	return ""
-}
-
-// libraryName determines the dart_library target name: the package name a
-// directive or pubspec states, else the name of the package root's
-// directory, as `dart_library` derives it.
+// libraryName determines the dart_library target name: the package name
+// stated for the package (`statedPackageName`), else the name of the package
+// root's directory, as `dart_library` derives it.
 func libraryName(rel string, c *config.Config) string {
 	if name := statedPackageName(c, rel); name != "" {
 		return name

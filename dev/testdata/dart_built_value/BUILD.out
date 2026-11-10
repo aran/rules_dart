@@ -1,23 +1,29 @@
-load("@rules_dart//dart:defs.bzl", "dart_library")
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
 load("@rules_dart//dart/ext/built_value:defs.bzl", "built_value_codegen")
 
 # gazelle:dart_package_name built_value_fixture
 
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "built_value_fixture",
+    visibility = ["//:__subpackages__"],
+)
+
 built_value_codegen(
     name = "user_codegen",
-    package_name = "built_value_fixture",
     srcs = ["lib/user.dart"],
     annotation_dep = "@built_value",
+    package = ":pubspec",
     deps = ["@built_value"],
 )
 
 dart_library(
     name = "built_value_fixture",
-    package_name = "built_value_fixture",
     srcs = [
         "lib/user.dart",
         ":user_codegen",
     ],
+    package = ":pubspec",
     visibility = ["//visibility:public"],
     deps = ["@built_value"],
 )

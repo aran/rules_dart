@@ -1,28 +1,33 @@
-load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library")
+load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library", "dart_package_metadata")
 load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_codegen")
 
 # gazelle:dart_package_name runtime_dep_fixture
 # gazelle:dart_language_version 3.11
 # gazelle:dart_builder_runtime_dep JsonSerializable @my_fork//:json_annotation
 
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "runtime_dep_fixture",
+    language_version = "3.11",
+    visibility = ["//:__subpackages__"],
+)
+
 dart_codegen(
     name = "_event_freezed_gen",
-    package_name = "runtime_dep_fixture",
     src = "lib/event.dart",
     generator_bin = "@rules_dart//dart/ext/freezed:shim",
-    language_version = "3.11",
     output_suffixes = [".freezed.dart"],
+    package = ":pubspec",
     deps = ["@freezed_annotation"],
 )
 
 dart_codegen(
     name = "_event_json_serializable_gen",
-    package_name = "runtime_dep_fixture",
     src = "lib/event.dart",
     asset_deps = [":_event_freezed_gen"],
     generator_bin = "@rules_dart//dart/ext/json_serializable:shim",
-    language_version = "3.11",
     output_suffixes = [".json_serializable.g.part"],
+    package = ":pubspec",
     deps = [
         "@freezed_annotation",
         "@my_fork//:json_annotation",
@@ -31,26 +36,23 @@ dart_codegen(
 
 dart_codegen(
     name = "_event_combined",
-    package_name = "runtime_dep_fixture",
     src = "lib/event.dart",
     generator_bin = "@rules_dart//dart/ext/_shared/combining_shim:bin",
-    language_version = "3.11",
     output_suffixes = [".g.dart"],
+    package = ":pubspec",
     parts = [":_event_json_serializable_gen"],
 )
 
 json_serializable_codegen(
     name = "user_codegen",
-    package_name = "runtime_dep_fixture",
     srcs = ["lib/user.dart"],
     annotation_dep = "@my_fork//:json_annotation",
-    language_version = "3.11",
+    package = ":pubspec",
     deps = ["@json_annotation"],
 )
 
 dart_library(
     name = "runtime_dep_fixture",
-    package_name = "runtime_dep_fixture",
     srcs = [
         "lib/event.dart",
         "lib/user.dart",
@@ -58,7 +60,7 @@ dart_library(
         ":_event_freezed_gen",
         ":user_codegen",
     ],
-    language_version = "3.11",
+    package = ":pubspec",
     visibility = ["//visibility:public"],
     deps = [
         "@freezed_annotation",

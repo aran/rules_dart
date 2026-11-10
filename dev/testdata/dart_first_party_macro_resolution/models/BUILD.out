@@ -3,7 +3,6 @@ load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_code
 
 json_serializable_codegen(
     name = "models_codegen",
-    package_name = "models",
     srcs = ["lib/models.dart"],
     annotation_dep = "@json_annotation",
     deps = ["@json_annotation"],

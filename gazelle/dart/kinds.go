@@ -10,14 +10,12 @@ var macroKindInfo = rule.KindInfo{
 	MatchAttrs:    []string{"srcs"},
 	NonEmptyAttrs: map[string]bool{"srcs": true},
 	MergeableAttrs: map[string]bool{
-		"srcs":             true,
-		"deps":             true,
-		"asset_deps":       true,
-		"package_name":     true,
-		"language_version": true,
-		"package":          true,
-		"annotation_dep":   true,
-		"config":           true,
+		"srcs":           true,
+		"deps":           true,
+		"asset_deps":     true,
+		"package":        true,
+		"annotation_dep": true,
+		"config":         true,
 	},
 	ResolveAttrs: map[string]bool{"deps": true},
 }
@@ -43,16 +41,43 @@ var macroKinds = []string{
 	"stacked_form_codegen",
 }
 
+// removedFactAttrs are the package facts a rule of the package stated
+// inline before `dart_package_metadata` held them all. Gazelle manages them
+// on every kind it writes for a package, so that rewriting a BUILD file
+// removes them: it writes none (metadata.go). A library's `code_assets`
+// moves onto the package's metadata (`moveCodeAssets`).
+var removedFactAttrs = []string{
+	"package_name", "language_version", "build_hook", "link_hook", "license_file",
+}
+
 var dartKinds = func() map[string]rule.KindInfo {
 	m := map[string]rule.KindInfo{}
 	for _, k := range macroKinds {
-		m[k] = macroKindInfo
+		m[k] = withRemovedFacts(macroKindInfo)
 	}
 	for k, v := range _primitiveDartKinds {
+		switch k {
+		case "filegroup", "dart_package_metadata", "dart_analysis_options", "dart_analysis_config":
+		default:
+			v = withRemovedFacts(v)
+		}
 		m[k] = v
 	}
 	return m
 }()
+
+// withRemovedFacts is k managing removedFactAttrs too.
+func withRemovedFacts(k rule.KindInfo) rule.KindInfo {
+	merge := map[string]bool{}
+	for a := range k.MergeableAttrs {
+		merge[a] = true
+	}
+	for _, a := range removedFactAttrs {
+		merge[a] = true
+	}
+	k.MergeableAttrs = merge
+	return k
+}
 
 var _primitiveDartKinds = map[string]rule.KindInfo{
 	// The helpers a test-tree directory lends the tests of others
@@ -61,20 +86,29 @@ var _primitiveDartKinds = map[string]rule.KindInfo{
 		NonEmptyAttrs:  map[string]bool{"srcs": true},
 		MergeableAttrs: map[string]bool{"srcs": true, "visibility": true},
 	},
+	// A package's facts (metadata.go). Gazelle writes all but
+	// `code_assets` and `version`, which it keeps: only a person states
+	// them. A hook or license file gone from the package leaves it.
+	"dart_package_metadata": {
+		NonEmptyAttrs: map[string]bool{"package_name": true},
+		MergeableAttrs: map[string]bool{
+			"package_name":     true,
+			"language_version": true,
+			"build_hook":       true,
+			"link_hook":        true,
+			"license_file":     true,
+		},
+	},
 	"dart_library": {
 		MatchAttrs:    []string{"srcs"},
 		NonEmptyAttrs: map[string]bool{"srcs": true},
-		// build_hook and link_hook are Gazelle-managed: each names the
-		// package's hook/build.dart or hook/link.dart while Gazelle sees one
-		// (hook.go).
+		// code_assets, which `dart_library` no longer takes, moves onto the
+		// package's metadata (`moveCodeAssets`).
 		MergeableAttrs: map[string]bool{
-			"build_hook":       true,
-			"link_hook":        true,
-			"srcs":             true,
-			"deps":             true,
-			"package_name":     true,
-			"language_version": true,
-			"package":          true,
+			"srcs":        true,
+			"deps":        true,
+			"package":     true,
+			"code_assets": true,
 		},
 		ResolveAttrs: map[string]bool{"deps": true},
 	},
@@ -82,8 +116,9 @@ var _primitiveDartKinds = map[string]rule.KindInfo{
 		MatchAttrs:    []string{"main"},
 		NonEmptyAttrs: map[string]bool{"main": true},
 		MergeableAttrs: map[string]bool{
-			"srcs": true,
-			"deps": true,
+			"srcs":    true,
+			"deps":    true,
+			"package": true,
 		},
 		ResolveAttrs: map[string]bool{"deps": true},
 	},
@@ -98,10 +133,11 @@ var _primitiveDartKinds = map[string]rule.KindInfo{
 		// @TestOn, is managed too, but by test_on.go: Gazelle's merger
 		// merges no select but rules_go's.
 		MergeableAttrs: map[string]bool{
-			"main": true,
-			"srcs": true,
-			"deps": true,
-			"tags": true,
+			"main":    true,
+			"srcs":    true,
+			"deps":    true,
+			"tags":    true,
+			"package": true,
 		},
 		ResolveAttrs: map[string]bool{"deps": true},
 	},
@@ -124,18 +160,16 @@ var _primitiveDartKinds = map[string]rule.KindInfo{
 		MatchAttrs:    []string{"src", "generator_bin"},
 		NonEmptyAttrs: map[string]bool{"src": true},
 		MergeableAttrs: map[string]bool{
-			"src":              true,
-			"generator_bin":    true,
-			"output_suffixes":  true,
-			"deps":             true,
-			"asset_deps":       true,
-			"parts":            true,
-			"config":           true,
-			"data":             true,
-			"generator_args":   true,
-			"package_name":     true,
-			"language_version": true,
-			"package":          true,
+			"src":             true,
+			"generator_bin":   true,
+			"output_suffixes": true,
+			"deps":            true,
+			"asset_deps":      true,
+			"parts":           true,
+			"config":          true,
+			"data":            true,
+			"generator_args":  true,
+			"package":         true,
 		},
 		ResolveAttrs: map[string]bool{"deps": true},
 	},
@@ -143,29 +177,25 @@ var _primitiveDartKinds = map[string]rule.KindInfo{
 		MatchAttrs:    []string{"srcs", "generator_bin"},
 		NonEmptyAttrs: map[string]bool{"srcs": true},
 		MergeableAttrs: map[string]bool{
-			"srcs":             true,
-			"generator_bin":    true,
-			"outputs":          true,
-			"deps":             true,
-			"generator_args":   true,
-			"package_name":     true,
-			"language_version": true,
-			"package":          true,
+			"srcs":           true,
+			"generator_bin":  true,
+			"outputs":        true,
+			"deps":           true,
+			"generator_args": true,
+			"package":        true,
 		},
 	},
 	"dart_sqlcodegen": {
 		MatchAttrs:    []string{"src", "generator_bin"},
 		NonEmptyAttrs: map[string]bool{"src": true},
 		MergeableAttrs: map[string]bool{
-			"src":              true,
-			"generator_bin":    true,
-			"output_suffixes":  true,
-			"deps":             true,
-			"data":             true,
-			"generator_args":   true,
-			"package_name":     true,
-			"language_version": true,
-			"package":          true,
+			"src":             true,
+			"generator_bin":   true,
+			"output_suffixes": true,
+			"deps":            true,
+			"data":            true,
+			"generator_args":  true,
+			"package":         true,
 		},
 	},
 }

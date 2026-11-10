@@ -1,1 +1,1 @@
-gazelle: dart: .: the package name is stated twice, differently: "declared_name" by dart_package_metadata //:pkg, "directive_name" by `# gazelle:dart_package_name` in BUILD.bazel; state it once, or make the two agree
+gazelle: dart: .: the package name is stated twice, differently: "declared_name" by dart_package_metadata //:pkg (`# keep`), "directive_name" by `# gazelle:dart_package_name` in BUILD.bazel; state it once, or make the two agree

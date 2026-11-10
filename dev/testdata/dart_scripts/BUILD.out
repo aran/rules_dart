@@ -1,8 +1,14 @@
-load("@rules_dart//dart:defs.bzl", "dart_library")
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "scripts",
+    visibility = ["//:__subpackages__"],
+)
 
 dart_library(
     name = "scripts",
-    package_name = "scripts",
     srcs = ["lib/scripts.dart"],
+    package = ":pubspec",
     visibility = ["//visibility:public"],
 )

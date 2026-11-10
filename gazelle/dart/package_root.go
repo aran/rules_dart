@@ -8,7 +8,6 @@ import (
 
 	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/label"
-	"github.com/bazelbuild/bazel-gazelle/language"
 	"github.com/bazelbuild/bazel-gazelle/rule"
 )
 
@@ -129,10 +128,13 @@ func packageNameIn(c *config.Config, rel string) string {
 // the directory being configured.
 const extKeyPackageDecl = "dart_package_decl"
 
-// packageDecl is a hand-written `dart_package_metadata`: the directory that
-// declares it and its target name.
+// packageDecl is a `dart_package_metadata` already in a BUILD file: the
+// directory that declares it, its target name and the facts it states, and
+// whether each of those is marked `# keep`, so that Gazelle leaves it as it
+// is.
 type packageDecl struct {
 	Rel, Name, PackageName, LanguageVersion string
+	KeepName, KeepVersion                   bool
 }
 
 // label is the declaration's label, from the repository root.
@@ -140,8 +142,8 @@ func (d *packageDecl) label() string {
 	return label.New("", d.Rel, d.Name).String()
 }
 
-// configurePackageDecl records a directory's `dart_package_metadata`, so a
-// library in a directory under that package's lib/ can name it too.
+// configurePackageDecl records a directory's `dart_package_metadata`, so
+// the directories of its package below it find it too.
 func configurePackageDecl(c *config.Config, rel string, f *rule.File) {
 	for _, r := range f.Rules {
 		if r.Kind() == "dart_package_metadata" {
@@ -153,53 +155,21 @@ func configurePackageDecl(c *config.Config, rel string, f *rule.File) {
 				Name:            r.Name(),
 				PackageName:     r.AttrString("package_name"),
 				LanguageVersion: r.AttrString("language_version"),
+				KeepName:        r.ShouldKeep() || kept(r, "package_name"),
+				KeepVersion:     r.ShouldKeep() || kept(r, "language_version"),
 			}
 			return
 		}
 	}
 }
 
-// packageDeclOf is the `dart_package_metadata` the package a rule in
-// args.Rel belongs to is declared by (`packageDeclIn`).
-func packageDeclOf(args language.GenerateArgs) *packageDecl {
-	return packageDeclIn(args.Config, args.Rel)
-}
-
-// packageDeclIn is the `dart_package_metadata` the package of the library
-// directory rel is declared by: the directory's own declaration, or, for the
-// package's lib/ or a directory under it, the declaration at the package's
-// root. nil when there is none.
-func packageDeclIn(c *config.Config, rel string) *packageDecl {
-	d, ok := c.Exts[extKeyPackageDecl].(*packageDecl)
-	if !ok || d == nil {
-		return nil
-	}
-	if d.Rel == rel {
-		return d
-	}
-	if p := placeDir(rel); p.Err == nil && p.Root == d.Rel {
+// packageDeclAt is the `dart_package_metadata` already in the BUILD file at
+// the package root root, or nil.
+func packageDeclAt(c *config.Config, root string) *packageDecl {
+	if d, ok := c.Exts[extKeyPackageDecl].(*packageDecl); ok && d != nil && d.Rel == root {
 		return d
 	}
 	return nil
-}
-
-// packageDeclFor returns the label, relative to args.Rel, of the
-// `dart_package_metadata` a rule in args.Rel names (`packageDeclOf`), or ""
-// when there is none.
-//
-// A package that has adopted a declaration must not have the inline attributes
-// written back onto its rules: the two spellings are mutually exclusive and a
-// rule carrying both fails at analysis, so re-running Gazelle over a converted
-// package would break exactly the packages that adopted the tidier form.
-// Detecting the declaration rather than emitting one is what makes adoption
-// incremental -- Gazelle keeps writing the inline attributes everywhere else,
-// where they are machine-maintained from one derived value and cannot drift.
-func packageDeclFor(args language.GenerateArgs) string {
-	d := packageDeclOf(args)
-	if d == nil {
-		return ""
-	}
-	return label.New("", d.Rel, d.Name).Rel("", args.Rel).String()
 }
 
 // packageURI is the `package:` URI of the repo-relative file in a package

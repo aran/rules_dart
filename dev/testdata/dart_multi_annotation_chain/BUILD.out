@@ -1,26 +1,31 @@
-load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library")
+load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library", "dart_package_metadata")
 
 # gazelle:dart_package_name multi_ann
 # gazelle:dart_language_version 3.11
 
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "multi_ann",
+    language_version = "3.11",
+    visibility = ["//:__subpackages__"],
+)
+
 dart_codegen(
     name = "_event_freezed_gen",
-    package_name = "multi_ann",
     src = "lib/event.dart",
     generator_bin = "@rules_dart//dart/ext/freezed:shim",
-    language_version = "3.11",
     output_suffixes = [".freezed.dart"],
+    package = ":pubspec",
     deps = ["@freezed_annotation"],
 )
 
 dart_codegen(
     name = "_event_json_serializable_gen",
-    package_name = "multi_ann",
     src = "lib/event.dart",
     asset_deps = [":_event_freezed_gen"],
     generator_bin = "@rules_dart//dart/ext/json_serializable:shim",
-    language_version = "3.11",
     output_suffixes = [".json_serializable.g.part"],
+    package = ":pubspec",
     deps = [
         "@freezed_annotation",
         "@json_annotation",
@@ -29,23 +34,21 @@ dart_codegen(
 
 dart_codegen(
     name = "_event_combined",
-    package_name = "multi_ann",
     src = "lib/event.dart",
     generator_bin = "@rules_dart//dart/ext/_shared/combining_shim:bin",
-    language_version = "3.11",
     output_suffixes = [".g.dart"],
+    package = ":pubspec",
     parts = [":_event_json_serializable_gen"],
 )
 
 dart_library(
     name = "multi_ann",
-    package_name = "multi_ann",
     srcs = [
         "lib/event.dart",
         ":_event_combined",
         ":_event_freezed_gen",
     ],
-    language_version = "3.11",
+    package = ":pubspec",
     visibility = ["//visibility:public"],
     deps = [
         "@freezed_annotation",

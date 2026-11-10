@@ -13,13 +13,14 @@ import (
 	"github.com/bazelbuild/bazel-gazelle/rule"
 )
 
-// resolveIn indexes the dart_library `lib` (package_name `app`) at //lib,
+// resolveIn indexes the dart_library `lib` of package `app` at //lib,
 // then resolves the imported packages of `r`, declared in Bazel package
 // `pkg`, and returns its deps.
 func resolveIn(t *testing.T, r *rule.Rule, pkg string, imported ...string) []string {
 	t.Helper()
 	c := config.New()
 	c.Exts["dart_pub_deps_repo"] = "pub_deps"
+	c.Exts[keyPackageName] = &directiveValue{Value: "app", File: "BUILD.bazel"}
 	rc := &resolve.Configurer{}
 	rc.RegisterFlags(flag.NewFlagSet("test", flag.ContinueOnError), "update", c)
 	if err := rc.CheckFlags(nil, c); err != nil {
@@ -31,7 +32,7 @@ func resolveIn(t *testing.T, r *rule.Rule, pkg string, imported ...string) []str
 	ix := resolve.NewRuleIndex(func(*rule.Rule, string) resolve.Resolver { return lang })
 	f := rule.EmptyFile("lib/BUILD.bazel", "lib")
 	lib := rule.NewRule("dart_library", "lib")
-	lib.SetAttr("package_name", "app")
+	lib.SetAttr("package", "//:pubspec")
 	lib.Insert(f)
 	ix.AddRule(c, lib, f)
 	ix.Finish()
@@ -56,17 +57,17 @@ func TestResolveExecutableNamedForPackageDependsOnIt(t *testing.T) {
 
 func TestResolveLibraryDoesNotDependOnPackageItProvides(t *testing.T) {
 	for _, tt := range []struct {
-		name, packageName string
+		name, metadata string
 	}{
 		{"app", ""},
-		{"lib", "app"},
+		{"lib", "//:pubspec"},
 	} {
 		r := rule.NewRule("dart_library", tt.name)
-		if tt.packageName != "" {
-			r.SetAttr("package_name", tt.packageName)
+		if tt.metadata != "" {
+			r.SetAttr("package", tt.metadata)
 		}
 		if got := resolveIn(t, r, "lib", "app"); len(got) != 0 {
-			t.Errorf("dart_library %q (package_name %q): deps %v, want none", tt.name, tt.packageName, got)
+			t.Errorf("dart_library %q (package %q): deps %v, want none", tt.name, tt.metadata, got)
 		}
 	}
 }
@@ -98,7 +99,7 @@ func packageIndex(t *testing.T) (*config.Config, *resolve.RuleIndex, language.La
 		{"src/model/user", []string{"lib/src/model/user.dart", ":_src/model/user_combined"}},
 	} {
 		r := rule.NewRule("dart_library", l.name)
-		r.SetAttr("package_name", "app")
+		r.SetAttr("package", ":pubspec")
 		r.SetAttr("srcs", l.srcs)
 		r.Insert(f)
 		ix.AddRule(c, r, f)
@@ -114,7 +115,7 @@ func resolveAgainstPackage(t *testing.T, kind, pkg, name string, uris ...string)
 	c, ix, lang := packageIndex(t)
 	r := rule.NewRule(kind, name)
 	if kind == "dart_library" {
-		r.SetAttr("package_name", "app")
+		r.SetAttr("package", ":pubspec")
 		r.SetAttr("srcs", []string{"lib/a.dart", "lib/src/model/model.dart"})
 	}
 	is := &importSet{packages: map[string]bool{}, uris: map[string]map[string]bool{}}
@@ -173,6 +174,7 @@ func TestResolvePackageByFile(t *testing.T) {
 func TestPackageLibraryIndexedByFile(t *testing.T) {
 	c, _, _ := packageIndex(t)
 	r := rule.NewRule("dart_library", "app")
+	r.SetAttr("package", ":pubspec")
 	r.SetAttr("srcs", []string{"lib/path.dart", "lib/src/x.dart", ":_gen", "//other:x"})
 	var got []string
 	for _, s := range (&dartLang{}).importSpecs(c, r, "pkg") {

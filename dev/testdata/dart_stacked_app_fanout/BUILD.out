@@ -1,61 +1,62 @@
-load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library")
+load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library", "dart_package_metadata")
 
 # gazelle:dart_package_name stacked_fanout
 # gazelle:dart_language_version 3.11
 
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "stacked_fanout",
+    language_version = "3.11",
+    visibility = ["//:__subpackages__"],
+)
+
 dart_codegen(
     name = "_app_stacked_app_bottomsheets_gen",
-    package_name = "stacked_fanout",
     src = "lib/app.dart",
     generator_bin = "@rules_dart//dart/ext/stacked:shim_bottomsheet",
-    language_version = "3.11",
     output_suffixes = [".bottomsheets.dart"],
+    package = ":pubspec",
     deps = ["@stacked"],
 )
 
 dart_codegen(
     name = "_app_stacked_app_dialogs_gen",
-    package_name = "stacked_fanout",
     src = "lib/app.dart",
     generator_bin = "@rules_dart//dart/ext/stacked:shim_dialog",
-    language_version = "3.11",
     output_suffixes = [".dialogs.dart"],
+    package = ":pubspec",
     deps = ["@stacked"],
 )
 
 dart_codegen(
     name = "_app_stacked_app_locator_gen",
-    package_name = "stacked_fanout",
     src = "lib/app.dart",
     generator_bin = "@rules_dart//dart/ext/stacked:shim_locator",
-    language_version = "3.11",
     output_suffixes = [".locator.dart"],
+    package = ":pubspec",
     deps = ["@stacked"],
 )
 
 dart_codegen(
     name = "_app_stacked_app_logger_gen",
-    package_name = "stacked_fanout",
     src = "lib/app.dart",
     generator_bin = "@rules_dart//dart/ext/stacked:shim_logger",
-    language_version = "3.11",
     output_suffixes = [".logger.dart"],
+    package = ":pubspec",
     deps = ["@stacked"],
 )
 
 dart_codegen(
     name = "_app_stacked_app_router_gen",
-    package_name = "stacked_fanout",
     src = "lib/app.dart",
     generator_bin = "@rules_dart//dart/ext/stacked:shim_router",
-    language_version = "3.11",
     output_suffixes = [".router.dart"],
+    package = ":pubspec",
     deps = ["@stacked"],
 )
 
 dart_library(
     name = "stacked_fanout",
-    package_name = "stacked_fanout",
     srcs = [
         "lib/app.dart",
         ":_app_stacked_app_bottomsheets_gen",
@@ -64,7 +65,7 @@ dart_library(
         ":_app_stacked_app_logger_gen",
         ":_app_stacked_app_router_gen",
     ],
-    language_version = "3.11",
+    package = ":pubspec",
     visibility = ["//visibility:public"],
     deps = ["@stacked"],
 )

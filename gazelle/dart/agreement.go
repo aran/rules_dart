@@ -60,13 +60,13 @@ type statement struct {
 
 // checkAgreement records an error for each fact about the package args.Rel
 // belongs to -- its name, its language version -- that two places state
-// differently: a `dart_package_metadata` the rules name, a directive, the
-// pubspec.yaml at the package's root.
+// differently: a directive, the pubspec.yaml at the package's root, and an
+// attribute of the package's `dart_package_metadata` marked `# keep`.
 //
-// A declaration the rules name is the whole statement, so a pubspec or
-// directive version it does not repeat is a disagreement too: the build would
-// never read it. Without a declaration, a directive and a pubspec that both
-// state a fact must state the same value.
+// The metadata's attributes are what Gazelle writes from the directive and
+// the pubspec, so one that differs is rewritten, not a disagreement; one
+// marked `# keep` Gazelle leaves as it is, so the build would carry the
+// difference.
 func (d *dartLang) checkAgreement(args language.GenerateArgs) {
 	root, err := packageRootOf(args.Rel)
 	if err != nil {
@@ -76,15 +76,14 @@ func (d *dartLang) checkAgreement(args language.GenerateArgs) {
 	pubspec := pubspecFile(root)
 	name := []statement{}
 	version := []statement{}
-	decl := packageDeclOf(args)
-	if decl == nil {
-		// A bin/ or test/ directory, in the package declared at its root.
-		decl = packageDeclIn(args.Config, root)
-	}
-	if decl != nil {
-		where := "dart_package_metadata " + decl.label()
-		name = append(name, statement{decl.PackageName, where})
-		version = append(version, statement{decl.LanguageVersion, where})
+	if decl := packageDeclAt(args.Config, root); decl != nil {
+		where := "dart_package_metadata " + decl.label() + " (`# keep`)"
+		if decl.KeepName {
+			name = append(name, statement{decl.PackageName, where})
+		}
+		if decl.KeepVersion {
+			version = append(version, statement{decl.LanguageVersion, where})
+		}
 	}
 	if f := directiveFact(args.Config, keyPackageName); f != nil {
 		name = append(name, statement{f.Value, "`# gazelle:" + keyPackageName + "` in " + f.File})

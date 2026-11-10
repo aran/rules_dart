@@ -1,13 +1,19 @@
-load("@rules_dart//dart:defs.bzl", "dart_library")
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
 
 # The hooks' native code and data are not used here.
 # gazelle:exclude hook/build.dart
 # gazelle:exclude hook/link.dart
 
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "unused",
+    language_version = "3.10",
+    visibility = ["//unused:__subpackages__"],
+)
+
 dart_library(
     name = "unused",
-    package_name = "unused",
     srcs = ["lib/unused.dart"],
-    language_version = "3.10",
+    package = ":pubspec",
     visibility = ["//visibility:public"],
 )

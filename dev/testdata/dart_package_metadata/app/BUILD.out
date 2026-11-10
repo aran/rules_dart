@@ -1,0 +1,16 @@
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "app",
+    language_version = "3.11",
+    license_file = "NOTICES",
+    visibility = ["//app:__subpackages__"],
+)
+
+dart_library(
+    name = "app",
+    srcs = ["lib/app.dart"],
+    package = ":pubspec",
+    visibility = ["//visibility:public"],
+)

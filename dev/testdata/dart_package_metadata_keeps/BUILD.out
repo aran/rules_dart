@@ -1,0 +1,24 @@
+load("@rules_dart//dart:defs.bzl", "dart_code_asset", "dart_library", "dart_package_metadata")
+
+dart_code_asset(
+    name = "native",
+    asset_id = "package:kept/native.dart",
+    library = "libnative.dylib",
+)
+
+dart_package_metadata(
+    name = "metadata",
+    package_name = "kept",
+    build_hook = "//hook:build",
+    code_assets = [":native"],
+    language_version = "3.12",
+    version = "1.2.3",
+    visibility = ["//:__subpackages__"],
+)
+
+dart_library(
+    name = "kept",
+    srcs = ["lib/kept.dart"],
+    package = ":metadata",
+    visibility = ["//visibility:public"],
+)

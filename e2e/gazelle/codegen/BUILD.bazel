@@ -1,27 +1,32 @@
-load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library")
+load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library", "dart_package_metadata")
 load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_codegen")
 
 # gazelle:dart_pub_deps_repo pub_deps
 
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "codegen",
+    language_version = "3.11",
+    visibility = ["//codegen:__subpackages__"],
+)
+
 dart_codegen(
     name = "_event_freezed_gen",
-    package_name = "codegen",
     src = "lib/event.dart",
     generator_bin = "@rules_dart//dart/ext/freezed:shim",
-    language_version = "3.11",
     output_suffixes = [".freezed.dart"],
+    package = ":pubspec",
     deps = ["@pub_deps//:freezed_annotation"],
 )
 
 dart_codegen(
     name = "_event_json_serializable_gen",
-    package_name = "codegen",
     src = "lib/event.dart",
     asset_deps = [":_event_freezed_gen"],
     config = "{\"field_rename\":\"pascal\"}",
     generator_bin = "@rules_dart//dart/ext/json_serializable:shim",
-    language_version = "3.11",
     output_suffixes = [".json_serializable.g.part"],
+    package = ":pubspec",
     deps = [
         "@pub_deps//:freezed_annotation",
         "@pub_deps//:json_annotation",
@@ -30,21 +35,19 @@ dart_codegen(
 
 dart_codegen(
     name = "_event_combined",
-    package_name = "codegen",
     src = "lib/event.dart",
     generator_bin = "@rules_dart//dart/ext/_shared/combining_shim:bin",
-    language_version = "3.11",
     output_suffixes = [".g.dart"],
+    package = ":pubspec",
     parts = [":_event_json_serializable_gen"],
 )
 
 dart_codegen(
     name = "_profile_copy_with_gen",
-    package_name = "codegen",
     src = "lib/profile.dart",
     generator_bin = "@rules_dart//dart/ext/copy_with_extension_gen:shim",
-    language_version = "3.11",
     output_suffixes = [".copy_with_extension_gen.g.part"],
+    package = ":pubspec",
     deps = [
         "@pub_deps//:copy_with_extension",
         "@pub_deps//:json_annotation",
@@ -53,12 +56,11 @@ dart_codegen(
 
 dart_codegen(
     name = "_profile_json_serializable_gen",
-    package_name = "codegen",
     src = "lib/profile.dart",
     config = "{\"field_rename\":\"pascal\"}",
     generator_bin = "@rules_dart//dart/ext/json_serializable:shim",
-    language_version = "3.11",
     output_suffixes = [".json_serializable.g.part"],
+    package = ":pubspec",
     deps = [
         "@pub_deps//:copy_with_extension",
         "@pub_deps//:json_annotation",
@@ -67,11 +69,10 @@ dart_codegen(
 
 dart_codegen(
     name = "_profile_combined",
-    package_name = "codegen",
     src = "lib/profile.dart",
     generator_bin = "@rules_dart//dart/ext/_shared/combining_shim:bin",
-    language_version = "3.11",
     output_suffixes = [".g.dart"],
+    package = ":pubspec",
     parts = [
         ":_profile_copy_with_gen",
         ":_profile_json_serializable_gen",
@@ -80,7 +81,6 @@ dart_codegen(
 
 dart_library(
     name = "codegen",
-    package_name = "codegen",
     srcs = [
         "lib/codegen.dart",
         "lib/event.dart",
@@ -96,7 +96,7 @@ dart_library(
         ":src/model/address_codegen",
         ":user_codegen",
     ],
-    language_version = "3.11",
+    package = ":pubspec",
     visibility = ["//visibility:public"],
     deps = [
         "@pub_deps//:copy_with_extension",
@@ -107,7 +107,6 @@ dart_library(
 
 json_serializable_codegen(
     name = "member_codegen",
-    package_name = "codegen",
     srcs = ["lib/member.dart"],
     asset_deps = [
         "lib/event.dart",
@@ -115,7 +114,7 @@ json_serializable_codegen(
         ":_event_freezed_gen",
     ],
     config = "{\"field_rename\":\"pascal\"}",
-    language_version = "3.11",
+    package = ":pubspec",
     deps = [
         "@pub_deps//:freezed_annotation",
         "@pub_deps//:json_annotation",
@@ -124,18 +123,16 @@ json_serializable_codegen(
 
 json_serializable_codegen(
     name = "src/model/address_codegen",
-    package_name = "codegen",
     srcs = ["lib/src/model/address.dart"],
     config = "{\"field_rename\":\"pascal\"}",
-    language_version = "3.11",
+    package = ":pubspec",
     deps = ["@pub_deps//:json_annotation"],
 )
 
 json_serializable_codegen(
     name = "user_codegen",
-    package_name = "codegen",
     srcs = ["lib/user.dart"],
     config = "{\"field_rename\":\"pascal\"}",
-    language_version = "3.11",
+    package = ":pubspec",
     deps = ["@pub_deps//:json_annotation"],
 )

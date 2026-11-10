@@ -49,6 +49,10 @@ func generate(t *testing.T, d *dartLang, root, rel string, files []string, build
 			t.Fatal(err)
 		}
 	}
+	if d.scan.list == nil {
+		// Gazelle's walk is not running.
+		d.scan.list = osDir(root)
+	}
 	return d.GenerateRules(language.GenerateArgs{
 		Config:       &config.Config{RepoRoot: root, Exts: map[string]interface{}{}},
 		Dir:          dir,

@@ -1,0 +1,9 @@
+load("@rules_dart//dart:defs.bzl", "dart_binary")
+
+dart_binary(
+    name = "main",
+    package_name = "inline",
+    language_version = "3.11",
+    main = "main.dart",
+    deps = ["//:inline"],
+)

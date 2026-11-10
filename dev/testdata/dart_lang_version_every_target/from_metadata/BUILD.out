@@ -4,6 +4,7 @@ dart_package_metadata(
     name = "pkg",
     package_name = "from_metadata",
     language_version = "3.11",
+    visibility = ["//from_metadata:__subpackages__"],
 )
 
 dart_library(

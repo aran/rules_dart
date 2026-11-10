@@ -149,7 +149,7 @@ func (*dartLang) Loads() []rule.LoadInfo {
 		[]rule.LoadInfo{
 			{
 				Name:    "@rules_dart//dart:defs.bzl",
-				Symbols: []string{"dart_library", "dart_binary", "dart_test", "dart_codegen", "dart_aggregate_codegen", "dart_sqlcodegen", "dart_analysis_options", "dart_analysis_config"},
+				Symbols: []string{"dart_library", "dart_binary", "dart_test", "dart_codegen", "dart_aggregate_codegen", "dart_sqlcodegen", "dart_analysis_options", "dart_analysis_config", "dart_package_metadata"},
 			},
 		},
 		macroLoadInfos()...,
@@ -161,7 +161,7 @@ func (*dartLang) ApparentLoads(moduleToApparentName func(string) string) []rule.
 		[]rule.LoadInfo{
 			{
 				Name:    "@rules_dart//dart:defs.bzl",
-				Symbols: []string{"dart_library", "dart_binary", "dart_test", "dart_codegen", "dart_aggregate_codegen", "dart_sqlcodegen", "dart_analysis_options", "dart_analysis_config"},
+				Symbols: []string{"dart_library", "dart_binary", "dart_test", "dart_codegen", "dart_aggregate_codegen", "dart_sqlcodegen", "dart_analysis_options", "dart_analysis_config", "dart_package_metadata"},
 			},
 		},
 		macroLoadInfos()...,

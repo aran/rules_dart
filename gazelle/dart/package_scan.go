@@ -57,6 +57,15 @@ type packageScan struct {
 	// directory imports from lends: its helpers (the files that are not
 	// tests), and each test another directory imports.
 	lent map[string][]DartFileInfo
+	// executables reports whether the package has a Dart file at its root
+	// or under its bin/, which Gazelle writes a `dart_binary` for.
+	executables bool
+}
+
+// hasRules reports whether Gazelle writes any rule for the package's Dart
+// files: its library, a test, a binary.
+func (p *packageScan) hasRules() bool {
+	return len(p.lib) > 0 || len(p.tests) > 0 || p.executables
 }
 
 // scanOf returns the scan of the package rooted at root, reading it on
@@ -123,6 +132,14 @@ func (s *scanState) scanPackage(c *config.Config, root string) *packageScan {
 			p.tests[rel] = append(p.tests[rel], DartFileInfo{Path: path.Join(rel, f.Path), Imports: f.Imports})
 		}
 	})
+	// bin/, and the root's own files.
+	s.walkDartDirs(c, path.Join(root, "bin"), func(rel string) bool {
+		layout, r := layoutOf(rel)
+		return layout == "bin" && r == root
+	}, func(string, []DartFileInfo) { p.executables = true })
+	s.walkDartDirs(c, root, func(rel string) bool { return rel == root },
+		func(string, []DartFileInfo) { p.executables = true })
+
 	imported := map[string]bool{}
 	for dir, files := range p.tests {
 		for _, f := range files {

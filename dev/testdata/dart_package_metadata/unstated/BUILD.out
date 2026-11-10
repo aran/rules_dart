@@ -1,0 +1,7 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+dart_library(
+    name = "unstated",
+    srcs = ["lib/unstated.dart"],
+    visibility = ["//visibility:public"],
+)

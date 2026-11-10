@@ -1,0 +1,7 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+dart_library(
+    name = "mixed_case",
+    srcs = ["lib/mixed_case.dart"],
+    visibility = ["//visibility:public"],
+)

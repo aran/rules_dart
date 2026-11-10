@@ -101,7 +101,9 @@ func handAttrs(r *rule.Rule) []string {
 	managed := dartKinds[r.Kind()].MergeableAttrs
 	var out []string
 	for _, k := range r.AttrKeys() {
-		if k != "name" && k != "visibility" && !managed[k] || kept(r, k) {
+		// A library's code_assets Gazelle moves onto the metadata only from
+		// the package's root.
+		if k != "name" && k != "visibility" && (!managed[k] || k == "code_assets") || kept(r, k) {
 			out = append(out, k)
 		}
 	}

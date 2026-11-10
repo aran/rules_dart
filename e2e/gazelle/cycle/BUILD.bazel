@@ -1,7 +1,17 @@
-load("@rules_dart//dart:defs.bzl", "dart_code_asset", "dart_library")
+load("@rules_dart//dart:defs.bzl", "dart_code_asset", "dart_library", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "cycle",
+    build_hook = "//cycle/hook:build",
+    code_assets = [":native"],
+    language_version = "3.11",
+    link_hook = "//cycle/hook:link",
+    visibility = ["//cycle:__subpackages__"],
+)
 
 # What hook/build.dart would build, written by hand: Gazelle states the hook as
-# the library's `build_hook` and leaves its `code_assets` alone.
+# the package metadata's `build_hook` and leaves its `code_assets` alone.
 dart_code_asset(
     name = "native",
     asset_id = "package:cycle/native.dart",
@@ -10,7 +20,6 @@ dart_code_asset(
 
 dart_library(
     name = "cycle",
-    package_name = "cycle",
     srcs = [
         "lib/cycle.dart",
         "lib/native.dart",
@@ -21,9 +30,6 @@ dart_library(
         "lib/src/e/e.dart",
         "lib/src/e/parts/twice.dart",
     ],
-    build_hook = "//cycle/hook:build",
-    code_assets = [":native"],
-    language_version = "3.11",
-    link_hook = "//cycle/hook:link",
+    package = ":pubspec",
     visibility = ["//visibility:public"],
 )

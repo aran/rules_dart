@@ -1,0 +1,37 @@
+load("@rules_dart//dart:defs.bzl", "dart_code_asset", "dart_library", "dart_package_metadata")
+load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_codegen")
+
+dart_code_asset(
+    name = "native",
+    asset_id = "package:inline/native.dart",
+    library = "libnative.dylib",
+)
+
+json_serializable_codegen(
+    name = "user_codegen",
+    srcs = ["lib/user.dart"],
+    annotation_dep = "@json_annotation",
+    package = ":pubspec",
+    deps = ["@json_annotation"],
+)
+
+dart_library(
+    name = "inline",
+    srcs = [
+        "lib/user.dart",
+        ":user_codegen",
+    ],
+    package = ":pubspec",
+    visibility = ["//visibility:public"],
+    deps = ["@json_annotation"],
+)
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "inline",
+    build_hook = "//hook:build",
+    code_assets = [":native"],
+    language_version = "3.11",
+    license_file = "LICENSE",
+    visibility = ["//:__subpackages__"],
+)
