@@ -19,18 +19,29 @@ const _droppedReason = 'not write-back eligible';
 /// from the staged original is self-inflicted rather than a discarded fix.
 const _packageConfigPath = '.dart_tool/package_config.json';
 
-Future<void> main(List<String> args) async {
+Future<void> main(List<String> args) => runAnalysisAction(args, fix);
+
+/// One fix action: its [args] are the runner's.
+Future<Result> fix(List<String> args, Analyzers analyzers) async {
+  try {
+    return await _fix(args, analyzers);
+  } on _Usage catch (e) {
+    return (exitCode: 64, output: 'fix_runner: ${e.message}\n');
+  }
+}
+
+Future<Result> _fix(List<String> args, Analyzers analyzers) async {
   String? dart;
+  String? host;
   String? project;
   String? scratch;
   String? fixes;
   String? manifest;
   String? eligible;
-  var dartCli = false;
   for (var i = 0; i < args.length; i++) {
     switch (args[i]) {
-      case '--dart-cli':
-        dartCli = true;
+      case '--host':
+        host = args[++i];
       case '--dart':
         dart = args[++i];
       case '--project':
@@ -44,8 +55,7 @@ Future<void> main(List<String> args) async {
       case '--eligible':
         eligible = args[++i];
       default:
-        stderr.writeln('fix_runner: unknown argument ${args[i]}');
-        exit(64);
+        throw _Usage('unknown argument ${args[i]}');
     }
   }
   if (dart == null ||
@@ -54,30 +64,28 @@ Future<void> main(List<String> args) async {
       fixes == null ||
       manifest == null ||
       eligible == null) {
-    stderr.writeln(
-      'fix_runner: --dart, --project, --scratch, --fixes, '
+    throw _Usage(
+      '--dart, --project, --scratch, --fixes, '
       '--manifest, and --eligible are all required',
     );
-    exit(64);
   }
 
   final writeBack = _readEligible(eligible);
 
   _copyTree(project, scratch);
-  _absolutizePackageConfig(project, scratch);
+  final notes = StringBuffer();
+  _absolutizePackageConfig(project, scratch, notes);
 
-  final result = await Analyzer(
-    dart,
+  final result = await analyzers(
+    host: host,
     cache: '$manifest.cache',
-    dartCli: dartCli,
-  ).fix(scratch);
+  ).fix(dart, scratch);
   // Bazel echoes any action output, and this action runs whenever fixes are
   // asked for: its progress chatter is printed only when it fails. What it
   // changed is in the manifest.
-  stderr.write(result.stderr);
+  notes.write(result.stderr);
   if (result.exitCode != 0) {
-    stdout.write(result.stdout);
-    exit(result.exitCode);
+    return (exitCode: result.exitCode, output: '$notes${result.stdout}');
   }
 
   // Declared outputs must exist even when nothing was fixed.
@@ -100,22 +108,26 @@ Future<void> main(List<String> args) async {
   File(manifest).writeAsStringSync(
     '${encoder.convert({'fixed': fixed, 'dropped': dropped})}\n',
   );
+  return (exitCode: 0, output: notes.toString());
+}
+
+/// A runner invoked with arguments it cannot use.
+class _Usage implements Exception {
+  _Usage(this.message);
+
+  final String message;
 }
 
 /// Reads the rule's `<staged-relative>\t<workspace-relative>` write-back list.
 Map<String, String> _readEligible(String path) {
   final file = File(path);
-  if (!file.existsSync()) {
-    stderr.writeln('fix_runner: --eligible file not found: $path');
-    exit(64);
-  }
+  if (!file.existsSync()) throw _Usage('--eligible file not found: $path');
   final entries = <String, String>{};
   for (final line in file.readAsLinesSync()) {
     if (line.trim().isEmpty) continue;
     final fields = line.split('\t');
     if (fields.length != 2 || fields[0].isEmpty || fields[1].isEmpty) {
-      stderr.writeln('fix_runner: malformed --eligible entry: $line');
-      exit(64);
+      throw _Usage('malformed --eligible entry: $line');
     }
     entries[fields[0]] = fields[1];
   }
@@ -155,14 +167,18 @@ void _copyFile(String from, String to) {
 /// a relative URI no longer finds them from wherever scratch is. Absolute URIs
 /// are how the copy keeps resolving those without copying pub trees or
 /// symlinking them in, which Windows cannot do unprivileged anyway.
-void _absolutizePackageConfig(String project, String scratch) {
+void _absolutizePackageConfig(
+  String project,
+  String scratch,
+  StringBuffer notes,
+) {
   final file = File('$scratch/$_packageConfigPath');
   if (!file.existsSync()) return;
   final Object? decoded;
   try {
     decoded = jsonDecode(file.readAsStringSync());
   } on FormatException catch (e) {
-    stderr.writeln('fix_runner: ignoring unparsable ${file.path}: $e');
+    notes.writeln('fix_runner: ignoring unparsable ${file.path}: $e');
     return;
   }
   if (decoded is! Map || decoded['packages'] is! List) return;

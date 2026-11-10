@@ -529,10 +529,26 @@ bazel build //:fix --output_groups=+dart_fix_manifest  # what was fixed, and wha
 bazel build //:fix --output_groups=+dart_fix_fixes     # the fixed files themselves
 ```
 
-On macOS, I've seen dart analysis and dart fix hang after the analysis
-finished, because the Dart analysis server never shut down. If you hit this,
-please contact me or [open an issue](https://github.com/aran/rules_dart/issues),
-and try `--@rules_dart//dart:analysis_shutdown_workaround=true`.
+#### Analysis workers
+
+Analysis and fixes run in Bazel persistent workers. Each worker keeps one Dart
+analysis server for the requests of a build, so the server's start and its
+analysis of the SDK are paid once per worker instead of once per target. The
+server stops once its worker has had no request for a minute; the worker itself
+(a small process) stays with Bazel's server. Each request is analyzed afresh:
+the result is what `dart analyze` would print for the same files.
+
+To run a fresh `dart analyze` and `dart fix` per action instead:
+
+```sh
+bazel test //... --@rules_dart//dart:analysis_worker=false
+```
+
+Bazel's own worker flags apply: `--worker_max_instances=DartAnalyze=N` sets
+how many servers run at once (each holds a few hundred MB), and
+`--strategy=DartAnalyze=sandboxed`, or remote execution, runs each action once
+on its own server. On Windows a worker that is killed, rather than stopped by
+Bazel, leaves its server running until Bazel's server shuts down.
 
 #### Checking targets `//...` does not reach
 

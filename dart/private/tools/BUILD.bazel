@@ -29,30 +29,36 @@ dart_binary(
     visibility = ["//dart:__subpackages__"],
 )
 
-dart_binary(
-    name = "analyze_runner",
-    srcs = [
-        "analysis_server.dart",
-        "analyzer.dart",
-        "dart_cli.dart",
-        "server_analyzer.dart",
-    ],
-    compile_mode = "exe",
-    main = "analyze_runner.dart",
+_ANALYZER_SRCS = [
+    "analysis_server.dart",
+    "analyzer.dart",
+    "dart_cli.dart",
+    "server_analyzer.dart",
+]
+
+# Run from source by the SDK's own `dart`, which is what hosts the analysis
+# server: the runners are AOT-compiled and cannot load its JIT snapshot.
+exports_files(
+    ["analysis_host.dart"],
     visibility = ["//dart:__subpackages__"],
 )
 
 dart_binary(
+    name = "analyze_runner",
+    srcs = _ANALYZER_SRCS,
+    compile_mode = "exe",
+    main = "analyze_runner.dart",
+    visibility = ["//dart:__subpackages__"],
+    deps = ["@ext_pub_deps//:bazel_worker"],
+)
+
+dart_binary(
     name = "fix_runner",
-    srcs = [
-        "analysis_server.dart",
-        "analyzer.dart",
-        "dart_cli.dart",
-        "server_analyzer.dart",
-    ],
+    srcs = _ANALYZER_SRCS,
     compile_mode = "exe",
     main = "fix_runner.dart",
     visibility = ["//dart:__subpackages__"],
+    deps = ["@ext_pub_deps//:bazel_worker"],
 )
 
 dart_binary(
@@ -169,4 +175,75 @@ dart_test(
     srcs = _KERNEL_TOOL_SRCS,
     main = "import_policy_test.dart",
     deps = _KERNEL_TOOL_DEPS + ["@ext_pub_deps//:test"],
+)
+
+dart_test(
+    name = "server_analyzer_test",
+    size = "medium",
+    srcs = _ANALYZER_SRCS,
+    args = [
+        "$(rlocationpath :analysis_host.dart)",
+        "$(rlocationpath //dart/tests/sdk_files:copy_analyze)",
+    ],
+    data = [
+        ":analysis_host.dart",
+        "//dart/tests/sdk_files:copy_analyze",
+    ],
+    main = "server_analyzer_test.dart",
+    deps = [
+        "//dart/runfiles",
+        "@ext_pub_deps//:bazel_worker",
+        "@ext_pub_deps//:test",
+    ],
+)
+
+# The server's end with its worker is checked by process: Windows has no
+# parent-death check yet, so a killed worker leaves its server there.
+dart_test(
+    name = "analysis_worker_test",
+    size = "medium",
+    args = [
+        "$(rlocationpath :analyze_runner)",
+        "$(rlocationpath :analysis_host.dart)",
+        "$(rlocationpath //dart/tests/sdk_files:copy_analyze)",
+    ],
+    data = [
+        ":analysis_host.dart",
+        ":analyze_runner",
+        "//dart/tests/sdk_files:copy_analyze",
+    ],
+    main = "analysis_worker_test.dart",
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        "//dart/runfiles",
+        "@ext_pub_deps//:bazel_worker",
+        "@ext_pub_deps//:test",
+    ],
+)
+
+# The worker's correctness guard, minutes long: in the `deep` tier, which
+# `bazel test --config=deep` runs.
+dart_test(
+    name = "analysis_restage_test",
+    size = "large",
+    args = [
+        "$(rlocationpath :analyze_runner)",
+        "$(rlocationpath :analysis_host.dart)",
+        "$(rlocationpath //dart/tests/sdk_files:copy_analyze)",
+    ],
+    data = [
+        ":analysis_host.dart",
+        ":analyze_runner",
+        "//dart/tests/sdk_files:copy_analyze",
+    ],
+    main = "analysis_restage_test.dart",
+    tags = ["deep"],
+    deps = [
+        "//dart/runfiles",
+        "@ext_pub_deps//:bazel_worker",
+        "@ext_pub_deps//:test",
+    ],
 )

@@ -53,7 +53,9 @@ SDK_FILE_SETS = {
     "format": _DART + _DARTDEV,
     # `dart analyze`, `dart fix`, and the analysis server run directly: the
     # server, the SDK it analyzes against, and the SDK's data-driven fixes.
-    "analyze": _DART + _DARTAOTRUNTIME + _DARTDEV + _ANALYZER_SDK + [
+    # The analysis worker hosts the server's JIT snapshot on the VM.
+    "analyze": _DART + _DARTVM + _DARTAOTRUNTIME + _DARTDEV + _ANALYZER_SDK + [
+        "bin/snapshots/analysis_server.dart.snapshot",
         "bin/snapshots/analysis_server_aot.dart.snapshot",
         "lib/_internal/fix_data.yaml",
     ],

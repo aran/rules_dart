@@ -2,21 +2,25 @@
 //
 // Analysis produces no output artifact, but a Bazel action must; this runner
 // forwards the analyzer's diagnostics and writes the stamp file only on
-// success. Pure Dart (no shell) so the action is portable to Windows.
+// success. Pure Dart (no shell) so the action is portable to Windows. It also
+// serves as a persistent worker (see `runAnalysisAction`).
 import 'dart:io';
 
 import 'analyzer.dart';
 
-Future<void> main(List<String> args) async {
+Future<void> main(List<String> args) => runAnalysisAction(args, analyze);
+
+/// One analysis action: its [args] are the runner's.
+Future<Result> analyze(List<String> args, Analyzers analyzers) async {
   String? dart;
+  String? host;
   String? project;
   String? stamp;
   var fatalInfos = false;
-  var dartCli = false;
   for (var i = 0; i < args.length; i++) {
     switch (args[i]) {
-      case '--dart-cli':
-        dartCli = true;
+      case '--host':
+        host = args[++i];
       case '--dart':
         dart = args[++i];
       case '--project':
@@ -26,30 +30,34 @@ Future<void> main(List<String> args) async {
       case '--fatal-infos':
         fatalInfos = true;
       default:
-        stderr.writeln('analyze_runner: unknown argument ${args[i]}');
-        exit(64);
+        return (
+          exitCode: 64,
+          output: 'analyze_runner: unknown argument ${args[i]}\n',
+        );
     }
   }
   if (dart == null || project == null || stamp == null) {
-    stderr.writeln(
-      'analyze_runner: --dart, --project, and --stamp are required',
+    return (
+      exitCode: 64,
+      output: 'analyze_runner: --dart, --project, and --stamp are required\n',
     );
-    exit(64);
   }
 
-  final result = await Analyzer(
-    dart,
+  final result = await analyzers(
+    host: host,
     cache: '$stamp.cache',
-    dartCli: dartCli,
-  ).analyze(project, fatalInfos: fatalInfos);
+  ).analyze(dart, project, fatalInfos: fatalInfos);
   // Bazel echoes any action output, so a clean run stays silent rather than
   // printing the analyzer's "No issues found!" on every build.
-  stderr.write(unstage(result.stderr, project));
+  final output = unstage(result.stderr, project);
   if (result.exitCode != 0) {
-    stdout.write(unstage(result.stdout, project));
-    exit(result.exitCode);
+    return (
+      exitCode: result.exitCode,
+      output: output + unstage(result.stdout, project),
+    );
   }
   File(stamp).writeAsStringSync('analyzed\n');
+  return (exitCode: 0, output: output);
 }
 
 /// Rewrites staged paths in the analyzer's output to the workspace paths they

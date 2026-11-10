@@ -32,6 +32,11 @@ test --output_groups=+dart_analyze
 test --output_groups=+dart_format
 common --//dart:analysis_config=//:analysis_config
 
+# Minutes-long tests are tagged `deep` and left out of a plain `bazel test`;
+# `bazel test --config=deep //...` runs them alone.
+test --test_tag_filters=-deep
+test:deep --test_tag_filters=deep
+
 # Automatic execution groups: an action must name the toolchain its tools come
 # from, or run in an exec group. The rules support both settings; this
 # workspace runs with them on and the e2e workspaces with Bazel's default.

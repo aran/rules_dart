@@ -1,10 +1,16 @@
 // What the analyze and fix runners need of the SDK's analyzer: `dart analyze`
 // and `dart fix --apply`, run over a staged project in a build action.
 //
-// Two implementations behave alike, and `Analyzer.new` picks one.
-// `DartCli` runs the plain commands; the runners pass `--dart-cli` unless
-// `--@rules_dart//dart:analysis_shutdown_workaround` is on, which selects
-// `ServerAnalyzer`, a workaround for a hang seen on macOS.
+// Two implementations behave alike. `DartCli` runs the plain commands, a fresh
+// process per action. `ServerAnalyzer` drives the analysis server they start,
+// and keeps it across a persistent worker's requests. The runners take the
+// second when their arguments name the server's host (`--host`), which the
+// `dart_analyze` aspect does unless `--@rules_dart//dart:analysis_worker` is
+// off; see `runAnalysisAction` for how a runner serves a worker.
+import 'dart:io';
+
+import 'package:bazel_worker/bazel_worker.dart';
+
 import 'dart_cli.dart';
 import 'server_analyzer.dart';
 
@@ -13,28 +19,175 @@ typedef Output = ({int exitCode, String stdout, String stderr});
 
 /// `dart analyze` and `dart fix --apply`, as a build action runs them.
 abstract interface class Analyzer {
-  /// The analyzer of the SDK whose `dart` is [dart], caching in [cache].
-  ///
-  /// [DartCli] runs the commands themselves. [ServerAnalyzer], unless
-  /// [dartCli], drives the analysis server they start, because on macOS the
-  /// server's shutdown was seen to block forever and the commands report, or
-  /// write, only after it (see `analysis_server.dart`).
-  ///
-  /// [cache] is emptied first and removed when a command ends. Beside the
-  /// action's output, it goes with the sandbox, and an action Bazel cancels
-  /// first leaves it for the action's next run to clear.
-  factory Analyzer(
-    String dart, {
-    required String cache,
-    required bool dartCli,
-  }) => dartCli
-      ? DartCli(dart, cache: cache)
-      : ServerAnalyzer(dart, cache: cache);
+  /// Analyzes [project] with the SDK of [dart], as `dart analyze
+  /// [--fatal-infos] <project>` does, naming files inside [project] relative
+  /// to it.
+  Future<Output> analyze(
+    String dart,
+    String project, {
+    required bool fatalInfos,
+  });
 
-  /// Analyzes [project] as `dart analyze [--fatal-infos] <project>` does,
-  /// naming files inside [project] relative to it.
-  Future<Output> analyze(String project, {required bool fatalInfos});
+  /// Fixes the project at [root] in place with the SDK of [dart], as `dart
+  /// fix --apply <root>` does.
+  Future<Output> fix(String dart, String root);
+}
 
-  /// Fixes the project at [root] in place, as `dart fix --apply <root>` does.
-  Future<Output> fix(String root);
+/// What an action reports, and its exit code.
+typedef Result = ({int exitCode, String output});
+
+/// Picks the analyzer for one action: the server hosted by `host` when the
+/// action names one, else [DartCli] caching in `cache`, a path the action
+/// owns.
+typedef Analyzers = Analyzer Function({String? host, required String cache});
+
+/// Runs one action of a runner, given its arguments.
+typedef Action = Future<Result> Function(
+  List<String> args,
+  Analyzers analyzers,
+);
+
+/// Runs [action] as a runner's `main` with [args]: once, or for every work
+/// request when Bazel starts the runner as a persistent worker.
+///
+/// Once, the arguments may be a `@flagfile`, and a server lives for the one
+/// action, its cache beside the action's outputs. As a worker, each request's
+/// arguments follow the worker's own, and one [ServerAnalyzer] serves them
+/// all, caching in directories of this worker's (see [workerCache]).
+Future<Never> runAnalysisAction(List<String> args, Action action) async {
+  if (!args.contains('--persistent_worker')) {
+    ServerAnalyzer? server;
+    final result = await action(expandFlagfiles(args), ({
+      String? host,
+      required String cache,
+    }) {
+      if (host == null) return DartCli(cache: cache);
+      return server ??= ServerAnalyzer(host: host, cache: cache);
+    });
+    await server?.close();
+    // Bazel shows both streams of a failed action, and of a clean one only
+    // what it printed: the action decides by what it reports.
+    stderr.write(result.output);
+    exit(result.exitCode);
+  }
+  final worker = _AnalysisWorker([
+    for (final arg in args)
+      if (arg != '--persistent_worker') arg,
+  ], action);
+  if (!Platform.isWindows) {
+    // Bazel ends a worker with SIGTERM, a busy one too: nothing of the
+    // server's is worth waiting for.
+    ProcessSignal.sigterm.watch().listen((_) async {
+      await worker.close();
+      exit(143);
+    });
+  }
+  await worker.run();
+  await worker.close();
+  exit(0);
+}
+
+/// Where a worker's servers cache, as `<this>-<n>`: beside the exec root it
+/// started in, where neither the sandbox's cleanup nor another worker reaches.
+///
+/// Bazel starts a worker in the exec root (`<output base>/execroot/<main
+/// repo>`), or, sandboxed, in `<output base>/bazel-workers/<worker>/<main
+/// repo>`, whose parent it cleans for each request. Two levels up is the
+/// output base, or the `bazel-workers` directory, both Bazel's and neither
+/// cleaned under a running worker; the process id keeps workers apart.
+String workerCache(String start) =>
+    '${Directory(start).absolute.parent.parent.path}'
+    '${Platform.pathSeparator}dart_analysis_worker-$pid';
+
+/// Removes from [dir] the server caches of workers that are gone.
+///
+/// A server removes its cache when it ends, but nothing does when its
+/// worker and it are killed together, as Bazel's process group is when its
+/// server is. A worker clears such leftovers when it starts. Not on Windows,
+/// where a killed worker's server lives on and may still be using its cache.
+void removeOrphanedCaches(String dir) {
+  if (Platform.isWindows) return;
+  final List<FileSystemEntity> entries;
+  try {
+    entries = Directory(dir).listSync();
+  } on FileSystemException {
+    return;
+  }
+  for (final entry in entries) {
+    final owner = _cacheOwner.firstMatch(
+      entry.uri.pathSegments.lastWhere((s) => s.isNotEmpty),
+    );
+    if (entry is! Directory || owner == null) continue;
+    final worker = int.parse(owner[1]!);
+    // `kill -0` succeeds for a process that exists.
+    if (worker == pid ||
+        Process.runSync('kill', ['-0', '$worker']).exitCode == 0) {
+      continue;
+    }
+    try {
+      entry.deleteSync(recursive: true);
+    } on FileSystemException {
+      // Gone already: its server removed it as it ended.
+    }
+  }
+}
+
+final _cacheOwner = RegExp(r'^dart_analysis_worker-(\d+)-\d+$');
+
+/// [args] with each `@file` replaced by the file's lines.
+List<String> expandFlagfiles(List<String> args) => [
+  for (final arg in args)
+    if (arg.startsWith('@'))
+      ...File(arg.substring(1)).readAsLinesSync().where((l) => l.isNotEmpty)
+    else
+      arg,
+];
+
+class _AnalysisWorker extends AsyncWorkerLoop {
+  _AnalysisWorker(this._startup, this._action);
+
+  final List<String> _startup;
+  final Action _action;
+
+  /// Where the worker started. A sandboxed request's paths are relative to
+  /// its sandbox, a directory under this one.
+  final _home = Directory.current.path;
+  ServerAnalyzer? _server;
+
+  @override
+  Future<WorkResponse> performRequest(WorkRequest request) async {
+    final sandbox = request.sandboxDir;
+    Directory.current = sandbox.isEmpty
+        ? _home
+        : Directory(sandbox).isAbsolute
+        ? sandbox
+        : '$_home/$sandbox';
+    try {
+      final result = await _action([..._startup, ...request.arguments], ({
+        String? host,
+        required String cache,
+      }) {
+        if (host == null) return DartCli(cache: cache);
+        if (_server case final server?) return server;
+        final caches = workerCache(_home);
+        removeOrphanedCaches(File(caches).parent.path);
+        return _server = ServerAnalyzer(
+          // Its own file, not a sandbox's link to it, which the next request
+          // may remove.
+          host: File(host).resolveSymbolicLinksSync(),
+          cache: caches,
+          note: stderr.writeln,
+        );
+      });
+      return WorkResponse(exitCode: result.exitCode, output: result.output);
+    } catch (e, stack) {
+      return WorkResponse(exitCode: 1, output: '$e\n$stack\n');
+    }
+  }
+
+  Future<void> close() async {
+    final server = _server;
+    _server = null;
+    await server?.close();
+  }
 }

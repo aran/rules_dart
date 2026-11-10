@@ -29,6 +29,8 @@ dart_binary(
     sdk_file_set_copy(
         name = "copy_" + set,
         set = set,
+        # The analyzer tools' tests run on the `analyze` copy.
+        visibility = ["//dart/private/tools:__pkg__"],
     )
     for set in SDK_FILE_SETS
 ]
@@ -39,8 +41,16 @@ dart_test(
     args = [
         "%s=$(rlocationpath :copy_%s)" % (set, set)
         for set in SDK_FILE_SETS
-    ] + ["analyzer_errors=$(rlocationpath :analyzer_errors)"],
-    data = [":analyzer_errors"] + [":copy_" + set for set in SDK_FILE_SETS],
+    ] + [
+        "analyzer_errors=$(rlocationpath :analyzer_errors)",
+        "analyze_runner=$(rlocationpath //dart/private/tools:analyze_runner)",
+        "analysis_host=$(rlocationpath //dart/private/tools:analysis_host.dart)",
+    ],
+    data = [
+        ":analyzer_errors",
+        "//dart/private/tools:analysis_host.dart",
+        "//dart/private/tools:analyze_runner",
+    ] + [":copy_" + set for set in SDK_FILE_SETS],
     main = "sdk_files_test.dart",
     deps = [
         "//dart/runfiles",

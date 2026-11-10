@@ -240,31 +240,60 @@ def _project_dir(src_tree):
 def _add_project(args, staged):
     args.add_all([staged.src_tree], before_each = "--project", map_each = _project_dir, expand_directories = False)
 
-def _add_analyzer(ctx, args):
-    if not ctx.attr._analysis_shutdown_workaround[BuildSettingInfo].value:
-        args.add("--dart-cli")
+def _analyzer(ctx):
+    """How the analyze and fix actions run their analyzer.
+
+    Under `analysis_worker` (the default), in a persistent worker that keeps
+    the analysis server, hosted by `analysis_host.dart`, across requests: the
+    host is the worker's own argument, and everything else is a request's.
+    Off, a fresh `dart analyze` or `dart fix` per action.
+
+    Args:
+      ctx: The aspect's context.
+
+    Returns:
+      A struct: `startup` and `request` `Args`, the `tools` to add, and the
+      `execution_requirements`.
+    """
+    startup = ctx.actions.args()
+    request = ctx.actions.args()
+    if not ctx.attr._analysis_worker[BuildSettingInfo].value:
+        return struct(startup = startup, request = request, tools = [], execution_requirements = PATH_MAPPING)
+    startup.add("--host", ctx.file._analysis_host)
+    request.use_param_file("@%s", use_always = True)
+    request.set_param_file_format("multiline")
+    return struct(
+        startup = startup,
+        request = request,
+        tools = [ctx.file._analysis_host],
+        execution_requirements = PATH_MAPPING | {
+            "requires-worker-protocol": "proto",
+            "supports-workers": "1",
+        },
+    )
 
 def _analyze(ctx, name, staged, sdk_inputs):
     """Declares the `dart analyze` action; returns the stamp it writes on success."""
     dart_sdk_info = portable_sdk(ctx)
     stamp = ctx.actions.declare_file(name + ".analyzed")
-    args = ctx.actions.args()
+    analyzer = _analyzer(ctx)
+    args = analyzer.request
     args.add("--dart", dart_sdk_info.dart)
     _add_project(args, staged)
     args.add("--stamp", stamp)
     args.add("--fatal-infos")
-    _add_analyzer(ctx, args)
     ctx.actions.run(
         executable = ctx.executable._analyze_tool,
-        arguments = [args],
+        arguments = [analyzer.startup, args],
         inputs = depset(direct = staged.inputs, transitive = [sdk_inputs]),
+        tools = analyzer.tools,
         outputs = [stamp],
         mnemonic = "DartAnalyze",
         exec_group = PORTABLE,
         resource_set = analysis_resources,
         progress_message = "Analyzing Dart sources of %{label}",
         env = SDK_ENV,
-        execution_requirements = PATH_MAPPING,
+        execution_requirements = analyzer.execution_requirements,
     )
     return stamp
 
@@ -431,25 +460,26 @@ def _dart_analyze_aspect_impl(target, ctx):
     fixes = ctx.actions.declare_directory(name + ".fixes")
     manifest = ctx.actions.declare_file(name + ".fix_manifest.json")
     scratch = ctx.actions.declare_directory(name + ".scratch")
-    fix_args = ctx.actions.args()
+    fix_analyzer = _analyzer(ctx)
+    fix_args = fix_analyzer.request
     fix_args.add("--dart", dart_sdk_info.dart)
     _add_project(fix_args, staged)
     fix_args.add_all([scratch], before_each = "--scratch", expand_directories = False)
     fix_args.add_all([fixes], before_each = "--fixes", expand_directories = False)
     fix_args.add("--manifest", manifest)
     fix_args.add("--eligible", eligible)
-    _add_analyzer(ctx, fix_args)
     ctx.actions.run(
         executable = ctx.executable._fix_tool,
-        arguments = [fix_args],
+        arguments = [fix_analyzer.startup, fix_args],
         inputs = depset(direct = staged.inputs + [eligible], transitive = [sdk_inputs]),
+        tools = fix_analyzer.tools,
         outputs = [fixes, manifest, scratch],
         mnemonic = "DartFix",
         exec_group = PORTABLE,
         resource_set = analysis_resources,
         progress_message = "Computing Dart fixes for %{label}",
         env = SDK_ENV,
-        execution_requirements = PATH_MAPPING,
+        execution_requirements = fix_analyzer.execution_requirements,
     )
 
     return [
@@ -468,8 +498,12 @@ dart_analyze = aspect(
             default = "//dart:analysis_config",
             providers = [DartAnalysisConfigInfo],
         ),
-        "_analysis_shutdown_workaround": attr.label(
-            default = "//dart:analysis_shutdown_workaround",
+        "_analysis_host": attr.label(
+            default = "//dart/private/tools:analysis_host.dart",
+            allow_single_file = True,
+        ),
+        "_analysis_worker": attr.label(
+            default = "//dart:analysis_worker",
         ),
         "_analyze_tool": attr.label(
             default = "//dart/private/tools:analyze_runner",

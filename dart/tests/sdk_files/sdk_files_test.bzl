@@ -38,7 +38,8 @@ _EXPECTED = {
         "lib/libraries.json",
     ],
     "format": _DART + _DARTDEV,
-    "analyze": _DART + _DARTAOTRUNTIME + _DARTDEV + _ANALYZER_SDK + [
+    "analyze": _DART + _DARTVM + _DARTAOTRUNTIME + _DARTDEV + _ANALYZER_SDK + [
+        "bin/snapshots/analysis_server.dart.snapshot",
         "bin/snapshots/analysis_server_aot.dart.snapshot",
         "lib/_internal/fix_data.yaml",
     ],

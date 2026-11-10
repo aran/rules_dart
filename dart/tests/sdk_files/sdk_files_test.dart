@@ -5,8 +5,9 @@
 /// SDK, as it does in a local sandbox, and only a remote executor, which has
 /// nothing but an action's declared inputs, would show the gap.
 ///
-/// Arguments: `<set>=<runfiles path of its copy>` per set, and
-/// `analyzer_errors=<runfiles path>`.
+/// Arguments: `<set>=<runfiles path of its copy>` per set, and the runfiles
+/// paths of `analyzer_errors`, `analyze_runner` and `analysis_host` as
+/// `<name>=<path>`.
 import 'dart:convert';
 import 'dart:io';
 
@@ -233,6 +234,21 @@ void main(List<String> args) {
 
   test('analyze analyzes a package', () async {
     await run(tool('analyze', 'dart'), ['analyze', '--fatal-infos', '.']);
+  });
+
+  test('analyze hosts the analysis server as the worker does', () async {
+    await run(paths['analyze_runner']!, [
+      '--host',
+      paths['analysis_host']!,
+      '--dart',
+      tool('analyze', 'dart'),
+      '--project',
+      '.',
+      '--stamp',
+      '${work.path}/analyzed',
+      '--fatal-infos',
+    ]);
+    expect(File('${work.path}/analyzed').existsSync(), isTrue);
   });
 
   test('codegen is what the analyzer reads of the SDK', () async {

@@ -1,61 +1,69 @@
 // A client of the SDK's analysis server, the process behind `dart analyze` and
-// `dart fix`, for build actions — a workaround for the hang below: it asks
-// for what the action needs, then shuts the server down as they do, but kills
-// it if the shutdown does not finish.
+// `dart fix`.
 //
-// On macOS the server's shutdown can block forever: closing its file watchers
-// waits in dart:io's FSEvents `Node::Stop` for a release callback that never
-// comes. `dart analyze` and `dart fix` await that shutdown without a timeout
-// and report, or write, only after it, so an action running them hangs with
-// its results never shown. An action keeps nothing of the server's, so a
-// server that will not stop is ended, with a note in the action's log and on
-// macOS a crash report of its threads: the record of the hang when it happens.
+// The server runs from the SDK's JIT snapshot inside `analysis_host.dart`, one
+// process started with the SDK's `dart`, which ends itself when the process
+// that started it is gone. Ending that process ends the server: it is never
+// asked to shut down, so nothing waits on a shutdown.
 //
-// The server is started as `dart analyze` starts it, with its cache in a
-// directory the action owns. Its default, `$HOME/.dartServer`, is outside
-// the action and shared by every process with that home.
+// Its cache is a directory the caller names, not its default
+// `$HOME/.dartServer`, which every process with that home shares.
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+/// Why a request failed: the server is gone.
+class ServerExited implements Exception {
+  ServerExited(this.exitCode);
+
+  final int exitCode;
+
+  @override
+  String toString() =>
+      'The analysis server exited unexpectedly (exit code $exitCode).';
+}
+
 /// A running analysis server.
 class AnalysisServer {
-  AnalysisServer._(this._process, this._cache) {
+  AnalysisServer._(this._process, this.cache) {
     _process.stdout
         .transform(utf8.decoder)
         .transform(const LineSplitter())
         .listen(_receive);
     _process.stderr.transform(utf8.decoder).listen(log.write);
+    // Writing to a process that has exited fails the sink, not the write.
+    _process.stdin.done.ignore();
     _process.exitCode.then((code) {
-      final error = _exited = StateError(
-        'The analysis server exited unexpectedly (exit code $code).',
-      );
-      for (final pending in _pending.values) {
-        pending.completeError(error);
+      final exited = _exited = ServerExited(code);
+      for (final waiter in [..._pending.values, ?_idle, ?_analysis?.done]) {
+        // Nobody may be waiting on it any more.
+        waiter.future.ignore();
+        if (!waiter.isCompleted) waiter.completeError(exited);
       }
       _pending.clear();
-      if (!_stopping && !_analyzed.isCompleted) _analyzed.completeError(error);
     });
   }
 
-  /// Starts the server of the SDK whose `dart` is [dart], for [command]
-  /// (`analyze` or `fix`, as the server's client id names it), caching in
-  /// [cache].
+  /// Starts the server of the SDK whose `dart` is [dart] in the host at
+  /// [host], for [command] (`analyze` or `fix`, as the server's client id
+  /// names it), caching in [cache].
   ///
-  /// [cache] is emptied first and removed by [stop].
+  /// [cache] is emptied first, and removed when the server ends.
   static Future<AnalysisServer> start(
     String dart, {
+    required String host,
     required String command,
     required String cache,
     bool plugins = true,
   }) async {
-    final bin = File(dart).absolute.parent;
-    final exe = Platform.isWindows ? '.exe' : '';
-    final cacheDir = Directory(cache);
+    final sdk = File(dart).absolute.parent.parent.path;
+    final cacheDir = Directory(cache).absolute;
     if (cacheDir.existsSync()) cacheDir.deleteSync(recursive: true);
     cacheDir.createSync(recursive: true);
-    final process = await Process.start('${bin.path}/dartaotruntime$exe', [
-      '${bin.path}/snapshots/analysis_server_aot.dart.snapshot',
+    final process = await Process.start(dart, [
+      host,
+      cacheDir.path,
+      '$sdk/bin/snapshots/analysis_server.dart.snapshot',
       '--suppress-analytics',
       '--client-id=dart-$command',
       '--disable-server-feature-completion',
@@ -63,28 +71,46 @@ class AnalysisServer {
       '--disable-status-notification-debouncing',
       '--disable-silent-analysis-exceptions',
       '--sdk',
-      bin.parent.path,
-      '--cache=${cacheDir.absolute.path}',
+      sdk,
       if (!plugins) '--no-plugins',
     ]);
     final server = AnalysisServer._(process, cacheDir);
-    await server.request('server.setSubscriptions', {
-      'subscriptions': ['STATUS'],
-    });
+    try {
+      await server.request('server.setSubscriptions', {
+        'subscriptions': ['STATUS'],
+      });
+    } on ServerExited {
+      await server.kill();
+      rethrow;
+    }
     return server;
   }
 
   final Process _process;
-  final Directory _cache;
+
+  /// The server's cache directory.
+  final Directory cache;
   final _pending = <String, Completer<Map<String, Object?>>>{};
   var _id = 0;
-  var _stopping = false;
 
-  /// Why requests fail once the process has exited: nothing reads its stdin
-  /// or answers.
-  StateError? _exited;
-  Completer<void>? _analyzing;
-  final _analyzed = Completer<void>();
+  /// Why requests fail once the process has exited.
+  ServerExited? _exited;
+
+  /// Whether the server is analyzing, as its latest status said.
+  var _busy = false;
+
+  /// Completes at the next idle status.
+  Completer<void>? _idle;
+
+  /// The analysis [reanalyze] waits for: done at the first idle status after
+  /// a busy one.
+  ({Completer<void> done, bool started})? _analysis;
+
+  /// The host process.
+  int get pid => _process.pid;
+
+  /// Whether the process is still running.
+  bool get running => _exited == null;
 
   /// What the server wrote to stderr, and what it reported going wrong.
   final log = StringBuffer();
@@ -95,11 +121,15 @@ class AnalysisServer {
   /// Whether the server reported an error of its own.
   var serverError = false;
 
-  /// Completes when analysis that started after [request]ing roots is done.
-  Future<void> get analyzed => _analyzed.future;
+  /// Whether analyzer plugins ran: they keep state in [cache] by path, as
+  /// the generated package and snapshot of each plugin set.
+  bool get usedPlugins {
+    final plugins = Directory('${cache.path}/.plugin_manager');
+    return plugins.existsSync() && plugins.listSync().isNotEmpty;
+  }
 
-  /// Sends [method] and returns its result, or fails at once if the server
-  /// has exited.
+  /// Sends [method] and returns its result, or fails with [ServerExited] if
+  /// the server has exited.
   Future<Map<String, Object?>> request(
     String method, [
     Map<String, Object?> params = const {},
@@ -114,52 +144,62 @@ class AnalysisServer {
     return completer.future;
   }
 
-  /// Analyzes [root] and completes when its diagnostics are in [errors].
-  Future<void> analyze(String root) async {
+  /// Analyzes [root] alone, whatever the server analyzed before, and
+  /// completes when its diagnostics, and only its, are in [errors].
+  ///
+  /// Drops every root first: setting roots again rebuilds the server's
+  /// contexts and empties its file content cache, so every file is read
+  /// afresh. Setting the same roots again would be a no-op. What the server
+  /// keeps across roots, its byte store, is keyed by content.
+  Future<void> reanalyze(String root) async {
+    await request('analysis.setAnalysisRoots', {
+      'included': <String>[],
+      'excluded': <String>[],
+    });
+    // The busy spell the reset may cause ends before the next idle can mean
+    // that [root] is done.
+    if (_busy) {
+      final idle = _idle = Completer();
+      await idle.future;
+    }
+    errors.clear();
+    final analysis = _analysis = (done: Completer<void>(), started: false);
     await request('analysis.setAnalysisRoots', {
       'included': [canonical(root)],
       'excluded': <String>[],
     });
-    await analyzed;
+    await analysis.done.future;
   }
 
-  /// Shuts the server down, or ends it if it has not finished within
-  /// [_shutdownTimeout], and removes its cache.
-  Future<void> stop() async {
-    _stopping = true;
+  /// Ends the server at once and removes its cache.
+  ///
+  /// The host is asked first (SIGTERM), so it removes the cache itself even
+  /// if this process is killed in the meantime; it is killed if it has not
+  /// ended within [_hostExit].
+  Future<void> kill() async {
+    _process.kill();
+    await _process.exitCode.timeout(
+      _hostExit,
+      onTimeout: () {
+        _process.kill(ProcessSignal.sigkill);
+        return _process.exitCode;
+      },
+    );
     try {
-      await request('server.shutdown').timeout(_shutdownTimeout);
-    } on TimeoutException {
-      log.writeln(
-        'The analysis server (process ${_process.pid}) did not shut down '
-        'within ${_shutdownTimeout.inSeconds} seconds.',
-      );
-      // An action cannot sample it: macOS lets only a process with the
-      // developer tools permission read a hardened binary's threads, and the
-      // Bazel server has none. Aborting it has the system's crash reporter
-      // record them, with the dispatch queue each runs on.
-      if (Platform.isMacOS) {
-        _process.kill(ProcessSignal.sigabrt);
-        log.writeln(
-          'It was aborted, so macOS writes its threads to '
-          '~/Library/Logs/DiagnosticReports/dartaotruntime-<time>.ips.',
-        );
-        await _process.exitCode.timeout(_shutdownTimeout, onTimeout: () => 0);
-      }
-    } on StateError {
-      // It exited before answering: there is nothing left to stop.
-    }
-    _process.kill(ProcessSignal.sigkill);
-    await _process.exitCode;
-    try {
-      _cache.deleteSync(recursive: true);
+      cache.deleteSync(recursive: true);
     } on FileSystemException {
-      // A file the server held open on Windows: the next run clears it.
+      // Already gone, or a file the server held open on Windows.
     }
   }
 
   void _receive(String line) {
-    final message = jsonDecode(line);
+    final Object? message;
+    try {
+      message = jsonDecode(line);
+    } on FormatException {
+      log.writeln(line);
+      return;
+    }
     if (message is! Map<String, Object?>) return;
     switch (message) {
       case {'event': 'analysis.errors', 'params': final Map params}:
@@ -170,10 +210,17 @@ class AnalysisServer {
       case {'event': 'server.status', 'params': {'analysis': final Map status}}:
         // As `dart analyze` reads it: done is the first idle status after a
         // busy one.
-        if (status['isAnalyzing'] == true) {
-          _analyzing ??= Completer();
-        } else if (_analyzing != null && !_analyzed.isCompleted) {
-          _analyzed.complete();
+        _busy = status['isAnalyzing'] == true;
+        if (_busy) {
+          if (_analysis case (:final done, started: false)) {
+            _analysis = (done: done, started: true);
+          }
+        } else {
+          if (_idle case final idle? when !idle.isCompleted) idle.complete();
+          if (_analysis case (:final done, started: true)
+              when !done.isCompleted) {
+            done.complete();
+          }
         }
       case {
         'event': 'server.error' || 'server.pluginError',
@@ -205,9 +252,9 @@ class AnalysisServer {
   }
 }
 
-/// How long [AnalysisServer.stop] waits for a shutdown that takes
-/// milliseconds when it works.
-const _shutdownTimeout = Duration(seconds: 10);
+/// How long [AnalysisServer.kill] lets the host take to end on SIGTERM,
+/// which takes it milliseconds.
+const _hostExit = Duration(seconds: 5);
 
 /// The directory [path] as the server takes it: absolute, without symlinks or
 /// a trailing separator.
