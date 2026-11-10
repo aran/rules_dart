@@ -16,7 +16,7 @@ provider carrying it is still not something `deps` will accept.
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts")
 load("//dart:providers.bzl", "DartAnalyzableInfo", "DartInfo")
 load("//dart/private:common.bzl", "launcher_executable")
-load("//dart/private:dart_analyze_aspect.bzl", "DartFixOutputsInfo", "dart_analyze")
+load("//dart/private:dart_analyze_aspect.bzl", "dart_analyze")
 
 # The fixture's entrypoint and its dependency, by the suffix of their
 # `short_path`. Named here rather than passed in: these tests exist for one
@@ -63,6 +63,14 @@ formatted_test = rule(
     test = True,
 )
 
+# Passes when the fixes `@rules_dart//dart/fix` would write for `target` can be
+# computed.
+fixable_test = rule(
+    implementation = _checked_test_impl("dart_fix_changes"),
+    attrs = _CHECKED_TEST_ATTRS,
+    test = True,
+)
+
 def _aspect_applies_test_impl(ctx):
     env = analysistest.begin(ctx)
     target = analysistest.target_under_test(env)
@@ -87,13 +95,13 @@ def _aspect_applies_test_impl(ctx):
     asserts.equals(
         env,
         ctx.attr.expect_fixable,
-        DartFixOutputsInfo in target,
-        "whether `dart_fix` can fix %s" % target.label,
+        groups != None and hasattr(groups, "dart_fix_changes"),
+        "whether `@rules_dart//dart/fix` can fix %s" % target.label,
     )
     return analysistest.end(env)
 
-# Whether the aspect analyzes a target, format-checks it, and offers `dart_fix`
-# fixes for it: none for a target with nothing hand-written of its own, and
+# Whether the aspect analyzes a target, format-checks it, and offers fixes for
+# it: none for a target with nothing hand-written of its own, and
 # each opt-out tag removes its own check and nothing else.
 aspect_applies_test = analysistest.make(
     _aspect_applies_test_impl,

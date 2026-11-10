@@ -1,0 +1,47 @@
+load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
+load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
+load("@rules_dart//dart:defs.bzl", "dart_library")
+load("//tools:changes.bzl", "dart_changes")
+
+# A package on 3.6, whose short style no later version produces, with a file
+# its format check would reject. `manual`, so `bazel test //...` does not
+# check it; `bazel run //write_back` formats it and puts it back.
+dart_library(
+    name = "lib",
+    package_name = "short_style",
+    srcs = ["lib/short.dart"],
+    language_version = "3.6",
+    tags = ["manual"],
+)
+
+dart_changes(
+    name = "formatted",
+    output_group = "dart_format_changes",
+    target = ":lib",
+)
+
+run_binary(
+    name = "short_formatted",
+    srcs = [":formatted"],
+    outs = ["short_formatted.dart"],
+    args = [
+        "--changes",
+        "$(execpath :formatted)",
+        "--out",
+        "$(execpath short_formatted.dart)",
+        "--content",
+        "short_style/lib/short.dart",
+        "--path",
+        "short_style/lib/short.dart",
+    ],
+    tool = "//tools:check_changes",
+)
+
+# The rewrite is in the short style: at the SDK's newest version the call
+# would put each argument on a line of its own.
+diff_test(
+    name = "short_formatted_test",
+    size = "small",
+    file1 = ":short_formatted.dart",
+    file2 = "golden/short.dart",
+)

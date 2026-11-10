@@ -168,8 +168,6 @@ bzl_library(
         "//dart/private:dart_analyze_aspect",
         "//dart/private:dart_binary",
         "//dart/private:dart_codegen",
-        "//dart/private:dart_fix",
-        "//dart/private:dart_format",
         "//dart/private:dart_library",
         "//dart/private:dart_link_hook",
         "//dart/private:dart_test",
@@ -210,9 +208,9 @@ bzl_library(
     ],
 )
 
-# The `dart_analysis_config` whose options the `dart_analyze` aspect, `dart_fix`
-# and `dart_format` use. The default lists none: every file gets the SDK's
-# defaults.
+# The `dart_analysis_config` whose options the `dart_analyze` aspect uses, for
+# its checks and for what `@rules_dart//dart/format` and `@rules_dart//dart/fix`
+# write. The default lists none: every file gets the SDK's defaults.
 label_flag(
     name = "analysis_config",
     build_setting_default = "//dart/private:empty_analysis_config",

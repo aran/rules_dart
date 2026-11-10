@@ -20,8 +20,7 @@ Every other package is only resolved against, and its rootUri leads out of the
 project to where its files already are, as `dart_binary`'s package config
 does. A package with no single
 location — its files split between the source tree and `bazel-out` — is
-assembled into `<name>.pkgs/<pkg>`; so is every dependency of a `relocatable`
-project, which is read through runfiles, where exec-root paths do not hold.
+assembled into `<name>.pkgs/<pkg>`.
 External packages are assembled at their repo-relative paths (two pub spokes
 would collide at `lib/...` in one tree), hence one tree per package.
 
@@ -301,13 +300,13 @@ def _assembled_root(ctx, name, key, files, shared_name):
     )
     return tree.path, tree
 
-def resolve_package_exec_roots_from_outside(ctx, name, dep_files, config_file, relocatable = False, assemble = {}):
+def resolve_package_exec_roots_from_outside(ctx, name, dep_files, config_file, assemble = {}):
     """Decides where each package record is read from, and what that needs.
 
     A record whose files have one root the config can name is read where its
     files are. One that does not (split between the source tree and
-    `bazel-out`, or built in another configuration), a `relocatable` project's,
-    and each one in `assemble`, is assembled into `<name>.pkgs/<package>`, so
+    `bazel-out`, or built in another configuration), and each one in
+    `assemble`, is assembled into `<name>.pkgs/<package>`, so
     the package is exactly the files Bazel declared for it.
 
     Args:
@@ -315,8 +314,6 @@ def resolve_package_exec_roots_from_outside(ctx, name, dep_files, config_file, r
       name: Prefix for the assembled trees.
       dep_files: Dict of `(package_name, package_root)` to the record's Files.
       config_file: The `package_config.json` File the roots are relative to.
-      relocatable: Whether the config is read somewhere other than the exec
-        root, so every record is assembled.
       assemble: Dict of the `(package_name, package_root)` keys to assemble
         whatever their files' roots.
 
@@ -332,7 +329,7 @@ def resolve_package_exec_roots_from_outside(ctx, name, dep_files, config_file, r
     resolved = {}
     for key, files in dep_files.items():
         root = None
-        if not relocatable and key not in assemble:
+        if key not in assemble:
             root = in_place_root(files, key[1], config_file.root.path)
         tree = None
         if root == None:
@@ -345,16 +342,13 @@ def resolve_package_exec_roots_from_outside(ctx, name, dep_files, config_file, r
         )
     return resolved
 
-def stage_dart_project(ctx, layout, dart_sdk_info, relocatable = False, extra_proj_files = {}, name = None):
+def stage_dart_project(ctx, layout, dart_sdk_info, extra_proj_files = {}, name = None):
     """Stages packages and sources into a hermetic Dart project layout.
 
     Args:
       ctx: The rule context (must carry `COPY_TO_DIRECTORY_TOOLCHAINS`).
       layout: The `project_layout` struct.
       dart_sdk_info: The toolchain's `DartSdkInfo` (see `pubspec_stub`).
-      relocatable: Whether the project is read somewhere other than the exec
-        root (through runfiles), so every dependency is assembled beside it
-        rather than referenced where it sits.
       extra_proj_files: Dict of `<filename> -> content string` written as
         declared files directly under `<name>.proj/` (e.g. a `pubspec.yaml`
         stub for `dart analyze`).
@@ -412,7 +406,6 @@ def stage_dart_project(ctx, layout, dart_sdk_info, relocatable = False, extra_pr
         name,
         layout.dep_files,
         package_config,
-        relocatable = relocatable,
     ).items():
         inputs.extend(resolved.files)
         root_uris[key] = resolved.root_uri

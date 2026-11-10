@@ -296,7 +296,7 @@
   "moduleExtensions": {
     "//dart/pub:extensions.bzl%pub": {
       "general": {
-        "bzlTransitiveDigest": "Xmai2miRcJNSYx8K2HFiGpjrnUJ/m85zzS1POQyhaaU=",
+        "bzlTransitiveDigest": "ezZZipZrYqnXp3XD9WLTyQgz42uFH0RvX0EmqlsU93o=",
         "usagesDigest": "0+3c4sSN2vc7x1/y7HdP42yAhA9LS1h/fRTJdUpRt4g=",
         "recordedInputs": [
           "REPO_MAPPING:,bsd_tar_toolchains_darwin_amd64 tar.bzl++toolchains+bsd_tar_toolchains_darwin_amd64",
@@ -311,7 +311,7 @@
           "REPO_MAPPING:,pubspec_reader_macos-x64 +pubspec_reader+pubspec_reader_macos-x64",
           "REPO_MAPPING:,pubspec_reader_windows-x64 +pubspec_reader+pubspec_reader_windows-x64",
           "REPO_MAPPING:,yaml.bzl yaml.bzl+",
-          "FILE:@@//dart/ext/pubspec.lock 5980462be7e90baea67ca519fa3bde946bda471f74cd69069aac97bd44767a8d"
+          "FILE:@@//dart/ext/pubspec.lock 289be37155535d8aa66f5ad1abd09a7fff4224e262d79c15e0d2cedd2a313fcb"
         ],
         "generatedRepoSpecs": {
           "dart_pub_index": {
@@ -413,7 +413,9 @@
               },
               "explicit_packages": [],
               "resolved_packages": [],
-              "unsupplied": {}
+              "unsupplied": {},
+              "cycles": [],
+              "advisory_cycles": []
             }
           },
           "dart_pub___fe_analyzer_shared": {

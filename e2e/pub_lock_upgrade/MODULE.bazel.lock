@@ -245,7 +245,7 @@
     },
     "@@rules_dart+//dart/pub:extensions.bzl%pub": {
       "general": {
-        "bzlTransitiveDigest": "Xmai2miRcJNSYx8K2HFiGpjrnUJ/m85zzS1POQyhaaU=",
+        "bzlTransitiveDigest": "ezZZipZrYqnXp3XD9WLTyQgz42uFH0RvX0EmqlsU93o=",
         "usagesDigest": "bx1I733iff+3SQEa9PKpqA/UULnasAJP8qS6FSDT42c=",
         "recordedInputs": [
           "REPO_MAPPING:rules_dart+,bsd_tar_toolchains_darwin_amd64 tar.bzl++toolchains+bsd_tar_toolchains_darwin_amd64",
@@ -263,17 +263,23 @@
           "FILE:@@//lock_a.lock 9ac542f735a2464e7832518796fd06830e0425972257d8dc91ca0cdd0fddd03c",
           "FILE:@@//lock_b.lock a7c08fa860c095b8d5269196461b802c1b8eb8e422273bd6c841ac0cdbc5a271",
           "FILE:@@//lock_newer.lock 5908c71ae0aa6997bc0c0195087affcdb32bbf85f6df468d3e62f492fa7dba70",
-          "FILE:@@rules_dart+//dart/ext/pubspec.lock 5980462be7e90baea67ca519fa3bde946bda471f74cd69069aac97bd44767a8d"
+          "FILE:@@rules_dart+//dart/ext/pubspec.lock 289be37155535d8aa66f5ad1abd09a7fff4224e262d79c15e0d2cedd2a313fcb"
         ],
         "generatedRepoSpecs": {
-          "very_good_analysis": {
-            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_repository.bzl%pub_package",
+          "dart_pub__very_good_analysis": {
+            "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
             "attributes": {
               "package_name": "very_good_analysis",
               "version": "11.0.0",
               "sha256": "0bd5eb8d6be76aa0d71e70cbdae6cac8f784f761170568e3c2214a6948c7f6d3",
               "code_assets": [],
-              "ignore_hook": false,
+              "ignore_hook": false
+            }
+          },
+          "very_good_analysis": {
+            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
+            "attributes": {
+              "package_name": "very_good_analysis",
               "spoke_prefix": "dart_pub"
             }
           },
@@ -372,13 +378,16 @@
                 "web_socket_channel": "3.0.3",
                 "webkit_inspection_protocol": "1.2.1",
                 "yaml": "3.1.4",
-                "yaml_edit": "2.2.4"
+                "yaml_edit": "2.2.4",
+                "very_good_analysis": "11.0.0"
               },
               "explicit_packages": [
                 "very_good_analysis"
               ],
               "resolved_packages": [],
-              "unsupplied": {}
+              "unsupplied": {},
+              "cycles": [],
+              "advisory_cycles": []
             }
           },
           "dart_pub__collection": {

@@ -1,8 +1,9 @@
 load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
-load("@rules_dart//dart:defs.bzl", "dart_fix", "dart_library")
+load("@rules_dart//dart:defs.bzl", "dart_library")
+load("//:checks.bzl", "fix_changes")
 
-# A library with a `prefer_final_locals` violation for `dart_fix` to fix, so it
-# opts out of the analysis the rest of the workspace passes.
+# A library with a `prefer_final_locals` violation to fix, so it opts out of
+# the analysis the rest of the workspace passes.
 dart_library(
     name = "fixme",
     package_name = "fixme",
@@ -11,20 +12,15 @@ dart_library(
     tags = ["no-dart-analyze"],
 )
 
-dart_fix(
-    name = "fix",
+fix_changes(
+    name = "fixes",
     target = ":fixme",
 )
 
-filegroup(
-    name = "manifest",
-    srcs = [":fix"],
-    output_group = "dart_fix_manifest",
-)
-
+# The one file fixed: the local it never reassigns is made final.
 diff_test(
-    name = "manifest_test",
+    name = "fixes_test",
     size = "small",
-    file1 = ":manifest",
-    file2 = "golden/fix_manifest.json",
+    file1 = ":fixes",
+    file2 = "golden/fixes.json",
 )

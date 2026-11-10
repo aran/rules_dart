@@ -1,0 +1,15 @@
+load("//dart:defs.bzl", "dart_test")
+
+# Runs `@rules_dart//dart` with a throwaway home and checks that nothing lands
+# in it.
+dart_test(
+    name = "home_untouched_test",
+    size = "small",
+    args = ["$(rlocationpath //dart)"],
+    data = ["//dart"],
+    main = "home_untouched_test.dart",
+    deps = [
+        "//dart/runfiles",
+        "@ext_pub_deps//:test",
+    ],
+)

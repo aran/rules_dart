@@ -1,4 +1,4 @@
-/// A library `dart_fix` has work in.
+/// A library `dart fix` has work in.
 library;
 
 /// The sum of [values].

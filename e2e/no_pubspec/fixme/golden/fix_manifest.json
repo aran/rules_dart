@@ -1,9 +1,0 @@
-{
-  "fixed": [
-    {
-      "staged": "src/fixme/lib/fixme.dart",
-      "workspace": "fixme/lib/fixme.dart"
-    }
-  ],
-  "dropped": []
-}

@@ -1,4 +1,7 @@
-# A shared ruleset, reached as package:dep_rules/rules.yaml.
+# A shared ruleset, reached as package:dep_rules/rules.yaml: its lints and its
+# page width.
 linter:
   rules:
     - avoid_print
+formatter:
+  page_width: 100

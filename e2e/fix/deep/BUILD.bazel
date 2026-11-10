@@ -1,0 +1,20 @@
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "deep",
+)
+
+# In the `deep` tier, which `.bazelrc` leaves out of every build unless
+# `--config=deep` is passed, with a file its format check would reject.
+# `manual`, so `bazel test //...` does not check it; `bazel run //write_back`
+# formats it and puts it back.
+dart_library(
+    name = "lib",
+    srcs = ["lib/deep.dart"],
+    package = ":pubspec-metadata",
+    tags = [
+        "deep",
+        "manual",
+    ],
+)

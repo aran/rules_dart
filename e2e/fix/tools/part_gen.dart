@@ -1,6 +1,6 @@
 // Stands in for a real builder (freezed, json_serializable, …).
 //
-// Which builder produced a file is irrelevant to `dart_fix`: eligibility is
+// Which builder produced a file is irrelevant to the fixes: eligibility is
 // decided from `File.is_source`, so all that matters here is that Bazel records
 // the output as generated. What the generated code contains does matter — the
 // hand-written library resolves `ModelBase` and `modelLabel` out of these parts

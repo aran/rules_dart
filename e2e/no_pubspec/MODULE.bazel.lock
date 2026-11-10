@@ -245,7 +245,7 @@
     },
     "@@rules_dart+//dart/pub:extensions.bzl%pub": {
       "general": {
-        "bzlTransitiveDigest": "Xmai2miRcJNSYx8K2HFiGpjrnUJ/m85zzS1POQyhaaU=",
+        "bzlTransitiveDigest": "ezZZipZrYqnXp3XD9WLTyQgz42uFH0RvX0EmqlsU93o=",
         "usagesDigest": "ggnjrfyrCfNY8d+kbwFHeWMz+p/+iBXISfNkQUPPMIs=",
         "recordedInputs": [
           "REPO_MAPPING:rules_dart+,bsd_tar_toolchains_darwin_amd64 tar.bzl++toolchains+bsd_tar_toolchains_darwin_amd64",
@@ -260,28 +260,40 @@
           "REPO_MAPPING:rules_dart+,pubspec_reader_macos-x64 rules_dart++pubspec_reader+pubspec_reader_macos-x64",
           "REPO_MAPPING:rules_dart+,pubspec_reader_windows-x64 rules_dart++pubspec_reader+pubspec_reader_windows-x64",
           "REPO_MAPPING:rules_dart+,yaml.bzl yaml.bzl+",
-          "FILE:@@rules_dart+//dart/ext/pubspec.lock 5980462be7e90baea67ca519fa3bde946bda471f74cd69069aac97bd44767a8d"
+          "FILE:@@rules_dart+//dart/ext/pubspec.lock 289be37155535d8aa66f5ad1abd09a7fff4224e262d79c15e0d2cedd2a313fcb"
         ],
         "generatedRepoSpecs": {
-          "json_annotation": {
-            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_repository.bzl%pub_package",
+          "dart_pub__json_annotation": {
+            "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
             "attributes": {
               "package_name": "json_annotation",
               "version": "4.12.0",
               "sha256": "2a743920d81b7910627f68ee2c9ac1fc0bfee32b9fc3403587d7c6791ca12f80",
               "code_assets": [],
-              "ignore_hook": false,
+              "ignore_hook": false
+            }
+          },
+          "json_annotation": {
+            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
+            "attributes": {
+              "package_name": "json_annotation",
               "spoke_prefix": "dart_pub"
             }
           },
-          "meta": {
-            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_repository.bzl%pub_package",
+          "dart_pub__meta": {
+            "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
             "attributes": {
               "package_name": "meta",
               "version": "1.19.0",
               "sha256": "307249ce4ff29d58a18e97f6345f539382eb9c9c29ecda628900f31de0443dd9",
               "code_assets": [],
-              "ignore_hook": false,
+              "ignore_hook": false
+            }
+          },
+          "meta": {
+            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
+            "attributes": {
+              "package_name": "meta",
               "spoke_prefix": "dart_pub"
             }
           },
@@ -378,14 +390,18 @@
                 "web_socket_channel": "3.0.3",
                 "webkit_inspection_protocol": "1.2.1",
                 "yaml": "3.1.4",
-                "yaml_edit": "2.2.4"
+                "yaml_edit": "2.2.4",
+                "json_annotation": "4.12.0",
+                "meta": "1.19.0"
               },
               "explicit_packages": [
                 "json_annotation",
                 "meta"
               ],
               "resolved_packages": [],
-              "unsupplied": {}
+              "unsupplied": {},
+              "cycles": [],
+              "advisory_cycles": []
             }
           },
           "dart_pub___fe_analyzer_shared": {

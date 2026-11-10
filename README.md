@@ -134,8 +134,8 @@ workspace root.
 | --- | --- |
 | `dart pub add foo`, `remove`, `get`, `upgrade`, `outdated`, `deps` | `bazel run @rules_dart//dart/pub -- add foo --directory=<dir>` (any pub subcommand), which runs the pinned SDK at the workspace root. The build reads `pubspec.lock` alone, so a `pubspec.yaml` edit changes nothing until pub re-resolves. After `add`, run Gazelle. See [Adding a dependency](#adding-a-dependency). |
 | `dart analyze` (`--fatal-infos`) | `bazel test //<dir>/...`, with the `dart_analyze` aspect lines in `.bazelrc`. Every diagnostic, infos included, fails the test. `bazel build` does not analyze. See [Static analysis and formatting](#static-analysis-and-formatting). |
-| `dart format` | The check is part of the same `bazel test` (the `dart_format` output group). To rewrite files: `bazel run //:format -- lib test`, from a `dart_format` target (named `format` here). |
-| `dart fix --dry-run` / `--apply` | `bazel run //:fix -- --dry-run` / `bazel run //:fix`, from a `dart_fix` target. A `dart_fix` fixes the one library it names (`target`); there is no whole-workspace form, so a package needs one per library. |
+| `dart format` | The check is part of the same `bazel test` (the `dart_format` output group). To rewrite files: `bazel run @rules_dart//dart/format -- //<dir>/...`, which takes `bazel build`'s flags and target patterns. |
+| `dart fix --dry-run` / `--apply` | `bazel run @rules_dart//dart/fix -- --dry-run //<dir>/...` / `bazel run @rules_dart//dart/fix -- //<dir>/...`. See [Formatting and fixing](#formatting-and-fixing). |
 | `dart test` | `bazel test //<dir>:<name>`, or `//<dir>/...`. See below for its flags. |
 | `dart run build_runner build` / `watch` | None: do not run `build_runner`. The build generates the code, and the outputs are under `bazel-bin`, at the source file's path. See [Code generation](#code-generation). |
 | `dart run bin/app.dart` | `bazel run //<dir>:app`, a `dart_binary`. |
@@ -1161,8 +1161,8 @@ entrypoint checked, which is how you lint a `main.dart`: it sits outside any
 package's `lib/`, so no `dart_library` will accept it, and it would otherwise be
 the one file in a project nothing checks.
 
-The format check runs `dart format --set-exit-if-changed` over the same files,
-and fails the build if formatting would change any of them. Its settings are
+The format check runs `dart format` over the same files, and fails the build
+if formatting would change any of them. Its settings are
 the `formatter:` section (`page_width`, `trailing_commas`) of the same nearest
 listed `analysis_options.yaml`, including what that file `include:`s, and a
 file under no listed options file gets stock defaults. Options files the
@@ -1184,59 +1184,48 @@ stated, the check uses the newest the SDK knows, so a package on an older
 version must state it for the check to hold it to the style its own
 `dart format` produces.
 
-`dart_format` is the check's `bazel run` counterpart: it rewrites files in your
-workspace with the settings the check applies to them. It reads the same
-`analysis_config`, which is why that flag goes under `common`, and stages the
-options exactly as the check does, so each file gets its nearest listed
-options file. Running the SDK's formatter over the workspace directly
-(`bazel run @rules_dart//dart -- format`) cannot resolve an `include:` by
-`package:` URI, because there is no package config for it to use, and the SDK
-then ignores every key in the options file, not only the included ones.
+#### Formatting and fixing
 
-```starlark
-load("@rules_dart//dart:defs.bzl", "dart_format")
-
-dart_format(name = "format")
-```
+`@rules_dart//dart/format` writes into your sources what the format check
+computed for the targets you name: every file it would reject, formatted with
+its own options and at its own target's language version. The rewrite is the
+check's own output, so after a run the check passes. `@rules_dart//dart/fix`
+does the same for `dart fix --apply`: the analyzer's automated fixes, the same
+quick-fixes an IDE offers, driven by the lints your options enable and
+computed over the project the analysis stages for each target.
 
 ```sh
-bazel run //:format -- lib test  # files or directories, relative to where you run it
+bazel run @rules_dart//dart/format -- //...                 # every target of the workspace
+bazel run @rules_dart//dart/format -- -- //app/... -//app/gen/...
+bazel run @rules_dart//dart/format -- --config=deep //:slow_test
+bazel run @rules_dart//dart/fix -- --dry-run //app:lib      # print the fixes as a diff
+bazel run @rules_dart//dart/fix -- $(bazel query 'kind(dart_library, //app/...)')
 ```
 
-It formats at the newest language version the SDK knows unless you pass
-`--language-version=<major>.<minor>`. The check uses each target's own
-version, so pass it when formatting a package below `3.7`. Files outside the
-workspace are refused: no listed options could govern them.
+After an optional `--dry-run`, the arguments are those of `bazel build`: its
+flags and target patterns, relative to the directory you run from, with `--`
+before patterns that start with `-`, as `bazel build -- //app/... -//app/gen/...`
+needs. Each tool runs `bazel build` with them and the `dart_analyze` aspect,
+and writes the result, so it formats or fixes the targets that build would
+build. Flags given to `bazel run` itself build the tool, not those targets:
+pass them after the `--`. A target your `.bazelrc` leaves out with
+`--build_tag_filters` is left out here too, even when named, as `bazel build`
+leaves it out; pass the config that includes it. The tool sets
+`--aspects`, `--output_groups`, `--run_validations` and
+`--build_event_json_file` itself and refuses them. A `bazel query` prints
+labels, so its output works as the arguments. The build reads your `.bazelrc`
+as any other does, which is why the `analysis_config` line goes under
+`common`: under `test` alone the tools would format and fix with no options.
+Only each target's own hand-written files are written, as only they are
+checked; a target tagged `no-dart-format` is not formatted, and one tagged
+`no-dart-analyze` can still be fixed. Generated files are never written: only
+files Bazel records as sources are eligible, so codegen output stays
+resolvable to its importers without being edited. A fix can make further
+fixes possible, so run `fix` until it fixes nothing.
 
-`dart_fix` applies the analyzer's automated fixes — the same quick-fixes an IDE
-offers, driven by the lints your options enable. It fixes its target's own
-files over the very project the `dart_analyze` aspect stages to analyze them,
-under the same `analysis_config`, which is why that flag goes under `common`:
-`bazel run` then sees the options `bazel test` checks against.
-
-```starlark
-load("@rules_dart//dart:defs.bzl", "dart_fix")
-
-dart_fix(
-    name = "fix",
-    target = ":greeter",
-)
-```
-
-```sh
-bazel run //:fix              # write the fixes into your sources
-bazel run //:fix -- --dry-run # print them as a diff, change nothing
-```
-
-Generated files are never rewritten: only files Bazel records as sources are
-eligible, so codegen output stays resolvable to its importers without being
-edited. A target tagged `no-dart-analyze` can still be fixed. To inspect what a
-run would do without applying anything, build the outputs directly:
-
-```sh
-bazel build //:fix --output_groups=+dart_fix_manifest  # what was fixed, and what was skipped
-bazel build //:fix --output_groups=+dart_fix_fixes     # the fixed files themselves
-```
+Nothing is written unless everything can be. Each change records the bytes it
+was computed from, and a file that changed since the build, or one two targets
+would rewrite differently, refuses the whole run.
 
 #### Lints
 
@@ -1612,8 +1601,8 @@ The [`e2e/`](e2e/) directory contains complete working examples:
 | [`library_deps`](e2e/library_deps/)                         | Transitive `dart_library` dependencies, `srcs` attribute                                        |
 | [`dart_test`](e2e/dart_test/)                               | Tests with and without deps, `srcs` for test helpers                                            |
 | [`analysis`](e2e/analysis/)                                 | The `dart_analyze` aspect's checks with `package:`-included options                             |
-| [`fix`](e2e/fix/)                                           | `dart_fix` write-back, and that generated files are never rewritten                             |
-| [`analyze_composition`](e2e/analyze_composition/)           | A lint ruleset shared from another Bazel module                                                 |
+| [`fix`](e2e/fix/)                                           | `@rules_dart//dart/fix` and `format` write-back, and that generated files are never rewritten   |
+| [`analyze_composition`](e2e/analyze_composition/)           | A lint ruleset and page width shared from another Bazel module                                  |
 | [`web_app`](e2e/web_app/)                                   | JavaScript and WebAssembly compilation with library deps                                        |
 | [`web_compiler`](e2e/web_compiler/)                         | Per-compiler code by `select()`, and the resets other modules' rules use                        |
 | [`pub_deps`](e2e/pub_deps/)                                 | Single pub.dev package via `pub.package()`                                                      |

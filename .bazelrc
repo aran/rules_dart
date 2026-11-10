@@ -25,8 +25,8 @@ common --lockfile_mode=error
 
 # Analyze and format-check every Dart target a test run names, under
 # //:analysis_config — the setup README.md asks of users. The options flag is
-# under `common` so that `bazel run` of a `dart_fix` or `dart_format` sees the
-# same options.
+# under `common` so that the build `bazel run //dart/format` and `//dart/fix`
+# run sees the same options.
 test --aspects=//dart:analyze.bzl%dart_analyze
 test --output_groups=+dart_analyze
 test --output_groups=+dart_format

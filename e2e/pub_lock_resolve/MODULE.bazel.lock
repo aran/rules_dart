@@ -245,7 +245,7 @@
     },
     "@@rules_dart+//dart/pub:extensions.bzl%pub": {
       "general": {
-        "bzlTransitiveDigest": "Xmai2miRcJNSYx8K2HFiGpjrnUJ/m85zzS1POQyhaaU=",
+        "bzlTransitiveDigest": "ezZZipZrYqnXp3XD9WLTyQgz42uFH0RvX0EmqlsU93o=",
         "usagesDigest": "ZO12hu1ep9dGX2Hdm828+p8xeQuFC2vYZ70aeYDbhnU=",
         "recordedInputs": [
           "REPO_MAPPING:rules_dart+,bsd_tar_toolchains_darwin_amd64 tar.bzl++toolchains+bsd_tar_toolchains_darwin_amd64",
@@ -262,7 +262,7 @@
           "REPO_MAPPING:rules_dart+,yaml.bzl yaml.bzl+",
           "FILE:@@//pubspec.lock dfe9b8e8fefbf76f510a6dbd3b625d6d9c3c4d5f129a4d355c5823c488704b1b",
           "FILE:@@//bad/pubspec.lock de1fffd4ee62cbfd84ac913ba93e9fe7d3395706f01f92ce456abd626dc1845e",
-          "FILE:@@rules_dart+//dart/ext/pubspec.lock 5980462be7e90baea67ca519fa3bde946bda471f74cd69069aac97bd44767a8d"
+          "FILE:@@rules_dart+//dart/ext/pubspec.lock 289be37155535d8aa66f5ad1abd09a7fff4224e262d79c15e0d2cedd2a313fcb"
         ],
         "generatedRepoSpecs": {
           "dart_pub_index": {
@@ -369,7 +369,9 @@
                 "petitparser",
                 "shared_models"
               ],
-              "unsupplied": {}
+              "unsupplied": {},
+              "cycles": [],
+              "advisory_cycles": []
             }
           },
           "dart_pub__collection": {

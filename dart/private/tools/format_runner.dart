@@ -1,9 +1,12 @@
 // Build-action runner for the `dart_analyze` aspect's format check: `dart format`
-// over a staged project directory.
+// over a staged project directory, recording what it would change.
 //
-// `dart format` produces no output artifact, but a Bazel action must; this
-// runner forwards the formatter's diagnostics and writes the stamp file only
-// on success. Pure Dart (no shell) so the action is portable to Windows.
+// The output is a changes file (`changes.dart`): the target's files the
+// formatter would rewrite, with their new content. The check fails on a
+// non-empty one (`format_check.dart`), and `bazel run
+// @rules_dart//dart/format` writes it into the workspace, so the two cannot
+// disagree. This action fails only when the formatter cannot run as
+// configured. Pure Dart (no shell) so the action is portable to Windows.
 //
 // Files are named individually from a manifest rather than by handing the
 // formatter the project directory. The staged project also holds the harness
@@ -11,6 +14,8 @@
 // ruleset an options file pulls in — none of which are the target's to format.
 import 'dart:convert';
 import 'dart:io';
+
+import 'changes.dart';
 
 /// Characters of joined argv per `dart format` invocation. Windows caps a
 /// command line near 32k; a staged path is long and a `srcs` glob can be
@@ -23,7 +28,8 @@ void main(List<String> args) {
   String? dart;
   String? project;
   String? manifest;
-  String? stamp;
+  String? changes;
+  String? label;
   String? languageVersion;
   for (var i = 0; i < args.length; i++) {
     switch (args[i]) {
@@ -33,8 +39,10 @@ void main(List<String> args) {
         project = args[++i];
       case '--manifest':
         manifest = args[++i];
-      case '--stamp':
-        stamp = args[++i];
+      case '--changes':
+        changes = args[++i];
+      case '--label':
+        label = args[++i];
       case '--language-version':
         languageVersion = args[++i];
       default:
@@ -45,29 +53,32 @@ void main(List<String> args) {
   if (dart == null ||
       project == null ||
       manifest == null ||
-      stamp == null ||
+      changes == null ||
+      label == null ||
       languageVersion == null) {
     stderr.writeln(
-      'format_runner: --dart, --project, --manifest, --stamp, and '
+      'format_runner: --dart, --project, --manifest, --changes, --label and '
       '--language-version are required',
     );
     exit(64);
   }
 
-  final files = File(manifest)
+  // Each line is the file's path in the staged project, `src/<workspace
+  // path>`.
+  final staged = File(manifest)
       .readAsLinesSync()
       .where((l) => l.isNotEmpty)
-      .map((l) => _join(project!, l))
       .toList();
+  final byPath = {for (final s in staged) _join(project, s): s};
 
+  final proposed = <Change>[];
   var failed = false;
-  for (final chunk in _chunks(files)) {
+  for (final chunk in _chunks(byPath.keys.toList())) {
     final result = Process.runSync(
       dart,
       [
         'format',
-        '--output=none',
-        '--set-exit-if-changed',
+        '--output=json',
         // Passed in every case, `latest` included. The formatter would
         // otherwise take the version from whatever package_config.json entry
         // happens to cover the staged file, which for an entrypoint outside
@@ -75,39 +86,62 @@ void main(List<String> args) {
         '--language-version=$languageVersion',
         ...chunk,
       ],
-      stdoutEncoding: systemEncoding,
+      stdoutEncoding: utf8,
       stderrEncoding: systemEncoding,
     );
     // Reported at the path the user can act on. The formatter names the file
     // it was handed, which is inside the staged tree — an output path nobody
     // can edit, and one that buries the workspace path it was copied from.
-    // Its stdout is only the files it would change and a summary, so a clean
-    // run stays silent: Bazel echoes any action output on every build.
     stderr.write(_unstage(result.stderr as String, project));
     if (result.exitCode != 0) {
-      stdout.write(_unstage(result.stdout as String, project));
       failed = true;
+      continue;
     }
 
     // A malformed or unresolvable `include:` does not fail the formatter — it
-    // warns on stderr, exits 0, and silently formats at stock defaults. That
-    // is the same silent-wrong-verdict this check exists to prevent, so the
-    // warning is escalated: a check that quietly stopped honouring the
-    // configured page width must not report green.
+    // warns on stderr, exits 0, and silently formats at stock defaults. Its
+    // output would then be a rewrite to settings nobody configured, so the
+    // warning is escalated rather than the output recorded.
     if (_warned(result.stderr as String)) {
       stderr.writeln(
         'format_runner: `dart format` warned while reading analysis options, '
-        'so the check would have run at stock defaults rather than the '
+        'so it would have formatted at stock defaults rather than the '
         'configured ones. Fix the options file named above.',
       );
       failed = true;
+      continue;
+    }
+
+    // One JSON object a line, for every file it was given, changed or not.
+    for (final line in const LineSplitter().convert(result.stdout as String)) {
+      if (line.isEmpty) continue;
+      final json = jsonDecode(line) as Map<String, dynamic>;
+      final path = json['path'] as String;
+      final source = json['source'] as String;
+      final stagedPath = byPath[path];
+      if (stagedPath == null) {
+        stderr.writeln(
+          'format_runner: `dart format` reported $path, which it '
+          'was not given',
+        );
+        exit(1);
+      }
+      final before = digest(File(path).readAsBytesSync());
+      if (digest(utf8.encode(source)) == before) continue;
+      proposed.add(
+        Change(
+          path: stagedPath.substring('src/'.length),
+          sha256: before,
+          content: source,
+        ),
+      );
     }
   }
 
   if (failed) {
     exit(1);
   }
-  File(stamp).writeAsStringSync('formatted\n');
+  ChangeSet(target: label, changes: proposed).write(changes);
 }
 
 /// Rewrites staged source paths in the formatter's output back to the workspace

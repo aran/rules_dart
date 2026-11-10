@@ -10,8 +10,6 @@ Load this file from your BUILD files to access the following rules:
 - `dart_analysis_options`: An `analysis_options.yaml` plus the packages its `include:` directives resolve against.
 - `dart_analysis_config`: Lists every `dart_analysis_options` for the `dart_analyze` aspect (`//dart:analyze.bzl`), which runs `dart analyze` and the `dart format` check under `bazel test`.
 - `dart_analysis_test`: Runs the `dart_analyze` aspect's checks on named targets `bazel test //...` cannot reach (tagged `manual`, fixtures).
-- `dart_fix`: Applies `dart fix` to a target's own sources via `bazel run`, under the `dart_analyze` aspect's options.
-- `dart_format`: Formats workspace files via `bazel run`, under the options the `dart_analyze` aspect's format check applies.
 - `dart_js_binary`: Compiles a Dart web application to JavaScript.
 - `dart_wasm_binary`: Compiles a Dart web application to WebAssembly.
 - `dart_codegen`: Runs a Dart code generator on source files, producing generated .dart outputs.
@@ -29,8 +27,6 @@ load("//dart/private:dart_analyze_aspect.bzl", _dart_analysis_config = "dart_ana
 load("//dart/private:dart_binary.bzl", _dart_binary = "dart_binary")
 load("//dart/private:dart_code_asset.bzl", _dart_code_asset = "dart_code_asset")
 load("//dart/private:dart_codegen.bzl", _dart_codegen = "dart_codegen")
-load("//dart/private:dart_fix.bzl", _dart_fix = "dart_fix")
-load("//dart/private:dart_format.bzl", _dart_format = "dart_format")
 load("//dart/private:dart_library.bzl", _dart_library = "dart_library")
 load("//dart/private:dart_link_hook.bzl", _dart_link_hook = "dart_link_hook")
 load("//dart/private:dart_package_metadata.bzl", _dart_package_metadata = "dart_package_metadata")
@@ -47,8 +43,6 @@ dart_test = _dart_test
 dart_analysis_options = _dart_analysis_options
 dart_analysis_config = _dart_analysis_config
 dart_analysis_test = _dart_analysis_test
-dart_fix = _dart_fix
-dart_format = _dart_format
 dart_js_binary = _dart_js_binary
 dart_wasm_binary = _dart_wasm_binary
 dart_codegen = _dart_codegen

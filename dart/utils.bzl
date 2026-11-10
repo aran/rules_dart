@@ -130,8 +130,8 @@ dart_info_no_package = _dart_info_no_package
 
 # For an executable rule — a binary, a test — whose entrypoint belongs to no
 # package's `lib/` and so can appear in no `DartInfo`. Returns the wrapper
-# the `dart_analyze` aspect and `dart_fix` read, nesting a `dart_info_no_package()`
-# closure beside those sources. Deliberately not what an executable returns for
+# the `dart_analyze` aspect reads, nesting a `dart_info_no_package()` closure
+# beside those sources. Deliberately not what an executable returns for
 # `deps` to see: `deps` requires `DartInfo`, and a binary is not a dependency.
 dart_analyzable_info = _dart_analyzable_info
 

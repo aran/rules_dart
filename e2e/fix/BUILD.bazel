@@ -1,6 +1,6 @@
 load("@rules_dart//dart:defs.bzl", "dart_analysis_config", "dart_analysis_options")
 
-# The options every `dart_fix` here and the `dart_analyze` aspect share, through
+# The options the fixes and the `dart_analyze` aspect's checks share, through
 # the `analysis_config` flag in `.bazelrc`: fixes are driven by whatever lints
 # are enabled, so only shared options let a fix turn an analysis green.
 dart_analysis_options(

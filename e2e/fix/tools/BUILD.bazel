@@ -8,8 +8,8 @@ exports_files(
 
 # Runs as an action executable, which a source file cannot be.
 dart_binary(
-    name = "check_fixes",
+    name = "check_changes",
     compile_mode = "exe",
-    main = "check_fixes.dart",
+    main = "check_changes.dart",
     visibility = ["//visibility:public"],
 )

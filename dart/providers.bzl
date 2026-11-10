@@ -84,8 +84,7 @@ DartPackageInfo = provider(
 
 DartAnalyzableInfo = provider(
     doc = """An executable target's analyzable closure: everything \
-the `dart_analyze` aspect and `dart_fix` need to stage a project around its \
-entrypoint.
+the `dart_analyze` aspect needs to stage a project around its entrypoint.
 
 Provided by executable rules — `dart_binary`, `dart_test`, `dart_js_binary`, \
 `dart_wasm_binary` here, and downstream by rules whose target is an executable \
@@ -193,7 +192,7 @@ the only alternative — adding the ruleset to the analyzed library's own `deps`
 into every binary and test downstream of it.
 
 Produced by `dart_analysis_options` and consumed by `dart_analysis_config` \
-(for the `dart_analyze` aspect and `dart_format`), which stages these packages for options resolution alone: \
+(for the `dart_analyze` aspect), which stages these packages for options resolution alone: \
 they are resolvable from the project, never themselves analyzed, and never \
 merged into the analyzed target's provider.""",
     fields = {

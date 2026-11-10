@@ -1,0 +1,13 @@
+load("//dart/private:apply_changes.bzl", "apply_changes_binary")
+
+# Applies `dart fix` to the Dart targets the patterns name, under the options
+# their analysis uses:
+#   bazel run @rules_dart//dart/fix -- //app/...
+#   bazel run @rules_dart//dart/fix -- --dry-run //app:lib
+#   bazel run @rules_dart//dart/fix -- --config=deep -- //app/... -//app/gen/...
+# After `--dry-run`, the arguments are `bazel build`'s.
+apply_changes_binary(
+    name = "fix",
+    command = "fix",
+    output_group = "dart_fix_changes",
+)

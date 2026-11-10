@@ -571,7 +571,7 @@ jobs:
             echo "ERROR: build should have failed with a formatting violation"
             exit 1
           fi
-          bazel test //fmt 2>&1 | grep -q "Changed fmt/lib/misformatted.dart"
+          bazel test //fmt 2>&1 | grep -q "Not formatted: fmt/lib/misformatted.dart"
           echo "OK: expected formatting failure detected, at the workspace path"
       - name: analysis_failure — expect an unresolvable format ruleset to fail
         working-directory: e2e/analysis_failure
@@ -709,6 +709,30 @@ jobs:
       - name: Query the whole published module from a consumer
         working-directory: e2e/external_module
         run: bazel query "@rules_dart//..."
+  # `bazel run @rules_dart//dart/fix` and `@rules_dart//dart/format` write into
+  # the source tree, from a `bazel build` they run themselves, so no test can
+  # run them. Each check runs them over its workspace's fixtures and puts the
+  # fixtures back.
+  write-back:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: bazel-contrib/setup-bazel@104e3eea9447cdaa4b00d0fb46191a3985d26ab3 # 0.19.1
+        with:
+          cache-version: ${{ env.CACHE_VERSION }}
+          bazelisk-cache: true
+          repository-cache: true
+      - name: fix — fix two targets in one run, format a 3.6 package
+        working-directory: e2e/fix
+        run: bazel run //write_back
+      - name: analyze_composition — format under another module's ruleset
+        working-directory: e2e/analyze_composition
+        run: bazel run //format_run
   # Every workspace's MODULE.bazel.lock is complete without anyone's
   # .bazelrc.user, the workspaces that fail on purpose included; so is every
   # pubspec.lock outside e2e/; and the bazelrc preset is the one overhead
@@ -755,6 +779,7 @@ jobs:
       - dbg-mode
       - dev-tests
       - consumer-query
+      - write-back
       - lockfiles
       - pre-commit
     runs-on: ubuntu-latest

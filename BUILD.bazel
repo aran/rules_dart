@@ -19,7 +19,7 @@ license(
 )
 
 # Every `analysis_options.yaml` in this repository, for the `dart_analyze`
-# aspect `.bazelrc` applies under `bazel test`, and for `dart_format`.
+# aspect `.bazelrc` applies under `bazel test`.
 dart_analysis_options(
     name = "analysis_options",
     src = "analysis_options.yaml",
@@ -35,9 +35,6 @@ dart_analysis_config(
         "//dart/tests/format_fixture:wide_options",
         "//dart/tests/format_fixture/rel_include:options",
         "//dart/tests/format_fixture/rel_include:sub_options",
-        "//dart/tests/format_run_fixture:options",
-        "//dart/tests/format_run_fixture:sub_options",
-        "//dart/tests/format_run_fixture:undeclared_options",
         "//dart/tests/resource_consumer:options",
     ],
 )

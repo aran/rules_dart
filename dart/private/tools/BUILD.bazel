@@ -54,18 +54,46 @@ dart_binary(
 
 dart_binary(
     name = "fix_runner",
-    srcs = _ANALYZER_SRCS,
+    srcs = _ANALYZER_SRCS + ["changes.dart"],
     compile_mode = "exe",
     main = "fix_runner.dart",
     visibility = ["//dart:__subpackages__"],
-    deps = ["@ext_pub_deps//:bazel_worker"],
+    deps = [
+        "@ext_pub_deps//:bazel_worker",
+        "@ext_pub_deps//:crypto",
+    ],
 )
 
-dart_binary(
-    name = "fix_applier",
-    compile_mode = "exe",
-    main = "fix_applier.dart",
-    visibility = ["//dart:__subpackages__"],
+# The main of `@rules_dart//dart/format` and `@rules_dart//dart/fix`.
+exports_files(
+    [
+        "apply_args.dart",
+        "apply_changes.dart",
+        "changes.dart",
+    ],
+    visibility = [
+        "//dart/fix:__pkg__",
+        "//dart/format:__pkg__",
+    ],
+)
+
+dart_test(
+    name = "apply_args_test",
+    size = "small",
+    srcs = ["apply_args.dart"],
+    main = "apply_args_test.dart",
+    deps = ["@ext_pub_deps//:test"],
+)
+
+dart_test(
+    name = "changes_test",
+    size = "small",
+    srcs = ["changes.dart"],
+    main = "changes_test.dart",
+    deps = [
+        "@ext_pub_deps//:crypto",
+        "@ext_pub_deps//:test",
+    ],
 )
 
 dart_binary(
@@ -160,18 +188,20 @@ dart_test(
 
 dart_binary(
     name = "format_runner",
+    srcs = ["changes.dart"],
     compile_mode = "exe",
     main = "format_runner.dart",
     visibility = ["//dart:__subpackages__"],
+    deps = ["@ext_pub_deps//:crypto"],
 )
 
 dart_binary(
-    name = "format_writer",
-    srcs = ["launcher_config.dart"],
+    name = "format_check",
+    srcs = ["changes.dart"],
     compile_mode = "exe",
-    main = "format_writer.dart",
+    main = "format_check.dart",
     visibility = ["//dart:__subpackages__"],
-    deps = ["//dart/runfiles"],
+    deps = ["@ext_pub_deps//:crypto"],
 )
 
 dart_binary(

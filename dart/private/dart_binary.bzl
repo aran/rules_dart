@@ -185,8 +185,8 @@ def _dart_binary_impl(ctx):
             executable = output,
             compile_mode = compile_mode,
         ),
-        # What makes the `dart_analyze` aspect and `dart_fix` reach this entrypoint
-        # without making this target a legal `deps` entry.
+        # What makes the `dart_analyze` aspect reach this entrypoint without
+        # making this target a legal `deps` entry.
         own.analyzable,
     ] + recorded_uses_info + _import_checks(ctx, own)
 

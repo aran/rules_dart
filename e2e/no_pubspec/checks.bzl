@@ -1,10 +1,12 @@
-"""Analysis-time assertions about the package graph a pub hub exposes.
+"""Assertions about what this workspace's targets carry.
 
 `pub_graph_check` fails analysis (so `bazel build //...` fails) when the target
 it names does not carry the stated package, version or direct dependencies.
-Building it is the test.
+Building it is the test. `fix_changes` hands on the fixes computed for a
+target, for a `diff_test` against a golden.
 """
 
+load("@rules_dart//dart:analyze.bzl", "dart_analyze")
 load("@rules_dart//dart:providers.bzl", "DartInfo")
 
 def _impl(ctx):
@@ -37,4 +39,17 @@ pub_graph_check = rule(
         "direct_deps": attr.string_list(doc = "Package names the target must depend on directly."),
         "versions": attr.string_dict(doc = "package name -> the one version it must resolve to in the target's closure."),
     },
+)
+
+def _fix_changes_impl(ctx):
+    groups = ctx.attr.target[OutputGroupInfo]
+    if not hasattr(groups, "dart_fix_changes"):
+        fail("%s: the dart_analyze aspect offers no fixes for %s" % (ctx.label, ctx.attr.target.label))
+    return [DefaultInfo(files = groups.dart_fix_changes)]
+
+# The fixes `bazel run @rules_dart//dart/fix` would write for `target`, as the
+# changes file the `dart_analyze` aspect computes.
+fix_changes = rule(
+    implementation = _fix_changes_impl,
+    attrs = {"target": attr.label(mandatory = True, aspects = [dart_analyze])},
 )

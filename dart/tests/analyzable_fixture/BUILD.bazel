@@ -1,10 +1,10 @@
-load("@bazel_skylib//rules:build_test.bzl", "build_test")
-load("//dart:defs.bzl", "dart_binary", "dart_fix", "dart_js_binary", "dart_library")
+load("//dart:defs.bzl", "dart_binary", "dart_js_binary", "dart_library")
 load(
     "//dart/tests:analyze_test.bzl",
     "analyzable_provider_test",
     "analyzed_test",
     "binary_not_a_dep_test",
+    "fixable_test",
 )
 
 # A binary whose `main` sits beside `lib/`, importing a library inside it: the
@@ -35,15 +35,10 @@ analyzed_test(
     target = ":bin",
 )
 
-dart_fix(
-    name = "fix_bin",
-    target = ":bin",
-)
-
-build_test(
+fixable_test(
     name = "fix_bin_test",
     size = "small",
-    targets = [":fix_bin"],
+    target = ":bin",
 )
 
 # `manual`: expected to fail analysis. The `*_test` target next to it is what

@@ -245,7 +245,7 @@
     },
     "@@rules_dart+//dart/pub:extensions.bzl%pub": {
       "general": {
-        "bzlTransitiveDigest": "Xmai2miRcJNSYx8K2HFiGpjrnUJ/m85zzS1POQyhaaU=",
+        "bzlTransitiveDigest": "ezZZipZrYqnXp3XD9WLTyQgz42uFH0RvX0EmqlsU93o=",
         "usagesDigest": "5fH/LcwQyezXA8CXtM1dl6FiiYNzDKmaza5wjeaFf50=",
         "recordedInputs": [
           "REPO_MAPPING:rules_dart+,bsd_tar_toolchains_darwin_amd64 tar.bzl++toolchains+bsd_tar_toolchains_darwin_amd64",
@@ -261,17 +261,23 @@
           "REPO_MAPPING:rules_dart+,pubspec_reader_windows-x64 rules_dart++pubspec_reader+pubspec_reader_windows-x64",
           "REPO_MAPPING:rules_dart+,yaml.bzl yaml.bzl+",
           "FILE:@@//pubspec.lock 45c5e418025885c07ef84d6aeaeeb79e99b36f003c62dfd2b145b92b321a4a80",
-          "FILE:@@rules_dart+//dart/ext/pubspec.lock 5980462be7e90baea67ca519fa3bde946bda471f74cd69069aac97bd44767a8d"
+          "FILE:@@rules_dart+//dart/ext/pubspec.lock 289be37155535d8aa66f5ad1abd09a7fff4224e262d79c15e0d2cedd2a313fcb"
         ],
         "generatedRepoSpecs": {
-          "collection": {
-            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_repository.bzl%pub_package",
+          "dart_pub__collection": {
+            "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
             "attributes": {
               "package_name": "collection",
               "version": "1.19.0",
               "sha256": "a1ace0a119f20aabc852d165077c036cd864315bd99b7eaa10a60100341941bf",
               "code_assets": [],
-              "ignore_hook": false,
+              "ignore_hook": false
+            }
+          },
+          "collection": {
+            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
+            "attributes": {
+              "package_name": "collection",
               "spoke_prefix": "dart_pub"
             }
           },
@@ -369,13 +375,16 @@
                 "web_socket_channel": "3.0.3",
                 "webkit_inspection_protocol": "1.2.1",
                 "yaml": "3.1.4",
-                "yaml_edit": "2.2.4"
+                "yaml_edit": "2.2.4",
+                "collection": "1.19.0"
               },
               "explicit_packages": [
                 "collection"
               ],
               "resolved_packages": [],
-              "unsupplied": {}
+              "unsupplied": {},
+              "cycles": [],
+              "advisory_cycles": []
             }
           },
           "dart_pub__async": {

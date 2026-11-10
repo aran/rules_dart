@@ -245,7 +245,7 @@
     },
     "@@rules_dart+//dart/pub:extensions.bzl%pub": {
       "general": {
-        "bzlTransitiveDigest": "Xmai2miRcJNSYx8K2HFiGpjrnUJ/m85zzS1POQyhaaU=",
+        "bzlTransitiveDigest": "ezZZipZrYqnXp3XD9WLTyQgz42uFH0RvX0EmqlsU93o=",
         "usagesDigest": "nB0mkUI+/GyTOc9w6zC59lZ+K2z7LrofTjwX9dkkz3Y=",
         "recordedInputs": [
           "REPO_MAPPING:rules_dart+,bsd_tar_toolchains_darwin_amd64 tar.bzl++toolchains+bsd_tar_toolchains_darwin_amd64",
@@ -261,17 +261,23 @@
           "REPO_MAPPING:rules_dart+,pubspec_reader_windows-x64 rules_dart++pubspec_reader+pubspec_reader_windows-x64",
           "REPO_MAPPING:rules_dart+,yaml.bzl yaml.bzl+",
           "FILE:@@//pubspec.lock 298674f44c03e2e49e05b8e702070ffcea2333802318779cff05a25cde592dfc",
-          "FILE:@@rules_dart+//dart/ext/pubspec.lock 5980462be7e90baea67ca519fa3bde946bda471f74cd69069aac97bd44767a8d"
+          "FILE:@@rules_dart+//dart/ext/pubspec.lock 289be37155535d8aa66f5ad1abd09a7fff4224e262d79c15e0d2cedd2a313fcb"
         ],
         "generatedRepoSpecs": {
-          "nested": {
-            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_repository.bzl%pub_package",
+          "dart_pub__nested": {
+            "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
             "attributes": {
               "package_name": "nested",
               "version": "1.0.0",
               "sha256": "03bac4c528c64c95c722ec99280375a6f2fc708eec17c7b3f07253b626cd2a20",
               "code_assets": [],
-              "ignore_hook": false,
+              "ignore_hook": false
+            }
+          },
+          "nested": {
+            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
+            "attributes": {
+              "package_name": "nested",
               "spoke_prefix": "dart_pub"
             }
           },
@@ -370,7 +376,8 @@
                 "web_socket_channel": "3.0.3",
                 "webkit_inspection_protocol": "1.2.1",
                 "yaml": "3.1.4",
-                "yaml_edit": "2.2.4"
+                "yaml_edit": "2.2.4",
+                "nested": "1.0.0"
               },
               "explicit_packages": [
                 "nested"
@@ -378,7 +385,9 @@
               "resolved_packages": [
                 "flutter"
               ],
-              "unsupplied": {}
+              "unsupplied": {},
+              "cycles": [],
+              "advisory_cycles": []
             }
           },
           "dart_pub___fe_analyzer_shared": {

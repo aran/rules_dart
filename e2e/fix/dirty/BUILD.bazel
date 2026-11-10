@@ -1,6 +1,7 @@
 load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
 load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
-load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_fix", "dart_library", "dart_test")
+load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library")
+load("//tools:changes.bzl", "dart_changes")
 
 # The red end of the red/green pair, and the fixture the whole workspace exists
 # for. Both generated parts carry the same `prefer_final_locals` violation as
@@ -12,8 +13,8 @@ load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_fix", "dart_library", "
 #     anything that was not `is_source`.
 #
 # The hand-written violation is load-bearing, so this library opts out of the
-# `dart_analyze` aspect's check; `dart_fix` still fixes it. //clean is the
-# analyzed half.
+# `dart_analyze` aspect's check; `@rules_dart//dart/fix` still fixes it.
+# //clean is the analyzed half.
 dart_codegen(
     name = "model_g",
     package_name = "fix_dirty",
@@ -43,46 +44,22 @@ dart_library(
     tags = ["no-dart-analyze"],
 )
 
-dart_fix(
-    name = "fix",
+dart_changes(
+    name = "fixes",
+    output_group = "dart_fix_changes",
     target = ":lib",
 )
 
-filegroup(
-    name = "manifest",
-    srcs = [":fix"],
-    output_group = "dart_fix_manifest",
-)
-
-filegroup(
-    name = "fixes",
-    srcs = [":fix"],
-    output_group = "dart_fix_fixes",
-)
-
-# One hand-written file fixed, nothing dropped. A generated file appearing in
-# `fixed` would mean the eligibility check let it through; appearing in
-# `dropped` would mean `dart fix` was still allowed to propose a fix for it.
-diff_test(
-    name = "manifest_test",
-    size = "small",
-    file1 = ":manifest",
-    file2 = "golden/fix_manifest.json",
-)
-
 # The `--content` list is the whole assertion and it is exhaustive: an extra
-# file in the tree fails the build. That is what says a generated file was never
-# written back — a check that only looked for the files it expected would pass
-# just as happily with a stray `.freezed.dart` beside them.
-#
-# Not a `diff_test` against the tree: `diff_test` runs a bare `diff` with no
-# `-r`, which on two directories prints "Common subdirectories" and exits 0.
+# file fails the build, and so does a dropped one. That is what says a
+# generated file was never proposed: one appearing would mean the eligibility
+# check let it through; one dropped, that `dart fix` was still allowed at it.
 run_binary(
     name = "model_fixed",
     srcs = [":fixes"],
     outs = ["model_fixed.dart"],
     args = [
-        "--fixes",
+        "--changes",
         "$(execpath :fixes)",
         "--out",
         "$(execpath model_fixed.dart)",
@@ -91,7 +68,7 @@ run_binary(
         "--path",
         "dirty/lib/model.dart",
     ],
-    tool = "//tools:check_fixes",
+    tool = "//tools:check_changes",
 )
 
 # The golden is //clean's source rather than a checked-in copy, so this asserts
@@ -104,24 +81,4 @@ diff_test(
     size = "small",
     file1 = ":model_fixed.dart",
     file2 = "//clean:lib/model.dart",
-)
-
-# The tests above stop at the build action; this one runs the executable half,
-# pointed at a scratch tree instead of this workspace.
-dart_test(
-    name = "write_back_test",
-    size = "small",
-    args = [
-        "$(rlocationpath :manifest)",
-        "$(rlocationpath :fixes)",
-    ],
-    data = [
-        "lib/model.dart",
-        ":fix",
-        ":fixes",
-        ":manifest",
-        "//clean:lib/model.dart",
-    ],
-    main = "test/write_back_test.dart",
-    deps = ["@rules_dart//dart/runfiles"],
 )

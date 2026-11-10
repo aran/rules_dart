@@ -11,10 +11,12 @@ Enable it in `.bazelrc`, with one `--output_groups` line per check you want:
 `dart_analysis_options` in the repository. Each target named on the command line
 has its own hand-written files checked under the nearest listed
 `analysis_options.yaml`: `dart_analyze` runs the analyzer, and any finding fails
-the build; `dart_format` runs `dart format --set-exit-if-changed` with that
-file's `formatter:` settings, at the language version of the target's own
-package. The flag goes under `common` so `dart_fix` and `dart_format` see the
-same options under `bazel run`.
+the build; `dart_format` fails when `dart format`, with that file's
+`formatter:` settings and at the language version of the target's own package,
+would change it. `bazel run @rules_dart//dart/format -- <patterns>` writes
+those very changes, and `bazel run @rules_dart//dart/fix -- <patterns>` the
+analyzer's fixes; the flag goes under `common` so the build they run sees the
+same options.
 
 Tag a target `no-dart-analyze` to skip its analysis, `no-dart-format` to skip
 its format check. To check a target `bazel test //...` cannot reach (tagged

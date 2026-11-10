@@ -245,8 +245,8 @@
     },
     "@@rules_dart+//dart/pub:extensions.bzl%pub": {
       "general": {
-        "bzlTransitiveDigest": "Xmai2miRcJNSYx8K2HFiGpjrnUJ/m85zzS1POQyhaaU=",
-        "usagesDigest": "V/u2/qfdjsJNAo1ZD6ojmAwHdJC3gFxYhQYOU3fNeQo=",
+        "bzlTransitiveDigest": "ezZZipZrYqnXp3XD9WLTyQgz42uFH0RvX0EmqlsU93o=",
+        "usagesDigest": "kI60etsC+h1rA+hIWaQY3vWEGHUSZUHDVnYnxXjj+To=",
         "recordedInputs": [
           "REPO_MAPPING:,git_fixture +git_fixture+git_fixture",
           "REPO_MAPPING:rules_dart+,bsd_tar_toolchains_darwin_amd64 tar.bzl++toolchains+bsd_tar_toolchains_darwin_amd64",
@@ -262,7 +262,7 @@
           "REPO_MAPPING:rules_dart+,pubspec_reader_windows-x64 rules_dart++pubspec_reader+pubspec_reader_windows-x64",
           "REPO_MAPPING:rules_dart+,yaml.bzl yaml.bzl+",
           "FILE:@@+git_fixture+git_fixture//pubspec.lock 9c2427435a0da540ad98e2f3e90d1f83d212addc7dde73f3fe69b65932aaa94b",
-          "FILE:@@rules_dart+//dart/ext/pubspec.lock 5980462be7e90baea67ca519fa3bde946bda471f74cd69069aac97bd44767a8d"
+          "FILE:@@rules_dart+//dart/ext/pubspec.lock 289be37155535d8aa66f5ad1abd09a7fff4224e262d79c15e0d2cedd2a313fcb"
         ],
         "generatedRepoSpecs": {
           "dart_pub_index": {
@@ -368,7 +368,11 @@
               },
               "explicit_packages": [],
               "resolved_packages": [],
-              "unsupplied": {}
+              "unsupplied": {},
+              "cycles": [
+                "git_cyc_a git_cyc_b"
+              ],
+              "advisory_cycles": []
             }
           },
           "dart_pub__git_root": {
