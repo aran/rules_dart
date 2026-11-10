@@ -274,7 +274,7 @@
           "FILE:@@//lock_a.lock 9ac542f735a2464e7832518796fd06830e0425972257d8dc91ca0cdd0fddd03c",
           "FILE:@@//lock_b.lock a7c08fa860c095b8d5269196461b802c1b8eb8e422273bd6c841ac0cdbc5a271",
           "FILE:@@//lock_newer.lock 5908c71ae0aa6997bc0c0195087affcdb32bbf85f6df468d3e62f492fa7dba70",
-          "FILE:@@rules_dart+//dart/ext/pubspec.lock ae866f3a1d4ebad9a74f9b9efab33c74dfbf904ae0d69dfe94192029d4955188"
+          "FILE:@@rules_dart+//dart/ext/pubspec.lock b83b8233789ba04ccba11ac82b65ad02a9cd3832162c14e04d6312f7cafeb370"
         ],
         "generatedRepoSpecs": {
           "very_good_analysis": {
@@ -295,8 +295,8 @@
                 "async": "2.13.1",
                 "get_it": "9.3.0",
                 "meta": "1.19.0",
-                "_fe_analyzer_shared": "109.0.0",
-                "analyzer": "14.5.0",
+                "_fe_analyzer_shared": "111.0.0",
+                "analyzer": "14.7.0",
                 "analyzer_buffer": "0.3.4",
                 "args": "2.7.0",
                 "bazel_worker": "1.1.5",
@@ -311,37 +311,37 @@
                 "cli_config": "0.2.0",
                 "cli_util": "0.6.0",
                 "clock": "1.1.3",
-                "code_assets": "2.1.0",
+                "code_assets": "2.2.0",
                 "code_builder": "4.13.0",
                 "convert": "3.1.2",
                 "copy_with_extension": "18.0.0",
                 "copy_with_extension_gen": "18.0.0",
                 "coverage": "1.16.0",
-                "crypto": "3.0.7",
+                "crypto": "3.0.8",
                 "dart_style": "3.1.14",
                 "data_assets": "0.20.0",
-                "drift": "2.35.2",
-                "drift_dev": "2.35.1",
+                "drift": "2.35.3",
+                "drift_dev": "2.35.2",
                 "ffi": "2.2.0",
                 "file": "7.0.1",
                 "fixnum": "1.1.1",
-                "freezed": "4.0.2",
+                "freezed": "4.0.3",
                 "freezed_annotation": "3.1.0",
-                "frontend_server_client": "4.1.0",
+                "frontend_server_client": "4.2.0",
                 "glob": "2.2.0",
-                "go_router_builder": "4.5.0",
+                "go_router_builder": "4.5.3",
                 "hooks": "2.2.0",
-                "http_multi_server": "3.2.2",
+                "http_multi_server": "3.2.3",
                 "http_parser": "4.1.2",
                 "io": "1.1.0",
                 "json_annotation": "4.12.0",
-                "json_serializable": "6.14.1",
+                "json_serializable": "6.15.2",
                 "logger": "2.8.0",
                 "logging": "1.3.0",
                 "matcher": "0.12.20",
                 "mime": "2.1.0",
                 "mockito": "5.8.1",
-                "native_toolchain_c": "0.19.5",
+                "native_toolchain_c": "0.19.6",
                 "node_preamble": "2.0.2",
                 "package_config": "3.0.0",
                 "platform": "3.2.0",
@@ -349,20 +349,20 @@
                 "process": "5.0.6",
                 "protobuf": "6.1.0",
                 "pub_semver": "2.2.1",
-                "pubspec_parse": "1.6.0",
+                "pubspec_parse": "1.7.0",
                 "recase": "4.1.0",
                 "record_use": "1.1.1",
-                "shelf": "1.4.2",
+                "shelf": "1.4.3",
                 "shelf_packages_handler": "3.0.2",
-                "shelf_static": "1.1.3",
+                "shelf_static": "1.2.0",
                 "shelf_web_socket": "3.0.0",
                 "source_gen": "4.3.1",
-                "source_helper": "1.3.13",
+                "source_helper": "1.4.0",
                 "source_map_stack_trace": "2.1.2",
                 "source_maps": "0.10.14",
                 "source_span": "1.10.2",
-                "sqlite3": "3.7.1",
-                "sqlparser": "0.45.0",
+                "sqlite3": "3.9.0",
+                "sqlparser": "0.45.1",
                 "stack_trace": "1.12.2",
                 "stacked_generator": "2.0.4",
                 "stacked_shared": "1.4.2",
@@ -376,7 +376,7 @@
                 "typed_data": "1.4.0",
                 "vm_service": "15.4.0",
                 "watcher": "1.2.1",
-                "web": "1.1.1",
+                "web": "1.1.2",
                 "web_socket": "1.0.1",
                 "web_socket_channel": "3.0.3",
                 "webkit_inspection_protocol": "1.2.1",
@@ -484,8 +484,8 @@
             "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
             "attributes": {
               "package_name": "_fe_analyzer_shared",
-              "version": "109.0.0",
-              "sha256": "48e48f73a431eb269eec66d243a63a07ed90ef9417a74047a3b98d52338626ad",
+              "version": "111.0.0",
+              "sha256": "1c5591cc6f252d5f440d96ab87c03e43504be552a3fa49d7cb7563f04c51fb0a",
               "base_url": "https://pub.dev",
               "code_assets": [],
               "ignore_hook": false
@@ -502,8 +502,8 @@
             "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
             "attributes": {
               "package_name": "analyzer",
-              "version": "14.5.0",
-              "sha256": "6d377901d198536b648172974d9d4f277910502cad92193466869cac0ff34990",
+              "version": "14.7.0",
+              "sha256": "6c39bd5486a310e56217bed7cb1691377959f31be4227e41750107db7e6dd55c",
               "base_url": "https://pub.dev",
               "code_assets": [],
               "ignore_hook": false
@@ -772,8 +772,8 @@
             "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
             "attributes": {
               "package_name": "code_assets",
-              "version": "2.1.0",
-              "sha256": "828110d598123b5ea96c00c9f3c72105bf79f8ee36c20a39b26209ade421ec57",
+              "version": "2.2.0",
+              "sha256": "1ef22a0be3af9370bd9481ac76db114db92bfe75d5ca2b2d7bc911764478a4d9",
               "base_url": "https://pub.dev",
               "code_assets": [],
               "ignore_hook": false
@@ -880,8 +880,8 @@
             "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
             "attributes": {
               "package_name": "crypto",
-              "version": "3.0.7",
-              "sha256": "c8ea0233063ba03258fbcf2ca4d6dadfefe14f02fab57702265467a19f27fadf",
+              "version": "3.0.8",
+              "sha256": "e3626ae6270383c9e3a549f34c9e4cd26c09ae6a9adaab2bf4737a00340efdc4",
               "base_url": "https://pub.dev",
               "code_assets": [],
               "ignore_hook": false
@@ -934,8 +934,8 @@
             "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
             "attributes": {
               "package_name": "drift",
-              "version": "2.35.2",
-              "sha256": "ef9598e1785c18db37209e8554fc79aff94632209d384ec98984b9e3184af0f7",
+              "version": "2.35.3",
+              "sha256": "3179e7323b36d1852b42997b92ac72e8abcb61b1d58cfa8c6da9b540ab02a540",
               "base_url": "https://pub.dev",
               "code_assets": [],
               "ignore_hook": false
@@ -952,8 +952,8 @@
             "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
             "attributes": {
               "package_name": "drift_dev",
-              "version": "2.35.1",
-              "sha256": "e0d16aaa21f3408cbe2dd4bfc56c36cea43e53a537e6613b91380c0924b3bd30",
+              "version": "2.35.2",
+              "sha256": "ff4201b38dfbbbc85ffcd85597ad63c7146d2303126241623ebfce89fc4c4bfe",
               "base_url": "https://pub.dev",
               "code_assets": [],
               "ignore_hook": false
@@ -1024,8 +1024,8 @@
             "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
             "attributes": {
               "package_name": "freezed",
-              "version": "4.0.2",
-              "sha256": "3af98c92d7d4dd182ea1393193e69a840fcbaee1f66f1158bd20504e5f3f6f4f",
+              "version": "4.0.3",
+              "sha256": "cb910646cb09265d49077b63b600ef1f5a718c1d6031836432237ddeabae1b12",
               "base_url": "https://pub.dev",
               "code_assets": [],
               "ignore_hook": false
@@ -1060,8 +1060,8 @@
             "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
             "attributes": {
               "package_name": "frontend_server_client",
-              "version": "4.1.0",
-              "sha256": "404dbf9bce29beafbe9dcb19219447b6f7d49900cd42b8d3b7af102b24508e25",
+              "version": "4.2.0",
+              "sha256": "2b56423afc7651a81da53ed3a4f9f51e92572293f54d0d54e19b759f13714849",
               "base_url": "https://pub.dev",
               "code_assets": [],
               "ignore_hook": false
@@ -1096,8 +1096,8 @@
             "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
             "attributes": {
               "package_name": "go_router_builder",
-              "version": "4.5.0",
-              "sha256": "fbadb18697941b5efaa90c6295e81335e59b97bde83d675b4251e91eac1d4882",
+              "version": "4.5.3",
+              "sha256": "95a17e1614b808a627eebe9c4e6dbdd25e6afbdd9476baf58ff5e08081af782a",
               "base_url": "https://pub.dev",
               "code_assets": [],
               "ignore_hook": false
@@ -1132,8 +1132,8 @@
             "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
             "attributes": {
               "package_name": "http_multi_server",
-              "version": "3.2.2",
-              "sha256": "aa6199f908078bb1c5efb8d8638d4ae191aac11b311132c3ef48ce352fb52ef8",
+              "version": "3.2.3",
+              "sha256": "361668bdd71f0ae2dc6d17b75a593520f3c414af6534f9eed1aa72049dd71d18",
               "base_url": "https://pub.dev",
               "code_assets": [],
               "ignore_hook": false
@@ -1204,8 +1204,8 @@
             "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
             "attributes": {
               "package_name": "json_serializable",
-              "version": "6.14.1",
-              "sha256": "e45aefa0324f08c683caafbb94b72837aa6193c61822799c916e45f4a263113d",
+              "version": "6.15.2",
+              "sha256": "cc7822761b40be9237bcaae62b755ffe5453ceff96a0001f1f5f2439251c66f1",
               "base_url": "https://pub.dev",
               "code_assets": [],
               "ignore_hook": false
@@ -1312,8 +1312,8 @@
             "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
             "attributes": {
               "package_name": "native_toolchain_c",
-              "version": "0.19.5",
-              "sha256": "90eaad8059ebc2004a63810a4696ea9acdb02473e47ed3b6b3bafb100ac77e31",
+              "version": "0.19.6",
+              "sha256": "120b6fc66acd8a5ddeaeb1e59b78836bb3ec9919bd9d9dfb1e2401985710c2c0",
               "base_url": "https://pub.dev",
               "code_assets": [],
               "ignore_hook": false
@@ -1456,8 +1456,8 @@
             "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
             "attributes": {
               "package_name": "pubspec_parse",
-              "version": "1.6.0",
-              "sha256": "c38b81cbf34450b67e0265d73433569d12e34782e30ed769c9cc99c9d5f2e796",
+              "version": "1.7.0",
+              "sha256": "9ac81c01ffd6a9cf9b2713288834fbaaf6aebde05ffdf02d380e68b8e06f27d8",
               "base_url": "https://pub.dev",
               "code_assets": [],
               "ignore_hook": false
@@ -1510,8 +1510,8 @@
             "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
             "attributes": {
               "package_name": "shelf",
-              "version": "1.4.2",
-              "sha256": "e7dd780a7ffb623c57850b33f43309312fc863fb6aa3d276a754bb299839ef12",
+              "version": "1.4.3",
+              "sha256": "e75e9cf311d7fd712048038cc17c25199c38536c20330d53e7db058b543d5a48",
               "base_url": "https://pub.dev",
               "code_assets": [],
               "ignore_hook": false
@@ -1546,8 +1546,8 @@
             "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
             "attributes": {
               "package_name": "shelf_static",
-              "version": "1.1.3",
-              "sha256": "c87c3875f91262785dade62d135760c2c69cb217ac759485334c5857ad89f6e3",
+              "version": "1.2.0",
+              "sha256": "480504af9e5323899c5be26a4f6c2fc4437d50954d39842f0290f4ae733d57b4",
               "base_url": "https://pub.dev",
               "code_assets": [],
               "ignore_hook": false
@@ -1600,8 +1600,8 @@
             "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
             "attributes": {
               "package_name": "source_helper",
-              "version": "1.3.13",
-              "sha256": "5e6f216fdf6376c9f3852381ae037499797a3385377d388b011dac98d303c67c",
+              "version": "1.4.0",
+              "sha256": "279126bce72de3f2b7d4756408a4157988cf6bb4815be551bf55851aa00e9984",
               "base_url": "https://pub.dev",
               "code_assets": [],
               "ignore_hook": false
@@ -1672,8 +1672,8 @@
             "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
             "attributes": {
               "package_name": "sqlite3",
-              "version": "3.7.1",
-              "sha256": "144132790ec1947fad9f3ddceffd0af2ab80a1f0d1e81a4d094ee6707ec3df0b",
+              "version": "3.9.0",
+              "sha256": "b1ec21d306ddbec59a88ae3682ad81728561f7105db78fea0fdd67f06911a519",
               "base_url": "https://pub.dev",
               "code_assets": [
                 "@rules_dart//dart/ext/sqlite3:code_asset"
@@ -1692,8 +1692,8 @@
             "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
             "attributes": {
               "package_name": "sqlparser",
-              "version": "0.45.0",
-              "sha256": "772bb2f6f5bce0631a60f26b57d6e8882e1105c22345b05c163ee6ee5d7ba32d",
+              "version": "0.45.1",
+              "sha256": "8121dae2c5de4a1e39153d95c55f7fd1816e32d1232fe270bc415a4a370d6e47",
               "base_url": "https://pub.dev",
               "code_assets": [],
               "ignore_hook": false
@@ -1944,8 +1944,8 @@
             "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
             "attributes": {
               "package_name": "web",
-              "version": "1.1.1",
-              "sha256": "868d88a33d8a87b18ffc05f9f030ba328ffefba92d6c127917a2ba740f9cfe4a",
+              "version": "1.1.2",
+              "sha256": "e119e82ac4795c7925103b7cf3768191f33941b99e7ccffbd6c645201d9f606b",
               "base_url": "https://pub.dev",
               "code_assets": [],
               "ignore_hook": false
