@@ -1541,7 +1541,7 @@ def dart_kernel_action(
 
     # The front end reads only the files it is named: its snapshot, the
     # runtime and the platform.
-    direct = [main, kernel_sdk.runtime, kernel_sdk.frontend_server, platform.platform]
+    direct = [main, kernel_sdk.aot_runtime, kernel_sdk.frontend_server, platform.platform]
     if package_config != None:
         direct.append(package_config)
     if native_assets != None:
@@ -1549,7 +1549,7 @@ def dart_kernel_action(
 
     launch = ctx.actions.args()
     launch.add("frontend")
-    launch.add("--runtime", kernel_sdk.runtime)
+    launch.add("--runtime", kernel_sdk.aot_runtime)
     launch.add("--")
     ctx.actions.run(
         executable = kernel_tool,

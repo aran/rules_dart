@@ -52,7 +52,7 @@ def _alt_vm_impl(ctx):
         ctx.actions.symlink(output = alt[key], target_file = found[key], is_executable = key == "runtime")
     return [DartKernelSdkInfo(
         target = "vm",
-        runtime = alt["runtime"],
+        aot_runtime = alt["runtime"],
         kernel_worker = None,
         frontend_server = alt["frontend_server"],
         runtimes = {

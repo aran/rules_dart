@@ -413,7 +413,7 @@ def _compile_modules(ctx, sdk, kernel_tool, name, srcs, packages, own_packages, 
     # function body leaves as they were, so Bazel reuses their compiles.
     outlines = out
     outputs = [out, manifest]
-    tools = [sdk.kernel_worker, sdk.runtime]
+    tools = [sdk.kernel_worker, sdk.aot_runtime]
     outline_tool = getattr(sdk, "outline_tool", None)
     if outline_tool != None:
         outlines = ctx.actions.declare_directory(out.basename + _OUTLINES, sibling = out)
@@ -426,7 +426,7 @@ def _compile_modules(ctx, sdk, kernel_tool, name, srcs, packages, own_packages, 
         executable = kernel_tool,
         arguments = ["module", _snapshot_args(ctx, sdk.kernel_worker), args],
         inputs = depset(
-            srcs + [package_config, sdk.libraries_spec, module_runtime(sdk).platform, sdk.kernel_worker, sdk.runtime],
+            srcs + [package_config, sdk.libraries_spec, module_runtime(sdk).platform, sdk.kernel_worker, sdk.aot_runtime],
             transitive = [modules.outlines, modules.manifests, sdk.tool_files],
         ),
         # The SDK's compiler is a tool, so that a different one (a new SDK, a
@@ -452,7 +452,7 @@ def _compile_modules(ctx, sdk, kernel_tool, name, srcs, packages, own_packages, 
     )
 
 def _add_sdk_args(args, sdk):
-    args.add("--runtime", sdk.runtime)
+    args.add("--runtime", sdk.aot_runtime)
     args.add("--platform", module_runtime(sdk).platform)
     args.add("--target", sdk.target)
 
@@ -747,7 +747,7 @@ def dart_entry_kernel_action(
     args.add_all(module_runtime(sdk).defines + defines, before_each = "--define")
     if track_creation_locations:
         args.add("--track-creation-locations")
-    inputs = [main, package_config, module_runtime(sdk).platform, sdk.frontend_server, sdk.runtime]
+    inputs = [main, package_config, module_runtime(sdk).platform, sdk.frontend_server, sdk.aot_runtime]
     if native_assets_yaml != None:
         args.add("--native-assets", native_assets_yaml)
         inputs.append(native_assets_yaml)
@@ -872,7 +872,7 @@ def _vm_kernel_sdk_impl(ctx):
         fail("could not find %s in the Dart %s SDK at %s" % (", ".join(missing), sdk.version, root))
     return [DartKernelSdkInfo(
         target = "vm",
-        runtime = found["runtime"],
+        aot_runtime = found["runtime"],
         kernel_worker = found["kernel_worker"],
         frontend_server = found["frontend_server"],
         # The platform `dart compile` chooses for each runtime: the JIT VM

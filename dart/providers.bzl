@@ -220,7 +220,7 @@ has a JIT and a product runtime, Flutter a debug, a profile and a release \
 one. `runtimes` names each, and a compile asks for one by its name.""",
     fields = {
         "target": "str: The front end's target name (`vm`, `flutter`).",
-        "runtime": "File: The `dartaotruntime` that runs the snapshots.",
+        "aot_runtime": "File: The `dartaotruntime` that runs the snapshots.",
         "kernel_worker": "File or None: `kernel_worker_aot.dart.snapshot`, which compiles modules. None for a platform that compiles whole programs only.",
         "frontend_server": "File: `frontend_server_aot.dart.snapshot`, which compiles an executable's entrypoint and whole programs.",
         "runtimes": "dict[str, struct]: The kinds of runtime a kernel can be compiled for, by name (`jit` and `product` for the VM), each made by `dart_kernel_runtime()`: the platform `.dill` a kernel for that runtime compiles against, in whose directory the front end finds the SDK; the environment declarations that runtime fixes, e.g. `dart.vm.product=true`; and the front-end flags a whole-program compile for it takes.",
