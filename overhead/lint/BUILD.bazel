@@ -1,6 +1,9 @@
+load("@rules_dart//dart:defs.bzl", "dart_binary")
+
 # The tools the pre-commit hooks run, at the versions in //:multitool.lock.json,
 # run in the checkout root so that the paths prek passes resolve:
 #   bazel run @overhead//lint:typos -- <file>...
+# actionlint is the exception: it needs a shellcheck, so it is a wrapper below.
 alias(
     name = "typos",
     actual = "@multitool//tools/typos:workspace_root",
@@ -25,4 +28,21 @@ alias(
     name = "prek",
     actual = "@multitool//tools/prek:workspace_root",
     visibility = ["//visibility:public"],
+)
+
+# actionlint on the workflow files, with the shellcheck this module pins:
+#   bazel run @overhead//lint:actionlint -- <workflow file>...
+dart_binary(
+    name = "actionlint",
+    args = [
+        "$(rlocationpath @multitool//tools/actionlint)",
+        "$(rlocationpath @multitool//tools/shellcheck)",
+    ],
+    data = [
+        "@multitool//tools/actionlint",
+        "@multitool//tools/shellcheck",
+    ],
+    main = "actionlint.dart",
+    visibility = ["//visibility:public"],
+    deps = ["@rules_dart//dart/runfiles"],
 )

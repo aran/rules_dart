@@ -26,7 +26,9 @@ Every tool runs from the repository's checkout root, with `bazel run`.
 ## Commit hooks
 
 The hooks run overhead's tools without Bazel, from `.bazel_env/bin` in the
-checkout root: `check-commit-messages`, `typos`, `yamlfmt` and `dart`.
+checkout root: `check-commit-messages`, `buildifier`, `typos`, `yamlfmt`,
+`actionlint` and `dart`. None downloads anything when a hook runs: each is pinned
+in `multitool.lock.json`.
 `//:bazel_env` builds them there:
 
 ```shell
@@ -44,11 +46,36 @@ In `.pre-commit-config.yaml`, a repository:
 
 - calls `.bazel_env/bin/<tool>` from local hooks in the `pre-commit` and
   `commit-msg` stages, and puts `.bazel_env` in `.gitignore`;
-- repeats the pre-commit ones in the `manual` stage through `bazel run`
-  (`@overhead//lint:typos`, `@overhead//lint:yamlfmt`), with
-  `default_stages: [pre-commit, manual]`, so that CI and Windows, where
-  bazel_env does not run, check the same files without it:
-  `bazel run @overhead//lint:prek -- run --all-files --hook-stage manual`.
+- repeats the pre-commit ones in the `manual` stage through
+  `bazel run --enable_runfiles` (`@overhead//lint:buildifier`,
+  `@overhead//lint:typos`, `@overhead//lint:yamlfmt`, `@overhead//lint:actionlint`), with
+  `default_stages: [pre-commit, manual]`, so that Windows, where bazel_env
+  does not run, checks the same files without it. The flag is there because
+  the Windows launchers of the tools pinned in `multitool.lock.json` need a
+  runfiles tree, which Windows does not make by default:
+
+  ```shell
+  bazel run --enable_runfiles @overhead//lint:prek -- run --all-files --hook-stage manual
+  ```
+
+  The manual hooks take 20 files per command (`pass_filenames: 20`): the
+  launchers are `.bat` files, which cmd.exe limits to 8191 characters, and prek
+  would otherwise batch to the operating system's 32k.
+
+  Git for Windows checks files out with CRLF unless the repository says
+  otherwise, and yamlfmt rewrites them to LF. A consumer needs
+  `* text=auto eol=lf` in its `.gitattributes`, so that every checkout is LF.
+
+CI builds the tools once and runs the hooks as a commit does, rather than the
+manual stage, which starts a Bazel client per hook and batch of files:
+
+```shell
+bazel run --noincompatible_auto_exec_groups @overhead//:bazel_env -- update-symlink
+bazel run --noincompatible_auto_exec_groups @overhead//lint:prek -- run --all-files
+```
+
+`update-symlink` builds `.bazel_env` without the setup report, which exits
+non-zero where the tools are not on `PATH`.
 
 rules_dart's `.pre-commit-config.yaml` is the example.
 
