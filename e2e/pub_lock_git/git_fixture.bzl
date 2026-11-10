@@ -119,6 +119,14 @@ def _impl(rctx):
     put(mono, "pkgs/cyc_a/lib/git_cyc_a.dart", "import 'package:git_cyc_b/git_cyc_b.dart';\n\nString a() => 'a';\nString viaB() => b();\n")
     put(mono, "pkgs/cyc_b/pubspec.yaml", _pubspec("git_cyc_b", ["git_cyc_a"]))
     put(mono, "pkgs/cyc_b/lib/git_cyc_b.dart", "import 'package:git_cyc_a/git_cyc_a.dart';\n\nString b() => 'b';\nString viaA() => a();\n")
+
+    # License files: the repository's own, outside every package, is none of
+    # theirs; `license` is not `LICENSE`, even on a disk that cannot tell them
+    # apart; and a directory named `NOTICES` is not a file.
+    put(mono, "LICENSE", "repository\n")
+    put(mono, "pkgs/sub/LICENSE", "git_sub\n")
+    put(mono, "pkgs/cyc_a/license", "git_cyc_a\n")
+    put(mono, "pkgs/cyc_b/NOTICES/README", "git_cyc_b\n")
     sub_v1 = _commit(rctx, env, mono, "v1", links)
     put(mono, "pkgs/sub/lib/git_sub.dart", "String revision() => 'v2';\n")
     mono_v2 = _commit(rctx, env, mono, "v2", links)
@@ -128,6 +136,8 @@ def _impl(rctx):
     single = _repo(rctx, env, "single")
     put(single, "pubspec.yaml", _pubspec("git_root"))
     put(single, "lib/git_root.dart", "String revision() => 'r1';\n")
+    put(single, "LICENSE", "git_root license\n")
+    put(single, "NOTICES", "git_root notices\n")
     root_r1 = _commit(rctx, env, single, "r1")
     put(single, "lib/git_root.dart", "String revision() => 'r2';\n")
     _commit(rctx, env, single, "r2")

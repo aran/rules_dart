@@ -262,7 +262,7 @@
     },
     "@@rules_dart+//dart/pub:extensions.bzl%pub": {
       "general": {
-        "bzlTransitiveDigest": "NowyjBEBbmDT+wcToq9IeaEgkf9wUhLbxGF5yWkp+bI=",
+        "bzlTransitiveDigest": "SiJNv7e1XDIMxdctfuHA58eVFe52txrkXFvAjmPWnic=",
         "usagesDigest": "7FFgTkfOlGIz5uy1eDsYzPB34cvOE6GIG4vSma/q3RI=",
         "recordedInputs": [
           "REPO_MAPPING:rules_dart+,pubspec_reader_linux-arm64 rules_dart++pubspec_reader+pubspec_reader_linux-arm64",

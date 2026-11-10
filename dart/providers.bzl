@@ -76,6 +76,7 @@ DartPackageInfo = provider(
         "code_assets": "tuple[DartCodeAssetInfo]: Native code assets this package owns. A tuple rather than a list because `DartPackageInfo` is carried in a depset, whose elements must be hashable.",
         "has_unreplaced_hook": "str: Path of a `hook/build.dart` this package ships that has no Bazel replacement (empty when none). Recorded at repo generation; acted on by `dart_binary`/`dart_test`.",
         "link_hook": "File or None: The package's `hook/link.dart`, which `dart_link_hook` runs. Optional; `None` when the package has none, and absent from a record built by a producer predating the field.",
+        "license_file": "File or None: The package's license text — for a pub package, the `NOTICES` file at its root if it has one, else its `LICENSE`, the file `flutter build` collects for the license page. Optional; `None` when the package has none, and absent from a record built by a producer predating the field. Read it with `package_license_file()` from `//dart:utils.bzl`.",
     },
 )
 

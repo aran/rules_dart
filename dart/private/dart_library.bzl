@@ -238,6 +238,7 @@ def _dart_library_impl(ctx):
             has_unreplaced_hook = ctx.attr.has_unreplaced_hook,
             version = ctx.attr.version,
             link_hook = ctx.file.link_hook,
+            license_file = ctx.file.license_file,
         )],
         deps = ctx.attr.deps,
         srcs = own_srcs,
@@ -294,6 +295,13 @@ release build links. Must be the file at `hook/link.dart` under the package root
 `pub.from_lock()` for pub packages that ship one. Its imports are ordinary `deps` of the \
 package, as pub requires.""",
             allow_single_file = [".dart"],
+        ),
+        "license_file": attr.label(
+            doc = """The package's license text, which a bundler collects into an app's \
+license page (rules_flutter builds Flutter's from it). Set by `pub.from_lock()` to the \
+package's root `NOTICES`, or `LICENSE` when it has none. Every target contributing to one \
+package must name the same file or none.""",
+            allow_single_file = True,
         ),
         "has_unreplaced_hook": attr.string(
             doc = """Path of a pub build hook (`hook/build.dart`) this \

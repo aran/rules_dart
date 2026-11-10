@@ -1,4 +1,5 @@
 load("@rules_dart//dart:defs.bzl", "dart_test")
+load(":checks.bzl", "license_check")
 
 # Property: `pub.from_lock()` fetches git packages as `dart pub get` would on a
 # host with no git configuration of its own: at the locked commit, from the
@@ -20,5 +21,23 @@ dart_test(
         "@deps//:git_root",
         "@deps//:git_sub",
         "@rules_dart//dart/runfiles",
+    ],
+)
+
+# Property: each package names the license `flutter build` would report it
+# under: the `NOTICES` at its root over its `LICENSE`, by exact name, and none
+# when it has neither.
+license_check(
+    name = "license_files",
+    license_files = {
+        "git_cyc_a": "",
+        "git_cyc_b": "",
+        "git_root": "NOTICES",
+        "git_sub": "LICENSE",
+    },
+    deps = [
+        "@deps//:git_cyc_a",
+        "@deps//:git_root",
+        "@deps//:git_sub",
     ],
 )

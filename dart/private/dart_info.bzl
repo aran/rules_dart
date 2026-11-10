@@ -209,7 +209,8 @@ def dart_package_info(
         code_assets = [],
         has_unreplaced_hook = "",
         version = "",
-        link_hook = None):
+        link_hook = None,
+        license_file = None):
     """Builds the `DartPackageInfo` a package's own facts make, checking its code assets.
 
     The one place a record is constructed from what a rule states; a record
@@ -234,6 +235,8 @@ def dart_package_info(
       version: The package's own resolved version, or "" when unknown. Only pub
         packages know it; a hand-written `dart_library` leaves it empty.
       link_hook: The package's `hook/link.dart` File, or None.
+      license_file: The package's license text File, or None. Wherever it
+        lives: a license is read for its text, not for its place.
 
     Returns:
       A `DartPackageInfo`.
@@ -254,6 +257,7 @@ def dart_package_info(
         code_assets = tuple(own_assets),
         has_unreplaced_hook = has_unreplaced_hook,
         link_hook = link_hook,
+        license_file = license_file,
     )
 
 def _dep_packages(deps):
@@ -390,7 +394,7 @@ def dart_analyzable_info_with_packages(
         package_srcs = depset(package_srcs),
     )
 
-def derived_package_info(pkg, lib_root = None, code_assets = None, link_hook = None):
+def derived_package_info(pkg, lib_root = None, code_assets = None, link_hook = None, license_file = None):
     """Copies `pkg`, overriding the named fields and carrying the rest through.
 
     Deriving one package record from another — `colocate_packages` rewriting
@@ -412,6 +416,7 @@ def derived_package_info(pkg, lib_root = None, code_assets = None, link_hook = N
       lib_root: Replacement `lib_root`, or `None` to keep `pkg`'s.
       code_assets: Replacement `code_assets` tuple, or `None` to keep `pkg`'s.
       link_hook: Replacement `link_hook` File, or `None` to keep `pkg`'s.
+      license_file: Replacement `license_file` File, or `None` to keep `pkg`'s.
 
     Returns:
       A `DartPackageInfo`.
@@ -430,6 +435,7 @@ def derived_package_info(pkg, lib_root = None, code_assets = None, link_hook = N
         ),
         has_unreplaced_hook = getattr(pkg, "has_unreplaced_hook", ""),
         link_hook = getattr(pkg, "link_hook", None) if link_hook == None else link_hook,
+        license_file = getattr(pkg, "license_file", None) if license_file == None else license_file,
     )
 
 def _merged_dart_info(

@@ -25,6 +25,7 @@ load(
     _generate_package_config = "generate_package_config",
     _generate_package_config_content = "generate_package_config_content",
     _package_code_assets = "package_code_assets",
+    _package_license_file = "package_license_file",
     _resolve_code_assets = "resolve_code_assets",
     _runfiles_path = "runfiles_path",
 )
@@ -175,6 +176,12 @@ code_asset_identity = _code_asset_identity
 collect_transitive_code_assets = _collect_transitive_code_assets
 package_code_assets = _package_code_assets
 resolve_code_assets = _resolve_code_assets
+
+# The license text of one `DartPackageInfo`, or `None`, for a bundler building
+# an app's license page. Read it off `collect_packages()`'s records, not the raw
+# `transitive_packages`: two records for one package may differ in whether they
+# name it, and the merge keeps the one that does.
+package_license_file = _package_license_file
 
 # The execution requirements of an action that may run once for every
 # configuration building the same thing (`--experimental_output_paths=strip`):

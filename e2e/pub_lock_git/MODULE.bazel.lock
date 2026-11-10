@@ -262,7 +262,7 @@
     },
     "@@rules_dart+//dart/pub:extensions.bzl%pub": {
       "general": {
-        "bzlTransitiveDigest": "NowyjBEBbmDT+wcToq9IeaEgkf9wUhLbxGF5yWkp+bI=",
+        "bzlTransitiveDigest": "SiJNv7e1XDIMxdctfuHA58eVFe52txrkXFvAjmPWnic=",
         "usagesDigest": "V/u2/qfdjsJNAo1ZD6ojmAwHdJC3gFxYhQYOU3fNeQo=",
         "recordedInputs": [
           "REPO_MAPPING:,git_fixture +git_fixture+git_fixture",
@@ -272,7 +272,7 @@
           "REPO_MAPPING:rules_dart+,pubspec_reader_macos-x64 rules_dart++pubspec_reader+pubspec_reader_macos-x64",
           "REPO_MAPPING:rules_dart+,pubspec_reader_windows-x64 rules_dart++pubspec_reader+pubspec_reader_windows-x64",
           "REPO_MAPPING:rules_dart+,yaml.bzl yaml.bzl+",
-          "FILE:@@+git_fixture+git_fixture//pubspec.lock 24f19024b17c59165fabc14da3800d1d6f60ff00b5b35bbace7bfdd33103ed2d",
+          "FILE:@@+git_fixture+git_fixture//pubspec.lock 9c2427435a0da540ad98e2f3e90d1f83d212addc7dde73f3fe69b65932aaa94b",
           "FILE:@@rules_dart+//dart/ext/pubspec.lock ae866f3a1d4ebad9a74f9b9efab33c74dfbf904ae0d69dfe94192029d4955188"
         ],
         "generatedRepoSpecs": {
@@ -387,7 +387,7 @@
               "package_name": "git_root",
               "version": "1.0.0",
               "url": "root.git",
-              "resolved_ref": "a72b422099132e8d6a9854bd8acaa3fd5f31c580",
+              "resolved_ref": "dd64d8bed16a38d20818e1a2d44d0891e260892b",
               "path": ".",
               "lock": "@@+git_fixture+git_fixture//:pubspec.lock",
               "code_assets": [],
@@ -407,7 +407,7 @@
               "package_name": "git_cyc_a",
               "version": "1.0.0",
               "url": "remote.git",
-              "resolved_ref": "733eed9abcede61c3bd9dae3dfa7a68e1b394f6f",
+              "resolved_ref": "9a32f80628c560c9c94bdcb6e359ba87c851d948",
               "path": "pkgs/cyc_a",
               "lock": "@@+git_fixture+git_fixture//:pubspec.lock",
               "code_assets": [],
@@ -427,7 +427,7 @@
               "package_name": "git_cyc_b",
               "version": "1.0.0",
               "url": "remote.git",
-              "resolved_ref": "733eed9abcede61c3bd9dae3dfa7a68e1b394f6f",
+              "resolved_ref": "9a32f80628c560c9c94bdcb6e359ba87c851d948",
               "path": "pkgs/cyc_b",
               "lock": "@@+git_fixture+git_fixture//:pubspec.lock",
               "code_assets": [],
@@ -447,7 +447,7 @@
               "package_name": "git_sub",
               "version": "1.0.0",
               "url": "remote.git",
-              "resolved_ref": "c25ecdd600a6a4744a3ed37bf4ba31c02e91f3ca",
+              "resolved_ref": "2c44373d732a91d98479dceb0f83df332587dc91",
               "path": "pkgs/sub",
               "lock": "@@+git_fixture+git_fixture//:pubspec.lock",
               "code_assets": [],

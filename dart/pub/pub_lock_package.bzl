@@ -11,13 +11,14 @@ Also re-exports public Starlark helpers for other Bazel rule sets (notably
 rules_flutter's `flutter_pub_package`, the `flutter pub get` analog):
 `fetch_pub_archive` (with `check_pub_archive_sha256`) fetches a hosted package
 and `fetch_pub_git` (with `check_pub_git_resolved_ref`) a git package exactly
-as rules_dart's own pub rules do, and `make_dart_library_build_content` emits
-the same `dart_library` shape for non-plugin packages.
+as rules_dart's own pub rules do, `find_pub_license_file` finds its license
+file as `flutter build` does, and `make_dart_library_build_content` emits the
+same `dart_library` shape for non-plugin packages.
 """
 
 load("//dart/pub:pub_graph.bzl", "write_pubspec_dependencies")
 load("//dart/pub:pubspec.bzl", "read_pubspec")
-load("//dart/pub/private:build_content.bzl", _classify_pub_hooks = "classify_pub_hooks", _make_dart_library_build_content = "make_dart_library_build_content", _make_pub_member_build_content = "make_pub_member_build_content")
+load("//dart/pub/private:build_content.bzl", _classify_pub_hooks = "classify_pub_hooks", _find_pub_license_file = "find_pub_license_file", _make_dart_library_build_content = "make_dart_library_build_content", _make_pub_member_build_content = "make_pub_member_build_content")
 load("//dart/pub/private:language_version.bzl", _derive_language_version = "derive_language_version")
 load("//dart/pub/private:pub_archive.bzl", _check_pub_archive_sha256 = "check_pub_archive_sha256", _fetch_pub_archive = "fetch_pub_archive")
 load("//dart/pub/private:pub_git.bzl", _check_pub_git_resolved_ref = "check_pub_git_resolved_ref", _fetch_pub_git = "fetch_pub_git")
@@ -27,6 +28,7 @@ load("//dart/pub/private:pub_git.bzl", _check_pub_git_resolved_ref = "check_pub_
 # buildifier's bzl-visibility check, so we expose it via this public file.
 derive_language_version = _derive_language_version
 make_dart_library_build_content = _make_dart_library_build_content
+find_pub_license_file = _find_pub_license_file
 fetch_pub_archive = _fetch_pub_archive
 check_pub_archive_sha256 = _check_pub_archive_sha256
 fetch_pub_git = _fetch_pub_git
@@ -64,6 +66,7 @@ def _write_member(ctx):
         has_unreplaced_hook = hooks.unreplaced_hook,
         version = ctx.attr.version,
         link_hook = hooks.link_hook,
+        license_file = _find_pub_license_file(ctx),
     ))
     return ctx.repo_metadata(reproducible = True)
 

@@ -1,0 +1,18 @@
+load("//dart/pub:pub_library.bzl", "pub_library", "pub_package_member")
+
+pub_package_member(
+    name = "member",
+    package_name = "license_file_member",
+    srcs = ["lib/member.dart"],
+    language_version = "3.0",
+    license_file = "LICENSE",
+    tags = ["manual"],
+    visibility = ["//dart/tests/license_file_fixture:__pkg__"],
+)
+
+pub_library(
+    name = "library",
+    members = [":member"],
+    tags = ["manual"],
+    visibility = ["//dart/tests/license_file_fixture:__pkg__"],
+)

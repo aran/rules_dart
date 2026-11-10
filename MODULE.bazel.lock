@@ -294,7 +294,7 @@
   "moduleExtensions": {
     "//dart/pub:extensions.bzl%pub": {
       "general": {
-        "bzlTransitiveDigest": "NowyjBEBbmDT+wcToq9IeaEgkf9wUhLbxGF5yWkp+bI=",
+        "bzlTransitiveDigest": "SiJNv7e1XDIMxdctfuHA58eVFe52txrkXFvAjmPWnic=",
         "usagesDigest": "0+3c4sSN2vc7x1/y7HdP42yAhA9LS1h/fRTJdUpRt4g=",
         "recordedInputs": [
           "REPO_MAPPING:,pubspec_reader_linux-arm64 +pubspec_reader+pubspec_reader_linux-arm64",

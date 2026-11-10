@@ -1,7 +1,7 @@
 """Repository rule for downloading a single pub.dev package."""
 
 load("//dart/pub:pubspec.bzl", "read_pubspec")
-load("//dart/pub/private:build_content.bzl", "make_dart_library_build_content")
+load("//dart/pub/private:build_content.bzl", "find_pub_license_file", "make_dart_library_build_content")
 load("//dart/pub/private:language_version.bzl", "derive_language_version")
 load("//dart/pub/private:pub_archive.bzl", "fetch_pub_archive")
 
@@ -29,6 +29,7 @@ def _pub_package_impl(ctx):
         version = ctx.attr.version,
         # A link hook is runnable by `dart_link_hook`, so it is recorded.
         link_hook = "hook/link.dart" if ctx.path("hook/link.dart").exists else "",
+        license_file = find_pub_license_file(ctx),
     )
 
     ctx.file("BUILD.bazel", build_content)

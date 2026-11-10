@@ -76,6 +76,34 @@ def package_link_hook(pkg):
     """
     return getattr(pkg, "link_hook", None)
 
+def package_license_file(pkg):
+    """A `DartPackageInfo`'s license text, tolerating older producers.
+
+    Args:
+      pkg: A `DartPackageInfo`.
+
+    Returns:
+      The license File, or `None` when the package has none or the record
+      predates the field.
+    """
+    return getattr(pkg, "license_file", None)
+
+def _license_key(pkg):
+    """What two records' license files must share to name the same license.
+
+    The path within the package, not the File: two pub hubs supplying one
+    package each fetch its archive, so their records name different Files
+    (`../hub_a__ffi/LICENSE`, `../hub_b__ffi/LICENSE`) for the same text. A
+    file outside the package root is compared by its own path.
+    """
+    f = package_license_file(pkg)
+    if f == None:
+        return ""
+    prefix = pkg.lib_root + "/" if pkg.lib_root else ""
+    if prefix and f.short_path.startswith(prefix):
+        return f.short_path[len(prefix):]
+    return f.short_path
+
 def collect_code_asset_files(deps):
     """Merges `DartInfo.transitive_code_asset_files` across deps.
 
@@ -150,6 +178,14 @@ then re-run `dart pub get` / `flutter pub get` in each workspace. Every package
 that disagrees is listed, so one reconciliation settles all of them.
 
 rules_dart does not support multiple versions of a package.
+"""
+
+_LICENSE_FILE_REMEDY = """
+Each package listed just above has records naming different license files, so
+which license text the package is reported with would be decided by dependency
+order. Name the same file on every target contributing to the package
+(`dart_library.license_file`, or `license_file` of `dart_package_info()` or
+`dart_package_member_info()`), or name it on one and leave the others unset.
 """
 
 _LANGUAGE_VERSION_REMEDY = """
@@ -316,7 +352,10 @@ def package_agreement_error(merged):
     including the agreeing ones; treating it as "knows less" is what lets the
     field be adopted one producer at a time.
 
-    Every disagreement is reported at once, across both fields, because the
+    The license file is compared by its path within the package rather than as
+    a File, for the reason `_license_key` gives.
+
+    Every disagreement is reported at once, across every field, because the
     cause is almost always one skew producing many of them: a pair of lock
     files that drifted apart disagrees about every package whose version moved
     between them. Naming only the first turns one reconciliation into a round
@@ -337,14 +376,15 @@ def package_agreement_error(merged):
       duplicate agrees.
     """
     blocks = []
-    for field, label, remedy in (
-        ("version", "versions", _VERSION_REMEDY),
-        ("language_version", "language versions", _LANGUAGE_VERSION_REMEDY),
+    for read, label, remedy in (
+        (lambda pkg: getattr(pkg, "version", ""), "versions", _VERSION_REMEDY),
+        (lambda pkg: getattr(pkg, "language_version", ""), "language versions", _LANGUAGE_VERSION_REMEDY),
+        (_license_key, "license files", _LICENSE_FILE_REMEDY),
     ):
         # value -> lib_root of the first record stating it, per package name.
         stated = {}
         for pkg in merged:
-            value = getattr(pkg, field, "")
+            value = read(pkg)
             if not value:
                 continue
             seen = stated.setdefault(pkg.package_name, {})
@@ -394,7 +434,7 @@ def merge_package_records(merged):
 
     First-record-wins is only safe once the records are known to agree, so this
     calls `package_agreement_error` first and fails when two of them state
-    different `version`s or `language_version`s. `has_unreplaced_hook` stays
+    different `version`s, `language_version`s or `license_file`s. `has_unreplaced_hook` stays
     order-decided and deliberately unchecked: unlike the other two it is derived
     at repo generation rather than stated by a developer, and two hubs can
     legitimately disagree — one curating `code_assets` so the hook counts as
@@ -425,10 +465,13 @@ def merge_package_records(merged):
         else:
             kept = packages[index]
             adopt_hook = package_link_hook(pkg) != None and package_link_hook(kept) == None
-            if not package_code_assets(pkg) and not adopt_hook:
+            adopt_license = package_license_file(pkg) != None and package_license_file(kept) == None
+            if not package_code_assets(pkg) and not adopt_hook and not adopt_license:
                 continue
 
-            # Only the assets and a missing link hook merge; every other field
+            # Only the assets, a missing link hook and a missing license merge
+            # (the license only once the agreement check has passed, so it can
+            # differ only by being absent); every other field
             # stays the kept record's. The link hook is adopted for the same
             # reason the assets are: a package split across targets may carry
             # its `hook/link.dart` on any one of them, and dropping it would
@@ -442,6 +485,7 @@ def merge_package_records(merged):
                 kept,
                 code_assets = package_code_assets(kept) + package_code_assets(pkg),
                 link_hook = package_link_hook(pkg) if adopt_hook else None,
+                license_file = package_license_file(pkg) if adopt_license else None,
             )
     return packages
 

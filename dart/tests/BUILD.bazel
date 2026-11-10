@@ -7,6 +7,7 @@ load(":defines_test.bzl", "defines_test_suite")
 load(":import_check_test.bzl", "import_check_test_suite")
 load(":language_version_test.bzl", "language_version_test_suite")
 load(":library_test.bzl", "library_test_suite")
+load(":license_file_test.bzl", "license_file_test_suite")
 load(":link_hook_test.bzl", "link_hook_test_suite")
 load(":native_assets_test.bzl", "native_assets_test_suite")
 load(":project_staging_test.bzl", "project_staging_test_suite")
@@ -60,6 +61,8 @@ language_version_test_suite(name = "language_version_test")
 library_test_suite(name = "library_test")
 
 link_hook_test_suite(name = "link_hook_test")
+
+license_file_test_suite(name = "license_file_test")
 
 pub_archive_test_suite(name = "pub_archive_test")
 

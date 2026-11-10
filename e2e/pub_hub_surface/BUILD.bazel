@@ -8,6 +8,7 @@ exports_files(["pubspec.lock"])
 
 pub_graph_check(
     name = "lock_only_package_is_exposed",
+    license_files = {"async": "LICENSE"},
     target = "@surface//:async",
     versions = {"async": "2.13.1"},
 )
@@ -20,6 +21,7 @@ pub_graph_check(
 
 pub_graph_check(
     name = "locked_and_declared_package_is_exposed_at_declared_version",
+    license_files = {"collection": "LICENSE"},
     target = "@surface//:collection",
     versions = {"collection": "1.19.0"},
 )

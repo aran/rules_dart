@@ -54,7 +54,44 @@ def classify_pub_hooks(has_build_hook, has_link_hook, build_hook_handled):
         link_hook = "hook/link.dart" if has_link_hook else "",
     )
 
-def make_dart_library_build_content(name, deps, language_version, code_assets = [], has_unreplaced_hook = "", version = "", link_hook = ""):
+def choose_pub_license_file(root_files):
+    """Picks a pub package's license file from the names of its root's files.
+
+    `flutter build` reports each package under the text of the file `NOTICES`
+    at its root if there is one, else `LICENSE`: exact names, compared by
+    case. Pure, so the choice is tested apart from a disk.
+
+    Args:
+        root_files: Names of the regular files at the package root.
+
+    Returns:
+        `NOTICES`, `LICENSE`, or "" when it has neither.
+    """
+    for name in ("NOTICES", "LICENSE"):
+        if name in root_files:
+            return name
+    return ""
+
+def find_pub_license_file(rctx):
+    """Finds the license file of the pub package at a repository's root.
+
+    Reads the directory listing rather than testing whether `NOTICES` exists:
+    on a case-insensitive disk (macOS's, by default) a test for `LICENSE` is
+    true of a file named `license`, which `flutter build` would not read.
+
+    Args:
+        rctx: The repository context, with the package extracted at its root.
+
+    Returns:
+        The file's name, for `license_file`; "" when it has none.
+    """
+    return choose_pub_license_file([
+        p.basename
+        for p in rctx.path(".").readdir()
+        if not p.is_dir
+    ])
+
+def make_dart_library_build_content(name, deps, language_version, code_assets = [], has_unreplaced_hook = "", version = "", link_hook = "", license_file = ""):
     """Generate the BUILD.bazel content for a single `dart_library` spoke.
 
     The shape — `srcs = glob(["lib/**/*.dart"], allow_empty = True)`, the
@@ -95,6 +132,9 @@ def make_dart_library_build_content(name, deps, language_version, code_assets = 
         link_hook: Package-relative path of the package's link hook
             (`hook/link.dart`), or empty. Trailing with a default for the same
             reason as `version`.
+        license_file: Package-relative path of the package's license file
+            (`find_pub_license_file()`), or empty. Trailing with a default for
+            the same reason as `version`.
 
     Returns:
         BUILD.bazel content as a string.
@@ -117,6 +157,8 @@ def make_dart_library_build_content(name, deps, language_version, code_assets = 
     if link_hook:
         link_hook_block = '    link_hook = "{}",\n'.format(link_hook)
 
+    license_block = _string_block("license_file", license_file)
+
     version_block = ""
     if version:
         version_block = '    version = "{}",\n'.format(version)
@@ -125,7 +167,7 @@ def make_dart_library_build_content(name, deps, language_version, code_assets = 
 dart_library(
     name = "{target}",
     srcs = glob(["lib/**/*.dart"], allow_empty = True),
-{assets}{deps}{hook}{link_hook}{version}    package_name = "{name}",
+{assets}{deps}{hook}{license}{link_hook}{version}    package_name = "{name}",
     resources = glob(
         ["lib/**"],
         exclude = ["lib/**/*.dart"],
@@ -143,6 +185,7 @@ dart_library(
         assets = assets_block,
         deps = deps_block,
         hook = hook_block,
+        license = license_block,
         link_hook = link_hook_block,
         version = version_block,
         language_version = language_version,
@@ -162,7 +205,7 @@ def _list_block(attr, items):
 def _string_block(attr, value):
     return '    {} = "{}",\n'.format(attr, value) if value else ""
 
-def make_pub_member_build_content(name, language_version, version, code_assets = [], has_unreplaced_hook = "", link_hook = ""):
+def make_pub_member_build_content(name, language_version, version, code_assets = [], has_unreplaced_hook = "", link_hook = "", license_file = ""):
     """The BUILD file of a `pub.from_lock()` package's source repository.
 
     It states what the package's own archive says — its files, language
@@ -178,6 +221,7 @@ def make_pub_member_build_content(name, language_version, version, code_assets =
         code_assets: `dart_code_asset` labels replacing its build hook.
         has_unreplaced_hook: Its unreplaced build hook's path, or "".
         link_hook: `hook/link.dart` if it has one, or "".
+        license_file: Its license file (`find_pub_license_file()`), or "".
 
     Returns:
         BUILD.bazel content.
@@ -192,7 +236,7 @@ pub_package_member(
         allow_empty = True,
     ),
     package_name = "{name}",
-{assets}{hook}{link_hook}    language_version = "{language_version}",
+{assets}{hook}{license}{link_hook}    language_version = "{language_version}",
     version = "{version}",
     visibility = ["//visibility:public"],
 )
@@ -200,6 +244,7 @@ pub_package_member(
         name = name,
         assets = _list_block("code_assets", code_assets),
         hook = _string_block("has_unreplaced_hook", has_unreplaced_hook),
+        license = _string_block("license_file", license_file),
         link_hook = _string_block("link_hook", link_hook),
         language_version = language_version,
         version = version,
