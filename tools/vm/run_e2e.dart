@@ -14,7 +14,7 @@
 /// `toolchain_pin_conflict`,
 /// `pub_lock_unpinned`, `pub_lock_git_unpinned`, `pub_lock_git_conflict`,
 /// `pub_lock_git_hosted`, `pub_package_blank_sha`, `pub_package_missing_dep`,
-/// `pub_lock_digest_conflict`, `analysis_failure`, `link_hook`) must fail to
+/// `pub_lock_digest_conflict`, `kernel_source_refused`, `analysis_failure`, `link_hook`) must fail to
 /// build with a specific error;
 /// they are checked separately on Linux.
 library;
@@ -307,6 +307,21 @@ const _expectedFailureChecks = [
     'e2e/pub_lock_digest_conflict',
     '@deps_a//:path',
     'conflicting sha256 digests across lock files',
+  ),
+  _ExpectedFailure(
+    'e2e/kernel_source_refused',
+    '@both//:outline_tool',
+    'give exactly one of `dart_version` and `path`, both were given',
+  ),
+  _ExpectedFailure(
+    'e2e/kernel_source_refused',
+    '@neither//:outline_tool',
+    'give exactly one of `dart_version` and `path`, neither was',
+  ),
+  _ExpectedFailure(
+    'e2e/kernel_source_refused',
+    '@not_a_checkout//:outline_tool',
+    '/usr/pkg/kernel/pubspec.yaml does not exist',
   ),
   // The `dart_analyze` aspect's red paths, each with an error string no other
   // target shares, so a grep hit cannot be another target's.

@@ -47,6 +47,22 @@ refuses_no_tool_test(
     target_under_test = ":sdk",
 )
 
+# The stripper built on a checkout of the pinned release
+# (`dart_kernel_source(path = ...)`, `//dart/tests:kernel_checkout.bzl`), in
+# place of the one the `dart` extension registers. The outline guard passes with
+# it: `bazel test --config=deep --extra_toolchains=//dart/tests/outline_toolchain_fixture:checkout_toolchain //dart/tests/outline_fixture:outline_guard_test`.
+dart_outline_toolchain(
+    name = "checkout",
+    tool = "@kernel_checkout_source//:outline_tool",
+    version = "3.13.7",
+)
+
+toolchain(
+    name = "checkout_toolchain",
+    toolchain = ":checkout",
+    toolchain_type = "//dart:outline_toolchain_type",
+)
+
 bzl_library(
     name = "rules",
     srcs = ["rules.bzl"],

@@ -311,6 +311,19 @@ jobs:
           fi
           bazel build @provider//:provider 2>&1 | grep -q "nothing supplies \`flutter\`"
           echo "OK: unsupplied pub.package() dependency refused"
+      - name: kernel_source_refused — expect a dart_kernel_source naming both or neither of dart_version and path, or a path that is no checkout, to be refused
+        working-directory: e2e/kernel_source_refused
+        run: |
+          for repo in both neither not_a_checkout; do
+            if bazel build @$repo//:outline_tool 2>/dev/null; then
+              echo "ERROR: build should have refused @$repo"
+              exit 1
+            fi
+          done
+          bazel build @both//:outline_tool 2>&1 | grep -q "give exactly one of \`dart_version\` and \`path\`, both were given"
+          bazel build @neither//:outline_tool 2>&1 | grep -q "give exactly one of \`dart_version\` and \`path\`, neither was"
+          bazel build @not_a_checkout//:outline_tool 2>&1 | grep -q "/usr/pkg/kernel/pubspec.yaml does not exist"
+          echo "OK: dart_kernel_source misuse refused"
       - name: pub_lock_digest_conflict — expect locks disagreeing on a digest to be refused
         working-directory: e2e/pub_lock_digest_conflict
         run: |

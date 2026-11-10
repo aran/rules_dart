@@ -104,3 +104,13 @@ bzl_library(
         "@bazel_skylib//lib:unittest",
     ],
 )
+
+bzl_library(
+    name = "kernel_checkout",
+    srcs = ["kernel_checkout.bzl"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//dart:repositories",
+        "//dart/private:versions",
+    ],
+)

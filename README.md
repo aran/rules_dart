@@ -241,8 +241,10 @@ alone, plus the links of the tests that reach it. In a file that declares a
 mixin, an edit that moves code also recompiles the library's dependents. The
 outlines are made by a stripper built on the source of the same Dart SDK as
 the compiler, which each Dart toolchain registers beside it. With a Dart SDK of
-your own (a fork, a local build), register a `dart_outline_toolchain` built on
-its `pkg/kernel`, or turn outlines off with
+your own (a fork, a local build), register a `dart_outline_toolchain` whose tool
+is the `:outline_tool` of a `dart_kernel_source(path = "<checkout>")`, built
+on the `pkg/kernel` of that SDK's source checkout (`third_party/dart` in a
+Flutter engine checkout), or turn outlines off with
 `--@rules_dart//dart:outline_kernel=false`, and dependents compile against full
 kernels.
 
@@ -1109,45 +1111,46 @@ Every command-line setting rules_dart reads. Set one per invocation or in
 
 The [`e2e/`](e2e/) directory contains complete working examples:
 
-| Example                                                     | What it demonstrates                                                                     |
-| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| [`hello_world`](e2e/hello_world/)                           | Minimal binary + all compile modes (`exe`, `aot-snapshot`, `kernel`, `jit-snapshot`)     |
-| [`no_pubspec`](e2e/no_pubspec/)                             | No `pubspec.yaml` anywhere: codegen, analysis, format, fix, tests, every binary          |
-| [`library_deps`](e2e/library_deps/)                         | Transitive `dart_library` dependencies, `srcs` attribute                                 |
-| [`dart_test`](e2e/dart_test/)                               | Tests with and without deps, `srcs` for test helpers                                     |
-| [`analysis`](e2e/analysis/)                                 | The `dart_analyze` aspect's checks with `package:`-included options                      |
-| [`fix`](e2e/fix/)                                           | `dart_fix` write-back, and that generated files are never rewritten                      |
-| [`analyze_composition`](e2e/analyze_composition/)           | A lint ruleset shared from another Bazel module                                          |
-| [`web_app`](e2e/web_app/)                                   | JavaScript and WebAssembly compilation with library deps                                 |
-| [`web_compiler`](e2e/web_compiler/)                         | Per-compiler code by `select()`, and the resets other modules' rules use                 |
-| [`pub_deps`](e2e/pub_deps/)                                 | Single pub.dev package via `pub.package()`                                               |
-| [`pub_lock`](e2e/pub_lock/)                                 | Multiple packages from `pubspec.lock` via `pub.from_lock()`                              |
-| [`gazelle`](e2e/gazelle/)                                   | Automatic BUILD file generation with Gazelle                                             |
-| [`cross_compile`](e2e/cross_compile/)                       | Cross-compilation to other platforms via `platform_data` transition                      |
-| [`dart_test_pkg`](e2e/dart_test_pkg/)                       | `dart_test` with pub dependencies via `pub.from_lock()`                                  |
-| [`pub_lock_dedup`](e2e/pub_lock_dedup/)                     | Cross-lock-file package deduplication                                                    |
-| [`pub_lock_upgrade`](e2e/pub_lock_upgrade/)                 | Version conflict resolution with `on_version_conflict = "upgrade"`                       |
-| [`pub_lock_conflict`](e2e/pub_lock_conflict/)               | Version conflict detection across lock files                                             |
-| [`pub_lock_cross_module`](e2e/pub_lock_cross_module/)       | `pub.from_lock()` across Bazel module boundaries                                         |
-| [`pub_lock_cycle`](e2e/pub_lock_cycle/)                     | Packages that depend on each other (`dio`, `dio_web_adapter`), on the VM and the web     |
-| [`pub_member_kind`](e2e/pub_member_kind/)                   | Another rule set's own pub package kind, in a cycle, over the public pub surface         |
-| [`toolchain_pin_conflict`](e2e/toolchain_pin_conflict/)     | A root `dart.toolchain` pin below a dependency's request fails, naming the dependency    |
-| [`pub_lock_unsupplied`](e2e/pub_lock_unsupplied/)           | A hosted package depending on an unsupplied sdk package fails, naming it                 |
-| [`pub_lock_resolve`](e2e/pub_lock_resolve/)                 | `resolve` serving a `path` package and replacing a hosted one for the whole graph        |
-| [`pub_lock_resolve_invalid`](e2e/pub_lock_resolve_invalid/) | Unnamed, twice-named and wrongly named `path` packages and a stale `resolve` key fail    |
-| [`pub_lock_path`](e2e/pub_lock_path/)                       | `path` packages built from their pubspec, ignored, or refused for having a BUILD file    |
-| [`pub_hub_surface`](e2e/pub_hub_surface/)                   | Every locked package in its hub, including one declared with `pub.package()`             |
-| [`pub_package_missing_dep`](e2e/pub_package_missing_dep/)   | A `pub.package()` whose pubspec depends on an unsupplied package fails, naming both      |
-| [`pub_override_root_lock`](e2e/pub_override_root_lock/)     | The root's lock wins over a dependency module's `pub.package()`                          |
-| [`pub_package_conflict`](e2e/pub_package_conflict/)         | Two dependency modules' differing `pub.package()`s fail, naming both                     |
-| [`pub_root_older_package`](e2e/pub_root_older_package/)     | A root `pub.package()` below a dependency's fails, naming both versions                  |
-| [`pub_root_older_lock`](e2e/pub_root_older_lock/)           | A root lock below a dependency's `pub.package()` fails, naming both versions             |
-| [`pub_root_older_allowed`](e2e/pub_root_older_allowed/)     | `pub.settings(allow_older_than_dependencies = True)` lets the root hold the older one    |
-| [`pub_root_newer`](e2e/pub_root_newer/)                     | A root lock above a dependency's `pub.package()` wins, warning that it raised it         |
-| [`codegen`](e2e/codegen/)                                   | `dart_codegen`/`dart_aggregate_codegen` over parts, re-exports and source sets           |
-| [`ext_exemplar`](e2e/ext_exemplar/)                         | One package per bundled `dart/ext` builder, plus native `code_assets`, sqlite3/webcrypto |
-| [`dual_build`](e2e/dual_build/)                             | Collision detection between Bazel-generated and `build_runner`-generated sources         |
-| [`link_hook`](e2e/link_hook/)                               | `record_use` and a package's `hook/link.dart` emitting a data asset via `dart_link_hook` |
+| Example                                                     | What it demonstrates                                                                            |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| [`hello_world`](e2e/hello_world/)                           | Minimal binary + all compile modes (`exe`, `aot-snapshot`, `kernel`, `jit-snapshot`)            |
+| [`no_pubspec`](e2e/no_pubspec/)                             | No `pubspec.yaml` anywhere: codegen, analysis, format, fix, tests, every binary                 |
+| [`library_deps`](e2e/library_deps/)                         | Transitive `dart_library` dependencies, `srcs` attribute                                        |
+| [`dart_test`](e2e/dart_test/)                               | Tests with and without deps, `srcs` for test helpers                                            |
+| [`analysis`](e2e/analysis/)                                 | The `dart_analyze` aspect's checks with `package:`-included options                             |
+| [`fix`](e2e/fix/)                                           | `dart_fix` write-back, and that generated files are never rewritten                             |
+| [`analyze_composition`](e2e/analyze_composition/)           | A lint ruleset shared from another Bazel module                                                 |
+| [`web_app`](e2e/web_app/)                                   | JavaScript and WebAssembly compilation with library deps                                        |
+| [`web_compiler`](e2e/web_compiler/)                         | Per-compiler code by `select()`, and the resets other modules' rules use                        |
+| [`pub_deps`](e2e/pub_deps/)                                 | Single pub.dev package via `pub.package()`                                                      |
+| [`pub_lock`](e2e/pub_lock/)                                 | Multiple packages from `pubspec.lock` via `pub.from_lock()`                                     |
+| [`gazelle`](e2e/gazelle/)                                   | Automatic BUILD file generation with Gazelle                                                    |
+| [`cross_compile`](e2e/cross_compile/)                       | Cross-compilation to other platforms via `platform_data` transition                             |
+| [`dart_test_pkg`](e2e/dart_test_pkg/)                       | `dart_test` with pub dependencies via `pub.from_lock()`                                         |
+| [`pub_lock_dedup`](e2e/pub_lock_dedup/)                     | Cross-lock-file package deduplication                                                           |
+| [`pub_lock_upgrade`](e2e/pub_lock_upgrade/)                 | Version conflict resolution with `on_version_conflict = "upgrade"`                              |
+| [`pub_lock_conflict`](e2e/pub_lock_conflict/)               | Version conflict detection across lock files                                                    |
+| [`pub_lock_cross_module`](e2e/pub_lock_cross_module/)       | `pub.from_lock()` across Bazel module boundaries                                                |
+| [`pub_lock_cycle`](e2e/pub_lock_cycle/)                     | Packages that depend on each other (`dio`, `dio_web_adapter`), on the VM and the web            |
+| [`pub_member_kind`](e2e/pub_member_kind/)                   | Another rule set's own pub package kind, in a cycle, over the public pub surface                |
+| [`toolchain_pin_conflict`](e2e/toolchain_pin_conflict/)     | A root `dart.toolchain` pin below a dependency's request fails, naming the dependency           |
+| [`pub_lock_unsupplied`](e2e/pub_lock_unsupplied/)           | A hosted package depending on an unsupplied sdk package fails, naming it                        |
+| [`pub_lock_resolve`](e2e/pub_lock_resolve/)                 | `resolve` serving a `path` package and replacing a hosted one for the whole graph               |
+| [`pub_lock_resolve_invalid`](e2e/pub_lock_resolve_invalid/) | Unnamed, twice-named and wrongly named `path` packages and a stale `resolve` key fail           |
+| [`pub_lock_path`](e2e/pub_lock_path/)                       | `path` packages built from their pubspec, ignored, or refused for having a BUILD file           |
+| [`pub_hub_surface`](e2e/pub_hub_surface/)                   | Every locked package in its hub, including one declared with `pub.package()`                    |
+| [`pub_package_missing_dep`](e2e/pub_package_missing_dep/)   | A `pub.package()` whose pubspec depends on an unsupplied package fails, naming both             |
+| [`kernel_source_refused`](e2e/kernel_source_refused/)       | A `dart_kernel_source` with both or neither of `dart_version` and `path`, or no checkout, fails |
+| [`pub_override_root_lock`](e2e/pub_override_root_lock/)     | The root's lock wins over a dependency module's `pub.package()`                                 |
+| [`pub_package_conflict`](e2e/pub_package_conflict/)         | Two dependency modules' differing `pub.package()`s fail, naming both                            |
+| [`pub_root_older_package`](e2e/pub_root_older_package/)     | A root `pub.package()` below a dependency's fails, naming both versions                         |
+| [`pub_root_older_lock`](e2e/pub_root_older_lock/)           | A root lock below a dependency's `pub.package()` fails, naming both versions                    |
+| [`pub_root_older_allowed`](e2e/pub_root_older_allowed/)     | `pub.settings(allow_older_than_dependencies = True)` lets the root hold the older one           |
+| [`pub_root_newer`](e2e/pub_root_newer/)                     | A root lock above a dependency's `pub.package()` wins, warning that it raised it                |
+| [`codegen`](e2e/codegen/)                                   | `dart_codegen`/`dart_aggregate_codegen` over parts, re-exports and source sets                  |
+| [`ext_exemplar`](e2e/ext_exemplar/)                         | One package per bundled `dart/ext` builder, plus native `code_assets`, sqlite3/webcrypto        |
+| [`dual_build`](e2e/dual_build/)                             | Collision detection between Bazel-generated and `build_runner`-generated sources                |
+| [`link_hook`](e2e/link_hook/)                               | `record_use` and a package's `hook/link.dart` emitting a data asset via `dart_link_hook`        |
 
 > **Note**: Only the `exe` and `aot-snapshot` compile modes cross-compile via
 > `--platforms`. `kernel` and `jit-snapshot` are VM formats that ignore target

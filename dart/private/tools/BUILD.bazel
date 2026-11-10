@@ -362,14 +362,22 @@ exports_files(
     visibility = ["//visibility:public"],
 )
 
-dart_test(
-    name = "kernel_outline_test",
-    size = "small",
-    args = ["$(rlocationpath @dart_kernel_source//:outline_tool)"],
-    data = ["@dart_kernel_source//:outline_tool"],
-    main = "kernel_outline_test.dart",
-    deps = [
-        "//dart/runfiles",
-        "@ext_pub_deps//:test",
-    ],
-)
+# The pinned release's stripper, and the one built on a checkout of the same
+# release (`dart_kernel_source(path = ...)`, `//dart/tests:kernel_checkout.bzl`).
+[
+    dart_test(
+        name = name,
+        size = "small",
+        args = ["$(rlocationpath %s//:outline_tool)" % repo],
+        data = ["%s//:outline_tool" % repo],
+        main = "kernel_outline_test.dart",
+        deps = [
+            "//dart/runfiles",
+            "@ext_pub_deps//:test",
+        ],
+    )
+    for name, repo in {
+        "kernel_outline_test": "@dart_kernel_source",
+        "kernel_outline_checkout_test": "@kernel_checkout_source",
+    }.items()
+]
