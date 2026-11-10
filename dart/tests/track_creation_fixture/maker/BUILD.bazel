@@ -1,0 +1,11 @@
+load("//dart:defs.bzl", "dart_library")
+
+dart_library(
+    name = "maker",
+    package_name = "track_creation_maker",
+    srcs = ["lib/maker.dart"],
+    visibility = ["//dart/tests/track_creation_fixture:__subpackages__"],
+    # As a pub package is: one that must keep the flag all the same.
+    runtime_independent = True,
+    deps = ["//dart/tests/track_creation_fixture/marked"],
+)

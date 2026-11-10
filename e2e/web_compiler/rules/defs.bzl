@@ -18,7 +18,7 @@ load(
     "dart_info",
     "dart_package_info",
     "derive_lib_root",
-    "runtime_reset",
+    "non_dart_transition",
     "runtime_reset_when_independent",
     "web_platforms_transition",
 )
@@ -36,11 +36,12 @@ def _native_module_impl(ctx):
         NativeModuleInfo(modules = depset([out])),
     ]
 
-# Its output cannot depend on the web compiler, so every route into it reaches
+# Nothing of it is compiled Dart, so its output cannot depend on the web
+# compiler or on creation-location tracking, and every route into it reaches
 # one configured target, built once.
 native_module = rule(
     implementation = _native_module_impl,
-    cfg = runtime_reset,
+    cfg = non_dart_transition,
 )
 
 def _module_library_impl(ctx):

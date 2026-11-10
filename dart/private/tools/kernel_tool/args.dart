@@ -25,6 +25,8 @@ const _optionsByCommand = {
 
 /// Options that stand alone, without a value.
 const _flagsByCommand = {
+  'module': {'track-creation-locations'},
+  'entry': {'track-creation-locations'},
   'check': {'check-layering'},
 };
 

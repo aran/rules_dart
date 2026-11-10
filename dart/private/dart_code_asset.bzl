@@ -20,7 +20,7 @@ guessing at them.
 
 load("@rules_cc//cc/common:cc_shared_library_info.bzl", "CcSharedLibraryInfo")
 load("//dart:providers.bzl", "CODE_ASSET_LINK_MODES", "DartCodeAssetInfo")
-load("//dart/private:runtime.bzl", "runtime_reset")
+load("//dart/private:runtime.bzl", "non_dart_transition")
 
 def _extract_dynamic_library(ctx, library_target):
     """Pull the dynamic-library File out of a `cc_shared_library` target.
@@ -95,8 +95,9 @@ def _dart_code_asset_impl(ctx):
 
 dart_code_asset = rule(
     implementation = _dart_code_asset_impl,
-    # Its outputs are the same under every web compiler: built once, with none.
-    cfg = runtime_reset,
+    # Its outputs are the same under every web compiler and whether or not
+    # creation locations are tracked: built once, with neither.
+    cfg = non_dart_transition,
     attrs = {
         "asset_id": attr.string(
             mandatory = True,

@@ -1,0 +1,82 @@
+load("//dart:defs.bzl", "dart_binary", "dart_test")
+load("//dart/tests:track_creation_locations_test.bzl", "track_creation_locations_args_suite")
+load(":track_creation.bzl", "track_creation_locations_run_test")
+
+# A class tracked with `@pragma('track-creation-locations')` in one library,
+# constructed in another and in the executable's own file. `TRACKED` tells the
+# program whether to expect locations, and a transition builds it with the flag
+# on or off, so the suite needs no command-line flag.
+
+_DEPS = [
+    "//dart/tests/track_creation_fixture/maker",
+    "//dart/tests/track_creation_fixture/marked",
+]
+
+dart_test(
+    name = "tracked_dart_test",
+    defines = ["TRACKED=true"],
+    main = "main.dart",
+    tags = ["manual"],
+    deps = _DEPS,
+)
+
+dart_test(
+    name = "untracked_dart_test",
+    defines = ["TRACKED=false"],
+    main = "main.dart",
+    tags = ["manual"],
+    deps = _DEPS,
+)
+
+dart_binary(
+    name = "tracked_binary",
+    defines = ["TRACKED=true"],
+    main = "main.dart",
+    tags = ["manual"],
+    deps = _DEPS,
+)
+
+dart_binary(
+    name = "untracked_binary",
+    defines = ["TRACKED=false"],
+    main = "main.dart",
+    tags = ["manual"],
+    deps = _DEPS,
+)
+
+# `dart_test` takes the modular path: a module per library, then the entry.
+track_creation_locations_run_test(
+    name = "modular_tracked_test",
+    size = "small",
+    actual = ":tracked_dart_test",
+    track = True,
+)
+
+track_creation_locations_run_test(
+    name = "modular_untracked_test",
+    size = "small",
+    actual = ":untracked_dart_test",
+    track = False,
+)
+
+# `dart_binary` compiles the whole program from source.
+track_creation_locations_run_test(
+    name = "binary_tracked_test",
+    size = "small",
+    actual = ":tracked_binary",
+    track = True,
+)
+
+track_creation_locations_run_test(
+    name = "binary_untracked_test",
+    size = "small",
+    actual = ":untracked_binary",
+    track = False,
+)
+
+# The arguments of the compile actions.
+track_creation_locations_args_suite(
+    name = "args_test",
+    binary = ":tracked_binary",
+    test = ":tracked_dart_test",
+)

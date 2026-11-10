@@ -6,6 +6,11 @@ co-location. These are used by both rules_dart and rules_flutter.
 """
 
 load(
+    "//dart/private:build_settings.bzl",
+    _TRACK_CREATION_LOCATIONS_ATTR = "TRACK_CREATION_LOCATIONS_ATTR",
+    _track_creation_locations = "track_creation_locations",
+)
+load(
     "//dart/private:common.bzl",
     _PATH_MAPPING = "PATH_MAPPING",
     _add_kernel_roots = "add_kernel_roots",
@@ -66,6 +71,7 @@ load(
     "//dart/private:runtime.bzl",
     _RUNTIME_INDEPENDENT_ATTR = "RUNTIME_INDEPENDENT_ATTR",
     _WEB_PLATFORM_SETTINGS = "WEB_PLATFORM_SETTINGS",
+    _non_dart_transition = "non_dart_transition",
     _runtime_reset = "runtime_reset",
     _runtime_reset_when_independent = "runtime_reset_when_independent",
     _web_platform_config_settings = "web_platform_config_settings",
@@ -201,6 +207,11 @@ parse_data_asset_ids = _parse_data_asset_ids
 # `add_kernel_roots` address sources through the same `org-dartlang-root:///`
 # roots the modules were compiled with.
 #
+# `--@rules_dart//dart:track_creation_locations` must be the same for the modules
+# and the entrypoint: the aspect reads it itself, and a rule passes
+# `track_creation_locations(ctx)` to `dart_entry_kernel_action`, merging
+# `TRACK_CREATION_LOCATIONS_ATTR` into its `attrs`.
+#
 # Those compiles, and the import checks below, run in the `PORTABLE` execution
 # group, on any host with a Dart SDK (`EXEC_TOOLS_TOOLCHAIN`), and the kernel
 # tool is built for that host: a rule merging `KERNEL_TOOL_ATTR` declares
@@ -215,6 +226,8 @@ dart_link_kernel_action = _dart_link_kernel_action
 kernel_package_config = _kernel_package_config
 add_kernel_roots = _add_kernel_roots
 KERNEL_TOOL_ATTR = _KERNEL_TOOL_ATTR
+TRACK_CREATION_LOCATIONS_ATTR = _TRACK_CREATION_LOCATIONS_ATTR
+track_creation_locations = _track_creation_locations
 PORTABLE = _PORTABLE
 PORTABLE_EXEC_GROUPS = _PORTABLE_EXEC_GROUPS
 EXEC_TOOLS_TOOLCHAIN = _EXEC_TOOLS_TOOLCHAIN
@@ -232,16 +245,24 @@ DART_TOOLCHAIN_TYPES_ATTR = _DART_TOOLCHAIN_TYPES_ATTR
 dart_import_check_aspect = _dart_import_check_aspect
 import_check_validation = _import_check_validation
 
-# The web compiler, a constraint of the target platform
-# (`@rules_dart//dart/constraints:runtime`: `none`, `js`, `wasm`).
-# A rule whose outputs cannot depend on it — a native library, a code
-# generator, a module built by another language's toolchain — takes
-# `cfg = runtime_reset`, so every route into it, from a web binary or not,
-# reaches one configured target, built once. A rule some of whose targets are
-# compiler-independent and some not (one that wraps both pub packages and
-# first-party code) merges `RUNTIME_INDEPENDENT_ATTR` into its `attrs` and
-# takes `cfg = runtime_reset_when_independent`, which resets the targets
-# that set `runtime_independent = True`, as `dart_library` does.
+# The runtime, a constraint of the target platform
+# (`@rules_dart//dart/constraints:runtime`: `vm`, `js`, `wasm`), and
+# `--@rules_dart//dart:track_creation_locations` change what Dart compiles to.
+# A rule nothing of which is compiled Dart — a native library, a code
+# generator, a data asset, a module built by another language's toolchain —
+# takes `cfg = non_dart_transition`, which resets both, so every route into it,
+# from a web binary or a test tracking creation locations or neither, reaches
+# one configured target, built once. A Dart library must keep
+# `track_creation_locations`, since its kernel modules are compiled in its own
+# configuration and must match every other module of the program. One that is
+# the same under every web compiler (a pub package) takes
+# `cfg = runtime_reset`, which resets the runtime alone. A rule some
+# of whose targets are compiler-independent and some not (one that wraps both
+# pub packages and first-party code) merges `RUNTIME_INDEPENDENT_ATTR`
+# into its `attrs` and takes `cfg = runtime_reset_when_independent`, which
+# resets the runtime of the targets that set
+# `runtime_independent = True`, as `dart_library` does.
+non_dart_transition = _non_dart_transition
 runtime_reset = _runtime_reset
 runtime_reset_when_independent = _runtime_reset_when_independent
 RUNTIME_INDEPENDENT_ATTR = _RUNTIME_INDEPENDENT_ATTR

@@ -10,7 +10,7 @@ the test compiles only its own files against them and links the program (see
 
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("//dart:providers.bzl", "DartCodeAssetInfo", "DartInfo", "DartKernelSdkInfo")
-load("//dart/private:build_settings.bzl", "EXTRA_DART_DEFINES_ATTR", "merge_vm_dart_defines")
+load("//dart/private:build_settings.bzl", "EXTRA_DART_DEFINES_ATTR", "TRACK_CREATION_LOCATIONS_ATTR", "merge_vm_dart_defines", "track_creation_locations")
 load(
     "//dart/private:common.bzl",
     "DART_ABI_CONSTRAINT_ATTRS",
@@ -83,6 +83,7 @@ def _dart_test_impl(ctx):
             product = True,
             defines = merge_vm_dart_defines(ctx),
             native_assets_yaml = native_assets_yaml,
+            track_creation_locations = track_creation_locations(ctx),
         )
     else:
         _link_modules(ctx, sdk, main, packages, own, native_assets_yaml, dill)
@@ -198,6 +199,7 @@ def _link_modules(ctx, sdk, main, packages, own, native_assets_yaml, dill):
         own_package = own.record,
         defines = merge_vm_dart_defines(ctx),
         native_assets_yaml = native_assets_yaml,
+        track_creation_locations = track_creation_locations(ctx),
     )
     dart_link_kernel_action(ctx, ctx.executable._kernel_tool, entry, linked, dill)
 
@@ -386,7 +388,7 @@ told where a runfile is (resolve it with `Runfiles.rlocation()`).""",
             executable = True,
             cfg = "target",
         ),
-    }, **dict(DART_ABI_CONSTRAINT_ATTRS, **dict(EXTRA_DART_DEFINES_ATTR, **dict(MODULE_EXECUTABLE_ATTRS, **EXECUTABLE_PACKAGE_ATTRS)))),
+    }, **dict(DART_ABI_CONSTRAINT_ATTRS, **dict(EXTRA_DART_DEFINES_ATTR, **dict(TRACK_CREATION_LOCATIONS_ATTR, **dict(MODULE_EXECUTABLE_ATTRS, **EXECUTABLE_PACKAGE_ATTRS))))),
     test = True,
     # The compiles are `portable`. The run is Bazel's own `test` group, which
     # puts it on a host matching the target: everything it runs, the VM and

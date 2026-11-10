@@ -58,7 +58,7 @@ load(
     "synth_package_config",
 )
 load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS", "portable_sdk")
-load("//dart/private:runtime.bzl", "runtime_reset")
+load("//dart/private:runtime.bzl", "non_dart_transition")
 
 def _dart_aggregate_codegen_impl(ctx):
     identity = resolve_package_identity(ctx)
@@ -169,8 +169,9 @@ def _dart_aggregate_codegen_impl(ctx):
 
 dart_aggregate_codegen = rule(
     implementation = _dart_aggregate_codegen_impl,
-    # Its outputs are the same under every web compiler: built once, with none.
-    cfg = runtime_reset,
+    # Its outputs are the same under every web compiler and whether or not
+    # creation locations are tracked: built once, with neither.
+    cfg = non_dart_transition,
     attrs = {
         "srcs": attr.label_list(
             doc = "All source files the builder analyses. The first " +

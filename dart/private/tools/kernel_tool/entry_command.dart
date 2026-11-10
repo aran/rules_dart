@@ -82,6 +82,7 @@ Future<int> runEntry(Args args) async {
       '--target',
       args.optional('target') ?? 'vm',
       for (final d in args.all('define')) '-D$d',
+      if (args.flag('track-creation-locations')) '--track-creation-locations',
       '--filesystem-scheme',
       rootScheme,
       for (final root in roots) ...['--filesystem-root', root],

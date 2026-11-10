@@ -100,7 +100,7 @@ compiler_roots(
 )
 
 # Codegen, native modules (this module's `native_module`, reset with
-# `runtime_reset`) and a library marked `runtime_independent` (this
+# `non_dart_transition`) and a library marked `runtime_independent` (this
 # module's `module_library`) are built once, in the plain build's
 # configuration, under both compilers.
 shared_test(

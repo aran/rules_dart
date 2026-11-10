@@ -103,6 +103,8 @@ Future<int> runModule(
           '--dart-sdk-summary',
           args.one('platform'),
           for (final d in args.all('define')) '-D$d',
+          if (args.flag('track-creation-locations'))
+            '--track-creation-locations',
           '--multi-root-scheme',
           rootScheme,
           for (final root in roots) ...['--multi-root', root],

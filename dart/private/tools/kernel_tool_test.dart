@@ -1067,6 +1067,26 @@ import 'package:app/own.dart';
       );
     });
 
+    test('takes --track-creation-locations without a value', () {
+      for (final command in ['module', 'entry']) {
+        final args = Args.parse(command, [
+          '--track-creation-locations',
+          '--label',
+          'a',
+        ]);
+        expect(args.flag('track-creation-locations'), isTrue, reason: command);
+        expect(args.one('label'), 'a');
+        expect(
+          Args.parse(command, []).flag('track-creation-locations'),
+          isFalse,
+        );
+      }
+      expect(
+        () => Args.parse('link', ['--track-creation-locations']),
+        throwsA(isA<UsageException>()),
+      );
+    });
+
     test('a bad command line is a failed run', () async {
       expect(await runKernelTool(['module', '--nope', 'x']), 64);
     });

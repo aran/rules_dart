@@ -13,6 +13,23 @@ dart_defines_flag(
     visibility = ["//visibility:public"],
 )
 
+# Whether every Dart kernel compile for the VM runs the front end's
+# creation-location transform (`--track-creation-locations`, also known as
+# `--track-widget-creation`): a class that is tracked (Flutter's `Widget`, or
+# any annotated `@pragma('track-creation-locations')`) takes a hidden location
+# argument in its constructors, and each call site passes where it is. The
+# setting has to be the same for every library of a program and its entrypoint,
+# and one flag is what guarantees that. Off (the default), no argument is passed.
+# `scope = "target"` keeps build tools, which compile in the exec configuration,
+# out of it. Not for `dart2js` or `dart2wasm`.
+#   bazel test //... --@rules_dart//dart:track_creation_locations
+bool_flag(
+    name = "track_creation_locations",
+    build_setting_default = False,
+    scope = "target",
+    visibility = ["//visibility:public"],
+)
+
 # Whether `dart_test` compiles each library once into kernel modules and links
 # the ones a test reaches (the default), or compiles every test's whole program
 # from source. Turned off build-wide only, as an escape hatch:
@@ -151,6 +168,7 @@ bzl_library(
     srcs = ["utils.bzl"],
     visibility = ["//visibility:public"],
     deps = [
+        "//dart/private:build_settings",
         "//dart/private:common",
         "//dart/private:dart_info",
         "//dart/private:dart_library",

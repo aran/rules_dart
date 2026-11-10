@@ -54,14 +54,14 @@ def _roots(info):
     return roots
 
 _RootsInfo = provider(
-    doc = "Output roots of a library's generated files, reached with no web compiler and with js.",
-    fields = ["plain", "js"],
+    doc = "Output roots of a library's generated files, reached plainly and in another configuration.",
+    fields = ["plain", "other"],
 )
 
 def _roots_under_js_impl(ctx):
     return [_RootsInfo(
         plain = _roots(ctx.attr.library[DartInfo]),
-        js = _roots(ctx.attr.library_under_js[0][DartInfo]),
+        other = _roots(ctx.attr.library_under_js[0][DartInfo]),
     )]
 
 # Reaches one library twice: as a plain build does, and as `dart_js_binary`
@@ -83,7 +83,7 @@ def _resets_test_impl(ctx):
         asserts.equals(
             env,
             roots.plain.get(name),
-            roots.js.get(name),
+            roots.other.get(name),
             "%s should be built once, with no web compiler, whether a web binary reaches it or not" % name,
         )
 
@@ -91,7 +91,7 @@ def _resets_test_impl(ctx):
     # compiler, so the roots above are not equal by accident.
     asserts.true(
         env,
-        roots.js.get("forked.dart") not in [None, roots.plain.get("forked.dart")],
+        roots.other.get("forked.dart") not in [None, roots.plain.get("forked.dart")],
         "forked.dart should be configured for js, got roots %s" % roots,
     )
     return analysistest.end(env)
@@ -99,6 +99,54 @@ def _resets_test_impl(ctx):
 # Pub-style libraries marked `runtime_independent`, codegen and code assets
 # fall back to the configuration with no web compiler, so each is built once.
 resets_test = analysistest.make(_resets_test_impl)
+
+_TRACK = str(Label("//dart:track_creation_locations"))
+
+def _track_impl(_settings, _attr):
+    return {_TRACK: True}
+
+_track = transition(implementation = _track_impl, inputs = [], outputs = [_TRACK])
+
+def _roots_tracked_impl(ctx):
+    return [_RootsInfo(
+        plain = _roots(ctx.attr.library[DartInfo]),
+        other = _roots(ctx.attr.library_tracked[0][DartInfo]),
+    )]
+
+# Reaches one library twice, with `track_creation_locations` off and on, as a
+# build of an app and of a Flutter test beside it does.
+roots_tracked = rule(
+    implementation = _roots_tracked_impl,
+    attrs = {
+        "library": attr.label(providers = [DartInfo]),
+        "library_tracked": attr.label(providers = [DartInfo], cfg = _track),
+    },
+)
+
+def _tracking_resets_test_impl(ctx):
+    env = analysistest.begin(ctx)
+    roots = analysistest.target_under_test(env)[_RootsInfo]
+    for name in ["model.g.dart", "code asset"]:
+        asserts.equals(
+            env,
+            roots.plain.get(name),
+            roots.other.get(name),
+            "%s cannot depend on track_creation_locations, so should be built once" % name,
+        )
+
+    # Libraries are compiled to kernel modules in their own configuration, so
+    # they keep the flag, pub-style independent ones too: a module compiled
+    # without the transform would not link with one compiled with it.
+    for name in ["independent.dart", "forked.dart"]:
+        asserts.true(
+            env,
+            roots.other.get(name) not in [None, roots.plain.get(name)],
+            "%s should be configured with track_creation_locations on, got roots %s" % (name, roots.other),
+        )
+    return analysistest.end(env)
+
+# Codegen and code assets turn `track_creation_locations` off; libraries keep it.
+tracking_resets_test = analysistest.make(_tracking_resets_test_impl)
 
 _JS_SETTINGS = web_platform_config_settings(Label("//dart/platforms:js"))
 

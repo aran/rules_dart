@@ -1,7 +1,7 @@
 """Implementation of the dart_binary rule."""
 
 load("//dart:providers.bzl", "DartCodeAssetInfo", "DartCompileInfo", "DartInfo", "DartRecordedUsesInfo")
-load("//dart/private:build_settings.bzl", "EXTRA_DART_DEFINES_ATTR", "merge_vm_dart_defines")
+load("//dart/private:build_settings.bzl", "EXTRA_DART_DEFINES_ATTR", "TRACK_CREATION_LOCATIONS_ATTR", "merge_vm_dart_defines", "track_creation_locations")
 load(
     "//dart/private:common.bzl",
     "DART_ABI_CONSTRAINT_ATTRS",
@@ -119,6 +119,7 @@ def _dart_binary_impl(ctx):
         # A `kernel` has no second step, so every flag belongs to the first.
         flags = ctx.attr.dart_compile_flags if compile_mode == "kernel" else fe_flags,
         native_assets_yaml = native_assets_yaml,
+        track_creation_locations = track_creation_locations(ctx),
     )
 
     # The compiler records the uses of `@RecordUse` definitions only when it
@@ -348,7 +349,7 @@ def _dart_binary_rule(check_imports, compile_runner = True, launcher = True):
     `kernel` and `jit-snapshot` modes do not tree-shake, so nothing is recorded and the file is \
     the empty JSON object `{}` (`kind = "empty"`).""",
                 ),
-            }, **dict(DART_ABI_CONSTRAINT_ATTRS, **dict(EXTRA_DART_DEFINES_ATTR, **EXECUTABLE_PACKAGE_ATTRS)))))
+            }, **dict(DART_ABI_CONSTRAINT_ATTRS, **dict(EXTRA_DART_DEFINES_ATTR, **dict(TRACK_CREATION_LOCATIONS_ATTR, **EXECUTABLE_PACKAGE_ATTRS))))))
         ),
         executable = True,
         # The default group compiles machine code for the target, so its SDK

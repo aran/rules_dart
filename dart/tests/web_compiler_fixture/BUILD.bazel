@@ -4,7 +4,9 @@ load(
     "config_settings_test",
     "constraints",
     "resets_test",
+    "roots_tracked",
     "roots_under_js",
+    "tracking_resets_test",
     "variant_test",
     "web_only_test",
     "wrong_platform_test",
@@ -87,6 +89,19 @@ resets_test(
     name = "resets_under_js_test",
     size = "small",
     target_under_test = ":top_roots",
+)
+
+roots_tracked(
+    name = "top_roots_tracked",
+    library = ":top",
+    library_tracked = ":top",
+    tags = ["manual"],
+)
+
+tracking_resets_test(
+    name = "tracking_resets_test",
+    size = "small",
+    target_under_test = ":top_roots_tracked",
 )
 
 config_settings_test(

@@ -1348,7 +1348,8 @@ def dart_kernel_action(
         product,
         defines = [],
         flags = [],
-        native_assets_yaml = None):
+        native_assets_yaml = None,
+        track_creation_locations = False):
     """Runs the Dart front end (`gen_kernel`) to produce a kernel `.dill`.
 
     Every VM compile goes through here first, and `dart compile` then turns the
@@ -1391,6 +1392,8 @@ def dart_kernel_action(
       native_assets_yaml: Optional `native_assets.yaml` File, embedded as the
         `vm:ffi:native-assets` mapping. The libraries it names are a run-time
         (runfiles) dependency, not inputs.
+      track_creation_locations: Whether to pass `--track-creation-locations`,
+        which the whole program, here, is compiled with or without.
     """
     dart_sdk_info = portable_sdk(ctx)
     tools = find_sdk_kernel_tools(dart_sdk_info)
@@ -1408,6 +1411,8 @@ def dart_kernel_action(
         args.add("--native-assets", native_assets_yaml)
     for d in defines:
         args.add("-D" + d)
+    if track_creation_locations:
+        args.add("--track-creation-locations")
     args.add_all(flags)
     args.add("-o", output_dill)
     args.add(KERNEL_FILESYSTEM_SCHEME + ":///" + kernel_root_path(main.short_path))

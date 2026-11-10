@@ -39,7 +39,7 @@ Flutter SDK and gets its own modules, and everything else here is shared.
 
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("//dart:providers.bzl", "DartInfo", "DartKernelSdkInfo", "DartModuleInfo")
-load("//dart/private:build_settings.bzl", "vm_define_comma_error")
+load("//dart/private:build_settings.bzl", "track_creation_locations", "vm_define_comma_error")
 load("//dart/private:common.bzl", "KERNEL_FILESYSTEM_SCHEME", "PATH_MAPPING", "add_kernel_roots", "collect_transitive_srcs", "dart_kernel_action", "kernel_root_path", "own_packages")
 load(
     "//dart/private:dart_deps.bzl",
@@ -83,7 +83,7 @@ def kernel_package_config(packages):
         ))
     return '{\n  "configVersion": 2,\n  "packages": [\n%s\n  ]\n}\n' % ",\n".join(entries)
 
-def whole_program_kernel(ctx, main, packages, output_dill, product, defines = [], flags = [], native_assets_yaml = None):
+def whole_program_kernel(ctx, main, packages, output_dill, product, defines = [], flags = [], native_assets_yaml = None, track_creation_locations = False):
     """Compiles an executable's whole program from source into one kernel.
 
     The program is the rule's `main`, its own `srcs`, and every source its
@@ -100,6 +100,7 @@ def whole_program_kernel(ctx, main, packages, output_dill, product, defines = []
       defines: See `dart_kernel_action`.
       flags: See `dart_kernel_action`.
       native_assets_yaml: See `dart_kernel_action`.
+      track_creation_locations: See `dart_kernel_action`.
     """
     package_config = ctx.actions.declare_file(ctx.label.name + ".package_config.json")
     ctx.actions.write(package_config, kernel_package_config(packages))
@@ -113,6 +114,7 @@ def whole_program_kernel(ctx, main, packages, output_dill, product, defines = []
         defines = defines,
         flags = flags,
         native_assets_yaml = native_assets_yaml,
+        track_creation_locations = track_creation_locations,
     )
 
 _OUTLINES = ".outlines"
@@ -199,6 +201,7 @@ def _module_aspect_impl(target, ctx):
         own_packages = own,
         modules = modules,
         defines = module_defines(ctx),
+        track_creation_locations = track_creation_locations(ctx),
     )]
 
 def _merge_modules(infos):
@@ -213,7 +216,7 @@ def _check_no_comma(define, source):
     if err:
         fail(err)
 
-def _compile_modules(ctx, sdk, kernel_tool, name, srcs, packages, own_packages, modules, defines):
+def _compile_modules(ctx, sdk, kernel_tool, name, srcs, packages, own_packages, modules, defines, track_creation_locations):
     """Compiles `srcs` into kernel modules against `modules`.
 
     The sources are split as Dart's own modular build splits a package, finely:
@@ -237,6 +240,8 @@ def _compile_modules(ctx, sdk, kernel_tool, name, srcs, packages, own_packages, 
       modules: `struct(modules, outlines, manifests)` of every dependency's
         modules; the sources compile against the outlines.
       defines: Environment declarations beyond the platform's.
+      track_creation_locations: Whether to compile with
+        `--track-creation-locations`.
 
     Returns:
       `DartModuleInfo` of the new modules and `modules`.
@@ -262,6 +267,8 @@ def _compile_modules(ctx, sdk, kernel_tool, name, srcs, packages, own_packages, 
     args.add_all(srcs, before_each = "--src", expand_directories = False)
     _add_deps(args, modules.outlines)
     args.add_all(sdk.defines + defines, before_each = "--define")
+    if track_creation_locations:
+        args.add("--track-creation-locations")
     args.add_all([out], before_each = "--output-dir", expand_directories = False)
     args.add("--manifest-output", manifest)
 
@@ -311,7 +318,11 @@ def _add_sdk_args(args, sdk):
     args.add("--platform", sdk.platform)
     args.add("--target", sdk.target)
 
-def dart_module_aspect(kernel_sdk, extra_dart_defines = Label("//dart:extra_dart_defines"), exec_toolchains = []):
+def dart_module_aspect(
+        kernel_sdk,
+        extra_dart_defines = Label("//dart:extra_dart_defines"),
+        exec_toolchains = [],
+        track_creation_locations = Label("//dart:track_creation_locations")):
     """Makes the aspect that compiles every `DartInfo` target to a kernel module.
 
     Call it at the top level of a `.bzl` file and assign the result, once per
@@ -330,6 +341,9 @@ def dart_module_aspect(kernel_sdk, extra_dart_defines = Label("//dart:extra_dart
         entrypoint compiled against it.
       exec_toolchains: Toolchain types `kernel_sdk` resolves besides the Dart
         SDK, so the modules compile only on a host that has them.
+      track_creation_locations: The flag that turns on the front end's
+        creation-location transform, which the executables read too: every
+        module and the entrypoint compile with the same setting.
 
     Returns:
       The aspect.
@@ -344,6 +358,7 @@ def dart_module_aspect(kernel_sdk, extra_dart_defines = Label("//dart:extra_dart
         attrs = KERNEL_TOOL_ATTR | {
             "_kernel_sdk": _kernel_sdk_attr(kernel_sdk),
             "_extra_dart_defines": attr.label(default = extra_dart_defines),
+            "_track_creation_locations": attr.label(default = track_creation_locations),
             "_module_defines": attr.label(default = Label("//dart/private:module_defines")),
             "_modular_kernel": attr.label(default = Label("//dart:modular_kernel")),
         },
@@ -399,7 +414,8 @@ def dart_entry_kernel_action(
         output,
         own_package = None,
         defines = [],
-        native_assets_yaml = None):
+        native_assets_yaml = None,
+        track_creation_locations = False):
     """Compiles an executable against the modules its entrypoint reaches.
 
     The executable's own files (`srcs`) are compiled into modules like any
@@ -426,6 +442,8 @@ def dart_entry_kernel_action(
         it belongs to, or `None`.
       defines: Environment declarations, `KEY=VALUE`.
       native_assets_yaml: Optional `native_assets.yaml` to embed.
+      track_creation_locations: Whether to compile with
+        `--track-creation-locations`; the same as the modules were.
 
     Returns:
       `struct(modules, manifests, selection)`: every module the executable
@@ -442,6 +460,7 @@ def dart_entry_kernel_action(
         own_packages = [own_package] if own_package != None else [],
         modules = modules,
         defines = defines,
+        track_creation_locations = track_creation_locations,
     )
 
     package_config = ctx.actions.declare_file(output.basename + ".package_config.json", sibling = output)
@@ -456,6 +475,8 @@ def dart_entry_kernel_action(
     add_kernel_roots(args, "--multi-root", [main])
     _add_deps(args, own.outlines)
     args.add_all(sdk.defines + defines, before_each = "--define")
+    if track_creation_locations:
+        args.add("--track-creation-locations")
     inputs = [main, package_config, sdk.platform, sdk.frontend_server, sdk.runtime]
     if native_assets_yaml != None:
         args.add("--native-assets", native_assets_yaml)

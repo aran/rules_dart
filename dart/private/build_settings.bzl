@@ -124,3 +124,21 @@ def merge_vm_dart_defines(ctx):
         if err:
             fail(err)
     return defines
+
+TRACK_CREATION_LOCATIONS_ATTR = {
+    "_track_creation_locations": attr.label(
+        doc = "The //dart:track_creation_locations build setting.",
+        default = Label("//dart:track_creation_locations"),
+    ),
+}
+
+def track_creation_locations(ctx):
+    """Whether this configuration compiles with `--track-creation-locations`.
+
+    Args:
+      ctx: Rule or aspect context carrying `_track_creation_locations`.
+
+    Returns:
+      A bool.
+    """
+    return ctx.attr._track_creation_locations[BuildSettingInfo].value
