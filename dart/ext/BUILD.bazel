@@ -31,7 +31,7 @@ dart_library(
         "lib/src/declared_file_system.dart",
         "lib/worker_entry.dart",
     ],
-    language_version = "3.11",
+    language_version = "3.12",
     visibility = ["//dart/ext:__subpackages__"],
     deps = [
         "@ext_pub_deps//:analyzer",

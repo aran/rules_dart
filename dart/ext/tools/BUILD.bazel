@@ -15,7 +15,7 @@ dart_library(
     name = "check_dual_build_collisions_lib",
     package_name = "rules_dart_check_dual_build_collisions",
     srcs = ["lib/check_dual_build_collisions.dart"],
-    language_version = "3.11",
+    language_version = "3.12",
     visibility = ["//visibility:public"],
     deps = [
         "//dart/runfiles",
