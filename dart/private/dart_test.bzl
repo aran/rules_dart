@@ -113,6 +113,7 @@ def _dart_test_impl(ctx):
         config["kernel_list"] = True
         config["code_asset_libraries"] = [runfiles_path(lib, workspace_name) for lib in runtime_libs]
     runner_files = []
+    config.update(_tag_selection(ctx, runner))
     if runner:
         # The runner reads the test file for its annotations (`@TestOn`,
         # `@Timeout`, `@Tags`) and names the suite after it.
@@ -263,6 +264,31 @@ def _test_runner(ctx, packages):
                   "`@<hub>//:test`) to `deps`: `dart_test` runs tests through " +
                   "the runner that target carries.") % ctx.label)
     return None
+
+def _tag_selection(ctx, runner):
+    """The launcher config's `include_tags`/`exclude_tags`, when set.
+
+    Args:
+      ctx: The rule context.
+      runner: The test's `DartTestRunnerInfo`, or `None`.
+
+    Returns:
+      A dict of the attributes that are set.
+    """
+    selection = {}
+    for attr in ("include_tags", "exclude_tags"):
+        selectors = getattr(ctx.attr, attr)
+        if not selectors:
+            continue
+        if not runner:
+            fail("%s: `%s` needs a test written with `package:test`; this one has a plain `main()` and no cases to select" % (ctx.label, attr))
+        for selector in selectors:
+            # The runner splits a `--tags` value at commas, which a boolean
+            # selector never contains.
+            if not selector.strip() or "," in selector:
+                fail("%s: `%s` entry %r is not one tag selector; give each selector an entry of its own" % (ctx.label, attr, selector))
+        selection[attr] = selectors
+    return selection
 
 def _test_path(ctx):
     """The test's path as the runner names it.
@@ -415,6 +441,25 @@ told where a runfile is (resolve it with `Runfiles.rlocation()`).""",
         ),
         "env_inherit": attr.string_list(
             doc = "Names of environment variables passed through from the environment `bazel test` runs in.",
+        ),
+        # Which cases of the suite run, as the `include_tags` and
+        # `exclude_tags` keys of `dart_test.yaml`, which `dart_test` does not
+        # read. They choose cases inside this target, unlike Bazel's `tags`
+        # and `--test_tag_filters`, which choose targets.
+        "include_tags": attr.string_list(
+            doc = """`package:test` tag selectors a case must match to run, as `dart test \
+--tags` takes them and as `dart_test.yaml`'s `include_tags` does: each entry is one boolean \
+selector (`unit`, `a && !b`), and a case must match every entry. Tags come from `@Tags` on the \
+test library and `tags:` on `group` and `test`; they are not Bazel's `tags`. A target none of \
+whose cases match fails. `--test_env=DART_TEST_TAGS=<selector>` narrows further for one run. \
+Needs `package:test` in `deps`.""",
+        ),
+        "exclude_tags": attr.string_list(
+            doc = """`package:test` tag selectors that drop a case, as `dart test \
+--exclude-tags` takes them and as `dart_test.yaml`'s `exclude_tags` does: a case matching any \
+entry does not run. A target none of whose cases remain fails. \
+`--test_env=DART_TEST_EXCLUDE_TAGS=<selector>` drops more for one run. Needs `package:test` in \
+`deps`.""",
         ),
         "_modular_kernel": attr.label(default = Label("//dart:modular_kernel")),
         "_tool": attr.label(

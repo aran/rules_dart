@@ -93,6 +93,169 @@ void main(List<String> args) {
     );
   });
 
+  test('a test without package:test refuses DART_TEST_TAGS', () async {
+    final process = await start(['stream'], {'DART_TEST_TAGS': 'unit'});
+    final err = await process.stderr.transform(utf8.decoder).join();
+    await process.stdout.drain<void>();
+    expect(await process.exitCode, 1);
+    expect(
+      err,
+      contains('DART_TEST_TAGS=unit needs a test written with package:test'),
+    );
+  });
+
+  // Cases are selected by `package:test` tags: the target's `include_tags`
+  // and `exclude_tags`, narrowed for one run by DART_TEST_TAGS and
+  // DART_TEST_EXCLUDE_TAGS. The fixture's target includes
+  // `unit || integration` and excludes `slow`.
+  group('tag selection', () {
+    late Directory tmp;
+    setUp(() => tmp = Directory.systemTemp.createTempSync('test_runner_tags.'));
+    tearDown(() => tmp.deleteSync(recursive: true));
+
+    /// Runs the launcher at runfiles path [rlocationPath] as `bazel test`
+    /// would, with [environment] added.
+    Future<ProcessResult> run(
+      String rlocationPath, {
+      Map<String, String> environment = const {},
+      String? workingDirectory,
+    }) => Process.run(
+      runfiles.rlocation(rlocationPath),
+      const [],
+      environment: {
+        for (final MapEntry(:key, :value) in Platform.environment.entries)
+          if (!key.startsWith('TESTBRIDGE_') &&
+              !key.startsWith('TEST_SHARD') &&
+              key != 'TEST_TOTAL_SHARDS' &&
+              !key.startsWith('DART_TEST_'))
+            key: value,
+        'XML_OUTPUT_FILE': '${tmp.path}/test.xml',
+        'RULES_DART_RUNNER_SNAPSHOT_DIR': '${tmp.path}/cache',
+        ...environment,
+      },
+      includeParentEnvironment: false,
+      workingDirectory: workingDirectory,
+    );
+
+    /// The cases [result] ran, from its report, after checking it passed.
+    List<String> ran(ProcessResult result) {
+      expect(
+        result.exitCode,
+        0,
+        reason: 'stdout:\n${result.stdout}\nstderr:\n${result.stderr}',
+      );
+      final xml = File('${tmp.path}/test.xml').readAsStringSync();
+      return [
+        for (final m in RegExp(r'<testcase name="([^"]*)"').allMatches(xml))
+          m[1]!,
+      ]..sort();
+    }
+
+    test('the target\'s selection runs the cases it selects', () async {
+      expect(ran(await run(args[3])), ['integration case', 'unit case']);
+    });
+
+    test('a run\'s include is intersected with the target\'s', () async {
+      final result = await run(
+        args[3],
+        environment: {'DART_TEST_TAGS': 'integration'},
+      );
+      expect(ran(result), ['integration case']);
+    });
+
+    test('a run\'s include takes `dart test --tags` syntax', () async {
+      // A comma joins selectors a case must all match; the library's own
+      // `@Tags` count.
+      final result = await run(
+        args[3],
+        environment: {'DART_TEST_TAGS': 'suite_tag,unit'},
+      );
+      expect(ran(result), ['unit case']);
+    });
+
+    test('a run\'s exclude is added to the target\'s', () async {
+      final result = await run(
+        args[3],
+        environment: {'DART_TEST_EXCLUDE_TAGS': 'integration'},
+      );
+      expect(ran(result), ['unit case']);
+    });
+
+    test('tags and --test_filter both apply', () async {
+      final result = await run(
+        args[3],
+        environment: {
+          'DART_TEST_TAGS': 'unit || integration',
+          'TESTBRIDGE_TEST_ONLY': 'integration',
+        },
+      );
+      expect(ran(result), ['integration case']);
+    });
+
+    // So that `bazel test //... --test_env=DART_TEST_TAGS=x` passes every
+    // target with no case tagged x.
+    test(
+      'a run\'s selection of no case passes, naming the suite\'s tags',
+      () async {
+        final result = await run(
+          args[3],
+          environment: {'DART_TEST_TAGS': 'absent'},
+        );
+        expect(ran(result), isEmpty);
+        expect(
+          '${result.stderr}',
+          allOf(
+            contains('DART_TEST_TAGS=absent selects no case of'),
+            contains('Its tags: integration, slow, suite_tag, unit.'),
+          ),
+        );
+      },
+    );
+
+    test(
+      'a run\'s selection of no case says so for an untagged suite',
+      () async {
+        final result = await run(
+          args[1],
+          environment: {'DART_TEST_EXCLUDE_TAGS': 'absent || !absent'},
+        );
+        expect(ran(result), isEmpty);
+        expect('${result.stderr}', contains('It uses no tags.'));
+      },
+    );
+
+    test('the target\'s selection of no case fails', () async {
+      final result = await run(args[4]);
+      expect(result.exitCode, isNot(0), reason: '${result.stdout}');
+      expect(
+        '${result.stderr}',
+        allOf(
+          contains('No tests match the requested tag selectors'),
+          contains('include_tags = ["absent"] select no case of'),
+        ),
+      );
+    });
+
+    // The runner looks for `dart_test.yaml` in its working directory, the
+    // runfiles root, where no package's own file is. What the file would set,
+    // the target says.
+    test('a dart_test.yaml where the runner runs is not read', () async {
+      final config = configOf(runfiles.rlocation(args[1]));
+      // The runner runs where the test's source is at its path, as it is
+      // in the runfiles root.
+      File('${tmp.path}/root/${config['test_path']}')
+        ..createSync(recursive: true)
+        ..writeAsStringSync(
+          File(runfiles.rlocation(config['test_main'] as String))
+              .readAsStringSync(),
+        );
+      File('${tmp.path}/root/dart_test.yaml')
+          .writeAsStringSync('include_tags: absent\n');
+      final result = await run(args[1], workingDirectory: '${tmp.path}/root');
+      expect(ran(result), ['runs under the runner']);
+    });
+  });
+
   // A test that starts another target's launcher must not hand it this
   // launcher's settings, or that launcher runs this test's code.
   test('the test sees no RULES_DART_ variables but Bazel\'s own', () async {
@@ -267,6 +430,15 @@ void main(List<String> args) {
       expect(snapshots(), hasLength(8));
       expect(abandoned.existsSync(), isFalse);
       expect(unrelated.existsSync(), isTrue);
+    }, skip: cached ? false : 'the runner snapshot cache is off');
+
+    // The training selects no case itself; a run's tags must not reach it.
+    test('a run whose tags select no case trains the snapshot', () async {
+      final result = await run(environment: {'DART_TEST_TAGS': 'absent'});
+      expectPassed(result);
+      expect('${result.stderr}', contains('selects no case'));
+      expect(snapshots(), hasLength(1));
+      expectPassed(await run(environment: {'DART_TEST_TAGS': 'absent'}));
     }, skip: cached ? false : 'the runner snapshot cache is off');
 
     test('concurrent first runs all pass and leave one snapshot', () async {

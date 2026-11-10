@@ -18,9 +18,12 @@ import 'runner_snapshot.dart';
 /// `--name`, sharding becomes `--total-shards`/`--shard-index`, the runner's
 /// JSON report becomes the JUnit XML Bazel reads, and `package:test`'s own
 /// 30-second default per case is replaced by Bazel's `TEST_TIMEOUT`, so that
-/// Bazel's `size`/`timeout` is the limit. Any other test runs directly, and
-/// refuses a filter or sharding it cannot honour rather than quietly running
-/// everything. Unless `--@rules_dart//dart:runner_snapshot` is off, the runner
+/// Bazel's `size`/`timeout` is the limit. Cases are selected by tag with the
+/// target's `include_tags`/`exclude_tags` and the run's `DART_TEST_TAGS`/
+/// `DART_TEST_EXCLUDE_TAGS` (`TagSelection`). The runner reads no
+/// `dart_test.yaml`: what it would set, the target says. Any other test runs
+/// directly, and refuses a filter, a tag selection or sharding it cannot
+/// honour rather than quietly running everything. Unless `--@rules_dart//dart:runner_snapshot` is off, the runner
 /// starts from an app-JIT snapshot cached on the machine, which the first run
 /// to find none trains (`runner_snapshot.dart`).
 ///
@@ -61,9 +64,10 @@ Future<void> main(List<String> args) async {
   }
 
   final runnerKey = config['runner'] as String?;
+  final tags = TagSelection.of(config, Platform.environment);
   final int code;
   if (runnerKey == null) {
-    code = await _runDirectly(dart, dill, args, environment);
+    code = await _runDirectly(dart, dill, args, environment, tags);
   } else {
     final snapshot = config['runner_snapshot'] as Map<String, dynamic>?;
     code = await _runUnderRunner(
@@ -79,6 +83,7 @@ Future<void> main(List<String> args) async {
             ),
       testSource: r.rlocation(config['test_main'] as String),
       testPath: config['test_path'] as String,
+      tags: tags,
       args: args,
       environment: environment,
       tmp: scratch.directory('dart_test.'),
@@ -245,11 +250,89 @@ String _suiteTimeout(Map<String, String> env) {
 /// The exit code `package:test`'s runner uses when no test ran.
 const _noTestsRan = 79;
 
+/// Which cases run, by their `package:test` tags: the target's own selection
+/// (`include_tags`/`exclude_tags`, from the launcher's config) and this run's
+/// (`DART_TEST_TAGS`/`DART_TEST_EXCLUDE_TAGS`, from `--test_env`).
+///
+/// Each becomes a runner `--tags` or `--exclude-tags`, which combine as
+/// `package:test` combines its configuration with its command line: a case
+/// must match every include and no exclude. A run's value is passed as
+/// `dart test --tags` takes it, commas included; empty means none.
+class TagSelection {
+  TagSelection({
+    this.include = const [],
+    this.exclude = const [],
+    this.runInclude,
+    this.runExclude,
+  });
+
+  factory TagSelection.of(
+    Map<String, dynamic> config,
+    Map<String, String> environment,
+  ) {
+    String? set(String name) => switch (environment[name]) {
+      final String value when value.isNotEmpty => value,
+      _ => null,
+    };
+    return TagSelection(
+      include: (config['include_tags'] as List? ?? const []).cast<String>(),
+      exclude: (config['exclude_tags'] as List? ?? const []).cast<String>(),
+      runInclude: set('DART_TEST_TAGS'),
+      runExclude: set('DART_TEST_EXCLUDE_TAGS'),
+    );
+  }
+
+  /// The target's `include_tags` and `exclude_tags`.
+  final List<String> include;
+  final List<String> exclude;
+
+  /// This run's `DART_TEST_TAGS` and `DART_TEST_EXCLUDE_TAGS`.
+  final String? runInclude;
+  final String? runExclude;
+
+  bool get fixed => include.isNotEmpty || exclude.isNotEmpty;
+  bool get perRun => runInclude != null || runExclude != null;
+
+  /// The runner's arguments for this selection.
+  List<String> get arguments => [
+    for (final selector in [...include, ?runInclude]) '--tags=$selector',
+    for (final selector in [...exclude, ?runExclude])
+      '--exclude-tags=$selector',
+  ];
+
+  /// This run's selection, as it was set.
+  String describePerRun() => [
+    if (runInclude != null) 'DART_TEST_TAGS=$runInclude',
+    if (runExclude != null) 'DART_TEST_EXCLUDE_TAGS=$runExclude',
+  ].join(' and ');
+
+  /// The target's selection, as its attributes say it.
+  String describeFixed() => [
+    if (include.isNotEmpty) 'include_tags = ${jsonEncode(include)}',
+    if (exclude.isNotEmpty) 'exclude_tags = ${jsonEncode(exclude)}',
+  ].join(' and ');
+}
+
+/// The tags `package:test`'s runner names in its [output] as used by the
+/// suite but not declared: with no tags selected and no configuration read,
+/// every tag the suite, its groups and its cases use.
+///
+/// The runner reports a suite's tags nowhere else: its JSON reporter leaves
+/// them out, and a case a selection drops is not reported at all.
+Set<String> usedTags(String output) => {
+  for (final match in RegExp(
+    r'^  (\S+) was used in',
+    multiLine: true,
+  ).allMatches(output))
+    match[1]!,
+};
+
 Future<int> _runDirectly(
   String dart,
   String dill,
   List<String> args,
   Map<String, String> environment,
+  TagSelection tags,
 ) async {
   final env = Platform.environment;
   // A plain `main` has no notion of test cases, so there is nothing to filter
@@ -259,6 +342,13 @@ Future<int> _runDirectly(
     stderr.writeln(
       'dart_test: --test_filter needs a test written with package:test; this '
       'one has a plain main() and cannot select cases.',
+    );
+    return 1;
+  }
+  if (tags.perRun) {
+    stderr.writeln(
+      'dart_test: ${tags.describePerRun()} needs a test written with '
+      'package:test; this one has a plain main() and cannot select cases.',
     );
     return 1;
   }
@@ -286,6 +376,7 @@ Future<int> _runUnderRunner({
   required String Function()? snapshotKey,
   required String testSource,
   required String testPath,
+  required TagSelection tags,
   required List<String> args,
   required Map<String, String> environment,
   required Directory tmp,
@@ -342,15 +433,23 @@ Future<int> _runUnderRunner({
 
   // The runner's own arguments, after the program it starts from.
   final timeout = '--timeout=${_suiteTimeout(env)}';
+  // The runner reads `dart_test.yaml` from its working directory, here the
+  // runfiles root, where a package's own file never is and the workspace's
+  // would apply only by accident. A path that does not exist means none: what
+  // the file would set, the target says (README, Tests).
+  final noConfiguration =
+      '--configuration=${_join(tmp.path, 'no_project_config/dart_test.yaml')}';
   final runnerArguments = [
     '--precompiled=$precompiled',
     '--reporter=expanded',
+    noConfiguration,
     // Bazel's timeout replaces `package:test`'s 30-second default. Not
     // `none`: in `package:test` a suite-level `none` also overrides the
     // timeout a test states on its own case, and that one is the author's.
     timeout,
     '--file-reporter=json:$report',
     if (filter != null && filter.isNotEmpty) ...['--name', filter],
+    ...tags.arguments,
     if (totalShards != null && shardIndex != null) ...[
       '--total-shards',
       totalShards,
@@ -424,12 +523,36 @@ Future<int> _runUnderRunner({
     return 1;
   }
 
-  // A filter that selects nothing here, or a shard that drew no cases, is not
-  // a failure: `bazel test //... --test_filter=x` has to pass every target the
-  // filter does not touch.
-  final selecting = filter != null || totalShards != null;
-  if (code == _noTestsRan && selecting) {
-    code = 0;
+  // A filter or a run's tags that select nothing here, or a shard that drew
+  // no cases, is not a failure: `bazel test //... --test_filter=x` has to pass
+  // every target the filter does not touch. The target's own tags selecting
+  // nothing are: it would never run a case.
+  if (code == _noTestsRan) {
+    if (tags.perRun && totalShards == null) {
+      code = await _noteUnselected(
+        dart: dart,
+        program: plan is StartFromSnapshot ? plan.snapshot.path : runner,
+        arguments: [
+          '--precompiled=$precompiled',
+          '--reporter=expanded',
+          '--no-color',
+          noConfiguration,
+          '--name',
+          '(?!)',
+          testPath,
+        ],
+        workingDirectory: workingDirectory,
+        environment: runEnvironment,
+        testPath: testPath,
+        tags: tags,
+      );
+    } else if (filter != null || totalShards != null || tags.perRun) {
+      code = 0;
+    } else if (tags.fixed) {
+      stderr.writeln(
+        'dart_test: ${tags.describeFixed()} select no case of $testPath.',
+      );
+    }
   }
 
   if (xmlOutput != null) {
@@ -453,6 +576,7 @@ Future<int> _runUnderRunner({
           runner,
           '--precompiled=$precompiled',
           '--reporter=expanded',
+          noConfiguration,
           timeout,
           '--name',
           '(?!)',
@@ -470,6 +594,48 @@ Future<int> _runUnderRunner({
     }
   }
   return code;
+}
+
+/// Says on stderr that this run's tags select no case of [testPath], and which
+/// tags it uses, so that a run across many targets passes those whose cases
+/// have none of them. Returns the test's exit code: 0, or 1 when the suite
+/// could not be loaded again to find its tags.
+///
+/// The tags come from a run of the runner like the snapshot's training: no
+/// case and no tags selected, so that it names every tag the suite uses.
+Future<int> _noteUnselected({
+  required String dart,
+  required String program,
+  required List<String> arguments,
+  required String? workingDirectory,
+  required Map<String, String> environment,
+  required String testPath,
+  required TagSelection tags,
+}) async {
+  final listing = await Process.run(
+    dart,
+    [program, ...arguments],
+    workingDirectory: workingDirectory,
+    environment: environment,
+    includeParentEnvironment: false,
+  );
+  if (listing.exitCode != _noTestsRan) {
+    stderr
+      ..writeln(
+        'dart_test: ${tags.describePerRun()} selects no case of $testPath, '
+        'and loading it again to list its tags exited ${listing.exitCode}:',
+      )
+      ..write(listing.stdout)
+      ..write(listing.stderr);
+    return 1;
+  }
+  final used = usedTags('${listing.stdout}').toList()..sort();
+  stderr.writeln(
+    'dart_test: ${tags.describePerRun()} selects no case of $testPath, '
+    'which passes, as a run\'s selection that touches no case does. '
+    '${used.isEmpty ? 'It uses no tags.' : 'Its tags: ${used.join(', ')}.'}',
+  );
+  return 0;
 }
 
 /// Lays out `workspace`'s runfiles under [into] from the lines of a runfiles

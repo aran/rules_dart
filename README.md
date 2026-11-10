@@ -118,7 +118,50 @@ own runner, built from that same package, so Bazel's test features work:
 `package:test` must be a direct entry in `deps` (for example `@deps//:test`),
 not reached only through a helper library: the runner comes with that target.
 A test whose `main` does not use `package:test` runs directly, and fails if
-given a filter or shards, because it has no cases to select.
+given a filter, tags or shards, because it has no cases to select.
+
+Cases within a target are selected by their `package:test` tags (`@Tags` on
+the library, `tags:` on `group` and `test`); whole targets are selected by
+Bazel's `tags` and `--test_tag_filters`, into which Gazelle copies a file's
+`@Tags` (see [Test tags](#test-tags)). A
+target's `include_tags` and `exclude_tags` are lists of boolean selectors, as
+`dart test --tags`/`--exclude-tags` take them: a case runs when it matches
+every `include_tags` entry and no `exclude_tags` entry, and a target none of
+whose cases are left fails. One run narrows that further, without rebuilding,
+with `--test_env=DART_TEST_TAGS=<selector>` and
+`--test_env=DART_TEST_EXCLUDE_TAGS=<selector>`, whose values are written as
+`dart test --tags` takes them (`a,b` is `a && b`). These combine with the
+target's as `package:test` combines its configuration with its command line,
+and with `--test_filter`. A run's selection that leaves a target no case
+passes, saying on stderr which tags the target's cases use, so
+`bazel test //... --test_env=DART_TEST_TAGS=integration` runs the cases tagged
+`integration` wherever they are.
+
+```starlark
+dart_test(
+    name = "parser_test",
+    exclude_tags = ["slow"],
+    main = "test/parser_test.dart",
+    deps = [":parser", "@deps//:test"],
+)
+```
+
+The runner reads no `dart_test.yaml`, neither the package's nor one at the
+workspace root: each setting it holds has its place on the target or in
+Bazel. Moving a package to Bazel moves them into its BUILD files:
+
+- `include_tags`, `exclude_tags`: the attributes of the same names, and
+  `DART_TEST_TAGS`/`DART_TEST_EXCLUDE_TAGS` for one run.
+- `timeout`: the target's `size` or `timeout`. A `@Timeout` or `timeout:` in
+  the test still applies to its own cases.
+- `retry`: the target's `flaky`, or `--flaky_test_attempts`.
+- `concurrency`, sharding: `shard_count`, and Bazel's own parallelism across
+  targets.
+- Its other keys have no counterpart: cases that need other settings go in a
+  target of their own.
+
+With no file to declare them in, the runner warns of every tag a test uses as
+"not specified in dart_test.yaml"; the warning is harmless under Bazel.
 
 With `--@rules_dart//dart:runner_snapshot` (see
 [Faster tests and builds](#faster-tests-and-builds-optional)), the runner

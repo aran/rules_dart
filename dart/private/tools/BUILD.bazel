@@ -112,6 +112,28 @@ dart_test(
     deps = ["@ext_pub_deps//:test"],
 )
 
+# What `test_runner_test` runs through its launcher to select cases by tag.
+# Run on its own, it passes.
+dart_test(
+    name = "test_runner_tags_fixture",
+    size = "small",
+    exclude_tags = ["slow"],
+    include_tags = ["unit || integration"],
+    main = "test_runner_tags_fixture.dart",
+    deps = ["@ext_pub_deps//:test"],
+)
+
+# The same suite with `include_tags` that select none of its cases, which
+# fails: `test_runner_test` runs it to see that.
+dart_test(
+    name = "test_runner_unmatched_tags_fixture",
+    size = "small",
+    include_tags = ["absent"],
+    main = "test_runner_tags_fixture.dart",
+    tags = ["manual"],
+    deps = ["@ext_pub_deps//:test"],
+)
+
 dart_test(
     name = "test_runner_test",
     size = "small",
@@ -119,10 +141,14 @@ dart_test(
         "$(rlocationpath :test_runner_fixture)",
         "$(rlocationpath :test_runner_runner_fixture)",
         "$(rlocationpath //dart/tests/shared_library_asset_fixture:shared_library_asset_test)",
+        "$(rlocationpath :test_runner_tags_fixture)",
+        "$(rlocationpath :test_runner_unmatched_tags_fixture)",
     ],
     data = [
         ":test_runner_fixture",
         ":test_runner_runner_fixture",
+        ":test_runner_tags_fixture",
+        ":test_runner_unmatched_tags_fixture",
         "//dart/tests/shared_library_asset_fixture:shared_library_asset_test",
     ],
     main = "test_runner_test.dart",
