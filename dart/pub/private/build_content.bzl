@@ -204,7 +204,7 @@ def _list_block(attr, items):
 def _string_block(attr, value):
     return '    {} = "{}",\n'.format(attr, value) if value else ""
 
-def make_pub_member_build_content(name, language_version, version, code_assets = [], has_unreplaced_hook = "", link_hook = "", license_file = ""):
+def make_pub_member_build_content(name, language_version, version, code_assets = [], unreplaced_hook = "", link_hook = "", license_file = ""):
     """The BUILD file of a `pub.from_lock()` package's source repository.
 
     It states what the package's own archive says — its files, language
@@ -218,7 +218,7 @@ def make_pub_member_build_content(name, language_version, version, code_assets =
         language_version: From the package's `environment.sdk`.
         version: The version pub resolved.
         code_assets: `dart_code_asset` labels replacing its build hook.
-        has_unreplaced_hook: Its unreplaced build hook's path, or "".
+        unreplaced_hook: Its unreplaced build hook's path, or "".
         link_hook: `hook/link.dart` if it has one, or "".
         license_file: Its license file (`find_pub_license_file()`), or "".
 
@@ -242,7 +242,7 @@ pub_package_member(
 """.format(
         name = name,
         assets = _list_block("code_assets", code_assets),
-        hook = _string_block("has_unreplaced_hook", has_unreplaced_hook),
+        hook = _string_block("unreplaced_hook", unreplaced_hook),
         license = _string_block("license_file", license_file),
         link_hook = _string_block("link_hook", link_hook),
         language_version = language_version,

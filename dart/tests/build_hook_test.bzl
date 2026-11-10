@@ -14,7 +14,7 @@ def _records_build_hook_test_impl(ctx):
     env = analysistest.begin(ctx)
     info = analysistest.target_under_test(env)[DartInfo]
     hooks = [
-        p.has_unreplaced_hook
+        p.unreplaced_hook
         for p in info.transitive_packages.to_list()
         if p.package_name == "build_hook_fixture"
     ]
@@ -73,7 +73,7 @@ def _record(package_root, hook = "", assets = ()):
         package_name = "split",
         package_root = package_root,
         code_assets = assets,
-        has_unreplaced_hook = hook,
+        unreplaced_hook = hook,
     )
 
 _ASSET = DartCodeAssetInfo(
@@ -84,7 +84,7 @@ _ASSET = DartCodeAssetInfo(
 )
 
 def _merged_hook(records):
-    return merge_package_records(records)[0].has_unreplaced_hook
+    return merge_package_records(records)[0].unreplaced_hook
 
 def _merge_keeps_any_records_hook_test_impl(ctx):
     # A package split across targets states its `build_hook` on one of them,

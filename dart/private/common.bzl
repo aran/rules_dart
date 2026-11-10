@@ -490,7 +490,7 @@ def merge_package_records(merged):
     calls `package_agreement_error` first and fails when two of them state
     different `version`s, `language_version`s or `license_file`s.
 
-    `has_unreplaced_hook` is not order-decided either: code assets belong to
+    `unreplaced_hook` is not order-decided either: code assets belong to
     the package, not to one record of it, so the merged package's hook is
     unreplaced when any record names one and no record supplies code assets.
     That serves both duplicate cases alike — a split package states its
@@ -523,7 +523,7 @@ def merge_package_records(merged):
             kept = packages[index]
             adopt_hook = package_link_hook(pkg) != None and package_link_hook(kept) == None
             adopt_license = package_license_file(pkg) != None and package_license_file(kept) == None
-            adopt_build_hook = getattr(pkg, "has_unreplaced_hook", "") and not getattr(kept, "has_unreplaced_hook", "")
+            adopt_build_hook = getattr(pkg, "unreplaced_hook", "") and not getattr(kept, "unreplaced_hook", "")
             if not package_code_assets(pkg) and not adopt_hook and not adopt_license and not adopt_build_hook:
                 continue
 
@@ -537,11 +537,11 @@ def merge_package_records(merged):
             # replace any record's build hook, so the result does not depend
             # on which record came first.
             code_assets = package_code_assets(kept) + package_code_assets(pkg)
-            build_hook = getattr(kept, "has_unreplaced_hook", "") or getattr(pkg, "has_unreplaced_hook", "")
+            build_hook = getattr(kept, "unreplaced_hook", "") or getattr(pkg, "unreplaced_hook", "")
             packages[index] = derived_package_info(
                 kept,
                 code_assets = code_assets,
-                has_unreplaced_hook = "" if code_assets else build_hook,
+                unreplaced_hook = "" if code_assets else build_hook,
                 link_hook = package_link_hook(pkg) if adopt_hook else None,
                 license_file = package_license_file(pkg) if adopt_license else None,
             )
@@ -1150,12 +1150,12 @@ def check_unreplaced_hooks(label, packages):
     offenders = [
         pkg
         for pkg in packages
-        if hasattr(pkg, "has_unreplaced_hook") and pkg.has_unreplaced_hook
+        if hasattr(pkg, "unreplaced_hook") and pkg.unreplaced_hook
     ]
     if not offenders:
         return None
     lines = [
-        "  - %s (%s)" % (pkg.package_name, pkg.has_unreplaced_hook)
+        "  - %s (%s)" % (pkg.package_name, pkg.unreplaced_hook)
         for pkg in offenders
     ]
     return (

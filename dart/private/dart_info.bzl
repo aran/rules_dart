@@ -71,7 +71,7 @@ syntax and semantics than its own pubspec allows. Defaulting made "I forgot" and
 "this package states none" the same call, and the two have different
 consequences. The other optional parameters do not share that shape: the
 collections mean "none of these", `version`'s empty is a supported state
-`package_agreement_error` reads as "knows less", and `has_unreplaced_hook` is
+`package_agreement_error` reads as "knows less", and `unreplaced_hook` is
 derived at repository generation rather than stated by a developer. Requiring the
 argument narrows how the constructors may be *called*, not what a package may
 say: `language_version = ""` remains legal and keeps its meaning, which
@@ -207,7 +207,7 @@ def dart_package_info(
         package_root,
         language_version,
         code_assets = [],
-        has_unreplaced_hook = "",
+        unreplaced_hook = "",
         version = "",
         link_hook = None,
         license_file = None):
@@ -230,7 +230,7 @@ def dart_package_info(
         package under newer semantics than its pubspec allows. `""` remains a
         legal, meaningful value; only not answering is refused.
       code_assets: Targets providing `DartCodeAssetInfo` that this package owns.
-      has_unreplaced_hook: Path of a pub build hook with no Bazel replacement,
+      unreplaced_hook: Path of a pub build hook with no Bazel replacement,
         or "".
       version: The package's own resolved version, or "" when unknown. Only pub
         packages know it; a hand-written `dart_library` leaves it empty.
@@ -255,7 +255,7 @@ def dart_package_info(
         version = version,
         language_version = language_version,
         code_assets = tuple(own_assets),
-        has_unreplaced_hook = has_unreplaced_hook,
+        unreplaced_hook = unreplaced_hook,
         link_hook = link_hook,
         license_file = license_file,
     )
@@ -394,7 +394,7 @@ def dart_analyzable_info_with_packages(
         package_srcs = depset(package_srcs),
     )
 
-def derived_package_info(pkg, package_root = None, code_assets = None, has_unreplaced_hook = None, link_hook = None, license_file = None):
+def derived_package_info(pkg, package_root = None, code_assets = None, unreplaced_hook = None, link_hook = None, license_file = None):
     """Copies `pkg`, overriding the named fields and carrying the rest through.
 
     Deriving one package record from another — `colocate_packages` rewriting
@@ -415,7 +415,7 @@ def derived_package_info(pkg, package_root = None, code_assets = None, has_unrep
       pkg: The `DartPackageInfo` (or `DartPackageInfo`-shaped struct) to copy.
       package_root: Replacement `package_root`, or `None` to keep `pkg`'s.
       code_assets: Replacement `code_assets` tuple, or `None` to keep `pkg`'s.
-      has_unreplaced_hook: Replacement `has_unreplaced_hook` string (`""` for
+      unreplaced_hook: Replacement `unreplaced_hook` string (`""` for
         none), or `None` to keep `pkg`'s.
       link_hook: Replacement `link_hook` File, or `None` to keep `pkg`'s.
       license_file: Replacement `license_file` File, or `None` to keep `pkg`'s.
@@ -435,8 +435,8 @@ def derived_package_info(pkg, package_root = None, code_assets = None, has_unrep
         code_assets = (
             getattr(pkg, "code_assets", ()) if code_assets == None else code_assets
         ),
-        has_unreplaced_hook = (
-            getattr(pkg, "has_unreplaced_hook", "") if has_unreplaced_hook == None else has_unreplaced_hook
+        unreplaced_hook = (
+            getattr(pkg, "unreplaced_hook", "") if unreplaced_hook == None else unreplaced_hook
         ),
         link_hook = getattr(pkg, "link_hook", None) if link_hook == None else link_hook,
         license_file = getattr(pkg, "license_file", None) if license_file == None else license_file,

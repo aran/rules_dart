@@ -218,14 +218,14 @@ def _derive_carries_every_field_test_impl(ctx):
         package_root = "old/root",
         language_version = "2.12",
         code_assets = (_fake_asset("package:pkg/a.g.dart"),),
-        has_unreplaced_hook = "hook/build.dart",
+        unreplaced_hook = "hook/build.dart",
     )
     out = derived_package_info(p, package_root = "bazel-out/k8/bin/app.pkg.pkgsrcs")
     asserts.equals(env, "pkg", out.package_name)
     asserts.equals(env, "bazel-out/k8/bin/app.pkg.pkgsrcs", out.package_root)
     asserts.equals(env, "2.12", out.language_version)
     asserts.equals(env, ["package:pkg/a.g.dart"], [a.asset_id for a in out.code_assets])
-    asserts.equals(env, "hook/build.dart", out.has_unreplaced_hook)
+    asserts.equals(env, "hook/build.dart", out.unreplaced_hook)
     return unittest.end(env)
 
 def _derive_defaults_absent_fields_test_impl(ctx):
@@ -238,7 +238,7 @@ def _derive_defaults_absent_fields_test_impl(ctx):
     asserts.equals(env, "bazel-out/k8/bin/app.pkg.pkgsrcs", out.package_root)
     asserts.equals(env, "", out.language_version)
     asserts.equals(env, (), out.code_assets)
-    asserts.equals(env, "", out.has_unreplaced_hook)
+    asserts.equals(env, "", out.unreplaced_hook)
     return unittest.end(env)
 
 def _derive_overrides_only_named_test_impl(ctx):
@@ -250,7 +250,7 @@ def _derive_overrides_only_named_test_impl(ctx):
         package_root = "keep/me",
         language_version = "3.0",
         code_assets = (_fake_asset("package:pkg/a.g.dart"),),
-        has_unreplaced_hook = "",
+        unreplaced_hook = "",
     )
     out = derived_package_info(p, code_assets = (_fake_asset("package:pkg/b.g.dart"),))
     asserts.equals(env, "keep/me", out.package_root)

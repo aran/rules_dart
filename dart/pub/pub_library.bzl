@@ -49,7 +49,7 @@ def dart_package_member_info(
         code_assets = [],
         version = "",
         link_hook = None,
-        has_unreplaced_hook = "",
+        unreplaced_hook = "",
         license_file = None):
     """Builds the `DartPackageMemberInfo` of a pub package rooted at `label`'s Bazel package.
 
@@ -69,7 +69,7 @@ def dart_package_member_info(
         hook.
       version: The version pub resolved, or "".
       link_hook: Its `hook/link.dart` File, or None.
-      has_unreplaced_hook: Path of a build hook nothing replaces, or "".
+      unreplaced_hook: Path of a build hook nothing replaces, or "".
       license_file: Its license text File, or None: the root `NOTICES` if it
         has one, else its `LICENSE`, as `find_pub_license_file()` finds them.
 
@@ -96,7 +96,7 @@ def dart_package_member_info(
             package_root = package_root,
             language_version = language_version,
             code_assets = code_assets,
-            has_unreplaced_hook = has_unreplaced_hook,
+            unreplaced_hook = unreplaced_hook,
             version = version,
             link_hook = link_hook,
             license_file = license_file,
@@ -115,7 +115,7 @@ def _pub_package_member_impl(ctx):
         code_assets = ctx.attr.code_assets,
         version = ctx.attr.version,
         link_hook = ctx.file.link_hook,
-        has_unreplaced_hook = ctx.attr.has_unreplaced_hook,
+        unreplaced_hook = ctx.attr.unreplaced_hook,
         license_file = ctx.file.license_file,
     )]
 
@@ -129,7 +129,7 @@ pub_package_member = rule(
         "version": attr.string(doc = "The version pub resolved, as `dart_library`'s."),
         "code_assets": attr.label_list(doc = "As `dart_library`'s."),
         "link_hook": attr.label(allow_single_file = [".dart"], doc = "As `dart_library`'s."),
-        "has_unreplaced_hook": attr.string(doc = "As `dart_library`'s."),
+        "unreplaced_hook": attr.string(doc = "As `dart_library`'s."),
         "license_file": attr.label(allow_single_file = True, doc = "As `dart_library`'s."),
     },
     doc = "One pub package's files and facts, which a `pub_library` builds; not a library by itself.",

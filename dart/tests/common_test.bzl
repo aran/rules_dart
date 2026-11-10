@@ -420,7 +420,7 @@ def _hooks_ok_test_impl(ctx):
     # entirely must all pass.
     env = unittest.begin(ctx)
     asserts.equals(env, None, check_unreplaced_hooks("//a:b", [
-        struct(package_name = "fine", has_unreplaced_hook = ""),
+        struct(package_name = "fine", unreplaced_hook = ""),
         struct(package_name = "legacy"),
     ]))
     asserts.equals(env, None, check_unreplaced_hooks("//a:b", []))
@@ -432,8 +432,8 @@ def _hooks_offender_test_impl(ctx):
     # a runtime "couldn't resolve native function".
     env = unittest.begin(ctx)
     err = check_unreplaced_hooks("//app:bin", [
-        struct(package_name = "fine", has_unreplaced_hook = ""),
-        struct(package_name = "webcrypto", has_unreplaced_hook = "hook/build.dart"),
+        struct(package_name = "fine", unreplaced_hook = ""),
+        struct(package_name = "webcrypto", unreplaced_hook = "hook/build.dart"),
     ])
     asserts.true(env, err != None)
     asserts.true(env, "//app:bin" in err)

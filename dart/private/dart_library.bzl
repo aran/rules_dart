@@ -332,7 +332,7 @@ def _dart_library_impl(ctx):
             package_root = package_root,
             code_assets = ctx.attr.code_assets,
             language_version = identity.language_version,
-            has_unreplaced_hook = unreplaced_build_hook(ctx.file.build_hook, ctx.attr.code_assets),
+            unreplaced_hook = unreplaced_build_hook(ctx.file.build_hook, ctx.attr.code_assets),
             version = ctx.attr.version,
             link_hook = ctx.file.link_hook,
             license_file = ctx.file.license_file,
