@@ -426,7 +426,8 @@ outdated dependencies.
 - `overhead/multitool.lock.json` — tool versions, URLs, and SHA-256 hashes,
   for every repository that uses overhead
 
-**Managed tools**: `git-cliff`, `prek`, `typos`, `yamlfmt`
+**Managed tools**: `actionlint`, `buildifier`, `git-cliff`, `prek`, `shellcheck`,
+`typos`, `yamlfmt`
 
 **Procedure**:
 
@@ -441,12 +442,11 @@ outdated dependencies.
    to verify the updated tools work, `uv tool upgrade prek` so the installed
    git hooks use a prek at least as new, and
    `bazel run --noincompatible_auto_exec_groups @overhead//:bazel_env` so the
-   hooks run the new typos and yamlfmt.
+   hooks run the new tools.
 
 **Verification**: The hooks pass.
 
-The hooks run yamlfmt and typos through overhead, so there is no second pin to
-keep in step.
+The hooks run overhead's tools, so there is no second pin to keep in step.
 
 **Automation**: `/bump-multitool` slash command. Alternatively, install the
 [multitool CLI](https://github.com/theoremlp/multitool) and run

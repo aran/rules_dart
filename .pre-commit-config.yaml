@@ -29,12 +29,6 @@ repos:
       - id: detect-private-key
       - id: end-of-file-fixer
       - id: trailing-whitespace
-  # Check formatting and lint for starlark code
-  - repo: https://github.com/keith/pre-commit-buildifier
-    rev: 10.1.0
-    hooks:
-      - id: buildifier
-      - id: buildifier-lint
   - repo: https://github.com/pre-commit/mirrors-prettier
     rev: v3.1.0
     hooks:
@@ -59,6 +53,18 @@ repos:
         entry: .bazel_env/bin/check-commit-messages
         language: system
         stages: [commit-msg]
+      - id: buildifier
+        name: buildifier
+        entry: .bazel_env/bin/buildifier -mode=fix -lint=fix
+        language: system
+        files: '^(.*/)?(.*\.bzl|.*\.sky|.*\.bazel|BUILD|.*\.BUILD|BUILD\..*\.oss|WORKSPACE|WORKSPACE\.bzlmod|WORKSPACE\.oss|WORKSPACE\..*\.oss)$'
+        stages: [pre-commit]
+      - id: buildifier-lint
+        name: buildifier lint
+        entry: .bazel_env/bin/buildifier -mode=check -lint=warn
+        language: system
+        files: '^(.*/)?(.*\.bzl|.*\.sky|.*\.bazel|BUILD|.*\.BUILD|BUILD\..*\.oss|WORKSPACE|WORKSPACE\.bzlmod|WORKSPACE\.oss|WORKSPACE\..*\.oss)$'
+        stages: [pre-commit]
       - id: yamlfmt
         name: yamlfmt
         entry: .bazel_env/bin/yamlfmt
