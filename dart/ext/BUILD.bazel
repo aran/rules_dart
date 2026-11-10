@@ -28,6 +28,7 @@ dart_library(
     package_name = "rules_dart_ext",
     srcs = [
         "lib/builder_shim.dart",
+        "lib/src/declared_file_system.dart",
         "lib/worker_entry.dart",
     ],
     language_version = "3.11",

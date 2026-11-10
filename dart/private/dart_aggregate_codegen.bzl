@@ -76,7 +76,7 @@ def _dart_aggregate_codegen_impl(ctx):
         fail("%s: `srcs` cannot be empty." % ctx.label)
 
     outputs = [ctx.actions.declare_file(path) for path in ctx.attr.outputs]
-    synth_pc, transitive_srcs = synth_package_config(ctx, ctx.attr.deps)
+    synth_pc, package_files = synth_package_config(ctx, ctx.attr.deps)
 
     lib_root_from_deps = dart_lib_root_for_package(
         ctx.attr.deps,
@@ -118,7 +118,7 @@ def _dart_aggregate_codegen_impl(ctx):
     args.add_all(ctx.attr.generator_args)
 
     direct_inputs = list(ctx.files.srcs) + extra_inputs
-    transitive = [transitive_srcs] if transitive_srcs != None else []
+    transitive = [package_files] if package_files != None else []
     transitive.append(dart_sdk_info.tool_files)
 
     if ctx.executable.generator_bin:

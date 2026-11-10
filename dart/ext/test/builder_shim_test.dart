@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:analyzer/dart/analysis/analysis_context_collection.dart';
 import 'package:analyzer/dart/element/element.dart';
+import 'package:analyzer/file_system/file_system.dart' show ResourceProvider;
 import 'package:bazel_worker/bazel_worker.dart';
 import 'package:build/build.dart';
 import 'package:package_config/package_config.dart';
@@ -108,6 +109,234 @@ String _writePackageConfig({
 }
 
 void main() {
+  // The package a generator sees is exactly the one its target declares: the
+  // declared files, the user's own pubspec and analysis options, and nothing
+  // else. Output must not depend on where the action ran.
+  group('what a generator sees', () {
+    late Directory tmp;
+
+    setUp(() async {
+      tmp = await Directory.systemTemp.createTemp('shim_sees_');
+    });
+
+    tearDown(() async {
+      // Staged copies of Bazel outputs are read-only; make them deletable.
+      await Process.run('chmod', ['-R', 'u+rwX', tmp.path]);
+      await tmp.delete(recursive: true);
+    });
+
+    Future<String?> readStaged(
+      String asset, {
+      required String content,
+      bool readOnly = false,
+    }) async {
+      final input = File(p.join(tmp.path, 'src.dart'))
+        ..writeAsStringSync('class Foo {}');
+      final declared = File(p.join(tmp.path, 'declared_${asset.hashCode}'))
+        ..writeAsStringSync(content);
+      if (readOnly) await Process.run('chmod', ['0444', declared.path]);
+      String? seen;
+      await runShimWithArgs(
+        _shimArgs(
+          inputPath: input.path,
+          inputAssetPath: 'lib/src.dart',
+          outputPath: p.join(tmp.path, 'src.g.dart'),
+          depPaths: [(exec: declared.path, asset: asset)],
+        ),
+        (_) => _CapturingBuilder((step) async {
+          seen = await step.readAsString(AssetId('fixture', asset));
+        }),
+      );
+      return seen;
+    }
+
+    for (final asset in ['pubspec.yaml', 'analysis_options.yaml']) {
+      for (final readOnly in [false, true]) {
+        test(
+          'the $asset the target passes is the one the generator reads'
+          '${readOnly ? ' (read-only, as a Bazel output is)' : ''}',
+          () async {
+            final mine = '# mine\nname: fixture\nversion: 9.9.9\n';
+            expect(
+              await readStaged(asset, content: mine, readOnly: readOnly),
+              mine,
+              reason: 'the shim must not replace a file the user declared',
+            );
+          },
+        );
+      }
+    }
+
+    test('a read-only declared input does not fail the action', () async {
+      expect(
+        await readStaged('lib/ro.dart', content: 'class R {}', readOnly: true),
+        'class R {}',
+      );
+    });
+
+    /// Runs a builder over [asset] staged under [root] and returns what it
+    /// saw of the input library's identity.
+    Future<Map<String, String>> identityUnder(
+      Directory root,
+      String asset,
+    ) async {
+      final input = File(p.join(tmp.path, 'main_src.dart'))
+        ..writeAsStringSync('class Main {}');
+      final seen = <String, String>{};
+      final diagnostics = <String>[];
+      exitCode = 0;
+      await runShim(
+        [
+          '--input',
+          input.path,
+          '--input-asset',
+          asset,
+          '--output',
+          p.join(tmp.path, 'out_${root.path.hashCode}.g.dart'),
+          '--package',
+          'fixture',
+          '--root-language-version',
+          '3.11',
+        ],
+        (_) => _CapturingBuilder((step) async {
+          final lib = await step.resolver.libraryFor(step.inputId);
+          seen['uri'] = lib.firstFragment.source.uri.toString();
+          seen['libraries'] = (await step.resolver.libraries.toList())
+              .map(_libUriString)
+              .where((u) => u.contains('main') || u.contains('shim_'))
+              .join(',');
+        }),
+        stagingRoot: root,
+        writeDiagnostic: diagnostics.add,
+      );
+      expect(exitCode, 0, reason: diagnostics.join('\n'));
+      exitCode = 0;
+      return seen;
+    }
+
+    for (final asset in ['lib/main.dart']) {
+      test('$asset has the same identity wherever the action runs and '
+          'names no temp path', () async {
+        final a = await Directory(p.join(tmp.path, 'tmp_a')).create();
+        final b = await Directory(p.join(tmp.path, 'tmp_b_longer')).create();
+        final underA = await identityUnder(a, asset);
+        final underB = await identityUnder(b, asset);
+        expect(underA, underB, reason: 'output must not depend on TMPDIR');
+        for (final value in underA.values) {
+          expect(value, isNot(contains('shim_')));
+          expect(value, isNot(contains(tmp.path)));
+        }
+        expect(underA['uri'], isNot(startsWith('file:')));
+      });
+    }
+
+    // Bazel's worker contract: a worker reads only WorkRequest.inputs. The
+    // package config's rootUri points at the real package, so everything
+    // else under it is also readable unless the shim stops it.
+    group('in a worker', () {
+      late Directory pkgRoot;
+      late String pkgConfig;
+      late File input;
+
+      setUp(() async {
+        final foo = _writeForeignPackage(root: tmp, name: 'foo');
+        File(
+          p.join(foo.path, 'lib', 'declared.txt'),
+        ).writeAsStringSync('declared');
+        File(
+          p.join(foo.path, 'lib', 'undeclared.txt'),
+        ).writeAsStringSync('SECRET');
+        File(
+          p.join(foo.path, 'lib', 'undeclared.dart'),
+        ).writeAsStringSync('class Hidden {}');
+        pkgRoot = foo;
+        pkgConfig = _writePackageConfig(root: tmp, packages: [foo]);
+        input = File(p.join(tmp.path, 'src.dart'))
+          ..writeAsStringSync("import 'package:foo/foo.dart';\nclass B {}\n");
+      });
+
+      Future<Map<String, Object?>> run(
+        Set<String> declared,
+        Future<void> Function(BuildStep, Map<String, Object?>) body,
+      ) async {
+        final seen = <String, Object?>{};
+        final loop = ShimWorkerLoop(
+          factoryOrFactories: (_) => _CapturingBuilder((s) => body(s, seen)),
+        );
+        final resp = await loop.performRequest(
+          WorkRequest(
+            arguments: [
+              '--input',
+              input.path,
+              '--input-asset',
+              'lib/src.dart',
+              '--output',
+              p.join(tmp.path, 'src.g.dart'),
+              '--package',
+              'fixture',
+              '--root-language-version',
+              '3.11',
+              '--package-config',
+              pkgConfig,
+            ],
+            inputs: [
+              Input(path: input.path),
+              Input(path: pkgConfig),
+              for (final f in declared) Input(path: p.join(pkgRoot.path, f)),
+            ],
+          ),
+        );
+        expect(resp.exitCode, 0, reason: resp.output);
+        return seen;
+      }
+
+      Future<Object?> tryRead(BuildStep s, String path) async {
+        try {
+          return await s.readAsString(AssetId('foo', path));
+        } catch (e) {
+          return e;
+        }
+      }
+
+      test('a declared dependency file is readable (control)', () async {
+        final seen = await run({'lib/foo.dart', 'lib/declared.txt'}, (
+          s,
+          m,
+        ) async {
+          m['declared'] = await tryRead(s, 'lib/declared.txt');
+        });
+        expect(seen['declared'], 'declared');
+      });
+
+      test(
+        'an undeclared non-Dart file of a dependency is not readable',
+        () async {
+          final seen = await run({'lib/foo.dart'}, (s, m) async {
+            m['secret'] = await tryRead(s, 'lib/undeclared.txt');
+          });
+          expect(
+            seen['secret'],
+            isA<AssetNotFoundException>(),
+            reason: 'output would depend on a file no dependency declared',
+          );
+        },
+      );
+
+      test(
+        'an undeclared Dart file of a dependency is not resolvable',
+        () async {
+          final seen = await run({'lib/foo.dart'}, (s, m) async {
+            final id = AssetId('foo', 'lib/undeclared.dart');
+            m['canRead'] = await s.canRead(id);
+            m['isLibrary'] = await s.resolver.isLibrary(id);
+          });
+          expect(seen['canRead'], isFalse);
+          expect(seen['isLibrary'], isFalse);
+        },
+      );
+    });
+  });
+
   group('stagedPath', () {
     test(
       'joins a POSIX asset under a native Windows dir, no mixed separators',
@@ -761,10 +990,9 @@ void main() {
 
     test('staging root bounds analysis-options discovery', () async {
       // The staging dir is created under a temp root, so its ancestors are
-      // whatever the machine happens to have there. Without an options file of
-      // its own the analyzer's walk-up reaches them, and codegen would be
-      // configured by a stray file — differently on different machines. The
-      // stub written at the staging root is what ends that walk.
+      // whatever the machine happens to have there. If the analyzer's walk-up
+      // reached them, codegen would be configured by a stray file —
+      // differently on different machines.
       //
       // `exclude: '**'` is planted above deliberately: it is the ancestor
       // setting most likely to change generation if it were ever consulted.
@@ -777,7 +1005,7 @@ void main() {
         ..writeAsStringSync('class Foo {}');
       final out = p.join(tmp.path, 'a.g.dart');
 
-      var stagedOptions = false;
+      String? optionsFile = 'not checked';
       await runShim(
         [
           '--input',
@@ -796,26 +1024,24 @@ void main() {
         buildAnalysisContext:
             ({
               required List<String> includedPaths,
-              required String? sdkPath,
+              required String sdkPath,
+              required ResourceProvider resourceProvider,
             }) async {
-              // Checked here rather than after the run: the staging dir is deleted
-              // as soon as `runShim` returns.
-              stagedOptions = File(
-                p.join(includedPaths.single, 'analysis_options.yaml'),
-              ).existsSync();
-              return AnalysisContextCollection(
+              final collection = AnalysisContextCollection(
                 includedPaths: includedPaths,
                 sdkPath: sdkPath,
+                resourceProvider: resourceProvider,
               );
+              optionsFile =
+                  collection.contexts.single.contextRoot.optionsFile?.path;
+              return collection;
             },
       );
 
       expect(
-        stagedOptions,
-        isTrue,
-        reason:
-            'no analysis_options.yaml at the staging root, so the '
-            'analyzer walks up into the system temp dir',
+        optionsFile,
+        isNull,
+        reason: 'the analyzer found an analysis_options.yaml above staging',
       );
       expect(File(out).existsSync(), isTrue);
       expect(File(out).readAsStringSync(), contains('// generated'));

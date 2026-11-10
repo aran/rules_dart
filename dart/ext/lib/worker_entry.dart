@@ -72,6 +72,9 @@ class ShimWorkerLoop extends AsyncWorkerLoop {
             factoryOrFactories,
             stagingRoot: stagingRoot,
             writeDiagnostic: sink,
+            // Unsandboxed, the worker could read anything under a package's
+            // root; Bazel's contract is that it reads only these.
+            declaredInputs: [for (final input in request.inputs) input.path],
           );
           exit = exitCode;
         } catch (e, st) {

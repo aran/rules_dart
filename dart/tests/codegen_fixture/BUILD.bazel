@@ -1,0 +1,83 @@
+"""Fixtures for `//dart/tests:codegen_test.bzl`'s input-set tests. Nothing is built."""
+
+load("//dart:defs.bzl", "dart_aggregate_codegen", "dart_binary", "dart_codegen", "dart_library", "dart_sqlcodegen")
+load("//dart/tests:codegen_test.bzl", "codegen_inputs_test")
+
+dart_library(
+    name = "lib",
+    package_name = "codegen_fixture",
+    srcs = ["lib/b.dart"],
+    deps = ["//dart/tests/codegen_fixture/dep"],
+)
+
+dart_binary(
+    name = "gen_bin",
+    main = "gen.dart",
+    tags = ["manual"],
+)
+
+# One-shot path: the generator is a script run by `dart`.
+dart_codegen(
+    name = "per_file",
+    package_name = "codegen_fixture",
+    src = "lib/a.dart",
+    generator = "gen.dart",
+    output_suffixes = [".g.dart"],
+    tags = ["manual"],
+    deps = [":lib"],
+)
+
+codegen_inputs_test(
+    name = "per_file_inputs_test",
+    size = "small",
+    target_under_test = ":per_file",
+)
+
+# Worker path: a compiled shim.
+dart_codegen(
+    name = "per_file_bin",
+    package_name = "codegen_fixture",
+    src = "lib/a.dart",
+    generator_bin = ":gen_bin",
+    output_suffixes = [".bin.dart"],
+    tags = ["manual"],
+    deps = [":lib"],
+)
+
+codegen_inputs_test(
+    name = "per_file_bin_inputs_test",
+    size = "small",
+    target_under_test = ":per_file_bin",
+)
+
+dart_aggregate_codegen(
+    name = "aggregate",
+    package_name = "codegen_fixture",
+    srcs = ["lib/a.dart"],
+    generator_script = "gen.dart",
+    outputs = ["lib/a.agg.dart"],
+    tags = ["manual"],
+    deps = [":lib"],
+)
+
+codegen_inputs_test(
+    name = "aggregate_inputs_test",
+    size = "small",
+    target_under_test = ":aggregate",
+)
+
+dart_sqlcodegen(
+    name = "sql",
+    package_name = "codegen_fixture",
+    src = "lib/a.dart",
+    generator_bin = ":gen_bin",
+    output_suffixes = [".sql.json"],
+    tags = ["manual"],
+    deps = [":lib"],
+)
+
+codegen_inputs_test(
+    name = "sql_inputs_test",
+    size = "small",
+    target_under_test = ":sql",
+)

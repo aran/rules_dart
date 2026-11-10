@@ -921,14 +921,19 @@ def synth_package_config(ctx, library_deps):
       library_deps: List of `dart_library` targets to merge.
 
     Returns:
-      `(package_config_file, transitive_srcs_depset)`, or `(None, None)`
-      when `library_deps` is empty. The caller is expected to add both to
+      `(package_config_file, package_files_depset)`, or `(None, None)`
+      when `library_deps` is empty. The depset holds every file of every
+      package the config names, sources and `resources` alike: a generator
+      may read any of them through the config, so the caller adds both to
       the action's `inputs` (the depset flattens lazily at execution time).
     """
     if not library_deps:
         return None, None
     packages = collect_packages(library_deps)
     transitive_srcs = collect_transitive_srcs(library_deps)
+    package_files = depset(
+        transitive = [transitive_srcs, collect_transitive_resources(library_deps)],
+    )
     package_config = ctx.actions.declare_file(
         ctx.label.name + ".package_config.json",
     )
@@ -942,7 +947,7 @@ def synth_package_config(ctx, library_deps):
         package_config,
     )
     ctx.actions.write(output = package_config, content = content)
-    return package_config, transitive_srcs
+    return package_config, package_files
 
 # --- Native code-asset (gen_kernel --native-assets) helpers ---
 #
@@ -1543,8 +1548,8 @@ def dart_lib_root_for_package(deps, package_name):
 def same_package_library_dep_files(deps, package_name, exclude_paths = None):
     """Returns same-package sibling files from `deps` plus the package's lib_root.
 
-    Files at `<lib_root>/lib/...` in any transitive package whose name
-    matches `package_name` are returned. Filenames whose exec path is in
+    Sources and `resources` alike: files at `<lib_root>/lib/...` in any
+    transitive package whose name matches `package_name` are returned. Filenames whose exec path is in
     `exclude_paths` (e.g. the action's own `src` file) are skipped so the
     input isn't staged twice.
 
@@ -1566,7 +1571,10 @@ def same_package_library_dep_files(deps, package_name, exclude_paths = None):
     excluded = {p: True for p in exclude_paths}
     seen = {}
     out = []
-    for src in collect_transitive_srcs(deps).to_list():
+    files = depset(
+        transitive = [collect_transitive_srcs(deps), collect_transitive_resources(deps)],
+    )
+    for src in files.to_list():
         if src.path in excluded:
             continue
         if src.short_path in seen:

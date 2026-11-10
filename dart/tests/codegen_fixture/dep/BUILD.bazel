@@ -1,0 +1,11 @@
+load("//dart:defs.bzl", "dart_library")
+
+# A dependency that ships a non-Dart file in `lib/`, as pub packages ship
+# templates and schemas. A generator may read it through the package config.
+dart_library(
+    name = "dep",
+    package_name = "codegen_fixture_dep",
+    srcs = ["lib/dep.dart"],
+    resources = ["lib/template.txt"],
+    visibility = ["//dart/tests/codegen_fixture:__pkg__"],
+)

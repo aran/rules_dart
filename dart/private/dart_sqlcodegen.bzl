@@ -48,7 +48,7 @@ def _dart_sqlcodegen_impl(ctx):
              ctx.label)
 
     src = ctx.file.src
-    synth_pc, lib_dep_srcs = synth_package_config(ctx, ctx.attr.deps)
+    synth_pc, package_files = synth_package_config(ctx, ctx.attr.deps)
 
     lib_root_from_deps = dart_lib_root_for_package(
         ctx.attr.deps,
@@ -101,7 +101,7 @@ def _dart_sqlcodegen_impl(ctx):
     ))
     args.add_all(ctx.attr.generator_args)
 
-    transitive = ([lib_dep_srcs] if lib_dep_srcs != None else []) + [sdk_files]
+    transitive = ([package_files] if package_files != None else []) + [sdk_files]
 
     ctx.actions.run(
         executable = ctx.executable.generator_bin,

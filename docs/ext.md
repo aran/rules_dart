@@ -151,6 +151,20 @@ CWD-reading top-level `final`; multiplexing would need to patch upstream
 `--experimental_sandboxed_worker`, staging roots there so per-request
 hermeticity matches Bazel's sandbox lifecycle.
 
+A worker runs unsandboxed in the execroot, where the package config's
+`rootUri`s lead to whole package directories. The shim therefore gives the
+analyzer, and the `AssetReader` builders read through, a file system
+(`DeclaredResourceProvider`, through the analyzer's public `resourceProvider`)
+that holds only the request's `WorkRequest.inputs`, the staging directory and
+the SDK: an undeclared file of a dependency does not exist for a generator, in
+a worker as in a sandbox. Nothing above the staging directory is visible
+either, so the analyzer's searches upward from it (for
+`analysis_options.yaml`, `pubspec.yaml`, workspace markers) end there wherever
+the system temp directory is. A one-shot run sees whole packages of the
+package config; the sandbox is what holds those to the declared inputs.
+Generators that read files with `dart:io` rather than through the build step
+are outside this view.
+
 ### Analyzer-context lifecycle
 
 `builder_shim.dart` constructs a fresh `AnalysisContextCollection` per
@@ -230,9 +244,17 @@ so cross-action `fetchResource` state doesn't leak.
 
 `deps` on `dart_codegen` / `dart_sqlcodegen` / `dart_aggregate_codegen`
 accepts `dart_library`-shaped targets (anything exporting `DartInfo`).
-The rule walks each dep's `DartInfo.transitive_srcs` and auto-stages any
-file whose owning package matches the codegen target's `package_name` —
-i.e. same-package sibling files. Users no longer hand-list
+The rule walks each dep's `DartInfo.transitive_srcs` and
+`transitive_resources` and auto-stages any file whose owning package matches
+the codegen target's `package_name` — i.e. same-package sibling files. Every
+file of every other package in `deps`, sources and `resources` alike, is an
+input of the action, since a generator may read any of them through the
+package config.
+
+The staging root is the package root a builder sees. A `pubspec.yaml`,
+`analysis_options.yaml` or `stacked.json` passed in `asset_deps` at the package
+root is staged there and is the file builders and the analyzer read; the shim
+writes a stub `pubspec.yaml` and `stacked.json` only when none is passed. Users no longer hand-list
 `deps = ["lib/api.dart"]`; they add the owning `dart_library` target to
 `deps` instead.
 

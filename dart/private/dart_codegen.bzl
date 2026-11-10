@@ -109,7 +109,7 @@ def _dart_codegen_impl(ctx):
              ctx.label)
 
     src = ctx.file.src
-    synth_pc, library_dep_srcs = synth_package_config(ctx, ctx.attr.deps)
+    synth_pc, package_files = synth_package_config(ctx, ctx.attr.deps)
 
     # Derive the Dart package's lib_root from deps' DartInfo — works even
     # when the codegen rule's Bazel package path doesn't match the Dart
@@ -170,7 +170,7 @@ def _dart_codegen_impl(ctx):
             arguments = [args],
             inputs = depset(
                 direct = direct_inputs,
-                transitive = _transitive(library_dep_srcs) + [sdk_files],
+                transitive = _transitive(package_files) + [sdk_files],
             ),
             outputs = outputs,
             mnemonic = "DartCodegen",
@@ -209,7 +209,7 @@ def _dart_codegen_impl(ctx):
             arguments = [args],
             inputs = depset(
                 direct = direct_inputs,
-                transitive = _transitive(library_dep_srcs) + [sdk_files],
+                transitive = _transitive(package_files) + [sdk_files],
             ),
             outputs = outputs,
             mnemonic = "DartCodegen",
