@@ -40,7 +40,7 @@ Flutter SDK and gets its own modules, and everything else here is shared.
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("//dart:providers.bzl", "DartInfo", "DartKernelSdkInfo", "DartModuleInfo")
 load("//dart/private:build_settings.bzl", "vm_define_comma_error")
-load("//dart/private:common.bzl", "KERNEL_FILESYSTEM_SCHEME", "PATH_MAPPING", "add_kernel_roots", "collect_transitive_srcs", "dart_kernel_action", "kernel_root_path", "own_package_record")
+load("//dart/private:common.bzl", "KERNEL_FILESYSTEM_SCHEME", "PATH_MAPPING", "add_kernel_roots", "collect_transitive_srcs", "dart_kernel_action", "kernel_root_path", "own_packages")
 load(
     "//dart/private:dart_deps.bzl",
     "direct_dart_deps",
@@ -180,17 +180,17 @@ def _module_aspect_impl(target, ctx):
     if not srcs:
         return [DartModuleInfo(modules = modules.modules, manifests = modules.manifests)]
 
-    # Only the target's own package: its dependencies are read from their
+    # Only the target's own packages: its dependencies are read from their
     # modules, which name every library they hold.
-    own = own_package_record(info)
+    own = own_packages(info)
     return [_compile_modules(
         ctx,
         sdk = ctx.attr._kernel_sdk[DartKernelSdkInfo],
         kernel_tool = ctx.executable._kernel_tool,
         name = ctx.label.name,
         srcs = srcs,
-        packages = [own] if own else [],
-        own_package = own,
+        packages = own,
+        own_packages = own,
         modules = modules,
         defines = module_defines(ctx),
     )]
@@ -206,7 +206,7 @@ def _check_no_comma(define, source):
     if err:
         fail(err)
 
-def _compile_modules(ctx, sdk, kernel_tool, name, srcs, packages, own_package, modules, defines):
+def _compile_modules(ctx, sdk, kernel_tool, name, srcs, packages, own_packages, modules, defines):
     """Compiles `srcs` into kernel modules against `modules`.
 
     The sources are split as Dart's own modular build splits a package, finely:
@@ -224,7 +224,9 @@ def _compile_modules(ctx, sdk, kernel_tool, name, srcs, packages, own_package, m
       srcs: The Dart sources (or source directories) to compile.
       packages: `DartPackageInfo` records for the package config: those whose
         language version the sources take.
-      own_package: The `DartPackageInfo` the sources belong to, or `None`.
+      own_packages: The `DartPackageInfo` records the sources belong to: one,
+        none for an executable stating no package, several for packages that
+        depend on each other.
       modules: `struct(modules, manifests)` of every dependency's modules.
       defines: Environment declarations beyond the platform's.
 
@@ -245,9 +247,9 @@ def _compile_modules(ctx, sdk, kernel_tool, name, srcs, packages, own_package, m
     args.add("--libraries-spec", sdk.libraries_spec)
     args.add("--libraries-target", sdk.libraries_target)
     args.add("--package-config", package_config)
-    if own_package != None:
-        args.add("--package-name", own_package.package_name)
-        args.add("--lib-root", own_package.lib_root)
+    for own in own_packages:
+        args.add("--package-name", own.package_name)
+        args.add("--lib-root", own.lib_root)
     add_kernel_roots(args, "--multi-root", srcs)
     args.add_all(srcs, before_each = "--src", expand_directories = False)
     _add_deps(args, modules.modules)
@@ -415,7 +417,7 @@ def dart_entry_kernel_action(
         name = ctx.label.name + ".own",
         srcs = srcs,
         packages = packages,
-        own_package = own_package,
+        own_packages = [own_package] if own_package != None else [],
         modules = modules,
         defines = defines,
     )

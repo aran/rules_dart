@@ -18,9 +18,11 @@ Two constructors cover every `DartInfo` a build produces. `dart_info()` is for a
 target that *contributes a package* — it always records one `DartPackageInfo` of
 its own. `dart_info_no_package()` is for one that deliberately carries none:
 `flutter_material_icons` ships a font and no Dart, and provides `DartInfo` only
-because `flutter_application(deps = ...)` requires one on every dep. Neither
-takes a field list, and the enumeration they share lives in `_merged_dart_info`
-below, so a field added to `DartInfo` is a change to this file and nowhere else.
+because `flutter_application(deps = ...)` requires one on every dep. A third,
+`dart_info_packages()`, is rules_dart's own, for the one library pub generates
+over packages that depend on each other. None takes a field list, and the
+enumeration they share lives in `_merged_dart_info` below, so a field added to
+`DartInfo` is a change to this file and nowhere else.
 
 The narrow signature is the point for the second one. A target with no package
 can have no `srcs`, no `lib_root`, and no `code_assets` — assets ride
@@ -190,10 +192,16 @@ def dart_info(
     Returns:
       A `DartInfo`.
     """
-    own_assets = [dep[DartCodeAssetInfo] for dep in code_assets]
-    err = check_code_asset_ownership(label, package_name, own_assets)
-    if err != None:
-        fail(err)
+    this_pkg = package_record(
+        label = label,
+        package_name = package_name,
+        lib_root = lib_root,
+        language_version = language_version,
+        code_assets = code_assets,
+        has_unreplaced_hook = has_unreplaced_hook,
+        version = version,
+        link_hook = link_hook,
+    )
 
     dep_infos = [dep[DartInfo] for dep in deps]
     if indirect_deps:
@@ -204,7 +212,50 @@ def dart_info(
                 fail(("%s: `indirect_deps` names %s, which none of its dependencies " +
                       "depends on directly.") % (label, wanted))
 
-    this_pkg = DartPackageInfo(
+    return _merged_dart_info(
+        dep_infos = dep_infos,
+        dep_packages = _dep_packages(deps),
+        indirect_deps = indirect_deps,
+        srcs = srcs,
+        resources = resources,
+        packages = [this_pkg],
+    )
+
+def package_record(
+        label,
+        package_name,
+        lib_root,
+        language_version,
+        code_assets = [],
+        has_unreplaced_hook = "",
+        version = "",
+        link_hook = None):
+    """Builds the `DartPackageInfo` a package's own facts make, checking its code assets.
+
+    The one place a record is constructed from what a rule states; `dart_info()`
+    calls it for its single package, and the rule pub generates for packages
+    that depend on each other calls it once per package. Arguments are as for
+    `dart_info()`.
+
+    Args:
+      label: The constructing rule's label, for error messages.
+      package_name: The Dart package name.
+      lib_root: `short_path`-based path to the package root (parent of `lib/`).
+      language_version: Dart language version in `<major>.<minor>` form, or "".
+      code_assets: Targets providing `DartCodeAssetInfo` that this package owns.
+      has_unreplaced_hook: Path of a pub build hook with no Bazel replacement,
+        or "".
+      version: The package's own resolved version, or "".
+      link_hook: The package's `hook/link.dart` File, or None.
+
+    Returns:
+      A `DartPackageInfo`.
+    """
+    own_assets = [dep[DartCodeAssetInfo] for dep in code_assets]
+    err = check_code_asset_ownership(label, package_name, own_assets)
+    if err != None:
+        fail(err)
+    return DartPackageInfo(
         package_name = package_name,
         lib_root = lib_root,
         version = version,
@@ -214,21 +265,37 @@ def dart_info(
         link_hook = link_hook,
     )
 
+def dart_info_packages(packages, srcs, resources = [], deps = []):
+    """Builds a `DartInfo` for a target that contributes several packages at once.
+
+    Pub allows packages to depend on each other (`dio` and `dio_web_adapter`);
+    Bazel does not allow a dependency cycle, so the packages of such a cycle are
+    one target, compiled together, each keeping its own name and `lib_root`.
+    With one record this is `dart_info()`.
+
+    Args:
+      packages: The `DartPackageInfo` records, from `package_record()`.
+      srcs: The Dart sources of all of them.
+      resources: Their non-Dart files under `lib/`.
+      deps: Targets providing `DartInfo` whose closures are merged in.
+
+    Returns:
+      A `DartInfo`.
+    """
     return _merged_dart_info(
-        dep_infos = dep_infos,
-        dep_packages = {dep.label: dep[DartInfo].package_name for dep in deps},
-        indirect_deps = indirect_deps,
-        package_name = package_name,
-        lib_root = lib_root,
+        dep_infos = [dep[DartInfo] for dep in deps],
+        dep_packages = _dep_packages(deps),
+        indirect_deps = [],
         srcs = srcs,
         resources = resources,
-        packages = [this_pkg],
-        code_asset_files = [
-            a.dynamic_library
-            for a in own_assets
-            if a.dynamic_library != None
-        ],
+        packages = packages,
     )
+
+def _dep_packages(deps):
+    return {
+        dep.label: tuple([p.package_name for p in dep[DartInfo].packages])
+        for dep in deps
+    }
 
 def dart_info_no_package(deps = []):
     """Builds a `DartInfo` for a target that contributes no Dart package.
@@ -240,12 +307,8 @@ def dart_info_no_package(deps = []):
     entry or a source to compile.
 
     There is deliberately no `package_name`, `lib_root`, `srcs`, `resources` or
-    `code_assets` here. `DartInfo.package_name` and `.lib_root` describe the
-    package a target contributes, and no consumer reads them off the provider —
-    package identity is read from `transitive_packages` — so a no-package target
-    reports the empty string for both rather than inventing a name with no
-    record behind it. Code assets are owned by a `DartPackageInfo`, which this
-    target does not have.
+    `code_assets` here: its `DartInfo.packages` is empty. Code assets are owned
+    by a `DartPackageInfo`, which this target does not have.
 
     `deps` exists because a facade that groups other libraries is still a
     coherent no-package target, and forwarding their closures is then the whole
@@ -259,14 +322,11 @@ def dart_info_no_package(deps = []):
     """
     return _merged_dart_info(
         dep_infos = [dep[DartInfo] for dep in deps],
-        dep_packages = {dep.label: dep[DartInfo].package_name for dep in deps},
+        dep_packages = _dep_packages(deps),
         indirect_deps = [],
-        package_name = "",
-        lib_root = "",
         srcs = [],
         resources = [],
         packages = [],
-        code_asset_files = [],
     )
 
 def dart_analyzable_info(deps = [], srcs = []):
@@ -433,12 +493,9 @@ def _merged_dart_info(
         dep_infos,
         dep_packages,
         indirect_deps,
-        package_name,
-        lib_root,
         srcs,
         resources,
-        packages,
-        code_asset_files):
+        packages):
     """Merges a target's own contributions with its dependencies' closures.
 
     The single place `DartInfo`'s fields are enumerated. Both public
@@ -447,21 +504,17 @@ def _merged_dart_info(
 
     Args:
       dep_infos: The `DartInfo` of each dependency.
-      dep_packages: Each dependency's label and package name, for `DartInfo.deps`.
+      dep_packages: Each dependency's label and package names, for `DartInfo.deps`.
       indirect_deps: Value for `DartInfo.indirect_deps`.
-      package_name: Value for `DartInfo.package_name`.
-      lib_root: Value for `DartInfo.lib_root`.
       srcs: This target's own Dart sources.
       resources: This target's own non-Dart files under `lib/`.
-      packages: This target's own `DartPackageInfo` records (zero or one).
-      code_asset_files: This target's own code-asset dynamic libraries.
+      packages: This target's own `DartPackageInfo` records.
 
     Returns:
       A `DartInfo`.
     """
     return DartInfo(
-        package_name = package_name,
-        lib_root = lib_root,
+        packages = tuple(packages),
         srcs = list(srcs),
         deps = dict(dep_packages),
         indirect_deps = list(indirect_deps),
@@ -492,7 +545,12 @@ def _merged_dart_info(
         # unguarded: a missing one is a dependency that forgot to forward, and
         # failing loudly is the whole point.
         transitive_code_asset_files = depset(
-            direct = code_asset_files,
+            direct = [
+                a.dynamic_library
+                for pkg in packages
+                for a in pkg.code_assets
+                if a.dynamic_library != None
+            ],
             transitive = [
                 info.transitive_code_asset_files
                 for info in dep_infos

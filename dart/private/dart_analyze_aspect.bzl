@@ -53,7 +53,7 @@ different projects.
 
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("//dart:providers.bzl", "DartAnalysisOptionsInfo", "DartAnalyzableInfo", "DartInfo")
-load("//dart/private:common.bzl", "PATH_MAPPING", "SDK_ENV", "merge_package_records", "own_package_record")
+load("//dart/private:common.bzl", "PATH_MAPPING", "SDK_ENV", "merge_package_records", "own_packages")
 load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS", "portable_sdk")
 load("//dart/private:project_staging.bzl", "project_layout", "pubspec_stub", "stage_dart_project", "staged_pubspec_paths")
 load("//dart/private:resources.bzl", "analysis_resources")
@@ -288,10 +288,12 @@ def _format_language_versions(info, own_paths):
       Dict of language version ("" when none is stated) to the paths to format
       at it.
     """
-    own_package = own_package_record(info)
-    if own_package:
-        return {getattr(own_package, "language_version", ""): own_paths}
-    roots = [
+    own = own_packages(info)
+    if len(own) == 1:
+        return {getattr(own[0], "language_version", ""): own_paths}
+
+    # Several own packages are told apart by root like an entrypoint's.
+    roots = own or [
         p
         for p in info.transitive_packages.to_list()
         if not p.lib_root.startswith("../")

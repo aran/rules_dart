@@ -91,8 +91,7 @@ Manifest _manifest(
   String? libRoot,
 }) => Manifest(
   label: label,
-  package: package,
-  libRoot: libRoot,
+  packages: {?package: libRoot ?? ''},
   dir: 'out/${label.replaceAll(RegExp('[/:]'), '_')}',
   modules: modules,
 );
@@ -539,7 +538,7 @@ import 'stub.dart' if (dart.library.io) 'src/io.dart' if (dart.library.html) 'sr
         dependencyFiles: depFiles,
         checkLayering: layering,
         directPackages: direct,
-        ownPackage: own,
+        ownPackages: {?own},
       );
     }
 
@@ -708,7 +707,7 @@ import 'package:app/own.dart';
         },
         checkLayering: true,
         directPackages: const {'direct'},
-        ownPackage: 'app',
+        ownPackages: {'app'},
       );
       expect(v.map((v) => v.message), [
         '//app:lib: app/lib/a.dart imports package:indirect/i.dart, but package '
@@ -861,6 +860,28 @@ import 'package:app/own.dart';
       final index = ModuleIndex([first, second]);
       expect(index.moduleOf('package:p/p.dart')!.manifest, first);
       expect(index.moduleOf('package:p/extra.dart'), isNull);
+    });
+
+    test('packages that depend on each other, from a second hub, are ignored whole', () {
+      Manifest group(String label, String hub) => Manifest(
+        label: label,
+        packages: {'a': '../$hub/a', 'b': '../$hub/b'},
+        dir: 'out/$hub',
+        modules: [
+          _module(0, ['package:a/a.dart', 'package:b/b.dart']),
+        ],
+      );
+      final first = group('//hub1:a', 'hub1');
+      final second = group('//hub2:a', 'hub2');
+      final index = ModuleIndex([first, second]);
+      expect(index.moduleOf('package:b/b.dart')!.manifest, first);
+      expect(
+        uniqueModules([
+          index.moduleOf('package:a/a.dart')!,
+          ModuleRef(second, second.modules.single),
+        ]).conflicts,
+        isEmpty,
+      );
     });
 
     test('any other overlap leaves the library to the earlier module', () {
@@ -1130,8 +1151,7 @@ import 'package:app/own.dart';
     final file = File('${dir.path}/m.json')..writeAsStringSync(m.toJson());
     final back = Manifest.read('out', file.path);
     expect(back.label, '//a:a');
-    expect(back.package, 'a');
-    expect(back.libRoot, 'lib');
+    expect(back.packages, {'a': 'lib'});
     expect(back.modules[0].dill, '0.dill');
     expect(back.modules[0].parts, ['package:a/a.g.dart']);
     expect(back.modules[0].deps, ['package:b/b.dart']);
@@ -1223,7 +1243,9 @@ import 'package:app/own.dart';
       expect(await runArgs(args), 0);
       final m = manifestOf('lib');
       expect(m['label'], '//app:lib');
-      expect(m['package'], 'app');
+      expect(m['packages'], [
+        {'name': 'app', 'lib_root': 'app'},
+      ]);
       final modules = (m['modules'] as List).cast<Map<String, dynamic>>();
       expect(modules.map((m) => m['status']), ['unsupported', 'failed']);
       expect(modules.map((m) => m['dill']), [null, null]);

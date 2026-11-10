@@ -66,12 +66,12 @@ List<Violation> checkPolicy({
   required Set<String> dependencyFiles,
   bool checkLayering = false,
   Set<String> directPackages = const {},
-  String? ownPackage,
+  Set<String> ownPackages = const {},
 }) {
   final held = {for (final f in files) f.uri};
   // Unstated (an executable's own files), the packages its files sit in.
-  final ownPackages = ownPackage != null
-      ? {ownPackage}
+  final own = ownPackages.isNotEmpty
+      ? ownPackages
       : {for (final f in files) ?config.packageOf(f.uri)};
 
   final violations = <Violation>[];
@@ -108,7 +108,7 @@ List<Violation> checkPolicy({
             'Add it to srcs of $label, or the target that holds it to deps.',
           );
         }
-      } else if (ownPackages.contains(name)) {
+      } else if (own.contains(name)) {
         if (!provided) {
           add(
             '$named, a file of its own package that neither $label nor any '

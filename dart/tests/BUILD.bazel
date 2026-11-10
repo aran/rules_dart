@@ -13,6 +13,7 @@ load(":project_staging_test.bzl", "project_staging_test_suite")
 load(":propagation_test.bzl", "propagation_test_suite")
 load(":provider_shape_test.bzl", "provider_shape_probe")
 load(":pub_archive_test.bzl", "pub_archive_test_suite")
+load(":pub_graph_test.bzl", "pub_graph_test_suite")
 load(":registry_test.bzl", "registry_test_suite")
 load(":semver_test.bzl", "semver_test_suite")
 load(":source_set_test.bzl", "source_set_test_suite")
@@ -59,6 +60,8 @@ link_hook_test_suite(name = "link_hook_test")
 pub_archive_test_suite(name = "pub_archive_test")
 
 semver_test_suite(name = "semver_test")
+
+pub_graph_test_suite(name = "pub_graph_test")
 
 web_compiler_test_suite(name = "web_compiler_test")
 

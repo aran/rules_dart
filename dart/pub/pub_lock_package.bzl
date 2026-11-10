@@ -1,7 +1,10 @@
 """Repository rule that downloads a single package from a pubspec.lock.
 
-Each hosted package gets its own external repository (spoke), with the hub
-repo providing aliases for backward-compatible `@hub//:pkg` labels.
+Each hosted package gets its own source repository (spoke), holding its files
+and the facts it states about itself as a `pub_package_member`. Which packages
+it is built with — its dependency cycle, if pub resolved one — is decided by
+its library repository (`pub_lock_library`), which the hub's `@hub//:pkg`
+aliases point at.
 
 Also re-exports public Starlark helpers for other Bazel rule sets (notably
 rules_flutter's `flutter_pub_package`, the `flutter pub get` analog):
@@ -11,9 +14,13 @@ emits the same `dart_library` shape for non-plugin packages.
 """
 
 load("//dart/pub:yaml_parser.bzl", "parse_pubspec_deps", "parse_pubspec_sdk_constraint")
-load("//dart/pub/private:build_content.bzl", _classify_pub_hooks = "classify_pub_hooks", _make_dart_library_build_content = "make_dart_library_build_content")
+load("//dart/pub/private:build_content.bzl", _classify_pub_hooks = "classify_pub_hooks", _make_dart_library_build_content = "make_dart_library_build_content", _make_pub_member_build_content = "make_pub_member_build_content")
 load("//dart/pub/private:language_version.bzl", _derive_language_version = "derive_language_version")
 load("//dart/pub/private:pub_archive.bzl", _check_pub_archive_sha256 = "check_pub_archive_sha256", _fetch_pub_archive = "fetch_pub_archive")
+
+# The names under the package's pubspec `dependencies:`, one per line, which
+# `pub_lock_library` plans from.
+PUBSPEC_DEPENDENCIES = "pubspec_dependencies.txt"
 
 # Re-export for consumers outside //dart/pub (rules_flutter's
 # flutter_pub_package). Loading the private bzl directly would trip
@@ -32,27 +39,20 @@ def _pub_lock_package_impl(ctx):
         base_url = ctx.attr.base_url,
     )
 
-    # Read pubspec.yaml to discover deps + the package's SDK constraint, the
-    # latter so we can mirror pub's per-package languageVersion behaviour.
-    bazel_deps = []
+    # Read the package's SDK constraint, to mirror pub's per-package
+    # languageVersion behaviour, and its dependencies, which it records for
+    # its library repository and the library repositories of packages that
+    # reach it (`PUBSPEC_DEPENDENCIES`): parsed once here, not by each.
     language_version = ""
+    pubspec_deps = []
     pubspec_path = ctx.path("pubspec.yaml")
     if pubspec_path.exists:
         pubspec_content = ctx.read(pubspec_path)
-        all_deps = parse_pubspec_deps(pubspec_content)
-        available = {p: True for p in ctx.attr.lock_packages + ctx.attr.explicit_packages}
-        bazel_deps = sorted([d for d in all_deps if d in available])
         language_version = _derive_language_version(
             parse_pubspec_sdk_constraint(pubspec_content),
         )
-
-    # Build full label strings for sibling spoke repos; a package declared
-    # with `pub.package()` is its own repository, which wins over the locks.
-    explicit = {p: True for p in ctx.attr.explicit_packages}
-    dep_labels = [
-        ("@{dep}//:{dep}" if dep in explicit else "@{hub}__{dep}//:{dep}").format(hub = ctx.attr.hub_name, dep = dep)
-        for dep in bazel_deps
-    ]
+        pubspec_deps = parse_pubspec_deps(pubspec_content)
+    ctx.file(PUBSPEC_DEPENDENCIES, "".join([d + "\n" for d in pubspec_deps]))
 
     # A package that builds native code declares a build hook. rules_dart
     # cannot run it, so unless a curated `dart_code_asset` replaces it — or the
@@ -66,17 +66,14 @@ def _pub_lock_package_impl(ctx):
         build_hook_handled = bool(ctx.attr.code_assets) or ctx.attr.ignore_hook,
     )
 
-    build_content = make_dart_library_build_content(
+    ctx.file("BUILD.bazel", _make_pub_member_build_content(
         name = ctx.attr.package_name,
-        deps = dep_labels,
         language_version = language_version,
         code_assets = ctx.attr.code_assets,
         has_unreplaced_hook = hooks.unreplaced_hook,
         version = ctx.attr.version,
         link_hook = hooks.link_hook,
-    )
-
-    ctx.file("BUILD.bazel", build_content)
+    ))
     return ctx.repo_metadata(reproducible = True)
 
 pub_lock_package = repository_rule(
@@ -97,18 +94,6 @@ pub_lock_package = repository_rule(
         "base_url": attr.string(
             doc = "Base URL for the pub repository.",
             default = "https://pub.dev",
-        ),
-        "hub_name": attr.string(
-            doc = "Name of the hub repo (for constructing cross-spoke dep labels).",
-            mandatory = True,
-        ),
-        "lock_packages": attr.string_list(
-            doc = "All hosted package names in the lock file (for dep filtering).",
-            default = [],
-        ),
-        "explicit_packages": attr.string_list(
-            doc = "Packages declared with `pub.package()`, which replace any lock's version: a dependency on one is a dependency on its own repository.",
-            default = [],
         ),
         "ignore_hook": attr.bool(
             doc = "Suppress the unreplaced-hook diagnostic for this package. Set by " +

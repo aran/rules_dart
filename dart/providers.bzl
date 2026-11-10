@@ -28,10 +28,9 @@ so a field added here needs no change in the rule sets that produce `DartInfo` \
 enumerating and merging each field by hand, and a field left empty rather than \
 forwarded silently discards every dependency's values.""",
     fields = {
-        "package_name": "str: The Dart package name for this library.",
-        "lib_root": "str: The short_path-based path to the package root directory (parent of `lib/`). Configuration-independent; consumers derive exec-root paths from source File objects.",
-        "srcs": "list[File]: This target's own Dart sources (or its source directory), without its dependencies'. The unit a per-library kernel compile builds.",
-        "deps": "dict[Label, str]: The targets this one depends on directly, as passed to `dart_info()` from whatever attribute or toolchain they came, each with its package name. The modules a per-library compile builds against, and the packages it may import.",
+        "packages": "tuple[DartPackageInfo]: The packages this target contributes itself, also found in `transitive_packages`. One for a library; none for a target built by `dart_info_no_package()`; several for the one library pub generates for packages that depend on each other (pub allows a dependency cycle, Bazel does not), each keeping its own name and `lib_root`.",
+        "srcs": "list[File]: This target's own Dart sources (or its source directory), without its dependencies', whichever of its `packages` they belong to. The unit a per-library kernel compile builds.",
+        "deps": "dict[Label, tuple[str]]: The targets this one depends on directly, as passed to `dart_info()` from whatever attribute or toolchain they came, each with the names of the packages it contributes (its `packages`). The modules a per-library compile builds against, and the packages it may import.",
         "indirect_deps": "list[Label]: Targets one of `deps` depends on that this target's sources import, which the layering check accepts as direct. See `dart_info()`.",
         "transitive_srcs": "depset[File]: All transitive Dart source files, including this library's own sources.",
         "transitive_resources": "depset[File]: Non-Dart files shipped inside `lib/` (see `dart_library`'s `resources`) by this library and all transitive deps. Carried beside `transitive_srcs` rather than within it because the two are routed differently: everything that stages a whole package wants both, and nothing that feeds the compiler wants these.",

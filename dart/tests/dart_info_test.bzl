@@ -166,11 +166,8 @@ def _no_package_test_impl(ctx):
     names = sorted([p.package_name for p in info.transitive_packages.to_list()])
     asserts.equals(env, ["info_dep"], names)
 
-    # Empty rather than a name with no record behind it. No consumer reads
-    # these off `DartInfo` — package identity comes from `transitive_packages` —
-    # so an invented name would be unverifiable fiction.
-    asserts.equals(env, "", info.package_name)
-    asserts.equals(env, "", info.lib_root)
+    # No package of its own, rather than a name with no record behind it.
+    asserts.equals(env, (), info.packages)
 
     # The forwarding half: identical to `dart_info()`'s. A facade that dropped
     # a dependency's closure would break the consumer that lists only it.

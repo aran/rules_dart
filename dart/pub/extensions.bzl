@@ -2,6 +2,7 @@
 
 load("//dart/ext:registry.bzl", "curated_code_assets")
 load("//dart/pub:pub_lock_hub.bzl", "pub_lock_hub")
+load("//dart/pub:pub_lock_library.bzl", "index_repo", "library_repo", "pub_lock_index", "pub_lock_library", "source_repo")
 load("//dart/pub:pub_lock_package.bzl", "pub_lock_package")
 load("//dart/pub:yaml_parser.bzl", "parse_pubspec_lock")
 load("//dart/pub/private:pub_archive.bzl", "check_pub_archive_sha256")
@@ -249,29 +250,37 @@ def _pub_impl(ctx):
 
         resolved[name] = struct(version = best.version, sha256 = best.sha256, url = pkg.url)
 
-    # Create shared spoke repos
-    all_package_names = sorted(resolved.keys())
+    # Create a source repository and a library repository per package.
+    explicit_names = sorted(explicit.keys())
+    pub_lock_index(
+        name = index_repo(_SPOKE_PREFIX),
+        versions = {name: pkg.version for name, pkg in resolved.items()},
+        explicit_packages = explicit_names,
+    )
     for name, pkg in resolved.items():
         pub_lock_package(
-            name = _SPOKE_PREFIX + "__" + name,
+            name = source_repo(_SPOKE_PREFIX, name),
             package_name = name,
             version = pkg.version,
             sha256 = pkg.sha256,
             base_url = pkg.url,
-            hub_name = _SPOKE_PREFIX,
-            lock_packages = all_package_names,
-            explicit_packages = sorted(explicit.keys()),
             code_assets = curated_code_assets(name, pkg.version),
             ignore_hook = name in ignore_hooks,
         )
+        pub_lock_library(
+            name = library_repo(_SPOKE_PREFIX, name),
+            package_name = name,
+            spoke_prefix = _SPOKE_PREFIX,
+        )
+
+    def library_label(name):
+        return "@{repo}//:{name}".format(repo = library_repo(_SPOKE_PREFIX, name), name = name)
 
     # Create per-from_lock hub repos
     for hub_name, packages in hub_packages.items():
         pub_lock_hub(
             name = hub_name,
-            hub_name = hub_name,
-            spoke_prefix = _SPOKE_PREFIX,
-            packages = sorted(packages),
+            packages = {name: library_label(name) for name in packages},
         )
 
     return ctx.extension_metadata(

@@ -53,8 +53,7 @@ Future<int> runModule(
   final planned = planModules(libraries: libraries, supported: supported);
   final manifest = Manifest(
     label: label,
-    package: args.optional('package-name'),
-    libRoot: args.optional('lib-root'),
+    packages: ownPackages(args),
     dir: outputDir,
     modules: [
       for (var i = 0; i < planned.length; i++)

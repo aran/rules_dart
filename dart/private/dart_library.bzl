@@ -1,7 +1,7 @@
 """Implementation of the dart_library rule."""
 
 load("//dart:providers.bzl", "DartCodeAssetInfo", "DartInfo")
-load("//dart/private:common.bzl", "PACKAGE_IDENTITY_ATTRS", "codegen_identity_error", "own_package_record", "resolve_package_identity")
+load("//dart/private:common.bzl", "PACKAGE_IDENTITY_ATTRS", "codegen_identity_error", "own_packages", "resolve_package_identity")
 load("//dart/private:dart_import_check.bzl", "LIBRARY_IMPORT_CHECKER_ATTRS", "library_import_check")
 load("//dart/private:dart_info.bzl", "dart_info", "package_lib_prefix")
 load("//dart/private:exec_groups.bzl", "PORTABLE_EXEC_GROUPS")
@@ -246,7 +246,7 @@ def _dart_library_impl(ctx):
             runfiles = ctx.runfiles(files = own_srcs + own_resources),
         ),
         info,
-    ] + library_import_check(ctx, own_package_record(info))
+    ] + library_import_check(ctx, own_packages(info))
 
 dart_library = rule(
     implementation = _dart_library_impl,

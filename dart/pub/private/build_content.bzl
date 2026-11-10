@@ -166,3 +166,105 @@ dart_library(
     if name != "test":
         return _LOAD + "\n" + library
     return _LOAD + _TEST_RUNNER_LOAD + "\n" + library + "\n" + _TEST_RUNNER_BLOCK
+
+_PUB_LIBRARY_LOAD = 'load("@rules_dart//dart/pub/private:pub_library.bzl", "{rule}")\n'
+
+def _list_block(attr, items):
+    if not items:
+        return ""
+    return "    {} = [\n{}\n    ],\n".format(attr, "\n".join(['        "{}",'.format(i) for i in items]))
+
+def _string_block(attr, value):
+    return '    {} = "{}",\n'.format(attr, value) if value else ""
+
+def make_pub_member_build_content(name, language_version, version, code_assets = [], has_unreplaced_hook = "", link_hook = ""):
+    """The BUILD file of a `pub.from_lock()` package's source repository.
+
+    It states what the package's own archive says — its files, language
+    version, hooks — and nothing about other packages: which packages it is
+    built with is its library repository's to decide
+    (`make_pub_library_build_content`). The two globs partition `lib/`, as
+    `make_dart_library_build_content`'s do.
+
+    Args:
+        name: The package name, also the target's.
+        language_version: From the package's `environment.sdk`.
+        version: The version pub resolved.
+        code_assets: `dart_code_asset` labels replacing its build hook.
+        has_unreplaced_hook: Its unreplaced build hook's path, or "".
+        link_hook: `hook/link.dart` if it has one, or "".
+
+    Returns:
+        BUILD.bazel content.
+    """
+    return _PUB_LIBRARY_LOAD.format(rule = "pub_package_member") + """
+pub_package_member(
+    name = "{name}",
+    srcs = glob(["lib/**/*.dart"], allow_empty = True),
+    resources = glob(
+        ["lib/**"],
+        exclude = ["lib/**/*.dart"],
+        allow_empty = True,
+    ),
+    package_name = "{name}",
+{assets}{hook}{link_hook}    language_version = "{language_version}",
+    version = "{version}",
+    visibility = ["//visibility:public"],
+)
+""".format(
+        name = name,
+        assets = _list_block("code_assets", code_assets),
+        hook = _string_block("has_unreplaced_hook", has_unreplaced_hook),
+        link_hook = _string_block("link_hook", link_hook),
+        language_version = language_version,
+        version = version,
+    )
+
+def make_pub_library_build_content(name, members = [], deps = [], owner = ""):
+    """The BUILD file of a `pub.from_lock()` package's library repository.
+
+    The package's dependency cycle (pub allows one; Bazel does not) is built as
+    one `pub_library` in the library repository of its first package, by name;
+    every other package of the cycle aliases it. A package in no cycle is a
+    cycle of one. `package:test`'s also builds the runner `dart_test` uses, as
+    `make_dart_library_build_content` does.
+
+    Args:
+        name: The package name.
+        members: For the cycle's first package, the labels of every member's
+            `pub_package_member`; otherwise empty.
+        deps: For the cycle's first package, the labels of the libraries the
+            cycle depends on; otherwise empty.
+        owner: For any other package of the cycle, the label of the library
+            the first one builds; otherwise empty.
+
+    Returns:
+        BUILD.bazel content.
+    """
+    target = _TEST_LIBRARY if name == "test" else name
+    visibility = "//visibility:private" if name == "test" else "//visibility:public"
+    if owner:
+        library = """
+alias(
+    name = "{target}",
+    actual = "{owner}",
+    visibility = ["{visibility}"],
+)
+""".format(target = target, owner = owner, visibility = visibility)
+        content = ""
+    else:
+        library = """
+pub_library(
+    name = "{target}",
+{members}{deps}    visibility = ["{visibility}"],
+)
+""".format(
+            target = target,
+            members = _list_block("members", members),
+            deps = _list_block("deps", deps),
+            visibility = visibility,
+        )
+        content = _PUB_LIBRARY_LOAD.format(rule = "pub_library")
+    if name != "test":
+        return content + library
+    return content + _TEST_RUNNER_LOAD + library + "\n" + _TEST_RUNNER_BLOCK

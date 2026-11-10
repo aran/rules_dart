@@ -26,7 +26,7 @@ def _library_impl(ctx):
             srcs = ctx.files.srcs,
             # Its sources import the package the runtime is built on, as
             # generated code does, found by package in the runtime's own deps.
-            indirect_deps = [dep for dep, package in runtime[DartInfo].deps.items() if package == "toolchain_inner"],
+            indirect_deps = [dep for dep, packages in runtime[DartInfo].deps.items() if "toolchain_inner" in packages],
         ),
     ]
 

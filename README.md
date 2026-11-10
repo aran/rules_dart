@@ -119,9 +119,10 @@ use_repo(pub, "pub_deps")
 ```
 
 Each hosted package is downloaded into its own external repository for better
-caching and parallelism. Each archive is verified against the `sha256` the lock
-records; a lock written by a pub older than 2.19 has none and is refused, so
-run `dart pub get` to rewrite it. Packages are available as `@pub_deps//:package_name`:
+caching and parallelism, and only when something builds it. Each archive is
+verified against the `sha256` the lock records; a lock written by a pub older
+than 2.19 has none and is refused, so run `dart pub get` to rewrite it. Packages
+are available as `@pub_deps//:package_name`:
 
 ```starlark
 dart_binary(
@@ -142,6 +143,11 @@ dart_binary(
 > pub. For `git` or `path` dependencies, declare them with `pub.package()` or
 > as local `dart_library` targets. Each `from_lock()` prints one summary of
 > everything it skipped, grouped by source.
+
+Packages that depend on each other, which pub allows (`dio` and
+`dio_web_adapter`), are built as one library, each keeping its own name and
+language version; `@pub_deps//:dio` and `@pub_deps//:dio_web_adapter` both name
+it.
 
 ### BUILD file generation with Gazelle
 
@@ -705,6 +711,7 @@ The [`e2e/`](e2e/) directory contains complete working examples:
 | [`pub_lock_upgrade`](e2e/pub_lock_upgrade/)           | Version conflict resolution with `on_version_conflict = "upgrade"`                       |
 | [`pub_lock_conflict`](e2e/pub_lock_conflict/)         | Version conflict detection across lock files                                             |
 | [`pub_lock_cross_module`](e2e/pub_lock_cross_module/) | `pub.from_lock()` across Bazel module boundaries                                         |
+| [`pub_lock_cycle`](e2e/pub_lock_cycle/)               | Packages that depend on each other (`dio`, `dio_web_adapter`), on the VM and the web     |
 | [`codegen`](e2e/codegen/)                             | `dart_codegen`/`dart_aggregate_codegen` over parts, re-exports and source sets           |
 | [`ext_exemplar`](e2e/ext_exemplar/)                   | One package per bundled `dart/ext` builder, plus native `code_assets`, sqlite3/webcrypto |
 | [`dual_build`](e2e/dual_build/)                       | Collision detection between Bazel-generated and `build_runner`-generated sources         |

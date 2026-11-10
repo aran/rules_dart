@@ -46,6 +46,7 @@ jobs:
           "e2e/pub_lock_cross_module",
           "e2e/pub_lock_dedup",
           "e2e/pub_lock_upgrade",
+          "e2e/pub_lock_cycle",
           "e2e/pub_package_padded",
           "e2e/ext_exemplar",
           "e2e/dual_build",
@@ -126,8 +127,6 @@ jobs:
           fi
           bazel build //:app 2>&1 | grep -q "conflicting versions across lock files"
           echo "OK: expected conflict error detected"
-      # Every pub archive is checked against a pinned digest: a lock entry or a
-      # `pub.package()` without one, or two locks disagreeing on one, fails.
       - name: pub_lock_unpinned — expect a lock entry without sha256 to be refused
         working-directory: e2e/pub_lock_unpinned
         run: |

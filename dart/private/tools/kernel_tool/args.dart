@@ -107,3 +107,17 @@ class Args {
     ];
   }
 }
+
+/// The target's own packages, by name, from its paired `--package-name` and
+/// `--lib-root` options.
+Map<String, String> ownPackages(Args args) {
+  final names = args.all('package-name');
+  final roots = args.all('lib-root');
+  if (names.length != roots.length) {
+    throw UsageException(
+      'kernel_tool: ${names.length} --package-name for ${roots.length} '
+      '--lib-root',
+    );
+  }
+  return {for (var i = 0; i < names.length; i++) names[i]: roots[i]};
+}

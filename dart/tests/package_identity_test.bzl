@@ -9,12 +9,12 @@ neither can be exercised by calling it with plain structs the way
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts")
 load("//dart:providers.bzl", "DartInfo")
-load("//dart/private:common.bzl", "own_package_record")
+load("//dart/private:common.bzl", "own_packages")
 
 def _identity_probe_impl(ctx):
     """Asserts a `dart_package_metadata` reached the library's own `DartPackageInfo`."""
     info = ctx.attr.target[DartInfo]
-    pkg = own_package_record(info)
+    pkg = (own_packages(info) or [None])[0]
     if pkg == None:
         fail("%s: %s contributes no package record." % (ctx.label, ctx.attr.target.label))
     if pkg.package_name != ctx.attr.expected_package_name:

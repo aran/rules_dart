@@ -35,7 +35,7 @@ imports what none of them provides fails only a program that reaches it.
 """
 
 load("//dart:providers.bzl", "DartImportCheckInfo", "DartInfo")
-load("//dart/private:common.bzl", "PATH_MAPPING", "add_kernel_roots", "own_package_record")
+load("//dart/private:common.bzl", "PATH_MAPPING", "add_kernel_roots", "own_packages")
 load(
     "//dart/private:dart_deps.bzl",
     "direct_dart_deps",
@@ -70,13 +70,13 @@ LIBRARY_IMPORT_CHECKER_ATTRS = {
     ),
 }
 
-def library_import_check(ctx, own_package):
+def library_import_check(ctx, own):
     """A `dart_library`'s `_validation` output group: the check of its own files.
 
     Args:
       ctx: The library's rule context, with `LIBRARY_IMPORT_CHECKER_ATTRS` and
         `PORTABLE_EXEC_GROUPS`.
-      own_package: The library's `DartPackageInfo`.
+      own: The library's `DartPackageInfo` records (`DartInfo.packages`).
 
     Returns:
       A list holding the `OutputGroupInfo`, or empty when nothing is checked.
@@ -89,7 +89,7 @@ def library_import_check(ctx, own_package):
         kernel_tool = checker,
         name = ctx.label.name,
         srcs = ctx.files.srcs + ctx.files.srcs_dir,
-        own_package = own_package,
+        own = own,
         deps = ctx.attr.deps,
     )
     return [OutputGroupInfo(_validation = depset([result]))] if result else []
@@ -114,17 +114,16 @@ def _add_layering_args(args, deps, indirect_deps):
         if DartInfo not in dep:
             continue
         dep_info = dep[DartInfo]
-        if dep_info.package_name:
-            args.add("--direct-package", dep_info.package_name)
+        for pkg in own_packages(dep_info):
+            args.add("--direct-package", pkg.package_name)
         if not getattr(dep_info, "srcs", None):
             facades.append(dep_info.transitive_packages)
         for wanted in indirect_deps:
-            package = getattr(dep_info, "deps", {}).get(wanted)
-            if package:
+            for package in getattr(dep_info, "deps", {}).get(wanted, ()):
                 args.add("--direct-package", package)
     args.add_all(depset(transitive = facades), before_each = "--direct-package", map_each = _package_name, uniquify = True)
 
-def dart_import_check_action(ctx, kernel_tool, name, srcs, own_package, deps, indirect_deps = []):
+def dart_import_check_action(ctx, kernel_tool, name, srcs, own, deps, indirect_deps = []):
     """Checks the imports of `srcs` against `deps`, as a validation action.
 
     Args:
@@ -132,7 +131,8 @@ def dart_import_check_action(ctx, kernel_tool, name, srcs, own_package, deps, in
       kernel_tool: The `kernel_tool` executable, a File or its `FilesToRunProvider`.
       name: Basename for the result, unique in the package.
       srcs: The target's own Dart sources (or source directories).
-      own_package: The `DartPackageInfo` they belong to, or `None`.
+      own: The `DartPackageInfo` records they belong to; empty for an
+        executable stating no package.
       deps: The targets they may import from, each providing `DartInfo`.
       indirect_deps: Labels from `DartInfo.indirect_deps`.
 
@@ -145,7 +145,7 @@ def dart_import_check_action(ctx, kernel_tool, name, srcs, own_package, deps, in
         return None
     dep_infos = [dep[DartInfo] for dep in deps if DartInfo in dep]
     packages = depset(
-        [own_package] if own_package != None else [],
+        own,
         transitive = [info.transitive_packages for info in dep_infos],
     )
     dep_srcs = depset(transitive = [info.transitive_srcs for info in dep_infos])
@@ -164,9 +164,9 @@ def dart_import_check_action(ctx, kernel_tool, name, srcs, own_package, deps, in
     args.set_param_file_format("multiline")
     args.add("--label", str(ctx.label))
     args.add("--package-config", package_config)
-    if own_package != None:
-        args.add("--package-name", own_package.package_name)
-        args.add("--lib-root", own_package.lib_root)
+    for pkg in own:
+        args.add("--package-name", pkg.package_name)
+        args.add("--lib-root", pkg.lib_root)
 
     # Every directory a file is read from, the result's included: a
     # dependency built in another configuration (a test's `defines`) has its
@@ -203,20 +203,20 @@ def _import_check_aspect_impl(target, ctx):
     if ctx.rule.kind == "dart_library":
         # It checks itself: its `_validation` group holds the result.
         groups = target[OutputGroupInfo] if OutputGroupInfo in target else None
-        own = [groups._validation] if hasattr(groups, "_validation") else []
+        results = [groups._validation] if hasattr(groups, "_validation") else []
     else:
         result = dart_import_check_action(
             ctx,
             kernel_tool = ctx.executable._kernel_tool,
             name = ctx.label.name,
             srcs = getattr(info, "srcs", []),
-            own_package = own_package_record(info),
+            own = own_packages(info),
             deps = direct,
             indirect_deps = getattr(info, "indirect_deps", []),
         )
-        own = [depset([result])] if result else []
+        results = [depset([result])] if result else []
     return [DartImportCheckInfo(
-        stamps = depset(transitive = own + [dep[DartImportCheckInfo].stamps for dep in direct]),
+        stamps = depset(transitive = results + [dep[DartImportCheckInfo].stamps for dep in direct]),
         exported = {},
     )]
 
@@ -242,8 +242,8 @@ def import_check_validation(ctx, kernel_tool, srcs, own_package, deps):
     Returns:
       A depset of result Files.
     """
-    own = dart_import_check_action(ctx, kernel_tool, ctx.label.name, srcs, own_package, deps)
+    result = dart_import_check_action(ctx, kernel_tool, ctx.label.name, srcs, [own_package] if own_package != None else [], deps)
     return depset(
-        [own] if own else [],
+        [result] if result else [],
         transitive = [dep[DartImportCheckInfo].stamps for dep in deps if DartImportCheckInfo in dep],
     )

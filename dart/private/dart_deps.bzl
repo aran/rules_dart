@@ -77,7 +77,7 @@ def forwarded_library(info, reached):
       The forwarded dependency Target, or `None`.
     """
     for dep in reached:
-        if DartInfo in dep and dep[DartInfo].srcs == info.srcs and dep[DartInfo].lib_root == info.lib_root:
+        if DartInfo in dep and dep[DartInfo].srcs == info.srcs and dep[DartInfo].packages == info.packages:
             return dep
     return None
 

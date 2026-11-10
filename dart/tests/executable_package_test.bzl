@@ -9,7 +9,7 @@ refuse, by the message that names it.
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts")
 load("//dart:providers.bzl", "DartAnalyzableInfo")
-load("//dart/private:common.bzl", "own_package_record")
+load("//dart/private:common.bzl", "own_packages")
 
 def _package_config_probe_test_impl(ctx):
     env = analysistest.begin(ctx)
@@ -36,7 +36,7 @@ def _package_config_probe_test_impl(ctx):
             "did not expect `%s` in the package_config:\n%s" % (unexpected, content),
         )
 
-    record = own_package_record(target[DartAnalyzableInfo].dart_info)
+    record = (own_packages(target[DartAnalyzableInfo].dart_info) or [None])[0]
     if ctx.attr.expected_package_name:
         asserts.true(env, record != None, "expected the executable to carry its own package record")
         if record != None:

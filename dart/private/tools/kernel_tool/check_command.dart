@@ -49,7 +49,7 @@ Future<int> runCheck(Args args, {required StringSink err}) async {
     },
     checkLayering: args.flag('check-layering'),
     directPackages: args.all('direct-package').toSet(),
-    ownPackage: args.optional('package-name'),
+    ownPackages: ownPackages(args).keys.toSet(),
   );
   if (violations.isNotEmpty) {
     err.writeln(violations.map((v) => v.message).join('\n'));
