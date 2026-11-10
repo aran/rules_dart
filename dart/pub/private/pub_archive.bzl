@@ -84,7 +84,7 @@ def is_pub_sha256(sha256):
             return False
     return True
 
-def check_pub_archive_sha256(package_name, version, sha256, declared_in, rewrite = None):
+def check_pub_archive_sha256(package_name, version, sha256, declared_in, rewrite = None, base_url = "https://pub.dev"):
     """Fails unless `sha256` pins the package's archive.
 
     An empty `sha256` means "do not check" to Bazel's downloader, so a lock entry
@@ -102,6 +102,8 @@ def check_pub_archive_sha256(package_name, version, sha256, declared_in, rewrite
         rewrite: The command that re-resolves the lock it was declared in,
             printed on a line of its own. None where it was not declared in a
             lock, or the command is not known.
+        base_url: The hosted registry, whose API gives the digest where
+            there is no lock to re-resolve.
     """
     if is_pub_sha256(sha256):
         return
@@ -109,8 +111,11 @@ def check_pub_archive_sha256(package_name, version, sha256, declared_in, rewrite
         remedy = ("Re-resolve the lock, from the root of the workspace that holds it, " +
                   "and pub records the digest:\n  " + rewrite)
     else:
-        remedy = ("Copy the digest pub.dev lists for that version, or re-resolve the " +
-                  "lock that declares it.")
+        remedy = ("The registry gives it as `archive_sha256` in:\n  {api}/api/packages/{name}/versions/{version}").format(
+            api = base_url.rstrip("/"),
+            name = package_name,
+            version = version,
+        )
     if not sha256:
         fail(("No sha256 is pinned for pub package \"{name}\" {version} (in {where}), so its " +
               "archive cannot be verified and will not be fetched. {remedy}").format(
@@ -191,7 +196,7 @@ def fetch_pub_archive(rctx, package_name, version, sha256, base_url = "https://p
         sha256: The archive's SHA-256, as pubspec.lock records it.
         base_url: The hosted registry, as pubspec.lock's `description.url`.
     """
-    check_pub_archive_sha256(package_name, version, sha256, "@" + rctx.name)
+    check_pub_archive_sha256(package_name, version, sha256, "@" + rctx.name, base_url = base_url)
     url = "{base}/packages/{name}/versions/{version}.tar.gz".format(
         base = base_url.rstrip("/"),
         name = package_name,

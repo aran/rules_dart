@@ -299,7 +299,9 @@ jobs:
             echo "ERROR: build should have refused path's blank sha256"
             exit 1
           fi
-          bazel build @path//:path 2>&1 | grep -q "No sha256 is pinned for pub package \"path\""
+          out=$(bazel build @path//:path 2>&1 || true)
+          echo "$out" | grep -qF 'No sha256 is pinned for pub package "path"'
+          echo "$out" | grep -qF 'https://pub.dev/api/packages/path/versions/1.9.1'
           echo "OK: blank pub.package sha256 refused"
       - name: pub_package_missing_dep — expect a pub.package() whose pubspec depends on an unsupplied package to be refused
         working-directory: e2e/pub_package_missing_dep
