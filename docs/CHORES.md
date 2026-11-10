@@ -187,7 +187,7 @@ of its own, which resolves as part of the root.
 
 A workspace that fails on purpose holds a `lock_expected_failure.txt` naming
 what its failure prints (`e2e/pub_lock_conflict`, `e2e/pub_package_conflict`,
-`e2e/pub_lock_path_override`,
+`e2e/pub_lock_path_override`, `e2e/toolchain_pin_conflict`,
 the sha256 refusals, and `e2e/pub_archive_links`, whose pub lock only exists
 while its `check.dart` runs). The tool passes a step that fails with that text
 and still refreshes the rest of the lock.

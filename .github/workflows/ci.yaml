@@ -145,6 +145,16 @@ jobs:
           echo "$out" | grep -q "from module \`mod_b\`"
           echo "$out" | grep -q "from module \`mod_c\`"
           echo "OK: expected declaration conflict detected"
+      - name: toolchain_pin_conflict — expect a root pin below a dependency's request to fail, naming it
+        working-directory: e2e/toolchain_pin_conflict
+        run: |
+          if out=$(bazel build @dart_toolchains//:all 2>&1); then
+            echo "ERROR: build should have failed: newer_dep requests a newer Dart SDK than the root pins"
+            exit 1
+          fi
+          echo "$out" | grep -q "newer_dep requests 99.0.0"
+          echo "$out" | grep -q "allow_upgrade_by_dependencies = True"
+          echo "OK: expected toolchain upgrade refusal detected"
       - name: pub_lock_path_override — expect a dependency on an unfetched path package to fail
         working-directory: e2e/pub_lock_path_override
         run: |

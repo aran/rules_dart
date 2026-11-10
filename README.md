@@ -781,6 +781,7 @@ The [`e2e/`](e2e/) directory contains complete working examples:
 | [`pub_lock_cross_module`](e2e/pub_lock_cross_module/)   | `pub.from_lock()` across Bazel module boundaries                                         |
 | [`pub_lock_cycle`](e2e/pub_lock_cycle/)                 | Packages that depend on each other (`dio`, `dio_web_adapter`), on the VM and the web     |
 | [`pub_member_kind`](e2e/pub_member_kind/)               | Another rule set's own pub package kind, in a cycle, over the public pub surface         |
+| [`toolchain_pin_conflict`](e2e/toolchain_pin_conflict/) | A root `dart.toolchain` pin below a dependency's request fails, naming the dependency    |
 | [`pub_lock_path_override`](e2e/pub_lock_path_override/) | A hosted package depending on a path package fails, naming it                            |
 | [`pub_hub_surface`](e2e/pub_hub_surface/)               | Every locked package in its hub, including one declared with `pub.package()`             |
 | [`pub_override_root_lock`](e2e/pub_override_root_lock/) | The root's lock wins over a dependency module's `pub.package()`                          |

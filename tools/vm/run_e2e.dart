@@ -11,6 +11,7 @@
 /// exits non-zero if any folder failed.
 ///
 /// The Linux-only *expected failure* workspaces (`pub_lock_conflict`,
+/// `toolchain_pin_conflict`,
 /// `pub_lock_unpinned`, `pub_lock_git_unpinned`, `pub_lock_git_conflict`,
 /// `pub_lock_git_hosted`, `pub_package_blank_sha`,
 /// `pub_lock_digest_conflict`, `analysis_failure`, `link_hook`) must fail to
@@ -235,6 +236,11 @@ const _expectedFailureChecks = [
     'e2e/pub_package_conflict',
     '//...',
     'declared at different versions by modules the root depends on',
+  ),
+  _ExpectedFailure(
+    'e2e/toolchain_pin_conflict',
+    '@dart_toolchains//:all',
+    'newer_dep requests 99.0.0',
   ),
   _ExpectedFailure(
     'e2e/pub_lock_path_override',

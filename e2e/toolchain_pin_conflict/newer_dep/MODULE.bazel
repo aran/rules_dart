@@ -1,0 +1,6 @@
+module(name = "newer_dep")
+
+bazel_dep(name = "rules_dart", version = "0.0.0")
+
+dart = use_extension("@rules_dart//dart:extensions.bzl", "dart")
+dart.toolchain(dart_version = "99.0.0")

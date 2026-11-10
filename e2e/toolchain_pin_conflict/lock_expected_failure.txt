@@ -1,0 +1,6 @@
+# This workspace fails on purpose; `bazel run @overhead//locks` passes a
+# step that fails printing each line below.
+# The root pins a Dart SDK older than a dependency requests and does not allow
+# the upgrade; the toolchain extension refuses it, naming the dependency.
+newer_dep requests 99.0.0
+allow_upgrade_by_dependencies = True

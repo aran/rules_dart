@@ -1,0 +1,22 @@
+module(name = "toolchain_pin_conflict_e2e")
+
+bazel_dep(name = "rules_dart", version = "0.0.0")
+local_path_override(
+    module_name = "rules_dart",
+    path = "../..",
+)
+
+# A dependency that requests a Dart SDK newer than the root's pin below.
+bazel_dep(name = "newer_dep", version = "0.0.0")
+local_path_override(
+    module_name = "newer_dep",
+    path = "newer_dep",
+)
+
+# The root pins an SDK and does not set `allow_upgrade_by_dependencies`, so the
+# pin is used exactly and `newer_dep`'s request fails the build.
+dart = use_extension("@rules_dart//dart:extensions.bzl", "dart")
+dart.toolchain(dart_version = "3.13.0")
+use_repo(dart, "dart_toolchains")
+
+register_toolchains("@dart_toolchains//:all")
