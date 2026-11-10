@@ -1,5 +1,12 @@
 # The lock file must be complete and committed.
 common --lockfile_mode=error
 
+# Analyze and format-check every Dart target a test run names, under
+# //:analysis_config, as the README asks of users.
+test --aspects=@rules_dart//dart:analyze.bzl%dart_analyze
+test --output_groups=+dart_analyze
+test --output_groups=+dart_format
+common --@rules_dart//dart:analysis_config=//:analysis_config
+
 # Settings specific to the current user; .bazelrc.user is not committed.
 try-import %workspace%/.bazelrc.user

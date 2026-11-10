@@ -1,6 +1,6 @@
 load("@bazel_gazelle//:def.bzl", "gazelle", "gazelle_binary", "gazelle_generation_test")
 load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
-load("@rules_dart//dart:defs.bzl", "dart_test")
+load("@rules_dart//dart:defs.bzl", "dart_analysis_config", "dart_analysis_options", "dart_test")
 
 # gazelle:map_kind bzl_library bzl_library @bazel_skylib//:bzl_library.bzl
 gazelle_binary(
@@ -53,4 +53,20 @@ diff_test(
     size = "small",
     file1 = "@rules_dart//dart/ext/tools:baseline_generated_extensions.txt",
     file2 = "@rules_dart_gazelle_plugin//dart:baseline_generated_extensions.txt",
+)
+
+# These configure analysis when dev/ is its own workspace (CI's `dev` folder).
+# From rules_dart's root, `@lints` is this module's dev dependency and the
+# root's own analysis_config governs, so they are left out of `//...` there.
+dart_analysis_options(
+    name = "analysis_options",
+    src = "analysis_options.yaml",
+    tags = ["manual"],
+    deps = ["@lints"],
+)
+
+dart_analysis_config(
+    name = "analysis_config",
+    options = [":analysis_options"],
+    tags = ["manual"],
 )

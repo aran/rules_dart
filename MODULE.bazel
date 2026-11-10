@@ -193,3 +193,13 @@ pub.from_lock(
     on_version_conflict = "upgrade",
 )
 use_repo(pub, "ext_pub_deps")
+
+# The lint ruleset this repository's own Dart code is analyzed under
+# (//:analysis_options). It is not a dependency of any target.
+dev_pub = use_extension("//dart/pub:extensions.bzl", "pub", dev_dependency = True)
+dev_pub.package(
+    name = "lints",
+    sha256 = "12f842a479589fea194fe5c5a3095abc7be0c1f2ddfa9a0e76aed1dbd26a87df",
+    version = "6.1.0",
+)
+use_repo(dev_pub, "lints")

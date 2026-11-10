@@ -1,6 +1,15 @@
+include: package:lints/recommended.yaml
 analyzer:
   exclude:
     - "bazel-*/**"
     - "e2e/**/bazel-*/**"
     - "dev/testdata/**"
     - "references/**"
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
+linter:
+  rules:
+    # Tools write with `stdout` and `stderr`; a bare `print` is a finding.
+    - avoid_print

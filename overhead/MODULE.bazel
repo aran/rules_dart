@@ -64,3 +64,12 @@ pub.from_lock(
     lock = "//:pubspec.lock",
 )
 use_repo(pub, "overhead_dev_deps")
+
+# The lint ruleset overhead's own Dart code is analyzed under
+# (//:analysis_options). It is not a dependency of any target.
+pub.package(
+    name = "lints",
+    sha256 = "12f842a479589fea194fe5c5a3095abc7be0c1f2ddfa9a0e76aed1dbd26a87df",
+    version = "6.1.0",
+)
+use_repo(pub, "lints")

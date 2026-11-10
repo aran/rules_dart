@@ -6,3 +6,9 @@ dart_binary(
     name = "pub_locks",
     main = "pub_locks.dart",
 )
+
+# Prints the Dart SDK archive hashes a toolchain pin needs (see the file).
+dart_binary(
+    name = "fetch_sdk_hashes",
+    main = "fetch_sdk_hashes.dart",
+)

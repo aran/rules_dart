@@ -5,6 +5,9 @@ keeps this directory out of rules_dart's packages. From the checkout root:
 
     bazel run @rules_dart_dev//:gazelle
     bazel test @rules_dart_dev//...
+
+It is also a workspace of its own, for the lints and formatting its Dart code is
+held to: `bazel test //...` in this directory.
 """
 
 module(name = "rules_dart_dev")
@@ -20,3 +23,32 @@ bazel_dep(name = "bazel_skylib_gazelle_plugin", version = "1.9.2")
 # hermetic-llvm supports cgo from Go 1.27.
 go_sdk = use_extension("@rules_go//go:extensions.bzl", "go_sdk")
 go_sdk.download(version = "1.27.3")
+
+# Building dev on its own uses the modules around it. An override in a
+# dependency is ignored, so the root module is unaffected.
+local_path_override(
+    module_name = "rules_dart",
+    path = "..",
+)
+
+local_path_override(
+    module_name = "rules_dart_gazelle_plugin",
+    path = "../gazelle",
+)
+
+dart = use_extension("@rules_dart//dart:extensions.bzl", "dart", dev_dependency = True)
+dart.toolchain(dart_version = "3.13.7")
+use_repo(dart, "dart_toolchains")
+
+register_toolchains(
+    "@dart_toolchains//:all",
+    dev_dependency = True,
+)
+
+pub = use_extension("@rules_dart//dart/pub:extensions.bzl", "pub", dev_dependency = True)
+pub.package(
+    name = "lints",
+    sha256 = "12f842a479589fea194fe5c5a3095abc7be0c1f2ddfa9a0e76aed1dbd26a87df",
+    version = "6.1.0",
+)
+use_repo(pub, "lints")

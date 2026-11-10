@@ -1,0 +1,5 @@
+"""dev is also a workspace of its own (CI's `dev` folder)."""
+
+# Bazel's convenience symlinks from a build run inside dev/ are not packages of
+# this module when the root loads it as `@rules_dart_dev`.
+ignore_directories(["bazel-*"])

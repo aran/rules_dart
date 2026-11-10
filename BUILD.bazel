@@ -23,6 +23,7 @@ license(
 dart_analysis_options(
     name = "analysis_options",
     src = "analysis_options.yaml",
+    deps = ["@lints"],
 )
 
 dart_analysis_config(

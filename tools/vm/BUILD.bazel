@@ -1,0 +1,20 @@
+load("//dart:defs.bzl", "dart_binary")
+
+# Create the Linux and Windows VMs the e2e suites run on remotely, and run them.
+dart_binary(
+    name = "create_linux_vm",
+    srcs = ["gcloud.dart"],
+    main = "create_linux_vm.dart",
+)
+
+dart_binary(
+    name = "create_windows_vm",
+    srcs = ["gcloud.dart"],
+    main = "create_windows_vm.dart",
+)
+
+dart_binary(
+    name = "run_e2e",
+    srcs = ["gcloud.dart"],
+    main = "run_e2e.dart",
+)

@@ -75,7 +75,8 @@ jobs:
           "e2e/analyze_composition",
           "e2e/link_hook",
           "e2e/external_module",
-          "overhead"
+          "overhead",
+          "dev"
         ]
   # `dart format` and `dart analyze` find their configuration by walking up from
   # the file they are given, and that walk does not stop at the project root.
@@ -681,7 +682,7 @@ jobs:
           bazelisk-cache: true
           disk-cache: ${{ github.job }}
           repository-cache: true
-      - run: bazel test --test_output=errors @rules_dart_gazelle_plugin//... @rules_dart_dev//...
+      - run: bazel test --test_output=errors @rules_dart_gazelle_plugin//...
       - name: BUILD files are as Gazelle writes them
         run: bazel run @rules_dart_dev//:gazelle -- -mode=diff
       # The test matrix builds and tests e2e/gazelle's generated BUILD files.

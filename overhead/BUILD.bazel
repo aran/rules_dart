@@ -1,5 +1,6 @@
 load("@bazel_env.bzl", "bazel_env")
 load("@multitool//:tools.bzl", "TOOLS")
+load("@rules_dart//dart:defs.bzl", "dart_analysis_config", "dart_analysis_options")
 
 # How `Changelog:` trailers render as release notes, for every consumer.
 exports_files(
@@ -26,4 +27,15 @@ bazel_env(
         "typos": TOOLS["typos"],
         "yamlfmt": "//lint:yamlfmt_bin",
     },
+)
+
+dart_analysis_options(
+    name = "analysis_options",
+    src = "analysis_options.yaml",
+    deps = ["@lints"],
+)
+
+dart_analysis_config(
+    name = "analysis_config",
+    options = [":analysis_options"],
 )
