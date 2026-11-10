@@ -91,7 +91,6 @@ def _dart_test_impl(ctx):
             main = main,
             packages = packages,
             output_dill = dill,
-            product = True,
             defines = executable_defines(ctx),
             native_assets_yaml = native_assets_yaml,
             track_creation_locations = track_creation_locations(ctx),

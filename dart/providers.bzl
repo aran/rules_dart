@@ -131,7 +131,7 @@ DartCompileInfo = provider(
     doc = "Information about a compiled Dart output.",
     fields = {
         "executable": "File: The compiled output file.",
-        "compile_mode": "str: The compilation mode used (`exe`, `aot-snapshot`, `kernel`, or `jit-snapshot`).",
+        "compile_mode": "str: The compilation mode used (`exe`, `aot-snapshot` or `kernel`).",
     },
 )
 
@@ -163,7 +163,7 @@ Provided by a `dart_binary` with `record_use = True`, and read by \
 unchanged.""",
     fields = {
         "file": "File: The recorded-uses JSON.",
-        "kind": "str: `aot` when the compiler recorded the uses — the `exe` and `aot-snapshot` modes, whose tree-shaking is what makes the set of uses known — or `empty` for the `kernel` and `jit-snapshot` modes, which record nothing; their file is the empty JSON object the compiler writes when there is nothing to record.",
+        "kind": "str: `aot` when the compiler recorded the uses — the `exe` and `aot-snapshot` modes, whose tree-shaking is what makes the set of uses known — or `empty` for the `kernel` mode, which records nothing; their file is the empty JSON object the compiler writes when there is nothing to record.",
     },
 )
 
@@ -216,14 +216,14 @@ that SDK is registered as, so nothing about which SDK compiles is fixed in \
 rules_dart.
 
 A platform has one platform `.dill` per kind of runtime it runs on: the VM \
-has a JIT and a product runtime, Flutter a debug, a profile and a release \
+has a product runtime, Flutter a debug, a profile and a release \
 one. `runtimes` names each, and a compile asks for one by its name.""",
     fields = {
         "target": "str: The front end's target name (`vm`, `flutter`).",
         "aot_runtime": "File: The `dartaotruntime` that runs the snapshots.",
         "kernel_worker": "File or None: `kernel_worker_aot.dart.snapshot`, which compiles modules. None for a platform that compiles whole programs only.",
         "frontend_server": "File: `frontend_server_aot.dart.snapshot`, which compiles an executable's entrypoint and whole programs.",
-        "runtimes": "dict[str, struct]: The kinds of runtime a kernel can be compiled for, by name (`jit` and `product` for the VM), each made by `dart_kernel_runtime()`: the platform `.dill` a kernel for that runtime compiles against, in whose directory the front end finds the SDK; the environment declarations that runtime fixes, e.g. `dart.vm.product=true`; and the front-end flags a whole-program compile for it takes.",
+        "runtimes": "dict[str, struct]: The kinds of runtime a kernel can be compiled for, by name (`product` for the VM), each made by `dart_kernel_runtime()`: the platform `.dill` a kernel for that runtime compiles against, in whose directory the front end finds the SDK; the environment declarations that runtime fixes, e.g. `dart.vm.product=true`; and the front-end flags a whole-program compile for it takes.",
         "module_runtime": "str: The entry of `runtimes` that modules, and the entrypoints linked with them, compile for.",
         "libraries_spec": "File or None: The `libraries.json` that lists the `dart:` libraries `target` provides, which modules are split by. None for a platform that compiles whole programs only.",
         "libraries_target": "str: The entry in `libraries_spec` to read (its `include` entries are followed).",

@@ -43,7 +43,6 @@ dart_library(
 _MODES = {
     "exe": "exe",
     "aot": "aot-snapshot",
-    "jit": "jit-snapshot",
     "kernel": "kernel",
 }
 

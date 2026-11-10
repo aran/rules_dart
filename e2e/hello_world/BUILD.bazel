@@ -34,9 +34,3 @@ dart_binary(
     compile_mode = "kernel",
     main = "hello.dart",
 )
-
-dart_binary(
-    name = "hello_jit",
-    compile_mode = "jit-snapshot",
-    main = "hello.dart",
-)

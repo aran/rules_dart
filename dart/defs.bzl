@@ -5,7 +5,7 @@ Load this file from your BUILD files to access the following rules:
 - `dart_library`: Collects Dart sources and propagates dependency information. Does not compile.
 - `dart_package_metadata`: Declares a Dart package's name and language version once, for every rule that builds part of it.
 - `dart_source_set`: Assembles Dart sources (hand-written + generated) into one directory.
-- `dart_binary`: Compiles a Dart application (`exe`, `aot-snapshot`, `kernel`, or `jit-snapshot`).
+- `dart_binary`: Compiles a Dart application (`exe`, `aot-snapshot` or `kernel`).
 - `dart_test`: Runs a Dart test file using the Dart VM.
 - `dart_analysis_options`: An `analysis_options.yaml` plus the packages its `include:` directives resolve against.
 - `dart_analysis_config`: Lists every `dart_analysis_options` for the `dart_analyze` aspect (`//dart:analyze.bzl`), which runs `dart analyze` and the `dart format` check under `bazel test`.

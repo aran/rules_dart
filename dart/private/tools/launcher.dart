@@ -1,4 +1,4 @@
-// The executable of a `dart_binary` in the `kernel`, `jit-snapshot` and
+// The executable of a `dart_binary` in the `kernel` and
 // `aot-snapshot` modes, and of `@rules_dart//dart`: starts a program from the
 // Dart SDK, with the user's arguments after the ones its rule fixed.
 //

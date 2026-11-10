@@ -28,7 +28,7 @@ def compile_quiet_flags(compile_mode):
     Errors still print. The other modes have no flag that silences them.
 
     Args:
-        compile_mode: The Dart compile mode ("exe", "aot-snapshot", "kernel", "jit-snapshot").
+        compile_mode: The Dart compile mode ("exe", "aot-snapshot", "kernel").
 
     Returns:
         A list of flag strings.
@@ -42,7 +42,7 @@ def get_compilation_mode_flags(ctx, compile_mode):
 
     Args:
         ctx: The rule context (used to read ctx.var["COMPILATION_MODE"]).
-        compile_mode: The Dart compile mode ("exe", "aot-snapshot", "jit-snapshot").
+        compile_mode: The Dart compile mode ("exe", "aot-snapshot").
             A `kernel` is the front end's output itself and never reaches
             `dart compile`; it keeps its asserts, and the VM that runs it
             decides whether to enable them.
@@ -171,7 +171,7 @@ def dart_compile_action(
         kernel: The `.dill` File to compile, declared by `compile_kernel_file`,
             or the entry point of `sources`.
         output: The output File to produce.
-        compile_mode: The compilation mode ("exe", "aot-snapshot", "jit-snapshot").
+        compile_mode: The compilation mode ("exe" or "aot-snapshot").
         extra_flags: Additional compiler flags (from dart_compile_flags attribute).
         recorded_uses: Optional output File for the uses of `@RecordUse`
             definitions the compiler records (`--recorded-uses`). Only the
@@ -214,8 +214,7 @@ def dart_compile_action(
     args.add_all(extra_flags)
 
     # Through the runner, the command follows its own arguments, and the runner
-    # gives `-o` itself. Otherwise `-o` precedes the kernel: `jit-snapshot`
-    # hands everything after it to the training run.
+    # gives `-o` itself.
     if runner == None:
         args.add("-o", output)
     args.add(kernel)
@@ -233,7 +232,7 @@ def dart_compile_action(
         direct = [kernel] + stop
 
     env = dict(SDK_ENV)
-    transitive = [sdk.files.jit_compile if compile_mode == "jit-snapshot" else sdk.files.aot_compile]
+    transitive = [sdk.files.aot_compile]
     if sources != None:
         # The front end, its platforms and the `dart:` library list.
         transitive += [sources, sdk.files.kernel]

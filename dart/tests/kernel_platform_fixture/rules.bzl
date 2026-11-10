@@ -24,7 +24,6 @@ load(
 _SDK_FILES = {
     "runtime": "bin/dartaotruntime",
     "frontend_server": "bin/snapshots/frontend_server_aot.dart.snapshot",
-    "jit": "lib/_internal/vm_platform.dill",
     "product": "lib/_internal/vm_platform_product.dill",
 }
 
@@ -32,7 +31,7 @@ _SDK_FILES = {
 _ALT_PATHS = {
     "runtime": "alt_sdk/bin/alt_runtime",
     "frontend_server": "alt_sdk/bin/alt_frontend.snapshot",
-    "jit": "alt_sdk/platforms/alt_jit_platform.dill",
+    "other": "alt_sdk/platforms/alt_other_platform.dill",
     "product": "alt_sdk/platforms/alt_product_platform.dill",
 }
 
@@ -49,14 +48,18 @@ def _alt_vm_impl(ctx):
     alt = {}
     for key, rel in _ALT_PATHS.items():
         alt[key] = ctx.actions.declare_file(ctx.label.name + "/" + rel)
-        ctx.actions.symlink(output = alt[key], target_file = found[key], is_executable = key == "runtime")
+
+        # `other` is a second platform of the SDK, the product one again
+        # under another name: a compile for `alt_product` must not read it.
+        source = found["product" if key == "other" else key]
+        ctx.actions.symlink(output = alt[key], target_file = source, is_executable = key == "runtime")
     return [DartKernelSdkInfo(
         target = "vm",
         aot_runtime = alt["runtime"],
         kernel_worker = None,
         frontend_server = alt["frontend_server"],
         runtimes = {
-            "alt_jit": dart_kernel_runtime(alt["jit"], defines = ["dart.vm.product=false"] + _SANITIZERS),
+            "alt_other": dart_kernel_runtime(alt["other"], defines = ["dart.vm.product=false"] + _SANITIZERS),
             "alt_product": dart_kernel_runtime(alt["product"], defines = ["dart.vm.product=true"] + _SANITIZERS),
             # A runtime with front-end flags of its own: what it compiles is
             # the product runtime's, with `toString` dropped from the
@@ -143,7 +146,7 @@ def _compiles_with_the_platform_given_impl(ctx):
     # from the platform given, and nothing of the toolchain's SDK is read.
     for key in ["runtime", "frontend_server", "product"]:
         asserts.true(env, [p for p in inputs if p.endswith(_ALT_PATHS[key])], "reads the alternative " + key)
-    asserts.false(env, [p for p in inputs if p.endswith(_ALT_PATHS["jit"])], "reads no other runtime's platform")
+    asserts.false(env, [p for p in inputs if p.endswith(_ALT_PATHS["other"])], "reads no other runtime's platform")
     asserts.false(env, [p for p in inputs if "/lib/_internal/" in p or "/bin/snapshots/" in p], "reads nothing of the toolchain's SDK: %s" % inputs)
     asserts.equals(env, "alt_product_platform.dill", _flag_value(argv, "--platform"))
     asserts.true(env, "-Ddart.vm.product=true" in argv, "the runtime's declarations")
@@ -169,7 +172,7 @@ compiles_with_the_platform_given_test = analysistest.make(_compiles_with_the_pla
 
 def _names_no_runtime_impl(ctx):
     env = analysistest.begin(ctx)
-    asserts.expect_failure(env, "the `vm` platform has no runtime \"product\"; it has alt_jit, alt_product, alt_stripped")
+    asserts.expect_failure(env, "the `vm` platform has no runtime \"product\"; it has alt_other, alt_product, alt_stripped")
     return analysistest.end(env)
 
 names_no_runtime_test = analysistest.make(_names_no_runtime_impl, expect_failure = True)

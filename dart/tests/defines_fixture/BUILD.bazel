@@ -90,7 +90,6 @@ path_mapping_test(
     for mode in [
         "exe",
         "kernel",
-        "jit-snapshot",
         "aot-snapshot",
     ]
 ]
@@ -101,13 +100,11 @@ dart_test(
     args = [
         "aot-snapshot=$(rlocationpath :comma_aot_snapshot)",
         "exe=$(rlocationpath :comma_exe)",
-        "jit-snapshot=$(rlocationpath :comma_jit_snapshot)",
         "kernel=$(rlocationpath :comma_kernel)",
     ],
     data = [
         ":comma_aot_snapshot",
         ":comma_exe",
-        ":comma_jit_snapshot",
         ":comma_kernel",
     ],
     main = "comma_run_test.dart",

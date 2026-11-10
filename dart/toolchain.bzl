@@ -24,8 +24,8 @@ _ANALYZER_SDK = [
 ]
 
 SDK_FILE_SETS = {
-    # The `dart` launcher and the VM it starts: runs a kernel, an app-JIT
-    # snapshot or a Dart script (the VM compiles source itself).
+    # The `dart` launcher and the VM it starts: runs a kernel or a Dart script
+    # (the VM compiles source itself).
     "run": _DART + _DARTVM,
     # The runtime that runs an AOT snapshot.
     "aot_run": _DARTAOTRUNTIME,
@@ -36,15 +36,12 @@ SDK_FILE_SETS = {
         "bin/utils/gen_snapshot",
         "bin/utils/gen_snapshot.exe",
     ],
-    # `dart compile jit-snapshot`: dartdev, and the VM the training runs in.
-    "jit_compile": _DART + _DARTVM + _DARTDEV,
     # The front end run directly on the AOT runtime, as the kernel actions run
     # it: its snapshots, the VM platforms and the `dart:` library list. An
     # action takes only the files of this set it names.
     "kernel": _DARTAOTRUNTIME + [
         "bin/snapshots/kernel_worker_aot.dart.snapshot",
         "bin/snapshots/frontend_server_aot.dart.snapshot",
-        "lib/_internal/vm_platform.dill",
         "lib/_internal/vm_platform_product.dill",
         "lib/libraries.json",
     ],
@@ -88,10 +85,9 @@ the same sets. Each field but `all` holds the files of the `SDK_FILE_SETS`
 entry of that name.""",
     fields = {
         "all": "depset[File]: Every file of the SDK, for running any SDK command (`@rules_dart//dart`). An action or runfiles tree with one use takes that use's set instead. Pass as a `transitive` entry to action inputs or `ctx.runfiles(transitive_files = ...)`; flatten only to inspect paths.",
-        "run": "depset[File]: `dart` and the VM: running a kernel, an app-JIT snapshot or a Dart script.",
+        "run": "depset[File]: `dart` and the VM: running a kernel or a Dart script.",
         "aot_run": "depset[File]: `dartaotruntime`: running an AOT snapshot.",
         "aot_compile": "depset[File]: `dart compile exe|aot-snapshot` from a kernel.",
-        "jit_compile": "depset[File]: `dart compile jit-snapshot` from a kernel.",
         "kernel": "depset[File]: The front end's snapshots, the VM platforms and `libraries.json`, for actions that run the front end directly; such an action takes the files it names.",
         "format": "depset[File]: `dart format`.",
         "analyze": "depset[File]: `dart analyze`, `dart fix` and the analysis server.",

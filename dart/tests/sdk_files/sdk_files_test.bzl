@@ -28,11 +28,9 @@ _EXPECTED = {
         "bin/snapshots/gen_kernel_aot.dart.snapshot",
         "bin/utils/gen_snapshot",
     ],
-    "jit_compile": _DART + _DARTVM + _DARTDEV,
     "kernel": _DARTAOTRUNTIME + [
         "bin/snapshots/frontend_server_aot.dart.snapshot",
         "bin/snapshots/kernel_worker_aot.dart.snapshot",
-        "lib/_internal/vm_platform.dill",
         "lib/_internal/vm_platform_product.dill",
         "lib/libraries.json",
     ],

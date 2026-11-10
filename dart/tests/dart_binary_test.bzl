@@ -25,7 +25,6 @@ def _snapshot_modes_fixed_extensions_test_impl(ctx):
     env = unittest.begin(ctx)
     asserts.equals(env, "app.aot", binary_output_basename("app", "aot-snapshot", True))
     asserts.equals(env, "app.dill", binary_output_basename("app", "kernel", True))
-    asserts.equals(env, "app.jit", binary_output_basename("app", "jit-snapshot", True))
     asserts.equals(env, "app.aot", binary_output_basename("app", "aot-snapshot", False))
     return unittest.end(env)
 
@@ -38,7 +37,6 @@ def _aot_modes_compile_quietly_test_impl(ctx):
     asserts.equals(env, ["--verbosity=error"], compile_quiet_flags("exe"))
     asserts.equals(env, ["--verbosity=error"], compile_quiet_flags("aot-snapshot"))
     asserts.equals(env, [], compile_quiet_flags("kernel"))
-    asserts.equals(env, [], compile_quiet_flags("jit-snapshot"))
     return unittest.end(env)
 
 _exe_windows_test = unittest.make(_exe_gets_dot_exe_on_windows_test_impl)

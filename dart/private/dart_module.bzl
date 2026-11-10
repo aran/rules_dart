@@ -208,7 +208,7 @@ def dart_whole_program_kernel_action(
         resource_set = resource_set,
     )
 
-def whole_program_kernel(ctx, main, packages, output_dill, product, defines = [], flags = [], native_assets_yaml = None, track_creation_locations = False):
+def whole_program_kernel(ctx, main, packages, output_dill, defines = [], flags = [], native_assets_yaml = None, track_creation_locations = False):
     """Compiles a VM executable's whole program from source into one kernel.
 
     The program is the rule's `main`, its own `srcs`, and every source its
@@ -222,9 +222,6 @@ def whole_program_kernel(ctx, main, packages, output_dill, product, defines = []
       main: The entrypoint File: `ctx.file.main`, or one generated around it.
       packages: The `DartPackageInfo` records the program compiles against.
       output_dill: The `.dill` File to produce.
-      product: Whether the kernel is for a product runtime: an AOT snapshot or
-        executable, or a `dart compile kernel` file. False for the JIT VM that
-        builds a `jit-snapshot`.
       defines: See `dart_whole_program_kernel_action`.
       flags: See `dart_whole_program_kernel_action`.
       native_assets_yaml: See `native_assets` of `dart_whole_program_kernel_action`.
@@ -236,12 +233,12 @@ def whole_program_kernel(ctx, main, packages, output_dill, product, defines = []
             fail("%s: a tool built without `kernel_tool` takes no code assets and does not track creation locations" % ctx.label)
         package_config = ctx.actions.declare_file(output_dill.basename + ".package_config.json", sibling = output_dill)
         ctx.actions.write(package_config, kernel_package_config(packages))
-        bootstrap_kernel_action(ctx, main, srcs, package_config, output_dill, product, defines, flags)
+        bootstrap_kernel_action(ctx, main, srcs, package_config, output_dill, defines, flags)
         return
     dart_whole_program_kernel_action(
         ctx,
         kernel_sdk = ctx.attr._program_kernel_sdk[DartKernelSdkInfo],
-        runtime = "product" if product else "jit",
+        runtime = "product",
         main = main,
         srcs = srcs,
         packages = packages,
@@ -856,13 +853,12 @@ def _vm_kernel_sdk_impl(ctx):
         "runtime": [root + "/bin/dartaotruntime", root + "/bin/dartaotruntime.exe"],
         "kernel_worker": [root + "/bin/snapshots/kernel_worker_aot.dart.snapshot"],
         "frontend_server": [root + "/bin/snapshots/frontend_server_aot.dart.snapshot"],
-        "jit_platform": [root + "/lib/_internal/vm_platform.dill"],
         "product_platform": [root + "/lib/_internal/vm_platform_product.dill"],
         "libraries_spec": [root + "/lib/libraries.json"],
     }
     found = {}
 
-    # Once per configuration: a probe for six files in the SDK.
+    # Once per configuration: a probe for five files in the SDK.
     for f in sdk.files.kernel.to_list():
         for key, paths in wanted.items():
             if f.path in paths:
@@ -875,11 +871,9 @@ def _vm_kernel_sdk_impl(ctx):
         aot_runtime = found["runtime"],
         kernel_worker = found["kernel_worker"],
         frontend_server = found["frontend_server"],
-        # The platform `dart compile` chooses for each runtime: the JIT VM
-        # that builds a `jit-snapshot`, and the product runtime of an AOT
-        # snapshot, an executable or a `dart compile kernel` file.
+        # The platform `dart compile` chooses for the product runtime of an
+        # AOT snapshot, an executable or a `dart compile kernel` file.
         runtimes = {
-            "jit": dart_kernel_runtime(found["jit_platform"], defines = ["dart.vm.product=false"] + VM_SANITIZER_DEFINES),
             "product": dart_kernel_runtime(found["product_platform"], defines = ["dart.vm.product=true"] + VM_SANITIZER_DEFINES),
         },
         # What `dart compile kernel` folds in: a product runtime.

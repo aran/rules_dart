@@ -33,7 +33,6 @@ void main(List<String> args) {
   late String app;
   late String packages;
   late String productKernel;
-  late String jitKernel;
 
   // What every step runs in: the SDK writes nothing into the real home.
   final environment = {
@@ -110,32 +109,26 @@ void main(List<String> args) {
     );
     packages = '$app/.dart_tool/package_config.json';
     productKernel = '${work.path}/product.dill';
-    jitKernel = '${work.path}/jit.dill';
   });
 
   tearDownAll(() => work.deleteSync(recursive: true));
 
   group('kernel', () {
-    test('frontend_server compiles for a product and a JIT runtime', () async {
-      for (final (platform, product, output) in [
-        ('vm_platform_product.dill', true, productKernel),
-        ('vm_platform.dill', false, jitKernel),
-      ]) {
-        await run(tool('kernel', 'dartaotruntime'), [
-          snapshot('kernel', 'frontend_server_aot.dart.snapshot'),
-          '--sdk-root',
-          '${sdk('kernel')}/lib/_internal/',
-          '--platform',
-          platform,
-          '-Ddart.vm.product=$product',
-          '--no-print-incremental-dependencies',
-          '--packages',
-          packages,
-          '--output-dill',
-          output,
-          'bin/main.dart',
-        ]);
-      }
+    test('frontend_server compiles for the product runtime', () async {
+      await run(tool('kernel', 'dartaotruntime'), [
+        snapshot('kernel', 'frontend_server_aot.dart.snapshot'),
+        '--sdk-root',
+        '${sdk('kernel')}/lib/_internal/',
+        '--platform',
+        'vm_platform_product.dill',
+        '-Ddart.vm.product=true',
+        '--no-print-incremental-dependencies',
+        '--packages',
+        packages,
+        '--output-dill',
+        productKernel,
+        'bin/main.dart',
+      ]);
     });
 
     test('kernel_worker compiles a module', () async {
@@ -213,18 +206,6 @@ void main(List<String> args) {
       productKernel,
     ]);
     expectProgramOutput(await run(tool('aot_run', 'dartaotruntime'), [aot]));
-  });
-
-  test('jit_compile builds an app-JIT snapshot run runs', () async {
-    final jit = '${work.path}/main.jit';
-    await run(tool('jit_compile', 'dart'), [
-      'compile',
-      'jit-snapshot',
-      '-o',
-      jit,
-      jitKernel,
-    ]);
-    expectProgramOutput(await run(tool('run', 'dart'), [jit]));
   });
 
   test('format checks a file', () async {

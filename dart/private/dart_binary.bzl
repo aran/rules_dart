@@ -36,7 +36,7 @@ def binary_output_basename(name, compile_mode, is_windows):
 
     Args:
       name: The target name (`ctx.label.name`).
-      compile_mode: One of `exe`, `aot-snapshot`, `kernel`, `jit-snapshot`.
+      compile_mode: One of `exe`, `aot-snapshot`, `kernel`.
       is_windows: Whether the target platform is Windows.
 
     Returns:
@@ -48,8 +48,6 @@ def binary_output_basename(name, compile_mode, is_windows):
         return name + ".aot"
     elif compile_mode == "kernel":
         return name + ".dill"
-    elif compile_mode == "jit-snapshot":
-        return name + ".jit"
     fail("Unknown compile_mode: %s" % compile_mode)
 
 def _dart_binary_impl(ctx):
@@ -122,7 +120,6 @@ def _dart_binary_impl(ctx):
         main = ctx.file.main,
         packages = packages,
         output_dill = kernel,
-        product = compile_mode != "jit-snapshot",
         defines = defines,
         # A `kernel` has no second step, so every flag belongs to the first.
         flags = ctx.attr.dart_compile_flags if compile_mode == "kernel" else fe_flags,
@@ -224,7 +221,7 @@ def _launcher(ctx, sdk, compile_mode, output):
         vm = dart
 
     # A kernel keeps its asserts for the VM that runs it to enable, which is
-    # this launcher; the snapshot modes were compiled with them or without.
+    # this launcher; an AOT snapshot was compiled with them or without.
     flags = get_compilation_mode_flags(ctx, "kernel") if compile_mode == "kernel" else []
     launcher = launcher_executable(ctx, ctx.attr._launcher)
     config = ctx.actions.declare_file(ctx.label.name + ".launcher.json")
@@ -335,14 +332,13 @@ def _dart_binary_rule(check_imports, compile_runner = True, launcher = True):
     - `exe` (default): Self-contained native machine code. No Dart SDK needed at runtime. Best for deployment.
     - `aot-snapshot`: AOT-compiled snapshot. Requires `dartaotruntime` to execute. Smaller than `exe`.
     - `kernel`: Dart kernel binary (`.dill`). Requires `dart` to execute. Fastest compilation, useful for development.
-    - `jit-snapshot`: JIT snapshot with trained profile data. Requires `dart` to execute. Fastest startup after warmup.
 
-    In the last three modes the output is `<name>.aot`, `<name>.dill` or `<name>.jit`, and the target's executable is a \
+    In the last two modes the output is `<name>.aot` or `<name>.dill`, and the target's executable is a \
     launcher that runs it in the SDK's VM, so the target works with `bazel run` and as another target's `data`. A \
     cross-compiled output has no VM for its target here and is its own executable.
     """,
                     default = "exe",
-                    values = ["exe", "aot-snapshot", "kernel", "jit-snapshot"],
+                    values = ["exe", "aot-snapshot", "kernel"],
                 ),
                 "dart_compile_flags": attr.string_list(
                     doc = "Extra flags passed to `dart compile` after compilation-mode defaults. Flags appear last so they can override defaults (e.g., `--extra-gen-snapshot-options=--optimization_level=3`). Front-end flags (`--enable-experiment`, `-D`/`--define`) go to the front-end step that precedes `dart compile`, and `--verbosity` to both; in the `kernel` mode, which is that step alone, every flag does, and only those `frontend_server` accepts work. `--extra-gen-snapshot-options=--resolve-dwarf-paths` is refused: sources are named by workspace-relative `org-dartlang-root:///` URIs, which gen_snapshot cannot turn into paths, and DWARF without it names them by those URIs.",
@@ -354,7 +350,7 @@ def _dart_binary_rule(check_imports, compile_runner = True, launcher = True):
                     doc = """Record the uses of `@RecordUse` definitions (`package:meta`) as \
     `<name>.recorded_uses.json`, provided as `DartRecordedUsesInfo` for `dart_link_hook`. \
     In the `exe` and `aot-snapshot` modes the compiler records them as it tree-shakes. The \
-    `kernel` and `jit-snapshot` modes do not tree-shake, so nothing is recorded and the file is \
+    `kernel` mode does not tree-shake, so nothing is recorded and the file is \
     the empty JSON object `{}` (`kind = "empty"`).""",
                 ),
             }, **dict(DART_ABI_CONSTRAINT_ATTRS, **dict(EXTRA_DART_DEFINES_ATTR, **dict(TRACK_CREATION_LOCATIONS_ATTR, **EXECUTABLE_PACKAGE_ATTRS))))))

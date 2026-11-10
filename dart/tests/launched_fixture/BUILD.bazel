@@ -12,7 +12,6 @@ load("//dart/tests:compile_package_search_test.bzl", "compile_package_search_tes
     for mode in [
         "exe",
         "kernel",
-        "jit-snapshot",
         "aot-snapshot",
     ]
 ]
@@ -31,13 +30,11 @@ dart_test(
         "dart_test=$(rlocationpath :child_test)",
         "exe=$(rlocationpath :bin_exe)",
         "kernel=$(rlocationpath :bin_kernel)",
-        "jit-snapshot=$(rlocationpath :bin_jit_snapshot)",
         "aot-snapshot=$(rlocationpath :bin_aot_snapshot)",
     ],
     data = [
         ":bin_aot_snapshot",
         ":bin_exe",
-        ":bin_jit_snapshot",
         ":bin_kernel",
         ":child_test",
     ],

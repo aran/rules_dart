@@ -139,7 +139,7 @@ workspace root.
 | `dart test` | `bazel test //<dir>:<name>`, or `//<dir>/...`. See below for its flags. |
 | `dart run build_runner build` / `watch` | None: do not run `build_runner`. The build generates the code, and the outputs are under `bazel-bin`, at the source file's path. See [Code generation](#code-generation). |
 | `dart run bin/app.dart` | `bazel run //<dir>:app`, a `dart_binary`. |
-| `dart compile exe` / `aot-snapshot` / `kernel` / `jit-snapshot` | `dart_binary(compile_mode = ...)`, default `exe`. |
+| `dart compile exe` / `aot-snapshot` / `kernel` | `dart_binary(compile_mode = ...)`, default `exe`. |
 | `dart compile js` / `wasm` | `dart_js_binary` / `dart_wasm_binary`. See [Web compilation](#web-compilation). |
 | `dart doc` | None. |
 | `dart run coverage:test_with_coverage`, `dart test --coverage` | `bazel coverage --combined_report=lcov //<dir>/...`, which writes one LCOV report for every test it runs. See [Coverage](#coverage). |
@@ -1588,8 +1588,8 @@ dart_link_hook(
 )
 ```
 
-Uses are recorded in the `exe` and `aot-snapshot` modes; in `kernel` and
-`jit-snapshot` the hooks see none. The data assets a hook emits are declared by
+Uses are recorded in the `exe` and `aot-snapshot` modes; in `kernel` the hooks
+see none. The data assets a hook emits are declared by
 id in `data_assets`, since Bazel names every output before the hooks run; the
 build fails if a hook emits a different set, or if it fails itself, with the
 hook's message. Pub packages that ship a link hook get `link_hook` set by
@@ -1617,7 +1617,7 @@ The [`e2e/`](e2e/) directory contains complete working examples:
 
 | Example                                                     | What it demonstrates                                                                            |
 | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| [`hello_world`](e2e/hello_world/)                           | Minimal binary + all compile modes (`exe`, `aot-snapshot`, `kernel`, `jit-snapshot`)            |
+| [`hello_world`](e2e/hello_world/)                           | Minimal binary + all compile modes (`exe`, `aot-snapshot`, `kernel`)                              |
 | [`no_pubspec`](e2e/no_pubspec/)                             | No `pubspec.yaml` anywhere: codegen, analysis, format, fix, tests, every binary                 |
 | [`library_deps`](e2e/library_deps/)                         | Transitive `dart_library` dependencies, `srcs` attribute                                        |
 | [`dart_test`](e2e/dart_test/)                               | Tests with and without deps, `srcs` for test helpers                                            |
@@ -1659,8 +1659,8 @@ The [`e2e/`](e2e/) directory contains complete working examples:
 | [`link_hook`](e2e/link_hook/)                               | `record_use` and a package's `hook/link.dart` emitting a data asset via `dart_link_hook`        |
 
 > **Note**: Only the `exe` and `aot-snapshot` compile modes cross-compile via
-> `--platforms`. `kernel` and `jit-snapshot` are VM formats that ignore target
-> flags. Built natively, a `kernel`, `jit-snapshot` or `aot-snapshot` target's
+> `--platforms`. `kernel` is a VM format that ignores target
+> flags. Built natively, a `kernel` or `aot-snapshot` target's
 > executable is a launcher that runs the output in the SDK's VM, so it works with
 > `bazel run` and as `data`; cross-compiled, the target's executable is the
 > output itself, for the target's own runtime to run. Linux targets are `linux-x64`, `linux-arm64`, `linux-riscv64` and

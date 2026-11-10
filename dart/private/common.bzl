@@ -1679,14 +1679,14 @@ def dart_kernel_action(
 # (`generateKernelHelper` in `pkg/dart2native`).
 VM_SANITIZER_DEFINES = ["dart.vm.asan=false", "dart.vm.msan=false", "dart.vm.tsan=false"]
 
-def _bootstrap_tools(dart_sdk_info, product):
+def _bootstrap_tools(dart_sdk_info):
     # The VM's own files by their place in the SDK: the programs compiled here
     # are rules_dart's tools, which run on the VM of the SDK they build with.
     root = sdk_path_from_dart(dart_sdk_info.dart) + "/"
     wanted = {
         "runtime": [root + "bin/dartaotruntime", root + "bin/dartaotruntime.exe"],
         "gen_kernel": [root + "bin/snapshots/gen_kernel_aot.dart.snapshot"],
-        "platform": [root + "lib/_internal/" + ("vm_platform_product.dill" if product else "vm_platform.dill")],
+        "platform": [root + "lib/_internal/vm_platform_product.dill"],
     }
     found = {}
 
@@ -1700,7 +1700,7 @@ def _bootstrap_tools(dart_sdk_info, product):
         fail("could not find %s in the Dart %s SDK at %s" % (", ".join(missing), dart_sdk_info.version, root))
     return struct(**found)
 
-def bootstrap_kernel_action(ctx, main, srcs, package_config, output_dill, product, defines = [], flags = []):
+def bootstrap_kernel_action(ctx, main, srcs, package_config, output_dill, defines = [], flags = []):
     """Compiles one of rules_dart's own tools to a kernel, where `kernel_tool` cannot run.
 
     `kernel_tool`, which runs every other compile, is itself a program, so it
@@ -1719,19 +1719,18 @@ def bootstrap_kernel_action(ctx, main, srcs, package_config, output_dill, produc
       srcs: Depset of every source File the program reads besides `main`.
       package_config: The `kernel_package_config` File.
       output_dill: The `.dill` File to produce.
-      product: Whether the kernel is for a product runtime.
       defines: Environment declarations, none with a comma.
       flags: Further front-end flags, those `gen_kernel` accepts.
     """
     for d in defines:
         if "," in d:
             fail("%s: `%s` has a comma, which `gen_kernel` would split; a tool built without `kernel_tool` cannot take it" % (ctx.label, d))
-    tools = _bootstrap_tools(portable_sdk(ctx), product)
+    tools = _bootstrap_tools(portable_sdk(ctx))
     args = ctx.actions.args()
     args.add(tools.gen_kernel)
     args.add("--platform", tools.platform)
     args.add("--target", "vm")
-    args.add("-Ddart.vm.product=" + ("true" if product else "false"))
+    args.add("-Ddart.vm.product=true")
     args.add_all(VM_SANITIZER_DEFINES, format_each = "-D%s")
     args.add("--filesystem-scheme", KERNEL_FILESYSTEM_SCHEME)
     add_kernel_roots(args, "--filesystem-root", depset([main], transitive = [srcs]))

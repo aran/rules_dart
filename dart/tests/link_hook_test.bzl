@@ -35,7 +35,6 @@ def _kind_by_mode_test_impl(ctx):
     asserts.equals(env, "aot", recorded_uses_kind("exe"))
     asserts.equals(env, "aot", recorded_uses_kind("aot-snapshot"))
     asserts.equals(env, "empty", recorded_uses_kind("kernel"))
-    asserts.equals(env, "empty", recorded_uses_kind("jit-snapshot"))
     return unittest.end(env)
 
 _kind_by_mode_test = unittest.make(_kind_by_mode_test_impl)
