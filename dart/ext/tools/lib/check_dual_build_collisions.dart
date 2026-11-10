@@ -8,8 +8,7 @@
 /// additions to `allRegisteredProducedExtensions()`; this tool uses it as
 /// the full catalog of generated-file suffixes to flag.
 ///
-/// Usage (standalone): `dart run check_dual_build_collisions.dart [root]`
-/// Usage (Bazel): `bazel run @rules_dart//dart/ext/tools:check_dual_build_collisions -- path/to/repo`
+/// Usage: `bazel run @rules_dart//dart/ext/tools:check_dual_build_collisions -- path/to/repo`
 
 import 'dart:io';
 
@@ -70,22 +69,11 @@ bool _isPruned(String path) {
   return false;
 }
 
-/// Loads the baseline extension list. In Bazel runs the file is in
-/// runfiles; for direct `dart run` invocations it falls back to looking up
-/// `gazelle/dart/baseline_generated_extensions.txt` relative to the CWD.
-List<String> loadBaselineExtensions() {
-  try {
-    final r = Runfiles.create();
-    final path = r.rlocation(
-      '_main/gazelle/dart/baseline_generated_extensions.txt',
-    );
-    return _parse(File(path).readAsStringSync());
-  } catch (_) {
-    final f = File('gazelle/dart/baseline_generated_extensions.txt');
-    if (f.existsSync()) return _parse(f.readAsStringSync());
-    rethrow;
-  }
-}
+/// Loads the baseline extension list from [rlocationPath], its runfiles path
+/// (the binary's first argument, from `$(rlocationpath)`, so that it resolves
+/// in whichever module runs the tool).
+List<String> loadBaselineExtensions(String rlocationPath) =>
+    _parse(File(Runfiles.create().rlocation(rlocationPath)).readAsStringSync());
 
 List<String> _parse(String raw) {
   return [
@@ -94,13 +82,20 @@ List<String> _parse(String raw) {
   ];
 }
 
+/// [args] is the extension list's runfiles path, then the directory to scan,
+/// relative to the directory `bazel run` was started in (that directory when
+/// absent).
 Future<int> runCli(List<String> args) async {
-  final root = Directory(args.isEmpty ? '.' : args.first);
+  final cwd = Platform.environment['BUILD_WORKING_DIRECTORY'];
+  final target = args.length < 2 ? '.' : args[1];
+  final root = Directory(
+    cwd == null || File(target).isAbsolute ? target : '$cwd/$target',
+  );
   if (!root.existsSync()) {
     stderr.writeln('error: ${root.path} is not a directory');
     return 2;
   }
-  final extensions = loadBaselineExtensions();
+  final extensions = loadBaselineExtensions(args.first);
   final report = checkDualBuildCollisions(root, extensions);
   if (report.isEmpty) {
     print('no generated-file collisions found under ${root.path}');

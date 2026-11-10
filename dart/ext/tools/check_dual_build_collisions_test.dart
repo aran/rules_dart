@@ -4,7 +4,7 @@ import 'package:path/path.dart' as p;
 import 'package:rules_dart_check_dual_build_collisions/check_dual_build_collisions.dart';
 import 'package:test/test.dart';
 
-void main() {
+void main(List<String> args) {
   group('checkDualBuildCollisions', () {
     late Directory tmp;
 
@@ -74,7 +74,7 @@ void main() {
 
   group('loadBaselineExtensions', () {
     test('loads non-empty list from runfiles', () {
-      final list = loadBaselineExtensions();
+      final list = loadBaselineExtensions(args.single);
       expect(list, isNotEmpty);
       // Baseline invariants — these must stay filtered regardless.
       expect(list, contains('.g.dart'));
@@ -82,7 +82,7 @@ void main() {
     });
 
     test('every entry is a `.something.dart` suffix', () {
-      final list = loadBaselineExtensions();
+      final list = loadBaselineExtensions(args.single);
       for (final ext in list) {
         expect(ext.startsWith('.'), isTrue, reason: '$ext missing leading dot');
         expect(
