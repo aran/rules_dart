@@ -1,0 +1,16 @@
+load("@rules_dart//dart:defs.bzl", "dart_binary")
+
+dart_binary(
+    name = "check",
+    main = "check.dart",
+)
+
+dart_binary(
+    name = "release",
+    srcs = [
+        "format.dart",
+        "shared.dart",
+    ],
+    main = "release.dart",
+    deps = ["//:scripts"],
+)

@@ -256,6 +256,21 @@ func ParseDartDir(dir string, files []string) ([]DartFileInfo, error) {
 	return result, nil
 }
 
+// topLevelMainRe matches a declaration of `main` at the start of a line,
+// after an optional return type: `void main(`, `Future<void> main(`,
+// `main(`.
+var topLevelMainRe = regexp.MustCompile(`(?m)^(?:[A-Za-z_$][\w$<>?, ]*[\s>?])?main\s*\(`)
+
+// HasTopLevelMain reports whether the Dart file at path declares a
+// top-level `main`, which makes it a program `dart run` can start.
+func HasTopLevelMain(path string) bool {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	return topLevelMainRe.MatchString(stripCommentsAndStrings(string(data)))
+}
+
 // stripCommentsAndStrings replaces line/block comments and string literals
 // in a Dart source with whitespace, preserving line positions. This lets a
 // regex scan for syntactic constructs (annotations, directives) without

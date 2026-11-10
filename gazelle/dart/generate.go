@@ -77,30 +77,14 @@ func (d *dartLang) generateDartRules(args language.GenerateArgs) language.Genera
 		}
 	}
 
-	// Dart files of a directory in no package's lib/, bin/ or test/: a
-	// library of their own, named for the package rooted here.
+	// Dart files of a directory in no package's lib/, bin/ or test/
+	// (tool/, example/): scripts, as `dart run tool/x.dart` runs them.
+	var stale []*rule.Rule
 	if len(libFiles) > 0 {
-		name := libraryName(args.Rel, args.Config)
-		if taken := ruleNamed(gen, name); taken != nil {
-			d.errs.add(fmt.Sprintf(
-				"dart: %s: %s are beside the package's lib/, whose `dart_library` %q "+
-					"holds what is under lib/; move them into lib/ (or bin/, test/ or "+
-					"another directory), or exclude them with `# gazelle:exclude`",
-				dirName(args.Rel), strings.Join(fileNames(libFiles), ", "), name))
-		} else {
-			r := rule.NewRule("dart_library", name)
-			stated := ""
-			if statedPackageName(args.Config, args.Rel) != "" {
-				stated = r.Name()
-			}
-			setPackageIdentity(r, args, stated)
-			srcs := fileNames(libFiles)
-			sort.Strings(srcs)
-			r.SetAttr("srcs", srcs)
-			r.SetAttr("visibility", []string{"//visibility:public"})
-			gen = append(gen, r)
-			imports = append(imports, collectImports(args, libFiles))
-		}
+		scripts, scriptImports, old := d.scriptRules(args, libFiles, gen)
+		gen = append(gen, scripts...)
+		imports = append(imports, scriptImports...)
+		stale = old
 	}
 
 	// A test-tree directory another directory imports from holds what it
@@ -141,6 +125,7 @@ func (d *dartLang) generateDartRules(args language.GenerateArgs) language.Genera
 	}
 
 	empty := append(staleCodegenRules(args.File, gen), helperTests(args.File, helpers)...)
+	empty = append(empty, stale...)
 	if layout == "test" {
 		empty = append(empty, staleFilegroups(args.File, args.Rel, gen)...)
 	}
@@ -219,6 +204,88 @@ func (d *dartLang) packageLibraryRules(args language.GenerateArgs) ([]*rule.Rule
 	gen = append(gen, r)
 	imports = append(imports, collectRepoImports(args, files))
 	return gen, imports
+}
+
+// scriptRules is what Gazelle writes for the Dart files of a directory in
+// no package's lib/, bin/ or test/ (tool/, example/), which are scripts: a
+// `dart_binary` for each file with a top-level `main`, holding in `srcs`
+// each file of the directory it reaches by relative imports. A file no
+// binary reaches is an error naming it, since nothing could build it. A
+// `dart_library` of the directory's own files, which earlier Gazelle
+// versions wrote and `dart_library` refuses outside lib/, is deleted.
+func (d *dartLang) scriptRules(args language.GenerateArgs, files []DartFileInfo, taken []*rule.Rule) ([]*rule.Rule, []interface{}, []*rule.Rule) {
+	byPath := map[string]DartFileInfo{}
+	for _, f := range repoFiles(args.Rel, files) {
+		byPath[f.Path] = f
+	}
+	reached := map[string]bool{}
+	var gen []*rule.Rule
+	var imports []interface{}
+	for _, f := range files {
+		if !HasTopLevelMain(filepath.Join(args.Dir, f.Path)) {
+			continue
+		}
+		main := byPath[path.Join(args.Rel, f.Path)]
+		reached[main.Path] = true
+		held := []DartFileInfo{main}
+		var srcs []string
+		var visit func(DartFileInfo)
+		visit = func(g DartFileInfo) {
+			for _, imp := range g.Imports {
+				h, ok := byPath[relativeTarget(g.Path, imp)]
+				if !ok || h.Path == main.Path || containsFile(held, h.Path) {
+					continue
+				}
+				reached[h.Path] = true
+				held = append(held, h)
+				srcs = append(srcs, path.Base(h.Path))
+				visit(h)
+			}
+		}
+		visit(main)
+		name := strings.TrimSuffix(f.Path, ".dart")
+		if ruleNamed(taken, name) != nil {
+			d.errs.add(fmt.Sprintf(
+				"dart: %s: its `dart_binary` would be named %q, as the package's "+
+					"library is; rename the file", main.Path, name))
+			continue
+		}
+		r := rule.NewRule("dart_binary", name)
+		r.SetAttr("main", f.Path)
+		if len(srcs) > 0 {
+			sort.Strings(srcs)
+			r.SetAttr("srcs", srcs)
+		}
+		gen = append(gen, r)
+		imports = append(imports, collectRepoImports(args, held))
+	}
+	for _, f := range sortedKeys(byPath) {
+		if !reached[f] {
+			d.errs.add(fmt.Sprintf(
+				"dart: %s is in no package's lib/, bin/ or test/, has no top-level "+
+					"`main`, and no script beside it imports it; move it into lib/ or "+
+					"beside the script that uses it, or exclude it with `# gazelle:exclude`",
+				f))
+		}
+	}
+	var stale []*rule.Rule
+	if args.File != nil {
+		for _, r := range args.File.Rules {
+			if r.Kind() == "dart_library" && !r.ShouldKeep() && ownSources(r, args.RegularFiles) {
+				stale = append(stale, rule.NewRule("dart_library", r.Name()))
+			}
+		}
+	}
+	return gen, imports, stale
+}
+
+func containsFile(files []DartFileInfo, p string) bool {
+	for _, f := range files {
+		if f.Path == p {
+			return true
+		}
+	}
+	return false
 }
 
 // codegenRules is what Gazelle writes for a source under lib/ carrying the

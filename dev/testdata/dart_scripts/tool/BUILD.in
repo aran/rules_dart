@@ -1,0 +1,12 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+dart_library(
+    name = "tool",
+    srcs = [
+        "check.dart",
+        "format.dart",
+        "release.dart",
+        "shared.dart",
+    ],
+    visibility = ["//visibility:public"],
+)

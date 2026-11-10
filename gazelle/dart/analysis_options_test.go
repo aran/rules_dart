@@ -123,16 +123,16 @@ func TestOptionsRuleNaming(t *testing.T) {
 			t.Errorf("want %s; gen=%v", analysisOptionsAltName, res.Gen)
 		}
 	})
-	t.Run("avoids a generated dart_library's name", func(t *testing.T) {
+	t.Run("avoids a generated dart_binary's name", func(t *testing.T) {
 		root := t.TempDir()
-		writeYaml(t, root, "analysis_options", "")
-		if err := os.WriteFile(filepath.Join(root, "analysis_options", "a.dart"), []byte("class A {}\n"), 0o644); err != nil {
+		writeYaml(t, root, "a", "")
+		if err := os.WriteFile(filepath.Join(root, "a", "analysis_options.dart"), []byte("void main() {}\n"), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		res := generate(t, &dartLang{}, root, "analysis_options", []string{"a.dart", analysisOptionsFile}, "")
-		lib, _ := findRule(res, "analysis_options")
-		if lib == nil || lib.Kind() != "dart_library" {
-			t.Fatalf("want dart_library analysis_options; gen=%v", res.Gen)
+		res := generate(t, &dartLang{}, root, "a", []string{"analysis_options.dart", analysisOptionsFile}, "")
+		bin, _ := findRule(res, "analysis_options")
+		if bin == nil || bin.Kind() != "dart_binary" {
+			t.Fatalf("want dart_binary analysis_options; gen=%v", res.Gen)
 		}
 		if r, _ := findRule(res, analysisOptionsAltName); r == nil {
 			t.Errorf("want %s; gen=%v", analysisOptionsAltName, res.Gen)

@@ -569,3 +569,24 @@ part 'real.g.dart';`,
 		})
 	}
 }
+
+func TestHasTopLevelMain(t *testing.T) {
+	dir := t.TempDir()
+	for src, want := range map[string]bool{
+		"void main() {}\n": true,
+		"Future<void> main(List<String> args) async {}\n":    true,
+		"main() => print(1);\n":                              true,
+		"import 'x.dart';\n\nvoid main(List<String> a) {}\n": true,
+		"class A {\n  void main() {}\n}\n":                   false,
+		"// void main() {}\nString x() => 'main()';\n":       false,
+		"void mainly() {}\n":                                 false,
+	} {
+		p := filepath.Join(dir, "f.dart")
+		if err := os.WriteFile(p, []byte(src), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if got := HasTopLevelMain(p); got != want {
+			t.Errorf("%q: %v, want %v", src, got, want)
+		}
+	}
+}

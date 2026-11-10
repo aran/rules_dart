@@ -1,0 +1,1 @@
+gazelle: dart: example/orphan.dart is in no package's lib/, bin/ or test/, has no top-level `main`, and no script beside it imports it; move it into lib/ or beside the script that uses it, or exclude it with `# gazelle:exclude`

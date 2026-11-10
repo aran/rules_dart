@@ -1,0 +1,8 @@
+# dart_scripts
+
+Dart files in a directory that is no package's `lib/`, `bin/` or `test/`
+(`tool/`, `example/`) are scripts, as `dart run tool/x.dart` runs them: a
+`dart_binary` for each file with a top-level `main`, holding in `srcs` the
+files beside it that it imports. The `dart_library` earlier Gazelle versions
+wrote for such a directory, which `dart_library` refuses outside `lib/`, is
+deleted.

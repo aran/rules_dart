@@ -1,0 +1,8 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+dart_library(
+    name = "scripts",
+    package_name = "scripts",
+    srcs = ["lib/scripts.dart"],
+    visibility = ["//visibility:public"],
+)

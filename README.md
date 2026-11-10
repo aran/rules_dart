@@ -770,6 +770,12 @@ package's root is the directory above its `lib/`, `bin/` and `test/`, as
 resolves `import` statements to determine `deps`, including support for
 `show` and `deferred` import modifiers.
 
+Dart files in any other directory (`tool/`, `example/`) are scripts, as
+`dart run tool/x.dart` runs them: each file with a top-level `main` is a
+`dart_binary`, holding in `srcs` the files beside it that it imports, directly
+or through one another. A file there with no `main` that no script beside it
+imports fails the run, naming it.
+
 As package:test does, Gazelle makes a test of each `_test.dart` file. Any other
 file in `test/` is a helper: it goes in the `srcs` of every test that imports
 it, directly or through another helper, and what it imports in that test's
