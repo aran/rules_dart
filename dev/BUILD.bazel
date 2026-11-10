@@ -6,7 +6,7 @@ gazelle_binary(
     name = "gazelle_bin",
     languages = [
         "@bazel_skylib_gazelle_plugin//bzl",
-        "//gazelle/dart",
+        "@rules_dart//gazelle/dart",
     ],
 )
 

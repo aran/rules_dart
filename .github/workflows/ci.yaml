@@ -55,7 +55,9 @@ jobs:
           "e2e/fix",
           "e2e/analyze_composition",
           "e2e/link_hook",
-          "overhead"
+          "e2e/external_module",
+          "overhead",
+          "tools"
         ]
   # `dart format` and `dart analyze` find their configuration by walking up from
   # the file they are given, and that walk does not stop at the project root. It
@@ -464,6 +466,37 @@ jobs:
       - name: dart_test — run tests under -c dbg
         working-directory: e2e/dart_test
         run: bazel test -c dbg --test_output=errors //...
+  # The Gazelle plugin's tests live in the nested `dev/` module, which `//...`
+  # in the root module does not reach.
+  dev-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: bazel-contrib/setup-bazel@0.19.1
+        with:
+          bazelisk-cache: true
+          disk-cache: ${{ github.job }}
+          repository-cache: true
+      - run: bazel test --test_output=errors @rules_dart_dev//...
+  # A consuming module must be able to load every package of the published
+  # module: tools and IDE plugins enumerate `@rules_dart//...`. Development
+  # tooling loads repos a consumer never sees, so it lives in directories
+  # REPO.bazel keeps out of the module's packages.
+  consumer-query:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: bazel-contrib/setup-bazel@0.19.1
+        with:
+          bazelisk-cache: true
+          repository-cache: true
+      - name: Query the whole published module from a consumer
+        working-directory: e2e/external_module
+        run: bazel query "@rules_dart//..."
   # Every workspace's MODULE.bazel.lock is complete without anyone's
   # .bazelrc.user, the workspaces that fail on purpose included; so is every
   # pubspec.lock outside e2e/.
@@ -500,6 +533,8 @@ jobs:
       - expected-failure
       - pub-archive-links
       - dbg-mode
+      - dev-tests
+      - consumer-query
       - lockfiles
       - pre-commit
     runs-on: ubuntu-latest

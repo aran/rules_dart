@@ -69,11 +69,14 @@ the commit-msg hook that `prek install` sets up checks each commit before that.
 
 ## Running tests
 
-### Unit tests and Gazelle plugin tests (root workspace)
+### Unit tests (root workspace)
 
 ```shell
-bazel test //dart/tests:versions_test //dev:gazelle_test //dev:gazelle_generation_test
+bazel test //...
 ```
+
+The Gazelle plugin's generation tests are in `dev/`, a module of its own:
+`bazel test @rules_dart_dev//...`.
 
 ### End-to-end tests (separate Bazel workspaces)
 
@@ -117,7 +120,7 @@ cd e2e/web_app && bazel build //...
 
 Some targets are generated from sources.
 Currently this is just the `bzl_library` targets.
-Run `bazel run //:gazelle` to keep them up-to-date.
+Run `bazel run @rules_dart_dev//:gazelle` to keep them up-to-date.
 
 ## Using this as a development dependency of other rules
 

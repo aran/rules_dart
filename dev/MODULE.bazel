@@ -1,0 +1,15 @@
+"""rules_dart's own Gazelle: the binary that keeps the `bzl_library` targets
+current, and the Gazelle plugin's golden-file tests. Not part of the published
+module: the root module depends on it for development only, and REPO.bazel
+keeps this directory out of rules_dart's packages. From the checkout root:
+
+    bazel run @rules_dart_dev//:gazelle
+    bazel test @rules_dart_dev//...
+"""
+
+module(name = "rules_dart_dev")
+
+bazel_dep(name = "rules_dart", version = "0.0.0")
+bazel_dep(name = "gazelle", version = "0.54.0", repo_name = "bazel_gazelle")
+bazel_dep(name = "rules_shell", version = "0.8.0")
+bazel_dep(name = "bazel_skylib_gazelle_plugin", version = "1.9.2")

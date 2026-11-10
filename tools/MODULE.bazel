@@ -1,0 +1,11 @@
+"""Generates rules_dart's preset.bazelrc. A workspace of its own, not a module
+rules_dart depends on: the generator writes the file into the workspace that
+runs it, and REPO.bazel keeps this directory out of rules_dart's packages,
+where it would load a repository consumers do not have.
+
+    cd tools && bazel run //:preset.update
+"""
+
+module(name = "rules_dart_tools")
+
+bazel_dep(name = "bazelrc-preset.bzl", version = "1.9.2")

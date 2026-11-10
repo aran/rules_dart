@@ -6,7 +6,20 @@ repo(
     ],
 )
 
-# overhead/ is a module of its own: the development tooling rules_dart shares
-# with the repositories built on it. It is not a package of this module, here
-# or in a consumer's copy of it.
-ignore_directories([".bazel_env", "overhead"])
+# Not packages of this module, here or in a consumer's copy of it (where
+# `.bazelignore` would not apply): the end-to-end workspaces; overhead and
+# tools, workspaces of their own; dev, a module the root depends on for
+# development; and the checkout's own state.
+ignore_directories([
+    "bazel-*",
+    ".bazel_env",
+    # Claude Code keeps its worktrees here, full checkouts Bazel would read as packages.
+    ".claude",
+    ".github",
+    "dev",
+    "docs",
+    "e2e",
+    "overhead",
+    "references",
+    "tools",
+])
