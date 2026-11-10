@@ -25,7 +25,8 @@ as the repo evolves.
 
 **Procedure**:
 
-1. Run `dart run tool/fetch_sdk_hashes.dart {version}` to get SHA-256 hashes
+1. Run `bazel run @rules_dart//dart -- run tool/fetch_sdk_hashes.dart {version}`
+   from the repository root to get SHA-256 hashes
 2. Add its three entries to `dart/private/versions.bzl`: the SDK checksums to
    `TOOL_VERSIONS`, the cross-compilation binaries' to `CROSS_TOOL_VERSIONS`,
    the tag's source archive (downloaded twice, the two SHA-256s agreeing) to
@@ -158,7 +159,7 @@ The first two run `bazel mod tidy --lockfile_mode=refresh`, then `bazel mod deps
 and `bazel build --nobuild //...` with `--lockfile_mode=update`, in each
 workspace, reading its committed `.bazelrc` but not its `.bazelrc.user`.
 `bazel run @overhead//locks:check` checks instead (`--lockfile_mode=error`), and
-`pub_locks` without `--refresh` runs `dart pub get --enforce-lockfile`; CI's
+`pub_locks` without `--refresh` runs `pub get --enforce-lockfile` on the pinned SDK; CI's
 `lockfiles` job runs both.
 
 The lock tool is built in the root workspace, so a refresh builds it with
@@ -167,11 +168,10 @@ could rewrite anything. A check runs without that flag, since Bazel would then
 quietly rewrite a stale root lock before the tool checked it; a stale root lock
 fails the check at Bazel's own "no longer up-to-date" error instead.
 
-`pub_locks` runs `dart pub get` in the in-repo Dart packages (`dart/ext/`,
+`pub_locks` runs `pub get` in the in-repo Dart packages (`dart/ext/`,
 `dart/private/tools/`, `dart/runfiles/`, `overhead/`) on the pinned SDK
-(`bazel run @rules_dart//dart/pub`), since a package's SDK floor can be ahead of
-the host's `dart`, with `FLUTTER_ROOT` taken from the environment or the
-`flutter` on PATH: `dart/ext/` needs a Flutter-flavored pub.
+(`bazel run @rules_dart//dart/pub`), with `FLUTTER_ROOT` taken from the
+environment or the `flutter` on PATH: `dart/ext/` needs a Flutter-flavored pub.
 
 **Verification**: All workspaces and packages report success.
 
@@ -213,8 +213,8 @@ for these CPUs either.
 Before hard-coding the ELF table, confirm the real header bytes:
 
 ```sh
-dart compile exe          -o /tmp/x hello.dart --target-os linux --target-arch <arch>
-dart compile aot-snapshot -o /tmp/x.aot hello.dart --target-os linux --target-arch <arch>
+bazel run @rules_dart//dart -- compile exe          -o /tmp/x hello.dart --target-os linux --target-arch <arch>
+bazel run @rules_dart//dart -- compile aot-snapshot -o /tmp/x.aot hello.dart --target-os linux --target-arch <arch>
 file /tmp/x /tmp/x.aot
 ```
 
@@ -252,7 +252,8 @@ byte-level architecture check.
 
 1. Check pub.dev for latest versions of packages used in e2e tests
 2. Update `pub.package()` calls with new version and sha256
-3. For `pub_lock`, run `dart pub get` in the e2e/pub_lock directory to refresh the lock file
+3. For `pub_lock`, run `bazel run @rules_dart//dart/pub -- get --directory=e2e/pub_lock`
+   to refresh the lock file
 4. Regenerate Bazel lock files
 
 **Verification**: `bazel build //...` in affected e2e workspaces succeeds.
@@ -272,8 +273,9 @@ Each in-repo Dart package is publishable to pub.dev. Maintenance includes:
 - **SDK constraint**: The `environment.sdk` lower bound in `pubspec.yaml`
   tracks the project's minimum supported Dart SDK.
 - **Dependencies**: Any pub dependencies need periodic bumping. Run
-  `dart pub outdated` in the package directory to check, then `dart pub upgrade`
-  to take what the current constraints allow.
+  `bazel run @rules_dart//dart/pub -- outdated --directory=<package>` to check,
+  then `... -- upgrade --directory=<package>` to take what the current
+  constraints allow.
 
   `dart/ext/` moves as a deliberate chore, not with the routine sweep. Its
   lock is `ext_pub_deps`, shared with every workspace that runs codegen, and
@@ -302,8 +304,8 @@ Each in-repo Dart package is publishable to pub.dev. Maintenance includes:
 - **Publishing**: Handled automatically by the `pub-publish` job in the
   release workflow (`.github/workflows/release.yaml`).
 
-**Verification**: `dart pub get` succeeds; `dart pub outdated` reports no
-critical updates.
+**Verification**: `pub get` succeeds; `pub outdated` reports no critical
+updates (both through `bazel run @rules_dart//dart/pub`).
 
 ---
 

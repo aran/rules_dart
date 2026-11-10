@@ -387,8 +387,11 @@ for build_runner alone.
 
 ## Dual-build coexistence
 
-`rules_dart` and `build_runner` can be used on the same checkout during
-a migration:
+rules_dart does not run `build_runner` and supports no system-wide install of
+it (see the [README](../README.md#command-map)). A checkout migrating from
+`build_runner` may still hold files it wrote, and a pipeline that has not yet
+dropped it; the guarantees below keep the first from breaking the Bazel build
+and Bazel's files from breaking the second:
 
 ### 1. `build_runner`-generated files in the source tree don't break Bazel
 
@@ -420,13 +423,13 @@ Three independent mechanisms guard this. Each has a dedicated test.
 `package:build`'s asset discovery walks only `lib/`, `test/`, `bin/`,
 `web/`, `tool/` — never the repo root, where `BUILD.bazel`,
 `MODULE.bazel`, and `bazel-*` convenience symlinks live. Pinned by
-`e2e/dual_build/run_build_runner_test`, which runs real `dart pub get` and
-so needs the network.
+`e2e/dual_build/run_build_runner_test`, which runs a real `pub get` and
+`build_runner` with the pinned SDK and so needs the network.
 
 ### Recommendations
 
-- **`.gitignore`** generated file extensions so `build_runner` output
-  doesn't enter VCS:
+- **`.gitignore`** generated file extensions so `build_runner`'s leftover
+  output doesn't enter VCS:
 
   ```
   .dart_tool/
