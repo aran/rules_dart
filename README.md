@@ -153,6 +153,14 @@ Packages that depend on each other, which pub allows (`dio` and
 language version; `@pub_deps//:dio` and `@pub_deps//:dio_web_adapter` both name
 it.
 
+rules_dart builds one version of each package, and the root module decides it,
+as Bazel's root module decides everything else: a `pub.package()` in the root
+wins over the root's locks, and either wins over a `pub.package()` in a module
+the root depends on, whose `@name` repository then supplies the root's version.
+If two such modules declare different versions and the root states none, the
+build fails naming both; pin the package in the root with `pub.package()` or
+its lock.
+
 ### BUILD file generation with Gazelle
 
 rules_dart includes a [Gazelle](https://github.com/bazelbuild/bazel-gazelle)
@@ -718,6 +726,8 @@ The [`e2e/`](e2e/) directory contains complete working examples:
 | [`pub_lock_cycle`](e2e/pub_lock_cycle/)                 | Packages that depend on each other (`dio`, `dio_web_adapter`), on the VM and the web     |
 | [`pub_lock_path_override`](e2e/pub_lock_path_override/) | A hosted package depending on a path package fails, naming it                            |
 | [`pub_hub_surface`](e2e/pub_hub_surface/)               | Every locked package in its hub, including one declared with `pub.package()`             |
+| [`pub_override_root_lock`](e2e/pub_override_root_lock/) | The root's lock wins over a dependency module's `pub.package()`                          |
+| [`pub_package_conflict`](e2e/pub_package_conflict/)     | Two dependency modules' differing `pub.package()`s fail, naming both                     |
 | [`codegen`](e2e/codegen/)                               | `dart_codegen`/`dart_aggregate_codegen` over parts, re-exports and source sets           |
 | [`ext_exemplar`](e2e/ext_exemplar/)                     | One package per bundled `dart/ext` builder, plus native `code_assets`, sqlite3/webcrypto |
 | [`dual_build`](e2e/dual_build/)                         | Collision detection between Bazel-generated and `build_runner`-generated sources         |

@@ -1,0 +1,20 @@
+load(":checks.bzl", "pub_graph_check")
+
+exports_files(["pubspec.lock"])
+
+# Property: the root module decides. A dependency module's `pub.package()`
+# cannot change what the root module's lock pinned: `path` resolves to the
+# root's 1.9.1, never the dependency's 1.9.0, including through the repository
+# the dependency's own declaration names.
+
+pub_graph_check(
+    name = "root_lock_version_is_not_overridden_by_dependency",
+    target = "@rootlock//:stack_trace",
+    versions = {"path": "1.9.1"},
+)
+
+pub_graph_check(
+    name = "dependency_declaration_names_root_version",
+    target = "@dep_mod//:path",
+    versions = {"path": "1.9.1"},
+)

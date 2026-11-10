@@ -1,0 +1,10 @@
+module(name = "mod_b")
+
+bazel_dep(name = "rules_dart", version = "0.0.0")
+
+pub = use_extension("@rules_dart//dart/pub:extensions.bzl", "pub")
+pub.package(
+    name = "path",
+    sha256 = "087ce49c3f0dc39180befefc60fdb4acd8f8620e5682fe2476afd0b3688bb4af",
+    version = "1.9.0",
+)

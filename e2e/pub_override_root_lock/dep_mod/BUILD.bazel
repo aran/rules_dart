@@ -1,0 +1,7 @@
+# The module's own name for the package it declared, which the root's lock
+# decides.
+alias(
+    name = "path",
+    actual = "@path",
+    visibility = ["//visibility:public"],
+)

@@ -188,12 +188,17 @@ load to) anything in `dart/pub/extensions.bzl`'s closure invalidates the lock of
 - `e2e/pub_hub_surface`
 - `e2e/pub_lock_cycle`
 - `e2e/pub_lock_path_override`
+- `e2e/pub_override_root_lock`
+- `e2e/pub_package_conflict`
 
-`e2e/pub_lock_cross_module`'s `module_b` and `module_c` are skipped by the
-tool (`_skipWorkspaces` in `tool/refresh_locks.dart`): they are consumed only
-from their parent and don't resolve standalone. `e2e/pub_lock_conflict` fails
-on purpose (intentionally conflicting lock files); the tool accepts that one
-failure (`_expectedFailures`) and still refreshes the rest of its lock.
+`e2e/pub_lock_cross_module`'s `module_b` and `module_c`,
+`e2e/pub_override_root_lock/dep_mod` and `e2e/pub_package_conflict`'s `mod_b`
+and `mod_c` are skipped by the tool (`_skipWorkspaces` in
+`tool/refresh_locks.dart`): they are consumed only from their parent and don't
+resolve standalone. `e2e/pub_lock_conflict` (conflicting lock files) and
+`e2e/pub_package_conflict` (conflicting `pub.package()` declarations) fail on
+purpose; the tool accepts those failures (`_expectedFailures`) and still
+refreshes the rest of their locks.
 
 **Procedure**: Run `dart run tool/refresh_locks.dart`. This both refreshes
 Bazel lock files (pulling fresh registry data, keeping MODULE.bazel

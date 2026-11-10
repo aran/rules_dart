@@ -160,6 +160,10 @@ const _expectedFailures = {
   // Two lockfiles declare conflicting versions of the same package. The
   // `expected-failure` CI job asserts the resulting error message.
   'e2e/pub_lock_conflict': 'conflicting versions across lock files',
+  // Two dependency modules declare different versions of one package and the
+  // root states none.
+  'e2e/pub_package_conflict':
+      'declared at different versions by modules the root depends on',
 };
 
 /// Workspaces that resolve only in a non-standalone context and cannot be
@@ -173,6 +177,10 @@ const _skipWorkspaces = {
   // `deps_a`, the name the parent also uses, which is the collision the parent
   // fixture exists to cover.
   'e2e/pub_lock_cross_module/module_c',
+  // Dependency modules consumed only from their parent workspaces.
+  'e2e/pub_override_root_lock/dep_mod',
+  'e2e/pub_package_conflict/mod_b',
+  'e2e/pub_package_conflict/mod_c',
 };
 
 /// Find all directories containing MODULE.bazel, excluding references/.

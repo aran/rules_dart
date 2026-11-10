@@ -42,6 +42,7 @@ const _ciFolders = [
   'e2e/pub_lock_upgrade',
   'e2e/pub_hub_surface',
   'e2e/pub_lock_cycle',
+  'e2e/pub_override_root_lock',
   'e2e/pub_package_padded',
   'e2e/ext_exemplar',
   'e2e/dual_build',
@@ -222,6 +223,11 @@ const _expectedFailureChecks = [
     'e2e/pub_lock_conflict',
     '//:app',
     'conflicting versions across lock files',
+  ),
+  _ExpectedFailure(
+    'e2e/pub_package_conflict',
+    '//...',
+    'declared at different versions by modules the root depends on',
   ),
   _ExpectedFailure(
     'e2e/pub_lock_path_override',

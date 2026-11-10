@@ -68,6 +68,60 @@ _from_lock = tag_class(
     },
 )
 
+def _explicit_packages(ctx, root_lock_names):
+    """Decides which `pub.package()` declaration supplies each package it names.
+
+    Bazel's convention: the root module decides. A root declaration wins; so
+    does the root's lock over another module's declaration. Two other modules
+    that disagree, with the root silent, fail: rules_dart builds one version of
+    each package, and which of theirs would be picking for the root.
+
+    Args:
+      ctx: The module extension context.
+      root_lock_names: Names the root module's locks list, whatever their source.
+
+    Returns:
+      `struct(explicit, overridden)`: the winning declaration per name, and the
+      names other modules declared that the root's lock supplies instead, each
+      with the declaring modules.
+    """
+    root = {}
+    others = {}
+    for mod in ctx.modules:
+        for pkg in mod.tags.package:
+            if mod.is_root:
+                root.setdefault(pkg.name, pkg)
+            else:
+                others.setdefault(pkg.name, []).append(struct(module = mod.name, tag = pkg))
+
+    explicit = dict(root)
+    overridden = {}
+    for name, decls in others.items():
+        if name in root:
+            continue
+        if name in root_lock_names:
+            overridden[name] = [d.module for d in decls]
+            continue
+        versions = {(d.tag.version, d.tag.sha256): True for d in decls}
+        if len(versions) > 1:
+            fail(
+                ("Package \"%s\" is declared at different versions by modules the root " +
+                 "depends on, and the root module states none:\n%s\n" +
+                 "rules_dart builds one version of each package. Pin it in the root " +
+                 "module, with `pub.package(name = \"%s\", version = ..., sha256 = ...)` " +
+                 "or in a lock the root passes to `pub.from_lock()`; the root's choice " +
+                 "wins over every other module's.") % (
+                    name,
+                    "".join([
+                        "  - %s (sha256 %s), from module `%s`\n" % (d.tag.version, d.tag.sha256, d.module)
+                        for d in decls
+                    ]),
+                    name,
+                ),
+            )
+        explicit[name] = decls[0].tag
+    return struct(explicit = explicit, overridden = overridden)
+
 def _pub_impl(ctx):
     # Packages the user has declared hook-irrelevant, unioned across every
     # from_lock call — a package is one repo regardless of how many locks
@@ -78,18 +132,29 @@ def _pub_impl(ctx):
             for pkg_name in lock_tag.ignore_hooks:
                 ignore_hooks[pkg_name] = True
 
-    # Handle individual package declarations — these take priority
-    explicit = {}
-
     # Repos the root module names, mapped to whether every naming is a
     # `dev_dependency = True` usage: Bazel checks the root's `use_repo` calls
     # against that split, and fails a dev-only root that reports non-dev repos.
     root_repos = {}
+
+    # Every lock, parsed once, in module order.
+    locks = []
+    root_lock_names = {}
     for mod in ctx.modules:
-        for pkg in mod.tags.package:
-            if pkg.name not in explicit:
-                explicit[pkg.name] = pkg
+        for lock_tag in mod.tags.from_lock:
+            lock_pkgs = parse_pubspec_lock(ctx.read(lock_tag.lock))
+            locks.append(struct(module = mod, tag = lock_tag, packages = lock_pkgs))
             if mod.is_root:
+                for name in lock_pkgs:
+                    root_lock_names[name] = True
+
+    # Individual package declarations take priority over the locks, and the
+    # root module's statements over every other module's.
+    explicit_packages = _explicit_packages(ctx, root_lock_names)
+    explicit = explicit_packages.explicit
+    for mod in ctx.modules:
+        if mod.is_root:
+            for pkg in mod.tags.package:
                 root_repos[pkg.name] = root_repos.get(pkg.name, True) and ctx.is_dev_dependency(pkg)
 
     for name, pkg in explicit.items():
@@ -120,85 +185,84 @@ def _pub_impl(ctx):
     # SDK sources), with how the first such lock lists each.
     non_hosted = {}
 
-    for mod in ctx.modules:
-        for lock_tag in mod.tags.from_lock:
-            hub_name = lock_tag.name
-            if mod.is_root:
-                root_repos[hub_name] = root_repos.get(hub_name, True) and ctx.is_dev_dependency(lock_tag)
-            lock_content = ctx.read(lock_tag.lock)
-            lock_pkgs = parse_pubspec_lock(lock_content)
+    for lock in locks:
+        mod = lock.module
+        lock_tag = lock.tag
+        hub_name = lock_tag.name
+        if mod.is_root:
+            root_repos[hub_name] = root_repos.get(hub_name, True) and ctx.is_dev_dependency(lock_tag)
 
-            hub_packages.setdefault(hub_name, {})
+        hub_packages.setdefault(hub_name, {})
 
-            # Only hosted packages can be fetched from a pub registry. Collect
-            # every non-hosted package and report once per lock file — Flutter
-            # locks routinely list many sdk-source packages, so a per-package
-            # print would drown the useful signal.
-            skipped_by_source = {}
+        # Only hosted packages can be fetched from a pub registry. Collect
+        # every non-hosted package and report once per lock file — Flutter
+        # locks routinely list many sdk-source packages, so a per-package
+        # print would drown the useful signal.
+        skipped_by_source = {}
 
-            for name, info in lock_pkgs.items():
-                # A package declared with `pub.package()` is that repository,
-                # however the lock lists it.
-                if name in explicit:
-                    hub_packages[hub_name][name] = True
-                    continue
-
-                source = info.get("source", "unknown")
-                if source != "hosted":
-                    skipped_by_source.setdefault(source, []).append(name)
-                    non_hosted.setdefault(name, "a `%s` package in %s" % (source, lock_tag.lock))
-                    continue
-
+        for name, info in lock.packages.items():
+            # A package declared with `pub.package()` is that repository,
+            # however the lock lists it.
+            if name in explicit:
                 hub_packages[hub_name][name] = True
+                continue
 
-                desc = info.get("description", {})
-                url = desc.get("url", "https://pub.dev")
-                version = info.get("version", "")
-                sha256 = desc.get("sha256", "")
-                check_pub_archive_sha256(name, version, sha256, str(lock_tag.lock))
-                entry = struct(
-                    version = version,
-                    sha256 = sha256,
-                    hub_name = hub_name,
-                    lock_label = str(lock_tag.lock),
-                    on_version_conflict = lock_tag.on_version_conflict,
-                )
+            source = info.get("source", "unknown")
+            if source != "hosted":
+                skipped_by_source.setdefault(source, []).append(name)
+                non_hosted.setdefault(name, "a `%s` package in %s" % (source, lock_tag.lock))
+                continue
 
-                if name not in registry:
-                    registry[name] = struct(url = url, entries = [entry])
+            hub_packages[hub_name][name] = True
+
+            desc = info.get("description", {})
+            url = desc.get("url", "https://pub.dev")
+            version = info.get("version", "")
+            sha256 = desc.get("sha256", "")
+            check_pub_archive_sha256(name, version, sha256, str(lock_tag.lock))
+            entry = struct(
+                version = version,
+                sha256 = sha256,
+                hub_name = hub_name,
+                lock_label = str(lock_tag.lock),
+                on_version_conflict = lock_tag.on_version_conflict,
+            )
+
+            if name not in registry:
+                registry[name] = struct(url = url, entries = [entry])
+            else:
+                existing = registry[name]
+                if existing.url != url:
+                    fail(
+                        "Package \"%s\" has conflicting registry URLs:\n" % name +
+                        "  - %s (from \"%s\")\n" % (existing.url, existing.entries[0].hub_name) +
+                        "  - %s (from \"%s\")\n" % (url, hub_name),
+                    )
+                registry[name] = struct(url = existing.url, entries = existing.entries + [entry])
+
+        if skipped_by_source:
+            details = []
+            for source in sorted(skipped_by_source.keys()):
+                if source == "sdk":
+                    remedy = "provided by the Dart/Flutter SDK, not fetched by pub"
                 else:
-                    existing = registry[name]
-                    if existing.url != url:
-                        fail(
-                            "Package \"%s\" has conflicting registry URLs:\n" % name +
-                            "  - %s (from \"%s\")\n" % (existing.url, existing.entries[0].hub_name) +
-                            "  - %s (from \"%s\")\n" % (url, hub_name),
-                        )
-                    registry[name] = struct(url = existing.url, entries = existing.entries + [entry])
+                    remedy = "declare via pub.package() or a local dart_library"
+                details.append("  - %s (%s): %s" % (
+                    source,
+                    remedy,
+                    ", ".join(sorted(skipped_by_source[source])),
+                ))
 
-            if skipped_by_source:
-                details = []
-                for source in sorted(skipped_by_source.keys()):
-                    if source == "sdk":
-                        remedy = "provided by the Dart/Flutter SDK, not fetched by pub"
-                    else:
-                        remedy = "declare via pub.package() or a local dart_library"
-                    details.append("  - %s (%s): %s" % (
-                        source,
-                        remedy,
-                        ", ".join(sorted(skipped_by_source[source])),
-                    ))
-
-                # buildifier: disable=print
-                print(
-                    ("pub.from_lock(%s): %s lists non-hosted packages; no repository " +
-                     "is created for them, so `package:` imports of these packages " +
-                     "will fail to resolve unless they are provided another way:\n%s") % (
-                        hub_name,
-                        lock_tag.lock,
-                        "\n".join(details),
-                    ),
-                )
+            # buildifier: disable=print
+            print(
+                ("pub.from_lock(%s): %s lists non-hosted packages; no repository " +
+                 "is created for them, so `package:` imports of these packages " +
+                 "will fail to resolve unless they are provided another way:\n%s") % (
+                    hub_name,
+                    lock_tag.lock,
+                    "\n".join(details),
+                ),
+            )
 
     # Resolve each package to a single version
     resolved = {}  # pkg_name -> {version, sha256, url}
@@ -291,6 +355,25 @@ def _pub_impl(ctx):
         if name in explicit:
             return "@{name}//:{name}".format(name = name)
         return "@{repo}//:{name}".format(repo = library_repo(_SPOKE_PREFIX, name), name = name)
+
+    # A package another module declared, which the root's lock supplies
+    # instead, keeps its repository name for that module's `use_repo`.
+    for name, modules in explicit_packages.overridden.items():
+        if name not in resolved:
+            fail(
+                ("Package \"%s\" is declared with `pub.package()` by %s, and the root " +
+                 "module's lock lists it as %s, which `pub.from_lock()` does not fetch. " +
+                 "The root's choice wins, so the root must supply it: declare it with " +
+                 "`pub.package()` in the root module.") % (
+                    name,
+                    ", ".join(["module `%s`" % m for m in modules]),
+                    unsupplied.get(name, "a package no lock supplies"),
+                ),
+            )
+        pub_lock_hub(
+            name = name,
+            packages = {name: library_label(name)},
+        )
 
     # Create per-from_lock hub repos
     for hub_name, packages in hub_packages.items():
