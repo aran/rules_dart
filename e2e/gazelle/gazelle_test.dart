@@ -389,6 +389,118 @@ abstract class Event with _\$Event {
   );
   w.dispose();
 
+  // ---- lib/ directories in an import cycle are one library ------------
+  // Two directories that import each other: the library of the first holds
+  // both, and the other lends it its sources.
+  w = Workspace();
+  w.markRoot();
+  w.write('pubspec.yaml', 'name: two\n');
+  w.write('lib/two.dart', "import 'src/a/a.dart';\n");
+  w.write('lib/src/a/a.dart', "import '../b/b.dart';\n");
+  w.write('lib/src/b/b.dart', "import 'package:two/src/c/c.dart';\n");
+  w.write('lib/src/c/c.dart', 'class C {}\n');
+  w.gazelle();
+  w.check('lib/src/b/BUILD.bazel', 'dart_library(', 'b a library of its own');
+  w.check('lib/src/a/BUILD.bazel', '"//lib/src/b"', 'a depends on b');
+
+  // Creating the cycle moves b's sources into a's library.
+  w.write(
+    'lib/src/b/b.dart',
+    "import 'package:two/src/a/a.dart';\nimport '../c/c.dart';\n",
+  );
+  w.gazelle();
+  w.check(
+    'lib/src/a/BUILD.bazel',
+    'srcs = [\n        "a.dart",\n        "//lib/src/b",\n    ],',
+    "b's filegroup in a's srcs",
+  );
+  w.check('lib/src/a/BUILD.bazel', 'deps = ["//lib/src/c"]', "b's deps on a");
+  w.check(
+    'lib/src/b/BUILD.bazel',
+    'filegroup(\n    name = "b",\n    srcs = ["b.dart"],\n'
+        '    visibility = ["//lib/src/a:__pkg__"],\n)',
+    "b's sources lent to a",
+  );
+  w.checkAbsent('lib/src/b/BUILD.bazel', 'dart_library', 'b kept its library');
+  w.check('lib/BUILD.bazel', 'deps = ["//lib/src/a"]', 'lib on a only');
+  String cycleFiles() => [
+    for (final d in ['lib', 'lib/src/a', 'lib/src/b']) w.read('$d/BUILD.bazel'),
+  ].join();
+  final cycleRun = cycleFiles();
+  w.gazelle();
+  if (cycleFiles() == cycleRun) {
+    stdout.writeln('PASS: a second run over a cycle is a no-op');
+  } else {
+    fail('a second run over a cycle changed the BUILD files');
+  }
+
+  // Removing it gives b its library back.
+  w.write('lib/src/b/b.dart', "import '../c/c.dart';\n");
+  w.gazelle();
+  w.check('lib/src/b/BUILD.bazel', 'dart_library(', 'b a library again');
+  w.checkAbsent('lib/src/b/BUILD.bazel', 'filegroup', 'b kept its filegroup');
+  w.check('lib/src/a/BUILD.bazel', 'srcs = ["a.dart"],', "a's srcs alone");
+  w.check('lib/src/a/BUILD.bazel', 'deps = ["//lib/src/b"]', 'a on b again');
+  w.dispose();
+
+  // A chain through lib/ itself: the package's own library holds the cycle.
+  w = Workspace();
+  w.markRoot();
+  w.write('pubspec.yaml', 'name: chain\n');
+  w.write('lib/chain.dart', "export 'src/a/a.dart';\n");
+  w.write('lib/src/a/a.dart', "import '../b/b.dart';\n");
+  w.write('lib/src/b/b.dart', "import 'package:chain/chain.dart';\n");
+  w.gazelle();
+  w.check(
+    'lib/BUILD.bazel',
+    'srcs = [\n        "chain.dart",\n        "//lib/src/a",\n'
+        '        "//lib/src/b",\n    ],',
+    'the cycle in the package library',
+  );
+  w.checkAbsent('lib/BUILD.bazel', 'deps', 'a dep inside the cycle');
+  for (final d in ['a', 'b']) {
+    w.check(
+      'lib/src/$d/BUILD.bazel',
+      'visibility = ["//lib:__pkg__"]',
+      '$d lent to lib',
+    );
+  }
+  w.dispose();
+
+  // ---- a test helper in a directory of its own -------------------------
+  w = Workspace();
+  w.markRoot(build: '# gazelle:dart_pub_deps_repo pub_deps\n');
+  w.write('pubspec.yaml', 'name: helped\n');
+  w.write('lib/helped.dart', 'class Helped {}\n');
+  w.write(
+    'test/util/fixture.dart',
+    "import 'package:path/path.dart';\nimport '../shared.dart';\n",
+  );
+  w.write('test/shared.dart', "import 'package:helped/helped.dart';\n");
+  w.write('test/a_test.dart', "import 'util/fixture.dart';\n");
+  w.gazelle();
+  w.check(
+    'test/util/BUILD.bazel',
+    'filegroup(\n    name = "util",\n    srcs = ["fixture.dart"],\n'
+        '    visibility = ["//test:__subpackages__"],\n)',
+    'the helper directory lends its helpers',
+  );
+  w.check(
+    'test/BUILD.bazel',
+    'srcs = [\n        "shared.dart",\n        "//test/util",\n    ],',
+    "the test's srcs: its directory's helper and the helper filegroup",
+  );
+  w.check('test/BUILD.bazel', '"@pub_deps//:path"', "the helper's import");
+  w.check('test/BUILD.bazel', '"//lib:helped"', "the helper's helper's import");
+  File(w.path('test/a_test.dart')).writeAsStringSync('void main() {}\n');
+  w.gazelle();
+  w.checkAbsent(
+    'test/util/BUILD.bazel',
+    'filegroup',
+    'an unused filegroup kept',
+  );
+  w.dispose();
+
   if (failed) {
     stdout.writeln('SOME TESTS FAILED');
     exit(1);

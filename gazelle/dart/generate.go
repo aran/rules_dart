@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/bazelbuild/bazel-gazelle/config"
+	"github.com/bazelbuild/bazel-gazelle/label"
 	"github.com/bazelbuild/bazel-gazelle/language"
 	"github.com/bazelbuild/bazel-gazelle/rule"
 )
@@ -194,32 +195,57 @@ func (d *dartLang) generateDartRules(args language.GenerateArgs) language.Genera
 	place := placeDir(args.Rel)
 	if len(plain) > 0 && place.Err != nil {
 		log.Printf("dart: %v; no dart_library generated for %s", place.Err, strings.Join(fileNames(plain), ", "))
-	} else if len(plain) > 0 && place.Split {
-		// One directory of a package rooted above it: named for the
-		// directory, and placed in the package by its name.
-		r := rule.NewRule("dart_library", path.Base(args.Rel))
-		srcs := fileNames(plain)
-		sort.Strings(srcs)
-		r.SetAttr("srcs", srcs)
-		r.SetAttr("visibility", []string{"//visibility:public"})
-		setPackageIdentity(r, args, packageNameIn(args.Config, args.Rel))
-		gen = append(gen, r)
-		imports = append(imports, collectImports(args, plain))
 	} else if len(plain) > 0 {
-		r := rule.NewRule("dart_library", libraryName(args.Rel, args.Config))
-		srcs := fileNames(plain)
-		sort.Strings(srcs)
-		r.SetAttr("srcs", srcs)
-		r.SetAttr("visibility", []string{"//visibility:public"})
-		// The name is stated only where something states it; unstated,
-		// dart_library derives the same one from the target's name.
-		name := ""
-		if statedPackageName(args.Config, args.Rel) != "" {
-			name = r.Name()
+		// Which library a lib/ directory's sources go into is decided in
+		// one place, libraryGroups (package_scan.go).
+		var lendTo string
+		var lent []string
+		var lentFiles []DartFileInfo
+		if place.Split || args.Rel == libDirOf(place.Root) {
+			lendTo, lent, lentFiles = d.scan.scanOf(args.Config, place.Root).libShare(args.Rel)
 		}
-		setPackageIdentity(r, args, name)
-		gen = append(gen, r)
-		imports = append(imports, collectImports(args, plain))
+		if lendTo != "" {
+			gen = append(gen, sourcesFilegroup(args.Rel, plain,
+				label.New("", lendTo, "__pkg__").String()))
+			imports = append(imports, nil)
+		} else {
+			var r *rule.Rule
+			if place.Split {
+				// One directory of a package rooted above it: named for the
+				// directory, and placed in the package by its name.
+				r = rule.NewRule("dart_library", path.Base(args.Rel))
+				setPackageIdentity(r, args, packageNameIn(args.Config, args.Rel))
+			} else {
+				r = rule.NewRule("dart_library", libraryName(args.Rel, args.Config))
+				// The name is stated only where something states it; unstated,
+				// dart_library derives the same one from the target's name.
+				name := ""
+				if statedPackageName(args.Config, args.Rel) != "" {
+					name = r.Name()
+				}
+				setPackageIdentity(r, args, name)
+			}
+			srcs := fileNames(plain)
+			sort.Strings(srcs)
+			srcs = append(srcs, lent...)
+			files := append(repoFiles(args.Rel, plain), lentFiles...)
+			r.SetAttr("srcs", srcs)
+			r.SetAttr("visibility", []string{"//visibility:public"})
+			gen = append(gen, r)
+			imports = append(imports, collectRepoImports(args, files))
+		}
+	}
+
+	// A test-tree directory another directory imports from holds what it
+	// lends (package_scan.go).
+	if layout == "test" {
+		_, root := layoutOf(args.Rel)
+		scan := d.scan.scanOf(args.Config, root)
+		if lent := scan.lent[args.Rel]; len(lent) > 0 {
+			gen = append(gen, sourcesFilegroup(args.Rel, lent,
+				label.New("", path.Join(root, "test"), "__subpackages__").String()))
+			imports = append(imports, nil)
+		}
 	}
 
 	for _, f := range binFiles {
@@ -234,63 +260,86 @@ func (d *dartLang) generateDartRules(args language.GenerateArgs) language.Genera
 		name := strings.TrimSuffix(f.Path, ".dart")
 		r := rule.NewRule("dart_test", name)
 		r.SetAttr("main", f.Path)
-		own := testHelpers(args, f, helpers)
-		if len(own) > 0 {
-			r.SetAttr("srcs", fileNames(own))
+		srcs, files := d.testHelpers(args, f)
+		if len(srcs) > 0 {
+			r.SetAttr("srcs", srcs)
 		}
 		tags := testTags(args, f)
 		if len(tags) > 0 {
 			r.SetAttr("tags", tags)
 		}
 		gen = append(gen, r)
-		imports = append(imports, collectImports(args, append([]DartFileInfo{f}, own...)))
+		imports = append(imports, collectRepoImports(args, files))
 	}
 
+	empty := append(staleCodegenRules(args.File, gen), helperTests(args.File, helpers)...)
+	if layout == "test" || place.Err == nil && (place.Split || args.Rel == libDirOf(place.Root)) {
+		empty = append(empty, staleFilegroups(args.File, args.Rel, gen)...)
+	}
 	return language.GenerateResult{
 		Gen:     gen,
 		Imports: imports,
-		Empty:   append(staleCodegenRules(args.File, gen), helperTests(args.File, helpers)...),
+		Empty:   empty,
 	}
 }
 
-// testHelpers is every helper of the directory a test reaches through
-// relative imports, its own or a helper's, sorted by path. A relative import
-// of a file outside the directory that is no library's file is logged:
-// `srcs` here can only hold the directory's own files.
-func testHelpers(args language.GenerateArgs, test DartFileInfo, helpers map[string]DartFileInfo) []DartFileInfo {
-	root, rootErr := packageRootOf(args.Rel)
+// testHelpers is what a test reaches through relative imports, its own or
+// those of the files it reaches: the `srcs` of its dart_test, sorted -- each
+// file of its own directory, and the filegroup of each other test-tree
+// directory of its package it reaches a file of (package_scan.go) -- and
+// every file those hold, the test first, repo-relative. A relative import of
+// a file in another directory that no rule holds is logged.
+func (d *dartLang) testHelpers(args language.GenerateArgs, test DartFileInfo) ([]string, []DartFileInfo) {
+	_, root := layoutOf(args.Rel)
+	scan := d.scan.scanOf(args.Config, root)
 	self := packageNameIn(args.Config, args.Rel)
-	seen := map[string]bool{}
-	var out []DartFileInfo
+	main := DartFileInfo{Path: path.Join(args.Rel, test.Path), Imports: test.Imports}
+	files := []DartFileInfo{main}
+	seen := map[string]bool{main.Path: true}
+	var own, lent []string
 	var visit func(f DartFileInfo)
+	add := func(f DartFileInfo) {
+		if !seen[f.Path] {
+			seen[f.Path] = true
+			files = append(files, f)
+			visit(f)
+		}
+	}
 	visit = func(f DartFileInfo) {
 		for _, imp := range f.Imports {
-			if !imp.IsRelative || strings.Contains(imp.URI, ":") {
+			target := relativeTarget(f.Path, imp)
+			if target == "" {
 				continue
 			}
-			target := path.Clean(path.Join(path.Dir(f.Path), imp.URI))
-			if h, ok := helpers[target]; ok {
-				if !seen[target] {
-					seen[target] = true
-					out = append(out, h)
-					visit(h)
+			dir, ok := scan.testDirOf(target)
+			switch {
+			case ok && dir == args.Rel:
+				for _, h := range scan.tests[dir] {
+					if h.Path == target && !seen[h.Path] {
+						own = append(own, path.Base(h.Path))
+						add(h)
+					}
 				}
-				continue
-			}
-			if rootErr == nil && importedURI(self, root, path.Join(args.Rel, f.Path), imp) != "" {
-				continue
-			}
-			if strings.Contains(target, "/") {
-				log.Printf("dart: %s imports %s, which is outside its "+
-					"directory; add it to the srcs of %q by hand and mark "+
-					"them `# keep`", path.Join(args.Rel, f.Path), imp.URI,
-					strings.TrimSuffix(test.Path, ".dart"))
+			case ok:
+				if !seen["//"+dir] {
+					seen["//"+dir] = true
+					lent = append(lent, dirLabel(dir, args.Rel))
+					for _, h := range scan.lent[dir] {
+						add(h)
+					}
+				}
+			case importedURI(self, root, f.Path, imp) != "":
+			case path.Dir(target) != path.Dir(f.Path):
+				log.Printf("dart: %s imports %s, which is in no rule; add a "+
+					"rule holding it to the srcs of %q by hand and mark it `# keep`",
+					f.Path, imp.URI, strings.TrimSuffix(test.Path, ".dart"))
 			}
 		}
 	}
-	visit(test)
-	sort.Slice(out, func(i, j int) bool { return out[i].Path < out[j].Path })
-	return out
+	visit(main)
+	sort.Strings(own)
+	sort.Strings(lent)
+	return append(own, lent...), files
 }
 
 // helperTests returns empty-rule markers for each existing dart_test whose
@@ -364,7 +413,9 @@ var deletableKinds = func() map[string]bool {
 // a deletable kind whose name was not regenerated this pass, and for every
 // existing library a rule of another library kind now takes the name of: a
 // source that gained or lost an annotation moves between a macro and a
-// codegen chain's `dart_library`, both named for the source. Gazelle's merger
+// codegen chain's `dart_library`, both named for the source, and a directory
+// that joined or left a cycle between a `dart_library` and a `filegroup`,
+// both named for the directory. Gazelle's merger
 // deletes the matching rules from the BUILD file.
 func staleCodegenRules(f *rule.File, gen []*rule.Rule) []*rule.Rule {
 	if f == nil {
@@ -378,7 +429,7 @@ func staleCodegenRules(f *rule.File, gen []*rule.Rule) []*rule.Rule {
 	for _, existing := range f.Rules {
 		kind, ok := generated[existing.Name()]
 		switch {
-		case ok && kind != existing.Kind() && libraryKinds[kind] && libraryKinds[existing.Kind()]:
+		case ok && kind != existing.Kind() && replaceableKinds[kind] && replaceableKinds[existing.Kind()]:
 		case !ok && deletableKinds[existing.Kind()]:
 		default:
 			continue
@@ -387,6 +438,18 @@ func staleCodegenRules(f *rule.File, gen []*rule.Rule) []*rule.Rule {
 	}
 	return empty
 }
+
+// replaceableKinds are the kinds of the rule Gazelle writes for a source or
+// a directory, which take each other's place under the same name: a library
+// kind, or the filegroup of a directory that lends its sources to another's
+// library.
+var replaceableKinds = func() map[string]bool {
+	m := map[string]bool{"filegroup": true}
+	for k := range libraryKinds {
+		m[k] = true
+	}
+	return m
+}()
 
 // libraryKinds are the kinds of the library Gazelle writes for a source:
 // dart_library and every convenience macro.
@@ -754,6 +817,22 @@ type importSet struct {
 }
 
 func collectImports(args language.GenerateArgs, files []DartFileInfo) *importSet {
+	return collectRepoImports(args, repoFiles(args.Rel, files))
+}
+
+// repoFiles is files, named relative to directory rel, named from the
+// repository root.
+func repoFiles(rel string, files []DartFileInfo) []DartFileInfo {
+	out := make([]DartFileInfo, len(files))
+	for i, f := range files {
+		out[i] = DartFileInfo{Path: path.Join(rel, f.Path), Imports: f.Imports}
+	}
+	return out
+}
+
+// collectRepoImports is what files, named from the repository root, of the
+// package args.Rel is in import.
+func collectRepoImports(args language.GenerateArgs, files []DartFileInfo) *importSet {
 	root, rootErr := packageRootOf(args.Rel)
 	self := packageNameIn(args.Config, args.Rel)
 	is := &importSet{
@@ -761,7 +840,7 @@ func collectImports(args language.GenerateArgs, files []DartFileInfo) *importSet
 		uris:     make(map[string]map[string]bool),
 	}
 	for _, f := range files {
-		file := path.Join(args.Rel, f.Path)
+		file := f.Path
 		for _, imp := range f.Imports {
 			uri := ""
 			if rootErr == nil {

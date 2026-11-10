@@ -1,5 +1,14 @@
 load("@rules_dart//dart:defs.bzl", "dart_test")
 
+filegroup(
+    name = "test",
+    srcs = [
+        "fixtures.dart",
+        "names.dart",
+    ],
+    visibility = ["//test:__subpackages__"],
+)
+
 dart_test(
     name = "greeter_test",
     srcs = [

@@ -178,7 +178,7 @@ func TestSplitLibraryIndexedByFileNotDirectoryName(t *testing.T) {
 	r.SetAttr("package_name", "app")
 	r.SetAttr("srcs", []string{"path.dart"})
 	var got []string
-	for _, s := range importSpecs(c, r, "pkg/lib/src/path") {
+	for _, s := range (&dartLang{}).importSpecs(c, r, "pkg/lib/src/path") {
 		got = append(got, s.Imp)
 	}
 	want := []string{"package:app/src/path/path.dart"}

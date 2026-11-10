@@ -1,0 +1,14 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+dart_library(
+    name = "cycle",
+    package_name = "cycle",
+    srcs = [
+        "cycle.dart",
+        "//cycle/lib/src/a",
+        "//cycle/lib/src/b",
+    ],
+    language_version = "3.11",
+    visibility = ["//visibility:public"],
+    deps = ["//cycle/lib/src/c"],
+)

@@ -1,9 +1,9 @@
 load("@gazelle//:def.bzl", "gazelle", "gazelle_binary")
 load("@rules_dart//dart:defs.bzl", "dart_test")
 
-# Gazelle writes the BUILD files of `codegen/` and `split/`, which this
-# workspace builds and tests; CI fails when `bazel run //:gazelle -- -mode=diff`
-# would change one. `gazelle_test` runs it over copies of the samples below,
+# Gazelle writes the BUILD files of `codegen/`, `split/` and `cycle/`, which
+# this workspace builds and tests; CI fails when `bazel run //:gazelle --
+# -mode=diff` would change one. `gazelle_test` runs it over copies of the samples below,
 # which are its inputs and have no BUILD files of their own.
 # gazelle:exclude bin
 # gazelle:exclude lib

@@ -1,0 +1,5 @@
+filegroup(
+    name = "support",
+    srcs = ["check.dart"],
+    visibility = ["//cycle/test:__subpackages__"],
+)

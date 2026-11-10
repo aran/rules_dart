@@ -1,1 +1,0 @@
-gazelle: dart: test/sub/nested_test.dart imports ../fixtures.dart, which is outside its directory; add it to the srcs of "nested_test" by hand and mark them `# keep`

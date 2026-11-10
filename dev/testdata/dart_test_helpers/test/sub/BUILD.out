@@ -2,6 +2,11 @@ load("@rules_dart//dart:defs.bzl", "dart_test")
 
 dart_test(
     name = "nested_test",
+    srcs = ["//test"],
     main = "nested_test.dart",
-    deps = ["@test"],
+    deps = [
+        "//lib:helpers_fixture",
+        "@meta",
+        "@test",
+    ],
 )

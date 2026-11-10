@@ -614,14 +614,25 @@ resolves `import` statements to determine `deps`, including support for
 `show` and `deferred` import modifiers.
 
 As package:test does, Gazelle makes a test of each `_test.dart` file. Any other
-file in `test/` is a helper: it goes in the `srcs` of every test in its
-directory that imports it, directly or through another helper, and what it
-imports in that test's `deps`. A helper in another directory than the test
-importing it is logged, for you to list by hand and mark `# keep`.
+file in `test/` is a helper: it goes in the `srcs` of every test that imports
+it, directly or through another helper, and what it imports in that test's
+`deps`. A helper in the test's own directory is listed by name. A directory
+under `test/` that a file elsewhere imports from gets a `filegroup` named for
+it, holding its helpers (and any test imported from elsewhere), visible to the
+package's `test/` tree, and the test lists that instead.
 
 Each directory under `lib/` gets its own `dart_library`, named for the
 directory, in the package rooted above `lib/` (see
-[Where a package's root is](#where-a-packages-root-is)). An imported file,
+[Where a package's root is](#where-a-packages-root-is)). Bazel builds no
+dependency cycle, so directories whose files import each other, directly or
+through a chain, are one `dart_library`, as `pub.from_lock()` builds pub
+packages that depend on each other as one library; a `part` in another
+directory joins its library's directory the same way. That library is the one
+of the directory in the cycle nearest `lib/` (the fewest levels down, then the
+first by path): the package's own library when `lib/` is in the cycle. Each
+other directory of the cycle holds its files in a `filegroup` named for the
+directory, visible only to that library, which lists it in `srcs`. Gazelle
+moves the targets when a cycle forms or breaks. An imported file,
 by `package:` URI or relative path, resolves to the rule that lists it; only
 an import of a file no generated or hand-written rule lists by name (a pub
 package's, or one in a `glob`) resolves by package name. A file two rules list

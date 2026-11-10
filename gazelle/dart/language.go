@@ -21,6 +21,7 @@ const dartName = "dart"
 type dartLang struct {
 	analysis  analysisState
 	agreement agreementState
+	scan      scanState
 }
 
 // NewLanguage creates a new Dart language extension for Gazelle.
