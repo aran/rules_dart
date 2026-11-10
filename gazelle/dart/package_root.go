@@ -49,6 +49,59 @@ func placeDir(rel string) placement {
 			"the inner `lib` directory", rel)}
 }
 
+// layoutOf is the pub layout directory a directory is in -- "bin" or
+// "test", for a package's bin/ or test/ directory or one under it -- and the
+// root of that package; "" when it is neither.
+//
+// A directory inside a `lib/` is a library directory whatever else its path
+// names. Elsewhere the nearest `bin` or `test` component decides, and the
+// package root is the directory above it, as the package root of a
+// directory inside a `lib/` is the directory above the `lib`: `pkg/bin` and
+// `pkg/test/unit` belong to the package at `pkg`. No pubspec.yaml is read,
+// so a package without one has the same layout as a package with one.
+func layoutOf(rel string) (dir, root string) {
+	if rel == "" {
+		return "", ""
+	}
+	parts := strings.Split(rel, "/")
+	for _, p := range parts {
+		if p == "lib" {
+			return "", ""
+		}
+	}
+	for i := len(parts) - 1; i >= 0; i-- {
+		if parts[i] == "bin" || parts[i] == "test" {
+			return parts[i], strings.Join(parts[:i], "/")
+		}
+	}
+	return "", ""
+}
+
+// packageRootOf is the root of the Dart package a directory belongs to: the
+// root above its bin/ or test/ (`layoutOf`), or else above its lib/
+// (`placeDir`), or else the directory itself.
+func packageRootOf(rel string) (string, error) {
+	if dir, root := layoutOf(rel); dir != "" {
+		return root, nil
+	}
+	p := placeDir(rel)
+	return p.Root, p.Err
+}
+
+// pubspecFile is the repo-relative path of the pubspec.yaml a package rooted
+// at root would have. Only that one states the package's facts: a pubspec
+// above the root is another package's.
+func pubspecFile(root string) string {
+	return path.Join(root, "pubspec.yaml")
+}
+
+// pubspecFacts is the package name and language version the pubspec.yaml at
+// a package's root states, each "" when it states none or there is none.
+func pubspecFacts(c *config.Config, root string) (name, languageVersion string) {
+	dir := filepath.Join(c.RepoRoot, filepath.FromSlash(root))
+	return ParsePubspecName(dir), ParsePubspecLanguageVersion(dir)
+}
+
 // libDirOf is the repo-relative lib/ directory of a package rooted at root.
 func libDirOf(root string) string {
 	if root == "" {
@@ -57,15 +110,13 @@ func libDirOf(root string) string {
 	return root + "/lib"
 }
 
-// packageNameIn is the Dart package a directory's sources belong to: for a
-// directory under a package's lib/, the package named at its root;
-// otherwise the directory's own (`libraryName`).
+// packageNameIn is the Dart package a directory's sources belong to: the
+// name of the package rooted at `packageRootOf` (`libraryName`).
 func packageNameIn(c *config.Config, rel string) string {
-	p := placeDir(rel)
-	if p.Split {
-		return libraryName(p.Root, filepath.Join(c.RepoRoot, filepath.FromSlash(p.Root)), c)
+	if root, err := packageRootOf(rel); err == nil {
+		return libraryName(root, c)
 	}
-	return libraryName(rel, filepath.Join(c.RepoRoot, filepath.FromSlash(rel)), c)
+	return libraryName(rel, c)
 }
 
 // extKeyPackageDecl holds the nearest `dart_package_metadata` at or above
@@ -75,7 +126,12 @@ const extKeyPackageDecl = "dart_package_decl"
 // packageDecl is a hand-written `dart_package_metadata`: the directory that
 // declares it and its target name.
 type packageDecl struct {
-	Rel, Name, PackageName string
+	Rel, Name, PackageName, LanguageVersion string
+}
+
+// label is the declaration's label, from the repository root.
+func (d *packageDecl) label() string {
+	return label.New("", d.Rel, d.Name).String()
 }
 
 // configurePackageDecl records a directory's `dart_package_metadata`, so a
@@ -86,26 +142,58 @@ func configurePackageDecl(c *config.Config, rel string, f *rule.File) {
 			if c.Exts == nil {
 				c.Exts = make(map[string]interface{})
 			}
-			c.Exts[extKeyPackageDecl] = &packageDecl{Rel: rel, Name: r.Name(), PackageName: r.AttrString("package_name")}
+			c.Exts[extKeyPackageDecl] = &packageDecl{
+				Rel:             rel,
+				Name:            r.Name(),
+				PackageName:     r.AttrString("package_name"),
+				LanguageVersion: r.AttrString("language_version"),
+			}
 			return
 		}
 	}
 }
 
-// packageDeclFor returns the `dart_package_metadata` for the package a rule
-// in args.Rel belongs to, as a label relative to args.Rel, and the package
-// name it declares: the directory's own declaration, or, for a directory
-// under a package's lib/, the declaration at the package's root.
-func packageDeclFor(args language.GenerateArgs) (string, string) {
-	if decl, name := packageDeclLabel(args); decl != "" {
-		return decl, name
+// packageDeclOf is the `dart_package_metadata` the package a rule in
+// args.Rel belongs to is declared by (`packageDeclIn`).
+func packageDeclOf(args language.GenerateArgs) *packageDecl {
+	return packageDeclIn(args.Config, args.Rel)
+}
+
+// packageDeclIn is the `dart_package_metadata` the package of the library
+// directory rel is declared by: the directory's own declaration, or, for the
+// package's lib/ or a directory under it, the declaration at the package's
+// root. nil when there is none.
+func packageDeclIn(c *config.Config, rel string) *packageDecl {
+	d, ok := c.Exts[extKeyPackageDecl].(*packageDecl)
+	if !ok || d == nil {
+		return nil
 	}
-	p := placeDir(args.Rel)
-	d, ok := args.Config.Exts[extKeyPackageDecl].(*packageDecl)
-	if !ok || d == nil || !p.Split || d.Rel != p.Root {
-		return "", ""
+	if d.Rel == rel {
+		return d
 	}
-	return label.New("", d.Rel, d.Name).Rel("", args.Rel).String(), d.PackageName
+	if p := placeDir(rel); p.Err == nil && p.Root == d.Rel {
+		return d
+	}
+	return nil
+}
+
+// packageDeclFor returns the label, relative to args.Rel, of the
+// `dart_package_metadata` a rule in args.Rel names (`packageDeclOf`), or ""
+// when there is none.
+//
+// A package that has adopted a declaration must not have the inline attributes
+// written back onto its rules: the two spellings are mutually exclusive and a
+// rule carrying both fails at analysis, so re-running Gazelle over a converted
+// package would break exactly the packages that adopted the tidier form.
+// Detecting the declaration rather than emitting one is what makes adoption
+// incremental -- Gazelle keeps writing the inline attributes everywhere else,
+// where they are machine-maintained from one derived value and cannot drift.
+func packageDeclFor(args language.GenerateArgs) string {
+	d := packageDeclOf(args)
+	if d == nil {
+		return ""
+	}
+	return label.New("", d.Rel, d.Name).Rel("", args.Rel).String()
 }
 
 // packageURI is the `package:` URI of the repo-relative file in a package

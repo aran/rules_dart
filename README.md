@@ -495,8 +495,9 @@ bazel run //:gazelle
 ```
 
 Gazelle will scan `lib/`, `bin/`, and `test/` directories, emitting
-`dart_library`, `dart_binary`, and `dart_test` targets respectively; for a
-package in a subdirectory, the ones beside its `pubspec.yaml`. It
+`dart_library`, `dart_binary`, and `dart_test` targets respectively. A
+package's root is the directory above its `lib/`, `bin/` and `test/`, as
+`dart_library` derives it, whether or not a `pubspec.yaml` is there. It
 resolves `import` statements to determine `deps`, including support for
 `show` and `deferred` import modifiers.
 
@@ -517,23 +518,31 @@ Add directives as comments in a `BUILD.bazel` file to control generation:
   external repository holds pub.dev packages. Imports like
   `package:shelf/shelf.dart` are resolved to `@pub_deps//:shelf`.
 
-- **`# gazelle:dart_package_name my_app`** — explicitly sets the
-  `package_name` attribute on the generated `dart_library` rule. In a directory
-  that already declares a `dart_package_metadata`, Gazelle emits
+- **`# gazelle:dart_package_name my_app`** — the package's name, for a
+  package whose `pubspec.yaml` does not state it or that has none. In a
+  directory that already declares a `dart_package_metadata`, Gazelle emits
   `package = ":pkg"` on the rules it generates instead of an inline
-  `package_name`, and warns when the declaration's name differs from the one the
-  pubspec or this directive supplies.
+  `package_name`.
+
+- **`# gazelle:dart_language_version 3.13`** — the package's language
+  version, likewise.
 
 - **`# gazelle:resolve dart foo //third_party:foo`** — overrides
   automatic dependency resolution for a Dart package (the `foo` of
   `package:foo/...` imports), mapping it to an explicit Bazel target.
 
-#### pubspec.yaml auto-detection
+#### pubspec.yaml
 
-If a `pubspec.yaml` file is present in the same directory as a `lib/`
-folder, Gazelle reads the `name` field and uses it as both the target name
-and `package_name` for the generated `dart_library`. This means most
-projects need no directives at all.
+A `pubspec.yaml` at a package's root states the package's name (`name`) and
+language version (the lower bound of `environment.sdk`), so most projects need
+no directives at all. A package needs no `pubspec.yaml`: without one, its
+name is its root directory's, unless a directive or `dart_package_metadata`
+states one.
+
+Each fact is stated once. Where a `dart_package_metadata`, a directive and a
+`pubspec.yaml` state a package's name or language version differently, Gazelle
+reports each disagreement, naming both values and where each is stated, and
+fails without writing any BUILD file.
 
 #### Test tags
 

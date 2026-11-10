@@ -2,7 +2,6 @@ package dart
 
 import (
 	"os"
-	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -94,47 +93,6 @@ func ParsePubspecName(dir string) string {
 			name = strings.Trim(name, "\"'")
 			return name
 		}
-	}
-	return ""
-}
-
-// FindPubspecName walks up from dir toward the repo root looking for
-// pubspec.yaml. rel is the workspace-relative path of dir; it bounds the
-// upward search so we never look above the repo root.
-// pubspecRoot returns the repo-relative directory of the nearest
-// pubspec.yaml naming a package at or above rel (whose absolute path is
-// dir), or "" when there is none.
-func pubspecRoot(dir string, rel string) string {
-	for {
-		if ParsePubspecName(dir) != "" {
-			return rel
-		}
-		if rel == "" {
-			return ""
-		}
-		rel = path.Dir(rel)
-		if rel == "." {
-			rel = ""
-		}
-		dir = filepath.Dir(dir)
-	}
-}
-
-func FindPubspecName(dir string, rel string) string {
-	current := dir
-	remaining := rel
-	for {
-		if name := ParsePubspecName(current); name != "" {
-			return name
-		}
-		if remaining == "" || remaining == "." {
-			break
-		}
-		remaining = filepath.Dir(remaining)
-		if remaining == "." {
-			remaining = ""
-		}
-		current = filepath.Dir(current)
 	}
 	return ""
 }
@@ -262,28 +220,6 @@ func majorMinor(s string) string {
 		}
 	}
 	return parts[0] + "." + parts[1]
-}
-
-// FindPubspecLanguageVersion walks up from dir toward the repo root
-// looking for a pubspec.yaml with an `environment.sdk` constraint. Same
-// search semantics as `FindPubspecName`.
-func FindPubspecLanguageVersion(dir string, rel string) string {
-	current := dir
-	remaining := rel
-	for {
-		if lv := ParsePubspecLanguageVersion(current); lv != "" {
-			return lv
-		}
-		if remaining == "" || remaining == "." {
-			break
-		}
-		remaining = filepath.Dir(remaining)
-		if remaining == "." {
-			remaining = ""
-		}
-		current = filepath.Dir(current)
-	}
-	return ""
 }
 
 // DartFileInfo holds metadata about a Dart source file.

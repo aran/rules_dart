@@ -327,9 +327,11 @@ tune _registered_ builders:
 - `# gazelle:dart_builder_config <Annotation> <json-string>` sets the
   builder's `BuilderOptions`. Equivalent to build.yaml's `options:`
   block. Applies to every sub-builder of a fanned-out annotation.
-- `# gazelle:dart_language_version <major>.<minor>` overrides the
-  `language_version` attr. When unset, Gazelle derives it from the
-  nearest `pubspec.yaml`'s `environment.sdk` constraint's lower bound.
+- `# gazelle:dart_language_version <major>.<minor>` states the
+  `language_version` attr for a package whose `pubspec.yaml` does not.
+  When unset, Gazelle derives it from the lower bound of the
+  `environment.sdk` constraint in the `pubspec.yaml` at the package's root;
+  a directive that disagrees with it is an error.
 
 Every macro also accepts `package`, a `dart_package_metadata` label
 declaring the package's `package_name` and `language_version` once. It is

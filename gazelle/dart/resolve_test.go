@@ -78,7 +78,7 @@ func splitIndex(t *testing.T) (*config.Config, *resolve.RuleIndex, language.Lang
 	t.Helper()
 	c := config.New()
 	c.Exts["dart_pub_deps_repo"] = "pub_deps"
-	c.Exts["dart_package_name"] = "app"
+	c.Exts[keyPackageName] = &directiveValue{Value: "app", File: "BUILD.bazel"}
 	rc := &resolve.Configurer{}
 	rc.RegisterFlags(flag.NewFlagSet("test", flag.ContinueOnError), "update", c)
 	if err := rc.CheckFlags(nil, c); err != nil {

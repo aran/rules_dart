@@ -1,0 +1,10 @@
+load("@rules_dart//dart:defs.bzl", "dart_binary")
+
+dart_binary(
+    name = "main",
+    main = "main.dart",
+    deps = [
+        "//app/lib:app",
+        "//app/lib/src",
+    ],
+)

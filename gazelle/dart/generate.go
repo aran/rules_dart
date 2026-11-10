@@ -54,7 +54,7 @@ func (d *dartLang) generateDartRules(args language.GenerateArgs) language.Genera
 		return language.GenerateResult{}
 	}
 
-	warnOnPackageNameOverlap(args)
+	d.checkAgreement(args)
 
 	registry, _ := args.Config.Exts[extKeyBuilderRegistry].(*builderRegistry)
 
@@ -64,15 +64,14 @@ func (d *dartLang) generateDartRules(args language.GenerateArgs) language.Genera
 	// `produces=` extension.
 	dartFiles = filterOutGeneratedFiles(dartFiles, registry)
 
-	// Classify files by conventional directory of their pub package (the
-	// repository root when no pubspec.yaml is above them).
-	pkgRoot := pubspecRoot(args.Dir, args.Rel)
+	// Classify files by the conventional directory of their package.
+	layout, _ := layoutOf(args.Rel)
 	var libFiles, binFiles, testFiles []DartFileInfo
 	for _, f := range dartFiles {
 		switch {
-		case isInDir(args.Rel, path.Join(pkgRoot, "test")) || strings.HasSuffix(f.Path, "_test.dart"):
+		case layout == "test" || strings.HasSuffix(f.Path, "_test.dart"):
 			testFiles = append(testFiles, f)
-		case isInDir(args.Rel, path.Join(pkgRoot, "bin")):
+		case layout == "bin":
 			binFiles = append(binFiles, f)
 		default:
 			libFiles = append(libFiles, f)
@@ -181,7 +180,7 @@ func (d *dartLang) generateDartRules(args language.GenerateArgs) language.Genera
 		sort.Strings(srcs)
 		r.SetAttr("srcs", srcs)
 		r.SetAttr("visibility", []string{"//visibility:public"})
-		if decl, _ := packageDeclFor(args); decl != "" {
+		if decl := packageDeclFor(args); decl != "" {
 			r.SetAttr("package", decl)
 		} else {
 			r.SetAttr("package_name", packageNameIn(args.Config, args.Rel))
@@ -189,21 +188,14 @@ func (d *dartLang) generateDartRules(args language.GenerateArgs) language.Genera
 		gen = append(gen, r)
 		imports = append(imports, collectImports(args, plain))
 	} else if len(plain) > 0 {
-		r := rule.NewRule("dart_library", libraryName(args.Rel, args.Dir, args.Config))
+		r := rule.NewRule("dart_library", libraryName(args.Rel, args.Config))
 		srcs := fileNames(plain)
 		sort.Strings(srcs)
 		r.SetAttr("srcs", srcs)
 		r.SetAttr("visibility", []string{"//visibility:public"})
-		needsPkgName := false
-		if args.Config.Exts != nil {
-			if _, ok := args.Config.Exts["dart_package_name"].(string); ok {
-				needsPkgName = true
-			}
-		}
-		if FindPubspecName(args.Dir, args.Rel) != "" {
-			needsPkgName = true
-		}
-		if needsPkgName {
+		if decl := packageDeclFor(args); decl != "" {
+			r.SetAttr("package", decl)
+		} else if statedPackageName(args.Config, args.Rel) != "" {
 			r.SetAttr("package_name", r.Name())
 		}
 		gen = append(gen, r)
@@ -549,58 +541,10 @@ func lowerSnake(s string) string {
 	return b.String()
 }
 
-// packageDeclLabel returns the in-package reference to a hand-written
-// `dart_package_metadata`, or "" when the directory has none.
-//
-// A package that has adopted a declaration must not have the inline attributes
-// written back onto its rules: the two spellings are mutually exclusive and a
-// rule carrying both fails at analysis, so re-running Gazelle over a converted
-// package would break exactly the packages that adopted the tidier form.
-// Detecting the declaration rather than emitting one is what makes adoption
-// incremental — Gazelle keeps writing the inline attributes everywhere else,
-// where they are machine-maintained from one derived value and cannot drift.
-func packageDeclLabel(args language.GenerateArgs) (label string, declaredName string) {
-	if args.File == nil {
-		return "", ""
-	}
-	for _, r := range args.File.Rules {
-		if r.Kind() == "dart_package_metadata" {
-			return ":" + r.Name(), r.AttrString("package_name")
-		}
-	}
-	return "", ""
-}
-
 // setPackageIdentity states the Dart package a generated rule belongs to,
 // either by reference to the directory's `dart_package_metadata` or inline.
-// warnOnPackageNameOverlap reports a `dart_package_metadata` whose declared name differs
-// from the one a pubspec or `# gazelle:dart_package_name` directive supplies.
-//
-// The declaration wins, which leaves the other a value the developer stated and
-// nothing acts on — the exact failure `dart_package_metadata` exists to remove, so it is
-// not one to reintroduce silently here. Reported once per directory rather than
-// once per emitted rule: it is a property of the directory, and four copies of
-// one warning trains people to skip all of them.
-func warnOnPackageNameOverlap(args language.GenerateArgs) {
-	decl, declaredName := packageDeclLabel(args)
-	if decl == "" || declaredName == "" {
-		return
-	}
-	derived := packageNameIn(args.Config, args.Rel)
-	if derived == "" || derived == declaredName {
-		return
-	}
-	log.Printf(
-		"dart: %s: dart_package_metadata %q declares package_name %q, but this "+
-			"directory otherwise resolves to %q. The declaration wins; drop "+
-			"the conflicting pubspec name or `# gazelle:dart_package_name` "+
-			"directive.",
-		args.Rel, decl, declaredName, derived,
-	)
-}
-
 func setPackageIdentity(r *rule.Rule, args language.GenerateArgs, pkgName string) {
-	if decl, _ := packageDeclFor(args); decl != "" {
+	if decl := packageDeclFor(args); decl != "" {
 		r.SetAttr("package", decl)
 		return
 	}
@@ -613,29 +557,44 @@ func setPackageIdentity(r *rule.Rule, args language.GenerateArgs, pkgName string
 }
 
 // resolvedLanguageVersion returns the language_version to propagate onto
-// emitted codegen rules / macros. The per-directory
-// `# gazelle:dart_language_version` directive takes precedence; otherwise
-// Gazelle derives it from the nearest `pubspec.yaml`'s
-// `environment.sdk` constraint.
+// emitted codegen rules / macros: the `# gazelle:dart_language_version`
+// directive's, or else the one the pubspec.yaml at the package's root derives
+// from its `environment.sdk` constraint. `checkAgreement` has made sure the
+// two do not disagree.
 func resolvedLanguageVersion(args language.GenerateArgs) string {
-	if args.Config.Exts != nil {
-		if lv, ok := args.Config.Exts["dart_language_version"].(string); ok && lv != "" {
-			return lv
-		}
+	if f := directiveFact(args.Config, keyLanguageVersion); f != nil {
+		return f.Value
 	}
-	return FindPubspecLanguageVersion(args.Dir, args.Rel)
+	if root, err := packageRootOf(args.Rel); err == nil {
+		_, lv := pubspecFacts(args.Config, root)
+		return lv
+	}
+	return ""
 }
 
-// libraryName determines the dart_library target name: a directive's or
-// pubspec's package name, else the name of the package root's directory, as
-// `dart_library` derives it.
-func libraryName(rel string, dir string, c *config.Config) string {
-	if c.Exts != nil {
-		if name, ok := c.Exts["dart_package_name"].(string); ok && name != "" {
-			return name
-		}
+// statedPackageName is the package name a `dart_package_metadata`, a
+// directive or the pubspec.yaml at the package's root states for a
+// directory, or "" when none does. `checkAgreement` has made sure they do not
+// disagree.
+func statedPackageName(c *config.Config, rel string) string {
+	if d := packageDeclIn(c, rel); d != nil {
+		return d.PackageName
 	}
-	if name := FindPubspecName(dir, rel); name != "" {
+	if f := directiveFact(c, keyPackageName); f != nil {
+		return f.Value
+	}
+	if root, err := packageRootOf(rel); err == nil {
+		name, _ := pubspecFacts(c, root)
+		return name
+	}
+	return ""
+}
+
+// libraryName determines the dart_library target name: the package name a
+// directive or pubspec states, else the name of the package root's
+// directory, as `dart_library` derives it.
+func libraryName(rel string, c *config.Config) string {
+	if name := statedPackageName(c, rel); name != "" {
 		return name
 	}
 	if p := placeDir(rel); p.Err == nil && p.Root != "" {
@@ -645,10 +604,6 @@ func libraryName(rel string, dir string, c *config.Config) string {
 		return "lib"
 	}
 	return path.Base(rel)
-}
-
-func isInDir(rel string, dir string) bool {
-	return rel == dir || strings.HasPrefix(rel, dir+"/")
 }
 
 func fileNames(files []DartFileInfo) []string {
@@ -668,7 +623,7 @@ type importSet struct {
 }
 
 func collectImports(args language.GenerateArgs, files []DartFileInfo) *importSet {
-	place := placeDir(args.Rel)
+	root, rootErr := packageRootOf(args.Rel)
 	self := packageNameIn(args.Config, args.Rel)
 	is := &importSet{
 		packages: make(map[string]bool),
@@ -678,8 +633,8 @@ func collectImports(args language.GenerateArgs, files []DartFileInfo) *importSet
 		file := path.Join(args.Rel, f.Path)
 		for _, imp := range f.Imports {
 			uri := ""
-			if place.Err == nil {
-				uri = importedURI(self, place.Root, file, imp)
+			if rootErr == nil {
+				uri = importedURI(self, root, file, imp)
 			}
 			if uri == "" {
 				if imp.IsPackage {

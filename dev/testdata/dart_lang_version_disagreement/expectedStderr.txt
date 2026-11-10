@@ -1,0 +1,2 @@
+gazelle: dart: lib: the language version is stated twice, differently: "3.10" by `# gazelle:dart_language_version` in lib/BUILD.bazel, "3.13" by pubspec.yaml; state it once, or make the two agree
+gazelle: dart: lib: the package name is stated twice, differently: "other_name" by `# gazelle:dart_package_name` in lib/BUILD.bazel, "lang_disagreement" by pubspec.yaml; state it once, or make the two agree

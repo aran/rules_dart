@@ -49,3 +49,46 @@ func TestImportedURI(t *testing.T) {
 		}
 	}
 }
+
+func TestLayoutOf(t *testing.T) {
+	for _, tt := range []struct {
+		rel, dir, root string
+	}{
+		{"", "", ""},
+		{"bin", "bin", ""},
+		{"test", "test", ""},
+		{"test/unit", "test", ""},
+		{"pkg/bin", "bin", "pkg"},
+		{"pkg/test/unit", "test", "pkg"},
+		{"pkg/tool/bin", "bin", "pkg/tool"},
+		// The nearest component decides: a package named `test` or `bin`.
+		{"pkgs/test/bin", "bin", "pkgs/test"},
+		{"pkgs/bin/test", "test", "pkgs/bin"},
+		// Inside a lib/, a directory is a library directory.
+		{"pkg/lib/test", "", ""},
+		{"lib/src/bin", "", ""},
+		{"pkg", "", ""},
+		{"pkg/tool", "", ""},
+	} {
+		dir, root := layoutOf(tt.rel)
+		if dir != tt.dir || root != tt.root {
+			t.Errorf("layoutOf(%q) = %q, %q, want %q, %q", tt.rel, dir, root, tt.dir, tt.root)
+		}
+	}
+}
+
+func TestPackageRootOf(t *testing.T) {
+	for _, tt := range []struct{ rel, root string }{
+		{"", ""},
+		{"lib", ""},
+		{"bin", ""},
+		{"pkg", "pkg"},
+		{"pkg/lib/src", "pkg"},
+		{"pkg/bin", "pkg"},
+		{"pkg/test/unit", "pkg"},
+	} {
+		if got, err := packageRootOf(tt.rel); err != nil || got != tt.root {
+			t.Errorf("packageRootOf(%q) = %q, %v, want %q", tt.rel, got, err, tt.root)
+		}
+	}
+}

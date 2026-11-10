@@ -7,6 +7,8 @@ package dart
 
 import (
 	"flag"
+	"path"
+	"path/filepath"
 
 	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/language"
@@ -17,7 +19,8 @@ const dartName = "dart"
 
 // dartLang implements language.Language for Dart.
 type dartLang struct {
-	analysis analysisState
+	analysis  analysisState
+	agreement agreementState
 }
 
 // NewLanguage creates a new Dart language extension for Gazelle.
@@ -32,17 +35,16 @@ func (*dartLang) CheckFlags(fs *flag.FlagSet, c *config.Config) error          {
 
 func (*dartLang) KnownDirectives() []string {
 	return []string{
-		"dart_package_name",
+		keyPackageName,
 		"dart_pub_deps_repo",
 		// Directives that tune *registered* (built-in) builders. Custom
 		// builder registration is not supported via directive — hand-write
 		// a `dart_codegen` target if you need one.
 		"dart_builder_runtime_dep",
 		"dart_builder_config",
-		// Optional override of the `language_version` attr emitted on
-		// generated `<builder>_library` macros. When unset, the rule layer
-		// applies a safe default.
-		"dart_language_version",
+		// The `language_version` of the package, for a package whose
+		// pubspec.yaml does not state it or that has none.
+		keyLanguageVersion,
 	}
 }
 
@@ -52,23 +54,17 @@ func (*dartLang) Configure(c *config.Config, rel string, f *rule.File) {
 	}
 	for _, d := range f.Directives {
 		switch d.Key {
-		case "dart_package_name":
-			// Store custom package name override in config
+		case keyPackageName, keyLanguageVersion:
 			if c.Exts == nil {
 				c.Exts = make(map[string]interface{})
 			}
-			c.Exts["dart_package_name"] = d.Value
+			c.Exts[d.Key] = &directiveValue{Value: d.Value, File: path.Join(rel, filepath.Base(f.Path))}
 		case "dart_pub_deps_repo":
 			// Store pub deps repository name for external dep labels
 			if c.Exts == nil {
 				c.Exts = make(map[string]interface{})
 			}
 			c.Exts["dart_pub_deps_repo"] = d.Value
-		case "dart_language_version":
-			if c.Exts == nil {
-				c.Exts = make(map[string]interface{})
-			}
-			c.Exts["dart_language_version"] = d.Value
 		}
 	}
 	// Merge dart_builder* directives into the per-config registry. Done

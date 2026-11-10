@@ -1,0 +1,8 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+dart_library(
+    name = "src",
+    srcs = ["model.dart"],
+    package = "//app:package",
+    visibility = ["//visibility:public"],
+)
