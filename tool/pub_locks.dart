@@ -6,7 +6,7 @@
 //
 // The packages under e2e/ and dev/testdata/ are left alone: their locks are
 // fixtures that the e2e workspaces read as they are. MODULE.bazel.lock files
-// are `bazel run @overhead//locks`'s.
+// are `bazel run @overhead//locks:check`'s.
 import 'dart:io';
 
 final _repo =

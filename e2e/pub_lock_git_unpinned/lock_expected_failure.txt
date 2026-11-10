@@ -1,4 +1,4 @@
-# This workspace fails on purpose; `bazel run @overhead//locks` passes a
+# This workspace fails on purpose; `bazel run @overhead//locks:check` passes a
 # step that fails printing each line below.
 # A git lock entry with an abbreviated resolved-ref is refused.
 resolved-ref "a1b2c3d", which is not a full commit id

@@ -1,4 +1,4 @@
-# This workspace fails on purpose; `bazel run @overhead//locks` passes a
+# This workspace fails on purpose; `bazel run @overhead//locks:check` passes a
 # step that fails printing each line below.
 # A `path` package is named nowhere, another twice, `resolve` maps a package
 # the lock does not list and `build_from_pubspec` names a hosted one, one the

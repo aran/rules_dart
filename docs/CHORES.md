@@ -33,7 +33,7 @@ as the repo evolves.
 3. Update `dart_version` in all MODULE.bazel files listed above
 4. Update version references in `README.md`
 5. Update `dart/tests/versions_test.bzl` (asserted version key)
-6. Regenerate lock files: `bazel run --lockfile_mode=off @overhead//locks -- --refresh`
+6. Regenerate lock files: `bazel run --lockfile_mode=off @overhead//locks:refresh`
 7. Run `bazel test //dart/tests/...` to verify unit tests pass. A failure in
    `//dart/tests/sdk_files` means the SDK moved or added a file one of its
    uses reads: update that use's entry in `SDK_FILE_SETS`
@@ -85,7 +85,7 @@ passes under `--config=deep`; at least one e2e workspace builds.
 
 1. Update all `.bazelversion` files to the new version
 2. If the major version changed, update `.bcr/presubmit.yml` matrix and `docs/ARCHITECTURE.md`
-3. Regenerate lock files: `bazel run --lockfile_mode=off @overhead//locks -- --refresh`
+3. Regenerate lock files: `bazel run --lockfile_mode=off @overhead//locks:refresh`
 4. Run `bazel test //dart/tests/...` to verify
 
 **Verification**: `bazel test //dart/tests/...` passes.
@@ -116,7 +116,7 @@ passes under `--config=deep`; at least one e2e workspace builds.
 1. For each `bazel_dep` in root `MODULE.bazel`, check latest version on BCR
 2. Update versions, skip any already current
 3. Mirror version changes to e2e workspaces that duplicate the same deps
-4. Regenerate lock files: `bazel run --lockfile_mode=off @overhead//locks -- --refresh`
+4. Regenerate lock files: `bazel run --lockfile_mode=off @overhead//locks:refresh`
 5. Run `bazel test //dart/tests/...` to verify
 
 **Verification**: `bazel test //dart/tests/...` passes.
@@ -133,7 +133,7 @@ load to) anything in `dart/pub/extensions.bzl`'s closure invalidates the lock of
 `--lockfile_mode=error`, which `.bazelrc` sets, that is a hard CI failure.
 
 **Workspaces**: every directory with a tracked `MODULE.bazel`, found by
-`bazel run @overhead//locks`, except a module inside another e2e workspace
+`bazel run @overhead//locks:check`, except a module inside another e2e workspace
 (`e2e/pub_lock_cross_module/module_b`, say), which resolves as part of it, and
 a module the root's own `local_path_override` names without a `.bazelversion`
 of its own, which resolves as part of the root.
@@ -149,16 +149,17 @@ and still refreshes the rest of the lock.
 
 ```shell
 # every MODULE.bazel.lock, or some
-bazel run --lockfile_mode=off @overhead//locks -- --refresh
-bazel run --lockfile_mode=off @overhead//locks -- --refresh e2e/smoke
+bazel run --lockfile_mode=off @overhead//locks:refresh
+bazel run --lockfile_mode=off @overhead//locks:refresh -- e2e/smoke
 bazel run //tool:pub_locks -- --refresh  # pubspec.lock outside e2e/
 ```
 
-The first runs `bazel mod tidy --lockfile_mode=refresh`, then `bazel mod deps`
+The first two run `bazel mod tidy --lockfile_mode=refresh`, then `bazel mod deps`
 and `bazel build --nobuild //...` with `--lockfile_mode=update`, in each
 workspace, reading its committed `.bazelrc` but not its `.bazelrc.user`.
-Without `--refresh` they check instead (`--lockfile_mode=error`;
-`dart pub get --enforce-lockfile`), which CI's `lockfiles` job runs.
+`bazel run @overhead//locks:check` checks instead (`--lockfile_mode=error`), and
+`pub_locks` without `--refresh` runs `dart pub get --enforce-lockfile`; CI's
+`lockfiles` job runs both.
 
 The lock tool is built in the root workspace, so a refresh builds it with
 `--lockfile_mode=update`: a stale root lock would otherwise stop it before it
@@ -374,7 +375,7 @@ critical updates.
    installs prek with that action.
 2. Download archives for all platform variants (macOS/Linux, arm64/x86_64)
 3. Compute SHA-256 hashes and update the lockfile entries
-4. Regenerate lock files: `bazel run --lockfile_mode=off @overhead//locks -- --refresh`
+4. Regenerate lock files: `bazel run --lockfile_mode=off @overhead//locks:refresh`
 5. Run `bazel run @overhead//lint:prek -- run --all-files --hook-stage manual`
    to verify the updated tools work, `uv tool upgrade prek` so the installed
    git hooks use a prek at least as new, and

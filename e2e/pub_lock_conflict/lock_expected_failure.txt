@@ -1,4 +1,4 @@
-# This workspace fails on purpose; `bazel run @overhead//locks` passes a
+# This workspace fails on purpose; `bazel run @overhead//locks:check` passes a
 # step that fails printing each line below.
 # Two lock files pin different versions of one package; the pub extension
 # refuses them, giving the command that re-resolves the lagging one, as the

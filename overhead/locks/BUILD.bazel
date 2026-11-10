@@ -1,11 +1,24 @@
 load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_test")
 
-# Checks (or with `-- --refresh`, rewrites) every workspace's MODULE.bazel.lock,
-# without the developer's `.bazelrc.user`. See locks.dart.
+# `:check` checks and `:refresh` rewrites every workspace's MODULE.bazel.lock,
+# without the developer's `.bazelrc.user`. See locks_cli.dart.
 dart_binary(
-    name = "locks",
-    srcs = ["lock_workspaces.dart"],
-    main = "locks.dart",
+    name = "check",
+    srcs = [
+        "lock_workspaces.dart",
+        "locks_cli.dart",
+    ],
+    main = "check.dart",
+    visibility = ["//visibility:public"],
+)
+
+dart_binary(
+    name = "refresh",
+    srcs = [
+        "lock_workspaces.dart",
+        "locks_cli.dart",
+    ],
+    main = "refresh.dart",
     visibility = ["//visibility:public"],
 )
 

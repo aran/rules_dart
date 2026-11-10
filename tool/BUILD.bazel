@@ -1,7 +1,7 @@
 load("//dart:defs.bzl", "dart_binary")
 
 # Checks (or with `-- --refresh`, rewrites) the pubspec.lock files outside
-# e2e/. MODULE.bazel.lock files are `bazel run @overhead//locks`'s.
+# e2e/. MODULE.bazel.lock files are `bazel run @overhead//locks:check`'s.
 dart_binary(
     name = "pub_locks",
     main = "pub_locks.dart",

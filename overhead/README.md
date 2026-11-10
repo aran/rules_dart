@@ -82,8 +82,8 @@ rules_dart's `.pre-commit-config.yaml` is the example.
 ## Lock files
 
 ```shell
-bazel run @overhead//locks                                    # check
-bazel run --lockfile_mode=off @overhead//locks -- --refresh   # rewrite
+bazel run @overhead//locks:check                            # check
+bazel run --lockfile_mode=off @overhead//locks:refresh      # rewrite
 ```
 
 The tool is built in the root workspace, so a refresh builds it with

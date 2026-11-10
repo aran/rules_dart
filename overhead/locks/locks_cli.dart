@@ -1,12 +1,13 @@
 // Checks, or rewrites, the MODULE.bazel.lock of every Bazel workspace in the
-// repository it runs in.
+// repository it runs in. `check.dart` and `refresh.dart` are the two entry
+// points; each calls [runLocks].
 //
-//   bazel run @overhead//locks                    check every workspace
-//   bazel run @overhead//locks -- e2e/smoke       check some
-//   bazel run --lockfile_mode=off @overhead//locks -- --refresh
-//                                                 rewrite every lock
-//   bazel run --lockfile_mode=off @overhead//locks -- --refresh e2e/smoke
-//                                                 rewrite some
+//   bazel run @overhead//locks:check                      check every workspace
+//   bazel run @overhead//locks:check -- e2e/smoke         check some
+//   bazel run --lockfile_mode=off @overhead//locks:refresh
+//                                                         rewrite every lock
+//   bazel run --lockfile_mode=off @overhead//locks:refresh -- e2e/smoke
+//                                                         rewrite some
 //
 // A refresh builds the tool with `--lockfile_mode=off`, which neither reads
 // nor writes the root lock: a stale root lock cannot stop the tool, and local
@@ -33,10 +34,12 @@ import 'lock_workspaces.dart';
 final _repo =
     Platform.environment['BUILD_WORKSPACE_DIRECTORY'] ?? Directory.current.path;
 
-Future<void> main(List<String> args) async {
-  final refresh = args.isNotEmpty && args.first == '--refresh';
-  final named = refresh ? args.skip(1).toList() : args;
-
+/// Checks, or with [refresh] rewrites, the locks of the workspaces [named], or
+/// of every workspace when none is.
+Future<void> runLocks({
+  required bool refresh,
+  required List<String> named,
+}) async {
   final listing = await Process.run('git', [
     'ls-files',
     '-z',
@@ -56,7 +59,7 @@ Future<void> main(List<String> args) async {
   final unknown = named.where((w) => !workspaces.contains(w)).toList();
   if (unknown.isNotEmpty || named.any((w) => w.startsWith('-'))) {
     stderr.writeln('locks: not a workspace: ${unknown.join(', ')}');
-    stderr.writeln('usage: locks [--refresh] [<workspace>...]');
+    stderr.writeln('usage: ${refresh ? 'refresh' : 'check'} [<workspace>...]');
     stderr.writeln('workspaces:\n  ${workspaces.join('\n  ')}');
     exit(2);
   }
@@ -85,7 +88,7 @@ Future<void> main(List<String> args) async {
   if (!refresh) {
     stderr.writeln(
       '\nWhere Bazel says a lock is out of date, rewrite it with '
-      '`bazel run --lockfile_mode=off @overhead//locks -- --refresh '
+      '`bazel run --lockfile_mode=off @overhead//locks:refresh -- '
       '<workspace>`.',
     );
   }

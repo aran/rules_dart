@@ -690,7 +690,7 @@ jobs:
           bazelisk-cache: true
           repository-cache: true
       - name: MODULE.bazel.lock files
-        run: bazel run @overhead//locks
+        run: bazel run @overhead//locks:check
       - name: pubspec.lock files
         run: bazel run //tool:pub_locks
       - name: bazelrc preset

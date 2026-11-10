@@ -1,4 +1,4 @@
-# This workspace fails on purpose; `bazel run @overhead//locks` passes a
+# This workspace fails on purpose; `bazel run @overhead//locks:check` passes a
 # step that fails printing each line below.
 # A dart_kernel_source given both of `dart_version` and `path`, neither, or a
 # path that is no checkout is refused.
