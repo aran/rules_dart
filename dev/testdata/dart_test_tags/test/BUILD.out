@@ -1,0 +1,51 @@
+load("@rules_dart//dart:defs.bzl", "dart_test")
+
+dart_test(
+    name = "const_tags_test",
+    main = "const_tags_test.dart",
+    deps = ["@test"],
+)
+
+dart_test(
+    name = "import_first_test",
+    main = "import_first_test.dart",
+    tags = ["browser"],
+    deps = ["@test"],
+)
+
+dart_test(
+    name = "named_library_test",
+    main = "named_library_test.dart",
+    tags = ["slow"],
+    deps = ["@test"],
+)
+
+dart_test(
+    name = "prefixed_test",
+    main = "prefixed_test.dart",
+    tags = ["db"],
+    deps = ["@test"],
+)
+
+dart_test(
+    name = "reserved_test",
+    main = "reserved_test.dart",
+    tags = ["slow"],
+    deps = ["@test"],
+)
+
+dart_test(
+    name = "unnamed_library_test",
+    main = "unnamed_library_test.dart",
+    tags = [
+        "integration",
+        "slow",
+    ],
+    deps = ["@test"],
+)
+
+dart_test(
+    name = "untagged_test",
+    main = "untagged_test.dart",
+    deps = ["@test"],
+)

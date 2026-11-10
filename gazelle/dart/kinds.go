@@ -75,9 +75,13 @@ var _primitiveDartKinds = map[string]rule.KindInfo{
 	"dart_test": {
 		MatchAttrs:    []string{"main"},
 		NonEmptyAttrs: map[string]bool{"main": true},
+		// tags is Gazelle-managed: it holds the file's package:test @Tags, so
+		// a tag removed from the source leaves the target. A tag written by
+		// hand stays only with `# keep`, as for any managed attribute.
 		MergeableAttrs: map[string]bool{
 			"srcs": true,
 			"deps": true,
+			"tags": true,
 		},
 		ResolveAttrs: map[string]bool{"deps": true},
 	},

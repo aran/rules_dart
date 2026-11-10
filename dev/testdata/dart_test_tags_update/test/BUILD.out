@@ -1,0 +1,16 @@
+load("@rules_dart//dart:defs.bzl", "dart_test")
+
+dart_test(
+    name = "retagged_test",
+    main = "retagged_test.dart",
+    tags = [
+        "exclusive",  # keep
+        "nightly",
+        "slow",
+    ],
+)
+
+dart_test(
+    name = "untagged_now_test",
+    main = "untagged_now_test.dart",
+)

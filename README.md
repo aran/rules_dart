@@ -370,6 +370,58 @@ folder, Gazelle reads the `name` field and uses it as both the target name
 and `package_name` for the generated `dart_library`. This means most
 projects need no directives at all.
 
+#### Test tags
+
+A test file's suite-level package:test tags become its `dart_test`'s Bazel
+`tags`:
+
+```dart
+@Tags(['slow', 'integration'])
+library;
+
+import 'package:test/test.dart';
+```
+
+```starlark
+dart_test(
+    name = "checkout_test",
+    main = "checkout_test.dart",
+    tags = [
+        "integration",
+        "slow",
+    ],
+    ...
+)
+```
+
+so Bazel's own tag filters select whole test files:
+
+```shell
+bazel test //... --test_tag_filters=-slow          # skip slow files
+bazel test //... --test_tag_filters=integration    # only integration files
+```
+
+Gazelle reads `@Tags` where package:test does, on the file's first directive
+(`library`, `import`, `export` or `part`), bare or import-prefixed
+(`@t.Tags([...])`). Tags on individual tests and groups (`test(..., tags: ...)`)
+stay with package:test. Gazelle warns instead of copying when the annotation is
+not a list of string literals (a `const` variable, say), and for a tag Bazel
+gives meaning to (`manual`, `exclusive`, `external`, `local`, and the `no-*`,
+`requires-*`, `supports-*`, `disable-*` and `block-network` execution tags),
+since copying it would change how the test runs.
+
+Gazelle manages `tags` on `dart_test`: a tag removed from `@Tags` leaves the
+target on the next run. A tag you write yourself stays only when marked
+`# keep`, as for every attribute Gazelle manages, and Gazelle logs each tag it
+removes:
+
+```starlark
+    tags = [
+        "exclusive",  # keep
+        "slow",
+    ],
+```
+
 #### Analysis options
 
 For every directory holding an `analysis_options.yaml`, Gazelle emits a

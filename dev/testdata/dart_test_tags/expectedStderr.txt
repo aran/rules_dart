@@ -1,0 +1,2 @@
+gazelle: dart: test/const_tags_test.dart: @Tags is not a list of string literals, so its tags can't be read without running Dart; none are copied
+gazelle: dart: test/reserved_test.dart: tag "manual" means something to Bazel and would change how the test runs; not copied (rename the Dart tag, or write the Bazel tag by hand with `# keep`)

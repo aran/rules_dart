@@ -202,6 +202,10 @@ func (d *dartLang) generateDartRules(args language.GenerateArgs) language.Genera
 		name := strings.TrimSuffix(f.Path, ".dart")
 		r := rule.NewRule("dart_test", name)
 		r.SetAttr("main", f.Path)
+		tags := testTags(args, f)
+		if len(tags) > 0 {
+			r.SetAttr("tags", tags)
+		}
 		gen = append(gen, r)
 		imports = append(imports, collectImports([]DartFileInfo{f}))
 	}
@@ -211,6 +215,35 @@ func (d *dartLang) generateDartRules(args language.GenerateArgs) language.Genera
 		Imports: imports,
 		Empty:   staleCodegenRules(args.File, gen),
 	}
+}
+
+// testTags returns the Bazel tags for a test file's dart_test: the file's
+// suite-level package:test `@Tags`. Problems with the annotation, and
+// existing tags the merge is about to drop, are logged.
+func testTags(args language.GenerateArgs, f DartFileInfo) []string {
+	rel := path.Join(args.Rel, f.Path)
+	tags, problems, err := ParseDartTestTags(filepath.Join(args.Dir, f.Path))
+	if err != nil {
+		log.Printf("dart: %s: reading @Tags failed: %v", rel, err)
+		return nil
+	}
+	for _, p := range problems {
+		log.Printf("dart: %s: %s", rel, p)
+	}
+	if args.File != nil {
+		name := strings.TrimSuffix(f.Path, ".dart")
+		for _, existing := range args.File.Rules {
+			if existing.Name() != name {
+				continue
+			}
+			for _, t := range droppedHandTags(existing, tags) {
+				log.Printf("dart: %s: removing tag %q from %q, which the file's "+
+					"@Tags does not give; mark it `# keep` if it was written by hand",
+					rel, t, existing.Name())
+			}
+		}
+	}
+	return tags
 }
 
 // deletableKinds is the set of rule kinds Gazelle may delete when a
