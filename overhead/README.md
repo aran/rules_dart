@@ -1,8 +1,8 @@
 # overhead
 
 Development tooling shared by rules_dart, rules_dart_proto, rules_flutter and
-frustrate: the commit policy, release notes, tool pins, lock checks and commit
-hooks. Its reusable workflows are in rules_dart's `.github/workflows`, each
+frustrate: the commit policy, release notes, tool pins, lock checks, bazelrc
+preset and commit hooks. Its reusable workflows are in rules_dart's `.github/workflows`, each
 with its use in its header.
 
 ## Taking it
@@ -91,3 +91,23 @@ The tool is built in the root workspace, so a refresh builds it with
 flags in `.bazelrc.user` cannot leak into the root lock, which the tool then
 rewrites itself. A check needs no flag.
 `locks/locks.dart` says more.
+
+## Bazelrc preset
+
+The flags [bazelrc-preset.bzl](https://github.com/bazel-contrib/bazelrc-preset.bzl)
+recommends, at the version overhead pins and for the Bazel the repository
+runs, are written to `tools/preset.bazelrc`, which the root `.bazelrc` imports
+first:
+
+```shell
+bazel run @overhead//preset              # write tools/preset.bazelrc
+bazel run @overhead//preset -- --check   # fail if it is out of date
+```
+
+```
+import %workspace%/tools/preset.bazelrc
+```
+
+The file is checked in. Bumping overhead's pin or the repository's
+`.bazelversion` can change it, so CI runs the check, and a bump runs the tool.
+A repository takes no `bazel_dep` on bazelrc-preset.bzl of its own.

@@ -74,8 +74,7 @@ jobs:
           "e2e/analyze_composition",
           "e2e/link_hook",
           "e2e/external_module",
-          "overhead",
-          "tools"
+          "overhead"
         ]
   # `dart format` and `dart analyze` find their configuration by walking up from
   # the file they are given, and that walk does not stop at the project root.
@@ -678,7 +677,8 @@ jobs:
         run: bazel query "@rules_dart//..."
   # Every workspace's MODULE.bazel.lock is complete without anyone's
   # .bazelrc.user, the workspaces that fail on purpose included; so is every
-  # pubspec.lock outside e2e/.
+  # pubspec.lock outside e2e/; and the bazelrc preset is the one overhead
+  # generates.
   lockfiles:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -693,6 +693,8 @@ jobs:
         run: bazel run @overhead//locks
       - name: pubspec.lock files
         run: bazel run //tool:pub_locks
+      - name: bazelrc preset
+        run: bazel run @overhead//preset -- --check
   # Every hook in .pre-commit-config.yaml, with the prek overhead pins, as a
   # commit runs them: one build puts overhead's tools in .bazel_env, then the
   # hooks run them without Bazel.

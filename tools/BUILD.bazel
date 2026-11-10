@@ -1,8 +1,0 @@
-load("@bazelrc-preset.bzl", "bazelrc_preset")
-
-# Writes preset.bazelrc, which the root .bazelrc imports; its test fails when
-# the file is out of date.
-bazelrc_preset(
-    name = "preset",
-    doc_link_template = "https://registry.build/flag/bazel?filter={flag}",
-)

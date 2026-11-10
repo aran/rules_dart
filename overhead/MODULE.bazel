@@ -1,8 +1,8 @@
 """Development tooling shared by rules_dart, rules_dart_proto, rules_flutter
-and frustrate: the commit policy, release notes, tool pins and lock checks.
-Its reusable workflows are in rules_dart's .github/workflows. Not published
-to the Bazel Central Registry; REPO.bazel keeps it out of rules_dart's
-packages.
+and frustrate: the commit policy, release notes, tool pins, lock checks and
+bazelrc preset. Its reusable workflows are in rules_dart's
+.github/workflows. Not published to the Bazel Central Registry; REPO.bazel
+keeps it out of rules_dart's packages.
 
 A repository takes it as a dev dependency, pinned to a rules_dart commit (see
 README.md), and runs it from its checkout root:
@@ -19,6 +19,10 @@ bazel_dep(name = "rules_multitool", version = "1.11.1")
 # The commit hooks' tools, built into the consumer's `.bazel_env/bin` so the
 # hooks run without Bazel: //:bazel_env.
 bazel_dep(name = "bazel_env.bzl", version = "0.10.0")
+
+# The generator of the bazelrc preset each consumer's .bazelrc imports:
+# //preset.
+bazel_dep(name = "bazelrc-preset.bzl", version = "1.10.0")
 
 # Building overhead on its own (`bazel test //...` in this directory) uses the
 # rules_dart around it. An override in a dependency is ignored, so consumers

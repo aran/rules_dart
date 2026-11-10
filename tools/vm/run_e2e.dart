@@ -61,7 +61,6 @@ const _ciFolders = [
   'e2e/link_hook',
   'e2e/external_module',
   'overhead',
-  'tools',
 ];
 
 /// Per-folder timeout. The first folder pays for the hermetic Dart SDK

@@ -1,0 +1,41 @@
+load("@bazelrc-preset.bzl", "generate_preset")
+load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_test")
+
+# The flags bazelrc-preset.bzl recommends, for the Bazel the consumer runs.
+# The rule, not the `bazelrc_preset` macro: the macro also writes the file
+# into this package, which a consumer's checkout does not have.
+generate_preset(
+    name = "generated",
+    out = "generated.bazelrc",
+    doc_link_template = "https://registry.build/flag/bazel?filter={flag}",
+    # No retries of failed tests: a test that passes on a second attempt is a
+    # bug to fix, and Bazel already retries a target marked `flaky = True`.
+    extra_presets = json.encode({
+        "flaky_test_attempts": {"if_bazel_version": False},
+    }),
+)
+
+# Writes the consumer's tools/preset.bazelrc, or with `-- --check` fails when
+# it is out of date. See preset.dart.
+dart_binary(
+    name = "preset",
+    srcs = ["preset_file.dart"],
+    args = ["$(rlocationpath :generated)"],
+    data = [":generated"],
+    main = "preset.dart",
+    visibility = ["//visibility:public"],
+    deps = ["@rules_dart//dart/runfiles"],
+)
+
+dart_test(
+    name = "preset_file_test",
+    size = "small",
+    srcs = ["preset_file.dart"],
+    data = [":generated"],
+    env = {"GENERATED_PRESET": "$(rlocationpath :generated)"},
+    main = "test/preset_file_test.dart",
+    deps = [
+        "@overhead_dev_deps//:test",
+        "@rules_dart//dart/runfiles",
+    ],
+)
