@@ -562,7 +562,7 @@ jobs:
           grep -q "written to stderr before hanging" "$log"
           echo "OK: timed-out test's output reached its log"
   # Hostile pub archives served from a file:// registry: nothing fetched may
-  # refer or write outside its package, whichever host `tar` extracts it.
+  # refer or write outside its package.
   pub-archive-links:
     runs-on: ubuntu-latest
     timeout-minutes: 15

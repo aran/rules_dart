@@ -270,7 +270,8 @@
     "https://bcr.bazel.build/modules/swift_argument_parser/1.3.1.2/MODULE.bazel": "75aab2373a4bbe2a1260b9bf2a1ebbdbf872d3bd36f80bff058dccd82e89422f",
     "https://bcr.bazel.build/modules/swift_argument_parser/1.3.1.2/source.json": "5fba48bbe0ba48761f9e9f75f92876cafb5d07c0ce059cc7a8027416de94a05b",
     "https://bcr.bazel.build/modules/tar.bzl/0.10.4/MODULE.bazel": "e8f9ff79199e8d9eaad7f1b0a77ad74b30bb82d794b87d8ca942bead5de83ae9",
-    "https://bcr.bazel.build/modules/tar.bzl/0.10.4/source.json": "20143442376c03426f6135292ba02d825cb75308aa47e6bf42dd4cc5a435c2ff",
+    "https://bcr.bazel.build/modules/tar.bzl/0.10.9/MODULE.bazel": "4636f5f6a7c34d3d0653634ed95a34560426d548c5301c6c5924c885ef737b46",
+    "https://bcr.bazel.build/modules/tar.bzl/0.10.9/source.json": "30a5cf0a8281adce53ab1c5a4291e88b2c161e2df1feb6cba4ee50556f1748d7",
     "https://bcr.bazel.build/modules/toolchain_utils/1.0.2/MODULE.bazel": "9b8be503a4fcfd3b8b952525bff0869177a5234d5c35dc3e566b9f5ca2f755a1",
     "https://bcr.bazel.build/modules/toolchain_utils/1.0.2/source.json": "88769ec576dddacafd8cca4631812cf8eead89f10a29d9405d9f7a553de6bf87",
     "https://bcr.bazel.build/modules/upb/0.0.0-20220923-a547704/MODULE.bazel": "7298990c00040a0e2f121f6c32544bab27d4452f80d9ce51349b1a28f3005c43",
@@ -294,9 +295,15 @@
   "moduleExtensions": {
     "//dart/pub:extensions.bzl%pub": {
       "general": {
-        "bzlTransitiveDigest": "rnYPCgwXovBcIAAADAy1OF8u1xcPVIaNFitlYoRpOYE=",
+        "bzlTransitiveDigest": "3evhcGxerFgMNGb0FWu8X+U/7hlxPzWdGGyB6EjgLcM=",
         "usagesDigest": "0+3c4sSN2vc7x1/y7HdP42yAhA9LS1h/fRTJdUpRt4g=",
         "recordedInputs": [
+          "REPO_MAPPING:,bsd_tar_toolchains_darwin_amd64 tar.bzl++toolchains+bsd_tar_toolchains_darwin_amd64",
+          "REPO_MAPPING:,bsd_tar_toolchains_darwin_arm64 tar.bzl++toolchains+bsd_tar_toolchains_darwin_arm64",
+          "REPO_MAPPING:,bsd_tar_toolchains_linux_amd64 tar.bzl++toolchains+bsd_tar_toolchains_linux_amd64",
+          "REPO_MAPPING:,bsd_tar_toolchains_linux_arm64 tar.bzl++toolchains+bsd_tar_toolchains_linux_arm64",
+          "REPO_MAPPING:,bsd_tar_toolchains_windows_amd64 tar.bzl++toolchains+bsd_tar_toolchains_windows_amd64",
+          "REPO_MAPPING:,bsd_tar_toolchains_windows_arm64 tar.bzl++toolchains+bsd_tar_toolchains_windows_arm64",
           "REPO_MAPPING:,pubspec_reader_linux-arm64 +pubspec_reader+pubspec_reader_linux-arm64",
           "REPO_MAPPING:,pubspec_reader_linux-x64 +pubspec_reader+pubspec_reader_linux-x64",
           "REPO_MAPPING:,pubspec_reader_macos-arm64 +pubspec_reader+pubspec_reader_macos-arm64",

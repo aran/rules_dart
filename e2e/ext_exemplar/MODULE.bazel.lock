@@ -249,7 +249,8 @@
     "https://bcr.bazel.build/modules/swift_argument_parser/1.3.1.2/MODULE.bazel": "75aab2373a4bbe2a1260b9bf2a1ebbdbf872d3bd36f80bff058dccd82e89422f",
     "https://bcr.bazel.build/modules/swift_argument_parser/1.3.1.2/source.json": "5fba48bbe0ba48761f9e9f75f92876cafb5d07c0ce059cc7a8027416de94a05b",
     "https://bcr.bazel.build/modules/tar.bzl/0.10.4/MODULE.bazel": "e8f9ff79199e8d9eaad7f1b0a77ad74b30bb82d794b87d8ca942bead5de83ae9",
-    "https://bcr.bazel.build/modules/tar.bzl/0.10.4/source.json": "20143442376c03426f6135292ba02d825cb75308aa47e6bf42dd4cc5a435c2ff",
+    "https://bcr.bazel.build/modules/tar.bzl/0.10.9/MODULE.bazel": "4636f5f6a7c34d3d0653634ed95a34560426d548c5301c6c5924c885ef737b46",
+    "https://bcr.bazel.build/modules/tar.bzl/0.10.9/source.json": "30a5cf0a8281adce53ab1c5a4291e88b2c161e2df1feb6cba4ee50556f1748d7",
     "https://bcr.bazel.build/modules/upb/0.0.0-20220923-a547704/MODULE.bazel": "7298990c00040a0e2f121f6c32544bab27d4452f80d9ce51349b1a28f3005c43",
     "https://bcr.bazel.build/modules/windows_support/0.4.1/MODULE.bazel": "2287f95ac65c48ea05197f626a9b5711ea3c88cea61f2a5782882bdd55fdeb51",
     "https://bcr.bazel.build/modules/windows_support/0.4.1/source.json": "bdb72e6717b00135e0a4a8512b3f6b626df0baea0bde74bf7312c7484f791287",
@@ -293,9 +294,15 @@
     },
     "@@rules_dart+//dart/pub:extensions.bzl%pub": {
       "general": {
-        "bzlTransitiveDigest": "rnYPCgwXovBcIAAADAy1OF8u1xcPVIaNFitlYoRpOYE=",
+        "bzlTransitiveDigest": "3evhcGxerFgMNGb0FWu8X+U/7hlxPzWdGGyB6EjgLcM=",
         "usagesDigest": "s4w0zwpMHZElQm+85z0BQKN1YZVwTn9dFYwyk4tmpxI=",
         "recordedInputs": [
+          "REPO_MAPPING:rules_dart+,bsd_tar_toolchains_darwin_amd64 tar.bzl++toolchains+bsd_tar_toolchains_darwin_amd64",
+          "REPO_MAPPING:rules_dart+,bsd_tar_toolchains_darwin_arm64 tar.bzl++toolchains+bsd_tar_toolchains_darwin_arm64",
+          "REPO_MAPPING:rules_dart+,bsd_tar_toolchains_linux_amd64 tar.bzl++toolchains+bsd_tar_toolchains_linux_amd64",
+          "REPO_MAPPING:rules_dart+,bsd_tar_toolchains_linux_arm64 tar.bzl++toolchains+bsd_tar_toolchains_linux_arm64",
+          "REPO_MAPPING:rules_dart+,bsd_tar_toolchains_windows_amd64 tar.bzl++toolchains+bsd_tar_toolchains_windows_amd64",
+          "REPO_MAPPING:rules_dart+,bsd_tar_toolchains_windows_arm64 tar.bzl++toolchains+bsd_tar_toolchains_windows_arm64",
           "REPO_MAPPING:rules_dart+,pubspec_reader_linux-arm64 rules_dart++pubspec_reader+pubspec_reader_linux-arm64",
           "REPO_MAPPING:rules_dart+,pubspec_reader_linux-x64 rules_dart++pubspec_reader+pubspec_reader_linux-x64",
           "REPO_MAPPING:rules_dart+,pubspec_reader_macos-arm64 rules_dart++pubspec_reader+pubspec_reader_macos-arm64",

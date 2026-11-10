@@ -8,6 +8,64 @@ version is fetched and laid out the same way whichever rule asks for it.
 
 _ARCHIVE = "_pub_archive.tar.gz"
 
+# tar.bzl's prebuilt bsdtar, one repository per host. These labels resolve in
+# rules_dart's repository mapping, whichever module's rule fetches.
+_BSDTAR = {
+    "darwin_amd64": Label("@bsd_tar_toolchains_darwin_amd64//:tar"),
+    "darwin_arm64": Label("@bsd_tar_toolchains_darwin_arm64//:tar"),
+    "linux_amd64": Label("@bsd_tar_toolchains_linux_amd64//:tar"),
+    "linux_arm64": Label("@bsd_tar_toolchains_linux_arm64//:tar"),
+    "windows_amd64": Label("@bsd_tar_toolchains_windows_amd64//:tar.exe"),
+    "windows_arm64": Label("@bsd_tar_toolchains_windows_arm64//:tar.exe"),
+}
+
+# bsdtar converts entry names through the locale. These are the UTF-8 locales
+# tar.bzl's own toolchain sets; macOS has no C.UTF-8.
+_UTF8_LOCALE = "C.UTF-8"
+_UTF8_LOCALE_MACOS = "en_US.UTF-8"
+
+def _host_bsdtar(rctx):
+    """The host's bsdtar; only its repository is fetched."""
+    name = rctx.os.name.lower()
+    arch = rctx.os.arch.lower()
+    if name.startswith("mac"):
+        os = "darwin"
+    elif name.startswith("windows"):
+        os = "windows"
+    elif name.startswith("linux"):
+        os = "linux"
+    else:
+        os = name
+    if arch in ("aarch64", "arm64"):
+        cpu = "arm64"
+    elif arch in ("amd64", "x86_64", "x64"):
+        cpu = "amd64"
+    else:
+        cpu = arch
+    host = os + "_" + cpu
+    if host not in _BSDTAR:
+        fail("rules_dart extracts pub packages with tar.bzl's bsdtar, which has no build for this host ({} {}).".format(
+            rctx.os.name,
+            rctx.os.arch,
+        ))
+    return rctx.path(_BSDTAR[host])
+
+def tar_entry_leaves_package(entry):
+    """Whether a tar entry's name is absolute or climbs out through `..`.
+
+    Args:
+        entry: The entry's name, as `bsdtar -t` lists it.
+
+    Returns:
+        True for a name that starts at a root (`/`, `\\`, a drive letter) or
+        has a `..` segment.
+    """
+    if entry.startswith("/") or entry.startswith("\\"):
+        return True
+    if len(entry) >= 2 and entry[1] == ":" and entry[0].isalpha():
+        return True
+    return ".." in entry.replace("\\", "/").split("/")
+
 _HEX = "0123456789abcdef"
 
 def is_pub_sha256(sha256):
@@ -106,12 +164,13 @@ def fetch_pub_archive(rctx, package_name, version, sha256, base_url = "https://p
 
     The archive is fetched from `<base_url>/packages/<name>/versions/<version>.tar.gz`
     and checked against `sha256`, which must be set (see
-    `check_pub_archive_sha256`). It is extracted with the host `tar` (bsdtar on
-    macOS and Windows 10+, GNU tar on Linux) rather than Bazel's extractor,
+    `check_pub_archive_sha256`). It is extracted with tar.bzl's prebuilt bsdtar
+    for the host, never a `tar` from the host, and not with Bazel's extractor,
     because pub.dev serves some archives (`nested` 1.0.0, among others) with
     padding after the gzip stream, which Bazel's extractor rejects and pub
-    accepts. After extraction, symlinks that leave the package are deleted, as
-    pub does.
+    accepts. An archive with an entry named by an absolute path or through
+    `..` is refused, as pub refuses it. After extraction, symlinks that leave
+    the package are deleted, as pub does.
 
     The result depends only on the arguments, so a rule calling this can return
     `rctx.repo_metadata(reproducible = True)` when nothing else it does reads
@@ -131,14 +190,34 @@ def fetch_pub_archive(rctx, package_name, version, sha256, base_url = "https://p
         version = version,
     )
     rctx.download(url = url, output = _ARCHIVE, sha256 = sha256)
-    result = rctx.execute(["tar", "-xzf", _ARCHIVE])
-    if result.return_code != 0:
-        fail("Extracting pub package \"{name}\" {version} from {url} with `tar -xzf` failed:\n{out}{err}".format(
-            name = package_name,
-            version = version,
-            url = url,
-            out = result.stdout,
-            err = result.stderr,
-        ))
+    tar = _host_bsdtar(rctx)
+    env = {"LC_ALL": _UTF8_LOCALE_MACOS if rctx.os.name.lower().startswith("mac") else _UTF8_LOCALE}
+
+    def run(args, what):
+        result = rctx.execute([tar] + args, environment = env)
+        if result.return_code != 0:
+            fail("{what} pub package \"{name}\" {version} from {url} with bsdtar failed:\n{out}{err}".format(
+                what = what,
+                name = package_name,
+                version = version,
+                url = url,
+                out = result.stdout,
+                err = result.stderr,
+            ))
+        return result.stdout
+
+    # bsdtar would strip a leading `/` and extract the rest inside the package;
+    # pub refuses such an archive, so it is refused here before extraction.
+    # `bsdtar -t` escapes control characters, so each line is one entry.
+    for entry in run(["-tzf", _ARCHIVE], "Listing").splitlines():
+        if tar_entry_leaves_package(entry):
+            fail(("Pub package \"{name}\" {version} from {url} has an entry \"{entry}\" " +
+                  "that names a path outside the package, so it is not extracted.").format(
+                name = package_name,
+                version = version,
+                url = url,
+                entry = entry,
+            ))
+    run(["-xzf", _ARCHIVE], "Extracting")
     rctx.delete(_ARCHIVE)
     drop_escaping_links(rctx)

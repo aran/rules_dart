@@ -39,6 +39,23 @@ bazel_dep(name = "rules_go", version = "0.64.2", repo_name = "io_bazel_rules_go"
 bazel_dep(name = "rules_cc", version = "0.2.26")
 bazel_dep(name = "sqlite3", version = "3.53.4")
 
+# Pub package archives are extracted at fetch time with tar.bzl's prebuilt
+# bsdtar, never the host's `tar`. A repository rule cannot resolve a toolchain,
+# so fetch_pub_archive names the host's binary repository itself; only that
+# one is downloaded.
+bazel_dep(name = "tar.bzl", version = "0.10.9")
+
+bsdtar = use_extension("@tar.bzl//tar:extensions.bzl", "toolchains")
+use_repo(
+    bsdtar,
+    "bsd_tar_toolchains_darwin_amd64",
+    "bsd_tar_toolchains_darwin_arm64",
+    "bsd_tar_toolchains_linux_amd64",
+    "bsd_tar_toolchains_linux_arm64",
+    "bsd_tar_toolchains_windows_amd64",
+    "bsd_tar_toolchains_windows_arm64",
+)
+
 # Sources for //dart/ext/webcrypto: the pub archive itself, for its C glue and
 # the BoringSSL revision it vendors and generated its Dart bindings against.
 # Fetched only when that code asset is built.
