@@ -19,6 +19,9 @@ type DartImport struct {
 
 var importRe = regexp.MustCompile(`^\s*(?:import|export)\s+['"](.+?)['"]`)
 
+// directiveRe matches a line starting an import or export directive.
+var directiveRe = regexp.MustCompile(`^\s*(?:import|export)\s`)
+
 // condLineRe detects continuation lines: indented "if (" clauses.
 var condLineRe = regexp.MustCompile(`^\s+if\s*\(`)
 
@@ -52,13 +55,18 @@ func ParseDartFile(path string) ([]DartImport, error) {
 	if err != nil {
 		return nil, err
 	}
-	lines := strings.Split(string(data), "\n")
+	// A directive is a line that starts `import` or `export` once comments
+	// and strings are blanked: one inside a string (a test's generated
+	// source, say) or a comment is no import. Its URI is read from the line
+	// with only comments blanked.
+	lines := strings.Split(stripCommentsOnly(string(data)), "\n")
+	code := strings.Split(stripCommentsAndStrings(string(data)), "\n")
 	var imports []DartImport
 
 	for i := 0; i < len(lines); i++ {
 		line := lines[i]
 		m := importRe.FindStringSubmatch(line)
-		if m == nil {
+		if m == nil || i >= len(code) || !directiveRe.MatchString(code[i]) {
 			continue
 		}
 		// Primary URI

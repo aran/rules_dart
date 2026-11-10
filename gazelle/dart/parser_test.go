@@ -30,6 +30,15 @@ func TestParseDartFile(t *testing.T) {
 			},
 		},
 		{
+			name: "DirectivesInStringsAndCommentsAreNotImports",
+			input: "import 'a.dart';\n/*\nimport 'b.dart';\n*/\n// import 'c.dart';\n" +
+				"void main() {\n  final s = r'''\nimport 'package:bar/bar.dart';\n''';\n" +
+				"  final t = \"\"\"\n        import 'package:';\n\"\"\";\n}\n",
+			want: []DartImport{
+				{URI: "a.dart", IsRelative: true, Path: "a.dart"},
+			},
+		},
+		{
 			name:  "RelativeImport",
 			input: `import 'helper.dart';`,
 			want: []DartImport{
