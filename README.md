@@ -714,16 +714,20 @@ build_runner alone has Gazelle not read it with
 `# gazelle:dart_builder_config` directive states differently for the same
 builder are a disagreement, as for the package's name.
 
-#### Build hooks
+#### Hooks
 
-A package's `hook/build.dart` is its library's `build_hook`: Gazelle puts the
-hook in a `filegroup` in `hook/` and names it on the `dart_library` of the
-package's `lib/`, so every binary and test that reaches the package fails
-until that library's `code_assets` supply what the hook would build (see
-[Native code assets](#native-code-assets)). `code_assets` is yours: Gazelle
-never writes or removes it. A package whose hook's native code nothing here
-uses has Gazelle not see the hook, with `# gazelle:exclude hook/build.dart`
-in its root's BUILD file. Gazelle writes nothing else for `hook/`.
+A package's `hook/build.dart` is its library's `build_hook`, and its
+`hook/link.dart` its library's `link_hook`: Gazelle puts each hook in a
+`filegroup` in `hook/` and names it on the `dart_library` of the package's
+`lib/`. A build hook fails every binary and test that reaches the package
+until the package's `code_assets` supply what the hook would build (see
+[Native code assets](#native-code-assets)); `code_assets` is yours: Gazelle
+never writes or removes it. A link hook's imports are that library's `deps`,
+for `dart_link_hook` to run it (see
+[Recorded uses and link hooks](#recorded-uses-and-link-hooks)). A package
+whose hook nothing here uses has Gazelle not see it, with
+`# gazelle:exclude hook/build.dart` (or `hook/link.dart`) in its root's BUILD
+file. Gazelle writes nothing else for `hook/`.
 
 #### Test tags
 
@@ -1297,8 +1301,8 @@ names. Every `code_assets` entry provides `DartCodeAssetInfo`, which
   `pub.from_lock(resolve = ...)`, or, if its native code is not used, list it in
   `pub.from_lock(ignore_hooks = [...])` or set `pub.package(ignore_hook = True)`.
   Your own package states its hook with `build_hook`, since a rule cannot look
-  for files (Gazelle states it for you, see [Build hooks](#build-hooks)), and
-  replaces it with its `dart_library`'s `code_assets`; a
+  for files (Gazelle states it for you, see [Hooks](#hooks)), and
+  replaces it with the `code_assets` of a `dart_library` of the package; a
   binary's or test's own `code_assets` do not replace a package's hook:
 
   ```starlark
@@ -1372,7 +1376,7 @@ Uses are recorded in the `exe` and `aot-snapshot` modes; in `kernel` and
 id in `data_assets`, since Bazel names every output before the hooks run; the
 build fails if a hook emits a different set, or if it fails itself, with the
 hook's message. Pub packages that ship a link hook get `link_hook` set by
-`pub.from_lock()`.
+`pub.from_lock()`, and Gazelle sets it for your own (see [Hooks](#hooks)).
 
 ## Flags
 

@@ -3,6 +3,7 @@ package dart
 import (
 	"log"
 	"path"
+	"path/filepath"
 
 	"github.com/bazelbuild/bazel-gazelle/label"
 	"github.com/bazelbuild/bazel-gazelle/language"
@@ -10,17 +11,31 @@ import (
 	"github.com/bazelbuild/bazel-gazelle/walk"
 )
 
-// A package's hook/build.dart builds native code when pub gets the package.
-// rules_dart never runs it, and fails every binary and test that reaches a
-// library stating it in `build_hook` unless that library's `code_assets`
-// replace what it builds. So Gazelle states it, on the library of the
-// package's lib/ directory, and the build says what to do; a package whose
-// hook's native code is unused has Gazelle not see the file, with
-// `# gazelle:exclude hook/build.dart`.
+// A package's hooks live in its hook/ directory, and Gazelle states each on
+// the library of the package's lib/ directory.
+//
+// hook/build.dart builds native code when pub gets the package. rules_dart
+// never runs it, and fails every binary and test that reaches a library
+// stating it in `build_hook` unless the package's `code_assets` replace what
+// it builds. So Gazelle states it, and the build says what to do.
+//
+// hook/link.dart decides what the package ships from a program's recorded
+// uses; `dart_link_hook` runs it from the `link_hook` of the package's
+// library, and its imports are that library's dependencies, as pub requires.
+//
+// A package has Gazelle not see a hook with `# gazelle:exclude
+// hook/build.dart` (or `hook/link.dart`).
 
-const (
-	buildHookFile   = "build.dart"
-	buildHookTarget = "build"
+// hookKind is one of a package's hooks: its file in hook/, the filegroup
+// Gazelle holds it in there, and the `dart_library` attribute naming it.
+type hookKind struct {
+	file, target, attr string
+}
+
+var (
+	buildHook = hookKind{file: "build.dart", target: "build", attr: "build_hook"}
+	linkHook  = hookKind{file: "link.dart", target: "link", attr: "link_hook"}
+	hookKinds = []hookKind{buildHook, linkHook}
 )
 
 // visibleFiles is the regular files of directory rel that Gazelle sees:
@@ -42,39 +57,66 @@ func hasFile(files []string, name string) bool {
 	return false
 }
 
-// buildHookLabel is the label, relative to directory from, of the build hook
-// of the package rooted at root, or "" when it has none Gazelle sees.
-func buildHookLabel(root, from string) string {
+// hookLabel is the label, relative to directory from, of the hook of the
+// package rooted at root, or "" when it has none Gazelle sees.
+func hookLabel(h hookKind, root, from string) string {
 	dir := path.Join(root, "hook")
-	if !hasFile(visibleFiles(dir), buildHookFile) {
+	if !hasFile(visibleFiles(dir), h.file) {
 		return ""
 	}
-	return label.New("", dir, buildHookTarget).Rel("", from).String()
+	return label.New("", dir, h.target).Rel("", from).String()
 }
 
-// logUnstatedBuildHook says when a package has a build hook and Gazelle
-// writes no library of its lib/ to state it on.
-func logUnstatedBuildHook(root string) {
-	if buildHookLabel(root, "") == "" {
-		return
+// setHooks states the hooks of the package rooted at root on r, the library
+// of its lib/ directory, and returns the link hook's imports, named from the
+// repository root, for r's dependencies.
+func setHooks(r *rule.Rule, repoRoot, root, from string) []DartFileInfo {
+	for _, h := range hookKinds {
+		if l := hookLabel(h, root, from); l != "" {
+			r.SetAttr(h.attr, l)
+		}
 	}
-	log.Printf("dart: %s has a build hook and %s holds no library Gazelle writes "+
-		"to state it on; give a hand-written `dart_library` of the package "+
-		"`build_hook = %q`", path.Join(root, "hook", buildHookFile), libDirOf(root),
-		label.New("", path.Join(root, "hook"), buildHookTarget).String())
+	if hookLabel(linkHook, root, from) == "" {
+		return nil
+	}
+	rel := path.Join(root, "hook", linkHook.file)
+	imports, err := ParseDartFile(filepath.Join(repoRoot, filepath.FromSlash(rel)))
+	if err != nil {
+		log.Printf("dart: %s: %v; its imports are not in %s's deps", rel, err, r.Name())
+		return nil
+	}
+	return []DartFileInfo{{Path: rel, Imports: imports}}
 }
 
-// hookRules is what Gazelle writes in a package's hook/ directory: the
-// filegroup holding its build hook, visible to the package's lib/, and
-// nothing for the hook's imports, since nothing builds it. A `dart_library`
-// of the directory's files, which earlier Gazelle versions wrote, is deleted,
-// as is the filegroup once the hook is gone.
+// logUnstatedHooks says when a package has hooks and Gazelle writes no
+// library of its lib/ to state them on.
+func logUnstatedHooks(root string) {
+	for _, h := range hookKinds {
+		if hookLabel(h, root, "") == "" {
+			continue
+		}
+		log.Printf("dart: %s has a hook and %s holds no library Gazelle writes "+
+			"to state it on; give a hand-written `dart_library` of the package "+
+			"`%s = %q`", path.Join(root, "hook", h.file), libDirOf(root), h.attr,
+			label.New("", path.Join(root, "hook"), h.target).String())
+	}
+}
+
+// hookRules is what Gazelle writes in a package's hook/ directory: a
+// filegroup holding each hook, visible to the package's lib/, and nothing for
+// the hooks' imports, which the library's dependencies carry. A
+// `dart_library` of the directory's files, which earlier Gazelle versions
+// wrote, is deleted, as is a hook's filegroup once the hook is gone.
 func hookRules(args language.GenerateArgs, root string) language.GenerateResult {
 	var res language.GenerateResult
-	has := hasFile(args.RegularFiles, buildHookFile)
-	if has {
-		r := rule.NewRule("filegroup", buildHookTarget)
-		r.SetAttr("srcs", []string{buildHookFile})
+	gone := map[string]bool{}
+	for _, h := range hookKinds {
+		if !hasFile(args.RegularFiles, h.file) {
+			gone[h.target] = true
+			continue
+		}
+		r := rule.NewRule("filegroup", h.target)
+		r.SetAttr("srcs", []string{h.file})
 		r.SetAttr("visibility", []string{label.New("", libDirOf(root), "__pkg__").String()})
 		res.Gen = append(res.Gen, r)
 		res.Imports = append(res.Imports, nil)
@@ -84,7 +126,7 @@ func hookRules(args language.GenerateArgs, root string) language.GenerateResult 
 	}
 	for _, r := range args.File.Rules {
 		switch {
-		case r.Kind() == "filegroup" && r.Name() == buildHookTarget && !has:
+		case r.Kind() == "filegroup" && gone[r.Name()]:
 		case r.Kind() == "dart_library" && ownSources(r, args.RegularFiles):
 		default:
 			continue

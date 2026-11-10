@@ -3,3 +3,9 @@ filegroup(
     srcs = ["build.dart"],
     visibility = ["//hooked/lib:__pkg__"],
 )
+
+filegroup(
+    name = "link",
+    srcs = ["link.dart"],
+    visibility = ["//hooked/lib:__pkg__"],
+)

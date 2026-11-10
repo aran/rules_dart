@@ -61,10 +61,12 @@ var _primitiveDartKinds = map[string]rule.KindInfo{
 	"dart_library": {
 		MatchAttrs:    []string{"srcs"},
 		NonEmptyAttrs: map[string]bool{"srcs": true},
-		// build_hook is Gazelle-managed: it names the package's hook/build.dart
-		// while Gazelle sees one (hook.go).
+		// build_hook and link_hook are Gazelle-managed: each names the
+		// package's hook/build.dart or hook/link.dart while Gazelle sees one
+		// (hook.go).
 		MergeableAttrs: map[string]bool{
 			"build_hook":       true,
+			"link_hook":        true,
 			"srcs":             true,
 			"deps":             true,
 			"package_name":     true,

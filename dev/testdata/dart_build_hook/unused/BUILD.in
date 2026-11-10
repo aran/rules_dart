@@ -1,2 +1,3 @@
-# The hook's native code is not used here.
+# The hooks' native code and data are not used here.
 # gazelle:exclude hook/build.dart
+# gazelle:exclude hook/link.dart
