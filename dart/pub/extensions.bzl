@@ -1,12 +1,12 @@
 """Module extension for declaring pub.dev package dependencies."""
 
 load("//dart/ext:registry.bzl", "curated_code_assets")
-load("//dart/pub:pub_lock_hub.bzl", "pub_lock_hub")
-load("//dart/pub:pub_lock_library.bzl", "index_repo", "library_repo", "pub_lock_ignored", "pub_lock_index", "pub_lock_library", "pub_lock_resolved", "source_repo")
 load("//dart/pub:pub_lock_package.bzl", "pub_lock_git_package", "pub_lock_package", "pub_lock_path_package")
 load("//dart/pub:yaml_parser.bzl", "parse_pubspec_lock")
 load("//dart/pub/private:pub_archive.bzl", "check_pub_archive_sha256")
 load("//dart/pub/private:pub_git.bzl", "check_pub_git_resolved_ref", "is_relative_git_url")
+load("//dart/pub/private:pub_lock_hub.bzl", "pub_lock_hub")
+load("//dart/pub/private:pub_lock_library.bzl", "index_repo", "library_repo", "pub_lock_ignored", "pub_lock_index", "pub_lock_library", "pub_lock_resolved", "source_repo")
 load("//dart/pub/private:pub_repository.bzl", "pub_package")
 load("//dart/pub/private:version.bzl", "semver_gt")
 

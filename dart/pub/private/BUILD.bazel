@@ -12,7 +12,18 @@ bzl_library(
     deps = [
         ":build_content",
         ":pub_archive",
+        ":pub_lock_library",
         "//dart/pub:pubspec",
+    ],
+)
+
+bzl_library(
+    name = "pub_lock_library",
+    srcs = ["pub_lock_library.bzl"],
+    visibility = ["//dart/pub:__subpackages__"],
+    deps = [
+        ":build_content",
+        "//dart/pub:pub_graph",
     ],
 )
 
@@ -58,6 +69,12 @@ bzl_library(
 bzl_library(
     name = "pub_ignored_package",
     srcs = ["pub_ignored_package.bzl"],
+    visibility = ["//dart/pub:__subpackages__"],
+)
+
+bzl_library(
+    name = "pub_lock_hub",
+    srcs = ["pub_lock_hub.bzl"],
     visibility = ["//dart/pub:__subpackages__"],
 )
 

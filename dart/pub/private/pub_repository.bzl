@@ -1,9 +1,9 @@
 """Repository rule for downloading a single pub.dev package."""
 
-load("//dart/pub:pub_lock_library.bzl", "dependency_label", "read_index", "unsupplied_dependency_error")
 load("//dart/pub:pubspec.bzl", "read_pubspec")
 load("//dart/pub/private:build_content.bzl", "find_pub_license_file", "make_dart_library_build_content")
 load("//dart/pub/private:pub_archive.bzl", "fetch_pub_archive")
+load("//dart/pub/private:pub_lock_library.bzl", "dependency_label", "read_index", "unsupplied_dependency_error")
 
 def _pub_package_impl(ctx):
     fetch_pub_archive(
