@@ -345,9 +345,11 @@ tune _registered_ builders:
 - `# gazelle:dart_builder_runtime_dep <Annotation> <label>` overrides
   the runtime Dart library the package's `dart_library` and the builder's
   codegen targets depend on
-  (useful when you've forked e.g. `json_annotation`). Without it, the
-  runtime package resolves as an import of it would, and a macro states it
-  as `annotation_dep` where that is not the macro's default.
+  (useful when you've forked e.g. `json_annotation`): the label replaces the
+  default package there, an import of it included, and a macro states it as
+  `annotation_dep`. Without it, the runtime package resolves as an import of
+  it would, and a macro states it as `annotation_dep` where that is not the
+  macro's default.
 - `# gazelle:dart_builder_config <Annotation> <json-string>` sets the
   builder's `BuilderOptions`. Equivalent to build.yaml's `options:`
   block. Applies to every sub-builder of a fanned-out annotation. Where the

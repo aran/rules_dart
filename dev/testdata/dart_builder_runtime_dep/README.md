@@ -9,3 +9,7 @@ BOTH emission paths:
 - multi-annotation pipeline (`event.dart`): the overridden dep must land
   in the affected `dart_codegen` stage's `deps`, while builders without
   an override keep their defaults.
+
+The override replaces the default runtime package: the package's library and
+the macro depend on `@my_fork//:json_annotation` alone, though `user.dart`
+imports `package:json_annotation`.

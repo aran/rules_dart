@@ -258,7 +258,10 @@ func emitCodegen(args language.GenerateArgs, pkg string, p *codegenPlan, files [
 		}
 		is := importsOf()
 		if overridesRuntimeDep(b) {
+			// The macro adds its annotation_dep to its deps, in place of
+			// the default runtime package its source imports.
 			r.SetAttr("annotation_dep", b.RuntimeDep)
+			dropPackage(is, runtimePackage(b))
 		} else {
 			is.annotationPackage = runtimePackage(b)
 			is.annotationDefault = b.RuntimeDep
@@ -323,14 +326,19 @@ func setPackage(r *rule.Rule, pkg string) {
 	}
 }
 
-// addRuntimeDeps adds to is the runtime library of each of builders: a
-// directive's label as stated, the default as an import of its package.
+// addRuntimeDeps adds to is the runtime library of each of builders: the
+// default as an import of its package, a directive's label as stated, in
+// place of the default package, which the source may import too.
 func addRuntimeDeps(is *importSet, builders []*builderInfo) {
 	for _, b := range builders {
-		if overridesRuntimeDep(b) {
-			is.labels = append(is.labels, b.RuntimeDep)
-		} else if pkg := runtimePackage(b); pkg != "" {
+		if pkg := runtimePackage(b); !overridesRuntimeDep(b) && pkg != "" {
 			is.packages[pkg] = true
+		}
+	}
+	for _, b := range builders {
+		if overridesRuntimeDep(b) {
+			dropPackage(is, runtimePackage(b))
+			is.labels = append(is.labels, b.RuntimeDep)
 		}
 	}
 }
@@ -339,6 +347,12 @@ func addRuntimeDeps(is *importSet, builders []*builderInfo) {
 // directive states builder b's runtime library.
 func overridesRuntimeDep(b *builderInfo) bool {
 	return b.RuntimeDep != "" && b.RuntimeDep != defaultRuntimeDeps[nodeKey(b)]
+}
+
+// dropPackage removes package pkg from what is imports.
+func dropPackage(is *importSet, pkg string) {
+	delete(is.packages, pkg)
+	delete(is.uris, pkg)
 }
 
 // stageTargetName returns the synthetic Bazel target name for a stage of
