@@ -11,8 +11,10 @@ Also re-exports public Starlark helpers for other Bazel rule sets (notably
 rules_flutter's `flutter_pub_package`, the `flutter pub get` analog):
 `fetch_pub_archive` (with `check_pub_archive_sha256`) fetches a hosted package
 and `fetch_pub_git` (with `check_pub_git_resolved_ref`) a git package exactly
-as rules_dart's own pub rules do, `find_pub_license_file` finds its license
-file as `flutter build` does, and `make_dart_library_build_content` emits the
+as rules_dart's own pub rules do, `is_relative_git_url` says whether a lock's
+git `url` is relative to the lock (only then does the package depend on it),
+`find_pub_license_file` finds a package's
+license file as `flutter build` does, and `make_dart_library_build_content` emits the
 same `dart_library` shape for non-plugin packages.
 """
 
@@ -21,7 +23,7 @@ load("//dart/pub:pubspec.bzl", "read_pubspec")
 load("//dart/pub/private:build_content.bzl", _classify_pub_hooks = "classify_pub_hooks", _find_pub_license_file = "find_pub_license_file", _make_dart_library_build_content = "make_dart_library_build_content", _make_pub_member_build_content = "make_pub_member_build_content")
 load("//dart/pub/private:language_version.bzl", _derive_language_version = "derive_language_version")
 load("//dart/pub/private:pub_archive.bzl", _check_pub_archive_sha256 = "check_pub_archive_sha256", _fetch_pub_archive = "fetch_pub_archive")
-load("//dart/pub/private:pub_git.bzl", _check_pub_git_resolved_ref = "check_pub_git_resolved_ref", _fetch_pub_git = "fetch_pub_git")
+load("//dart/pub/private:pub_git.bzl", _check_pub_git_resolved_ref = "check_pub_git_resolved_ref", _fetch_pub_git = "fetch_pub_git", _is_relative_git_url = "is_relative_git_url")
 
 # Re-export for consumers outside //dart/pub (rules_flutter's
 # flutter_pub_package). Loading the private bzl directly would trip
@@ -33,6 +35,7 @@ fetch_pub_archive = _fetch_pub_archive
 check_pub_archive_sha256 = _check_pub_archive_sha256
 fetch_pub_git = _fetch_pub_git
 check_pub_git_resolved_ref = _check_pub_git_resolved_ref
+is_relative_git_url = _is_relative_git_url
 
 def _write_member(ctx):
     # Read the package's SDK constraint, to mirror pub's per-package
