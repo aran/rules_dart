@@ -1,0 +1,23 @@
+load("//dart:defs.bzl", "dart_library", "dart_test")
+
+dart_library(
+    name = "layout_lib",
+    srcs = ["lib/layout_lib.dart"],
+    resources = ["lib/resource.txt"],
+)
+
+# Reads its `data`, its library's resource and another repository's `data` by
+# their paths from its package's root, where it runs; `test_runner_test` also
+# runs it from a runfiles manifest alone, where the launcher lays them out.
+dart_test(
+    name = "layout_test",
+    size = "small",
+    data = [
+        "data.txt",
+        "@bazel_skylib//:bzl_library.bzl",
+    ],
+    env = {"EXTERNAL_RLOCATIONPATH": "$(rlocationpath @bazel_skylib//:bzl_library.bzl)"},
+    main = "layout_test.dart",
+    visibility = ["//dart/private/tools:__pkg__"],
+    deps = [":layout_lib"],
+)

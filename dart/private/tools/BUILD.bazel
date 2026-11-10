@@ -171,6 +171,8 @@ dart_test(
         "$(rlocationpath //dart/tests/shared_library_asset_fixture:shared_library_asset_test)",
         "$(rlocationpath :test_runner_tags_fixture)",
         "$(rlocationpath :test_runner_unmatched_tags_fixture)",
+        "$(rlocationpath //dart/tests/test_layout_fixture:layout_test)",
+        "$(rlocationpath @bazel_skylib//:bzl_library.bzl)",
     ],
     data = [
         ":test_runner_fixture",
@@ -178,6 +180,8 @@ dart_test(
         ":test_runner_tags_fixture",
         ":test_runner_unmatched_tags_fixture",
         "//dart/tests/shared_library_asset_fixture:shared_library_asset_test",
+        "//dart/tests/test_layout_fixture:layout_test",
+        "@bazel_skylib//:bzl_library.bzl",
     ],
     main = "test_runner_test.dart",
     deps = [

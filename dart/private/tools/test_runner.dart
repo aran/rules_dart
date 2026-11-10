@@ -69,6 +69,7 @@ Future<void> main(List<String> args) async {
       runfiles: r,
       directory: config['working_directory'] as String,
       testPath: testPath,
+      layout: () => RunfilesLayout.read(r, config),
       scratch: () => scratch.directory('runfiles.'),
     );
   } on TestWorkingDirectoryException catch (e) {
@@ -782,13 +783,15 @@ class TestWorkingDirectoryException implements Exception {
 ///
 /// That is the directory in [runfiles]' tree. Where there is no tree holding
 /// it (Windows by default, or `--noenable_runfiles`), the manifest is all
-/// there is, and the runfiles of [directory]'s repository are laid out from it
-/// under a directory [scratch] makes, so that the test finds its `data` at the
-/// same paths from where it runs.
+/// there is, and the runfiles are laid out from it under a directory
+/// [scratch] makes, as a tree holds them, less the launcher's own files
+/// ([layout]), so that the test finds what it reads at the same paths from
+/// where it runs.
 String testWorkingDirectory({
   required Runfiles runfiles,
   required String directory,
   required String testPath,
+  required RunfilesLayout Function() layout,
   required Directory Function() scratch,
 }) {
   String under(String base, String relative) =>
@@ -805,10 +808,18 @@ String testWorkingDirectory({
       '$testPath, and there is no runfiles manifest to lay it out from',
     );
   }
+  final RunfilesLayout laid;
+  try {
+    laid = layout();
+  } on FileSystemException catch (e) {
+    throw TestWorkingDirectoryException(
+      'cannot read what to lay out from the runfiles manifest $manifest: $e',
+    );
+  }
   final into = scratch().path;
-  _materializeRepository(
+  _materialize(
     manifest: File(manifest).readAsLinesSync(),
-    repository: directory.split('/').first,
+    layout: laid,
     into: into,
   );
   final laidOut = under(into, directory);
@@ -820,21 +831,62 @@ String testWorkingDirectory({
   return laidOut;
 }
 
-/// Lays out [repository]'s runfiles under [into] from the lines of a runfiles
-/// manifest, each `<runfiles path> <real path>`, at their runfiles paths.
+/// Which runfiles a test's working directory holds where there is no
+/// runfiles tree: every one but the launcher's [own], except that those the
+/// test reads by its path ([readable], its `data` and its source) are there
+/// even when the launcher uses them too.
+class RunfilesLayout {
+  RunfilesLayout({required this.own, required this.readable});
+
+  /// The two lists `dart_test` writes beside the launcher, which are the
+  /// launcher's own files too.
+  static RunfilesLayout read(Runfiles runfiles, Map<String, dynamic> config) {
+    final workspace = config['workspace'] as String;
+    Set<String> list(String key) => {
+      config[key] as String,
+      ...runfilesPaths(
+        File(runfiles.rlocation(config[key] as String)).readAsLinesSync(),
+        workspace: workspace,
+      ),
+    };
+    final readable = list('readable')..remove(config['readable']);
+    return RunfilesLayout(
+      own: {...list('own_files'), config['readable'] as String},
+      readable: readable,
+    );
+  }
+
+  final Set<String> own;
+  final Set<String> readable;
+
+  /// Whether the runfile at runfiles path [path] is laid out.
+  bool holds(String path) => readable.contains(path) || !own.contains(path);
+}
+
+/// The runfiles paths of the `short_path`s in [lines]: one in the main
+/// repository is below [workspace], one in another repository starts `../`.
+Set<String> runfilesPaths(List<String> lines, {required String workspace}) => {
+  for (final line in lines)
+    if (line.isNotEmpty)
+      line.startsWith('../') ? line.substring(3) : '$workspace/$line',
+};
+
+/// Lays out the runfiles [layout] holds under [into] from the lines of a
+/// runfiles manifest, each `<runfiles path> <real path>`, at their runfiles
+/// paths, as a runfiles tree holds them.
 ///
 /// A real path that is a directory (a tree artifact is one entry) is copied
 /// whole.
-void _materializeRepository({
+void _materialize({
   required List<String> manifest,
-  required String repository,
+  required RunfilesLayout layout,
   required String into,
 }) {
-  final prefix = '$repository/';
   for (final line in manifest) {
     final space = line.indexOf(' ');
-    if (space < 0 || !line.startsWith(prefix)) continue;
+    if (space < 0) continue;
     final relative = line.substring(0, space);
+    if (!layout.holds(relative)) continue;
     final real = line.substring(space + 1);
     final destination = _join(into, relative);
     if (Directory(real).existsSync()) {

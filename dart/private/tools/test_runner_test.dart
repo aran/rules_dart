@@ -471,6 +471,8 @@ void main(List<String> args) {
     Future<ProcessResult> runAsBazelRun(
       String rlocationPath, {
       String? without,
+      List<String> arguments = const [],
+      Map<String, String> environment = const {},
     }) {
       var manifest =
           Platform.environment['RUNFILES_MANIFEST_FILE'] ??
@@ -486,7 +488,7 @@ void main(List<String> args) {
       final temp = Directory('${tmp.path}/temp')..createSync();
       return Process.run(
         runfiles.rlocation(rlocationPath),
-        const [],
+        arguments,
         environment: {
           for (final MapEntry(:key, :value) in Platform.environment.entries)
             if (!key.startsWith('TEST') &&
@@ -501,6 +503,7 @@ void main(List<String> args) {
           'TMPDIR': temp.path,
           'TEMP': temp.path,
           'TMP': temp.path,
+          ...environment,
         },
         includeParentEnvironment: false,
         workingDirectory: tmp.path,
@@ -518,6 +521,35 @@ void main(List<String> args) {
 
     test('a test with a plain main', () async {
       expectRan(await runAsBazelRun(args[0]));
+    });
+
+    // The runfiles are laid out as a tree holds them, so a test reads by its
+    // path what it would read in one: its `data`, its libraries' resources,
+    // and another repository's `data` beside its own.
+    test('runfiles are laid out as a tree holds them', () async {
+      expectRan(
+        await runAsBazelRun(
+          args[5],
+          // What the fixture's `env` gives it under `bazel test`.
+          environment: {'EXTERNAL_RLOCATIONPATH': args[6]},
+        ),
+      );
+    });
+
+    // The launcher's own files, its program and its kernels, are not copied.
+    test('the launcher\'s own files are not laid out', () async {
+      final result = await runAsBazelRun(args[0], arguments: ['files']);
+      expectRan(result);
+      final config = configOf(runfiles.rlocation(args[0]));
+      // It runs at its repository's root, where a main-repository file is
+      // at its `short_path`.
+      final own = File(runfiles.rlocation(config['own_files'] as String))
+          .readAsLinesSync()
+          .where((p) => p.isNotEmpty && !p.startsWith('../'));
+      final laidOut = '${result.stdout}'.trim().split(RegExp(r'\r?\n'));
+      expect(own, isNotEmpty);
+      expect(laidOut, contains(config['test_path']));
+      expect(laidOut.toSet().intersection(own.toSet()), {config['test_path']});
     });
 
     test('a test under the runner', () async {

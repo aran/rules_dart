@@ -143,6 +143,17 @@ def _dart_test_impl(ctx):
             "converter": coverage.converter,
             "sources": coverage.sources,
         }
+
+    # Where runfiles are only a manifest, the launcher lays them out to run
+    # in, as a runfiles tree would hold them, less its own files (`own`),
+    # which it finds through the manifest. A file the test reads by its path,
+    # its `data` and its source, is laid out even when the launcher uses it
+    # too. The lists are written once the launcher's own files are known.
+    readable = ctx.actions.declare_file(ctx.label.name + ".readable")
+    own_files = ctx.actions.declare_file(ctx.label.name + ".own")
+    config["readable"] = runfiles_path(readable, workspace_name)
+    config["own_files"] = runfiles_path(own_files, workspace_name)
+    config["workspace"] = workspace_name
     config_file = ctx.actions.declare_file(ctx.label.name + ".launcher.json")
     ctx.actions.write(output = config_file, content = json.encode(config))
     env = {}
@@ -152,12 +163,21 @@ def _dart_test_impl(ctx):
             fail("%s: `env` cannot set %s; rules_dart uses the RULES_DART_ prefix to drive the test" % (ctx.label, key))
         env[key] = ctx.expand_location(value, ctx.attr.data)
     launcher = launcher_executable(ctx, ctx.attr._tool)
+    _write_paths(ctx, readable, depset(
+        [ctx.file.main] + ctx.files.data,
+        transitive = [d[DefaultInfo].default_runfiles.files for d in ctx.attr.data],
+    ))
+    _write_paths(ctx, own_files, depset(
+        [dill, config_file, readable, launcher.executable] + runtime_libs + launcher_files,
+        transitive = [dart_sdk_info.files.run, program_files, launcher.runfiles.files] +
+                     ([ctx.attr._coverage_collector[DefaultInfo].default_runfiles.files] if coverage else []),
+    ))
 
     # A dep's `lib/**` non-Dart files are part of the package at run time under
     # pub, and the dill carries only compiled code — so they come in here, the
     # same way `dart_binary` stages them, and are reached with `rlocation`.
     runfiles = ctx.runfiles(
-        files = [dill, config_file] + runtime_libs + launcher_files + ctx.files.data,
+        files = [dill, config_file, readable, own_files] + runtime_libs + launcher_files + ctx.files.data,
         transitive_files = depset(
             # The VM that runs the kernel, and no more of the SDK: a test that
             # runs SDK commands itself takes `@rules_dart//dart` in `data`.
@@ -193,6 +213,16 @@ def _dart_test_impl(ctx):
             ctx.attr.deps,
         )),
     ]
+
+def _short_path(f):
+    return f.short_path
+
+def _write_paths(ctx, output, files):
+    """Writes the `short_path` of each of `files` to `output`, one a line."""
+    paths = ctx.actions.args()
+    paths.set_param_file_format("multiline")
+    paths.add_all(files, map_each = _short_path, expand_directories = False)
+    ctx.actions.write(output = output, content = paths)
 
 def _code_assets(ctx, package, dill):
     """The test's code-asset mapping, and the libraries it names.
