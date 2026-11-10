@@ -1,0 +1,1 @@
+gazelle: dart: test/chrome_test.dart: @TestOn("chrome"): Gazelle maps the variables vm, dart-vm, browser, js, wasm, linux, mac-os, windows and posix onto Bazel platforms, not "chrome"; state `target_compatible_with` by hand and mark it `# keep`

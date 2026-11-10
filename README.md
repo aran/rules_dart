@@ -939,6 +939,37 @@ removes:
     ],
 ```
 
+#### Test platforms
+
+A test file's package:test `@TestOn` becomes its `dart_test`'s
+`target_compatible_with`, so that Bazel skips the test on a platform
+package:test would not run it on, rather than failing it: `dart test` on a
+file whose `@TestOn` excludes the platform finds no tests and fails.
+
+```dart
+@TestOn('vm && !windows')
+library;
+```
+
+```starlark
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": ["@rules_dart//dart/constraints:vm"],
+    }),
+```
+
+Gazelle evaluates the selector as package:test does, over the platforms a
+`dart_test` is built for: the Dart VM on Linux, macOS, Windows or another OS,
+and the web platforms, which carry the `@rules_dart//dart/constraints:runtime`
+value `js` or `wasm` and, as a browser has for package:test, no OS. It maps
+`vm` (and `dart-vm`), `browser`, `js`, `wasm`, `linux`, `mac-os`, `windows`
+and `posix`; a selector naming anything else (a browser by name, a compiler,
+`android`), or accepting a set of platforms no list or single `select()`
+states, fails the run, naming the file. Write the attribute by hand then,
+marked `# keep`, as for any attribute Gazelle manages; Gazelle logs a
+`target_compatible_with` it removes. A workspace whose tests name an OS needs
+`bazel_dep(name = "platforms", ...)` for the `@platforms` labels.
+
 #### Analysis options
 
 For every directory holding an `analysis_options.yaml`, Gazelle emits a

@@ -135,6 +135,7 @@ func (d *dartLang) generateDartRules(args language.GenerateArgs) language.Genera
 		if len(tags) > 0 {
 			r.SetAttr("tags", tags)
 		}
+		d.setTestPlatforms(args, f, r)
 		gen = append(gen, r)
 		imports = append(imports, collectRepoImports(args, files))
 	}

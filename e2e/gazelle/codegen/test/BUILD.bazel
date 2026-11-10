@@ -38,6 +38,18 @@ dart_test(
 )
 
 dart_test(
+    name = "browser_only_test",
+    main = "browser_only_test.dart",
+    target_compatible_with = select({
+        "@rules_dart//dart/constraints:vm": [
+            "@platforms//:incompatible",
+        ],
+        "//conditions:default": [],
+    }),
+    deps = ["@pub_deps//:test"],
+)
+
+dart_test(
     name = "address_test",
     main = "address_test.dart",
     deps = [

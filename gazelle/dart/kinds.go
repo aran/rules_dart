@@ -92,6 +92,9 @@ var _primitiveDartKinds = map[string]rule.KindInfo{
 		// a tag removed from the source leaves the target. A tag written by
 		// hand stays only with `# keep`, as for any managed attribute. main
 		// is too, so a test made of a helper can be deleted (helperTests).
+		// target_compatible_with, which holds the platforms of the file's
+		// @TestOn, is managed too, but by test_on.go: Gazelle's merger
+		// merges no select but rules_go's.
 		MergeableAttrs: map[string]bool{
 			"main": true,
 			"srcs": true,

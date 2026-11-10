@@ -1,0 +1,78 @@
+load("@rules_dart//dart:defs.bzl", "dart_test")
+
+dart_test(
+    name = "untagged_test",
+    main = "untagged_test.dart",
+)
+
+dart_test(
+    name = "kept_test",
+    main = "kept_test.dart",
+    target_compatible_with = ["@platforms//:incompatible"],  # keep
+)
+
+dart_test(
+    name = "vm_test",
+    main = "vm_test.dart",
+    target_compatible_with = ["@rules_dart//dart/constraints:vm"],
+)
+
+dart_test(
+    name = "anywhere_test",
+    main = "anywhere_test.dart",
+)
+
+dart_test(
+    name = "browser_test",
+    main = "browser_test.dart",
+    target_compatible_with = select({
+        "@rules_dart//dart/constraints:vm": [
+            "@platforms//:incompatible",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dart_test(
+    name = "linux_test",
+    main = "linux_test.dart",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+dart_test(
+    name = "never_test",
+    main = "never_test.dart",
+    target_compatible_with = ["@platforms//:incompatible"],
+)
+
+dart_test(
+    name = "not_windows_test",
+    main = "not_windows_test.dart",
+    target_compatible_with = select({
+        "@platforms//os:windows": [
+            "@platforms//:incompatible",
+        ],
+        "//conditions:default": ["@rules_dart//dart/constraints:vm"],
+    }),
+)
+
+dart_test(
+    name = "posix_test",
+    main = "posix_test.dart",
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "@platforms//os:macos": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+)
+
+dart_test(
+    name = "web_test",
+    main = "web_test.dart",
+    target_compatible_with = select({
+        "@rules_dart//dart/constraints:vm": [
+            "@platforms//:incompatible",
+        ],
+        "//conditions:default": [],
+    }),
+)
