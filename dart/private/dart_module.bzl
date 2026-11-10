@@ -836,6 +836,19 @@ def dart_link_kernel_action(ctx, kernel_tool, entry, linked, output, kernel_list
     )
     return runfiles
 
+_OUTLINE_FLAG = "--@rules_dart//dart:outline_kernel=false"
+
+def _vm_outline_tool(ctx, sdk):
+    """The outline stripper of the outline toolchain, which must be of `sdk`'s version."""
+    toolchain = ctx.toolchains["//dart:outline_toolchain_type"]
+    if toolchain == None:
+        fail("%s: no outline toolchain (`@rules_dart//dart:outline_toolchain_type`) is registered for the Dart %s SDK. Register a `dart_outline_toolchain` built on that SDK's `pkg/kernel`, or build with %s to compile dependents against full kernels." % (ctx.label, sdk.version, _OUTLINE_FLAG))
+    if toolchain.outline_tool == None:
+        fail("%s: the outline toolchain of the Dart %s SDK has no `tool`, though `--@rules_dart//dart:outline_kernel` is on. Set its `tool`, or build with %s." % (ctx.label, toolchain.version, _OUTLINE_FLAG))
+    if toolchain.version != sdk.version:
+        fail("%s: the outline toolchain is of the Dart %s SDK, but the Dart toolchain is %s: its stripper reads only the kernels of its own SDK. Register the outline toolchain of the Dart %s SDK with its Dart toolchain (`dart_outline_toolchain`), or build with %s." % (ctx.label, toolchain.version, sdk.version, sdk.version, _OUTLINE_FLAG))
+    return toolchain.outline_tool
+
 def _vm_kernel_sdk_impl(ctx):
     sdk = ctx.toolchains["//dart:toolchain_type"].dart_sdk_info
     root = sdk.dart.dirname.rsplit("/", 1)[0]
@@ -875,16 +888,24 @@ def _vm_kernel_sdk_impl(ctx):
         libraries_target = "vm",
         # The tools read the files named above and nothing else of the SDK.
         tool_files = depset(),
-        outline_tool = ctx.attr.outline_tool[DefaultInfo].files_to_run if ctx.attr.outline_tool else None,
+        outline_tool = _vm_outline_tool(ctx, sdk) if getattr(ctx.attr, "outlines", False) else None,
     )]
 
 vm_kernel_sdk = rule(
     implementation = _vm_kernel_sdk_impl,
-    toolchains = ["//dart:toolchain_type"],
+    toolchains = [
+        "//dart:toolchain_type",
+        # Resolved even with `outlines` off, when its `tool` is unset.
+        config_common.toolchain_type("//dart:outline_toolchain_type", mandatory = False),
+    ],
     attrs = {
-        # Built for the platform this target is configured for: the host the
-        # modules compile on, since the aspect builds it in that exec group.
-        "outline_tool": attr.label(executable = True, cfg = "target"),
+        "outlines": attr.bool(doc = "Whether modules are stripped to outlines, with the outline toolchain's stripper: `--@rules_dart//dart:outline_kernel`."),
     },
-    doc = "The `DartKernelSdkInfo` for the Dart VM, from the resolved Dart toolchain.",
+    doc = "The `DartKernelSdkInfo` modules compile with for the Dart VM, from the resolved Dart toolchain and its outline toolchain.",
+)
+
+vm_program_kernel_sdk = rule(
+    implementation = _vm_kernel_sdk_impl,
+    toolchains = ["//dart:toolchain_type"],
+    doc = "The `DartKernelSdkInfo` whole programs compile with for the Dart VM, from the resolved Dart toolchain. Outlines are the modules' alone.",
 )

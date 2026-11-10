@@ -156,6 +156,7 @@ def toolchains_repo_impl(repository_ctx):
 # By default all these toolchains are registered by the dart_register_toolchains macro
 # so you don't normally need to interact with these targets.
 
+load("@rules_dart//dart:toolchain.bzl", "dart_outline_toolchain")
 """
 
     # Native toolchains: exec and target constraints match the same platform.
@@ -217,6 +218,28 @@ toolchain(
                 target_platform = target_platform,
             )
 
+    # The outline stripper of the same SDK, which reads the kernels it writes.
+    # Unset when `outline_kernel` is off, so its SDK source is not fetched.
+    build_content += """
+dart_outline_toolchain(
+    name = "outline",
+    tool = select({{
+        "@rules_dart//dart:is_outline_kernel": "@{user_repository_name}_kernel_source//:outline_tool",
+        "//conditions:default": None,
+    }}),
+    version = "{version}",
+)
+
+toolchain(
+    name = "outline_toolchain",
+    toolchain = ":outline",
+    toolchain_type = "@rules_dart//dart:outline_toolchain_type",
+)
+""".format(
+        user_repository_name = repository_ctx.attr.user_repository_name,
+        version = repository_ctx.attr.dart_version,
+    )
+
     repository_ctx.file("BUILD.bazel", build_content)
     return repository_ctx.repo_metadata(reproducible = True)
 
@@ -225,6 +248,7 @@ toolchains_repo = repository_rule(
     doc = """Creates a repository with toolchain definitions for all known platforms
      which can be registered or selected.""",
     attrs = {
+        "dart_version": attr.string(doc = "The Dart SDK version the toolchains are of.", mandatory = True),
         "user_repository_name": attr.string(doc = "what the user chose for the base name"),
     },
 )

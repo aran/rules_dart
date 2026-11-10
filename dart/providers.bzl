@@ -228,7 +228,7 @@ one. `runtimes` names each, and a compile asks for one by its name.""",
         "libraries_spec": "File or None: The `libraries.json` that lists the `dart:` libraries `target` provides, which modules are split by. None for a platform that compiles whole programs only.",
         "libraries_target": "str: The entry in `libraries_spec` to read (its `include` entries are followed).",
         "tool_files": "depset[File]: What the tools read at run time beyond the files named above; the actions take nothing else of the SDK. Empty for the VM, whose front end reads only its snapshot, its runtime and the platform.",
-        "outline_tool": "FilesToRunProvider or None: Writes the outlines dependents compile against (`outline_tool [--load <dill>]... [--module <dill> --outline <dill>]...`, or the same in an `@paramsfile`, one per line), run by the module action. None, or unset, compiles them against full modules.",
+        "outline_tool": "FilesToRunProvider or None: Writes the outlines dependents compile against (`outline_tool [--load <dill>]... [--module <dill> --outline <dill>]...`, or the same in an `@paramsfile`, one per line), run by the module action. It must be built on the `pkg/kernel` of the same SDK as `kernel_worker`, whose kernel format alone it reads: a `dart_kernel_source` repository's `:outline_tool` for a released Dart SDK. None, or unset, compiles them against full modules.",
     },
 )
 

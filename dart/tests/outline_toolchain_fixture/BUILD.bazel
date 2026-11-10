@@ -1,0 +1,47 @@
+load("//dart:toolchain.bzl", "dart_outline_toolchain")
+load("//dart/private:dart_module.bzl", "vm_kernel_sdk")
+load(":rules.bzl", "refuses_no_tool_test", "refuses_other_version_test")
+
+# The VM's kernel SDK with outlines on, given an outline toolchain that does not
+# fit its Dart toolchain: each is an error naming the flag that turns outlines
+# off, never compiles without them.
+vm_kernel_sdk(
+    name = "sdk",
+    outlines = True,
+    tags = ["manual"],
+)
+
+dart_outline_toolchain(
+    name = "other_version",
+    tool = "@dart_kernel_source//:outline_tool",
+    version = "0.0.0",
+)
+
+toolchain(
+    name = "other_version_toolchain",
+    toolchain = ":other_version",
+    toolchain_type = "//dart:outline_toolchain_type",
+)
+
+refuses_other_version_test(
+    name = "refuses_other_version_test",
+    size = "small",
+    target_under_test = ":sdk",
+)
+
+dart_outline_toolchain(
+    name = "no_tool",
+    version = "0.0.0",
+)
+
+toolchain(
+    name = "no_tool_toolchain",
+    toolchain = ":no_tool",
+    toolchain_type = "//dart:outline_toolchain_type",
+)
+
+refuses_no_tool_test(
+    name = "refuses_no_tool_test",
+    size = "small",
+    target_under_test = ":sdk",
+)

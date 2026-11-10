@@ -3,7 +3,9 @@
 /// Usage: dart run tool/fetch_sdk_hashes.dart <version>
 ///
 /// Prints the version's `versions.bzl` entries ready to paste: one for
-/// `TOOL_VERSIONS`, then one for `CROSS_TOOL_VERSIONS`.
+/// `TOOL_VERSIONS`, one for `CROSS_TOOL_VERSIONS`, then one for
+/// `SOURCE_VERSIONS`, the tag's source archive, downloaded twice to check
+/// GitHub serves it the same.
 /// Uses only dart:io and dart:convert — no pubspec needed.
 library;
 
@@ -94,6 +96,24 @@ Future<void> main(List<String> args) async {
     stdout.writeln('        "$file": "${crossHashes[file]}",');
   }
   stdout.writeln('    },');
+
+  final source =
+      'https://github.com/dart-lang/sdk/archive/refs/tags/$version.tar.gz';
+  final sourceClient = HttpClient();
+  final List<String?> sourceHashes;
+  try {
+    sourceHashes = [
+      await _hashUrl(sourceClient, source),
+      await _hashUrl(sourceClient, source),
+    ];
+  } finally {
+    sourceClient.close();
+  }
+  if (sourceHashes.first == null || sourceHashes.first != sourceHashes.last) {
+    stderr.writeln('$source has no stable SHA-256: $sourceHashes');
+    exit(1);
+  }
+  stdout.writeln('    "$version": "${sourceHashes.first}",');
 }
 
 String _releaseUrl(String version, String file) =>

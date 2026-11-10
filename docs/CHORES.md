@@ -11,12 +11,10 @@ file at runtime — keep file lists current as the repo evolves.
 
 **Files**:
 
-- `dart/private/versions.bzl` — add new version entry to `TOOL_VERSIONS` and to `CROSS_TOOL_VERSIONS`
-- `MODULE.bazel` — `dart.toolchain(dart_version = "...")`, and the SDK
-  source archive the outline stripper builds `pkg/kernel` from:
-  `_DART_SDK_SOURCE`, `_DART_SDK_SOURCE_SHA256` and both `strip_prefix`es,
-  and each `dart_library`'s `language_version` if that package's pubspec
-  raised its SDK constraint
+- `dart/private/versions.bzl` — add new version entry to `TOOL_VERSIONS`, to
+  `CROSS_TOOL_VERSIONS` and to `SOURCE_VERSIONS` (the source archive the
+  outline stripper builds `pkg/kernel` from)
+- `MODULE.bazel` — `dart.toolchain(dart_version = "...")`
 - `e2e/hello_world/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
 - `e2e/library_deps/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
 - `e2e/dart_test/MODULE.bazel` — `dart.toolchain(dart_version = "...")`
@@ -48,8 +46,10 @@ file at runtime — keep file lists current as the repo evolves.
 **Procedure**:
 
 1. Run `dart run tool/fetch_sdk_hashes.dart {version}` to get SHA-256 hashes
-2. Add its two entries to `dart/private/versions.bzl`: the SDK checksums to
-   `TOOL_VERSIONS`, the cross-compilation binaries' to `CROSS_TOOL_VERSIONS`
+2. Add its three entries to `dart/private/versions.bzl`: the SDK checksums to
+   `TOOL_VERSIONS`, the cross-compilation binaries' to `CROSS_TOOL_VERSIONS`,
+   the tag's source archive (downloaded twice, the two SHA-256s agreeing) to
+   `SOURCE_VERSIONS`
 3. Update `dart_version` in all MODULE.bazel files listed above
 4. Update version references in `README.md`
 5. Update `dart/tests/versions_test.bzl` (asserted version key)
@@ -63,10 +63,8 @@ file at runtime — keep file lists current as the repo evolves.
    launches it (`dart/private/tools/analysis_server.dart`,
    `dart/private/tools/server_analyzer.dart`) and breaks if it is gone, as
    dart-lang/sdk#63978 proposes by replacing app-JIT snapshots with AOT ones
-8. Re-pin the outline stripper's `pkg/kernel`: download
-   `https://github.com/dart-lang/sdk/archive/refs/tags/{version}.tar.gz` twice
-   and check the two SHA-256s agree before writing it into `MODULE.bazel`.
-   Build `//dart/private/tools:outline_tool`: a new `ProcedureStubKind` or
+8. Build the outline stripper on the new SDK's `pkg/kernel`,
+   `@dart_kernel_source//:outline_tool`: a new `ProcedureStubKind` or
    other API change fails its compile, and must be classified in
    `kernel_outline.dart`, not defaulted. Read the VM's modular transforms
    (`pkg/vm/lib/modular/target/vm.dart`, `performModularTransformationsOnLibraries`)

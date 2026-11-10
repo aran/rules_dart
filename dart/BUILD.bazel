@@ -74,18 +74,21 @@ bool_flag(
 # keeps its source positions in its outline, so an edit there that moves code
 # recompiles its dependents too. Off, they compile against full kernels:
 #   bazel test //... --@rules_dart//dart:outline_kernel=false
-# The outlines are made with the `pkg/kernel` of the Dart SDK rules_dart pins,
-# so with another SDK whose kernel format differs, this must be off.
+# The outlines are made with the `pkg/kernel` of the SDK that compiled the
+# modules: the outline toolchain (`:outline_toolchain_type`) of the Dart SDK.
 bool_flag(
     name = "outline_kernel",
     build_setting_default = True,
     visibility = ["//visibility:public"],
 )
 
+# On when `outline_kernel` is: a kernel SDK selects its outline tool on it,
+# so that with the flag off the tool, and the SDK source it is built from, are
+# not fetched.
 config_setting(
     name = "is_outline_kernel",
     flag_values = {":outline_kernel": "true"},
-    visibility = ["//dart/private:__pkg__"],
+    visibility = ["//visibility:public"],
 )
 
 # On (the default), the `dart_analyze` aspect's analyze and fix actions run in
@@ -118,6 +121,14 @@ toolchain_type(
     visibility = ["//visibility:public"],
 )
 
+# The outline stripper of a Dart SDK, for `outline_kernel`: a
+# `dart_outline_toolchain`, built on that SDK's own `pkg/kernel`. The `dart`
+# extension registers one with each Dart toolchain.
+toolchain_type(
+    name = "outline_toolchain_type",
+    visibility = ["//visibility:public"],
+)
+
 resolved_toolchain(
     name = "resolved_toolchain",
     # Marked manual so that `bazel test //...` passes
@@ -142,6 +153,7 @@ bzl_library(
     deps = [
         "//dart/private:toolchains_repo",
         "//dart/private:versions",
+        "//dart/pub:pubspec",
     ],
 )
 

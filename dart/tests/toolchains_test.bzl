@@ -15,7 +15,7 @@ load(
     "TARGET_PLATFORMS",
     "cross_tool_files",
 )
-load("//dart/private:versions.bzl", "CROSS_TOOL_VERSIONS", "TOOL_VERSIONS")
+load("//dart/private:versions.bzl", "CROSS_TOOL_VERSIONS", "SOURCE_VERSIONS", "TOOL_VERSIONS")
 load(":small_suite.bzl", "small_unittest_suite")
 
 # Dart's `--target-arch` vocabulary (`dart compile exe --help`).
@@ -172,11 +172,26 @@ def _cross_checksums_cover_every_pair_test_impl(ctx):
 
     return unittest.end(env)
 
+def _sources_cover_every_version_test_impl(ctx):
+    env = unittest.begin(ctx)
+
+    # Every toolchain registers the outline stripper of its own version, and
+    # `dart_kernel_source` does SOURCE_VERSIONS[version], which hard errors on
+    # a miss.
+    asserts.equals(
+        env,
+        sorted(TOOL_VERSIONS.keys()),
+        sorted(SOURCE_VERSIONS.keys()),
+        "SOURCE_VERSIONS must pin exactly the TOOL_VERSIONS versions",
+    )
+    return unittest.end(env)
+
 _t0_test = unittest.make(_target_platforms_is_the_union_test_impl)
 _t1_test = unittest.make(_cross_targets_resolve_test_impl)
 _t2_test = unittest.make(_platform_metadata_shape_test_impl)
 _t3_test = unittest.make(_checksums_cover_every_host_test_impl)
 _t4_test = unittest.make(_cross_checksums_cover_every_pair_test_impl)
+_t5_test = unittest.make(_sources_cover_every_version_test_impl)
 
 def toolchains_test_suite(name):
-    small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test, _t4_test)
+    small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test, _t4_test, _t5_test)

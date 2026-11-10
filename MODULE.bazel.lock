@@ -295,7 +295,7 @@
   "moduleExtensions": {
     "//dart/pub:extensions.bzl%pub": {
       "general": {
-        "bzlTransitiveDigest": "7c+Z8eAM5+BYyTiK33NCMdw2zt9Z8chK/wqPe/VhH94=",
+        "bzlTransitiveDigest": "ffF8dDRnWAktVTn/ryfpHYRWaCJhx+I2PASYiLZZFsI=",
         "usagesDigest": "0+3c4sSN2vc7x1/y7HdP42yAhA9LS1h/fRTJdUpRt4g=",
         "recordedInputs": [
           "REPO_MAPPING:,bsd_tar_toolchains_darwin_amd64 tar.bzl++toolchains+bsd_tar_toolchains_darwin_amd64",

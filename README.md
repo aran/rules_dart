@@ -239,10 +239,12 @@ links. A library's dependents compile against its modules' outlines, which
 leave out function bodies, so an edit inside a body recompiles that library
 alone, plus the links of the tests that reach it. In a file that declares a
 mixin, an edit that moves code also recompiles the library's dependents. The
-outlines are made with the SDK source of the Dart version rules_dart pins. With
-an SDK whose kernel format differs, the build fails and says so; turn them off
-with `--@rules_dart//dart:outline_kernel=false`, and dependents compile against
-full kernels.
+outlines are made by a stripper built on the source of the same Dart SDK as
+the compiler, which each Dart toolchain registers beside it. With a Dart SDK of
+your own (a fork, a local build), register a `dart_outline_toolchain` built on
+its `pkg/kernel`, or turn outlines off with
+`--@rules_dart//dart:outline_kernel=false`, and dependents compile against full
+kernels.
 
 A test's program is a kernel list: a small text file naming the kernels it
 reaches, its entrypoint's first, which the Dart VM loads as one program. Each
@@ -1079,7 +1081,7 @@ Every command-line setting rules_dart reads. Set one per invocation or in
 | `--@rules_dart//dart:extra_dart_defines=KEY=VALUE` | none    | Adds an environment declaration to every Dart compile, after target `defines`; repeat for more.                                                               |
 | `--@rules_dart//dart:kernel_list`                  | on      | Runs each test from a kernel list naming the kernels it reaches; off stores one joined kernel per test.                                                       |
 | `--@rules_dart//dart:modular_kernel`               | on      | Compiles each library once into kernel modules that tests link; off compiles each test's whole program from source and stops checking imports against `deps`. |
-| `--@rules_dart//dart:outline_kernel`               | on      | Compiles dependents against outlines of their dependencies' modules; turn off with a Dart SDK whose kernel format differs from the one rules_dart pins.       |
+| `--@rules_dart//dart:outline_kernel`               | on      | Compiles dependents against outlines of their dependencies' modules, made by the outline toolchain of the Dart SDK; off compiles them against full kernels.   |
 | `--@rules_dart//dart:runner_snapshot`              | off     | Starts the `package:test` runner from a snapshot cached on the machine (see [Tests](#tests)); off starts it from its kernel and touches no cache.             |
 | `--@rules_dart//dart:track_creation_locations`     | off     | Compiles VM kernels with `--track-creation-locations` (`--track-widget-creation`).                                                                            |
 

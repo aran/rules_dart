@@ -354,21 +354,19 @@ dart_test(
 )
 
 # Strips a target's kernel modules to the outlines dependents compile against
-# (`--@rules_dart//dart:outline_kernel`). Built on the pinned SDK tag's own
-# `pkg/kernel`, which must match the SDK whose modules it reads.
-dart_binary(
-    name = "outline_tool",
-    compile_mode = "exe",
-    main = "kernel_outline.dart",
-    visibility = ["//dart:__subpackages__"],
-    deps = ["@dart_sdk_pkg_kernel//:kernel"],
+# (`--@rules_dart//dart:outline_kernel`). Each `dart_kernel_source` repository
+# builds it on its own SDK's `pkg/kernel`, which must match the SDK whose
+# modules it reads; so may a rule set or a user with an SDK of their own.
+exports_files(
+    ["kernel_outline.dart"],
+    visibility = ["//visibility:public"],
 )
 
 dart_test(
     name = "kernel_outline_test",
     size = "small",
-    args = ["$(rlocationpath :outline_tool)"],
-    data = [":outline_tool"],
+    args = ["$(rlocationpath @dart_kernel_source//:outline_tool)"],
+    data = ["@dart_kernel_source//:outline_tool"],
     main = "kernel_outline_test.dart",
     deps = [
         "//dart/runfiles",

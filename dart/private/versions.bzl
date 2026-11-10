@@ -382,3 +382,22 @@ CROSS_TOOL_VERSIONS = {
         "gen_snapshot_windows_x64_linux_x64.exe": "8d0ca89363b25154539fa29b510dfc6a76cad8e216bee028e3a7224a18dbaf80",
     },
 }
+
+# The SHA-256 of each version's source archive, GitHub's tarball of the SDK's
+# release tag (https://github.com/dart-lang/sdk/archive/refs/tags/<version>.tar.gz),
+# from which `dart_kernel_source` builds the outline stripper on that SDK's own
+# `pkg/kernel`.
+SOURCE_VERSIONS = {
+    "3.13.7": "cd2a1450f33cfeb35f180d33b836ab92a663d1335ee7f953ae3ebcb20308c99d",
+    "3.13.5": "2da077bf89f3a14ae5a741728549371d87013265df49b8cace6475bd9ffc59e3",
+    "3.13.4": "8a6040a7998e157e4ff6ec29141a78478aac000b372a2b065a9c53ba40cf8fa9",
+    "3.13.2": "e44d88417ebac2037ec26e06bbda2ba00f2dfb60c4fcf20191a5b1f8a9fdbc03",
+    "3.12.2": "e84861c0a725990b6efbec1ec3be7cbf38352983871f8e74c3d42bc259a0a0d8",
+    "3.12.1": "75aeca0e067865646636ffc8cfd4f1763b29bc75692ae6ed5ee69de8ec674e22",
+    "3.12.0": "c5eac0499935b6c13189a03d502a8e6aa0afa8c299a0458258d97f4234ccf512",
+    "3.11.5": "0e7029c6ba63c45a43357f5f3e8890f6798827c1433a14b92962f8a688afdf6f",
+    "3.11.4": "3f96cd6bfc2b1fcdc6f512b5250e99ba14ead0c6d61f087f42197336d8eab5dc",
+    "3.11.2": "570097d227e9bb48aa71a81df9d6613a53ee26051bddb33784b01fe13aa5c46c",
+    "3.11.1": "b7ba1476aa4d3930eb81a3ac9a86dd0c23d2963142addfbca80c505165824a71",
+    "3.11.0": "29db2d6db7fdbb90d6266bbdf2f5d9f587517bd98bc2a99ec0e1c20aa6dd0936",
+}

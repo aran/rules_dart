@@ -1,7 +1,7 @@
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@bazel_skylib//rules:common_settings.bzl", "bool_setting", "string_list_setting", "string_setting")
 load(":dart_analyze_aspect.bzl", "dart_analysis_config")
-load(":dart_module.bzl", "vm_kernel_sdk")
+load(":dart_module.bzl", "vm_kernel_sdk", "vm_program_kernel_sdk")
 load(":runtime.bzl", "target_runtime")
 
 bzl_library(
@@ -309,17 +309,16 @@ alias(
 
 vm_kernel_sdk(
     name = "vm_kernel_sdk",
-    # Unset when the flag is off, so the SDK source it builds from is not fetched.
-    outline_tool = select({
-        "//dart:is_outline_kernel": "//dart/private/tools:outline_tool",
-        "//conditions:default": None,
+    outlines = select({
+        "//dart:is_outline_kernel": True,
+        "//conditions:default": False,
     }),
     visibility = ["//visibility:public"],
 )
 
-# What executables compile their whole program with. The outline tool is the
-# modules' alone, and is itself a `dart_binary`.
-vm_kernel_sdk(
+# What executables compile their whole program with. It resolves no outline
+# toolchain, whose stripper is itself a `dart_binary`.
+vm_program_kernel_sdk(
     name = "vm_program_kernel_sdk",
     visibility = ["//visibility:public"],
 )

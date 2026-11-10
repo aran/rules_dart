@@ -56,7 +56,7 @@ def _cross_tools_are_reproducible_test_impl(ctx):
 
 def _toolchains_are_reproducible_test_impl(ctx):
     env = unittest.begin(ctx)
-    metadata = toolchains_repo_impl(_context(user_repository_name = "dart"))
+    metadata = toolchains_repo_impl(_context(user_repository_name = "dart", dart_version = TOOL_VERSIONS.keys()[0]))
     asserts.true(env, metadata and metadata.reproducible, "toolchains repository")
     return unittest.end(env)
 

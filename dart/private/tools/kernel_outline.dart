@@ -80,9 +80,10 @@ void main(List<String> argv) {
     stderr.writeln('$reading $e, which the outline stripper does not know.');
   } on InvalidKernelVersionError catch (e) {
     stderr.writeln(
-      '$reading is kernel format ${e.version}; the outline stripper reads '
-      'only format ${Tag.BinaryFormatVersion}, that of the Dart SDK rules_dart '
-      'pins.',
+      '$reading is kernel format ${e.version}; this outline stripper reads '
+      'only format ${Tag.BinaryFormatVersion}, that of the Dart SDK whose '
+      'pkg/kernel it is built on. A kernel SDK\'s outline tool must be built '
+      'from the same SDK as its compiler.',
     );
   }
   stderr.writeln(
