@@ -1,0 +1,112 @@
+load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library")
+load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_library")
+
+dart_codegen(
+    name = "_event_freezed_gen",
+    package_name = "codegen",
+    src = "event.dart",
+    generator_bin = "@rules_dart//dart/ext/freezed:shim",
+    language_version = "3.11",
+    output_suffixes = [".freezed.dart"],
+    deps = ["@pub_deps//:freezed_annotation"],
+)
+
+dart_codegen(
+    name = "_event_json_serializable_gen",
+    package_name = "codegen",
+    src = "event.dart",
+    asset_deps = [":_event_freezed_gen"],
+    generator_bin = "@rules_dart//dart/ext/json_serializable:shim",
+    language_version = "3.11",
+    output_suffixes = [".json_serializable.g.part"],
+    deps = [
+        "@pub_deps//:freezed_annotation",
+        "@pub_deps//:json_annotation",
+    ],
+)
+
+dart_codegen(
+    name = "_event_combined",
+    package_name = "codegen",
+    src = "event.dart",
+    generator_bin = "@rules_dart//dart/ext/_shared/combining_shim:bin",
+    language_version = "3.11",
+    output_suffixes = [".g.dart"],
+    parts = [":_event_json_serializable_gen"],
+)
+
+dart_library(
+    name = "event",
+    package_name = "codegen",
+    srcs = [
+        "event.dart",
+        ":_event_combined",
+        ":_event_freezed_gen",
+    ],
+    language_version = "3.11",
+    visibility = ["//visibility:public"],
+    deps = ["@pub_deps//:freezed_annotation"],
+)
+
+dart_codegen(
+    name = "_profile_copy_with_gen",
+    package_name = "codegen",
+    src = "profile.dart",
+    generator_bin = "@rules_dart//dart/ext/copy_with_extension_gen:shim",
+    language_version = "3.11",
+    output_suffixes = [".copy_with_extension_gen.g.part"],
+    deps = [
+        "@pub_deps//:copy_with_extension",
+        "@pub_deps//:json_annotation",
+    ],
+)
+
+dart_codegen(
+    name = "_profile_json_serializable_gen",
+    package_name = "codegen",
+    src = "profile.dart",
+    generator_bin = "@rules_dart//dart/ext/json_serializable:shim",
+    language_version = "3.11",
+    output_suffixes = [".json_serializable.g.part"],
+    deps = [
+        "@pub_deps//:copy_with_extension",
+        "@pub_deps//:json_annotation",
+    ],
+)
+
+dart_codegen(
+    name = "_profile_combined",
+    package_name = "codegen",
+    src = "profile.dart",
+    generator_bin = "@rules_dart//dart/ext/_shared/combining_shim:bin",
+    language_version = "3.11",
+    output_suffixes = [".g.dart"],
+    parts = [
+        ":_profile_copy_with_gen",
+        ":_profile_json_serializable_gen",
+    ],
+)
+
+dart_library(
+    name = "profile",
+    package_name = "codegen",
+    srcs = [
+        "profile.dart",
+        ":_profile_combined",
+    ],
+    language_version = "3.11",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@pub_deps//:copy_with_extension",
+        "@pub_deps//:json_annotation",
+    ],
+)
+
+json_serializable_library(
+    name = "user",
+    package_name = "codegen",
+    srcs = ["user.dart"],
+    language_version = "3.11",
+    visibility = ["//visibility:public"],
+    deps = ["@pub_deps//:json_annotation"],
+)

@@ -21,6 +21,10 @@ type pipelineStage struct {
 	// PartShards lists prior-stage IDs whose `.g.part` outputs this
 	// combining stage merges. Empty for non-combining stages.
 	PartShards []string
+	// After lists the IDs of the prior stages this one has an edge from:
+	// the builders whose outputs it reads (consumes/produces) or that must
+	// run before it (runs_before). Empty for the combining stage.
+	After []string
 	// ID is the unique node ID of this stage within the pipeline graph.
 	// Non-combining stages use `(annotation, primary-produced-ext)` to
 	// disambiguate multiple builders that watch the same annotation
@@ -75,6 +79,7 @@ func buildPipelineForFile(
 	//   2. runs_before — explicit override (refers to annotation names).
 	indegree := map[string]int{}
 	adj := map[string][]string{}
+	preds := map[string][]string{}
 	byID := map[string]*builderInfo{}
 	type edge struct{ from, to string }
 	seenEdge := map[edge]bool{}
@@ -100,6 +105,7 @@ func buildPipelineForFile(
 		}
 		seenEdge[e] = true
 		adj[fromID] = append(adj[fromID], toID)
+		preds[toID] = append(preds[toID], fromID)
 		indegree[toID]++
 	}
 
@@ -167,6 +173,7 @@ func buildPipelineForFile(
 		stages = append(stages, pipelineStage{
 			Builder:    b,
 			OutputExts: append([]string(nil), b.Produces...),
+			After:      sortedCopy(preds[id]),
 			ID:         id,
 		})
 		if b.SharedPart {
@@ -194,4 +201,13 @@ func nodeKey(b *builderInfo) string {
 		primary = b.Produces[0]
 	}
 	return b.Annotation + "|" + primary
+}
+
+func sortedCopy(s []string) []string {
+	if len(s) == 0 {
+		return nil
+	}
+	out := append([]string(nil), s...)
+	sort.Strings(out)
+	return out
 }

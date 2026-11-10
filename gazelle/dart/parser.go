@@ -400,8 +400,9 @@ var builtInterfaceRe = regexp.MustCompile(
 // ParseDartCodegenTriggers returns every codegen trigger in the file at
 // path: all annotations (as ParseDartAnnotations) plus a synthetic
 // "BuiltValue" entry when the source implements `Built<T, B>` — idiomatic
-// built_value classes are annotation-free. The synthetic entry is only
-// appended when "BuiltValue" isn't already present as a real annotation.
+// built_value classes are annotation-free — and a synthetic
+// "JsonSerializable" entry for a freezed class with JSON (freezedJSONRe).
+// A synthetic entry is only appended when the real annotation is absent.
 func ParseDartCodegenTriggers(path string) ([]string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -412,20 +413,33 @@ func ParseDartCodegenTriggers(path string) ([]string, error) {
 	for _, m := range annotationRe.FindAllStringSubmatch(stripped, -1) {
 		out = append(out, m[1])
 	}
-	if builtInterfaceRe.MatchString(stripped) {
-		seen := false
+	has := func(names ...string) bool {
 		for _, a := range out {
-			if a == "BuiltValue" {
-				seen = true
-				break
+			for _, n := range names {
+				if a == n {
+					return true
+				}
 			}
 		}
-		if !seen {
-			out = append(out, "BuiltValue")
-		}
+		return false
+	}
+	if builtInterfaceRe.MatchString(stripped) && !has("BuiltValue") {
+		out = append(out, "BuiltValue")
+	}
+	if has("freezed", "Freezed") && freezedJSONRe.MatchString(stripped) &&
+		!has("JsonSerializable") {
+		out = append(out, "JsonSerializable")
 	}
 	return out, nil
 }
+
+// freezedJSONRe detects a freezed class that asks for JSON: a `fromJson`
+// factory, or `fromJson: true` / `toJson: true` on `@Freezed`. freezed then
+// writes a `@JsonSerializable` class into its `.freezed.dart`, which
+// json_serializable turns into the source's `.g.dart`, so the source needs
+// json_serializable though it names no annotation of its own.
+var freezedJSONRe = regexp.MustCompile(
+	`\bfactory\s+(?:[A-Za-z_$][\w$]*\.)?fromJson\s*\(|\b(?:fromJson|toJson)\s*:\s*true\b`)
 
 // partRe matches `part '<uri>';` directives (NOT `part of`). The
 // negative-lookahead-style filtering for `part of` is done at scan time.

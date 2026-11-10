@@ -25,6 +25,24 @@ def _src_token(src_label):
         s = s.split(":")[-1]
     return s.replace("/", "_").replace(".", "_").replace("-", "_")
 
+def with_annotation_dep(deps, annotation_dep):
+    """`deps` with a macro's `annotation_dep`, which they may already list.
+
+    A source that carries an annotation imports its package, so a `deps`
+    resolved from the imports (as Gazelle's are) names it already; Bazel
+    refuses a label listed twice.
+
+    Args:
+      deps: The macro's `deps`.
+      annotation_dep: The macro's `annotation_dep`.
+
+    Returns:
+      `deps`, with `annotation_dep` appended unless it is there.
+    """
+    if annotation_dep in deps:
+        return deps
+    return deps + [annotation_dep]
+
 def _siblings(srcs, src):
     """The macro's other sources, which the generator for `src` must see.
 
@@ -80,12 +98,12 @@ def shared_part_library(
       annotation_dep: Runtime annotation-library label
         (e.g. `@pub_deps//:json_annotation`).
       deps: Additional `dart_library`-shaped targets; `annotation_dep` is
-        added automatically.
+        added unless they list it.
       config: Optional builder options as a JSON string.
       **kwargs: Forwarded to the wrapping `dart_library` (which also
         receives `language_version`).
     """
-    codegen_deps = deps + [annotation_dep]
+    codegen_deps = with_annotation_dep(deps, annotation_dep)
     combined_targets = []
     for src in srcs:
         token = _src_token(src)
@@ -120,7 +138,7 @@ def shared_part_library(
     dart_library(
         name = name,
         srcs = srcs + combined_targets,
-        deps = deps + [annotation_dep],
+        deps = codegen_deps,
         package_name = package_name,
         language_version = language_version,
         package = package,
@@ -161,11 +179,11 @@ def library_builder_library(
         per input).
       annotation_dep: Runtime annotation-library label.
       deps: Additional `dart_library`-shaped targets; `annotation_dep`
-        is added automatically.
+        is added unless they list it.
       config: Optional builder options as a JSON string.
       **kwargs: Forwarded to the wrapping `dart_library`.
     """
-    codegen_deps = deps + [annotation_dep]
+    codegen_deps = with_annotation_dep(deps, annotation_dep)
     gen_targets = []
     for src in srcs:
         token = _src_token(src)
@@ -186,7 +204,7 @@ def library_builder_library(
     dart_library(
         name = name,
         srcs = srcs + gen_targets,
-        deps = deps + [annotation_dep],
+        deps = codegen_deps,
         package_name = package_name,
         language_version = language_version,
         package = package,

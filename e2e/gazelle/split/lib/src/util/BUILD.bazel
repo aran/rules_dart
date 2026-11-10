@@ -6,8 +6,3 @@ dart_library(
     srcs = ["util.dart"],
     visibility = ["//visibility:public"],
 )
-
-exports_files(
-    glob(["*"]),
-    visibility = ["//:__pkg__"],
-)

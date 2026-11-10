@@ -59,5 +59,8 @@ bzl_library(
     name = "defs",
     srcs = ["defs.bzl"],
     visibility = ["//visibility:public"],
-    deps = ["@rules_dart//dart:defs"],
+    deps = [
+        "@rules_dart//dart:defs",
+        "@rules_dart//dart/ext/_shared:defs",
+    ],
 )

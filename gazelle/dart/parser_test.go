@@ -380,6 +380,51 @@ abstract class User implements Built<User, UserBuilder> {}`,
 			want: []string{"BuiltValue"},
 		},
 		{
+			// freezed writes a @JsonSerializable class into its output for
+			// a class with a fromJson factory, so the source needs
+			// json_serializable though it names no annotation of its own.
+			name: "FreezedFromJsonFactoryNeedsJsonSerializable",
+			input: `@freezed
+abstract class Event with _$Event {
+  const factory Event({required String id}) = _Event;
+  factory Event.fromJson(Map<String, Object?> json) => _$EventFromJson(json);
+}`,
+			want: []string{"freezed", "JsonSerializable"},
+		},
+		{
+			name: "FreezedJsonFlagNeedsJsonSerializable",
+			input: `@Freezed(fromJson: true, toJson: true)
+abstract class Event with _$Event {
+  const factory Event({required String id}) = _Event;
+}`,
+			want: []string{"Freezed", "JsonSerializable"},
+		},
+		{
+			name: "FreezedWithoutJson",
+			input: `@freezed
+abstract class Point with _$Point {
+  const factory Point({required int x}) = _Point;
+}`,
+			want: []string{"freezed"},
+		},
+		{
+			name: "FreezedExplicitJsonSerializableNotDuplicated",
+			input: `@freezed
+@JsonSerializable()
+abstract class Event with _$Event {
+  factory Event.fromJson(Map<String, Object?> json) => _$EventFromJson(json);
+}`,
+			want: []string{"freezed", "JsonSerializable"},
+		},
+		{
+			// Without freezed, a fromJson factory is the user's own.
+			name: "FromJsonWithoutFreezed",
+			input: `class Plain {
+  factory Plain.fromJson(Map<String, Object?> json) => Plain();
+}`,
+			want: nil,
+		},
+		{
 			// @SerializersFor is annotation-driven (no Built<> clause);
 			// it must pass through untouched.
 			name: "SerializersForPassesThrough",

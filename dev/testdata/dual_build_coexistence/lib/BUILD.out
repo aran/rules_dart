@@ -6,6 +6,7 @@ json_serializable_library(
     name = "user",
     package_name = "dual_build_coexistence",
     srcs = ["user.dart"],
+    annotation_dep = "@json_annotation",
     visibility = ["//visibility:public"],
     deps = ["@json_annotation"],
 )

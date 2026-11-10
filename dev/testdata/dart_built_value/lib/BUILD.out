@@ -6,6 +6,7 @@ built_value_library(
     name = "user",
     package_name = "built_value_fixture",
     srcs = ["user.dart"],
+    annotation_dep = "@built_value",
     visibility = ["//visibility:public"],
     deps = ["@built_value"],
 )

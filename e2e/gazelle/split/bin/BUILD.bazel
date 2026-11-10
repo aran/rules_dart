@@ -5,8 +5,3 @@ dart_binary(
     main = "describe.dart",
     deps = ["//split/lib:split"],
 )
-
-exports_files(
-    glob(["*"]),
-    visibility = ["//:__pkg__"],
-)

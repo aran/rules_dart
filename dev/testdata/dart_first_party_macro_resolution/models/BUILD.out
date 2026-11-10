@@ -4,6 +4,7 @@ json_serializable_library(
     name = "models",
     package_name = "models",
     srcs = ["models.dart"],
+    annotation_dep = "@json_annotation",
     visibility = ["//visibility:public"],
     deps = ["@json_annotation"],
 )

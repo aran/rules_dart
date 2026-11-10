@@ -1,13 +1,24 @@
-load("@gazelle//:def.bzl", "gazelle_binary")
+load("@gazelle//:def.bzl", "gazelle", "gazelle_binary")
 load("@rules_dart//dart:defs.bzl", "dart_test")
 
-# Run by `gazelle_test` over copies of the sources below, never over this
-# workspace: the samples are its inputs and have no BUILD files of their own.
+# Gazelle writes the BUILD files of `codegen/` and `split/`, which this
+# workspace builds and tests; CI fails when `bazel run //:gazelle -- -mode=diff`
+# would change one. `gazelle_test` runs it over copies of the samples below,
+# which are its inputs and have no BUILD files of their own.
+# gazelle:exclude bin
+# gazelle:exclude lib
+# gazelle:exclude test
+# gazelle:exclude gazelle_test.dart
 gazelle_binary(
     name = "gazelle_bin",
     languages = [
         "@rules_dart_gazelle_plugin//dart",
     ],
+)
+
+gazelle(
+    name = "gazelle",
+    gazelle = ":gazelle_bin",
 )
 
 _SAMPLES = [
@@ -22,38 +33,12 @@ _SAMPLES = [
     "test/greeter_test.dart",
 ]
 
-# A package split over one BUILD file per directory of its `lib/`, checked in
-# as Gazelle generates it: `gazelle_test` regenerates the BUILD files from the
-# sources and compares, and `bazel test //split/...` builds them.
-_SPLIT_SOURCES = [
-    "//split/bin:describe.dart",
-    "//split/lib:a.dart",
-    "//split/lib/src/model:model.dart",
-    "//split/lib/src/util:util.dart",
-    "split/pubspec.yaml",
-    "//split/test:split_test.dart",
-]
-
-_SPLIT_GOLDENS = [
-    "//split/bin:BUILD.bazel",
-    "//split/lib:BUILD.bazel",
-    "//split/lib/src/model:BUILD.bazel",
-    "//split/lib/src/util:BUILD.bazel",
-    "//split/test:BUILD.bazel",
-]
-
-_SPLIT_ARGS = ["--split"] + [
-    "$(rlocationpath %s)" % f
-    for f in _SPLIT_SOURCES + _SPLIT_GOLDENS
-]
-
 dart_test(
     name = "gazelle_test",
     size = "small",
     args = ["$(rlocationpath :gazelle_bin)"] +
-           ["$(rlocationpath %s)" % f for f in _SAMPLES] +
-           _SPLIT_ARGS,
-    data = _SAMPLES + _SPLIT_SOURCES + _SPLIT_GOLDENS + [":gazelle_bin"],
+           ["$(rlocationpath %s)" % f for f in _SAMPLES],
+    data = _SAMPLES + [":gazelle_bin"],
     main = "gazelle_test.dart",
     deps = ["@rules_dart//dart/runfiles"],
 )

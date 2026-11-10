@@ -12,16 +12,20 @@ dart_codegen(
     generator_bin = "@rules_dart//dart/ext/freezed:shim",
     output_suffixes = [".freezed.dart"],
     package = ":pkg",
-    deps = ["@pub_deps//:freezed_annotation"],
+    deps = ["@freezed_annotation"],
 )
 
 dart_codegen(
     name = "_event_json_serializable_gen",
     src = "event.dart",
+    asset_deps = [":_event_freezed_gen"],
     generator_bin = "@rules_dart//dart/ext/json_serializable:shim",
     output_suffixes = [".json_serializable.g.part"],
     package = ":pkg",
-    deps = ["@pub_deps//:json_annotation"],
+    deps = [
+        "@freezed_annotation",
+        "@json_annotation",
+    ],
 )
 
 dart_codegen(

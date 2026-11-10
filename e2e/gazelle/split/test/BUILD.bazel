@@ -8,8 +8,3 @@ dart_test(
         "//split/lib/src/model",
     ],
 )
-
-exports_files(
-    glob(["*"]),
-    visibility = ["//:__pkg__"],
-)

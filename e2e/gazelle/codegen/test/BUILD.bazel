@@ -1,0 +1,28 @@
+load("@rules_dart//dart:defs.bzl", "dart_test")
+
+dart_test(
+    name = "event_test",
+    main = "event_test.dart",
+    deps = [
+        "//codegen/lib:event",
+        "@pub_deps//:test",
+    ],
+)
+
+dart_test(
+    name = "profile_test",
+    main = "profile_test.dart",
+    deps = [
+        "//codegen/lib:profile",
+        "@pub_deps//:test",
+    ],
+)
+
+dart_test(
+    name = "user_test",
+    main = "user_test.dart",
+    deps = [
+        "//codegen/lib:user",
+        "@pub_deps//:test",
+    ],
+)

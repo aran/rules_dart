@@ -1,0 +1,8 @@
+name: codegen
+environment:
+  sdk: ^3.11.0
+dependencies:
+  copy_with_extension: ^18.0.0
+  freezed_annotation: ^3.1.0
+  json_annotation: ^4.9.0
+  test: ^1.25.0

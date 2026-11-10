@@ -97,6 +97,27 @@ func TestBuildPipelineForFile(t *testing.T) {
 		if stages[1].Builder.Annotation != "JsonSerializable" {
 			t.Errorf("stage[1] = %#v", stages[1])
 		}
+		// json_serializable comes after freezed, whose output it reads.
+		if len(stages[0].After) != 0 {
+			t.Errorf("stage[0].After = %v, want none", stages[0].After)
+		}
+		if got := stages[1].After; len(got) != 1 || got[0] != stages[0].ID {
+			t.Errorf("stage[1].After = %v, want [%s]", got, stages[0].ID)
+		}
+	})
+
+	t.Run("independent builders come after nothing", func(t *testing.T) {
+		stages, err := buildPipelineForFile(
+			[]string{"JsonSerializable", "CopyWith"},
+			registryWith(jsonInfo, copyInfo))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, s := range stages {
+			if len(s.After) != 0 {
+				t.Errorf("%s: After = %v, want none", s.ID, s.After)
+			}
+		}
 	})
 
 	t.Run("non-SharedPart needs no combining stage", func(t *testing.T) {

@@ -78,7 +78,10 @@ bazel test //...
 The Gazelle plugin is the `rules_dart_gazelle_plugin` module in `gazelle/`,
 which `//...` does not reach. Its tests run from the root workspace,
 `bazel test @rules_dart_gazelle_plugin//... @rules_dart_dev//...`, and its
-generation tests are also in the `e2e/gazelle` workspace.
+generation tests are also in the `e2e/gazelle` workspace. There Gazelle writes
+the BUILD files of `codegen/` and `split/`, which that workspace builds and
+tests; run `bazel run //:gazelle` in it after changing the plugin, and CI fails
+when it would change a BUILD file.
 
 ### End-to-end tests (separate Bazel workspaces)
 

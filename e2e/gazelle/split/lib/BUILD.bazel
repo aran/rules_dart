@@ -10,8 +10,3 @@ dart_library(
         "//split/lib/src/util",
     ],
 )
-
-exports_files(
-    glob(["*"]),
-    visibility = ["//:__pkg__"],
-)

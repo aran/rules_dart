@@ -29,6 +29,7 @@ load(
     "dart_library",
     "dart_sqlcodegen",
 )
+load("@rules_dart//dart/ext/_shared:defs.bzl", "with_annotation_dep")
 
 def _token(s):
     t = s
@@ -60,11 +61,11 @@ def drift_library(
         can satisfy `readDiscovery` / `readElementCacheFor` when the main
         builder resolves `include:` / cross-file references.
       deps: Additional `dart_library`-shaped targets; `annotation_dep` is
-        added automatically.
+        added unless they list it.
       annotation_dep: Runtime drift library label.
       **kwargs: Forwarded to the wrapping `dart_library`.
     """
-    effective_deps = deps + [annotation_dep]
+    effective_deps = with_annotation_dep(deps, annotation_dep)
 
     # Stage 1: PreprocessBuilder per `.drift`/`.moor`.
     # Upstream declares BOTH outputs — `.drift_prep.json` (consumed by

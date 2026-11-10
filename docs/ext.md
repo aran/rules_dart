@@ -306,7 +306,15 @@ codegen chain:
   see only this.)
 - **Multi-annotation chain** → topologically sort by
   `consumes`/`produces` and `runs_before`, emit a chain of
-  `dart_codegen` + combining + `dart_library`.
+  `dart_codegen` + combining + `dart_library`. Each stage depends on what
+  the source imports and on its builder's runtime package; a stage after a
+  builder that writes part of the library (freezed's `.freezed.dart`) reads
+  that output through `asset_deps`. A freezed class with a `fromJson`
+  factory, or `fromJson: true` / `toJson: true` on `@Freezed`, counts as
+  `@JsonSerializable` too, since freezed writes a `@JsonSerializable` class
+  for json_serializable to complete.
+- **A source whose builders change** → the macro or chain library of the
+  same name replaces the other, and the chain's stages go.
 - **Fan-out annotation** (e.g. `@StackedApp` drives five sub-builders)
   → emit one `dart_codegen` primitive per sub-builder, plus a wrapping
   `dart_library` with every generated output in `srcs`.
@@ -323,7 +331,9 @@ tune _registered_ builders:
 
 - `# gazelle:dart_builder_runtime_dep <Annotation> <label>` overrides
   the runtime Dart library the emitted `dart_library` depends on
-  (useful when you've forked e.g. `json_annotation`).
+  (useful when you've forked e.g. `json_annotation`). Without it, the
+  runtime package resolves as an import of it would, and a macro states it
+  as `annotation_dep` where that is not the macro's default.
 - `# gazelle:dart_builder_config <Annotation> <json-string>` sets the
   builder's `BuilderOptions`. Equivalent to build.yaml's `options:`
   block. Applies to every sub-builder of a fanned-out annotation.

@@ -8,6 +8,7 @@ json_serializable_library(
     name = "user",
     package_name = "builder_config_fixture",
     srcs = ["user.dart"],
+    annotation_dep = "@json_annotation",
     config = "{\"field_rename\": \"snake\"}",
     language_version = "3.11",
     visibility = ["//visibility:public"],

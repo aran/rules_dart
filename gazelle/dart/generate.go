@@ -141,8 +141,13 @@ func (d *dartLang) generateDartRules(args language.GenerateArgs) language.Genera
 			flatBuilders[0].Macro != "" {
 			macroRule := buildMacroRule(args, f, flatBuilders[0])
 			if macroRule != nil {
+				is := collectImports(args, []DartFileInfo{f})
+				if b := flatBuilders[0]; b.RuntimeDep == defaultRuntimeDeps[nodeKey(b)] {
+					is.annotationPackage = runtimePackage(b)
+					is.annotationDefault = b.RuntimeDep
+				}
 				gen = append(gen, macroRule)
-				imports = append(imports, collectImports(args, []DartFileInfo{f}))
+				imports = append(imports, is)
 				continue
 			}
 		}
@@ -154,8 +159,20 @@ func (d *dartLang) generateDartRules(args language.GenerateArgs) language.Genera
 		}
 		emitted, libSrcs := emitCodegenStages(args, f, stages)
 		gen = append(gen, emitted...)
-		for range emitted {
-			imports = append(imports, nil)
+		// A generator resolves the source, so each stage depends on what
+		// the source imports, and on its builder's runtime library.
+		for i := range emitted {
+			if stages[i].Combining {
+				imports = append(imports, nil)
+				continue
+			}
+			is := collectImports(args, []DartFileInfo{f})
+			if b := stages[i].Builder; b.RuntimeDep != defaultRuntimeDeps[nodeKey(b)] {
+				is.labels = append(is.labels, b.RuntimeDep)
+			} else if pkg := runtimePackage(b); pkg != "" {
+				is.packages[pkg] = true
+			}
+			imports = append(imports, is)
 		}
 		libRule := buildAnnotatedLibrary(args, f, libSrcs)
 		gen = append(gen, libRule)
@@ -278,28 +295,42 @@ var deletableKinds = func() map[string]bool {
 }()
 
 // staleCodegenRules returns empty-rule markers for every existing rule of
-// a deletable kind whose name was not regenerated this pass; Gazelle's
-// merger deletes the matching rules from the BUILD file.
+// a deletable kind whose name was not regenerated this pass, and for every
+// existing library a rule of another library kind now takes the name of: a
+// source that gained or lost an annotation moves between a macro and a
+// codegen chain's `dart_library`, both named for the source. Gazelle's merger
+// deletes the matching rules from the BUILD file.
 func staleCodegenRules(f *rule.File, gen []*rule.Rule) []*rule.Rule {
 	if f == nil {
 		return nil
 	}
-	generated := make(map[string]struct{}, len(gen))
+	generated := make(map[string]string, len(gen))
 	for _, r := range gen {
-		generated[r.Name()] = struct{}{}
+		generated[r.Name()] = r.Kind()
 	}
 	var empty []*rule.Rule
 	for _, existing := range f.Rules {
-		if !deletableKinds[existing.Kind()] {
-			continue
-		}
-		if _, ok := generated[existing.Name()]; ok {
+		kind, ok := generated[existing.Name()]
+		switch {
+		case ok && kind != existing.Kind() && libraryKinds[kind] && libraryKinds[existing.Kind()]:
+		case !ok && deletableKinds[existing.Kind()]:
+		default:
 			continue
 		}
 		empty = append(empty, rule.NewRule(existing.Kind(), existing.Name()))
 	}
 	return empty
 }
+
+// libraryKinds are the kinds of the library Gazelle writes for a source:
+// dart_library and every convenience macro.
+var libraryKinds = func() map[string]bool {
+	m := map[string]bool{"dart_library": true}
+	for _, k := range macroKinds {
+		m[k] = true
+	}
+	return m
+}()
 
 // filterOutGeneratedFiles drops every file whose name ends in any
 // registered `produces=` extension. Without this, Gazelle would emit a
@@ -391,11 +422,13 @@ func emitCodegenStages(
 		}
 	}
 
+	builderOf := map[string]*builderInfo{}
 	for _, stage := range stages {
 		fanOut := stage.Builder != nil &&
 			annotationCount[stage.Builder.Annotation] > 1
 		name := stageTargetName(f.Path, stage, fanOut)
 		byID[stage.ID] = name
+		builderOf[stage.ID] = stage.Builder
 		var r *rule.Rule
 		if stage.Combining {
 			r = rule.NewRule("dart_codegen", name)
@@ -415,8 +448,19 @@ func emitCodegenStages(
 			r.SetAttr("src", f.Path)
 			r.SetAttr("generator_bin", stage.Builder.ShimLabel)
 			r.SetAttr("output_suffixes", stage.OutputExts)
-			if stage.Builder.RuntimeDep != "" {
-				r.SetAttr("deps", []string{stage.Builder.RuntimeDep})
+			// What an earlier builder wrote into the source's library (a
+			// `.freezed.dart` part), this one reads as a staged file: no
+			// library can hold the source before this stage's output exists.
+			// A SharedPart shard is not a part of the library, so it is
+			// left to the combining stage.
+			var assets []string
+			for _, id := range stage.After {
+				if b := builderOf[id]; b != nil && !b.SharedPart {
+					assets = append(assets, ":"+byID[id])
+				}
+			}
+			if len(assets) > 0 {
+				r.SetAttr("asset_deps", assets)
 			}
 			if stage.Builder.Config != "" {
 				r.SetAttr("config", stage.Builder.Config)
@@ -459,10 +503,11 @@ func macroRuleKind(macro string) string {
 }
 
 // defaultRuntimeDeps maps each shipped builder registration (keyed by
-// nodeKey) to its default RuntimeDep. Used to suppress redundant
-// `annotation_dep` attrs on emitted macros: the attr is only worth
-// emitting when a `dart_builder_runtime_dep` directive overrode the
-// default (the macro's own signature already carries the default).
+// nodeKey) to its default RuntimeDep, which tells a
+// `dart_builder_runtime_dep` directive's label from the default: a
+// directive's label is used as stated, the default is resolved as an import
+// of its package (runtimePackage) and stated on a macro only where that
+// differs from the macro's own default.
 var defaultRuntimeDeps = func() map[string]string {
 	m := map[string]string{}
 	for _, b := range defaultBuilders() {
@@ -470,6 +515,18 @@ var defaultRuntimeDeps = func() map[string]string {
 	}
 	return m
 }()
+
+// runtimePackage is the Dart package of a builder's default runtime
+// library (`json_annotation` for `@pub_deps//:json_annotation`), which
+// Gazelle resolves as it resolves an import of that package; "" when the
+// builder has none.
+func runtimePackage(b *builderInfo) string {
+	dep := defaultRuntimeDeps[nodeKey(b)]
+	if i := strings.LastIndex(dep, ":"); i >= 0 {
+		return dep[i+1:]
+	}
+	return ""
+}
 
 // buildMacroRule emits a single `<builder>_library(...)` rule call for a
 // one-annotation source. Returns nil if the builder's `Macro` field is
@@ -620,6 +677,11 @@ func fileNames(files []DartFileInfo) []string {
 type importSet struct {
 	packages map[string]bool
 	uris     map[string]map[string]bool // package name -> imported file URIs
+	labels   []string                   // deps the rule takes whatever it imports
+
+	// For a macro: the runtime package its annotation_dep names, and the
+	// macro's default for it ("" when a directive states the dep).
+	annotationPackage, annotationDefault string
 }
 
 func collectImports(args language.GenerateArgs, files []DartFileInfo) *importSet {

@@ -152,6 +152,17 @@ func (d *dartLang) Resolve(c *config.Config, ix *resolve.RuleIndex, rc *repo.Rem
 		deps = append(deps, lbl.String())
 	}
 
+	deps = append(deps, is.labels...)
+	if is.annotationPackage != "" {
+		// The macro's annotation_dep is its builder's runtime package,
+		// resolved as an import of it would be; the macro's own default
+		// needs no statement.
+		if lbl := pubPackageLabel(c, ix, is.annotationPackage, from, pubDepsRepo); lbl != is.annotationDefault {
+			r.SetAttr("annotation_dep", lbl)
+		} else {
+			r.DelAttr("annotation_dep")
+		}
+	}
 	if len(deps) > 0 {
 		r.SetAttr("deps", dedupe(deps))
 	}
@@ -161,6 +172,25 @@ func (d *dartLang) Resolve(c *config.Config, ix *resolve.RuleIndex, rc *repo.Rem
 // whether every file was found in some rule (the importing rule included).
 // A file held by more than one rule is logged and left out, not guessed;
 // a `# gazelle:resolve dart <uri> <label>` directive picks one.
+// pubPackageLabel is the label an import of package pkg, and no file of it,
+// resolves to from a rule at from: an override, the rule that indexes it, or
+// the package's pub repository.
+func pubPackageLabel(c *config.Config, ix *resolve.RuleIndex, pkg string, from label.Label, pubDepsRepo string) string {
+	spec := resolve.ImportSpec{Lang: dartName, Imp: pkg}
+	if override, ok := resolve.FindRuleWithOverride(c, spec, dartName); ok {
+		return override.Rel(from.Repo, from.Pkg).String()
+	}
+	for _, m := range ix.FindRulesByImportWithConfig(c, spec, dartName) {
+		if !m.IsSelfImport(from) {
+			return m.Label.Rel(from.Repo, from.Pkg).String()
+		}
+	}
+	if pubDepsRepo != "" {
+		return label.New(pubDepsRepo, "", pkg).String()
+	}
+	return label.New(pkg, "", pkg).String()
+}
+
 func resolveFiles(c *config.Config, ix *resolve.RuleIndex, uris []string, from label.Label, deps *[]string) bool {
 	all := true
 	for _, uri := range uris {
