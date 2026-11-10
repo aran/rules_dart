@@ -35,8 +35,9 @@ dart/ext/
 │   └── worker_entry.dart      AsyncWorkerLoop subclass; constructs a fresh
 │                              AnalysisContext per request. `shimMain`
 │                              dispatches worker vs one-shot.
-├── _shared/
-│   └── combining_shim/bin/    Concatenates SharedPart shards into one .g.dart,
+├── defs.bzl                   The builder API: `builder_shim_library`,
+│                              `shared_part_codegen`, `library_builder_codegen`.
+├── combining_shim/bin/        Concatenates SharedPart shards into one .g.dart,
 │                              mirroring source_gen|combining_builder.
 ├── json_serializable/         One shim binary + convenience macro per builder.
 ├── freezed/
@@ -295,7 +296,7 @@ deeper Bazel-package path than the Dart package root
 ## Builders from other rule sets
 
 A rule set outside rules_dart ships a builder as rules_dart ships its own,
-from `@rules_dart//dart/ext/_shared:defs.bzl`:
+from `@rules_dart//dart/ext:defs.bzl`:
 
 - `builder_shim_library(name, pub_hub)` is the shim runner,
   `package:rules_dart_ext/worker_entry.dart`, built against the packages of

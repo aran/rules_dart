@@ -6,7 +6,7 @@ mocked (`MockFoo`) must be in `deps` or `asset_deps` so the Resolver can
 read them.
 """
 
-load("@rules_dart//dart/ext/_shared:defs.bzl", "library_builder_codegen")
+load("@rules_dart//dart/ext:defs.bzl", "library_builder_codegen")
 
 def mockito_codegen(
         name,

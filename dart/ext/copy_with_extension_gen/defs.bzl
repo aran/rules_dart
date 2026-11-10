@@ -1,6 +1,6 @@
 """Convenience macro for the copy_with_extension_gen builder."""
 
-load("@rules_dart//dart/ext/_shared:defs.bzl", "shared_part_codegen")
+load("@rules_dart//dart/ext:defs.bzl", "shared_part_codegen")
 
 def copy_with_codegen(
         name,

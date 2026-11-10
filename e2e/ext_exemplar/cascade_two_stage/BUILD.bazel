@@ -43,7 +43,7 @@ dart_codegen(
 dart_codegen(
     name = "_event_combined",
     src = "lib/event.dart",
-    generator_bin = "@rules_dart//dart/ext/_shared/combining_shim:bin",
+    generator_bin = "@rules_dart//dart/ext/combining_shim:bin",
     output_suffixes = [".g.dart"],
     package = ":pubspec",
     parts = [":_event_json_part"],

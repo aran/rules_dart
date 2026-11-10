@@ -278,7 +278,7 @@ func emitCodegen(args language.GenerateArgs, pkg string, p *codegenPlan, files [
 		r.SetAttr("src", p.file.Path)
 		r.SetAttr("output_suffixes", stage.OutputExts)
 		if stage.Combining {
-			r.SetAttr("generator_bin", "@rules_dart//dart/ext/_shared/combining_shim:bin")
+			r.SetAttr("generator_bin", "@rules_dart//dart/ext/combining_shim:bin")
 			parts := make([]string, 0, len(stage.PartShards))
 			for _, id := range stage.PartShards {
 				parts = append(parts, ":"+p.names[id])

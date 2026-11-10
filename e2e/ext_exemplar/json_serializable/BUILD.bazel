@@ -43,7 +43,7 @@ dart_codegen(
 dart_codegen(
     name = "_primitive_user_combined",
     src = "lib/primitive_user.dart",
-    generator_bin = "@rules_dart//dart/ext/_shared/combining_shim:bin",
+    generator_bin = "@rules_dart//dart/ext/combining_shim:bin",
     output_suffixes = [".g.dart"],
     package = ":pubspec",
     parts = [":_primitive_user_json_part"],

@@ -1,4 +1,7 @@
-"""Composable macros used by per-builder `dart/ext/*/defs.bzl` wrappers.
+"""The public API for writing a builder: its shim and its codegen macro.
+
+rules_dart's per-builder `dart/ext/*/defs.bzl` macros are written on it, and
+a rule set shipping a builder of its own writes its macro the same way.
 
 Each writes a builder's codegen targets for some sources and names their
 outputs, the files that are parts of those sources' library, under its own
@@ -203,7 +206,7 @@ def shared_part_codegen(
         dart_codegen(
             name = combined_target,
             src = src,
-            generator_bin = Label("//dart/ext/_shared/combining_shim:bin"),
+            generator_bin = Label("//dart/ext/combining_shim:bin"),
             output_suffixes = [".g.dart"],
             parts = [":" + part_target],
             package = package,

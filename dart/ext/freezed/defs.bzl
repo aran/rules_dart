@@ -1,6 +1,6 @@
 """Convenience macro for the freezed builder (produces `<src>.freezed.dart`)."""
 
-load("@rules_dart//dart/ext/_shared:defs.bzl", "library_builder_codegen")
+load("@rules_dart//dart/ext:defs.bzl", "library_builder_codegen")
 
 def freezed_codegen(
         name,

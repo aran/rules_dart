@@ -5,7 +5,7 @@
 
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("//dart:defs.bzl", "dart_package_metadata", "dart_test")
-load("//dart/ext/_shared:defs.bzl", "builder_shim_library")
+load(":defs.bzl", "builder_shim_library")
 
 exports_files(
     [
@@ -15,6 +15,15 @@ exports_files(
         "pubspec.lock",
     ],
     visibility = ["//visibility:public"],
+)
+
+# The public API for writing a builder's shim and macro, which rules_dart's own
+# builders use and other rule sets use for theirs. See docs/ext.md.
+bzl_library(
+    name = "defs",
+    srcs = ["defs.bzl"],
+    visibility = ["//visibility:public"],
+    deps = ["//dart:defs"],
 )
 
 # The curated-registry resolver is supported API for other rule sets:

@@ -6,7 +6,7 @@ Each macro wires one of stacked_generator's sub-builders (`router`,
 five of the six (all except `form`, which uses `@FormView`).
 """
 
-load("@rules_dart//dart/ext/_shared:defs.bzl", "library_builder_codegen")
+load("@rules_dart//dart/ext:defs.bzl", "library_builder_codegen")
 
 _DEFAULT_RUNTIME_DEP = "@pub_deps//:stacked"
 

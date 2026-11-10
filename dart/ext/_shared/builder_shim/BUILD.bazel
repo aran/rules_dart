@@ -1,2 +1,0 @@
-# Shared shim-runner library — wraps a package:build Builder as a CLI tool
-# matching the dart_codegen --input/--output contract.

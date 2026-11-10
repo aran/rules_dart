@@ -1,6 +1,6 @@
 """Convenience macro for the built_value builder."""
 
-load("@rules_dart//dart/ext/_shared:defs.bzl", "shared_part_codegen")
+load("@rules_dart//dart/ext:defs.bzl", "shared_part_codegen")
 
 def built_value_codegen(
         name,

@@ -26,7 +26,7 @@ skipped entirely.
 
 load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_sqlcodegen")
 load(
-    "@rules_dart//dart/ext/_shared:defs.bzl",
+    "@rules_dart//dart/ext:defs.bzl",
     "internal_attrs",
     "outputs_group",
     "visible_files",
@@ -260,7 +260,7 @@ def drift_codegen(
         dart_codegen(
             name = combined_target,
             src = src,
-            generator_bin = "@rules_dart//dart/ext/_shared/combining_shim:bin",
+            generator_bin = "@rules_dart//dart/ext/combining_shim:bin",
             output_suffixes = [".g.dart"],
             parts = [":" + part_target],
             package = package,

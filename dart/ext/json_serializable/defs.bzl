@@ -1,6 +1,6 @@
 """Convenience macro for the json_serializable builder."""
 
-load("@rules_dart//dart/ext/_shared:defs.bzl", "shared_part_codegen")
+load("@rules_dart//dart/ext:defs.bzl", "shared_part_codegen")
 
 def json_serializable_codegen(
         name,

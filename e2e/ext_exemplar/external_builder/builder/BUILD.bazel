@@ -4,7 +4,7 @@
 # `shared_part_codegen` with this shim.
 
 load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_library", "dart_package_metadata")
-load("@rules_dart//dart/ext/_shared:defs.bzl", "builder_shim_library")
+load("@rules_dart//dart/ext:defs.bzl", "builder_shim_library")
 
 exports_files(["pubspec.lock"])
 

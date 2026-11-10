@@ -1,6 +1,6 @@
 """The fixture builder's macro, as another rule set writes one."""
 
-load("@rules_dart//dart/ext/_shared:defs.bzl", "shared_part_codegen")
+load("@rules_dart//dart/ext:defs.bzl", "shared_part_codegen")
 
 def greeting_codegen(
         name,
