@@ -31,6 +31,11 @@ load(
     _runfiles_path = "runfiles_path",
 )
 load("//dart/private:dart_compile.bzl", _dart_compile_action = "dart_compile_action")
+load(
+    "//dart/private:dart_coverage.bzl",
+    _COVERAGE_ATTRS = "COVERAGE_ATTRS",
+    _test_coverage = "test_coverage",
+)
 load("//dart/private:dart_deps.bzl", _DART_TOOLCHAIN_TYPES_ATTR = "DART_TOOLCHAIN_TYPES_ATTR")
 load(
     "//dart/private:dart_import_check.bzl",
@@ -220,6 +225,25 @@ package_license_file = _package_license_file
 PATH_MAPPING = _PATH_MAPPING
 derive_package_root = _derive_package_root
 derive_package_name = _derive_package_name
+
+# Line coverage under `bazel coverage`, for a test rule that collects it from a
+# Dart VM of its own (a Flutter test's, say) and converts it with
+# `@rules_dart//dart:coverage_converter`.
+#
+# The rule merges `COVERAGE_ATTRS` into its `attrs`: the converter, and the
+# `_lcov_merger` Bazel's coverage runner needs of a test rule. It gives its
+# result `coverage_common.instrumented_files_info`, naming the sources to
+# report. `test_coverage(ctx, packages)` is `None` unless the build is for
+# coverage; otherwise it writes the file naming the packages' `lib/`
+# directories, and returns `converter` and `sources` (runfiles paths to
+# `rlocation`) and `runfiles` (to merge into the test's). Nothing is needed in
+# the environment. In the test, over a directory of `package:coverage` JSON
+# (what `collect` returns), run
+#
+#     <converter> --hitmaps=<dir> --sources=<sources> --output=$COVERAGE_DIR/<name>.dat
+#
+COVERAGE_ATTRS = _COVERAGE_ATTRS
+test_coverage = _test_coverage
 
 # Source co-location: assemble a package whose hand-written and generated files
 # straddle the source tree and `bazel-out` into one tree-artifact directory, so

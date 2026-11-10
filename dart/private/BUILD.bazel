@@ -18,6 +18,16 @@ bzl_library(
 )
 
 bzl_library(
+    name = "dart_coverage",
+    srcs = ["dart_coverage.bzl"],
+    visibility = ["//dart:__subpackages__"],
+    deps = [
+        ":common",
+        ":dart_info",
+    ],
+)
+
+bzl_library(
     name = "source_set",
     srcs = ["source_set.bzl"],
     visibility = ["//dart:__subpackages__"],
@@ -118,6 +128,7 @@ bzl_library(
         ":build_settings",
         ":common",
         ":dart_compile",
+        ":dart_coverage",
         ":exec_groups",
         ":executable_package",
         ":source_set",

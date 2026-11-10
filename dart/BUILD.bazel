@@ -146,6 +146,17 @@ dart_sdk_binary(
     visibility = ["//visibility:public"],
 )
 
+# Converts line coverage a Dart VM reported, as `package:coverage` writes it, to
+# the LCOV tracefile Bazel's coverage runner merges, naming files by their
+# workspace path. For a test rule that collects coverage from a VM of its own;
+# its command line is stable. See "Coverage" in the README, and
+# `test_coverage` in `utils.bzl`.
+alias(
+    name = "coverage_converter",
+    actual = "//dart/private/tools:coverage_converter",
+    visibility = ["//visibility:public"],
+)
+
 bzl_library(
     name = "repositories",
     srcs = ["repositories.bzl"],
@@ -200,6 +211,7 @@ bzl_library(
         "//dart/private:build_settings",
         "//dart/private:common",
         "//dart/private:dart_compile",
+        "//dart/private:dart_coverage",
         "//dart/private:dart_info",
         "//dart/private:dart_library",
         "//dart/private:exec_groups",

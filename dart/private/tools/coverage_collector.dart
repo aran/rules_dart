@@ -6,28 +6,23 @@ import 'package:coverage/coverage.dart';
 import 'package:vm_service/vm_service.dart';
 import 'package:vm_service/vm_service_io.dart';
 
-/// Collects a `dart_test`'s line coverage under `bazel coverage` and writes it
-/// as an LCOV tracefile, which Bazel's coverage runner merges into the test's
-/// `coverage.dat`.
+import 'coverage_lcov.dart';
+
+/// Collects a plain-`main()` `dart_test`'s line coverage under `bazel coverage`
+/// and writes it as an LCOV tracefile, which Bazel's coverage runner merges
+/// into the test's `coverage.dat`.
 ///
-/// The test launcher runs it in one of two ways:
+/// `--service-info=<file> --sources=<file> --output=<file> -- <vm command>`
+/// runs the VM, which the command starts with its service on, writing where it
+/// listens to `<file>`, and with `--pause-isolates-on-exit`. Once every isolate
+/// has paused on exit this collects, writes the tracefile and lets the VM go
+/// on, and exits as the VM does. A VM that ends before its isolates pause (a
+/// test that calls `exit()`) leaves no coverage to collect, which fails the
+/// test.
 ///
-/// * `--service-info=<file> -- <vm command>`: for a plain-`main()` test, this
-///   runs the VM, which the command starts with its service on, writing where
-///   it listens to `<file>`, and with `--pause-isolates-on-exit`. Once every
-///   isolate has paused on exit this collects, writes the tracefile and lets
-///   the VM go on, and exits as the VM does. A VM that ends before its isolates
-///   pause (a test that calls `exit()`) leaves no coverage to collect, which
-///   fails the test.
-/// * `--runner-coverage=<dir>`: `package:test`'s runner collected each suite
-///   itself (`--coverage=<dir>`); this converts what it wrote.
-///
-/// Either way `--sources=<file>` (written by `dart_test`) names each package's
-/// `lib/` directories, and Bazel's `COVERAGE_MANIFEST` the files the test
-/// instruments, by path from the exec root. A script is reported under its
-/// path in the manifest, and one that is not there (the SDK's, a generated
-/// entrypoint's, a library `--instrumentation_filter` leaves out) is not
-/// reported.
+/// A `package:test` test's runner collects its own suites; `coverage_converter`
+/// converts what it wrote. The `--sources` file and `COVERAGE_MANIFEST` are as
+/// that tool reads them, and the tracefile is what it writes.
 Future<void> main(List<String> args) async {
   final options = _Options.parse(args);
   final manifest = Platform.environment['COVERAGE_MANIFEST'];
@@ -36,21 +31,16 @@ Future<void> main(List<String> args) async {
   }
   final sources = CoverageSources(
     instrumented: File(manifest).readAsLinesSync(),
-    packages: _readPackages(options.sources),
+    packages: readPackages(options.sources),
   );
-  if (options.serviceInfo case final info?) {
-    exit(await _runVm(options.vm, File(info), sources, options.output));
-  }
-  final directory = Directory(options.runnerCoverage!);
-  final hits = directory.existsSync()
-      ? await HitMap.parseFiles(
-          directory
-              .listSync(recursive: true)
-              .whereType<File>()
-              .where((f) => f.path.endsWith('.json')),
-        )
-      : <String, HitMap>{};
-  _write(options.output, lcov(hits, sources));
+  exit(
+    await _runVm(
+      options.vm,
+      File(options.serviceInfo),
+      sources,
+      options.output,
+    ),
+  );
 }
 
 /// Runs the VM [command], collects its coverage once it has paused on exit,
@@ -69,7 +59,7 @@ Future<int> _runVm(
   var exited = false;
   final vmExit = vm.exitCode.whenComplete(() => exited = true);
   final hits = await _collectOnExit(info, () => exited, vmExit);
-  if (hits != null) _write(output, lcov(hits, sources));
+  if (hits != null) writeTracefile(output, lcov(hits, sources));
   final code = await vmExit;
   if (hits != null) return code;
   stderr.writeln(
@@ -142,93 +132,6 @@ Future<bool> _allPausedOnExit(VmService service) async {
   return true;
 }
 
-/// Writes [content] to [path] whole, under another name first: the coverage
-/// runner merges every `*.dat`.
-void _write(String path, String content) {
-  final partial = File('$path.partial')..writeAsStringSync(content);
-  partial.renameSync(path);
-}
-
-/// Where each script of a test's program is in the workspace.
-class CoverageSources {
-  CoverageSources({
-    required Iterable<String> instrumented,
-    required this.packages,
-  }) {
-    for (final line in instrumented) {
-      final path = line.trim();
-      if (path.isEmpty) continue;
-      _byRootPath[_rootPath(path)] = path;
-    }
-  }
-
-  /// Each package's `lib/` directories, by path below the kernel roots.
-  final Map<String, List<String>> packages;
-
-  /// Instrumented files by path below the kernel roots: a generated file's
-  /// path with its output directory taken off.
-  final _byRootPath = <String, String>{};
-
-  static final _outputDirectory = RegExp(r'^bazel-out/[^/]+/bin/');
-
-  static String _rootPath(String execPath) =>
-      execPath.replaceFirst(_outputDirectory, '');
-
-  /// The instrumented file [script] (a VM script URI) names, by its path from
-  /// the exec root, or `null` when it names none.
-  String? pathOf(String script) {
-    final uri = Uri.parse(script);
-    switch (uri.scheme) {
-      case 'org-dartlang-root':
-        return _byRootPath[uri.path.substring(1)];
-      case 'package':
-        final slash = uri.path.indexOf('/');
-        if (slash < 0) return null;
-        final name = uri.path.substring(0, slash);
-        final rest = uri.path.substring(slash + 1);
-        for (final lib in packages[name] ?? const <String>[]) {
-          if (_byRootPath['$lib$rest'] case final path?) return path;
-        }
-    }
-    return null;
-  }
-}
-
-/// [hits] as an LCOV tracefile of the scripts [sources] places, in path
-/// order, lines ascending.
-String lcov(Map<String, HitMap> hits, CoverageSources sources) {
-  final byPath = <String, Map<int, int>>{};
-  for (final MapEntry(key: script, value: hitMap) in hits.entries) {
-    final path = sources.pathOf(script);
-    if (path == null) continue;
-    final lines = byPath.putIfAbsent(path, () => {});
-    for (final MapEntry(key: line, value: count) in hitMap.lineHits.entries) {
-      lines[line] = (lines[line] ?? 0) + count;
-    }
-  }
-  final out = StringBuffer();
-  for (final path in byPath.keys.toList()..sort()) {
-    final lines = byPath[path]!;
-    out.writeln('SF:$path');
-    for (final line in lines.keys.toList()..sort()) {
-      out.writeln('DA:$line,${lines[line]}');
-    }
-    out
-      ..writeln('LH:${lines.values.where((c) => c > 0).length}')
-      ..writeln('LF:${lines.length}')
-      ..writeln('end_of_record');
-  }
-  return out.toString();
-}
-
-Map<String, List<String>> _readPackages(String path) {
-  final json = jsonDecode(File(path).readAsStringSync()) as Map;
-  return {
-    for (final MapEntry(:key, :value) in (json['packages'] as Map).entries)
-      key as String: (value as List).cast<String>(),
-  };
-}
-
 /// The service URI the VM writes to [info] once its service listens, or
 /// `null` if the VM has [exited] first.
 Future<Uri?> _serviceUri(File info, bool Function() exited) async {
@@ -254,13 +157,7 @@ Uri _webSocketUri(Uri service) {
 }
 
 class _Options {
-  _Options(
-    this.output,
-    this.sources,
-    this.serviceInfo,
-    this.runnerCoverage,
-    this.vm,
-  );
+  _Options(this.output, this.sources, this.serviceInfo, this.vm);
 
   factory _Options.parse(List<String> args) {
     final values = <String, String>{};
@@ -273,26 +170,19 @@ class _Options {
     }
     String required(String name) =>
         values[name] ?? _fail('--$name is required');
-    final options = _Options(
+    final vm = separator < 0 ? const <String>[] : args.sublist(separator + 1);
+    if (vm.isEmpty) _fail('the VM command is required after `--`');
+    return _Options(
       required('output'),
       required('sources'),
-      values['service-info'],
-      values['runner-coverage'],
-      separator < 0 ? const [] : args.sublist(separator + 1),
+      required('service-info'),
+      vm,
     );
-    if ((options.serviceInfo == null) == (options.runnerCoverage == null)) {
-      _fail('give one of --service-info and --runner-coverage');
-    }
-    if ((options.serviceInfo != null) == options.vm.isEmpty) {
-      _fail('--service-info needs the VM command after `--`, and only it');
-    }
-    return options;
   }
 
   final String output;
   final String sources;
-  final String? serviceInfo;
-  final String? runnerCoverage;
+  final String serviceInfo;
 
   /// The VM command, after `--`.
   final List<String> vm;

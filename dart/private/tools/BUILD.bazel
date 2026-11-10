@@ -421,10 +421,23 @@ exports_files(
     ]
 ]
 
-# Collects a `dart_test`'s coverage under `bazel coverage`; `dart_test` ships
-# it in runfiles only then.
+# Converts coverage a VM reported (`package:coverage`'s JSON) to LCOV by
+# workspace path: `@rules_dart//dart:coverage_converter`, the public tool a test
+# rule runs, `dart_test` among them (`dart/private/dart_coverage.bzl`).
+dart_binary(
+    name = "coverage_converter",
+    srcs = ["coverage_lcov.dart"],
+    compile_mode = "exe",
+    main = "coverage_converter.dart",
+    visibility = ["//dart:__pkg__"],
+    deps = ["@ext_pub_deps//:coverage"],
+)
+
+# Collects a plain-`main()` `dart_test`'s coverage under `bazel coverage`;
+# `dart_test` ships it in runfiles only then.
 dart_binary(
     name = "coverage_collector",
+    srcs = ["coverage_lcov.dart"],
     compile_mode = "exe",
     main = "coverage_collector.dart",
     visibility = ["//dart:__subpackages__"],
@@ -435,13 +448,26 @@ dart_binary(
 )
 
 dart_test(
-    name = "coverage_collector_test",
+    name = "coverage_lcov_test",
     size = "small",
-    srcs = ["coverage_collector.dart"],
-    main = "coverage_collector_test.dart",
+    srcs = ["coverage_lcov.dart"],
+    main = "coverage_lcov_test.dart",
     deps = [
         "@ext_pub_deps//:coverage",
         "@ext_pub_deps//:test",
-        "@ext_pub_deps//:vm_service",
+    ],
+)
+
+# The command line `coverage_converter` documents, run as another test rule
+# would run it.
+dart_test(
+    name = "coverage_converter_test",
+    size = "small",
+    args = ["$(rlocationpath :coverage_converter)"],
+    data = [":coverage_converter"],
+    main = "coverage_converter_test.dart",
+    deps = [
+        "//dart/runfiles",
+        "@ext_pub_deps//:test",
     ],
 )

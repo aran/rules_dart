@@ -439,6 +439,27 @@ is `bazel-testlogs/<package>/<name>/coverage.dat`. Any LCOV tool reads them.
 - Bazel's own report merger needs a runfiles tree, so `bazel coverage` fails
   with `--noenable_runfiles`, Windows' default.
 
+**For rule authors.** A test rule that collects coverage from a Dart VM of its
+own (a Flutter test's) reuses the conversion: it merges
+`COVERAGE_ATTRS` from `@rules_dart//dart:utils.bzl` into its `attrs` (the
+converter and the `_lcov_merger` Bazel's coverage runner needs), gives its
+result `coverage_common.instrumented_files_info`, and calls
+`test_coverage(ctx, packages)`, which is `None` unless the build is for
+coverage and otherwise writes the file naming the packages' `lib/` directories
+and returns `converter` and `sources` (runfiles paths) and the `runfiles` to
+merge into the test's. Inside the test, over a directory of `package:coverage`
+JSON (what its `collect` returns, one file per suite), it runs
+`@rules_dart//dart:coverage_converter`:
+
+```sh
+coverage_converter --hitmaps=<dir> --sources=<sources> --output=$COVERAGE_DIR/<name>.dat
+```
+
+`--hitmaps` is searched for `*.json` at any depth, and the counts of a script
+in several files add. `--output` ends in `.dat`, in `COVERAGE_DIR`. Bazel's
+`COVERAGE_MANIFEST` must be set; a script it does not list is not reported. The
+exit status is 0, or 2 for a usage error. These flags are stable.
+
 ### Using pub.dev packages
 
 Declare individual packages with `pub.package()`:

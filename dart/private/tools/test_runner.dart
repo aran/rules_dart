@@ -381,11 +381,17 @@ Future<int> _runDirectly(
 }
 
 /// A run under `bazel coverage`: the test's line coverage, collected by the
-/// collector `dart_test` ships under coverage, lands in `COVERAGE_DIR` as an
+/// tools `dart_test` ships under coverage, lands in `COVERAGE_DIR` as an
 /// LCOV tracefile, which Bazel's coverage runner merges into the test's
-/// `coverage.dat` (`coverage_collector.dart`).
+/// `coverage.dat` (`coverage_collector.dart`, `coverage_converter.dart`).
 class CoverageRun {
-  CoverageRun._(this.collector, this.sources, this.directory, this._scratch);
+  CoverageRun._(
+    this.collector,
+    this.converter,
+    this.sources,
+    this.directory,
+    this._scratch,
+  );
 
   /// The run's coverage, when `dart_test` was built for coverage and Bazel
   /// collects it: `bazel run` of a coverage build collects none.
@@ -400,13 +406,18 @@ class CoverageRun {
     if (coverage == null || directory == null) return null;
     return CoverageRun._(
       runfiles.rlocation(coverage['collector'] as String),
+      runfiles.rlocation(coverage['converter'] as String),
       runfiles.rlocation(coverage['sources'] as String),
       directory,
       scratch(),
     );
   }
 
+  /// `coverage_collector`, which runs a plain-`main()` test.
   final String collector;
+
+  /// `coverage_converter`, which converts what `package:test`'s runner wrote.
+  final String converter;
   final String sources;
 
   /// `COVERAGE_DIR`, where the tracefile goes: the coverage runner merges
@@ -457,12 +468,8 @@ class CoverageRun {
   /// Converts what `package:test`'s runner collected into the tracefile.
   Future<int> convertRunnerCoverage(Map<String, String> environment) async {
     final collecting = await Process.start(
-      collector,
-      [
-        '--runner-coverage=$runnerDirectory',
-        '--sources=$sources',
-        '--output=$_output',
-      ],
+      converter,
+      ['--hitmaps=$runnerDirectory', '--sources=$sources', '--output=$_output'],
       environment: environment,
       includeParentEnvironment: false,
       mode: ProcessStartMode.inheritStdio,

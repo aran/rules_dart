@@ -1,7 +1,7 @@
 import 'package:coverage/coverage.dart';
 import 'package:test/test.dart';
 
-import 'coverage_collector.dart';
+import 'coverage_lcov.dart';
 
 /// Where the collector reports a script, and the tracefile it writes; the
 /// collection itself runs under `bazel coverage` in `e2e/dart_test_pkg`.
