@@ -1,0 +1,5 @@
+# Prettier's Markdown parser reads an underscore inside a word, such as the one
+# in rules_dart, as emphasis whenever the paragraph also has _emphasis_, and
+# rewrites the text: `rules*dart`, escaped underscores, code spans glued to the
+# next word. Markdown is left as written.
+*.md
