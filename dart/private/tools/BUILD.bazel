@@ -390,3 +390,28 @@ exports_files(
         ),
     ]
 ]
+
+# Collects a `dart_test`'s coverage under `bazel coverage`; `dart_test` ships
+# it in runfiles only then.
+dart_binary(
+    name = "coverage_collector",
+    compile_mode = "exe",
+    main = "coverage_collector.dart",
+    visibility = ["//dart:__subpackages__"],
+    deps = [
+        "@ext_pub_deps//:coverage",
+        "@ext_pub_deps//:vm_service",
+    ],
+)
+
+dart_test(
+    name = "coverage_collector_test",
+    size = "small",
+    srcs = ["coverage_collector.dart"],
+    main = "coverage_collector_test.dart",
+    deps = [
+        "@ext_pub_deps//:coverage",
+        "@ext_pub_deps//:test",
+        "@ext_pub_deps//:vm_service",
+    ],
+)

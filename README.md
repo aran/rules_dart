@@ -142,7 +142,7 @@ workspace root.
 | `dart compile exe` / `aot-snapshot` / `kernel` / `jit-snapshot` | `dart_binary(compile_mode = ...)`, default `exe`. |
 | `dart compile js` / `wasm` | `dart_js_binary` / `dart_wasm_binary`. See [Web compilation](#web-compilation). |
 | `dart doc` | None. |
-| `dart run coverage:test_with_coverage`, `--coverage` | None. Dart tests provide no coverage data, so `bazel coverage` reports nothing for them. |
+| `dart run coverage:test_with_coverage`, `dart test --coverage` | `bazel coverage --combined_report=lcov //<dir>/...`, which writes one LCOV report for every test it runs. See [Coverage](#coverage). |
 
 `dart test`'s options map as follows.
 
@@ -406,6 +406,38 @@ The environment is `defines`, then the derived declarations, then the
 it and fails if a dependency's modules were compiled in another; a compile the
 rule runs itself, such as one of the whole program, takes
 `executable_defines(ctx)`. A derived key that `defines` also sets is an error.
+
+#### Coverage
+
+`bazel coverage` runs `dart_test` targets and collects the lines they run,
+with nothing to install: the hermetic Dart VM counts what runs, and the
+collector is built from rules_dart's pinned `package:coverage`.
+
+```sh
+bazel coverage --combined_report=lcov //...
+```
+
+Bazel prints where the merged LCOV report is
+(`$(bazel info output_path)/_coverage/_coverage_report.dat`); each test's own
+is `bazel-testlogs/<package>/<name>/coverage.dat`. Any LCOV tool reads them.
+
+- **What is reported.** The `srcs` of every `dart_library` a test reaches
+  through `deps`, for the libraries `--instrumentation_filter` selects (by
+  default those in the packages named on the command line), each file under
+  its path in the workspace; a generated file is under its `bazel-out/` path.
+  A test's own `main` and `srcs` are reported only with
+  `--instrument_test_targets`, as for every Bazel language. Lines only: no
+  function or branch counts, and `// coverage:ignore-*` comments are not read.
+- **Plain-`main()` tests** run with the VM service on, each isolate pausing as
+  it exits until its coverage is read. Such a test must return from `main`
+  (setting `exitCode` to fail): `exit()` ends the VM before it pauses, and
+  under `bazel coverage` the test then fails, saying so.
+- **`package:test` tests** have their runner collect each suite.
+- **The build is the same.** The VM counts lines in any kernel, so a coverage
+  build compiles the kernels a test build does; only the test's launcher
+  configuration and runfiles differ.
+- Bazel's own report merger needs a runfiles tree, so `bazel coverage` fails
+  with `--noenable_runfiles`, Windows' default.
 
 ### Using pub.dev packages
 

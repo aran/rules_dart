@@ -186,7 +186,7 @@ packages:
     source: hosted
     version: "18.0.0"
   coverage:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: coverage
       sha256: ff89e37c19355194e279d26dafe8e4bece46c9ea63a30be4dc68214f5bc290d3
@@ -674,7 +674,7 @@ packages:
     source: hosted
     version: "1.4.0"
   vm_service:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: vm_service
       sha256: "89b11d62e1040ee681af3b4f1c97a803ecbf010c6e8b9c5896ee5b08c3bf7b78"

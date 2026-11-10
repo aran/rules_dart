@@ -1,0 +1,13 @@
+load("@rules_dart//dart:defs.bzl", "dart_binary")
+
+# `bazel run //coverage/check -- <report>`, after `bazel coverage
+# --combined_report=lcov //coverage/...`.
+dart_binary(
+    name = "check",
+    data = [
+        "//coverage:lib/shapes.dart",
+        "//coverage/units:lib/units.dart",
+    ],
+    main = "check_report.dart",
+    deps = ["@rules_dart//dart/runfiles"],
+)

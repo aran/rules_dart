@@ -347,6 +347,13 @@ def _dart_library_impl(ctx):
             runfiles = ctx.runfiles(files = own_srcs + own_resources),
         ),
         info,
+        # What `bazel coverage` reports on for a test that reaches this.
+        coverage_common.instrumented_files_info(
+            ctx,
+            source_attributes = ["srcs"],
+            dependency_attributes = ["deps"],
+            extensions = ["dart"],
+        ),
     ] + library_import_check(ctx, own_packages(info))
 
 dart_library = rule(

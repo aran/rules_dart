@@ -65,9 +65,15 @@ Future<void> main(List<String> args) async {
 
   final runnerKey = config['runner'] as String?;
   final tags = TagSelection.of(config, Platform.environment);
+  final coverage = CoverageRun.of(
+    config,
+    r,
+    Platform.environment,
+    () => scratch.directory('c').path,
+  );
   final int code;
   if (runnerKey == null) {
-    code = await _runDirectly(dart, dill, args, environment, tags);
+    code = await _runDirectly(dart, dill, args, environment, tags, coverage);
   } else {
     final snapshot = config['runner_snapshot'] as Map<String, dynamic>?;
     code = await _runUnderRunner(
@@ -87,6 +93,7 @@ Future<void> main(List<String> args) async {
       args: args,
       environment: environment,
       tmp: scratch.directory('dart_test.'),
+      coverage: coverage,
     );
   }
   scratch.delete();
@@ -333,6 +340,7 @@ Future<int> _runDirectly(
   List<String> args,
   Map<String, String> environment,
   TagSelection tags,
+  CoverageRun? coverage,
 ) async {
   final env = Platform.environment;
   // A plain `main` has no notion of test cases, so there is nothing to filter
@@ -359,6 +367,9 @@ Future<int> _runDirectly(
     );
     return 1;
   }
+  if (coverage != null) {
+    return coverage.runDirectly(dart, dill, args, environment);
+  }
   final vm = await Process.start(
     dart,
     ['--enable-asserts', dill, ...args],
@@ -367,6 +378,97 @@ Future<int> _runDirectly(
     mode: ProcessStartMode.inheritStdio,
   );
   return vm.exitCode;
+}
+
+/// A run under `bazel coverage`: the test's line coverage, collected by the
+/// collector `dart_test` ships under coverage, lands in `COVERAGE_DIR` as an
+/// LCOV tracefile, which Bazel's coverage runner merges into the test's
+/// `coverage.dat` (`coverage_collector.dart`).
+class CoverageRun {
+  CoverageRun._(this.collector, this.sources, this.directory, this._scratch);
+
+  /// The run's coverage, when `dart_test` was built for coverage and Bazel
+  /// collects it: `bazel run` of a coverage build collects none.
+  static CoverageRun? of(
+    Map<String, dynamic> config,
+    Runfiles runfiles,
+    Map<String, String> environment,
+    String Function() scratch,
+  ) {
+    final coverage = config['coverage'] as Map<String, dynamic>?;
+    final directory = environment['COVERAGE_DIR'];
+    if (coverage == null || directory == null) return null;
+    return CoverageRun._(
+      runfiles.rlocation(coverage['collector'] as String),
+      runfiles.rlocation(coverage['sources'] as String),
+      directory,
+      scratch(),
+    );
+  }
+
+  final String collector;
+  final String sources;
+
+  /// `COVERAGE_DIR`, where the tracefile goes: the coverage runner merges
+  /// every `*.dat` in it.
+  final String directory;
+
+  /// Where the run's other files go, out of `COVERAGE_DIR`.
+  final String _scratch;
+
+  String get _output => '$directory${Platform.pathSeparator}dart_test.dat';
+
+  /// Where `package:test`'s runner writes each suite's coverage.
+  String get runnerDirectory => '$_scratch${Platform.pathSeparator}runner';
+
+  /// Runs a plain-`main()` test through the collector, with the VM service
+  /// on and each isolate pausing as it exits until the collector has read
+  /// its coverage.
+  Future<int> runDirectly(
+    String dart,
+    String dill,
+    List<String> args,
+    Map<String, String> environment,
+  ) async {
+    final info = '$_scratch${Platform.pathSeparator}vm_service.json';
+    final collecting = await Process.start(
+      collector,
+      [
+        '--service-info=$info',
+        '--sources=$sources',
+        '--output=$_output',
+        '--',
+        dart,
+        '--enable-vm-service=0',
+        '--pause-isolates-on-exit',
+        '--no-dds',
+        '--write-service-info=${Uri.file(info)}',
+        '--enable-asserts',
+        dill,
+        ...args,
+      ],
+      environment: environment,
+      includeParentEnvironment: false,
+      mode: ProcessStartMode.inheritStdio,
+    );
+    return collecting.exitCode;
+  }
+
+  /// Converts what `package:test`'s runner collected into the tracefile.
+  Future<int> convertRunnerCoverage(Map<String, String> environment) async {
+    final collecting = await Process.start(
+      collector,
+      [
+        '--runner-coverage=$runnerDirectory',
+        '--sources=$sources',
+        '--output=$_output',
+      ],
+      environment: environment,
+      includeParentEnvironment: false,
+      mode: ProcessStartMode.inheritStdio,
+    );
+    return collecting.exitCode;
+  }
 }
 
 Future<int> _runUnderRunner({
@@ -380,6 +482,7 @@ Future<int> _runUnderRunner({
   required List<String> args,
   required Map<String, String> environment,
   required Directory tmp,
+  required CoverageRun? coverage,
 }) async {
   final env = Platform.environment;
 
@@ -456,6 +559,9 @@ Future<int> _runUnderRunner({
       '--shard-index',
       shardIndex,
     ],
+    // The runner collects each suite's coverage itself, before it ends the
+    // suite's isolate.
+    if (coverage != null) '--coverage=${coverage.runnerDirectory}',
     testPath,
   ];
   final runEnvironment = {
@@ -552,6 +658,13 @@ Future<int> _runUnderRunner({
       stderr.writeln(
         'dart_test: ${tags.describeFixed()} select no case of $testPath.',
       );
+    }
+  }
+
+  if (coverage != null && code == 0) {
+    if (await coverage.convertRunnerCoverage(environment) != 0) {
+      stderr.writeln('dart_test: collecting coverage failed');
+      code = 1;
     }
   }
 

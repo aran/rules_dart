@@ -1,0 +1,34 @@
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_test")
+
+# `bazel coverage --combined_report=lcov //coverage/...` reports this library
+# and `//coverage/units` from both tests, merged; `//coverage/check` checks the
+# report against the `// covered` and `// uncovered` marks in their sources.
+dart_library(
+    name = "shapes",
+    package_name = "shapes",
+    srcs = ["lib/shapes.dart"],
+    visibility = ["//coverage:__subpackages__"],
+    deps = ["//coverage/units"],
+)
+
+exports_files(
+    ["lib/shapes.dart"],
+    visibility = ["//coverage:__subpackages__"],
+)
+
+dart_test(
+    name = "plain_test",
+    size = "small",
+    main = "test/plain_test.dart",
+    deps = [":shapes"],
+)
+
+dart_test(
+    name = "runner_test",
+    size = "small",
+    main = "test/runner_test.dart",
+    deps = [
+        ":shapes",
+        "@pub_deps//:test",
+    ],
+)

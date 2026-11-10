@@ -140,6 +140,24 @@ jobs:
   # The runner snapshot cache off, the default this repository's .bazelrc
   # overrides: `test_runner_test` checks that the runner then starts from its
   # kernel and no cache is touched.
+  coverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: modular kernels
+            flags: ""
+          - name: whole program
+            flags: "--@rules_dart//dart:modular_kernel=false"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: bazel coverage, combined LCOV report — ${{ matrix.name }}
+        working-directory: e2e/dart_test_pkg
+        run: |
+          bazel coverage ${{ matrix.flags }} --combined_report=lcov //coverage/...
+          bazel run //coverage/check -- "$(bazel info output_path)/_coverage/_coverage_report.dat"
   runner-snapshot-off:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -732,6 +750,7 @@ jobs:
     needs:
       - test
       - expected-failure
+      - coverage
       - pub-archive-links
       - dbg-mode
       - dev-tests

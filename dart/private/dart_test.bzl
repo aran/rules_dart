@@ -30,6 +30,7 @@ load(
     "target_dart_abi",
 )
 load("//dart/private:dart_import_check.bzl", "dart_import_check_aspect", "import_check_validation")
+load("//dart/private:dart_info.bzl", "package_lib_prefix")
 load(
     "//dart/private:dart_module.bzl",
     "MODULE_EXECUTABLE_ATTRS",
@@ -131,6 +132,9 @@ def _dart_test_impl(ctx):
                 "vm": "%s-%s-%s" % (dart_sdk_info.version, dart_sdk_info.exec_os, dart_sdk_info.exec_arch),
             }
             runner_files.append(runner.digest)
+    coverage_files = []
+    if ctx.configuration.coverage_enabled:
+        config["coverage"], coverage_files = _coverage_config(ctx, packages)
     config_file = ctx.actions.declare_file(ctx.label.name + ".launcher.json")
     ctx.actions.write(output = config_file, content = json.encode(config))
     env = {}
@@ -145,7 +149,7 @@ def _dart_test_impl(ctx):
     # pub, and the dill carries only compiled code — so they come in here, the
     # same way `dart_binary` stages them, and are reached with `rlocation`.
     runfiles = ctx.runfiles(
-        files = [dill, config_file] + runtime_libs + runner_files + ctx.files.data,
+        files = [dill, config_file] + runtime_libs + runner_files + coverage_files + ctx.files.data,
         transitive_files = depset(
             # The VM that runs the kernel, and no more of the SDK: a test that
             # runs SDK commands itself takes `@rules_dart//dart` in `data`.
@@ -153,6 +157,8 @@ def _dart_test_impl(ctx):
         ),
     )
     runfiles = runfiles.merge(launcher.runfiles)
+    if ctx.configuration.coverage_enabled:
+        runfiles = runfiles.merge(ctx.attr._coverage_collector[DefaultInfo].default_runfiles)
     for data_dep in ctx.attr.data:
         runfiles = runfiles.merge(data_dep[DefaultInfo].default_runfiles)
 
@@ -163,6 +169,14 @@ def _dart_test_impl(ctx):
         # `deps` entry. Built from `ctx.file.main`, not the bootstrap, because
         # the analyze/fix rules stage by `short_path`.
         own.analyzable,
+        # What `bazel coverage` reports on: the test's own files and its
+        # libraries', as `--instrumentation_filter` selects them.
+        coverage_common.instrumented_files_info(
+            ctx,
+            source_attributes = ["main", "srcs"],
+            dependency_attributes = ["deps"],
+            extensions = ["dart"],
+        ),
         OutputGroupInfo(_validation = import_check_validation(
             ctx,
             ctx.executable._kernel_tool,
@@ -171,6 +185,35 @@ def _dart_test_impl(ctx):
             ctx.attr.deps,
         )),
     ]
+
+def _coverage_config(ctx, packages):
+    """The launcher config's `coverage`, for a build under `bazel coverage`.
+
+    The collector reports a script by its file's path, which it finds in the
+    files Bazel instruments (`COVERAGE_MANIFEST`): a `package:` URI through
+    the package's `lib/` directories, written here, and any other by its path
+    below the kernel roots, which its URI holds.
+
+    Args:
+      ctx: The rule context.
+      packages: The test's `DartPackageInfo` closure.
+
+    Returns:
+      `(config, files)`: the config entry, and the files it names.
+    """
+    libs = {}
+    for pkg in packages:
+        prefix = kernel_root_path(package_lib_prefix(pkg.package_root))
+        roots = libs.setdefault(pkg.package_name, [])
+        if prefix not in roots:
+            roots.append(prefix)
+    sources = ctx.actions.declare_file(ctx.label.name + ".coverage_sources.json")
+    ctx.actions.write(output = sources, content = json.encode({"packages": libs}))
+    collector = ctx.executable._coverage_collector
+    return {
+        "collector": runfiles_path(collector, ctx.workspace_name),
+        "sources": runfiles_path(sources, ctx.workspace_name),
+    }, [sources, collector]
 
 def _code_assets(ctx, dill):
     """The test's code-asset mapping, and the libraries it names.
@@ -463,6 +506,19 @@ entry does not run. A target none of whose cases remain fails. \
 `deps`.""",
         ),
         "_modular_kernel": attr.label(default = Label("//dart:modular_kernel")),
+        # Run by the launcher under `bazel coverage`, and in runfiles only then.
+        "_coverage_collector": attr.label(
+            default = "//dart/private/tools:coverage_collector",
+            executable = True,
+            cfg = "target",
+        ),
+        # Bazel's coverage runner merges the test's tracefiles with it. Only
+        # `bazel coverage` builds it.
+        "_lcov_merger": attr.label(
+            default = configuration_field(fragment = "coverage", name = "output_generator"),
+            executable = True,
+            cfg = "exec",
+        ),
         "_tool": attr.label(
             default = "//dart/private/tools:test_runner",
             executable = True,
