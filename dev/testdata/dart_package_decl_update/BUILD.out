@@ -38,7 +38,7 @@ dart_codegen(
 )
 
 dart_library(
-    name = "event",
+    name = "decl_fixture",
     srcs = [
         "lib/event.dart",
         ":_event_combined",
@@ -46,5 +46,8 @@ dart_library(
     ],
     package = ":pkg",
     visibility = ["//visibility:public"],
-    deps = ["@freezed_annotation"],
+    deps = [
+        "@freezed_annotation",
+        "@json_annotation",
+    ],
 )

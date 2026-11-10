@@ -104,41 +104,41 @@ func macroLoadInfos() []rule.LoadInfo {
 	return []rule.LoadInfo{
 		{
 			Name:    "@rules_dart//dart/ext/json_serializable:defs.bzl",
-			Symbols: []string{"json_serializable_library"},
+			Symbols: []string{"json_serializable_codegen"},
 		},
 		{
 			Name:    "@rules_dart//dart/ext/freezed:defs.bzl",
-			Symbols: []string{"freezed_library"},
+			Symbols: []string{"freezed_codegen"},
 		},
 		{
 			Name:    "@rules_dart//dart/ext/built_value:defs.bzl",
-			Symbols: []string{"built_value_library"},
+			Symbols: []string{"built_value_codegen"},
 		},
 		{
 			Name:    "@rules_dart//dart/ext/mockito:defs.bzl",
-			Symbols: []string{"mockito_library"},
+			Symbols: []string{"mockito_codegen"},
 		},
 		{
 			Name:    "@rules_dart//dart/ext/go_router:defs.bzl",
-			Symbols: []string{"go_router_library"},
+			Symbols: []string{"go_router_codegen"},
 		},
 		{
 			Name:    "@rules_dart//dart/ext/copy_with_extension_gen:defs.bzl",
-			Symbols: []string{"copy_with_library"},
+			Symbols: []string{"copy_with_codegen"},
 		},
 		{
 			Name:    "@rules_dart//dart/ext/drift:defs.bzl",
-			Symbols: []string{"drift_library"},
+			Symbols: []string{"drift_codegen"},
 		},
 		{
 			Name: "@rules_dart//dart/ext/stacked:defs.bzl",
 			Symbols: []string{
-				"stacked_router_library",
-				"stacked_locator_library",
-				"stacked_logger_library",
-				"stacked_dialog_library",
-				"stacked_bottomsheet_library",
-				"stacked_form_library",
+				"stacked_router_codegen",
+				"stacked_locator_codegen",
+				"stacked_logger_codegen",
+				"stacked_dialog_codegen",
+				"stacked_bottomsheet_codegen",
+				"stacked_form_codegen",
 			},
 		},
 	}

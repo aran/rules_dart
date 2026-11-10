@@ -32,13 +32,15 @@ dart_codegen(
 )
 
 dart_library(
-    name = "event",
-    package_name = "lib",
+    name = "lib",
     srcs = [
         "lib/event.dart",
         ":_event_combined",
         ":_event_freezed_gen",
     ],
     visibility = ["//visibility:public"],
-    deps = ["@freezed_annotation"],
+    deps = [
+        "@freezed_annotation",
+        "@json_annotation",
+    ],
 )

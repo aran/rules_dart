@@ -1,13 +1,12 @@
 load("@rules_dart//dart:defs.bzl", "dart_library")
-load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_library")
+load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_codegen")
 
-json_serializable_library(
-    name = "user",
+json_serializable_codegen(
+    name = "user_codegen",
     package_name = "from_pubspec",
     srcs = ["lib/user.dart"],
     annotation_dep = "@json_annotation",
     language_version = "3.11",
-    visibility = ["//visibility:public"],
     deps = ["@json_annotation"],
 )
 
@@ -17,7 +16,10 @@ dart_library(
     srcs = [
         "lib/greeter.dart",
         "lib/src/model/name.dart",
+        "lib/user.dart",
+        ":user_codegen",
     ],
     language_version = "3.11",
     visibility = ["//visibility:public"],
+    deps = ["@json_annotation"],
 )

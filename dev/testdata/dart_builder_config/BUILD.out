@@ -1,15 +1,27 @@
-load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_library")
+load("@rules_dart//dart:defs.bzl", "dart_library")
+load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_codegen")
 
 # gazelle:dart_package_name builder_config_fixture
 # gazelle:dart_language_version 3.11
 # gazelle:dart_builder_config JsonSerializable {"field_rename": "snake"}
 
-json_serializable_library(
-    name = "user",
+json_serializable_codegen(
+    name = "user_codegen",
     package_name = "builder_config_fixture",
     srcs = ["lib/user.dart"],
     annotation_dep = "@json_annotation",
     config = "{\"field_rename\": \"snake\"}",
+    language_version = "3.11",
+    deps = ["@json_annotation"],
+)
+
+dart_library(
+    name = "builder_config_fixture",
+    package_name = "builder_config_fixture",
+    srcs = [
+        "lib/user.dart",
+        ":user_codegen",
+    ],
     language_version = "3.11",
     visibility = ["//visibility:public"],
     deps = ["@json_annotation"],

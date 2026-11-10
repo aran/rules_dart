@@ -1,60 +1,58 @@
 load(
     "@rules_dart//dart:defs.bzl",
-    "dart_codegen",
     "dart_library",
     "dart_test",
+)
+load(
+    "@rules_dart//dart/ext/stacked:defs.bzl",
+    "stacked_bottomsheet_codegen",
+    "stacked_dialog_codegen",
+    "stacked_form_codegen",
+    "stacked_locator_codegen",
+    "stacked_logger_codegen",
+    "stacked_router_codegen",
 )
 
 # Comprehensive stacked exemplar covering all six sub-builders:
 #
-#   - locator (pure Dart) — compiled into :app_library, behavioral test
+#   - locator (pure Dart) — compiled into :stacked_fixture, behavioral test
 #     via `setupLocator()` + `locator<T>()`.
-#   - router / dialog / bottomsheet / logger (Flutter-bound) — run as
-#     standalone dart_codegen targets, wired as `data` into structural
-#     tests that read the generated .dart via runfiles. NOT wrapped in a
-#     dart_library because their output imports package:flutter, which
-#     can't be compiled in rules_dart's pure-Dart CI.
+#   - router / dialog / bottomsheet / logger (Flutter-bound) — their
+#     macros' outputs are `data` of structural tests that read the
+#     generated .dart via runfiles. They are in no dart_library because
+#     their output imports package:flutter, which can't be compiled in
+#     rules_dart's pure-Dart CI.
 #   - form (Flutter-bound) — same structural-assertion pattern over
 #     @FormView's output.
 #
 # Reference: stacked_generator 2.0.2's builder.dart exposes one Builder
-# factory per sub-builder; each per-src `dart_codegen` wires one of them.
+# factory per sub-builder; each macro wires one of them.
 
-_APP_DEPS = [
-    ":services",
-    "@pub_deps//:stacked_shared",
-]
+# The package is one library: services.dart, app.dart, login_view.dart and
+# the locator's output. Each generator sees the package's files its source
+# imports through `asset_deps`.
 
-dart_library(
-    name = "services",
+stacked_locator_codegen(
+    name = "app_locator",
     package_name = "stacked_fixture",
-    srcs = ["lib/services.dart"],
+    srcs = ["lib/app.dart"],
+    annotation_dep = "@pub_deps//:stacked_shared",
+    asset_deps = ["lib/services.dart"],
     language_version = "3.11",
-    visibility = ["//visibility:public"],
-)
-
-# --- locator sub-builder (pure Dart, behavioral) ---
-
-dart_codegen(
-    name = "_app_locator_gen",
-    package_name = "stacked_fixture",
-    src = "lib/app.dart",
-    generator_bin = "@rules_dart//dart/ext/stacked:shim_locator",
-    language_version = "3.11",
-    output_suffixes = [".locator.dart"],
-    deps = _APP_DEPS,
 )
 
 dart_library(
-    name = "app_library",
+    name = "stacked_fixture",
     package_name = "stacked_fixture",
     srcs = [
         "lib/app.dart",
-        ":_app_locator_gen",
+        "lib/login_view.dart",
+        "lib/services.dart",
+        ":app_locator",
     ],
     language_version = "3.11",
     visibility = ["//visibility:public"],
-    deps = _APP_DEPS,
+    deps = ["@pub_deps//:stacked_shared"],
 )
 
 dart_test(
@@ -62,57 +60,53 @@ dart_test(
     size = "small",
     main = "test/locator_test.dart",
     deps = [
-        ":app_library",
+        ":stacked_fixture",
         "@pub_deps//:test",
     ],
 )
 
 # --- Flutter-bound sub-builders (structural tests only) ---
 
-dart_codegen(
-    name = "_app_router_gen",
+stacked_router_codegen(
+    name = "app_router",
     package_name = "stacked_fixture",
-    src = "lib/app.dart",
-    generator_bin = "@rules_dart//dart/ext/stacked:shim_router",
+    srcs = ["lib/app.dart"],
+    annotation_dep = "@pub_deps//:stacked_shared",
+    asset_deps = ["lib/services.dart"],
     language_version = "3.11",
-    output_suffixes = [".router.dart"],
-    deps = _APP_DEPS,
 )
 
-dart_codegen(
-    name = "_app_dialogs_gen",
+stacked_dialog_codegen(
+    name = "app_dialog",
     package_name = "stacked_fixture",
-    src = "lib/app.dart",
-    generator_bin = "@rules_dart//dart/ext/stacked:shim_dialog",
+    srcs = ["lib/app.dart"],
+    annotation_dep = "@pub_deps//:stacked_shared",
+    asset_deps = ["lib/services.dart"],
     language_version = "3.11",
-    output_suffixes = [".dialogs.dart"],
-    deps = _APP_DEPS,
 )
 
-dart_codegen(
-    name = "_app_bottomsheets_gen",
+stacked_bottomsheet_codegen(
+    name = "app_bottomsheet",
     package_name = "stacked_fixture",
-    src = "lib/app.dart",
-    generator_bin = "@rules_dart//dart/ext/stacked:shim_bottomsheet",
+    srcs = ["lib/app.dart"],
+    annotation_dep = "@pub_deps//:stacked_shared",
+    asset_deps = ["lib/services.dart"],
     language_version = "3.11",
-    output_suffixes = [".bottomsheets.dart"],
-    deps = _APP_DEPS,
 )
 
-dart_codegen(
-    name = "_app_logger_gen",
+stacked_logger_codegen(
+    name = "app_logger",
     package_name = "stacked_fixture",
-    src = "lib/app.dart",
-    generator_bin = "@rules_dart//dart/ext/stacked:shim_logger",
+    srcs = ["lib/app.dart"],
+    annotation_dep = "@pub_deps//:stacked_shared",
+    asset_deps = ["lib/services.dart"],
     language_version = "3.11",
-    output_suffixes = [".logger.dart"],
-    deps = _APP_DEPS,
 )
 
 dart_test(
     name = "router_structure_test",
     size = "small",
-    data = [":_app_router_gen"],
+    data = [":app_router"],
     main = "test/router_structure_test.dart",
     deps = [
         "@pub_deps//:test",
@@ -123,7 +117,7 @@ dart_test(
 dart_test(
     name = "dialog_structure_test",
     size = "small",
-    data = [":_app_dialogs_gen"],
+    data = [":app_dialog"],
     main = "test/dialog_structure_test.dart",
     deps = [
         "@pub_deps//:test",
@@ -134,7 +128,7 @@ dart_test(
 dart_test(
     name = "bottomsheet_structure_test",
     size = "small",
-    data = [":_app_bottomsheets_gen"],
+    data = [":app_bottomsheet"],
     main = "test/bottomsheet_structure_test.dart",
     deps = [
         "@pub_deps//:test",
@@ -145,7 +139,7 @@ dart_test(
 dart_test(
     name = "logger_structure_test",
     size = "small",
-    data = [":_app_logger_gen"],
+    data = [":app_logger"],
     main = "test/logger_structure_test.dart",
     deps = [
         "@pub_deps//:test",
@@ -155,20 +149,18 @@ dart_test(
 
 # --- form sub-builder (@FormView; separate source file) ---
 
-dart_codegen(
-    name = "_login_view_form_gen",
+stacked_form_codegen(
+    name = "login_view_form",
     package_name = "stacked_fixture",
-    src = "lib/login_view.dart",
-    generator_bin = "@rules_dart//dart/ext/stacked:shim_form",
+    srcs = ["lib/login_view.dart"],
+    annotation_dep = "@pub_deps//:stacked_shared",
     language_version = "3.11",
-    output_suffixes = [".form.dart"],
-    deps = ["@pub_deps//:stacked_shared"],
 )
 
 dart_test(
     name = "form_structure_test",
     size = "small",
-    data = [":_login_view_form_gen"],
+    data = [":login_view_form"],
     main = "test/form_structure_test.dart",
     deps = [
         "@pub_deps//:test",

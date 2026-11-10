@@ -4,8 +4,8 @@ part 'primitive_user.g.dart';
 
 // Intentionally simple — used by the primitives-form target in
 // BUILD.bazel to demonstrate the hand-wired dart_codegen + combining
-// path. The macro-form target below covers the same annotations via
-// `json_serializable_library`.
+// path. The macro-form targets there cover the same annotations via
+// `json_serializable_codegen`.
 
 /// A serializable user for the primitives-form pipeline.
 @JsonSerializable()

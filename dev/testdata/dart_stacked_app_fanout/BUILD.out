@@ -54,7 +54,7 @@ dart_codegen(
 )
 
 dart_library(
-    name = "app",
+    name = "stacked_fanout",
     package_name = "stacked_fanout",
     srcs = [
         "lib/app.dart",

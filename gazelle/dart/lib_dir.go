@@ -86,7 +86,7 @@ func gazelleLibRule(r *rule.Rule, rel string) bool {
 		return false
 	}
 	switch {
-	case libraryKinds[r.Kind()], deletableKinds[r.Kind()]:
+	case r.Kind() == "dart_library", deletableKinds[r.Kind()]:
 		return true
 	case r.Kind() == "filegroup":
 		return r.Name() == path.Base(rel)

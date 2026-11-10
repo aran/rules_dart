@@ -4,7 +4,7 @@ load("//dart:defs.bzl", "dart_binary")
 # drift_dev's modern path is a 4-stage pipeline:
 #   prep → discover → analyzer → driftBuilder (SharedPart) → combining
 # Each stage gets its own dart_binary shim; users compose them via
-# dart_sqlcodegen / dart_codegen targets (or via the drift_library macro
+# dart_sqlcodegen / dart_codegen targets (or via the drift_codegen macro
 # in defs.bzl, which wires the chain).
 
 dart_binary(

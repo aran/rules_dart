@@ -6,9 +6,6 @@ dart_test(
     main = "event_test.dart",
     deps = [
         "//codegen",
-        "//codegen:event",
-        "//codegen:profile",
-        "//codegen:user",
         "@pub_deps//:test",
     ],
 )
@@ -18,9 +15,7 @@ dart_test(
     srcs = ["fixtures.dart"],
     main = "profile_test.dart",
     deps = [
-        "//codegen:event",
-        "//codegen:profile",
-        "//codegen:user",
+        "//codegen",
         "@pub_deps//:test",
     ],
 )
@@ -30,9 +25,7 @@ dart_test(
     srcs = ["fixtures.dart"],
     main = "user_test.dart",
     deps = [
-        "//codegen:event",
-        "//codegen:profile",
-        "//codegen:user",
+        "//codegen",
         "@pub_deps//:test",
     ],
 )
@@ -53,7 +46,16 @@ dart_test(
     name = "address_test",
     main = "address_test.dart",
     deps = [
-        "//codegen:src/model/address",
+        "//codegen",
+        "@pub_deps//:test",
+    ],
+)
+
+dart_test(
+    name = "member_test",
+    main = "member_test.dart",
+    deps = [
+        "//codegen",
         "@pub_deps//:test",
     ],
 )

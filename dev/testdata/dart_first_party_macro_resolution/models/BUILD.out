@@ -1,10 +1,20 @@
-load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_library")
+load("@rules_dart//dart:defs.bzl", "dart_library")
+load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_codegen")
 
-json_serializable_library(
-    name = "models",
+json_serializable_codegen(
+    name = "models_codegen",
     package_name = "models",
     srcs = ["lib/models.dart"],
     annotation_dep = "@json_annotation",
+    deps = ["@json_annotation"],
+)
+
+dart_library(
+    name = "models",
+    srcs = [
+        "lib/models.dart",
+        ":models_codegen",
+    ],
     visibility = ["//visibility:public"],
     deps = ["@json_annotation"],
 )

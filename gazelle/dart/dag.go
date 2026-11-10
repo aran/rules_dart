@@ -73,10 +73,7 @@ func buildPipelineForFile(
 		return nil, nil
 	}
 
-	// Topological sort. Edges: A → B means A must run before B. Sources
-	// of edges:
-	//   1. consumes/produces — if A produces ext X and B consumes X, A→B.
-	//   2. runs_before — explicit override (refers to annotation names).
+	// Topological sort. Edges: A → B means A must run before B (precedes).
 	indegree := map[string]int{}
 	adj := map[string][]string{}
 	preds := map[string][]string{}
@@ -109,30 +106,10 @@ func buildPipelineForFile(
 		indegree[toID]++
 	}
 
-	// consumes/produces edges.
 	for _, a := range nodes {
 		for _, b := range nodes {
-			if a == b {
-				continue
-			}
-			for _, p := range a.Produces {
-				for _, c := range b.Consumes {
-					if p == c {
-						addEdge(nodeKey(a), nodeKey(b))
-					}
-				}
-			}
-		}
-	}
-
-	// runs_before overrides. `runs_before` names annotations; fan out to
-	// every node watching that annotation.
-	for _, a := range nodes {
-		for _, targetAnn := range a.RunsBefore {
-			for _, b := range nodes {
-				if b.Annotation == targetAnn {
-					addEdge(nodeKey(a), nodeKey(b))
-				}
+			if precedes(a, b) {
+				addEdge(nodeKey(a), nodeKey(b))
 			}
 		}
 	}
@@ -210,4 +187,55 @@ func sortedCopy(s []string) []string {
 	out := append([]string(nil), s...)
 	sort.Strings(out)
 	return out
+}
+
+// precedes reports whether builder a runs directly before builder b: b
+// consumes an extension a produces, or a's `runs_before` names b's
+// annotation.
+func precedes(a, b *builderInfo) bool {
+	if nodeKey(a) == nodeKey(b) {
+		return false
+	}
+	for _, p := range a.Produces {
+		for _, c := range b.Consumes {
+			if p == c {
+				return true
+			}
+		}
+	}
+	for _, ann := range a.RunsBefore {
+		if ann == b.Annotation {
+			return true
+		}
+	}
+	return false
+}
+
+// runsBefore reports whether builder a runs before builder b, directly or
+// through others, among the registered builders: what a writes for a
+// source is there when b runs on any source, as build_runner's earlier
+// phases are for its later ones.
+func (r *builderRegistry) runsBefore(a, b *builderInfo) bool {
+	var all []*builderInfo
+	for _, ann := range sortedKeys(r.byAnnotation) {
+		all = append(all, r.byAnnotation[ann]...)
+	}
+	seen := map[string]bool{}
+	var visit func(x *builderInfo) bool
+	visit = func(x *builderInfo) bool {
+		for _, y := range all {
+			if seen[nodeKey(y)] || !precedes(x, y) {
+				continue
+			}
+			if nodeKey(y) == nodeKey(b) {
+				return true
+			}
+			seen[nodeKey(y)] = true
+			if visit(y) {
+				return true
+			}
+		}
+		return false
+	}
+	return visit(a)
 }

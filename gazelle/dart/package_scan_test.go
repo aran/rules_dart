@@ -25,8 +25,8 @@ func writeTree(t *testing.T, files map[string]string) string {
 }
 
 // The whole of lib/ is the package's, whatever its directories and import
-// cycles; an annotated source is set apart, and only the files its codegen
-// produces are dropped.
+// cycles; an annotated source's annotations are recorded, and only the files
+// its codegen produces are dropped.
 func TestScanHoldsAllOfLib(t *testing.T) {
 	root := writeTree(t, map[string]string{
 		"pkg/pubspec.yaml":            "name: app\n",

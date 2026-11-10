@@ -3,14 +3,16 @@ package dart
 import "github.com/bazelbuild/bazel-gazelle/rule"
 
 // macroKindInfo is the common KindInfo for every per-builder convenience
-// macro (e.g. `json_serializable_library`). All share the same srcs/deps
-// shape, so Gazelle treats them uniformly.
+// macro (e.g. `json_serializable_codegen`), which writes a builder's codegen
+// targets for its sources and names their outputs for a library's `srcs`.
+// All share the same srcs/deps shape, so Gazelle treats them uniformly.
 var macroKindInfo = rule.KindInfo{
 	MatchAttrs:    []string{"srcs"},
 	NonEmptyAttrs: map[string]bool{"srcs": true},
 	MergeableAttrs: map[string]bool{
 		"srcs":             true,
 		"deps":             true,
+		"asset_deps":       true,
 		"package_name":     true,
 		"language_version": true,
 		"package":          true,
@@ -24,21 +26,21 @@ var macroKindInfo = rule.KindInfo{
 // Each entry MUST have a backing builderInfo in defaultBuilders(). The six
 // stacked sub-builders are listed because `@StackedApp` drives five of
 // them (router/locator/dialog/bottomsheet/logger) simultaneously; the
-// sixth (`stacked_form_library`) covers `@FormView` independently.
+// sixth (`stacked_form_codegen`) covers `@FormView` independently.
 var macroKinds = []string{
-	"json_serializable_library",
-	"freezed_library",
-	"built_value_library",
-	"mockito_library",
-	"go_router_library",
-	"copy_with_library",
-	"drift_library",
-	"stacked_router_library",
-	"stacked_locator_library",
-	"stacked_logger_library",
-	"stacked_dialog_library",
-	"stacked_bottomsheet_library",
-	"stacked_form_library",
+	"json_serializable_codegen",
+	"freezed_codegen",
+	"built_value_codegen",
+	"mockito_codegen",
+	"go_router_codegen",
+	"copy_with_codegen",
+	"drift_codegen",
+	"stacked_router_codegen",
+	"stacked_locator_codegen",
+	"stacked_logger_codegen",
+	"stacked_dialog_codegen",
+	"stacked_bottomsheet_codegen",
+	"stacked_form_codegen",
 }
 
 var dartKinds = func() map[string]rule.KindInfo {

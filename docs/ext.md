@@ -107,7 +107,7 @@ the shim verbatim as `--config`:
 - The decoded map is passed unmodified as `BuilderOptions(config)` to
   **every** builder factory the target's shim runs. A macro that writes
   several targets for one builder passes its `config` to each target whose
-  builder reads options: `drift_library` hands drift's options to its
+  builder reads options: `drift_codegen` hands drift's options to its
   discover, analyzer and part stages, on the `.dart` and `.drift` sources
   alike, as build_runner hands the `drift_dev` builder's options to the
   factories it runs on both; its prep stage and the combining shim read
@@ -298,28 +298,35 @@ deeper Bazel-package path than the Dart package root
 The Gazelle plugin (`gazelle/dart/`) scans `.dart` sources for
 annotations matching registered builders, then emits the appropriate
 codegen chain. It writes every target for a package's `lib/` in the BUILD
-file at the package's root, as it writes the package's own `dart_library`
-there; the targets for a source are named for its path under `lib/`
-without `.dart` (`user` for `lib/user.dart`, `src/model/user` for
-`lib/src/model/user.dart`):
+file at the package's root, beside the package's one `dart_library`, which
+holds every source, annotated or not, and lists in `srcs` what the codegen
+targets generate, as build_runner writes a `.g.dart` beside its source, a
+part of the same library. The targets for a source are named for its path
+under `lib/` without `.dart` (`user_codegen` for `lib/user.dart`,
+`src/model/user_codegen` for `lib/src/model/user.dart`). The library holds
+what a generator writes, so no generator depends on it: each sees, through
+`asset_deps`, the files of the package its source reaches by imports, cycles
+included, with what builders that run before its own (by `runs_before` and
+`consumes`/`produces`, build_runner's earlier phases) write for them, and
+depends in `deps` on the other packages those files import:
 
 - **Single-annotation source + the builder ships a convenience macro**
-  → emit one `<builder>_library(...)` call. (Most `dart_library` users
+  → emit one `<builder>_codegen(...)` call. (Most `dart_library` users
   see only this.)
 - **Multi-annotation chain** → topologically sort by
   `consumes`/`produces` and `runs_before`, emit a chain of
-  `dart_codegen` + combining + `dart_library`. Each stage depends on what
-  the source imports and on its builder's runtime package; a stage after a
+  `dart_codegen` + combining. Each stage depends also on its builder's
+  runtime package; a stage after a
   builder that writes part of the library (freezed's `.freezed.dart`) reads
   that output through `asset_deps`. A freezed class with a `fromJson`
   factory, or `fromJson: true` / `toJson: true` on `@Freezed`, counts as
   `@JsonSerializable` too, since freezed writes a `@JsonSerializable` class
   for json_serializable to complete.
-- **A source whose builders change** → the macro or chain library of the
-  same name replaces the other, and the chain's stages go.
+- **A source whose builders change** → the macro or chain replaces the
+  other in the library's `srcs`, and the old targets go.
 - **Fan-out annotation** (e.g. `@StackedApp` drives five sub-builders)
-  → emit one `dart_codegen` primitive per sub-builder, plus a wrapping
-  `dart_library` with every generated output in `srcs`.
+  → emit one `dart_codegen` primitive per sub-builder, every generated
+  output in the library's `srcs`.
 - **Generated files in the source tree**, as a published package carries
   them: a file a codegen target Gazelle writes produces (a SharedPart
   builder's source's `.g.dart`, any other builder's `produces=`
@@ -336,7 +343,8 @@ custom builder, hand-write a `dart_codegen` target. Directives below
 tune _registered_ builders:
 
 - `# gazelle:dart_builder_runtime_dep <Annotation> <label>` overrides
-  the runtime Dart library the emitted `dart_library` depends on
+  the runtime Dart library the package's `dart_library` and the builder's
+  codegen targets depend on
   (useful when you've forked e.g. `json_annotation`). Without it, the
   runtime package resolves as an import of it would, and a macro states it
   as `annotation_dep` where that is not the macro's default.

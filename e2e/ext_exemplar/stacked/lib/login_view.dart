@@ -1,5 +1,6 @@
 import 'package:stacked_shared/stacked_shared.dart';
 
+/// The view whose form stackedFormGenerator writes `login_view.form.dart` for.
 @FormView(
   fields: [
     FormTextField(name: 'email'),

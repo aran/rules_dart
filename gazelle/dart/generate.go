@@ -50,8 +50,9 @@ func (d *dartLang) generateDartRules(args language.GenerateArgs) language.Genera
 	var gen []*rule.Rule
 	var imports []interface{}
 	ownsLib := hasFile(args.Subdirs, "lib") && !hasLibComponent(args.Rel)
+	var staleLibs []*rule.Rule
 	if ownsLib {
-		gen, imports = d.packageLibraryRules(args)
+		gen, imports, staleLibs = d.packageLibraryRules(args)
 	}
 	if len(dartFiles) == 0 && len(gen) == 0 {
 		return language.GenerateResult{}
@@ -125,7 +126,7 @@ func (d *dartLang) generateDartRules(args language.GenerateArgs) language.Genera
 	}
 
 	empty := append(staleCodegenRules(args.File, gen), helperTests(args.File, helpers)...)
-	empty = append(empty, stale...)
+	empty = append(append(empty, stale...), staleLibs...)
 	if layout == "test" {
 		empty = append(empty, staleFilegroups(args.File, args.Rel, gen)...)
 	}
@@ -138,54 +139,24 @@ func (d *dartLang) generateDartRules(args language.GenerateArgs) language.Genera
 
 // packageLibraryRules is what Gazelle writes, in the BUILD file at the root
 // of a package (args.Rel), for the package's lib/: the package's
-// `dart_library`, holding every source under lib/ that carries no
-// registered annotation, and for each source that carries one, its codegen
-// targets and the library holding it and what they generate
-// (package_scan.go).
-func (d *dartLang) packageLibraryRules(args language.GenerateArgs) ([]*rule.Rule, []interface{}) {
+// `dart_library`, holding every source under lib/ and what the codegen
+// targets of the sources carrying registered annotations generate, and those
+// targets (codegen.go). It returns too the per-source libraries earlier
+// Gazelle versions wrote for annotated sources, to delete.
+func (d *dartLang) packageLibraryRules(args language.GenerateArgs) ([]*rule.Rule, []interface{}, []*rule.Rule) {
 	root := args.Rel
 	scan := d.scan.scanOf(args.Config, root)
 	if len(scan.lib) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 	registry, _ := args.Config.Exts[extKeyBuilderRegistry].(*builderRegistry)
 	if len(scan.annotated) > 0 {
 		// The options the package's build.yaml states for the builders.
 		registry = d.withBuildYaml(args, registry)
 	}
-	pkgLib := libraryName(root, args.Config)
+	gen, imports, genSrcs, runtime := d.codegenRules(args, scan, registry)
 
-	var gen []*rule.Rule
-	var imports []interface{}
-	var plain []DartFileInfo
-	for _, file := range scan.lib {
-		if _, ok := scan.annotated[file.Path]; !ok {
-			plain = append(plain, file)
-		}
-	}
-	for _, file := range scan.lib {
-		f := DartFileInfo{Path: relTo(root, file.Path), Imports: file.Imports}
-		anns, ok := scan.annotated[file.Path]
-		if !ok {
-			continue
-		}
-		if stem := libStem(f.Path); stem == pkgLib && len(plain) > 0 {
-			d.errs.add(fmt.Sprintf(
-				"dart: %s: its library, which holds what its annotations generate, "+
-					"would be named %q, as the package's own library is; rename the file",
-				file.Path, stem))
-			continue
-		}
-		rules, is := d.codegenRules(args, f, anns, registry)
-		gen = append(gen, rules...)
-		imports = append(imports, is...)
-	}
-	if len(plain) == 0 {
-		logUnstatedHooks(root)
-		return gen, imports
-	}
-
-	r := rule.NewRule("dart_library", pkgLib)
+	r := rule.NewRule("dart_library", libraryName(root, args.Config))
 	// The name is stated only where something states it; unstated,
 	// dart_library derives the same one from the target's name.
 	name := ""
@@ -193,17 +164,46 @@ func (d *dartLang) packageLibraryRules(args language.GenerateArgs) ([]*rule.Rule
 		name = r.Name()
 	}
 	setPackageIdentity(r, args, name)
-	srcs := make([]string, len(plain))
-	for i, f := range plain {
-		srcs[i] = relTo(root, f.Path)
+	srcs := make([]string, 0, len(scan.lib)+len(genSrcs))
+	for _, f := range scan.lib {
+		srcs = append(srcs, relTo(root, f.Path))
 	}
-	r.SetAttr("srcs", srcs)
+	r.SetAttr("srcs", append(srcs, genSrcs...))
 	// The package's hooks, on its library (hook.go).
-	files := append(append([]DartFileInfo(nil), plain...), setHooks(r, args.Config.RepoRoot, root, args.Rel)...)
+	files := append(append([]DartFileInfo(nil), scan.lib...), setHooks(r, args.Config.RepoRoot, root, args.Rel)...)
 	r.SetAttr("visibility", []string{"//visibility:public"})
+	is := collectRepoImports(args, files)
+	// What the builders generate imports their runtime libraries.
+	for _, b := range runtime {
+		addRuntimeDep(is, b)
+	}
 	gen = append(gen, r)
-	imports = append(imports, collectRepoImports(args, files))
-	return gen, imports
+	imports = append(imports, is)
+	return gen, imports, staleSourceLibraries(args.File, root, scan, r.Name())
+}
+
+// staleSourceLibraries returns an empty-rule marker for each library in f, the
+// BUILD file at the package's root, that earlier Gazelle versions wrote for
+// an annotated source: named for its path under lib/ and holding it. The
+// package's library holds the source now. `# keep` keeps one.
+func staleSourceLibraries(f *rule.File, root string, scan *packageScan, pkgLib string) []*rule.Rule {
+	if f == nil {
+		return nil
+	}
+	var empty []*rule.Rule
+	for _, r := range f.Rules {
+		if r.Kind() != "dart_library" || r.Name() == pkgLib || r.ShouldKeep() {
+			continue
+		}
+		for file := range scan.annotated {
+			src := relTo(root, file)
+			if r.Name() == libStem(src) && hasFile(r.AttrStrings("srcs"), src) {
+				empty = append(empty, rule.NewRule("dart_library", r.Name()))
+				break
+			}
+		}
+	}
+	return empty
 }
 
 // scriptRules is what Gazelle writes for the Dart files of a directory in
@@ -286,70 +286,6 @@ func containsFile(files []DartFileInfo, p string) bool {
 		}
 	}
 	return false
-}
-
-// codegenRules is what Gazelle writes for a source under lib/ carrying the
-// registered annotations anns, f named from the package's root: a macro
-// when one builder, with a macro, serves its one annotation, else the
-// codegen chain of its builders and the `dart_library` holding the source
-// and what the chain generates.
-func (d *dartLang) codegenRules(args language.GenerateArgs, f DartFileInfo, anns []string, registry *builderRegistry) ([]*rule.Rule, []interface{}) {
-	// Resolve every annotation to its registered builders. A single
-	// annotation may fan out to multiple builders (e.g. `@StackedApp`
-	// drives five sub-builders). Preserve the order in `anns` so the
-	// DAG has deterministic input even before topological sort.
-	var flatBuilders []*builderInfo
-	flatSeen := map[string]struct{}{}
-	for _, a := range anns {
-		for _, info := range registry.lookup(a) {
-			key := nodeKey(info)
-			if _, ok := flatSeen[key]; ok {
-				continue
-			}
-			flatSeen[key] = struct{}{}
-			flatBuilders = append(flatBuilders, info)
-		}
-	}
-
-	// Fast-path macro emission: exactly one annotation, exactly one
-	// matching builder, and that builder has a `Macro`. This produces a
-	// single `<builder>_library(...)` call.
-	if len(anns) == 1 && len(flatBuilders) == 1 && flatBuilders[0].Macro != "" {
-		if macroRule := buildMacroRule(args, f, flatBuilders[0]); macroRule != nil {
-			is := collectImports(args, []DartFileInfo{f})
-			if b := flatBuilders[0]; b.RuntimeDep == defaultRuntimeDeps[nodeKey(b)] {
-				is.annotationPackage = runtimePackage(b)
-				is.annotationDefault = b.RuntimeDep
-			}
-			return []*rule.Rule{macroRule}, []interface{}{is}
-		}
-	}
-
-	stages, err := buildPipelineForFile(anns, registry)
-	if err != nil {
-		log.Printf("dart: %s: %v", path.Join(args.Rel, f.Path), err)
-		return nil, nil
-	}
-	gen, libSrcs := emitCodegenStages(args, f, stages)
-	// A generator resolves the source, so each stage depends on what
-	// the source imports, and on its builder's runtime library.
-	var imports []interface{}
-	for i := range gen {
-		if stages[i].Combining {
-			imports = append(imports, nil)
-			continue
-		}
-		is := collectImports(args, []DartFileInfo{f})
-		if b := stages[i].Builder; b.RuntimeDep != defaultRuntimeDeps[nodeKey(b)] {
-			is.labels = append(is.labels, b.RuntimeDep)
-		} else if pkg := runtimePackage(b); pkg != "" {
-			is.packages[pkg] = true
-		}
-		imports = append(imports, is)
-	}
-	gen = append(gen, buildAnnotatedLibrary(args, f, libSrcs))
-	imports = append(imports, collectImports(args, []DartFileInfo{f}))
-	return gen, imports
 }
 
 // libStem names what Gazelle writes for a source under lib/, named from the
@@ -514,10 +450,9 @@ var deletableKinds = func() map[string]bool {
 }()
 
 // staleCodegenRules returns empty-rule markers for every existing rule of
-// a deletable kind whose name was not regenerated this pass, and for every
-// existing library a rule of another library kind now takes the name of: a
-// source that gained or lost an annotation moves between a macro and a
-// codegen chain's `dart_library`, both named for the source. Gazelle's merger
+// a deletable kind whose name was not regenerated this pass, or was
+// regenerated as another kind: a source whose annotations changed moves
+// between macros, or between a macro and a codegen chain. Gazelle's merger
 // deletes the matching rules from the BUILD file.
 func staleCodegenRules(f *rule.File, gen []*rule.Rule) []*rule.Rule {
 	if f == nil {
@@ -529,266 +464,12 @@ func staleCodegenRules(f *rule.File, gen []*rule.Rule) []*rule.Rule {
 	}
 	var empty []*rule.Rule
 	for _, existing := range f.Rules {
-		kind, ok := generated[existing.Name()]
-		switch {
-		case ok && kind != existing.Kind() && libraryKinds[kind] && libraryKinds[existing.Kind()]:
-		case !ok && deletableKinds[existing.Kind()]:
-		default:
+		if kind, ok := generated[existing.Name()]; (ok && kind == existing.Kind()) || !deletableKinds[existing.Kind()] {
 			continue
 		}
 		empty = append(empty, rule.NewRule(existing.Kind(), existing.Name()))
 	}
 	return empty
-}
-
-// libraryKinds are the kinds of the library Gazelle writes for a source:
-// dart_library and every convenience macro.
-var libraryKinds = func() map[string]bool {
-	m := map[string]bool{"dart_library": true}
-	for _, k := range macroKinds {
-		m[k] = true
-	}
-	return m
-}()
-
-// stageTargetName returns the synthetic Bazel target name for a stage of
-// the codegen pipeline applied to one source file. Single-registration
-// annotations use `_<base>_<ann_slug>_gen`; fan-out annotations
-// (`@StackedApp` → 5 builders) get a discriminator from the primary
-// extension's leading segment (`router`, `locator`, …) to keep target
-// names unique within the pipeline.
-func stageTargetName(srcPath string, stage pipelineStage, fanOut bool) string {
-	base := libStem(srcPath)
-	if stage.Combining {
-		return "_" + base + "_combined"
-	}
-	ann := lowerSnake(stage.Builder.Annotation)
-	if !fanOut {
-		return "_" + base + "_" + ann + "_gen"
-	}
-	// Use the primary-extension's first non-empty segment as the
-	// discriminator — `.router.dart` → `router`, `.locator.dart` →
-	// `locator`. Falls back to the full slug when no clean segment exists.
-	primary := ""
-	if len(stage.Builder.Produces) > 0 {
-		primary = stage.Builder.Produces[0]
-	}
-	discriminator := primarySegment(primary)
-	if discriminator == "" {
-		discriminator = strings.Trim(strings.ReplaceAll(primary, ".", "_"), "_")
-	}
-	return "_" + base + "_" + ann + "_" + discriminator + "_gen"
-}
-
-// primarySegment extracts the first non-empty `.`-delimited segment of an
-// extension like `.router.dart` → `router`. Returns `""` when there is no
-// content between dots.
-func primarySegment(ext string) string {
-	trimmed := strings.TrimPrefix(ext, ".")
-	parts := strings.SplitN(trimmed, ".", 2)
-	if len(parts) == 0 {
-		return ""
-	}
-	return parts[0]
-}
-
-// emitCodegenStages emits one rule per pipeline stage and returns the
-// emitted rules plus the labels that should appear in the wrapping
-// `dart_library`'s srcs list.
-func emitCodegenStages(
-	args language.GenerateArgs,
-	f DartFileInfo,
-	stages []pipelineStage,
-) ([]*rule.Rule, []string) {
-	_ = args
-	var rules []*rule.Rule
-	var labels []string
-	byID := map[string]string{}
-
-	// Precompute which annotations have multiple stages in this pipeline
-	// — i.e. fan-outs like `@StackedApp`. Only those need the extension
-	// discriminator appended to their target name.
-	annotationCount := map[string]int{}
-	for _, s := range stages {
-		if s.Builder != nil {
-			annotationCount[s.Builder.Annotation]++
-		}
-	}
-
-	builderOf := map[string]*builderInfo{}
-	for _, stage := range stages {
-		fanOut := stage.Builder != nil &&
-			annotationCount[stage.Builder.Annotation] > 1
-		name := stageTargetName(f.Path, stage, fanOut)
-		byID[stage.ID] = name
-		builderOf[stage.ID] = stage.Builder
-		var r *rule.Rule
-		if stage.Combining {
-			r = rule.NewRule("dart_codegen", name)
-			r.SetAttr("src", f.Path)
-			r.SetAttr("generator_bin",
-				"@rules_dart//dart/ext/_shared/combining_shim:bin")
-			r.SetAttr("output_suffixes", stage.OutputExts)
-			parts := make([]string, 0, len(stage.PartShards))
-			for _, shardID := range stage.PartShards {
-				if tgt, ok := byID[shardID]; ok {
-					parts = append(parts, ":"+tgt)
-				}
-			}
-			r.SetAttr("parts", parts)
-		} else {
-			r = rule.NewRule("dart_codegen", name)
-			r.SetAttr("src", f.Path)
-			r.SetAttr("generator_bin", stage.Builder.ShimLabel)
-			r.SetAttr("output_suffixes", stage.OutputExts)
-			// What an earlier builder wrote into the source's library (a
-			// `.freezed.dart` part), this one reads as a staged file: no
-			// library can hold the source before this stage's output exists.
-			// A SharedPart shard is not a part of the library, so it is
-			// left to the combining stage.
-			var assets []string
-			for _, id := range stage.After {
-				if b := builderOf[id]; b != nil && !b.SharedPart {
-					assets = append(assets, ":"+byID[id])
-				}
-			}
-			if len(assets) > 0 {
-				r.SetAttr("asset_deps", assets)
-			}
-			if stage.Builder.Config != "" {
-				r.SetAttr("config", stage.Builder.Config)
-			}
-		}
-		setPackageIdentity(r, args, packageNameIn(args.Config, args.Rel))
-		rules = append(rules, r)
-		labels = append(labels, ":"+name)
-	}
-
-	// The wrapping library needs every stage's output that isn't a
-	// SharedPart shard (SharedPart shards are merged into the combining
-	// stage's `.g.dart`, which stands in for them). For pipelines without
-	// any combining stage, every stage's output goes in.
-	var libSrcs []string
-	hasCombining := false
-	for _, s := range stages {
-		if s.Combining {
-			hasCombining = true
-			break
-		}
-	}
-	for i, s := range stages {
-		if hasCombining && s.Builder != nil && s.Builder.SharedPart {
-			continue
-		}
-		libSrcs = append(libSrcs, labels[i])
-	}
-	return rules, libSrcs
-}
-
-// macroRuleKind strips the macro symbol from a `<label>:<defs.bzl>%<macro>`
-// form — returning just the macro symbol (which becomes the rule kind).
-func macroRuleKind(macro string) string {
-	pct := strings.LastIndex(macro, "%")
-	if pct < 0 {
-		return ""
-	}
-	return macro[pct+1:]
-}
-
-// defaultRuntimeDeps maps each shipped builder registration (keyed by
-// nodeKey) to its default RuntimeDep, which tells a
-// `dart_builder_runtime_dep` directive's label from the default: a
-// directive's label is used as stated, the default is resolved as an import
-// of its package (runtimePackage) and stated on a macro only where that
-// differs from the macro's own default.
-var defaultRuntimeDeps = func() map[string]string {
-	m := map[string]string{}
-	for _, b := range defaultBuilders() {
-		m[nodeKey(b)] = b.RuntimeDep
-	}
-	return m
-}()
-
-// runtimePackage is the Dart package of a builder's default runtime
-// library (`json_annotation` for `@pub_deps//:json_annotation`), which
-// Gazelle resolves as it resolves an import of that package; "" when the
-// builder has none.
-func runtimePackage(b *builderInfo) string {
-	dep := defaultRuntimeDeps[nodeKey(b)]
-	if i := strings.LastIndex(dep, ":"); i >= 0 {
-		return dep[i+1:]
-	}
-	return ""
-}
-
-// buildMacroRule emits a single `<builder>_library(...)` rule call for a
-// one-annotation source. Returns nil if the builder's `Macro` field is
-// malformed.
-func buildMacroRule(
-	args language.GenerateArgs,
-	f DartFileInfo,
-	info *builderInfo,
-) *rule.Rule {
-	kind := macroRuleKind(info.Macro)
-	if kind == "" {
-		return nil
-	}
-	name := libStem(f.Path)
-	r := rule.NewRule(kind, name)
-	r.SetAttr("srcs", []string{f.Path})
-	r.SetAttr("visibility", []string{"//visibility:public"})
-	setPackageIdentity(r, args, packageNameIn(args.Config, args.Rel))
-	if info.RuntimeDep != "" && info.RuntimeDep != defaultRuntimeDeps[nodeKey(info)] {
-		r.SetAttr("annotation_dep", info.RuntimeDep)
-	}
-	if info.Config != "" {
-		r.SetAttr("config", info.Config)
-	}
-	return r
-}
-
-// buildAnnotatedLibrary emits the dart_library wrapping an annotated
-// source plus every generated output that belongs in the user's library.
-func buildAnnotatedLibrary(
-	args language.GenerateArgs,
-	f DartFileInfo,
-	genTargets []string,
-) *rule.Rule {
-	libName := libStem(f.Path)
-	r := rule.NewRule("dart_library", libName)
-	srcs := append([]string{f.Path}, genTargets...)
-	r.SetAttr("srcs", srcs)
-	r.SetAttr("visibility", []string{"//visibility:public"})
-
-	// Unconditionally, and from the same libraryName() the dart_codegen rules
-	// above used. Emitting it only when a pubspec or directive named the
-	// package left dart_library to fall back to its label, which agrees with
-	// libraryName() everywhere except the workspace root: there libraryName()
-	// yields "lib" while the label yields the target's own name, so the
-	// generated sources were produced for one package and collected into
-	// another. dart_library's fallback is still correct for a library Gazelle
-	// emits with no codegen beside it; it is only wrong next to a rule that
-	// already committed to a name.
-	setPackageIdentity(r, args, packageNameIn(args.Config, args.Rel))
-	return r
-}
-
-// lowerSnake naively snake-cases an annotation name (CamelCase →
-// camel_case). Only used for synthetic target names; readability matters
-// more than correctness on non-ASCII.
-func lowerSnake(s string) string {
-	var b strings.Builder
-	for i, r := range s {
-		if r >= 'A' && r <= 'Z' {
-			if i > 0 {
-				b.WriteByte('_')
-			}
-			b.WriteRune(r + 32)
-		} else {
-			b.WriteRune(r)
-		}
-	}
-	return b.String()
 }
 
 // setPackageIdentity states the Dart package a generated rule belongs to,

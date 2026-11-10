@@ -20,8 +20,9 @@ import (
 // package. Directories under lib/ mean nothing to Dart, to the analyzer or
 // to build_modules, which groups a package's libraries by top-level
 // directory alone, and import cycles inside a package are ordinary Dart. A
-// source carrying a registered annotation is its own library, with the
-// codegen targets that generate its parts, in that BUILD file too.
+// source carrying a registered annotation is in it too, as are its parts,
+// which the codegen targets beside it in that BUILD file generate
+// (codegen.go).
 //
 // Gazelle reads the whole package from disk once per run, since the
 // package's root holds what is under lib/ and a test can import a helper in

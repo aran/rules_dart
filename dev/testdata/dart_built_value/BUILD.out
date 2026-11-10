@@ -1,12 +1,23 @@
-load("@rules_dart//dart/ext/built_value:defs.bzl", "built_value_library")
+load("@rules_dart//dart:defs.bzl", "dart_library")
+load("@rules_dart//dart/ext/built_value:defs.bzl", "built_value_codegen")
 
 # gazelle:dart_package_name built_value_fixture
 
-built_value_library(
-    name = "user",
+built_value_codegen(
+    name = "user_codegen",
     package_name = "built_value_fixture",
     srcs = ["lib/user.dart"],
     annotation_dep = "@built_value",
+    deps = ["@built_value"],
+)
+
+dart_library(
+    name = "built_value_fixture",
+    package_name = "built_value_fixture",
+    srcs = [
+        "lib/user.dart",
+        ":user_codegen",
+    ],
     visibility = ["//visibility:public"],
     deps = ["@built_value"],
 )

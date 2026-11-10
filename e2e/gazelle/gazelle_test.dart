@@ -195,13 +195,19 @@ class User {
 ''');
   w.gazelle();
   // A single-annotation file emits the macro, which wires the shard and
-  // combining stages itself, not the primitive chain.
+  // combining stages itself, not the primitive chain; the package's library
+  // holds the source and what the macro generates.
   w.check(
     'BUILD.bazel',
-    'json_serializable_library(',
-    'json_serializable_library macro call',
+    'json_serializable_codegen(',
+    'json_serializable_codegen macro call',
   );
-  w.check('BUILD.bazel', 'name = "user"', 'macro target name');
+  w.check('BUILD.bazel', 'name = "user_codegen"', 'macro target name');
+  w.check(
+    'BUILD.bazel',
+    'srcs = [\n        "lib/user.dart",\n        ":user_codegen",\n    ],',
+    "the source and the macro's outputs in the package's library",
+  );
   w.check(
     'BUILD.bazel',
     'package_name = "my_models"',
@@ -215,7 +221,7 @@ class User {
   w.check(
     'BUILD.bazel',
     'load("@rules_dart//dart/ext/json_serializable:defs.bzl"',
-    'json_serializable_library load',
+    'json_serializable_codegen load',
   );
   final macroBuild = w.read('BUILD.bazel');
   if ([
@@ -373,9 +379,9 @@ class User {}
 
   // ---- one library holds the whole of lib/ ----------------------------
   // Directories under lib/, and import cycles between them, mean nothing to
-  // Dart: the package's library, at its root, holds every file, and an
-  // annotated source in a subdirectory is its own library, named for its
-  // path under lib/.
+  // Dart: the package's library, at its root, holds every file, with what
+  // the codegen of an annotated source in a subdirectory generates, which
+  // is named for the source's path under lib/.
   w = Workspace();
   w.markRoot(build: '# gazelle:dart_pub_deps_repo pub_deps\n');
   w.write('pubspec.yaml', 'name: two\n');
@@ -387,6 +393,7 @@ class User {}
   w.write('lib/src/b/b.dart', "import 'package:two/src/a/a.dart';\n");
   w.write('lib/src/m/user.dart', '''
 import 'package:json_annotation/json_annotation.dart';
+import '../b/b.dart';
 part 'user.g.dart';
 @JsonSerializable()
 class User {}
@@ -395,15 +402,20 @@ class User {}
   w.check(
     'BUILD.bazel',
     'srcs = [\n        "lib/src/a/a.dart",\n        "lib/src/b/b.dart",\n'
-        '        "lib/two.dart",\n    ],',
-    'every plain file under lib/ in the one library',
+        '        "lib/src/m/user.dart",\n        "lib/two.dart",\n'
+        '        ":src/m/user_codegen",\n    ],',
+    'every file under lib/ in the one library, with what the codegen generates',
   );
   w.check(
     'BUILD.bazel',
-    'name = "src/m/user"',
-    "the annotated source's library",
+    'name = "src/m/user_codegen"',
+    "the annotated source's codegen",
   );
-  w.check('BUILD.bazel', 'deps = [":src/m/user"]', 'the library on it');
+  w.check(
+    'BUILD.bazel',
+    'asset_deps = [\n        "lib/src/a/a.dart",\n        "lib/src/b/b.dart",\n    ],',
+    'the files the source reaches by imports, cycle included, staged for its generator',
+  );
   for (final d in ['lib', 'lib/src/a', 'lib/src/b', 'lib/src/m']) {
     if (File(w.path('$d/BUILD.bazel')).existsSync()) {
       fail('Gazelle wrote $d/BUILD.bazel');

@@ -1,5 +1,23 @@
 load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library")
-load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_library")
+load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_codegen")
+
+dart_library(
+    name = "kind_change",
+    package_name = "kind_change",
+    srcs = [
+        "lib/event.dart",
+        "lib/user.dart",
+        ":_event_combined",
+        ":_event_freezed_gen",
+        ":user_codegen",
+    ],
+    language_version = "3.11",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@freezed_annotation",
+        "@json_annotation",
+    ],
+)
 
 dart_codegen(
     name = "_event_freezed_gen",
@@ -35,25 +53,11 @@ dart_codegen(
     parts = [":_event_json_serializable_gen"],
 )
 
-dart_library(
-    name = "event",
-    package_name = "kind_change",
-    srcs = [
-        "lib/event.dart",
-        ":_event_combined",
-        ":_event_freezed_gen",
-    ],
-    language_version = "3.11",
-    visibility = ["//visibility:public"],
-    deps = ["@freezed_annotation"],
-)
-
-json_serializable_library(
-    name = "user",
+json_serializable_codegen(
+    name = "user_codegen",
     package_name = "kind_change",
     srcs = ["lib/user.dart"],
     annotation_dep = "@json_annotation",
     language_version = "3.11",
-    visibility = ["//visibility:public"],
     deps = ["@json_annotation"],
 )

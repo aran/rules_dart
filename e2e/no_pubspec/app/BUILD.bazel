@@ -9,10 +9,10 @@ load(
     "dart_test",
     "dart_wasm_binary",
 )
-load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_library")
+load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_codegen")
 
-# A package stated once, for every rule that builds part of it: the generated
-# model and the library over it.
+# A package stated once, for every rule that builds part of it: the
+# generated model and the library holding it.
 dart_package_metadata(
     name = "package",
     package_name = "app",
@@ -22,8 +22,8 @@ dart_package_metadata(
 # json_serializable reads the package's pubspec for its name and for a
 # dependency on json_annotation; it reads the one the rule writes from this
 # target.
-json_serializable_library(
-    name = "model",
+json_serializable_codegen(
+    name = "model_codegen",
     srcs = ["lib/src/model.dart"],
     annotation_dep = "@json_annotation",
     package = ":package",
@@ -31,11 +31,15 @@ json_serializable_library(
 
 dart_library(
     name = "app",
-    srcs = ["lib/app.dart"],
+    srcs = [
+        "lib/app.dart",
+        "lib/src/model.dart",
+        ":model_codegen",
+    ],
     package = ":package",
     deps = [
-        ":model",
         "//greet",
+        "@json_annotation",
     ],
 )
 

@@ -1,9 +1,19 @@
-load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_library")
+load("@rules_dart//dart:defs.bzl", "dart_library")
+load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_codegen")
 
-json_serializable_library(
-    name = "user",
+json_serializable_codegen(
+    name = "user_codegen",
     package_name = "macro",
     srcs = ["lib/user.dart"],
+    deps = ["@json_annotation"],
+)
+
+dart_library(
+    name = "macro",
+    srcs = [
+        "lib/user.dart",
+        ":user_codegen",
+    ],
     visibility = ["//visibility:public"],
     deps = ["@json_annotation"],
 )

@@ -14,15 +14,9 @@ import (
 )
 
 // indexedKinds is the set of rule kinds that provide a Dart package for
-// import resolution: the dart_library primitive plus every convenience
-// macro (each wraps a dart_library under the hood).
-var indexedKinds = func() map[string]bool {
-	m := map[string]bool{"dart_library": true}
-	for _, k := range macroKinds {
-		m[k] = true
-	}
-	return m
-}()
+// import resolution. A codegen macro is not one: the library holding its
+// sources lists what it generates.
+var indexedKinds = map[string]bool{"dart_library": true}
 
 // Imports returns the import specifications for a rule.
 // These are used to build the import index for dependency resolution.

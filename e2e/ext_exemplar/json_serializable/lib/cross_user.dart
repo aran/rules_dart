@@ -5,11 +5,8 @@ part 'cross_user.g.dart';
 
 // Cross-file resolution: the @JsonSerializable class implements a type
 // declared in base.dart. The shim's Resolver has to walk the sibling
-// file to resolve `Identifiable` at analysis time. That walking is
-// wired by `dart_codegen`'s `same_package_library_dep_files`
-// auto-staging: the `:base` dart_library in BUILD.bazel exposes
-// base.dart through DartInfo so the codegen action sees it as a
-// `--dep` sibling.
+// file to resolve `Identifiable` at analysis time: the macro's
+// `asset_deps` in BUILD.bazel stages base.dart beside this source.
 
 /// A serializable user implementing a cross-file interface.
 @JsonSerializable()

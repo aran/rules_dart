@@ -1,4 +1,4 @@
-/// End-to-end test for `shim_form` / `stacked_form_library`.
+/// End-to-end test for `shim_form` / `stacked_form_codegen`.
 ///
 /// The generated `.form.dart` requires Flutter at runtime, so we can't
 /// instantiate `TextEditingController` or `FormViewModel` here. We can

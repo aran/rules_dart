@@ -2,7 +2,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 part 'user.g.dart';
 
-/// One builder: Gazelle writes `json_serializable_library`.
+/// One builder: Gazelle writes `json_serializable_codegen`.
 @JsonSerializable()
 class User {
   /// Creates a user.

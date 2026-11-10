@@ -1,12 +1,11 @@
 load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library")
-load("@rules_dart//dart/ext/freezed:defs.bzl", "freezed_library")
+load("@rules_dart//dart/ext/freezed:defs.bzl", "freezed_codegen")
 
-freezed_library(
-    name = "event",
+freezed_codegen(
+    name = "event_codegen",
     package_name = "kind_change",
     srcs = ["lib/event.dart"],
     language_version = "3.11",
-    visibility = ["//visibility:public"],
     deps = ["@freezed_annotation"],
 )
 
@@ -44,16 +43,19 @@ dart_codegen(
 )
 
 dart_library(
-    name = "user",
+    name = "kind_change",
     package_name = "kind_change",
     srcs = [
+        "lib/event.dart",
         "lib/user.dart",
         ":_user_combined",
+        ":event_codegen",
     ],
     language_version = "3.11",
     visibility = ["//visibility:public"],
     deps = [
         "@copy_with_extension",
+        "@freezed_annotation",
         "@json_annotation",
     ],
 )

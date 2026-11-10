@@ -6,20 +6,24 @@ load(
 )
 load(
     "@rules_dart//dart/ext/json_serializable:defs.bzl",
-    "json_serializable_library",
+    "json_serializable_codegen",
 )
 
 # Comprehensive e2e for json_serializable. Demonstrates:
 #
-#   - Hand-wired primitives form (:primitive_user via dart_codegen +
+#   - Hand-wired primitives form (primitive_user.dart via dart_codegen +
 #     combining), showing the plumbing the macro hides.
-#   - Cross-file Resolver walking (:cross_user depends on :base, which
-#     exposes the sibling type through DartInfo for auto-staging).
-#   - Full annotation surface via `json_serializable_library` macro
-#     (:advanced) — FieldRename.snake, @JsonKey(name:/toJson:/fromJson:),
-#     @JsonConverter, @JsonEnum, genericArgumentFactories.
+#   - Cross-file Resolver walking (cross_user.dart implements a type from
+#     base.dart, a plain source of the package its generator sees through
+#     `asset_deps`).
+#   - Full annotation surface via the `json_serializable_codegen` macro
+#     (:advanced_codegen) — FieldRename.snake, @JsonKey(name:/toJson:/
+#     fromJson:), @JsonConverter, @JsonEnum, genericArgumentFactories.
+#
+# The package is one `dart_library`, holding every source and what the
+# generators write.
 
-# --- Primitives-form demonstration (replaces the old single_shared_part). ---
+# --- Primitives-form demonstration. ---
 dart_codegen(
     name = "_primitive_user_json_part",
     package_name = "json_serializable_fixture",
@@ -40,29 +44,22 @@ dart_codegen(
     parts = [":_primitive_user_json_part"],
 )
 
-# --- Cross-file Resolver (:base is the sibling exposed through deps). ---
-dart_library(
-    name = "base",
-    package_name = "json_serializable_fixture",
-    srcs = ["lib/base.dart"],
-    language_version = "3.11",
-)
-
+# --- Cross-file Resolver (base.dart is a plain source of the package). ---
 # NOTE: deliberately omits language_version — Gazelle only emits the attr
 # when one is derivable (directive or pubspec), so the macro must tolerate
 # its absence (the rules then use the SDK's own).
-json_serializable_library(
-    name = "cross_user_lib",
+json_serializable_codegen(
+    name = "cross_user_codegen",
     package_name = "json_serializable_fixture",
     srcs = ["lib/cross_user.dart"],
-    deps = [":base"],
+    asset_deps = ["lib/base.dart"],
 )
 
 # --- Advanced annotations via the macro. ---
 # user.dart references role.dart and custom_id.dart; each file's generator
 # sees its siblings through the macro.
-json_serializable_library(
-    name = "advanced",
+json_serializable_codegen(
+    name = "advanced_codegen",
     package_name = "json_serializable_fixture",
     srcs = [
         "lib/custom_id.dart",
@@ -74,21 +71,26 @@ json_serializable_library(
     deps = ["@pub_deps//:meta"],
 )
 
-# Aggregate library used by tests — pulls in every flavor.
 dart_library(
     name = "json_serializable_fixture",
     package_name = "json_serializable_fixture",
     srcs = [
+        "lib/base.dart",
+        "lib/cross_user.dart",
+        "lib/custom_id.dart",
         "lib/primitive_user.dart",
+        "lib/role.dart",
+        "lib/user.dart",
+        "lib/wrapper.dart",
         ":_primitive_user_combined",
+        ":advanced_codegen",
+        ":cross_user_codegen",
     ],
     language_version = "3.11",
     visibility = ["//visibility:public"],
     deps = [
-        ":advanced",
-        ":base",
-        ":cross_user_lib",
         "@pub_deps//:json_annotation",
+        "@pub_deps//:meta",
     ],
 )
 

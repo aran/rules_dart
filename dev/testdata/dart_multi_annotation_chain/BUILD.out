@@ -38,7 +38,7 @@ dart_codegen(
 )
 
 dart_library(
-    name = "event",
+    name = "multi_ann",
     package_name = "multi_ann",
     srcs = [
         "lib/event.dart",
@@ -47,5 +47,8 @@ dart_library(
     ],
     language_version = "3.11",
     visibility = ["//visibility:public"],
-    deps = ["@freezed_annotation"],
+    deps = [
+        "@freezed_annotation",
+        "@json_annotation",
+    ],
 )

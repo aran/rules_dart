@@ -3,16 +3,28 @@
 
 load(
     "@rules_dart//dart:defs.bzl",
+    "dart_library",
     "dart_test",
 )
-load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_library")
+load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_codegen")
 
-json_serializable_library(
-    name = "user",
+json_serializable_codegen(
+    name = "user_codegen",
     package_name = "source_tree_generated",
     srcs = ["lib/user.dart"],
     language_version = "3.11",
+)
+
+dart_library(
+    name = "user",
+    package_name = "source_tree_generated",
+    srcs = [
+        "lib/user.dart",
+        ":user_codegen",
+    ],
+    language_version = "3.11",
     visibility = ["//visibility:public"],
+    deps = ["@pub_deps//:json_annotation"],
 )
 
 dart_test(

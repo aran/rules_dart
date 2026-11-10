@@ -1,20 +1,24 @@
 load("@rules_dart//dart:defs.bzl", "dart_library")
-load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_library")
+load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_codegen")
 
 # gazelle:dart_package_name generated_in_source_tree_update
-
-json_serializable_library(
-    name = "user",
-    package_name = "generated_in_source_tree_update",
-    srcs = ["lib/user.dart"],
-    annotation_dep = "@json_annotation",
-    visibility = ["//visibility:public"],
-    deps = ["@json_annotation"],
-)
 
 dart_library(
     name = "generated_in_source_tree_update",
     package_name = "generated_in_source_tree_update",
-    srcs = ["lib/user.freezed.dart"],
+    srcs = [
+        "lib/user.dart",
+        "lib/user.freezed.dart",
+        ":user_codegen",
+    ],
     visibility = ["//visibility:public"],
+    deps = ["@json_annotation"],
+)
+
+json_serializable_codegen(
+    name = "user_codegen",
+    package_name = "generated_in_source_tree_update",
+    srcs = ["lib/user.dart"],
+    annotation_dep = "@json_annotation",
+    deps = ["@json_annotation"],
 )

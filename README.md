@@ -789,10 +789,13 @@ A package is one `dart_library`, in the BUILD file at the package's root
 package and holding every file under its `lib/`, as `pub.from_lock()` builds a
 pub package. Directories under `lib/` mean nothing to Dart, and import cycles
 between them are ordinary Dart, so they need nothing of Bazel. A source
-carrying a builder's annotation is a library of its own, beside it (see
-[Code generation](#code-generation)), named for its path under `lib/` without
-`.dart`: `//my_app:src/model/user` for `lib/src/model/user.dart`. A file one
-of those codegen targets produces is in no `srcs`, even when it is in the
+carrying a builder's annotation is in it too, as is what its builders
+generate, as build_runner writes a `.g.dart` beside its source, a part of the
+same library: its codegen targets (see [Code generation](#code-generation))
+are named for its path under `lib/` without `.dart`
+(`src/model/user_codegen` for `lib/src/model/user.dart`), and the library
+lists their outputs in `srcs`. A plain source and an annotated one may import
+each other. A file one of those codegen targets produces is in no `srcs`, even when it is in the
 source tree, as a published package carries it; any other file is a source,
 whatever its name. No BUILD file may be under `lib/`, since one would cut the
 package's library off from the files below it. Gazelle removes the rules it
@@ -859,9 +862,9 @@ targets:
 ```
 
 ```starlark
-json_serializable_library(
-    name = "user",
-    srcs = ["user.dart"],
+json_serializable_codegen(
+    name = "user_codegen",
+    srcs = ["lib/user.dart"],
     config = "{\"field_rename\":\"snake\"}",
     ...
 )
@@ -1008,7 +1011,7 @@ a pubspec gives has a home in Bazel:
 fails if a `pubspec.yaml` or `pubspec.lock` appears anywhere in the workspace.
 Its `MODULE.bazel` pins `json_annotation` and `meta`; `app/BUILD.bazel` states
 `app`'s name and language version once in a `dart_package_metadata`, which its
-`json_serializable_library` and `dart_library` share, and `greet/BUILD.bazel`
+`json_serializable_codegen` and `dart_library` share, and `greet/BUILD.bazel`
 states `greet`'s inline.
 
 Gazelle works without a pubspec. A package's root is the directory above its
@@ -1099,8 +1102,32 @@ the `dart_library` targets in `deps`, which are analyzable already.
 
 For first-party builders (`json_serializable`, `freezed`, `built_value`,
 `mockito`, `go_router`, `copy_with_extension_gen`, `stacked`,
-`drift`), each ships a convenience macro (`json_serializable_library`,
-`freezed_library`, …) under `dart/ext/<builder>/defs.bzl`. Gazelle discovers
+`drift`), each ships a convenience macro (`json_serializable_codegen`,
+`freezed_codegen`, …) under `dart/ext/<builder>/defs.bzl`. It writes the
+builder's codegen targets for its `srcs` and names what they generate, which
+the `dart_library` holding the sources lists in its own `srcs`:
+
+```starlark
+load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_codegen")
+
+json_serializable_codegen(
+    name = "user_codegen",
+    srcs = ["lib/user.dart"],
+    asset_deps = ["lib/role.dart"],  # the package's files user.dart imports
+    package = ":pkg",
+)
+
+dart_library(
+    name = "my_pkg",
+    srcs = ["lib/role.dart", "lib/user.dart", ":user_codegen"],
+    package = ":pkg",
+    deps = ["@pub_deps//:json_annotation"],
+)
+```
+
+A generator sees its package's other files through `asset_deps`, not through
+a library, since the library holds what it generates; `deps` are the other
+packages' libraries. Gazelle discovers
 the matching annotations in sources and emits the macro automatically. See
 [`docs/ext.md`](./docs/ext.md) for the shim contract, worker behaviour, and
 the guards for generated files checked into a source tree. Two more
@@ -1142,7 +1169,7 @@ dart_library(
 Set `package` or the inline attributes, never both — the rules refuse the
 overlap rather than silently ignoring one. Because it is a target rather than a
 macro, the rules referencing it can sit in different BUILD files, which is the
-case nothing else covers. The builder macros (`json_serializable_library` and
+case nothing else covers. The builder macros (`json_serializable_codegen` and
 friends) accept `package` too and forward it to every rule they emit.
 
 A package that states no `language_version` has the SDK's own: it compiles at

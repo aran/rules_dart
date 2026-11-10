@@ -3,8 +3,5 @@ load("@rules_dart//dart:defs.bzl", "dart_test")
 dart_test(
     name = "layout_test",
     main = "layout_test.dart",
-    deps = [
-        "//:layout",
-        "//:src/model/user",
-    ],
+    deps = ["//:layout"],
 )

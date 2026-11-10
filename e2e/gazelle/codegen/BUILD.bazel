@@ -1,5 +1,5 @@
 load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library")
-load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_library")
+load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_codegen")
 
 # gazelle:dart_pub_deps_repo pub_deps
 
@@ -36,19 +36,6 @@ dart_codegen(
     language_version = "3.11",
     output_suffixes = [".g.dart"],
     parts = [":_event_json_serializable_gen"],
-)
-
-dart_library(
-    name = "event",
-    package_name = "codegen",
-    srcs = [
-        "lib/event.dart",
-        ":_event_combined",
-        ":_event_freezed_gen",
-    ],
-    language_version = "3.11",
-    visibility = ["//visibility:public"],
-    deps = ["@pub_deps//:freezed_annotation"],
 )
 
 dart_codegen(
@@ -92,49 +79,63 @@ dart_codegen(
 )
 
 dart_library(
-    name = "profile",
+    name = "codegen",
     package_name = "codegen",
     srcs = [
+        "lib/codegen.dart",
+        "lib/event.dart",
+        "lib/greeting.dart",
+        "lib/member.dart",
         "lib/profile.dart",
+        "lib/src/model/address.dart",
+        "lib/user.dart",
+        ":_event_combined",
+        ":_event_freezed_gen",
         ":_profile_combined",
+        ":member_codegen",
+        ":src/model/address_codegen",
+        ":user_codegen",
     ],
     language_version = "3.11",
     visibility = ["//visibility:public"],
     deps = [
         "@pub_deps//:copy_with_extension",
+        "@pub_deps//:freezed_annotation",
         "@pub_deps//:json_annotation",
     ],
 )
 
-json_serializable_library(
-    name = "user",
+json_serializable_codegen(
+    name = "member_codegen",
     package_name = "codegen",
-    srcs = ["lib/user.dart"],
+    srcs = ["lib/member.dart"],
+    asset_deps = [
+        "lib/event.dart",
+        "lib/greeting.dart",
+        ":_event_freezed_gen",
+    ],
     config = "{\"field_rename\":\"pascal\"}",
     language_version = "3.11",
-    visibility = ["//visibility:public"],
-    deps = ["@pub_deps//:json_annotation"],
-)
-
-dart_library(
-    name = "codegen",
-    package_name = "codegen",
-    srcs = ["lib/codegen.dart"],
-    language_version = "3.11",
-    visibility = ["//visibility:public"],
     deps = [
-        ":event",
-        ":profile",
-        ":user",
+        "@pub_deps//:freezed_annotation",
+        "@pub_deps//:json_annotation",
     ],
 )
 
-json_serializable_library(
-    name = "src/model/address",
+json_serializable_codegen(
+    name = "src/model/address_codegen",
     package_name = "codegen",
     srcs = ["lib/src/model/address.dart"],
     config = "{\"field_rename\":\"pascal\"}",
     language_version = "3.11",
-    visibility = ["//visibility:public"],
+    deps = ["@pub_deps//:json_annotation"],
+)
+
+json_serializable_codegen(
+    name = "user_codegen",
+    package_name = "codegen",
+    srcs = ["lib/user.dart"],
+    config = "{\"field_rename\":\"pascal\"}",
+    language_version = "3.11",
     deps = ["@pub_deps//:json_annotation"],
 )
