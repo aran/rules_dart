@@ -24,6 +24,6 @@ bazel_env(
         "buildifier": TOOLS["buildifier"],
         "check-commit-messages": "//changelog:check",
         "typos": TOOLS["typos"],
-        "yamlfmt": TOOLS["yamlfmt"],
+        "yamlfmt": "//lint:yamlfmt_bin",
     },
 )

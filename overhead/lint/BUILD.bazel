@@ -1,4 +1,6 @@
 load("@rules_dart//dart:defs.bzl", "dart_binary")
+load("@rules_multitool//multitool:workspace_root.bzl", "workspace_root")
+load(":with_args.bzl", "with_args")
 
 # The tools the pre-commit hooks run, at the versions in //:multitool.lock.json,
 # run in the checkout root so that the paths prek passes resolve:
@@ -10,9 +12,35 @@ alias(
     visibility = ["//visibility:public"],
 )
 
-alias(
+# The one YAML style every consumer shares, passed on yamlfmt's command line
+# so that it wins over a repository's `.yamlfmt`, which can still hold its
+# excludes. Never pass `-conf`: it drops those excludes. `:yamlfmt` is the
+# `bazel run` target; `:yamlfmt_bin` is the one `.bazel_env/bin/yamlfmt` runs,
+# which cannot be the `workspace_root` wrapper.
+# `line_ending=lf` is there because yamlfmt writes CRLF on Windows unless told
+# otherwise, which rewrites every file of an LF checkout. One setting per
+# `-formatter`, with no comma: the Windows launcher is a `.bat`, and an
+# argument cmd.exe could split would silently drop the style.
+YAMLFMT_ARGS = [
+    "-formatter",
+    "retain_line_breaks_single=true",
+    "-formatter",
+    "scan_folded_as_literal=true",
+    "-formatter",
+    "line_ending=lf",
+]
+
+with_args(
+    name = "yamlfmt_bin",
+    args = YAMLFMT_ARGS,
+    tool = "@multitool//tools/yamlfmt",
+    visibility = ["//:__pkg__"],
+)
+
+workspace_root(
     name = "yamlfmt",
-    actual = "@multitool//tools/yamlfmt:workspace_root",
+    args = YAMLFMT_ARGS,
+    tool = "@multitool//tools/yamlfmt",
     visibility = ["//visibility:public"],
 )
 
