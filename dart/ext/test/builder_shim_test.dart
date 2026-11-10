@@ -156,7 +156,9 @@ void main() {
           'the $asset the target passes is the one the generator reads'
           '${readOnly ? ' (read-only, as a Bazel output is)' : ''}',
           () async {
-            final mine = '# mine\nname: fixture\nversion: 9.9.9\n';
+            final mine =
+                '# mine\nname: fixture\nversion: 9.9.9\n'
+                'environment:\n  sdk: ^3.11.0\n';
             expect(
               await readStaged(asset, content: mine, readOnly: readOnly),
               mine,
@@ -165,6 +167,38 @@ void main() {
           },
         );
       }
+    }
+
+    for (final (what, content, says) in [
+      (
+        'name',
+        'name: other\nenvironment:\n  sdk: ^3.11.0\n',
+        '`name: other`, but the target\'s `package_name` is "fixture"',
+      ),
+      (
+        'language version',
+        'name: fixture\nenvironment:\n  sdk: ">=3.9.0 <4.0.0"\n',
+        'which is language version 3.9, but the target\'s language version '
+            'is 3.11',
+      ),
+      (
+        'missing SDK constraint',
+        'name: fixture\n',
+        'no `environment.sdk`, which is language version 2.7',
+      ),
+    ]) {
+      test('a pubspec whose $what disagrees with the target fails', () async {
+        await expectLater(
+          readStaged('pubspec.yaml', content: content),
+          throwsA(
+            isA<StateError>().having(
+              (e) => e.message,
+              'message',
+              allOf(contains('disagrees with the target'), contains(says)),
+            ),
+          ),
+        );
+      });
     }
 
     test('a read-only declared input does not fail the action', () async {

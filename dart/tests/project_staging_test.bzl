@@ -109,6 +109,24 @@ def _in_place_test_impl(ctx):
     asserts.equals(env, None, in_place_root([other], "dep", _OWN))
     return unittest.end(env)
 
+def _dependencies_test_impl(ctx):
+    env = unittest.begin(ctx)
+    pkgs = [
+        _pkg("app", "3.5"),
+        struct(package_name = "json_annotation", language_version = "3.0", lib_root = "", version = "4.12.0"),
+        _pkg("util"),
+    ]
+
+    # A pub package is listed at the version the build uses, which a version
+    # check such as json_serializable's reads; a workspace package, which has
+    # none, at `any`. Never the package itself.
+    asserts.equals(
+        env,
+        'name: app\nenvironment:\n  sdk: "^3.5.0"\ndependencies:\n  json_annotation: 4.12.0\n  util: any\n',
+        pubspec_stub(pkgs, name = "app"),
+    )
+    return unittest.end(env)
+
 _t0_test = unittest.make(_sdk_from_language_version_test_impl)
 _t1_test = unittest.make(_sdk_default_test_impl)
 _t2_test = unittest.make(_sdk_toolchain_version_test_impl)
@@ -116,6 +134,7 @@ _t3_test = unittest.make(_layout_home_test_impl)
 _t4_test = unittest.make(_layout_deepest_root_test_impl)
 _t5_test = unittest.make(_config_skips_unstaged_test_impl)
 _t6_test = unittest.make(_in_place_test_impl)
+_t7_test = unittest.make(_dependencies_test_impl)
 
 def project_staging_test_suite(name):
-    small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test, _t4_test, _t5_test, _t6_test)
+    small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test, _t4_test, _t5_test, _t6_test, _t7_test)

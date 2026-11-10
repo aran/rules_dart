@@ -32,6 +32,8 @@ import 'package:glob/glob.dart';
 import 'package:logging/logging.dart';
 import 'package:package_config/package_config.dart';
 import 'package:path/path.dart' as p;
+import 'package:pub_semver/pub_semver.dart';
+import 'package:yaml/yaml.dart';
 
 import 'src/declared_file_system.dart';
 
@@ -378,6 +380,7 @@ List<BuilderFactory> _normaliseFactories(Object factoryOrFactories) {
 Future<void> prepareSourceGenCwd({
   required Directory baseDir,
   required String packageName,
+  required LanguageVersion languageVersion,
 }) async {
   await baseDir.create(recursive: true);
   Future<void> stub(String name, String content) async {
@@ -387,11 +390,71 @@ Future<void> prepareSourceGenCwd({
 
   await stub(
     'pubspec.yaml',
-    'name: $packageName\nenvironment:\n  sdk: ^3.0.0\n',
+    'name: $packageName\nenvironment:\n'
+        '  sdk: ^${languageVersion.major}.${languageVersion.minor}.0\n',
   );
   await stub('stacked.json', '{}\n');
   Directory.current = baseDir;
 }
+
+/// Refuses a staged `pubspec.yaml` that contradicts the target it is staged
+/// for.
+///
+/// The codegen rules write each action a pubspec derived from the target's
+/// `package_name`, language version and `deps`, unless the target passes its
+/// own in `asset_deps`. The user's states the package's name and, through
+/// `environment.sdk`, its language version, which the target states too; two
+/// statements that disagree would leave builders reading one and the analyzer
+/// the other. The language version is read as pub reads it: the SDK
+/// constraint's lower bound, or 2.7 with none.
+void checkPubspecAgreement({
+  required String content,
+  required String shownAs,
+  required String packageName,
+  required LanguageVersion languageVersion,
+}) {
+  final fields = loadYaml(content, sourceUrl: Uri.file(shownAs));
+  final map = fields is Map ? fields : const {};
+  final problems = <String>[];
+  final name = map['name'];
+  if (name != packageName) {
+    problems.add(
+      '${name == null ? 'no `name`' : '`name: $name`'}, but the target\'s '
+      '`package_name` is "$packageName"',
+    );
+  }
+  final environment = map['environment'];
+  final sdk = environment is Map ? environment['sdk'] : null;
+  final stated = sdk is String
+      ? _lowerBound(VersionConstraint.parse(sdk))
+      : null;
+  final pubspecVersion = stated == null
+      ? '2.7'
+      : '${stated.major}.${stated.minor}';
+  final targetVersion = '${languageVersion.major}.${languageVersion.minor}';
+  if (pubspecVersion != targetVersion) {
+    problems.add(
+      '${sdk is String ? '`environment.sdk: $sdk`' : 'no `environment.sdk`'}, '
+      'which is language version $pubspecVersion, but the target\'s '
+      'language version is $targetVersion (its `language_version` or '
+      '`package`, or the rules\' default when neither states one)',
+    );
+  }
+  if (problems.isEmpty) return;
+  throw StateError(
+    '$shownAs, passed in `asset_deps`, disagrees with the target:\n'
+    '${problems.map((m) => '  - it says $m').join('\n')}\n'
+    'State each fact once: make the pubspec agree, or drop it from '
+    '`asset_deps` and the rule writes one from the target.',
+  );
+}
+
+Version? _lowerBound(VersionConstraint constraint) => switch (constraint) {
+  Version v => v,
+  VersionRange r => r.min,
+  VersionUnion u => u.ranges.first.min,
+  _ => null,
+};
 
 /// Same as [runShim] but takes pre-parsed [args] and propagates errors as
 /// exceptions. Intended for unit tests.
@@ -528,7 +591,19 @@ Future<void> _runWithStaging(
       assetIdToPath[AssetId(args.packageName, entry.key)] = dest;
     }),
   );
-  await prepareSourceGenCwd(baseDir: stagingDir, packageName: args.packageName);
+  if (execByAsset['pubspec.yaml'] case final pubspec?) {
+    checkPubspecAgreement(
+      content: await File(pubspec).readAsString(),
+      shownAs: pubspec,
+      packageName: args.packageName,
+      languageVersion: args.rootLanguageVersion,
+    );
+  }
+  await prepareSourceGenCwd(
+    baseDir: stagingDir,
+    packageName: args.packageName,
+    languageVersion: args.rootLanguageVersion,
+  );
   final inputId = AssetId(args.packageName, args.inputAssetPath);
 
   // Build a PackageConfig that maps the synthetic root package to the

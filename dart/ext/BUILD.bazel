@@ -43,6 +43,8 @@ dart_library(
         "@ext_pub_deps//:logging",
         "@ext_pub_deps//:package_config",
         "@ext_pub_deps//:path",
+        "@ext_pub_deps//:pub_semver",
+        "@ext_pub_deps//:yaml",
     ],
 )
 

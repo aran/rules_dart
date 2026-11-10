@@ -262,10 +262,17 @@ file of every other package in `deps`, sources and `resources` alike, is an
 input of the action, since a generator may read any of them through the
 package config.
 
-The staging root is the package root a builder sees. A `pubspec.yaml`,
-`analysis_options.yaml` or `stacked.json` passed in `asset_deps` at the package
-root is staged there and is the file builders and the analyzer read; the shim
-writes a stub `pubspec.yaml` and `stacked.json` only when none is passed. Users no longer hand-list
+The staging root is the package root a builder sees. Builders read its
+`pubspec.yaml` (`source_gen` for the package name, `json_serializable` for its
+dependency on `json_annotation`), so the rule writes one from the target: its
+`package_name`, an `environment.sdk` of `^<language_version>.0`, and every
+package its `deps` reach, at the version the build uses (`any` for a workspace
+package, which has none). A `pubspec.yaml` passed in `asset_deps` at the package
+root is staged instead; the shim fails the action, naming both, when its `name`
+or the language version pub derives from its `environment.sdk` differs from the
+target's. An `analysis_options.yaml` or `stacked.json` passed there is staged
+and read as is; the shim writes an empty `stacked.json` only when none is
+passed. Users no longer hand-list
 `deps = ["lib/api.dart"]`; they add the owning `dart_library` target to
 `deps` instead.
 

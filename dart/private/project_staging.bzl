@@ -42,7 +42,7 @@ on Dart 3.12.2), so options still come from the nearest `analysis_options.yaml`
 above each file, never from a pubspec's position.
 """
 
-load("//dart/private:common.bzl", "package_root_of", "relative_path")
+load("//dart/private:common.bzl", "derived_pubspec", "package_root_of", "relative_path")
 load("//dart/private:source_set.bzl", "assemble_source_dir", "package_record_for_index", "package_record_index")
 
 def mangle_package_dir(name):
@@ -118,10 +118,9 @@ def pubspec_stub(packages, name = "analyze_stub", sdk_version = ""):
     staging. Dependencies are sorted because `sort_pub_dependencies` would be
     the next one.
 
-    Constraints are `any`: nothing resolves them, and a real constraint here
-    would be a second place to keep a version in sync. The stub's own name is
-    excluded from the dependency list; `depend_on_referenced_packages`
-    special-cases the containing package, so a `package:self/…` import never
+    `derived_pubspec` writes it: each dependency at the version the build
+    uses when known, else `any`, and never the stub's own name;
+    `depend_on_referenced_packages` special-cases the containing package, so a `package:self/…` import never
     needs a self-dependency (measured on Dart 3.12.2).
 
     The SDK constraint is `^<language_version>.0` for the package named
@@ -156,17 +155,7 @@ def pubspec_stub(packages, name = "analyze_stub", sdk_version = ""):
         if p.package_name == name and getattr(p, "language_version", ""):
             sdk = "^%s.0" % p.language_version
             break
-    lines = ["name: %s" % name, "environment:", '  sdk: "%s"' % sdk]
-    names = sorted([
-        p.package_name
-        for p in packages
-        if p.package_name and p.package_name != name
-    ])
-    if names:
-        lines.append("dependencies:")
-        for dep in names:
-            lines.append("  %s: any" % dep)
-    return "\n".join(lines) + "\n"
+    return derived_pubspec(name, sdk, packages)
 
 def _deepest_root_record(short_path, index):
     """The record whose `lib_root` is the deepest directory holding `short_path`.

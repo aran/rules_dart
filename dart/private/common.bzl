@@ -165,6 +165,37 @@ def collect_packages(deps):
         depset(transitive = [dep[DartInfo].transitive_packages for dep in deps]).to_list(),
     )
 
+def derived_pubspec(name, sdk, packages):
+    """The `pubspec.yaml` a package's targets imply, for tools that read one.
+
+    Some SDK tools and generators read a pubspec where the build states the
+    same facts on its targets: lints read its name and dependencies, and
+    `json_serializable` its dependency on `json_annotation`. rules_dart writes
+    them this file instead of reading the user's, so a workspace needs none.
+    Each dependency's constraint is the version the build uses when the record
+    knows it (a pub package's), else `any`: nothing resolves the file, so the
+    constraint only has to be true. Sorted, as `sort_pub_dependencies` wants.
+
+    Args:
+      name: The package's name.
+      sdk: The `environment.sdk` constraint.
+      packages: `DartPackageInfo` records of the packages it depends on. The
+        package's own records are skipped; a package never depends on itself.
+
+    Returns:
+      The file's contents.
+    """
+    versions = {}
+    for p in packages:
+        if p.package_name and p.package_name != name:
+            versions[p.package_name] = getattr(p, "version", "") or versions.get(p.package_name, "")
+    lines = ["name: %s" % name, "environment:", '  sdk: "%s"' % sdk]
+    if versions:
+        lines.append("dependencies:")
+        for dep in sorted(versions):
+            lines.append("  %s: %s" % (dep, versions[dep] or "any"))
+    return "\n".join(lines) + "\n"
+
 _VERSION_REMEDY = """
 Each package listed just above was resolved to different versions by two
 package sources. Typically two pub hubs — rules_flutter's `flutter.pub()` and
@@ -1780,6 +1811,20 @@ def add_shim_contract_args(
         seen[src.path] = True
         args.add("--dep", src, format = "%s|" + format_literal(asset_path_for(src, lib_root)))
         extra_inputs.append(src)
+
+    # Builders read the package's pubspec (`source_gen` its name,
+    # `json_serializable` its dependencies). Unless the target passes its own
+    # in `asset_deps`, which the shim checks against the target, it is written
+    # from the target.
+    if not [f for f in asset_deps if asset_path_for(f, lib_root) == "pubspec.yaml"]:
+        pubspec = ctx.actions.declare_file(ctx.label.name + ".codegen/pubspec.yaml")
+        ctx.actions.write(pubspec, derived_pubspec(
+            identity.package_name,
+            "^%s.0" % (identity.language_version or DEFAULT_ROOT_LANGUAGE_VERSION),
+            collect_packages(ctx.attr.deps),
+        ))
+        args.add("--dep", pubspec, format = "%s|pubspec.yaml")
+        extra_inputs.append(pubspec)
     for part in ctx.files.parts:
         args.add("--part", part)
         extra_inputs.append(part)
