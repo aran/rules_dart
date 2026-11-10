@@ -12,6 +12,29 @@ load("//dart/pub/private:version.bzl", "semver_gt")
 
 _SPOKE_PREFIX = "dart_pub"
 
+def _pub_command(subcommand, lock, packages = []):
+    """The command that runs pub `subcommand` on the package that holds `lock`.
+
+    `@rules_dart//dart/pub` needs only the `dart` toolchain, so it runs while
+    this extension refuses a lock. It starts at the root of the workspace it
+    is run in: the command is run from the root of the workspace that holds
+    the lock, and `--directory` is the lock's directory there.
+
+    Args:
+        subcommand: The pub subcommand: `get` or `upgrade`.
+        lock: The lock's label.
+        packages: The packages to re-resolve, for `upgrade`.
+
+    Returns:
+        The command, to print on a line of its own.
+    """
+    path = lock.package + "/" + lock.name if lock.package else lock.name
+    directory = path.rpartition("/")[0]
+    words = ["bazel run @rules_dart//dart/pub --", subcommand]
+    if directory:
+        words.append("--directory=" + directory)
+    return " ".join(words + packages)
+
 _package = tag_class(
     attrs = {
         "name": attr.string(
@@ -289,8 +312,20 @@ def _add_git_package(git_registry, name, info, lock_tag):
     version = info.get("version", "")
     url = desc.get("url", "")
     if not url:
-        fail("The git package \"%s\" %s (in %s) has no `description.url`. Run `dart pub get` to rewrite the lock." % (name, version, lock_tag.lock))
-    check_pub_git_resolved_ref(name, version, desc.get("resolved-ref", ""), str(lock_tag.lock))
+        fail(("The git package \"%s\" %s (in %s) has no `description.url`. Re-resolve the " +
+              "lock to rewrite it, from the root of the workspace that holds it:\n  %s") % (
+            name,
+            version,
+            lock_tag.lock,
+            _pub_command("get", lock_tag.lock),
+        ))
+    check_pub_git_resolved_ref(
+        name,
+        version,
+        desc.get("resolved-ref", ""),
+        str(lock_tag.lock),
+        rewrite = _pub_command("get", lock_tag.lock),
+    )
     relative = is_relative_git_url(url)
     pkg = struct(
         version = version,
@@ -301,6 +336,7 @@ def _add_git_package(git_registry, name, info, lock_tag):
         # lock is part of what it names.
         lock = lock_tag.lock if relative else None,
         lock_label = str(lock_tag.lock),
+        lock_file = lock_tag.lock,
     )
     first = git_registry.setdefault(name, pkg)
     if (first.url, first.lock, first.resolved_ref, first.path) != (pkg.url, pkg.lock, pkg.resolved_ref, pkg.path):
@@ -309,7 +345,8 @@ def _add_git_package(git_registry, name, info, lock_tag):
              "  - %s at %s, path %s (from %s)\n" +
              "  - %s at %s, path %s (from %s)\n" +
              "rules_dart builds one copy of each package. Make the pubspecs ask for the " +
-             "same commit and run `dart pub get` in each workspace.") % (
+             "same commit, then re-resolve each lock from the root of the workspace that " +
+             "holds it:\n  %s\n  %s") % (
                 name,
                 first.url,
                 first.resolved_ref,
@@ -319,6 +356,8 @@ def _add_git_package(git_registry, name, info, lock_tag):
                 pkg.resolved_ref,
                 pkg.path,
                 pkg.lock_label,
+                _pub_command("upgrade", first.lock_file, [name]),
+                _pub_command("upgrade", pkg.lock_file, [name]),
             ),
         )
 
@@ -442,12 +481,19 @@ def _pub_impl(ctx):
             url = desc.get("url", "https://pub.dev")
             version = info.get("version", "")
             sha256 = desc.get("sha256", "")
-            check_pub_archive_sha256(name, version, sha256, str(lock_tag.lock))
+            check_pub_archive_sha256(
+                name,
+                version,
+                sha256,
+                str(lock_tag.lock),
+                rewrite = _pub_command("get", lock_tag.lock),
+            )
             entry = struct(
                 version = version,
                 sha256 = sha256,
                 hub_name = hub_name,
                 lock_label = str(lock_tag.lock),
+                lock_file = lock_tag.lock,
                 on_version_conflict = lock_tag.on_version_conflict,
             )
 
@@ -513,8 +559,10 @@ def _pub_impl(ctx):
                     "  - %s (from \"%s\", %s)\n" % (first.sha256, first.hub_name, first.lock_label) +
                     "  - %s (from \"%s\", %s)\n" % (e.sha256, e.hub_name, e.lock_label) +
                     "\nAt most one of them describes the archive the registry serves. " +
-                    "`dart pub get` in each workspace checks its lock's digests against the " +
-                    "registry and reports a wrong one.",
+                    "Re-resolving a lock checks its digests against the registry and reports " +
+                    "a wrong one. Run each from the root of the workspace that holds that lock:\n" +
+                    "  %s\n" % _pub_command("get", first.lock_file) +
+                    "  %s" % _pub_command("get", e.lock_file),
                 )
 
         if len(pkg.entries) == 1:
@@ -528,32 +576,39 @@ def _pub_impl(ctx):
             if semver_gt(e.version, best.version):
                 best = e
 
-        # Check that all lower-version entries allow upgrading
-        for e in pkg.entries:
-            if e.version != best.version and e.on_version_conflict == "error":
-                fail(
-                    "Package \"%s\" has conflicting versions across lock files:\n" % name +
-                    "".join([
-                        "  - %s (from \"%s\", %s)\n" % (entry.version, entry.hub_name, entry.lock_label)
-                        for entry in pkg.entries
-                    ]) +
-                    "\nThe pubspec.lock files pinned different versions of a shared transitive\n" +
-                    "package. `dart pub get` preserves existing locked versions, so it won't\n" +
-                    "bring them back into sync. To resolve:\n" +
-                    "\n" +
-                    "  1. (Preferred) Run `dart pub upgrade` in the workspace with the lower\n" +
-                    "     version. This re-resolves transitive packages within their constraints,\n" +
-                    "     pulling the shared dependency forward to match.\n" +
-                    "\n" +
-                    "  2. If constraints prevent the upgrade, set on_version_conflict = \"upgrade\"\n" +
-                    "     on the from_lock() call with the lower version, allowing it to accept\n" +
-                    "     the higher.\n" +
-                    "\n" +
-                    "  3. Or pin centrally with an explicit declaration:\n" +
-                    "       pub.package(name = \"%s\", version = \"%s\", sha256 = \"%s\", deps = [...])\n" % (name, best.version, best.sha256) +
-                    "       # You may need to manually add deps for this package.\n" +
-                    "\nrules_dart does not support multiple versions of a package, even across lock files.",
-                )
+        # Every lock below the highest version must allow the upgrade.
+        lagging = [
+            e
+            for e in pkg.entries
+            if e.version != best.version and e.on_version_conflict == "error"
+        ]
+        if lagging:
+            fail(
+                "Package \"%s\" has conflicting versions across lock files:\n" % name +
+                "".join([
+                    "  - %s (from \"%s\", %s)\n" % (entry.version, entry.hub_name, entry.lock_label)
+                    for entry in pkg.entries
+                ]) +
+                "\nrules_dart builds one version of each package, the highest a lock records:\n" +
+                "%s here. A lock that records a lower one fails the build unless its from_lock()\n" % best.version +
+                "accepts the upgrade. pub keeps the versions a lock already records on `get`,\n" +
+                "so only an `upgrade` brings the locks together. To resolve:\n" +
+                "\n" +
+                "  1. (Preferred) Re-resolve each lock below %s with the pinned Dart SDK,\n" % best.version +
+                "     from the root of the workspace that holds it:\n" +
+                "".join([
+                    "       %s\n" % _pub_command("upgrade", e.lock_file, [name])
+                    for e in lagging
+                ]) +
+                "     pub moves \"%s\" forward as far as that package's constraints allow.\n" % name +
+                "\n" +
+                "  2. If a package's constraints forbid %s, set on_version_conflict = \"upgrade\"\n" % best.version +
+                "     on the from_lock() that reads its lock, to build it against %s anyway.\n" % best.version +
+                "\n" +
+                "  3. Or pin one version for every lock, in the root module:\n" +
+                "       pub.package(name = \"%s\", version = \"%s\", sha256 = \"%s\", deps = [...])\n" % (name, best.version, best.sha256) +
+                "     listing the package's own dependencies in `deps`.",
+            )
 
         resolved[name] = struct(version = best.version, sha256 = best.sha256, url = pkg.url)
 

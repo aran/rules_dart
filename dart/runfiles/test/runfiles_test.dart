@@ -469,6 +469,78 @@ void main() {
       });
     });
 
+    group('next to the executable, with no variable set', () {
+      // What `bazel run` leaves a plain executable on Windows, whose default
+      // is `--noenable_runfiles`: no variable, and a manifest beside it or
+      // inside a runfiles directory that holds nothing else.
+      late String exe;
+      setUp(() {
+        exe = '${tmp.path}$sep${probe.split(sep).last}';
+        File(probe).copySync(exe);
+      });
+
+      test('a manifest beside it is used', () async {
+        write(
+          '${exe.split(sep).last}.runfiles_manifest',
+          '_main/a.txt /real/a.txt\n',
+        );
+        final r = await Process.run(
+          exe,
+          ['_main/a.txt'],
+          environment: {},
+          includeParentEnvironment: false,
+        );
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(jsonDecode((r.stdout as String).trim()), '/real/a.txt');
+      });
+
+      test('a MANIFEST inside the runfiles directory is used when it is all '
+          'the directory holds', () async {
+        write(
+          '${exe.split(sep).last}.runfiles${sep}MANIFEST',
+          '_main/a.txt /real/a.txt\n',
+        );
+        final r = await Process.run(
+          exe,
+          ['_main/a.txt'],
+          environment: {},
+          includeParentEnvironment: false,
+        );
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(jsonDecode((r.stdout as String).trim()), '/real/a.txt');
+      });
+
+      test(
+        'a runfiles directory with no manifest resolves by joining',
+        () async {
+          final dir = Directory('$exe.runfiles')..createSync();
+          final r = await Process.run(
+            exe,
+            ['_main/a.txt'],
+            environment: {},
+            includeParentEnvironment: false,
+          );
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect(
+            jsonDecode((r.stdout as String).trim()),
+            '${dir.resolveSymbolicLinksSync()}/_main/a.txt',
+          );
+        },
+      );
+
+      test('with none, create() fails naming where it looked', () async {
+        final r = await Process.run(
+          exe,
+          ['_main/a.txt'],
+          environment: {},
+          includeParentEnvironment: false,
+        );
+        expect(r.exitCode, isNot(0));
+        expect(r.stderr, contains('$exe.runfiles_manifest'));
+        expect(r.stderr, contains('$exe.runfiles'));
+      });
+    });
+
     group('every official library agrees on these', () {
       test('an absolute path is returned unchanged', () async {
         final dir = Directory('${tmp.path}${sep}rf')..createSync();

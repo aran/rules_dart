@@ -173,9 +173,14 @@ whose lock files have drifted apart. Only one record per package can win, and
 dependency order would decide which, so the build would compile against
 whichever came first regardless of what the other's lock pins.
 
-Reconcile the lock files feeding the two hubs so both pin one version of each,
-then re-run `dart pub get` / `flutter pub get` in each workspace. Every package
-that disagrees is listed, so one reconciliation settles all of them.
+Reconcile the lock files feeding the two hubs so both pin one version of each:
+re-resolve the lagging lock with the toolchain that builds it, from the root of
+the workspace that holds it. For a lock `pub.from_lock()` reads:
+
+  bazel run @rules_dart//dart/pub -- upgrade --directory=<the lock's directory> <package>
+
+Every package that disagrees is listed, so one reconciliation settles all of
+them.
 
 rules_dart does not support multiple versions of a package.
 """

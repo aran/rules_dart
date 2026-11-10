@@ -233,7 +233,7 @@ const _expectedFailureChecks = [
   _ExpectedFailure(
     'e2e/pub_lock_conflict',
     '//:app',
-    'conflicting versions across lock files',
+    'bazel run @rules_dart//dart/pub -- upgrade --directory=b path',
   ),
   _ExpectedFailure(
     'e2e/pub_package_conflict',

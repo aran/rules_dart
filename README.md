@@ -77,6 +77,18 @@ It runs in the directory `bazel run` was invoked from, and, like every build
 action, with Dart's analytics off, so it writes nothing into your home
 directory.
 
+To write or re-resolve a `pubspec.lock` with the same SDK, run pub:
+
+```shell
+bazel run @rules_dart//dart/pub -- get
+bazel run @rules_dart//dart/pub -- upgrade --directory=app path
+```
+
+It runs at the root of the workspace, so `--directory` is relative to that
+root, and any pub subcommand works. It needs only the Dart toolchain, so it
+runs while `pub.from_lock()` refuses a lock, which is when the errors that
+refusal prints tell you to run it.
+
 > **Tip**: Consider using [`bazel_env`](https://github.com/buildbuddy-io/bazel_env.bzl)
 > to put Bazel-managed tool binaries on your `PATH` for IDE and shell use.
 
@@ -316,7 +328,8 @@ use_repo(pub, "pub_deps")
 Each hosted package is downloaded into its own external repository for better
 caching and parallelism, and only when something builds it. Each archive is
 verified against the `sha256` the lock records; a lock written by a pub older
-than 2.19 has none and is refused, so run `dart pub get` to rewrite it. Every
+than 2.19 has none and is refused, so re-resolve it
+(`bazel run @rules_dart//dart/pub -- get --directory=<its directory>`). Every
 package the lock names is available as `@pub_deps//:package_name`, including one
 you also declare with `pub.package()`, which then supplies it:
 
@@ -394,7 +407,10 @@ wins over the root's locks, and either wins over a `pub.package()` in a module
 the root depends on, whose `@name` repository then supplies the root's version.
 If two such modules declare different versions and the root states none, the
 build fails naming both; pin the package in the root with `pub.package()` or
-its lock.
+its lock. Between locks, the highest version a lock records is built, and a
+lock that records a lower one fails the build unless its `from_lock()` sets
+`on_version_conflict = "upgrade"`; the error gives the
+`bazel run @rules_dart//dart/pub -- upgrade` command that brings it forward.
 
 A dependency's `pub.package()` version is a minimum, as a dependency's Dart SDK
 request is: the root wins only at the same or a newer version, and a newer one prints a

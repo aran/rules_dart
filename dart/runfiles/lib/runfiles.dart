@@ -60,6 +60,10 @@ class Runfiles {
   /// 5. `<executable>.runfiles_manifest` file
   /// 6. `<executable>.exe.runfiles_manifest` file
   ///
+  /// A `MANIFEST` inside a runfiles directory found either way is read when
+  /// no other manifest was: under `--noenable_runfiles` (Windows' default) it
+  /// is all the directory holds. A manifest wins over the directory.
+  ///
   /// A directory found next to the executable is held by its resolved
   /// path, so [rlocation] keeps working after a symlink on the way to it,
   /// such as `bazel-bin`, is repointed.
@@ -100,14 +104,14 @@ class Runfiles {
       manifestPath = File(manifestFile).absolute.path;
     }
 
-    // A manifest inside the runfiles directory is all that remains of the
-    // tree under `--noenable_runfiles`; the official libraries read it too.
-    if (manifest == null && directory != null) {
-      final inside = File('$directory/MANIFEST');
-      if (inside.existsSync()) manifest = _parseManifest(inside.path);
-    }
-
     // 3-6. Probe from executable path
+    final tried = [
+      for (final (name, value) in [
+        ('RUNFILES_DIR', runfilesDir),
+        ('RUNFILES_MANIFEST_FILE', manifestFile),
+      ])
+        value == null || value.isEmpty ? '$name (unset)' : '$name=$value',
+    ];
     if (directory == null && manifest == null) {
       // Use Platform.executable (not resolvedExecutable) to preserve the
       // symlink path. Bazel materializes .runfiles/ next to the symlink,
@@ -115,6 +119,7 @@ class Runfiles {
       final exe = Platform.executable;
 
       for (final candidate in ['$exe.runfiles', '$exe.exe.runfiles']) {
+        tried.add(candidate);
         if (Directory(candidate).existsSync()) {
           // Hold the tree where it really is, not the path that found it.
           // That path runs through the symlink, and `./bazel-bin/...` is
@@ -128,6 +133,7 @@ class Runfiles {
         '$exe.runfiles_manifest',
         '$exe.exe.runfiles_manifest',
       ]) {
+        tried.add(candidate);
         if (File(candidate).existsSync()) {
           manifest = _parseManifest(candidate);
           manifestPath = File(candidate).absolute.path;
@@ -136,10 +142,20 @@ class Runfiles {
       }
     }
 
+    // A manifest inside the runfiles directory is all that remains of the
+    // tree under `--noenable_runfiles`; the official libraries read it too.
+    if (manifest == null && directory != null) {
+      final inside = File('$directory/MANIFEST');
+      if (inside.existsSync()) {
+        manifest = _parseManifest(inside.path);
+        manifestPath = inside.absolute.path;
+      }
+    }
+
     if (directory == null && manifest == null) {
       throw StateError(
-        'Could not find runfiles directory or manifest. '
-        'Run via `bazel run` or `bazel test`.',
+        'Could not find runfiles directory or manifest; looked at '
+        '${tried.join(', ')}. Run via `bazel run` or `bazel test`.',
       );
     }
 

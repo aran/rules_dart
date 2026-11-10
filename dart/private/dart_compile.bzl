@@ -111,18 +111,21 @@ def dart_compile_action(
         compile_mode = "exe",
         extra_flags = [],
         recorded_uses = None,
-        runner = None):
+        runner = None,
+        sources = None):
     """Creates the `dart compile` action that turns a kernel into the output.
 
     The kernel comes from `dart_kernel_action`, which has already run the front
     end, so nothing here resolves packages or folds constants: no
-    `--packages`, no `-D`.
+    `--packages`, no `-D`. Given `sources` instead, `dart compile` runs the
+    front end itself, on a script that imports only `dart:` libraries and
+    files beside it: a program built with no Dart tool of rules_dart's own.
 
     Args:
         ctx: The rule context.
         sdk: The target toolchain's `DartSdkInfo`. A cross toolchain's
             `target_os`/`target_arch` and `cross_tools` make it a cross compile.
-        kernel: The `.dill` File to compile.
+        kernel: The `.dill` File to compile, or the entry point of `sources`.
         output: The output File to produce.
         compile_mode: The compilation mode ("exe", "aot-snapshot", "jit-snapshot").
         extra_flags: Additional compiler flags (from dart_compile_flags attribute).
@@ -133,6 +136,8 @@ def dart_compile_action(
             Mach-O `exe` or `aot-snapshot`, whose symbol table names the path
             gen_snapshot wrote the snapshot to: the runner picks that path and
             then removes it (see `compile_runner.dart`).
+        sources: Optional depset of the Dart files `kernel` is the entry
+            point of, when it is a script rather than a kernel.
     """
     args = ctx.actions.args()
     args.add("compile")
@@ -180,6 +185,9 @@ def dart_compile_action(
 
     env = dict(SDK_ENV)
     transitive = [sdk.files.jit_compile if compile_mode == "jit-snapshot" else sdk.files.aot_compile]
+    if sources != None:
+        # The front end, its platforms and the `dart:` library list.
+        transitive += [sources, sdk.files.kernel]
     if runner != None:
         # The runner is a kernel, which `dart` runs in the VM.
         transitive.append(sdk.files.run)

@@ -220,7 +220,7 @@ fails the check at Bazel's own "no longer up-to-date" error instead.
 
 `pub_locks` runs `dart pub get` in the in-repo Dart packages (`dart/ext/`,
 `dart/private/tools/`, `dart/runfiles/`, `overhead/`) on the pinned SDK
-(`bazel run @rules_dart//dart`), since a package's SDK floor can be ahead of
+(`bazel run @rules_dart//dart/pub`), since a package's SDK floor can be ahead of
 the host's `dart`, with `FLUTTER_ROOT` taken from the environment or the
 `flutter` on PATH: `dart/ext/` needs a Flutter-flavored pub.
 
@@ -340,10 +340,10 @@ Each in-repo Dart package is publishable to pub.dev. Maintenance includes:
   `e2e/dart_test_pkg`, and rules_dart_proto's `dart_proto` set floors on
   `analyzer`/`package_config` in their pubspecs to keep their locks no older
   than this one. To bump:
-  `FLUTTER_ROOT=<flutter sdk> bazel run @rules_dart//dart -- pub upgrade` in
-  `dart/ext/` (it needs a Flutter-flavored pub on the pinned SDK —
+  `FLUTTER_ROOT=<flutter sdk> bazel run @rules_dart//dart/pub -- upgrade --directory=dart/ext`
+  (it needs a Flutter-flavored pub on the pinned SDK —
   `go_router_builder` declares a Flutter environment constraint), then
-  `dart pub upgrade` in each pinned workspace, refresh the touched
+  the same `upgrade` with each pinned workspace's `--directory`, refresh the touched
   `MODULE.bazel.lock`s, and verify with `//dart/ext/...`,
   `e2e/codegen`, and a consuming app. The analyzer 10→13 and 13→14 bumps
   needed no shim changes — every shim compiled and analyzed clean

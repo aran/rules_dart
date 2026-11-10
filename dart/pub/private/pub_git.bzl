@@ -60,7 +60,7 @@ def is_git_commit_id(ref):
             return False
     return True
 
-def check_pub_git_resolved_ref(package_name, version, resolved_ref, declared_in):
+def check_pub_git_resolved_ref(package_name, version, resolved_ref, declared_in, rewrite = None):
     """Fails unless `resolved_ref` pins one commit.
 
     A branch, a tag or an abbreviated id names whatever commit it names on the
@@ -73,17 +73,22 @@ def check_pub_git_resolved_ref(package_name, version, resolved_ref, declared_in)
         version: The package version.
         resolved_ref: The lock entry's `description.resolved-ref`.
         declared_in: Where the entry was declared, for the message.
+        rewrite: The command that re-resolves the lock, printed on a line of
+            its own; None where it is not known.
     """
     if is_git_commit_id(resolved_ref):
         return
     fail(("The git package \"{name}\" {version} (in {where}) is locked at resolved-ref " +
           "\"{ref}\", which is not a full commit id (40 lowercase hex digits), so it " +
-          "does not pin what is fetched and will not be fetched. Run `dart pub get` to " +
-          "rewrite the lock: pub records the commit it resolved as `resolved-ref`.").format(
+          "does not pin what is fetched and will not be fetched. Re-resolve the lock, " +
+          "from the root of the workspace that holds it, and pub records the commit it " +
+          "resolved as `resolved-ref`{colon}{rewrite}").format(
         name = package_name,
         version = version,
         where = declared_in,
         ref = resolved_ref,
+        colon = ":\n  " if rewrite else ".",
+        rewrite = rewrite or "",
     ))
 
 def is_relative_git_url(url):
@@ -301,8 +306,9 @@ def fetch_pub_git(rctx, package_name, version, url, resolved_ref, path = ".", lo
     commit = rctx.execute(in_repo + ["rev-parse", "--verify", "--quiet", resolved_ref + "^{commit}"], environment = isolated, quiet = True)
     if commit.return_code != 0 or commit.stdout.strip() != resolved_ref:
         fail(("The {} is locked at commit {}, which {} does not serve: it is on no ref the " +
-              "server advertises, and the server does not fetch by commit id. Run " +
-              "`dart pub upgrade` to lock a commit that is there.").format(what, resolved_ref, url))
+              "server advertises, and the server does not fetch by commit id. Upgrade the " +
+              "package in the lock that lists it (pub's `upgrade {}`) to lock a commit that " +
+              "is there.").format(what, resolved_ref, url, package_name))
     if path != ".":
         subtree = rctx.execute(in_repo + ["cat-file", "-t", "{}:{}".format(resolved_ref, path)], environment = isolated, quiet = True)
         if subtree.return_code != 0 or subtree.stdout.strip() != "tree":

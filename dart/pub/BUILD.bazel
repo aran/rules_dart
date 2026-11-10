@@ -1,4 +1,18 @@
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("//dart/pub/private:pub_runner.bzl", "pub_runner")
+
+# Runs pub from the pinned Dart SDK, at the root of the workspace it is run in:
+#   bazel run @rules_dart//dart/pub -- get
+#   bazel run @rules_dart//dart/pub -- upgrade --directory=app path
+# Built with no Dart tool of rules_dart's own, so it runs while the `pub`
+# extension refuses a lock: the state in which its errors say to run it.
+pub_runner(
+    name = "pub",
+    srcs = ["//dart/runfiles:lib/runfiles.dart"],
+    main = "//dart/pub/private:pub_runner.dart",
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+)
 
 bzl_library(
     name = "yaml_parser",

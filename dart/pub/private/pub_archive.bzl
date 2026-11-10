@@ -84,7 +84,7 @@ def is_pub_sha256(sha256):
             return False
     return True
 
-def check_pub_archive_sha256(package_name, version, sha256, declared_in):
+def check_pub_archive_sha256(package_name, version, sha256, declared_in, rewrite = None):
     """Fails unless `sha256` pins the package's archive.
 
     An empty `sha256` means "do not check" to Bazel's downloader, so a lock entry
@@ -99,26 +99,34 @@ def check_pub_archive_sha256(package_name, version, sha256, declared_in):
         sha256: The archive digest as declared.
         declared_in: Where the digest was declared, for the message: a lock
             file's label, or `pub.package()`.
+        rewrite: The command that re-resolves the lock it was declared in,
+            printed on a line of its own. None where it was not declared in a
+            lock, or the command is not known.
     """
     if is_pub_sha256(sha256):
         return
+    if rewrite:
+        remedy = ("Re-resolve the lock, from the root of the workspace that holds it, " +
+                  "and pub records the digest:\n  " + rewrite)
+    else:
+        remedy = ("Copy the digest pub.dev lists for that version, or re-resolve the " +
+                  "lock that declares it.")
     if not sha256:
         fail(("No sha256 is pinned for pub package \"{name}\" {version} (in {where}), so its " +
-              "archive cannot be verified and will not be fetched. Run `dart pub get` " +
-              "(Dart 2.19 or newer) to record each package's digest in pubspec.lock as " +
-              "`description.sha256`.").format(
+              "archive cannot be verified and will not be fetched. {remedy}").format(
             name = package_name,
             version = version,
             where = declared_in,
+            remedy = remedy,
         ))
     fail(("The sha256 for pub package \"{name}\" {version} (in {where}) is \"{sha256}\", " +
           "which is not a SHA-256 as pubspec.lock records one (64 lowercase hex digits), " +
-          "so its archive will not be fetched. Run `dart pub get` to rewrite it, or copy " +
-          "the digest pub.dev lists for that version.").format(
+          "so its archive will not be fetched. {remedy}").format(
         name = package_name,
         version = version,
         where = declared_in,
         sha256 = sha256,
+        remedy = remedy,
     ))
 
 def drop_escaping_links(rctx):

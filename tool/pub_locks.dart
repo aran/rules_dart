@@ -49,13 +49,13 @@ Future<void> main(List<String> args) async {
         'run',
         '--noshow_progress',
         '--ui_event_filters=-info',
-        '@rules_dart//dart',
+        '@rules_dart//dart/pub',
         '--',
-        'pub',
         'get',
+        '--directory=$package',
         if (!refresh) '--enforce-lockfile',
       ],
-      workingDirectory: '$_repo/$package',
+      workingDirectory: _repo,
       environment: {'FLUTTER_ROOT': ?flutterRoot},
     );
     if (result.exitCode == 0) {

@@ -152,15 +152,23 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - name: pub_lock_conflict — expect version conflict error
+      - name: pub_lock_conflict — expect version conflict error, and its command to resolve it
         working-directory: e2e/pub_lock_conflict
         run: |
-          if bazel build //:app 2>/dev/null; then
+          if out=$(bazel build //:app 2>&1); then
             echo "ERROR: build should have failed with a version conflict"
             exit 1
           fi
-          bazel build //:app 2>&1 | grep -q "conflicting versions across lock files"
-          echo "OK: expected conflict error detected"
+          echo "$out" | grep -q "conflicting versions across lock files"
+          echo "$out" | grep -qF "bazel run @rules_dart//dart/pub -- upgrade --directory=b path"
+          # The command the error gives runs while the pub extension refuses
+          # the locks, and once it has, the build succeeds. Without a
+          # runfiles tree, as on Windows by default, it finds the SDK through
+          # the manifest.
+          bazel run --noenable_runfiles --nobuild_runfile_links @rules_dart//dart/pub -- upgrade --directory=b path
+          bazel build //:app
+          git checkout -- b/pubspec.lock
+          echo "OK: expected conflict error detected; its command resolves it"
       - name: pub_package_conflict — expect two modules' declarations to fail, naming both
         working-directory: e2e/pub_package_conflict
         run: |

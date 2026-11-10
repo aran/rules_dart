@@ -1,5 +1,12 @@
 load("//dart:defs.bzl", "dart_binary", "dart_library", "dart_test")
 
+# `@rules_dart//dart/pub` compiles it in from source, built with no rule of
+# rules_dart's own (see `dart/pub/private/pub_runner.bzl`).
+exports_files(
+    ["lib/runfiles.dart"],
+    visibility = ["//dart/pub:__pkg__"],
+)
+
 dart_library(
     name = "runfiles",
     srcs = ["lib/runfiles.dart"],
