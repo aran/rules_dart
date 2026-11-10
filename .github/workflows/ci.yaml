@@ -464,6 +464,21 @@ jobs:
       - name: dart_test — run tests under -c dbg
         working-directory: e2e/dart_test
         run: bazel test -c dbg --test_output=errors //...
+  # Every workspace's MODULE.bazel.lock is complete without anyone's
+  # .bazelrc.user, the workspaces that fail on purpose included; so is every
+  # pubspec.lock outside e2e/.
+  lockfiles:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: bazel-contrib/setup-bazel@0.19.1
+        with:
+          bazelisk-cache: true
+          repository-cache: true
+      - name: MODULE.bazel.lock files
+        run: bazel run @overhead//locks
+      - name: pubspec.lock files
+        run: bazel run //tool:pub_locks
   # Every hook in .pre-commit-config.yaml, with the prek overhead pins, as a
   # commit runs them: one build puts overhead's tools in .bazel_env, then the
   # hooks run them without Bazel.
@@ -480,7 +495,13 @@ jobs:
   # For branch protection settings, this job provides a "stable" name that can be used to gate PR merges
   # on "all matrix jobs were successful".
   conclusion:
-    needs: [test, expected-failure, pub-archive-links, dbg-mode, pre-commit]
+    needs:
+      - test
+      - expected-failure
+      - pub-archive-links
+      - dbg-mode
+      - lockfiles
+      - pre-commit
     runs-on: ubuntu-latest
     if: always()
     steps:

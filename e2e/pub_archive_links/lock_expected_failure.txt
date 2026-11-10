@@ -1,0 +1,6 @@
+# This workspace fails on purpose; `bazel run @overhead//locks` passes a
+# step that fails printing each line below.
+# The pub lock this workspace reads is generated.lock, which check.dart
+# writes for its run and deletes; without it the pub extension cannot load.
+FileNotFoundException
+/generated.lock

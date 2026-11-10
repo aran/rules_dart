@@ -49,7 +49,7 @@ file at runtime — keep file lists current as the repo evolves.
 3. Update `dart_version` in all MODULE.bazel files listed above
 4. Update version references in `README.md`
 5. Update `dart/tests/versions_test.bzl` (asserted version key)
-6. Regenerate lock files: `dart run tool/refresh_locks.dart`
+6. Regenerate lock files: `bazel run --lockfile_mode=off @overhead//locks -- --refresh`
 7. Run `bazel test //dart/tests/...` to verify unit tests pass
 8. Pick one e2e workspace and run `bazel build //...` to smoke-test
 9. If the new SDK contains dart-lang/sdk e2c6325 (Mach-O `--strip` fix), retire
@@ -105,7 +105,7 @@ file at runtime — keep file lists current as the repo evolves.
 
 1. Update all `.bazelversion` files to the new version
 2. If the major version changed, update `.bcr/presubmit.yml` matrix and `docs/ARCHITECTURE.md`
-3. Regenerate lock files: `dart run tool/refresh_locks.dart`
+3. Regenerate lock files: `bazel run --lockfile_mode=off @overhead//locks -- --refresh`
 4. Run `bazel test //dart/tests/...` to verify
 
 **Verification**: `bazel test //dart/tests/...` passes.
@@ -143,7 +143,7 @@ file at runtime — keep file lists current as the repo evolves.
 1. For each `bazel_dep` in root `MODULE.bazel`, check latest version on BCR
 2. Update versions, skip any already current
 3. Mirror version changes to e2e workspaces that duplicate the same deps
-4. Regenerate lock files: `dart run tool/refresh_locks.dart`
+4. Regenerate lock files: `bazel run --lockfile_mode=off @overhead//locks -- --refresh`
 5. Run `bazel test //dart/tests/...` to verify
 
 **Verification**: `bazel test //dart/tests/...` passes.
@@ -161,51 +161,42 @@ load to) anything in `dart/pub/extensions.bzl`'s closure invalidates the lock of
 **every** workspace using it, not just the one whose `MODULE.bazel` moved. Under
 `--lockfile_mode=error`, which `.bazelrc` sets, that is a hard CI failure.
 
-**Workspaces** (directories containing `MODULE.bazel`):
+**Workspaces**: every directory with a tracked `MODULE.bazel`, found by
+`bazel run @overhead//locks`, except a module inside another e2e workspace
+(`e2e/pub_lock_cross_module/module_b`, say), which resolves as part of it, and
+a module the root's own `local_path_override` names without a `.bazelversion`
+of its own, which resolves as part of the root.
 
-- `.` (root)
-- `e2e/smoke`
-- `e2e/hello_world`
-- `e2e/library_deps`
-- `e2e/dart_test`
-- `e2e/dart_test_pkg`
-- `e2e/analysis`
-- `e2e/analysis_failure`
-- `e2e/web_app`
-- `e2e/pub_deps`
-- `e2e/pub_lock`
-- `e2e/gazelle`
-- `e2e/cross_compile`
-- `e2e/pub_lock_cross_module`
-- `e2e/pub_lock_dedup`
-- `e2e/pub_lock_upgrade`
-- `e2e/codegen`
-- `e2e/dual_build`
-- `e2e/ext_exemplar`
-- `e2e/fix`
-- `e2e/analyze_composition`
-- `e2e/link_hook`
-- `e2e/pub_hub_surface`
-- `e2e/pub_lock_cycle`
-- `e2e/pub_lock_path_override`
-- `e2e/pub_override_root_lock`
-- `e2e/pub_package_conflict`
+A workspace that fails on purpose holds a `lock_expected_failure.txt` naming
+what its failure prints (`e2e/pub_lock_conflict`, `e2e/pub_package_conflict`,
+`e2e/pub_lock_path_override`,
+the sha256 refusals, and `e2e/pub_archive_links`, whose pub lock only exists
+while its `check.dart` runs). The tool passes a step that fails with that text
+and still refreshes the rest of the lock.
 
-`e2e/pub_lock_cross_module`'s `module_b` and `module_c`,
-`e2e/pub_override_root_lock/dep_mod` and `e2e/pub_package_conflict`'s `mod_b`
-and `mod_c` are skipped by the tool (`_skipWorkspaces` in
-`tool/refresh_locks.dart`): they are consumed only from their parent and don't
-resolve standalone. `e2e/pub_lock_conflict` (conflicting lock files) and
-`e2e/pub_package_conflict` (conflicting `pub.package()` declarations) fail on
-purpose; the tool accepts those failures (`_expectedFailures`) and still
-refreshes the rest of their locks.
+**Procedure**:
 
-**Procedure**: Run `dart run tool/refresh_locks.dart`. This both refreshes
-Bazel lock files (pulling fresh registry data, keeping MODULE.bazel
-formatting canonical, and evaluating every module extension in the graph,
-not only those the workspace's targets reach) and runs `dart pub get` in the in-repo Dart packages
-(`dart/ext/`, `dart/private/tools/`, `dart/runfiles/`) to refresh their
-`pubspec.lock` files. Pub runs on the pinned SDK
+```shell
+# every MODULE.bazel.lock, or some
+bazel run --lockfile_mode=off @overhead//locks -- --refresh
+bazel run --lockfile_mode=off @overhead//locks -- --refresh e2e/smoke
+bazel run //tool:pub_locks -- --refresh  # pubspec.lock outside e2e/
+```
+
+The first runs `bazel mod tidy --lockfile_mode=refresh`, then `bazel mod deps`
+and `bazel build --nobuild //...` with `--lockfile_mode=update`, in each
+workspace, reading its committed `.bazelrc` but not its `.bazelrc.user`.
+Without `--refresh` they check instead (`--lockfile_mode=error`;
+`dart pub get --enforce-lockfile`), which CI's `lockfiles` job runs.
+
+The lock tool is built in the root workspace, so a refresh builds it with
+`--lockfile_mode=update`: a stale root lock would otherwise stop it before it
+could rewrite anything. A check runs without that flag, since Bazel would then
+quietly rewrite a stale root lock before the tool checked it; a stale root lock
+fails the check at Bazel's own "no longer up-to-date" error instead.
+
+`pub_locks` runs `dart pub get` in the in-repo Dart packages (`dart/ext/`,
+`dart/private/tools/`, `dart/runfiles/`, `overhead/`) on the pinned SDK
 (`bazel run @rules_dart//dart`), since a package's SDK floor can be ahead of
 the host's `dart`, with `FLUTTER_ROOT` taken from the environment or the
 `flutter` on PATH: `dart/ext/` needs a Flutter-flavored pub.
@@ -336,8 +327,8 @@ Each in-repo Dart package is publishable to pub.dev. Maintenance includes:
   unchanged — so expect builder majors to be cheap unless a builder
   entrypoint signature changes.
 
-- **Lock file**: `pubspec.lock` is refreshed automatically by
-  `tool/refresh_locks.dart`.
+- **Lock file**: `pubspec.lock` is refreshed by
+  `bazel run //tool:pub_locks -- --refresh`.
 - **Version**: Committed as `0.0.0-dev`. The real version is injected from
   the git tag at publish time by the release workflow.
 - **Publishing**: Handled automatically by the `pub-publish` job in the

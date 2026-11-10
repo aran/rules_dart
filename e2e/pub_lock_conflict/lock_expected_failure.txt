@@ -1,0 +1,5 @@
+# This workspace fails on purpose; `bazel run @overhead//locks` passes a
+# step that fails printing each line below.
+# Two lock files pin different versions of one package; the pub extension
+# refuses them, as the expected-failure CI job asserts.
+conflicting versions across lock files

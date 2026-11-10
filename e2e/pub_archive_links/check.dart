@@ -156,6 +156,9 @@ Future<void> main() async {
   final repos = [for (final n in packages.keys) '--repo=@@$_repoPrefix$n'];
   final fetch = Process.runSync('bazel', [
     'fetch',
+    // generated.lock names a temporary registry; recording it would put this
+    // run's temp paths in the committed MODULE.bazel.lock.
+    '--lockfile_mode=off',
     '--keep_going',
     '--noshow_progress',
     '--curses=no',

@@ -1,0 +1,5 @@
+# This workspace fails on purpose; `bazel run @overhead//locks` passes a
+# step that fails printing each line below.
+# A hosted package depends on a path package that nothing fetches; building
+# //... refuses it, as the expected-failure CI job asserts.
+nothing supplies `petitparser`
