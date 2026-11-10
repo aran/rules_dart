@@ -289,13 +289,18 @@ void main() {
           ..writeAsStringSync("import 'package:foo/foo.dart';\nclass B {}\n");
       });
 
+      // The request runs in an isolate of its own, so what the builder saw
+      // comes back as the last line it prints, which lands in the output.
       Future<Map<String, Object?>> run(
         Set<String> declared,
         Future<void> Function(BuildStep, Map<String, Object?>) body,
       ) async {
-        final seen = <String, Object?>{};
         final loop = ShimWorkerLoop(
-          factoryOrFactories: (_) => _CapturingBuilder((s) => body(s, seen)),
+          factoryOrFactories: (_) => _CapturingBuilder((s) async {
+            final seen = <String, Object?>{};
+            await body(s, seen);
+            print(jsonEncode(seen));
+          }),
         );
         final resp = await loop.performRequest(
           WorkRequest(
@@ -321,14 +326,15 @@ void main() {
           ),
         );
         expect(resp.exitCode, 0, reason: resp.output);
-        return seen;
+        return jsonDecode(const LineSplitter().convert(resp.output).last)
+            as Map<String, Object?>;
       }
 
       Future<Object?> tryRead(BuildStep s, String path) async {
         try {
           return await s.readAsString(AssetId('foo', path));
-        } catch (e) {
-          return e;
+        } on AssetNotFoundException {
+          return 'AssetNotFoundException';
         }
       }
 
@@ -350,7 +356,7 @@ void main() {
           });
           expect(
             seen['secret'],
-            isA<AssetNotFoundException>(),
+            'AssetNotFoundException',
             reason: 'output would depend on a file no dependency declared',
           );
         },
@@ -1860,16 +1866,16 @@ void main() {
 
     test('exitCode is reset between requests — a prior failure does not '
         'taint the next success', () async {
-      // Uses a swappable factory: first call throws, second is a no-op.
-      var call = 0;
-      Builder factory(BuilderOptions _) {
-        call++;
-        return call == 1 ? _ThrowingBuilder() : _NoopBuilder();
-      }
-
-      final loop = ShimWorkerLoop(factoryOrFactories: factory);
+      // The first input asks the builder to throw; the second does not.
+      final loop = ShimWorkerLoop(
+        factoryOrFactories: (_) => _CapturingBuilder((s) async {
+          if ((await s.readAsString(s.inputId)).contains('FAIL')) {
+            throw StateError('intentional failure');
+          }
+        }),
+      );
       final input1 = File(p.join(tmp.path, 'a.dart'))
-        ..writeAsStringSync('class A {}');
+        ..writeAsStringSync('class A {} // FAIL');
       final output1 = File(p.join(tmp.path, 'a.g.dart'));
       final respFail = await loop.performRequest(requestFor(input1, output1));
       expect(respFail.exitCode, isNonZero);
@@ -1883,6 +1889,26 @@ void main() {
         0,
         reason: 'second request must not inherit first request\'s exit code',
       );
+    });
+
+    test('state a generator keeps for one build lasts one request', () async {
+      // `json_serializable` checks the pubspec once and remembers it in a
+      // top-level variable, as `_warnOnce` does: every request must warn, as
+      // every one-shot run does.
+      final loop = ShimWorkerLoop(
+        factoryOrFactories: (_) => _CapturingBuilder((s) async {
+          _warnOnce();
+        }),
+      );
+      for (final name in ['a', 'b']) {
+        final input = File(p.join(tmp.path, '$name.dart'))
+          ..writeAsStringSync('class X {}');
+        final resp = await loop.performRequest(
+          requestFor(input, File(p.join(tmp.path, '$name.g.dart'))),
+        );
+        expect(resp.exitCode, 0, reason: resp.output);
+        expect(resp.output, contains('checked once per build'), reason: name);
+      }
     });
   });
 }
@@ -2021,6 +2047,14 @@ class _ExtensionMapBuilder implements Builder {
   Future<void> build(BuildStep step) async {
     await write?.call(step);
   }
+}
+
+var _warned = false;
+
+void _warnOnce() {
+  if (_warned) return;
+  _warned = true;
+  log.warning('checked once per build');
 }
 
 class _CapturingBuilder implements Builder {

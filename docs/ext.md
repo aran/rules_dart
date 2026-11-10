@@ -137,15 +137,23 @@ Bazel spawns one process per action, passes `@<flagfile>` (see
 dispatches via `shimMain(args, factory)`:
 
 - With `--persistent_worker`, enters `AsyncWorkerLoop`; reads repeated
-  `WorkRequest`s from stdin, processes each via `runShim`, writes
-  `WorkResponse` to stdout.
+  `WorkRequest`s from stdin, processes each via `runShim` in an isolate of
+  its own, writes `WorkResponse` to stdout.
 - Without it, runs one-shot.
 
+The isolate gives each request the top-level state a one-shot process starts
+with. Generators keep state there meant to last one build:
+`json_serializable` checks the pubspec once and remembers it, so a worker
+that kept it would print the check's warnings on its first request only, and
+`source_gen`'s `rootPackageName` is read on first use and kept. Whatever a
+builder logs at `WARNING` or above lands in `WorkResponse.output`, which
+Bazel prints as it prints a one-shot action's stderr.
+
 Singleplex only (`supports-workers`, **not**
-`supports-multiplex-workers`). `source_gen`'s `rootPackageName` is a
-CWD-reading top-level `final`; multiplexing would need to patch upstream
-`source_gen`, which project policy forbids. Parallelism is preserved by
-`--worker_max_instances` spawning multiple singleplex workers.
+`supports-multiplex-workers`): the shim changes the working directory for
+each request and `source_gen` reads it, and the working directory belongs to
+the process. Parallelism is preserved by `--worker_max_instances` spawning
+multiple singleplex workers.
 
 `WorkRequest.sandbox_dir` is honoured — when set by
 `--experimental_sandboxed_worker`, staging roots there so per-request
@@ -168,10 +176,7 @@ are outside this view.
 ### Analyzer-context lifecycle
 
 `builder_shim.dart` constructs a fresh `AnalysisContextCollection` per
-request. Reusing one across requests is a silent-corruption hazard:
-`source_gen`'s `rootPackageName` is process-pinned on first read, so a
-second request with a different package name would be misattributed
-through `source_gen`'s `_fileToAssetUrl` path. The collection is
+request, as each request's isolate starts with none. The collection is
 `dispose()`-d in `finally` so long-running workers don't leak analyzer
 driver threads or file-watching handles. Dart-VM startup is still
 amortised across the worker's lifetime — that's the latency win from
