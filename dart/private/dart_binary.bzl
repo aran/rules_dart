@@ -57,7 +57,7 @@ def _dart_binary_impl(ctx):
     own = executable_package(ctx, [ctx.file.main] + ctx.files.srcs)
     packages = own.packages
 
-    if ctx.attr.code_assets_from_deps:
+    if ctx.attr.code_assets_from_packages:
         hook_err = check_unreplaced_hooks(ctx.label, packages)
         if hook_err != None:
             fail(hook_err)
@@ -97,7 +97,7 @@ def _dart_binary_impl(ctx):
     # that directory go together.
     resolved_assets = resolve_code_assets(
         ctx.label,
-        collect_transitive_code_assets(own.record, ctx.attr.deps) if ctx.attr.code_assets_from_deps else [],
+        collect_transitive_code_assets(own.record, ctx.attr.deps) if ctx.attr.code_assets_from_packages else [],
         [dep[DartCodeAssetInfo] for dep in ctx.attr.code_assets],
     )
     native_assets_yaml = None
@@ -316,7 +316,7 @@ def _dart_binary_rule(check_imports, compile_runner = True, launcher = True):
     finds them at runtime: to install the binary, copy the executable and that directory together, following links (`cp -RL`), because the files there are symlinks into the output tree. Each entry must provide `DartCodeAssetInfo` (see the `dart_code_asset` rule). An entry replaces the asset with the same id that `deps` supply, so a binary can load a differently built library under that id.""",
                     providers = [DartCodeAssetInfo],
                 ),
-                "code_assets_from_deps": attr.bool(
+                "code_assets_from_packages": attr.bool(
                     default = True,
                     doc = """Whether to pick up the native code assets the binary's packages declare: its own \
     `package`'s and those of every package `deps` reach.

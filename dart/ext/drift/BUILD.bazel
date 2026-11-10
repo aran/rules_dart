@@ -10,7 +10,7 @@ load("//dart:defs.bzl", "dart_binary")
 dart_binary(
     name = "shim_prep",
     srcs = ["shim_prep.dart"],
-    code_assets_from_deps = False,
+    code_assets_from_packages = False,
     main = "shim_prep.dart",
     visibility = ["//visibility:public"],
     deps = [
@@ -22,7 +22,7 @@ dart_binary(
 dart_binary(
     name = "shim_discover",
     srcs = ["shim_discover.dart"],
-    code_assets_from_deps = False,
+    code_assets_from_packages = False,
     main = "shim_discover.dart",
     visibility = ["//visibility:public"],
     deps = [
@@ -34,7 +34,7 @@ dart_binary(
 dart_binary(
     name = "shim_analyzer",
     srcs = ["shim_analyzer.dart"],
-    code_assets_from_deps = False,
+    code_assets_from_packages = False,
     main = "shim_analyzer.dart",
     visibility = ["//visibility:public"],
     deps = [
@@ -46,7 +46,7 @@ dart_binary(
 dart_binary(
     name = "shim_drift",
     srcs = ["shim_drift.dart"],
-    code_assets_from_deps = False,
+    code_assets_from_packages = False,
     main = "shim_drift.dart",
     visibility = ["//visibility:public"],
     deps = [

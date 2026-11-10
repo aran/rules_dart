@@ -306,7 +306,7 @@ from `@rules_dart//dart/ext:defs.bzl`:
   runner's packages at versions `dart/ext/pubspec.yaml` allows. A rule set
   whose builder needs a pub SDK rules_dart's lock does not (a Flutter
   constraint) ships it this way, from a lock of its own.
-- The shim is a `dart_binary` (`code_assets_from_deps = False`) whose `main`
+- The shim is a `dart_binary` (`code_assets_from_packages = False`) whose `main`
   calls `shimMain(args, <builder factory>)`, depending on that library and
   the builder's package.
 - The builder's macro calls `shared_part_codegen` (a SharedPartBuilder,

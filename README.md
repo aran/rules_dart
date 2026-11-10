@@ -1976,9 +1976,9 @@ names. Every `code_assets` entry provides `DartCodeAssetInfo`, which
       package = ":pubspec-metadata",
   )
   ```
-- A build tool that never loads native code sets `code_assets_from_deps = False`
-  on its `dart_binary`, so it neither builds the libraries in its dependency
-  closure nor hits that error.
+- A build tool that never loads native code sets `code_assets_from_packages = False`
+  on its `dart_binary`, so it neither builds the libraries its packages declare,
+  its own and those in its dependency closure, nor hits that error.
 
 rules_dart ships replacements for two packages, under `dart/ext`:
 `sqlite3_code_asset()` from `@rules_dart//dart/ext/sqlite3:defs.bzl`
