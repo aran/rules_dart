@@ -107,6 +107,22 @@ an SDK whose kernel format differs, the build fails and says so; turn them off
 with `--@rules_dart//dart:outline_kernel=false`, and dependents compile against
 full kernels.
 
+A test's program is a kernel list: a small text file naming the kernels it
+reaches, its entrypoint's first, which the Dart VM loads as one program. Each
+kernel is stored once however many tests reach it, rather than copied into
+every test. The launcher writes the list again at each run, naming each kernel
+where it finds it in runfiles, so the test runs the same under `bazel test`,
+`bazel run`, a runfiles manifest (Windows) and remote execution. To store one
+joined kernel per test instead, as before:
+`--@rules_dart//dart:kernel_list=false`.
+
+A rule set whose tests link through `dart_link_kernel_action` reads, joins or
+rewrites these lists in its launcher with the `@rules_dart//dart/kernel_list`
+library (`package:kernel_list/kernel_list.dart`): `kernelsInRunfiles` finds a
+program's kernels through runfiles, `writeKernelList` writes a list naming
+them, and `joinKernels` joins them for a program that takes a single kernel
+file, in memory on Linux and in a temporary file elsewhere.
+
 ### Using pub.dev packages
 
 Declare individual packages with `pub.package()`:
@@ -766,6 +782,7 @@ Every command-line setting rules_dart reads. Set one per invocation or in
 | `--@rules_dart//dart:analysis_config=<label>`      | none    | The `dart_analysis_config` whose options analysis, fixes and formatting use.                                                                                  |
 | `--@rules_dart//dart:analysis_worker`              | on      | Runs analysis and fixes in persistent workers, one analysis server each; off runs `dart analyze`/`dart fix` per action.                                       |
 | `--@rules_dart//dart:extra_dart_defines=KEY=VALUE` | none    | Adds an environment declaration to every Dart compile, after target `defines`; repeat for more.                                                               |
+| `--@rules_dart//dart:kernel_list`                  | on      | Runs each test from a kernel list naming the kernels it reaches; off stores one joined kernel per test.                                                       |
 | `--@rules_dart//dart:modular_kernel`               | on      | Compiles each library once into kernel modules that tests link; off compiles each test's whole program from source and stops checking imports against `deps`. |
 | `--@rules_dart//dart:outline_kernel`               | on      | Compiles dependents against outlines of their dependencies' modules; turn off with a Dart SDK whose kernel format differs from the one rules_dart pins.       |
 | `--@rules_dart//dart:track_creation_locations`     | off     | Compiles VM kernels with `--track-creation-locations` (`--track-widget-creation`).                                                                            |

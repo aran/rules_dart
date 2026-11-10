@@ -41,6 +41,17 @@ bool_flag(
     visibility = ["//visibility:public"],
 )
 
+# Whether, under `modular_kernel`, a test's program is a kernel list (the
+# default): a text file naming the kernels the test reaches, which the VM reads
+# as one program, so the test stores no copy of them. Off, every test's program
+# is one joined `.dill`. rules_flutter reads it for its widget tests too:
+#   bazel test //... --@rules_dart//dart:kernel_list=false
+bool_flag(
+    name = "kernel_list",
+    build_setting_default = True,
+    visibility = ["//visibility:public"],
+)
+
 # Whether, under `modular_kernel`, a library's dependents compile against its
 # modules' outlines (their kernel without function bodies) rather than the full
 # kernel. On (the default), an edit inside a function body recompiles only the

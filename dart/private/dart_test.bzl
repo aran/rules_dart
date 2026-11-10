@@ -1,16 +1,18 @@
 """Implementation of the dart_test rule.
 
-The test is compiled to a self-contained kernel (`.dill`) **at build time** and
-the launcher merely runs it, so no sources and no `package_config` are needed at
-run time and manifest-mode runfiles (Windows) are a non-issue. Its dependencies
-are compiled once each, into the kernel modules `dart_module_aspect` builds;
-the test compiles only its own files against them and links the program (see
-`dart_module.bzl`).
+The test is compiled to kernel **at build time** and the launcher merely runs
+it, so no sources and no `package_config` are needed at run time. Its
+dependencies are compiled once each, into the kernel modules
+`dart_module_aspect` builds; the test compiles only its own files against them
+and links the program (see `dart_module.bzl`): a kernel list naming the
+kernels, which the launcher rewrites with where it finds each in runfiles, tree
+or manifest; or, with `--@rules_dart//dart:kernel_list=false`, one joined
+kernel.
 """
 
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("//dart:providers.bzl", "DartCodeAssetInfo", "DartInfo", "DartKernelSdkInfo")
-load("//dart/private:build_settings.bzl", "EXTRA_DART_DEFINES_ATTR", "TRACK_CREATION_LOCATIONS_ATTR", "merge_test_dart_defines", "track_creation_locations")
+load("//dart/private:build_settings.bzl", "EXTRA_DART_DEFINES_ATTR", "KERNEL_LIST_ATTR", "TRACK_CREATION_LOCATIONS_ATTR", "kernel_list", "merge_test_dart_defines", "track_creation_locations")
 load(
     "//dart/private:common.bzl",
     "DART_ABI_CONSTRAINT_ATTRS",
@@ -71,8 +73,11 @@ def _dart_test_impl(ctx):
     else:
         dill = ctx.actions.declare_file(ctx.label.name + ".dill")
     native_assets_yaml, runtime_libs = _code_assets(ctx, dill)
+    modular = ctx.attr._modular_kernel[BuildSettingInfo].value
 
-    if not ctx.attr._modular_kernel[BuildSettingInfo].value:
+    # What the program needs beside it: the kernels a kernel list names.
+    program_files = depset()
+    if not modular:
         # The whole program from source, as `dart_binary` compiles: what the
         # build-wide escape hatch falls back to.
         whole_program_kernel(
@@ -86,17 +91,23 @@ def _dart_test_impl(ctx):
             track_creation_locations = track_creation_locations(ctx),
         )
     else:
-        _link_modules(ctx, sdk, main, packages, own, native_assets_yaml, dill)
+        program_files = _link_modules(ctx, sdk, main, packages, own, native_assets_yaml, dill)
 
-    # Thin launcher: run the self-contained dill with asserts enabled. The dill
-    # carries all sources/imports, so runfiles need only the VM and (for code
-    # assets) the `.so` libraries. What to run is in a file beside the
-    # launcher, not in its environment, so that the test runs its own kernel
+    # Thin launcher: run the compiled program with asserts enabled. It carries
+    # all sources/imports, so runfiles need only the VM, the kernels and (for
+    # code assets) the `.so` libraries. What to run is in a file beside the
+    # launcher, not in its environment, so that the test runs its own program
     # however it is started, as another target's `data` included.
     config = {
         "dart": runfiles_path(dart_sdk_info.dart, workspace_name),
         "dill": runfiles_path(dill, workspace_name),
     }
+    if modular and kernel_list(ctx):
+        # The launcher writes the list again naming each kernel where it found
+        # it, and puts each library beside that list as they are beside `dill`
+        # (see `_code_assets`).
+        config["kernel_list"] = True
+        config["code_asset_libraries"] = [runfiles_path(lib, workspace_name) for lib in runtime_libs]
     runner_files = []
     if runner:
         # The runner reads the test file for its annotations (`@TestOn`,
@@ -123,7 +134,7 @@ def _dart_test_impl(ctx):
         transitive_files = depset(
             # The VM that runs the kernel, and no more of the SDK: a test that
             # runs SDK commands itself takes `@rules_dart//dart` in `data`.
-            transitive = [dart_sdk_info.files.run, collect_transitive_resources(ctx.attr.deps)],
+            transitive = [dart_sdk_info.files.run, program_files, collect_transitive_resources(ctx.attr.deps)],
         ),
     )
     runfiles = runfiles.merge(launcher.runfiles)
@@ -185,7 +196,11 @@ def _code_assets(ctx, dill):
     return native_assets_yaml, libraries
 
 def _link_modules(ctx, sdk, main, packages, own, native_assets_yaml, dill):
-    """Compiles the test's own files and entrypoint against its modules, and links them."""
+    """Compiles the test's own files and entrypoint against its modules, and links them.
+
+    Returns:
+      A depset of the files the program names, for its runfiles.
+    """
     entry = ctx.actions.declare_file(ctx.label.name + ".entry.dill")
     linked = dart_entry_kernel_action(
         ctx = ctx,
@@ -201,7 +216,14 @@ def _link_modules(ctx, sdk, main, packages, own, native_assets_yaml, dill):
         native_assets_yaml = native_assets_yaml,
         track_creation_locations = track_creation_locations(ctx),
     )
-    dart_link_kernel_action(ctx, ctx.executable._kernel_tool, entry, linked, dill)
+    return dart_link_kernel_action(
+        ctx,
+        ctx.executable._kernel_tool,
+        entry,
+        linked,
+        dill,
+        kernel_list = kernel_list(ctx),
+    )
 
 def _test_runner(ctx, packages):
     """The `package:test` runner for this test, or `None` to run it directly.
@@ -388,7 +410,7 @@ told where a runfile is (resolve it with `Runfiles.rlocation()`).""",
             executable = True,
             cfg = "target",
         ),
-    }, **dict(DART_ABI_CONSTRAINT_ATTRS, **dict(EXTRA_DART_DEFINES_ATTR, **dict(TRACK_CREATION_LOCATIONS_ATTR, **dict(MODULE_EXECUTABLE_ATTRS, **EXECUTABLE_PACKAGE_ATTRS))))),
+    }, **dict(DART_ABI_CONSTRAINT_ATTRS, **dict(KERNEL_LIST_ATTR, **dict(EXTRA_DART_DEFINES_ATTR, **dict(TRACK_CREATION_LOCATIONS_ATTR, **dict(MODULE_EXECUTABLE_ATTRS, **EXECUTABLE_PACKAGE_ATTRS)))))),
     test = True,
     # The compiles are `portable`. The run is Bazel's own `test` group, which
     # puts it on a host matching the target: everything it runs, the VM and

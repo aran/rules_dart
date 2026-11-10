@@ -18,7 +18,10 @@ const _optionsByCommand = {
   },
   // What follows `--` is the compiler's own command line, passed on as it is.
   'frontend': {'runtime'},
-  'link': {'label', 'entry', 'selection', 'dep-manifest', 'output'},
+  'link': {
+    'label', 'entry', 'selection', 'dep-manifest', 'output', 'list-short-path',
+    'entry-short-path', 'dep-short-path', 'workspace-name', //
+  },
   'check': {
     'label', 'package-config', 'package-name', 'lib-root', 'multi-root', 'src',
     'dep-file', 'available-package', 'direct-package', 'output', //

@@ -74,7 +74,10 @@ dart_binary(
     compile_mode = "exe",
     main = "test_runner.dart",
     visibility = ["//dart:__subpackages__"],
-    deps = ["//dart/runfiles"],
+    deps = [
+        "//dart/kernel_list",
+        "//dart/runfiles",
+    ],
 )
 
 # What `test_runner_test` runs through its launcher in place of a real test.
@@ -85,11 +88,28 @@ dart_test(
     main = "test_runner_fixture.dart",
 )
 
+# What `test_runner_test` runs through its launcher under `package:test`'s
+# runner. Run on its own, it passes.
+dart_test(
+    name = "test_runner_runner_fixture",
+    size = "small",
+    main = "test_runner_runner_fixture.dart",
+    deps = ["@ext_pub_deps//:test"],
+)
+
 dart_test(
     name = "test_runner_test",
     size = "small",
-    args = ["$(rlocationpath :test_runner_fixture)"],
-    data = [":test_runner_fixture"],
+    args = [
+        "$(rlocationpath :test_runner_fixture)",
+        "$(rlocationpath :test_runner_runner_fixture)",
+        "$(rlocationpath //dart/tests/shared_library_asset_fixture:shared_library_asset_test)",
+    ],
+    data = [
+        ":test_runner_fixture",
+        ":test_runner_runner_fixture",
+        "//dart/tests/shared_library_asset_fixture:shared_library_asset_test",
+    ],
     main = "test_runner_test.dart",
     deps = [
         "//dart/runfiles",

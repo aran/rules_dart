@@ -507,12 +507,23 @@ def dart_entry_kernel_action(
     )
     return struct(modules = own.modules, manifests = own.manifests, selection = selection)
 
-def dart_link_kernel_action(ctx, kernel_tool, entry, linked, output):
+def _short_path(f):
+    return f.short_path
+
+def dart_link_kernel_action(ctx, kernel_tool, entry, linked, output, kernel_list = False):
     """Links an entry `.dill` and the modules its entrypoint reaches into one program.
 
     Fails if one library is compiled into two of those modules: the front end
     would silently use one copy, and which one would depend on dependency
     order.
+
+    As a kernel list, `output` is `#@dill` and then a line per kernel, the
+    entry first, each the path from `output` to that kernel in the runfiles
+    tree: the VM reads the list as the program they make together, so the
+    kernels are stored once however many programs list them. They must be in
+    the runfiles beside `output`, which is what this returns. A launcher whose
+    runfiles may be a manifest, not a tree, resolves the lines through it
+    (`@rules_dart//dart/kernel_list`).
 
     Args:
       ctx: The rule context.
@@ -521,23 +532,43 @@ def dart_link_kernel_action(ctx, kernel_tool, entry, linked, output):
       linked: `struct(modules, manifests, selection)` from
         `dart_entry_kernel_action`.
       output: The program `.dill` to write.
+      kernel_list: Whether to write `output` as a kernel list rather than one
+        joined kernel; `kernel_list(ctx)` for the build's choice.
+
+    Returns:
+      A depset of the files `output` names, for the runfiles beside it: empty
+      for a joined kernel.
     """
     args = _new_args(ctx)
     args.add("--label", str(ctx.label))
-    args.add("--entry", entry)
     args.add("--selection", linked.selection)
     args.add_all(linked.modules, before_each = "--dep-manifest", map_each = _info_path, expand_directories = False)
     args.add("--output", output)
+    if kernel_list:
+        # Named by where they are in runfiles, which no configuration changes.
+        args.add("--workspace-name", ctx.workspace_name)
+        args.add("--list-short-path", output.short_path)
+        args.add("--entry-short-path", entry.short_path)
+        args.add_all(linked.modules, before_each = "--dep-short-path", map_each = _short_path, expand_directories = False)
+
+        # The list is made from the selection and the manifests alone.
+        inputs = depset([linked.selection], transitive = [linked.manifests])
+        runfiles = depset([entry], transitive = [linked.modules])
+    else:
+        args.add("--entry", entry)
+        inputs = depset([entry, linked.selection], transitive = [linked.modules, linked.manifests])
+        runfiles = depset()
     ctx.actions.run(
         executable = kernel_tool,
         arguments = ["link", args],
-        inputs = depset([entry, linked.selection], transitive = [linked.modules, linked.manifests]),
+        inputs = inputs,
         outputs = [output],
         mnemonic = "DartLinkKernel",
         exec_group = PORTABLE,
         progress_message = "Linking Dart kernel %{label}",
         execution_requirements = PATH_MAPPING,
     )
+    return runfiles
 
 def _vm_kernel_sdk_impl(ctx):
     sdk = ctx.toolchains["//dart:toolchain_type"].dart_sdk_info

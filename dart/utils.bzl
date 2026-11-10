@@ -7,7 +7,9 @@ co-location. These are used by both rules_dart and rules_flutter.
 
 load(
     "//dart/private:build_settings.bzl",
+    _KERNEL_LIST_ATTR = "KERNEL_LIST_ATTR",
     _TRACK_CREATION_LOCATIONS_ATTR = "TRACK_CREATION_LOCATIONS_ATTR",
+    _kernel_list = "kernel_list",
     _track_creation_locations = "track_creation_locations",
 )
 load(
@@ -212,6 +214,12 @@ parse_data_asset_ids = _parse_data_asset_ids
 # `track_creation_locations(ctx)` to `dart_entry_kernel_action`, merging
 # `TRACK_CREATION_LOCATIONS_ATTR` into its `attrs`.
 #
+# A test's program is a kernel list unless `--@rules_dart//dart:kernel_list`
+# is off: a rule passes `kernel_list = kernel_list(ctx)` to
+# `dart_link_kernel_action`, merging `KERNEL_LIST_ATTR` into its `attrs`, adds
+# the files it returns to the runfiles, and has its launcher read the list with
+# `@rules_dart//dart/kernel_list` (or join it, for a runner that takes one file).
+#
 # Those compiles, and the import checks below, run in the `PORTABLE` execution
 # group, on any host with a Dart SDK (`EXEC_TOOLS_TOOLCHAIN`), and the kernel
 # tool is built for that host: a rule merging `KERNEL_TOOL_ATTR` declares
@@ -226,6 +234,8 @@ dart_link_kernel_action = _dart_link_kernel_action
 kernel_package_config = _kernel_package_config
 add_kernel_roots = _add_kernel_roots
 KERNEL_TOOL_ATTR = _KERNEL_TOOL_ATTR
+KERNEL_LIST_ATTR = _KERNEL_LIST_ATTR
+kernel_list = _kernel_list
 TRACK_CREATION_LOCATIONS_ATTR = _TRACK_CREATION_LOCATIONS_ATTR
 track_creation_locations = _track_creation_locations
 PORTABLE = _PORTABLE

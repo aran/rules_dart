@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:kernel_list/kernel_list.dart';
 import 'package:runfiles/runfiles.dart';
 
 import 'launcher_config.dart';
@@ -30,26 +31,183 @@ Future<void> main(List<String> args) async {
   final config = readLauncherConfig('dart_test');
   final r = Runfiles.create();
   final dart = r.rlocation(config['dart'] as String);
-  final dill = r.rlocation(config['dill'] as String);
   final environment = childEnvironment(Platform.environment, r.environment);
+  final scratch = _Scratch(Platform.environment['TEST_TMPDIR']);
+
+  final String dill;
+  try {
+    dill = config['kernel_list'] == true
+        ? stageKernelList(
+            runfiles: r,
+            program: config['dill'] as String,
+            // The runner finds the suite by the test's path below its
+            // precompiled directory.
+            keep: switch (config['test_path']) {
+              final String test => '$test.vm_test.vm.app.dill',
+              _ => (config['dill'] as String).split('/').last,
+            },
+            codeAssetLibraries: (config['code_asset_libraries'] as List)
+                .cast<String>(),
+            into: scratch.directory('k'),
+          )
+        : r.rlocation(config['dill'] as String);
+  } on KernelListException catch (e) {
+    stderr.writeln('dart_test: $e');
+    scratch.delete();
+    exit(1);
+  }
 
   final runnerKey = config['runner'] as String?;
+  final int code;
   if (runnerKey == null) {
-    exit(launcherExitCode(await _runDirectly(dart, dill, args, environment)));
+    code = await _runDirectly(dart, dill, args, environment);
+  } else {
+    code = await _runUnderRunner(
+      dart: dart,
+      dill: dill,
+      runner: r.rlocation(runnerKey),
+      testSource: r.rlocation(config['test_main'] as String),
+      testPath: config['test_path'] as String,
+      args: args,
+      environment: environment,
+      tmp: scratch.directory('dart_test.'),
+    );
   }
-  exit(
-    launcherExitCode(
-      await _runUnderRunner(
-        dart: dart,
-        dill: dill,
-        runner: r.rlocation(runnerKey),
-        testSource: r.rlocation(config['test_main'] as String),
-        testPath: config['test_path'] as String,
-        args: args,
-        environment: environment,
-      ),
-    ),
-  );
+  scratch.delete();
+  exit(launcherExitCode(code));
+}
+
+/// Directories the launcher makes for one run: under `TEST_TMPDIR`, which
+/// Bazel clears, or else under the system's temporary directory, where they
+/// are removed when the test is done (`bazel run`).
+class _Scratch {
+  _Scratch(this._testTmpdir);
+
+  final String? _testTmpdir;
+  final _made = <Directory>[];
+
+  Directory directory(String prefix) {
+    final made = Directory(_testTmpdir ?? Directory.systemTemp.path)
+        .createTempSync(prefix);
+    _made.add(made);
+    return made;
+  }
+
+  void delete() {
+    if (_testTmpdir != null) return;
+    for (final directory in _made) {
+      try {
+        directory.deleteSync(recursive: true);
+      } on FileSystemException catch (e) {
+        // A process the test left running may still hold a file open. The
+        // test's result stands; what is left behind is said.
+        stderr.writeln('dart_test: could not remove ${directory.path}: $e');
+      }
+    }
+  }
+}
+
+/// Writes the kernel list at runfiles path [program] again under [into],
+/// naming each kernel where [runfiles] finds it, and returns the new list.
+///
+/// The list `dart_test` stores names its kernels by their paths from it in a
+/// runfiles tree, which lead nowhere where runfiles are a manifest (Windows,
+/// or `bazel run` resolving through one). The new list ends in [keep], the
+/// tail of [program] its reader finds it by; the directories above that are
+/// as many as [program] has but one character each, since Windows opens a
+/// spawned isolate's file through a 260-character buffer. Each of
+/// [codeAssetLibraries] is placed where its path from the stored list leads
+/// from the new one: the VM resolves a code asset's `relative` path against
+/// the list's directory.
+String stageKernelList({
+  required Runfiles runfiles,
+  required String program,
+  required String keep,
+  required List<String> codeAssetLibraries,
+  required Directory into,
+}) {
+  if (!program.endsWith('/$keep')) {
+    throw ArgumentError.value(keep, 'keep', 'does not end $program');
+  }
+  final segments = program.split('/');
+  final kept = keep.split('/');
+  final above = segments.length - kept.length;
+  final listSegments = [for (var i = 0; i < above; i++) '_', ...kept];
+  String under(List<String> relative) =>
+      _normalize([into.path, ...relative]).join(Platform.pathSeparator);
+
+  final kernels = kernelsInRunfiles(runfiles, program);
+  if (kernels.length == 1 && kernels.single == runfiles.rlocation(program)) {
+    throw KernelListException('$program is not a kernel list');
+  }
+  final list = under(listSegments);
+  // The VM opens a spawned isolate's file: URI through a MAX_PATH buffer
+  // (`File::UriToPath`), and takes a list it cannot open for Dart source.
+  if (Platform.isWindows && File(list).absolute.path.length >= 260) {
+    throw KernelListException(
+      'the kernel list ${File(list).absolute.path} is longer than the 259 '
+      'characters the Dart VM opens on Windows; shorten --test_tmpdir',
+    );
+  }
+  try {
+    File(list).parent.createSync(recursive: true);
+    writeKernelList(list, kernels);
+  } on FileSystemException catch (e) {
+    throw KernelListException('cannot write the kernel list $list', e);
+  }
+  final storedDirectory = segments.sublist(0, segments.length - 1);
+  final listDirectory = listSegments.sublist(0, listSegments.length - 1);
+  for (final library in codeAssetLibraries) {
+    final placed = under([
+      ...listDirectory,
+      ..._relative(library.split('/'), storedDirectory),
+    ]);
+    try {
+      final found = runfiles.rlocation(library);
+      File(placed).parent.createSync(recursive: true);
+      if (Platform.isWindows) {
+        // A link to a file needs a privilege Windows grants few accounts.
+        File(found).copySync(placed);
+      } else {
+        Link(placed).createSync(File(found).absolute.path);
+      }
+    } on Object catch (e) {
+      // Not in runfiles (a StateError), or not placeable.
+      if (e is! FileSystemException && e is! StateError) rethrow;
+      throw KernelListException(
+        'cannot place code asset $library beside the kernel list',
+        e,
+      );
+    }
+  }
+  return list;
+}
+
+/// [path]'s segments from directory [from], both runfiles paths' segments.
+List<String> _relative(List<String> path, List<String> from) {
+  var common = 0;
+  while (common < from.length &&
+      common < path.length - 1 &&
+      from[common] == path[common]) {
+    common++;
+  }
+  return [
+    for (var i = common; i < from.length; i++) '..',
+    ...path.sublist(common),
+  ];
+}
+
+/// [segments] with each `..` folding the segment before it.
+List<String> _normalize(List<String> segments) {
+  final out = <String>[];
+  for (final s in segments) {
+    if (s == '..' && out.isNotEmpty && out.last != '..') {
+      out.removeLast();
+    } else {
+      out.add(s);
+    }
+  }
+  return out;
 }
 
 /// The environment the test runs in: [parent]'s, which carries Bazel's test
@@ -118,6 +276,7 @@ Future<int> _runUnderRunner({
   required String testPath,
   required List<String> args,
   required Map<String, String> environment,
+  required Directory tmp,
 }) async {
   final env = Platform.environment;
 
@@ -137,8 +296,6 @@ Future<int> _runUnderRunner({
     return 1;
   }
   final precompiled = dill.substring(0, dill.length - suffix.length);
-  final tmp = Directory(env['TEST_TMPDIR'] ?? Directory.systemTemp.path)
-      .createTempSync('dart_test.');
   final inPlace = File(testPath).existsSync();
   if (!inPlace) {
     // The workspace's runfiles are laid out in the scratch directory, so `data`

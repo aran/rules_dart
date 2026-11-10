@@ -138,6 +138,24 @@ TRACK_CREATION_LOCATIONS_ATTR = {
     ),
 }
 
+KERNEL_LIST_ATTR = {
+    "_kernel_list": attr.label(
+        doc = "The //dart:kernel_list build setting.",
+        default = Label("//dart:kernel_list"),
+    ),
+}
+
+def kernel_list(ctx):
+    """Whether this configuration links a test's program as a kernel list.
+
+    Args:
+      ctx: Rule context carrying `_kernel_list`.
+
+    Returns:
+      A bool.
+    """
+    return ctx.attr._kernel_list[BuildSettingInfo].value
+
 def track_creation_locations(ctx):
     """Whether this configuration compiles with `--track-creation-locations`.
 

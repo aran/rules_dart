@@ -41,6 +41,8 @@ dart_test(
         ":b",
     ],
     main = "shared_library_asset_test.dart",
+    # `test_runner_test` runs it through its launcher as `bazel run` would.
+    visibility = ["//dart/private/tools:__pkg__"],
 )
 
 dart_binary(

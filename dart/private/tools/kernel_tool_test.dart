@@ -1743,6 +1743,108 @@ import 'b.dart' if (dart.library.html) 'package:dep/web.dart';
       expect(File(path('t.program.dill')).readAsStringSync(), 'ENTRYB0A0');
     });
 
+    test('link --list-short-path lists the entry first, then the selected modules, '
+        'each by its path from the list in runfiles', () async {
+      final a = _manifest('//a:a', [
+        _module(0, ['package:a/a.dart']),
+        _module(1, ['package:a/b.dart']),
+      ]);
+      final b = _manifest('@dep//b:b', [
+        _module(0, ['package:b/b.dart']),
+      ]);
+      write('a.modules.json', a.toJson());
+      write('b.modules.json', b.toJson());
+      write(
+        'selection.json',
+        jsonEncode({
+          'modules': [
+            {'label': '@dep//b:b', 'id': 0},
+            {'label': '//a:a', 'id': 0},
+          ],
+        }),
+      );
+      // No kernel exists: a list needs none of their bytes.
+      final code = await runArgs([
+        'link',
+        '--label',
+        '//app/t:t',
+        '--selection',
+        path('selection.json'),
+        '--dep-manifest',
+        path('a.modules.json'),
+        '--dep-short-path',
+        'a/a.modules',
+        '--dep-manifest',
+        path('b.modules.json'),
+        '--dep-short-path',
+        '../dep+/b/b.modules',
+        '--workspace-name',
+        '_main',
+        '--list-short-path',
+        'app/t/t.dill',
+        '--entry-short-path',
+        'app/t/t.entry.dill',
+        '--output',
+        path('t.dill'),
+      ]);
+      expect(code, 0);
+      expect(
+        File(path('t.dill')).readAsStringSync(),
+        '#@dill\n'
+        't.entry.dill\n'
+        '../../../dep+/b/b.modules/0.dill\n'
+        '../../a/a.modules/0.dill\n',
+      );
+    });
+
+    test(
+      'link --list-short-path still refuses a library two modules define',
+      () async {
+        final a = _manifest('//a:a', [
+          _module(0, ['package:x/x.dart']),
+        ]);
+        final b = _manifest('//b:b', [
+          _module(0, ['package:x/x.dart']),
+        ]);
+        write('a.modules.json', a.toJson());
+        write('b.modules.json', b.toJson());
+        write(
+          'selection.json',
+          jsonEncode({
+            'modules': [
+              {'label': '//a:a', 'id': 0},
+              {'label': '//b:b', 'id': 0},
+            ],
+          }),
+        );
+        final code = await runArgs([
+          'link',
+          '--label',
+          '//app:t',
+          '--selection',
+          path('selection.json'),
+          '--dep-manifest',
+          path('a.modules.json'),
+          '--dep-short-path',
+          'a/a.modules',
+          '--dep-manifest',
+          path('b.modules.json'),
+          '--dep-short-path',
+          'b/b.modules',
+          '--workspace-name',
+          '_main',
+          '--list-short-path',
+          'app/t.dill',
+          '--entry-short-path',
+          'app/t.entry.dill',
+          '--output',
+          path('t.dill'),
+        ]);
+        expect(code, 1);
+        expect(File(path('t.dill')).existsSync(), isFalse);
+      },
+    );
+
     test('link refuses a library two selected modules define', () async {
       final a = _manifest('//a:a', [
         _module(0, ['package:x/x.dart']),
