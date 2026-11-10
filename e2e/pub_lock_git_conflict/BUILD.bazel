@@ -1,0 +1,7 @@
+exports_files([
+    "one.lock",
+    "two.lock",
+])
+
+# Property: two locks that pin a git package at different commits are refused, since there is no version order between commits to choose along.
+# This workspace must FAIL to build; `bazel build @one//:foo` prints why.

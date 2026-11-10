@@ -11,8 +11,10 @@
 /// exits non-zero if any folder failed.
 ///
 /// The Linux-only *expected failure* workspaces (`pub_lock_conflict`,
-/// `pub_lock_unpinned`, `pub_package_blank_sha`, `pub_lock_digest_conflict`,
-/// `analysis_failure`, `link_hook`) must fail to build with a specific error;
+/// `pub_lock_unpinned`, `pub_lock_git_unpinned`, `pub_lock_git_conflict`,
+/// `pub_lock_git_hosted`, `pub_package_blank_sha`,
+/// `pub_lock_digest_conflict`, `analysis_failure`, `link_hook`) must fail to
+/// build with a specific error;
 /// they are checked separately on Linux.
 library;
 
@@ -42,6 +44,7 @@ const _ciFolders = [
   'e2e/pub_lock_upgrade',
   'e2e/pub_hub_surface',
   'e2e/pub_lock_cycle',
+  'e2e/pub_lock_git',
   'e2e/pub_member_kind',
   'e2e/pub_override_root_lock',
   'e2e/pub_package_padded',
@@ -243,6 +246,21 @@ const _expectedFailureChecks = [
     'e2e/pub_lock_unpinned',
     '@deps//:path',
     'No sha256 is pinned for pub package "path"',
+  ),
+  _ExpectedFailure(
+    'e2e/pub_lock_git_unpinned',
+    '@deps//:foo',
+    'resolved-ref "a1b2c3d", which is not a full commit id',
+  ),
+  _ExpectedFailure(
+    'e2e/pub_lock_git_conflict',
+    '@one//:foo',
+    'is locked differently across lock files',
+  ),
+  _ExpectedFailure(
+    'e2e/pub_lock_git_hosted',
+    '@one//:foo',
+    'is a git package in',
   ),
   _ExpectedFailure(
     'e2e/pub_package_blank_sha',

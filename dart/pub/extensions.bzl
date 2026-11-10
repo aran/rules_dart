@@ -3,9 +3,10 @@
 load("//dart/ext:registry.bzl", "curated_code_assets")
 load("//dart/pub:pub_lock_hub.bzl", "pub_lock_hub")
 load("//dart/pub:pub_lock_library.bzl", "index_repo", "library_repo", "pub_lock_index", "pub_lock_library", "source_repo")
-load("//dart/pub:pub_lock_package.bzl", "pub_lock_package")
+load("//dart/pub:pub_lock_package.bzl", "pub_lock_git_package", "pub_lock_package")
 load("//dart/pub:yaml_parser.bzl", "parse_pubspec_lock")
 load("//dart/pub/private:pub_archive.bzl", "check_pub_archive_sha256")
+load("//dart/pub/private:pub_git.bzl", "check_pub_git_resolved_ref", "is_relative_git_url")
 load("//dart/pub/private:pub_repository.bzl", "pub_package")
 load("//dart/pub/private:version.bzl", "semver_gt")
 
@@ -122,6 +123,56 @@ def _explicit_packages(ctx, root_lock_names):
         explicit[name] = decls[0].tag
     return struct(explicit = explicit, overridden = overridden)
 
+def _add_git_package(git_registry, name, info, lock_tag):
+    """Records a lock's `source: git` entry, failing where it pins nothing or disagrees.
+
+    Every lock that lists a git package must pin the same commit of the same
+    repository directory: there is no version order between commits to
+    upgrade along.
+
+    Args:
+      git_registry: Package name -> what is fetched for it; updated.
+      name: The package name.
+      info: The lock entry.
+      lock_tag: The `from_lock` tag whose lock lists it.
+    """
+    desc = info.get("description", {})
+    version = info.get("version", "")
+    url = desc.get("url", "")
+    if not url:
+        fail("The git package \"%s\" %s (in %s) has no `description.url`. Run `dart pub get` to rewrite the lock." % (name, version, lock_tag.lock))
+    check_pub_git_resolved_ref(name, version, desc.get("resolved-ref", ""), str(lock_tag.lock))
+    relative = is_relative_git_url(url)
+    pkg = struct(
+        version = version,
+        url = url,
+        resolved_ref = desc["resolved-ref"],
+        path = desc.get("path", "."),
+        # A relative url is resolved against the lock's directory, so the
+        # lock is part of what it names.
+        lock = lock_tag.lock if relative else None,
+        lock_label = str(lock_tag.lock),
+    )
+    first = git_registry.setdefault(name, pkg)
+    if (first.url, first.lock, first.resolved_ref, first.path) != (pkg.url, pkg.lock, pkg.resolved_ref, pkg.path):
+        fail(
+            ("Git package \"%s\" is locked differently across lock files:\n" +
+             "  - %s at %s, path %s (from %s)\n" +
+             "  - %s at %s, path %s (from %s)\n" +
+             "rules_dart builds one copy of each package. Make the pubspecs ask for the " +
+             "same commit and run `dart pub get` in each workspace.") % (
+                name,
+                first.url,
+                first.resolved_ref,
+                first.path,
+                first.lock_label,
+                pkg.url,
+                pkg.resolved_ref,
+                pkg.path,
+                pkg.lock_label,
+            ),
+        )
+
 def _pub_impl(ctx):
     # Packages the user has declared hook-irrelevant, unioned across every
     # from_lock call — a package is one repo regardless of how many locks
@@ -181,8 +232,11 @@ def _pub_impl(ctx):
     # package being undeclared, naming neither the duplicate nor the two locks.
     hub_packages = {}
 
-    # Packages a lock lists that no repository is fetched for (path, git and
-    # SDK sources), with how the first such lock lists each.
+    # Git packages, each with the one commit every lock that lists it pins.
+    git_registry = {}
+
+    # Packages a lock lists that no repository is fetched for (path and SDK
+    # sources), with how the first such lock lists each.
     non_hosted = {}
 
     for lock in locks:
@@ -194,10 +248,10 @@ def _pub_impl(ctx):
 
         hub_packages.setdefault(hub_name, {})
 
-        # Only hosted packages can be fetched from a pub registry. Collect
-        # every non-hosted package and report once per lock file — Flutter
-        # locks routinely list many sdk-source packages, so a per-package
-        # print would drown the useful signal.
+        # Hosted and git packages are fetched. Collect every other package
+        # and report once per lock file — Flutter locks routinely list many
+        # sdk-source packages, so a per-package print would drown the useful
+        # signal.
         skipped_by_source = {}
 
         for name, info in lock.packages.items():
@@ -208,6 +262,10 @@ def _pub_impl(ctx):
                 continue
 
             source = info.get("source", "unknown")
+            if source == "git":
+                hub_packages[hub_name][name] = True
+                _add_git_package(git_registry, name, info, lock_tag)
+                continue
             if source != "hosted":
                 skipped_by_source.setdefault(source, []).append(name)
                 non_hosted.setdefault(name, "a `%s` package in %s" % (source, lock_tag.lock))
@@ -261,6 +319,18 @@ def _pub_impl(ctx):
                     hub_name,
                     lock_tag.lock,
                     "\n".join(details),
+                ),
+            )
+
+    for name, git_pkg in git_registry.items():
+        if name in registry:
+            fail(
+                ("Package \"%s\" is a git package in %s and a hosted package in %s. " +
+                 "rules_dart builds one copy of each package; make the locks agree, " +
+                 "or declare it with `pub.package()` in the root module.") % (
+                    name,
+                    git_pkg.lock_label,
+                    registry[name].entries[0].lock_label,
                 ),
             )
 
@@ -324,17 +394,36 @@ def _pub_impl(ctx):
 
     # Create a source repository and a library repository per package.
     explicit_names = sorted(explicit.keys())
+    fetched = {name: pkg.version for name, pkg in resolved.items()}
+    fetched.update({name: pkg.version for name, pkg in git_registry.items()})
     unsupplied = {
         name: why
         for name, why in non_hosted.items()
-        if name not in resolved
+        if name not in fetched
     }
     pub_lock_index(
         name = index_repo(_SPOKE_PREFIX),
-        versions = {name: pkg.version for name, pkg in resolved.items()},
+        versions = fetched,
         explicit_packages = explicit_names,
         unsupplied = unsupplied,
     )
+    for name, pkg in git_registry.items():
+        pub_lock_git_package(
+            name = source_repo(_SPOKE_PREFIX, name),
+            package_name = name,
+            version = pkg.version,
+            url = pkg.url,
+            resolved_ref = pkg.resolved_ref,
+            path = pkg.path,
+            lock = pkg.lock,
+            code_assets = curated_code_assets(name, pkg.version),
+            ignore_hook = name in ignore_hooks,
+        )
+        pub_lock_library(
+            name = library_repo(_SPOKE_PREFIX, name),
+            package_name = name,
+            spoke_prefix = _SPOKE_PREFIX,
+        )
     for name, pkg in resolved.items():
         pub_lock_package(
             name = source_repo(_SPOKE_PREFIX, name),
@@ -359,7 +448,7 @@ def _pub_impl(ctx):
     # A package another module declared, which the root's lock supplies
     # instead, keeps its repository name for that module's `use_repo`.
     for name, modules in explicit_packages.overridden.items():
-        if name not in resolved:
+        if name not in fetched:
             fail(
                 ("Package \"%s\" is declared with `pub.package()` by %s, and the root " +
                  "module's lock lists it as %s, which `pub.from_lock()` does not fetch. " +

@@ -41,7 +41,7 @@ def unsupplied_dependency_error(package, version, dep, why):
     """
     return (
         "pub.from_lock(): `{package}` {version} depends on `{dep}`, which is {why}. " +
-        "`pub.from_lock()` fetches only hosted packages, so nothing supplies `{dep}`, " +
+        "`pub.from_lock()` fetches only hosted and git packages, so nothing supplies `{dep}`, " +
         "and `{package}` would be built without it. Either let pub resolve `{dep}` " +
         "from a package repository (drop the `dependency_overrides` or path " +
         "dependency that put it in the lock, and run `dart pub get`), or declare it " +

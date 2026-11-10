@@ -63,7 +63,7 @@ def check_pub_archive_sha256(package_name, version, sha256, declared_in):
         sha256 = sha256,
     ))
 
-def _drop_escaping_links(rctx):
+def drop_escaping_links(rctx):
     """Deletes every symlink in the repository that leaves it or dangles.
 
     pub's own extraction skips a link whose target leaves the package. This
@@ -71,6 +71,9 @@ def _drop_escaping_links(rctx):
     extracted it. A link is judged by where it finally resolves, so a chain
     through an in-package link is caught too. A dangling link cannot be
     resolved and points at nothing in the package, so it goes as well.
+
+    Args:
+        rctx: The `repository_ctx` whose files to check.
     """
     root = rctx.path(".")
     real_root = str(root.realpath)
@@ -138,4 +141,4 @@ def fetch_pub_archive(rctx, package_name, version, sha256, base_url = "https://p
             err = result.stderr,
         ))
     rctx.delete(_ARCHIVE)
-    _drop_escaping_links(rctx)
+    drop_escaping_links(rctx)

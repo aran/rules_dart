@@ -161,17 +161,25 @@ dart_binary(
 )
 ```
 
-> **Note**: `pub.from_lock()` only resolves **hosted** packages (i.e. packages
-> from a pub registry such as pub.dev). Packages with `git`, `path`, or `sdk`
-> sources in the lock file are skipped: no repository is created for them, so
-> `package:` imports of those packages fail to resolve unless they are provided
-> another way. `sdk` packages (e.g. Flutter's) come from the SDK itself, not
-> pub. For `git` or `path` dependencies, declare them with `pub.package()` or
-> as local `dart_library` targets. Each `from_lock()` prints one summary of
-> everything it skipped, grouped by source.
-> A hosted package that depends on a skipped one (a `dependency_overrides` path
-> package, say) fails when it is fetched, naming the dependency, rather than
-> building without it.
+> **Note**: `pub.from_lock()` resolves **hosted** packages (from a pub
+> registry such as pub.dev) and **git** packages. A git package is fetched at
+> the commit the lock records as `resolved-ref`, which must be a full 40-digit
+> commit id, and is served from the lock's `path` within the repository. The
+> fetch uses the host's `git` (2.14 or newer, as `dart pub get` needs) with the
+> host's configuration, so credentials and `insteadOf` mirrors work; the files
+> are written with none of it (no line-ending conversion, filters or hooks), so
+> every machine gets the same bytes. The client's `GIT_*` variables are unset
+> throughout. A server that will not fetch a commit by its id is asked for
+> every ref it advertises instead, as pub does. Packages with `path` or `sdk`
+> sources are skipped: no repository is created for them, so `package:`
+> imports of those packages fail to resolve unless they are provided another
+> way. `sdk` packages (e.g. Flutter's) come from the SDK itself, not pub. For
+> `path` dependencies, declare them with `pub.package()` or as local
+> `dart_library` targets. Each `from_lock()` prints one summary of everything
+> it skipped, grouped by source.
+> A fetched package that depends on a skipped one (a `dependency_overrides`
+> path package, say) fails when it is fetched, naming the dependency, rather
+> than building without it.
 
 Each package's `pubspec.yaml` is read with `package:yaml`, as pub reads it, by
 a small reader rules_dart compiles once per host with its Dart SDK. A pubspec

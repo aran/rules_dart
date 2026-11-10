@@ -1,0 +1,24 @@
+load("@rules_dart//dart:defs.bzl", "dart_test")
+
+# Property: `pub.from_lock()` fetches git packages as `dart pub get` would on a
+# host with no git configuration of its own: at the locked commit, from the
+# locked subdirectory, with the repository's attributes and nothing else
+# changing a byte, and as ordinary members of a dependency cycle. `.bazelrc`
+# sets the GIT_* variables that would change any of that, and
+# `check_host_config.dart` runs this test for a host whose git configuration
+# would, and whose protocol makes servers refuse to fetch by commit id. It also
+# runs it with the remotes reachable only through variables in the client's
+# environment (`GIT_CONFIG_COUNT`, `GIT_SSH_COMMAND`), which the fetch must see
+# and the files must not show.
+dart_test(
+    name = "git_packages_test",
+    size = "small",
+    main = "git_packages_test.dart",
+    deps = [
+        "@deps//:git_cyc_a",
+        "@deps//:git_cyc_b",
+        "@deps//:git_root",
+        "@deps//:git_sub",
+        "@rules_dart//dart/runfiles",
+    ],
+)

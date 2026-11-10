@@ -1,0 +1,7 @@
+exports_files(["pubspec.lock"])
+
+# Property: a git package is fetched only at the full commit id its lock pins.
+# This workspace must FAIL to build, with an error naming the abbreviated
+# `resolved-ref`; a successful build means `foo` was fetched at whatever
+# commit the abbreviation names on the day.
+# Check: `bazel build @deps//:foo` fails and its output names "a1b2c3d".

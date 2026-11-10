@@ -48,6 +48,7 @@ jobs:
           "e2e/pub_lock_upgrade",
           "e2e/pub_hub_surface",
           "e2e/pub_lock_cycle",
+          "e2e/pub_lock_git",
           "e2e/pub_member_kind",
           "e2e/pub_override_root_lock",
           "e2e/pub_package_padded",
@@ -164,6 +165,33 @@ jobs:
           fi
           bazel build @deps//:path 2>&1 | grep -q "No sha256 is pinned for pub package \"path\""
           echo "OK: unpinned lock entry refused"
+      - name: pub_lock_git_unpinned — expect a git entry without a full commit id to be refused
+        working-directory: e2e/pub_lock_git_unpinned
+        run: |
+          if bazel build @deps//:foo 2>/dev/null; then
+            echo "ERROR: build should have refused foo's abbreviated resolved-ref"
+            exit 1
+          fi
+          bazel build @deps//:foo 2>&1 | grep -q 'resolved-ref "a1b2c3d", which is not a full commit id'
+          echo "OK: unpinned git entry refused"
+      - name: pub_lock_git_conflict — expect the locks' disagreement to be refused
+        working-directory: e2e/pub_lock_git_conflict
+        run: |
+          if bazel build @one//:foo 2>/dev/null; then
+            echo "ERROR: build should have refused the locks' disagreement"
+            exit 1
+          fi
+          bazel build @one//:foo 2>&1 | grep -q 'is locked differently across lock files'
+          echo "OK: disagreement refused"
+      - name: pub_lock_git_hosted — expect the locks' disagreement to be refused
+        working-directory: e2e/pub_lock_git_hosted
+        run: |
+          if bazel build @one//:foo 2>/dev/null; then
+            echo "ERROR: build should have refused the locks' disagreement"
+            exit 1
+          fi
+          bazel build @one//:foo 2>&1 | grep -q 'is a git package in'
+          echo "OK: disagreement refused"
       - name: pub_package_blank_sha — expect pub.package(sha256 = "") to be refused
         working-directory: e2e/pub_package_blank_sha
         run: |
@@ -454,6 +482,9 @@ jobs:
       - name: pub_archive_links — expect no fetched archive to reach outside its package
         working-directory: e2e/pub_archive_links
         run: dart check.dart
+      - name: pub_lock_git — expect host git config to reach only the fetch, by-id refusal included
+        working-directory: e2e/pub_lock_git
+        run: dart check_host_config.dart
   # `dart compile kernel` rejects `--enable-asserts`, so dbg-mode flags are
   # chosen per compile mode. hello_world builds all four dart_binary modes;
   # dart_test exercises the kernel test path end-to-end.

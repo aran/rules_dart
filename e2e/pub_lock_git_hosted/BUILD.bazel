@@ -1,0 +1,7 @@
+exports_files([
+    "one.lock",
+    "two.lock",
+])
+
+# Property: a package cannot be git in one lock and hosted in another, since rules_dart builds one copy of each package.
+# This workspace must FAIL to build; `bazel build @one//:foo` prints why.

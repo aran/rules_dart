@@ -22,6 +22,7 @@ bzl_library(
         ":pubspec",
         "//dart/pub/private:build_content",
         "//dart/pub/private:pub_archive",
+        "//dart/pub/private:pub_git",
     ],
 )
 
@@ -69,6 +70,7 @@ bzl_library(
         ":pub_lock_package",
         ":yaml_parser",
         "//dart/pub/private:pub_archive",
+        "//dart/pub/private:pub_git",
         "//dart/pub/private:pub_repository",
         "//dart/pub/private:version",
     ],

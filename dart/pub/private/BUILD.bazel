@@ -28,3 +28,10 @@ bzl_library(
     srcs = ["version.bzl"],
     visibility = ["//dart/pub:__subpackages__"],
 )
+
+bzl_library(
+    name = "pub_git",
+    srcs = ["pub_git.bzl"],
+    visibility = ["//dart/pub:__subpackages__"],
+    deps = [":pub_archive"],
+)
