@@ -50,15 +50,18 @@ func placeDir(rel string) placement {
 }
 
 // layoutOf is the pub layout directory a directory is in -- "bin" or
-// "test", for a package's bin/ or test/ directory or one under it -- and the
-// root of that package; "" when it is neither.
+// "test", for a package's bin/ or test/ directory or one under it, or
+// "hook", for a package's hook/ directory -- and the root of that package;
+// "" when it is none of these.
 //
 // A directory inside a `lib/` is a library directory whatever else its path
 // names. Elsewhere the nearest `bin` or `test` component decides, and the
 // package root is the directory above it, as the package root of a
 // directory inside a `lib/` is the directory above the `lib`: `pkg/bin` and
-// `pkg/test/unit` belong to the package at `pkg`. No pubspec.yaml is read,
-// so a package without one has the same layout as a package with one.
+// `pkg/test/unit` belong to the package at `pkg`. A directory named `hook`
+// outside those is the hook/ directory of the package above it. No
+// pubspec.yaml is read, so a package without one has the same layout as a
+// package with one.
 func layoutOf(rel string) (dir, root string) {
 	if rel == "" {
 		return "", ""
@@ -74,11 +77,14 @@ func layoutOf(rel string) (dir, root string) {
 			return parts[i], strings.Join(parts[:i], "/")
 		}
 	}
+	if last := len(parts) - 1; parts[last] == "hook" {
+		return "hook", strings.Join(parts[:last], "/")
+	}
 	return "", ""
 }
 
 // packageRootOf is the root of the Dart package a directory belongs to: the
-// root above its bin/ or test/ (`layoutOf`), or else above its lib/
+// root above its bin/, test/ or hook/ (`layoutOf`), or else above its lib/
 // (`placeDir`), or else the directory itself.
 func packageRootOf(rel string) (string, error) {
 	if dir, root := layoutOf(rel); dir != "" {

@@ -50,6 +50,9 @@ func (d *dartLang) GenerateRules(args language.GenerateArgs) language.GenerateRe
 }
 
 func (d *dartLang) generateDartRules(args language.GenerateArgs) language.GenerateResult {
+	if layout, root := layoutOf(args.Rel); layout == "hook" {
+		return hookRules(args, root)
+	}
 	dartFiles, err := ParseDartDir(args.Dir, args.RegularFiles)
 	if err != nil || len(dartFiles) == 0 {
 		return language.GenerateResult{}
@@ -193,6 +196,10 @@ func (d *dartLang) generateDartRules(args language.GenerateArgs) language.Genera
 		}
 	}
 	place := placeDir(args.Rel)
+	ownsLib := place.Err == nil && !place.Split && args.Rel == libDirOf(place.Root)
+	if len(plain) == 0 && ownsLib {
+		logUnstatedBuildHook(place.Root)
+	}
 	if len(plain) > 0 && place.Err != nil {
 		log.Printf("dart: %v; no dart_library generated for %s", place.Err, strings.Join(fileNames(plain), ", "))
 	} else if len(plain) > 0 {
@@ -230,6 +237,12 @@ func (d *dartLang) generateDartRules(args language.GenerateArgs) language.Genera
 			srcs = append(srcs, lent...)
 			files := append(repoFiles(args.Rel, plain), lentFiles...)
 			r.SetAttr("srcs", srcs)
+			if ownsLib {
+				// The package's build hook, on the library of its lib/ (hook.go).
+				if hook := buildHookLabel(place.Root, args.Rel); hook != "" {
+					r.SetAttr("build_hook", hook)
+				}
+			}
 			r.SetAttr("visibility", []string{"//visibility:public"})
 			gen = append(gen, r)
 			imports = append(imports, collectRepoImports(args, files))

@@ -1,0 +1,12 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+dart_library(
+    name = "hook",
+    srcs = [
+        "build.dart",
+        "link.dart",
+    ],
+    language_version = "3.10",
+    visibility = ["//visibility:public"],
+    deps = ["@hooks"],
+)

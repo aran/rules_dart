@@ -69,6 +69,13 @@ func TestLayoutOf(t *testing.T) {
 		{"lib/src/bin", "", ""},
 		{"pkg", "", ""},
 		{"pkg/tool", "", ""},
+		// A package's hook/ directory, but not one in its test tree or lib/,
+		// nor one under hook/.
+		{"hook", "hook", ""},
+		{"pkg/hook", "hook", "pkg"},
+		{"pkg/test/hook", "test", "pkg"},
+		{"pkg/lib/hook", "", ""},
+		{"pkg/hook/src", "", ""},
 	} {
 		dir, root := layoutOf(tt.rel)
 		if dir != tt.dir || root != tt.root {

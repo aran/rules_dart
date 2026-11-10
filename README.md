@@ -674,6 +674,17 @@ Each fact is stated once. Where a `dart_package_metadata`, a directive and a
 reports each disagreement, naming both values and where each is stated, and
 fails without writing any BUILD file.
 
+#### Build hooks
+
+A package's `hook/build.dart` is its library's `build_hook`: Gazelle puts the
+hook in a `filegroup` in `hook/` and names it on the `dart_library` of the
+package's `lib/`, so every binary and test that reaches the package fails
+until that library's `code_assets` supply what the hook would build (see
+[Native code assets](#native-code-assets)). `code_assets` is yours: Gazelle
+never writes or removes it. A package whose hook's native code nothing here
+uses has Gazelle not see the hook, with `# gazelle:exclude hook/build.dart`
+in its root's BUILD file. Gazelle writes nothing else for `hook/`.
+
 #### Test tags
 
 A test file's suite-level package:test tags become its `dart_test`'s Bazel
@@ -1246,7 +1257,8 @@ names. Every `code_assets` entry provides `DartCodeAssetInfo`, which
   `pub.from_lock(resolve = ...)`, or, if its native code is not used, list it in
   `pub.from_lock(ignore_hooks = [...])` or set `pub.package(ignore_hook = True)`.
   Your own package states its hook with `build_hook`, since a rule cannot look
-  for files, and replaces it with its `dart_library`'s `code_assets`; a
+  for files (Gazelle states it for you, see [Build hooks](#build-hooks)), and
+  replaces it with its `dart_library`'s `code_assets`; a
   binary's or test's own `code_assets` do not replace a package's hook:
 
   ```starlark
