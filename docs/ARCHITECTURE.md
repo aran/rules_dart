@@ -111,6 +111,8 @@ A cross compile also needs two binaries the SDK does not ship: the pair's `gen_s
 
 Two tables in `dart/private/toolchains_repo.bzl` drive this. `PLATFORMS` holds the hosts: each entry downloads an SDK, so each costs one SHA-256 per pinned version in `versions.bzl`. `TARGET_ONLY_PLATFORMS` holds destinations that are never built _on_ — a cross toolchain reuses the **host** SDK's `dart` binary, so no SDK is fetched for the target; its cost is the cross binaries above, one `gen_snapshot` checksum per host that reaches it and one `dartaotruntime`, per pinned version. `TARGET_PLATFORMS` is the union and is what a cross target is looked up in. `linux-riscv64` and `linux-arm` are target-only because Bazel publishes no release for either CPU, so neither can ever be an exec platform.
 
+The SDK, cross-tools and toolchains repositories depend only on their attributes (pinned URLs and checksums; the platform is an attribute, never read from the host), so each is marked reproducible and a new output base or worktree reuses the extracted SDK from the repository contents cache rather than downloading and extracting it again. A rule here that read the host would break that sharing, so `dart/tests/repositories_reproducible_test.bzl` runs each against a context that offers no host access.
+
 ### Supported Cross-Compilation Matrix
 
 | Host (exec) | Target                                           |

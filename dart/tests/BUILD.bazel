@@ -16,6 +16,7 @@ load(":pub_archive_test.bzl", "pub_archive_test_suite")
 load(":pub_git_test.bzl", "pub_git_test_suite")
 load(":pub_graph_test.bzl", "pub_graph_test_suite")
 load(":registry_test.bzl", "registry_test_suite")
+load(":repositories_reproducible_test.bzl", "repositories_reproducible_test_suite")
 load(":semver_test.bzl", "semver_test_suite")
 load(":source_set_test.bzl", "source_set_test_suite")
 load(":toolchain_selection_test.bzl", "toolchain_selection_test_suite")
@@ -27,6 +28,8 @@ load(":yaml_parser_test.bzl", "yaml_parser_test_suite")
 versions_test_suite(name = "versions_test")
 
 toolchains_test_suite(name = "toolchains_test")
+
+repositories_reproducible_test_suite(name = "repositories_reproducible_test")
 
 toolchain_selection_test_suite(name = "toolchain_selection_test")
 

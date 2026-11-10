@@ -32,7 +32,15 @@ _ATTRS = {
     ),
 }
 
-def _dart_sdk_repo_impl(repository_ctx):
+def dart_sdk_repo_impl(repository_ctx):
+    """Implementation of `dart_repositories`, exposed so a test can run it.
+
+    Args:
+        repository_ctx: The `repository_ctx`.
+
+    Returns:
+        Metadata marking the repository reproducible.
+    """
     version = repository_ctx.attr.dart_version
     platform = repository_ctx.attr.platform
 
@@ -108,13 +116,25 @@ dart_toolchain(
 
     repository_ctx.file("BUILD.bazel", build_content)
 
+    # Pinned URL and sha256, `platform` an attribute rather than read from the
+    # host: the contents depend on the attributes alone.
+    return repository_ctx.repo_metadata(reproducible = True)
+
 dart_repositories = repository_rule(
-    _dart_sdk_repo_impl,
+    dart_sdk_repo_impl,
     doc = _DOC,
     attrs = _ATTRS,
 )
 
-def _dart_cross_tools_impl(repository_ctx):
+def dart_cross_tools_impl(repository_ctx):
+    """Implementation of `dart_cross_tools`, exposed so a test can run it.
+
+    Args:
+        repository_ctx: The `repository_ctx`.
+
+    Returns:
+        Metadata marking the repository reproducible.
+    """
     version = repository_ctx.attr.dart_version
     files = cross_tool_files(
         repository_ctx.attr.exec_platform,
@@ -144,8 +164,11 @@ filegroup(
 )
 """.format(srcs = srcs))
 
+    # Pinned URLs and sha256s, nothing read from the host.
+    return repository_ctx.repo_metadata(reproducible = True)
+
 dart_cross_tools = repository_rule(
-    _dart_cross_tools_impl,
+    dart_cross_tools_impl,
     doc = """Fetch what `dart compile` needs to cross-compile for one pair.
 
 `dart compile exe|aot-snapshot --target-os` runs a `gen_snapshot` built for the
