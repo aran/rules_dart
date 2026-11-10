@@ -36,7 +36,6 @@ void h() {}
 void main(List<String> args) {
   final r = Runfiles.create();
   final format = r.rlocation(args[0]);
-  final config = args[1];
 
   late Directory workspace;
   setUp(() => workspace = Directory.systemTemp.createTempSync('ws.'));
@@ -48,7 +47,6 @@ void main(List<String> args) {
     environment: {
       'BUILD_WORKSPACE_DIRECTORY': workspace.path,
       'BUILD_WORKING_DIRECTORY': cwd ?? workspace.path,
-      'DART_FORMAT_CONFIG': config,
     },
   );
 

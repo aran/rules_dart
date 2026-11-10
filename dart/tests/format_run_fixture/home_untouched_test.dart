@@ -14,7 +14,6 @@ void main(List<String> args) {
   final r = Runfiles.create();
   final sdkBinary = r.rlocation(args[0]);
   final format = r.rlocation(args[1]);
-  final formatConfig = args[2];
 
   late Directory home;
   late Directory workspace;
@@ -35,7 +34,6 @@ void main(List<String> args) {
     'XDG_CONFIG_HOME': '${home.path}/.config',
     'BUILD_WORKSPACE_DIRECTORY': workspace.path,
     'BUILD_WORKING_DIRECTORY': workspace.path,
-    'DART_FORMAT_CONFIG': formatConfig,
   };
 
   List<String> leftInHome() => [

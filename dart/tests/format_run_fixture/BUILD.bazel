@@ -29,26 +29,14 @@ dart_analysis_options(
 
 dart_format(name = "format")
 
-filegroup(
-    name = "format_config",
-    srcs = [":format"],
-    output_group = "dart_format_config",
-)
-
 # Runs `:format` over a scratch workspace and checks that each file got its
 # nearest listed options: the included page width and the file's own
 # `trailing_commas` under `ws/`, the stock defaults elsewhere.
 dart_test(
     name = "format_run_test",
     size = "small",
-    args = [
-        "$(rlocationpath :format)",
-        "$(rlocationpath :format_config)",
-    ],
-    data = [
-        ":format",
-        ":format_config",
-    ],
+    args = ["$(rlocationpath :format)"],
+    data = [":format"],
     main = "format_run_test.dart",
     deps = [
         "//dart/runfiles",
@@ -64,11 +52,9 @@ dart_test(
     args = [
         "$(rlocationpath //dart)",
         "$(rlocationpath :format)",
-        "$(rlocationpath :format_config)",
     ],
     data = [
         ":format",
-        ":format_config",
         "//dart",
     ],
     main = "home_untouched_test.dart",

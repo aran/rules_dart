@@ -100,6 +100,7 @@ dart_binary(
 
 dart_binary(
     name = "format_writer",
+    srcs = ["launcher_config.dart"],
     compile_mode = "exe",
     main = "format_writer.dart",
     visibility = ["//dart:__subpackages__"],

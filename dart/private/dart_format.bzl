@@ -22,7 +22,7 @@ meets the nearest listed options file above it, exactly as in the check, and
 never an options file the config does not list.
 """
 
-load("//dart/private:common.bzl", "WINDOWS_CONSTRAINT_ATTR", "runfiles_path")
+load("//dart/private:common.bzl", "launcher_executable", "runfiles_path")
 load("//dart/private:dart_analyze_aspect.bzl", "DartAnalysisConfigInfo", "stage_config_project")
 load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS")
 
@@ -38,8 +38,9 @@ def _dart_format_impl(ctx):
     # Runfiles locations rather than paths, so the runner finds them through the
     # manifest on Windows, where there is no runfiles tree to walk. The options
     # files are read from their sources rather than from the staged tree, whose
-    # members a manifest does not list.
-    run_config = ctx.actions.declare_file(ctx.label.name + ".format_config.json")
+    # members a manifest does not list. Beside the executable, where the runner
+    # looks (`launcher_config.dart`), so that it runs the same as `data`.
+    run_config = ctx.actions.declare_file(ctx.label.name + ".launcher.json")
     ctx.actions.write(
         output = run_config,
         content = json.encode({
@@ -59,39 +60,19 @@ def _dart_format_impl(ctx):
         }),
     )
 
-    is_windows = ctx.target_platform_has_constraint(
-        ctx.attr._windows_constraint[platform_common.ConstraintValueInfo],
-    )
-    executable = ctx.actions.declare_file(
-        ctx.label.name + (".exe" if is_windows else ""),
-    )
-    ctx.actions.symlink(
-        output = executable,
-        target_file = ctx.executable._format_writer,
-        is_executable = True,
-    )
+    launcher = launcher_executable(ctx, ctx.attr._format_writer)
 
     runfiles = ctx.runfiles(
         files = list(staged.inputs) + config.options_files + [run_config, dart_sdk_info.dart],
         transitive_files = dart_sdk_info.tool_files,
     )
-    runfiles = runfiles.merge(ctx.attr._format_writer[DefaultInfo].default_runfiles)
+    runfiles = runfiles.merge(launcher.runfiles)
 
-    config_key = runfiles_path(run_config, ctx.workspace_name)
-    return [
-        DefaultInfo(executable = executable, runfiles = runfiles),
-        # `bazel run //:format -- lib` forwards only the user's arguments, so the
-        # runner learns where its configuration is through the environment, as
-        # `dart_fix`'s applier does.
-        RunEnvironmentInfo(environment = {"DART_FORMAT_CONFIG": config_key}),
-        # The same file by label, for a caller that runs the binary as `data`
-        # and so does not get the environment above.
-        OutputGroupInfo(dart_format_config = depset([run_config])),
-    ]
+    return [DefaultInfo(executable = launcher.executable, runfiles = runfiles)]
 
 dart_format = rule(
     implementation = _dart_format_impl,
-    attrs = dict({
+    attrs = {
         "_config": attr.label(
             default = "//dart:analysis_config",
             providers = [DartAnalysisConfigInfo],
@@ -101,7 +82,7 @@ dart_format = rule(
             executable = True,
             cfg = "target",
         ),
-    }, **WINDOWS_CONSTRAINT_ATTR),
+    },
     executable = True,
     toolchains = ["//dart:toolchain_type"] + COPY_TO_DIRECTORY_TOOLCHAINS,
     doc = (

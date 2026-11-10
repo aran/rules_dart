@@ -13,6 +13,8 @@ import 'dart:io';
 
 import 'package:runfiles/runfiles.dart';
 
+import 'launcher_config.dart';
+
 const _usage =
     'usage: bazel run <dart_format target> -- '
     '[--language-version=<major>.<minor>] <files or directories...>';
@@ -201,15 +203,8 @@ class _Config {
 }
 
 _Config _readConfig() {
-  final key = Platform.environment['DART_FORMAT_CONFIG'];
-  if (key == null || key.isEmpty) {
-    stderr.writeln('dart_format: DART_FORMAT_CONFIG is not set');
-    exit(1);
-  }
+  final json = readLauncherConfig('dart_format');
   final r = Runfiles.create();
-  final json = jsonDecode(
-    File(r.rlocation(key)).readAsStringSync(),
-  ) as Map<String, dynamic>;
   return _Config(
     r.rlocation(json['dart'] as String),
     r.rlocation(json['root_options'] as String),
