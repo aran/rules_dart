@@ -50,6 +50,11 @@ func (*dartLang) KnownDirectives() []string {
 }
 
 func (*dartLang) Configure(c *config.Config, rel string, f *rule.File) {
+	if _, ok := c.Exts[extKeyBuilderRegistry]; !ok {
+		// The shipped builders, which a directory with no BUILD file above
+		// it uses too.
+		builderRegistryOf(c)
+	}
 	if f == nil {
 		return
 	}

@@ -1,0 +1,3 @@
+name: no_build_file
+environment:
+  sdk: ^3.11.0
