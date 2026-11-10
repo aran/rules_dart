@@ -15,14 +15,8 @@ dart_test(
 dart_test(
     name = "protocol_test",
     size = "medium",
-    args = [
-        "$(rlocationpath :cases)",
-        "$(rlocationpath :cases_test.dart)",
-    ],
-    data = [
-        ":cases",
-        ":cases_test.dart",
-    ],
+    args = ["$(rlocationpath :cases)"],
+    data = [":cases"],
     main = "protocol_test.dart",
     deps = [
         "//dart/runfiles",

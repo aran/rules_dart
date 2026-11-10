@@ -89,30 +89,36 @@ def _dart_test_impl(ctx):
 
     # Thin launcher: run the self-contained dill with asserts enabled. The dill
     # carries all sources/imports, so runfiles need only the VM and (for code
-    # assets) the `.so` libraries.
-    env = {
-        "RULES_DART_DILL": runfiles_path(dill, workspace_name),
+    # assets) the `.so` libraries. What to run is in a file beside the
+    # launcher, not in its environment, so that the test runs its own kernel
+    # however it is started, as another target's `data` included.
+    config = {
+        "dart": runfiles_path(dart_sdk_info.dart, workspace_name),
+        "dill": runfiles_path(dill, workspace_name),
     }
     runner_files = []
     if runner:
         # The runner reads the test file for its annotations (`@TestOn`,
         # `@Timeout`, `@Tags`) and names the suite after it.
-        env["RULES_DART_TEST_RUNNER"] = runfiles_path(runner, workspace_name)
-        env["RULES_DART_TEST_MAIN"] = runfiles_path(ctx.file.main, workspace_name)
-        env["RULES_DART_TEST_PATH"] = _test_path(ctx)
+        config["runner"] = runfiles_path(runner, workspace_name)
+        config["test_main"] = runfiles_path(ctx.file.main, workspace_name)
+        config["test_path"] = _test_path(ctx)
         runner_files = [runner, ctx.file.main]
+    config_file = ctx.actions.declare_file(ctx.label.name + ".launcher.json")
+    ctx.actions.write(output = config_file, content = json.encode(config))
+    env = {}
     for key, value in ctx.attr.env.items():
+        # The launcher keeps its own `RULES_DART_` variables from the test.
         if key.startswith("RULES_DART_"):
             fail("%s: `env` cannot set %s; rules_dart uses the RULES_DART_ prefix to drive the test" % (ctx.label, key))
         env[key] = ctx.expand_location(value, ctx.attr.data)
     launcher = launcher_executable(ctx, ctx.attr._tool)
-    env["RULES_DART_DART"] = runfiles_path(dart_sdk_info.dart, workspace_name)
 
     # A dep's `lib/**` non-Dart files are part of the package at run time under
     # pub, and the dill carries only compiled code — so they come in here, the
     # same way `dart_binary` stages them, and are reached with `rlocation`.
     runfiles = ctx.runfiles(
-        files = [dill] + runtime_libs + runner_files + ctx.files.data,
+        files = [dill, config_file] + runtime_libs + runner_files + ctx.files.data,
         transitive_files = depset(
             transitive = [dart_sdk_info.tool_files, collect_transitive_resources(ctx.attr.deps)],
         ),

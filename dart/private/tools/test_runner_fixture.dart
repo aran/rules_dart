@@ -9,6 +9,8 @@ import 'dart:io';
 /// - `leak <release>`: starts a copy of itself in `linger` mode that shares
 ///   this process's stdio, then exits without waiting for it.
 /// - `linger <release>`: holds that stdio open until `<release>` exists.
+/// - `env`: prints the names of its environment variables, one a line.
+/// - nothing: passes, so that it runs as a test of its own.
 Future<void> main(List<String> args) async {
   switch (args) {
     case ['stream']:
@@ -30,8 +32,12 @@ Future<void> main(List<String> args) async {
       while (!File(release).existsSync()) {
         await Future<void>.delayed(const Duration(milliseconds: 50));
       }
+    case ['env']:
+      Platform.environment.keys.forEach(stdout.writeln);
+    case []:
+      break;
     default:
-      stderr.writeln('usage: stream | leak <release> | linger <release>');
+      stderr.writeln('usage: stream | leak <release> | linger <release> | env');
       exit(2);
   }
 }

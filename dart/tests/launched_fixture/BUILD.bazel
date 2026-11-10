@@ -1,0 +1,45 @@
+load("//dart:defs.bzl", "dart_binary", "dart_test")
+
+# The same program in every way rules_dart can package it. `launched_test`
+# starts each as an executable, the way `bazel run` or a `data` consumer would.
+[
+    dart_binary(
+        name = "bin_" + mode.replace("-", "_"),
+        compile_mode = mode,
+        main = "child.dart",
+    )
+    for mode in [
+        "exe",
+        "kernel",
+        "jit-snapshot",
+        "aot-snapshot",
+    ]
+]
+
+# A `dart_test` is itself a launcher; started from another test it must run its
+# own dill, not the one in the parent's environment.
+dart_test(
+    name = "child_test",
+    main = "child.dart",
+)
+
+dart_test(
+    name = "launched_test",
+    size = "small",
+    args = [
+        "dart_test=$(rlocationpath :child_test)",
+        "exe=$(rlocationpath :bin_exe)",
+        "kernel=$(rlocationpath :bin_kernel)",
+        "jit-snapshot=$(rlocationpath :bin_jit_snapshot)",
+        "aot-snapshot=$(rlocationpath :bin_aot_snapshot)",
+    ],
+    data = [
+        ":bin_aot_snapshot",
+        ":bin_exe",
+        ":bin_jit_snapshot",
+        ":bin_kernel",
+        ":child_test",
+    ],
+    main = "launched_test.dart",
+    deps = ["//dart/runfiles"],
+)

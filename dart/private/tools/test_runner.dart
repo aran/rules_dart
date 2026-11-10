@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:runfiles/runfiles.dart';
 
+import 'launcher_config.dart';
+
 /// Runs a `dart_test`'s pre-compiled kernel with asserts enabled.
 ///
 /// `dart_test` compiles the test at build time, so this launcher only resolves
@@ -23,38 +25,46 @@ import 'package:runfiles/runfiles.dart';
 /// test.log, and the launcher exits with the VM even if the test leaked a
 /// process that holds those streams open.
 Future<void> main(List<String> args) async {
-  final env = Platform.environment;
-  final dartKey = env['RULES_DART_DART'];
-  final dillKey = env['RULES_DART_DILL'];
-
-  if (dartKey == null || dillKey == null) {
-    stderr.writeln('Missing required environment variables.');
-    stderr.writeln('  RULES_DART_DART=$dartKey');
-    stderr.writeln('  RULES_DART_DILL=$dillKey');
-    exit(1);
-  }
-
+  // Beside the executable rather than in the environment, so that a test run
+  // as another target's `data` runs its own kernel (`launcher_config.dart`).
+  final config = readLauncherConfig('dart_test');
   final r = Runfiles.create();
-  final dart = r.rlocation(dartKey);
-  final dill = r.rlocation(dillKey);
+  final dart = r.rlocation(config['dart'] as String);
+  final dill = r.rlocation(config['dill'] as String);
+  final environment = childEnvironment(Platform.environment, r.environment);
 
-  // Empty counts as unset, so a test that starts another `dart_test` binary
-  // can keep its own runner settings from leaking into the child.
-  final runnerKey = env['RULES_DART_TEST_RUNNER'];
-  if (runnerKey == null || runnerKey.isEmpty) {
-    exit(await _runDirectly(dart, dill, args));
+  final runnerKey = config['runner'] as String?;
+  if (runnerKey == null) {
+    exit(launcherExitCode(await _runDirectly(dart, dill, args, environment)));
   }
   exit(
-    await _runUnderRunner(
-      dart: dart,
-      dill: dill,
-      runner: r.rlocation(runnerKey),
-      testSource: r.rlocation(env['RULES_DART_TEST_MAIN']!),
-      testPath: env['RULES_DART_TEST_PATH']!,
-      args: args,
+    launcherExitCode(
+      await _runUnderRunner(
+        dart: dart,
+        dill: dill,
+        runner: r.rlocation(runnerKey),
+        testSource: r.rlocation(config['test_main'] as String),
+        testPath: config['test_path'] as String,
+        args: args,
+        environment: environment,
+      ),
     ),
   );
 }
+
+/// The environment the test runs in: [parent]'s, which carries Bazel's test
+/// and runfiles variables, without the `RULES_DART_` variables a launcher sets
+/// for the program it starts, so that none reach a launcher the test itself
+/// starts. [runfiles] adds the runfiles variables when the launcher found its
+/// runfiles without them.
+Map<String, String> childEnvironment(
+  Map<String, String> parent,
+  Map<String, String> runfiles,
+) => {
+  for (final MapEntry(:key, :value) in parent.entries)
+    if (!key.startsWith('RULES_DART_')) key: value,
+  ...runfiles,
+};
 
 /// The runner's default per-case timeout: Bazel's own for this test, which
 /// Bazel always sets; `none` only when run outside Bazel.
@@ -66,7 +76,12 @@ String _suiteTimeout(Map<String, String> env) {
 /// The exit code `package:test`'s runner uses when no test ran.
 const _noTestsRan = 79;
 
-Future<int> _runDirectly(String dart, String dill, List<String> args) async {
+Future<int> _runDirectly(
+  String dart,
+  String dill,
+  List<String> args,
+  Map<String, String> environment,
+) async {
   final env = Platform.environment;
   // A plain `main` has no notion of test cases, so there is nothing to filter
   // or split. Running every case anyway would report a filtered or sharded run
@@ -85,11 +100,13 @@ Future<int> _runDirectly(String dart, String dill, List<String> args) async {
     );
     return 1;
   }
-  final vm = await Process.start(dart, [
-    '--enable-asserts',
-    dill,
-    ...args,
-  ], mode: ProcessStartMode.inheritStdio);
+  final vm = await Process.start(
+    dart,
+    ['--enable-asserts', dill, ...args],
+    environment: environment,
+    includeParentEnvironment: false,
+    mode: ProcessStartMode.inheritStdio,
+  );
   return vm.exitCode;
 }
 
@@ -100,6 +117,7 @@ Future<int> _runUnderRunner({
   required String testSource,
   required String testPath,
   required List<String> args,
+  required Map<String, String> environment,
 }) async {
   final env = Platform.environment;
 
@@ -176,6 +194,8 @@ Future<int> _runUnderRunner({
     ],
     workingDirectory: inPlace ? null : tmp.path,
     environment: {
+      ...environment,
+      // What the generated bootstrap hands the test's `main`.
       'RULES_DART_TEST_ARGS': jsonEncode(args),
       // The runner reads a per-user config (`~/.dart_test.yaml`, or
       // `%LOCALAPPDATA%\DartTest.yaml`) unless this names one. A path that
@@ -184,6 +204,7 @@ Future<int> _runUnderRunner({
       // no LOCALAPPDATA for the runner to read at all.
       'DART_TEST_CONFIG': _join(tmp.path, 'no_global_config/DartTest.yaml'),
     },
+    includeParentEnvironment: false,
     mode: ProcessStartMode.inheritStdio,
   );
   var code = await vm.exitCode;

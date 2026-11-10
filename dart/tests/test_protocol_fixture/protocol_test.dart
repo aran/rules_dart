@@ -5,9 +5,6 @@ import 'package:test/test.dart';
 
 /// Drives `:cases` through its `dart_test` launcher with the environment Bazel
 /// sets for `--test_filter`, sharding and XML output.
-///
-/// The VM and the `package:test` runner are this test's own (the variables
-/// are inherited): both tests depend on the same `package:test`.
 void main(List<String> args) {
   final r = Runfiles.create();
   final launcher = r.rlocation(args[0]);
@@ -21,16 +18,7 @@ void main(List<String> args) {
   Future<ProcessResult> run(Map<String, String> env) => Process.run(
     launcher,
     const [],
-    environment: {
-      'RULES_DART_DILL':
-          '_main/dart/tests/test_protocol_fixture/cases.precompiled/'
-          'dart/tests/test_protocol_fixture/cases_test.dart.vm_test.vm.app.dill',
-      'RULES_DART_TEST_MAIN': args[1],
-      'RULES_DART_TEST_PATH':
-          'dart/tests/test_protocol_fixture/cases_test.dart',
-      'TEST_TMPDIR': tmp.path,
-      ...env,
-    },
+    environment: {'TEST_TMPDIR': tmp.path, ...env},
   );
 
   Set<String> ran(String xml) => {
@@ -123,6 +111,6 @@ void main(List<String> args) {
   test('arguments reach main', () async {
     // Checked indirectly elsewhere: this very test reads `args` under the
     // runner. Kept explicit so a regression names itself.
-    expect(args, hasLength(2));
+    expect(args, ['_main/dart/tests/test_protocol_fixture/cases']);
   });
 }

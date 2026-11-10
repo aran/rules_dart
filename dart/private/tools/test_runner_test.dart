@@ -5,22 +5,17 @@ import 'dart:io';
 import 'package:runfiles/runfiles.dart';
 import 'package:test/test.dart';
 
-/// Drives the `dart_test` launcher against `test_runner_fixture.dart`.
+/// Drives the `dart_test` launcher of `test_runner_fixture.dart`, a test with a
+/// plain `main`, which the launcher runs directly.
 ///
-/// Arguments are the runfiles paths of the launcher and the fixture's kernel.
-/// The launcher finds the VM through `RULES_DART_DART`, which this test
-/// inherits from its own launcher, and is pointed at the fixture through
-/// `RULES_DART_DILL`.
+/// The argument is the runfiles path of that test's executable.
 void main(List<String> args) {
   final launcher = Runfiles.create().rlocation(args[0]);
 
-  Future<Process> start(List<String> fixtureArgs) => Process.start(
-    launcher,
-    fixtureArgs,
-    // This test itself runs under the `package:test` runner; the fixture is a
-    // plain `main`, run directly.
-    environment: {'RULES_DART_DILL': args[1], 'RULES_DART_TEST_RUNNER': ''},
-  );
+  Future<Process> start(
+    List<String> fixtureArgs, [
+    Map<String, String> environment = const {},
+  ]) => Process.start(launcher, fixtureArgs, environment: environment);
 
   StreamIterator<String> lines(Stream<List<int>> stream) => StreamIterator(
     stream.transform(utf8.decoder).transform(const LineSplitter()),
@@ -74,21 +69,31 @@ void main(List<String> args) {
   // A plain `main` has no cases to select, so a filter must fail loudly
   // rather than run everything and report a filtered pass.
   test('a test without package:test refuses --test_filter', () async {
-    final process = await Process.start(
-      launcher,
-      ['stream'],
-      environment: {
-        'RULES_DART_DILL': args[1],
-        'RULES_DART_TEST_RUNNER': '',
-        'TESTBRIDGE_TEST_ONLY': 'anything',
-      },
-    );
+    final process = await start(['stream'], {'TESTBRIDGE_TEST_ONLY': 'x'});
     final err = await process.stderr.transform(utf8.decoder).join();
     await process.stdout.drain<void>();
     expect(await process.exitCode, 1);
     expect(
       err,
       contains('--test_filter needs a test written with package:test'),
+    );
+  });
+
+  // A test that starts another target's launcher must not hand it this
+  // launcher's settings, or that launcher runs this test's code.
+  test('the test sees no RULES_DART_ variables but Bazel\'s own', () async {
+    final result = await Process.run(
+      launcher,
+      ['env'],
+      environment: {'RULES_DART_SOMETHING': 'parent'},
+    );
+    expect(result.exitCode, 0, reason: '${result.stderr}');
+    final names = '${result.stdout}'.trim().split(RegExp(r'\r?\n'));
+    expect(names.where((n) => n.startsWith('RULES_DART_')), isEmpty);
+    expect(names, contains('TEST_TMPDIR'));
+    expect(
+      names.toSet().intersection({'RUNFILES_DIR', 'RUNFILES_MANIFEST_FILE'}),
+      isNotEmpty,
     );
   });
 }
