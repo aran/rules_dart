@@ -18,7 +18,7 @@ load(
 exports_files(["test/member_test.dart"])
 
 dart_package_metadata(
-    name = "meta",
+    name = "pubspec-metadata",
     package_name = "exec_pkg",
     language_version = "3.8",
     visibility = ["//dart/tests/exec_package_fixture:__subpackages__"],
@@ -27,7 +27,7 @@ dart_package_metadata(
 dart_library(
     name = "lib",
     srcs = ["lib/exec_pkg.dart"],
-    package = ":meta",
+    package = ":pubspec-metadata",
     visibility = ["//dart/tests/exec_package_fixture:__subpackages__"],
 )
 
@@ -36,7 +36,7 @@ dart_test(
     name = "member_test",
     size = "small",
     main = "test/member_test.dart",
-    package = ":meta",
+    package = ":pubspec-metadata",
     deps = [":lib"],
 )
 
@@ -51,57 +51,12 @@ package_config_probe_test(
 
 # --- contradictions the build must refuse -----------------------------------
 
-# The same package at the same root, declared by another declaration.
-dart_package_metadata(
-    name = "other_meta",
-    package_name = "exec_pkg",
-    language_version = "3.7",
-    tags = ["manual"],
-)
-
-dart_binary(
-    name = "other_version",
-    main = "tool/exec_main.dart",
-    package = ":other_meta",
-    tags = ["manual"],
-    deps = [":lib"],
-)
-
-executable_package_refused_test(
-    name = "other_version_test",
-    size = "small",
-    message = "Package \"exec_pkg\" rooted at `dart/tests/exec_package_fixture` is built by targets naming different `dart_package_metadata`:\n  - @@//dart/tests/exec_package_fixture:meta, named by @@//dart/tests/exec_package_fixture:lib\n  - @@//dart/tests/exec_package_fixture:other_meta, named by @@//dart/tests/exec_package_fixture:other_version\n",
-    target_under_test = ":other_version",
-)
-
-# The library's directory, under another name.
-dart_package_metadata(
-    name = "renamed_meta",
-    package_name = "renamed_pkg",
-    tags = ["manual"],
-)
-
-dart_binary(
-    name = "renamed",
-    main = "tool/exec_main.dart",
-    package = ":renamed_meta",
-    tags = ["manual"],
-    deps = [":lib"],
-)
-
-executable_package_refused_test(
-    name = "renamed_test",
-    size = "small",
-    message = "declares the same directory `dart/tests/exec_package_fixture` as package \"exec_pkg\"",
-    target_under_test = ":renamed",
-)
-
 # An entrypoint inside a package nested in this one: Dart gives it the inner
 # package's version, never this one's.
 dart_binary(
     name = "swallowed",
     main = "//dart/tests/exec_package_fixture/inner:bin/inner_main.dart",
-    package = ":meta",
+    package = ":pubspec-metadata",
     tags = ["manual"],
     deps = [
         ":lib",
@@ -130,7 +85,7 @@ dart_test(
     name = "misnamed_codegen",
     srcs = [":misnamed_g"],
     main = "test/member_test.dart",
-    package = ":meta",
+    package = ":pubspec-metadata",
     tags = ["manual"],
     deps = [":lib"],
 )
@@ -138,6 +93,6 @@ dart_test(
 executable_package_refused_test(
     name = "misnamed_codegen_test",
     size = "small",
-    message = "generates sources for package \"exec_package_fixture\", which names no `dart_package_metadata`, but @@//dart/tests/exec_package_fixture:misnamed_codegen collects them into the package `@@//dart/tests/exec_package_fixture:meta` declares",
+    message = "generates sources for package \"exec_package_fixture\", which names no `dart_package_metadata`, but @@//dart/tests/exec_package_fixture:misnamed_codegen collects them into the package `@@//dart/tests/exec_package_fixture:pubspec-metadata` declares",
     target_under_test = ":misnamed_codegen",
 )

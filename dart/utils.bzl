@@ -22,14 +22,17 @@ load(
     _collect_transitive_resources = "collect_transitive_resources",
     _collect_transitive_srcs = "collect_transitive_srcs",
     _derive_package_name = "derive_package_name",
+    _executable_package_record = "executable_package_record",
     _generate_dev_package_config = "generate_dev_package_config",
     _generate_package_config = "generate_package_config",
     _generate_package_config_content = "generate_package_config_content",
     _merged_package_record = "merged_package_record",
     _package_code_assets = "package_code_assets",
+    _package_identity_attrs = "package_identity_attrs",
     _package_license_file = "package_license_file",
     _program_packages = "program_packages",
     _resolve_code_assets = "resolve_code_assets",
+    _resolve_package_identity = "resolve_package_identity",
     _runfiles_path = "runfiles_path",
 )
 load("//dart/private:dart_compile.bzl", _dart_compile_action = "dart_compile_action")
@@ -54,10 +57,7 @@ load(
     _package_info_from_metadata = "package_info_from_metadata",
     _package_lib_prefix = "package_lib_prefix",
 )
-load(
-    "//dart/private:dart_library.bzl",
-    _derive_package_root = "derive_package_root",
-)
+load("//dart/private:dart_library.bzl", _library_package = "library_package")
 load(
     "//dart/private:dart_link_hook.bzl",
     _dart_link_hook_actions = "dart_link_hook_actions",
@@ -83,6 +83,7 @@ load(
     _PORTABLE = "PORTABLE",
     _PORTABLE_EXEC_GROUPS = "PORTABLE_EXEC_GROUPS",
 )
+load("//dart/private:package_root.bzl", _derive_package_root = "derive_package_root")
 load(
     "//dart/private:runtime.bzl",
     _RUNTIME_INDEPENDENT_ATTR = "RUNTIME_INDEPENDENT_ATTR",
@@ -108,21 +109,55 @@ load(
 # a missing field by declaring it empty and dropping its dependencies' values.
 # Reading stays direct — `DartInfo` is indexed off targets as before.
 #
+#     package = library_package(ctx, ctx.files.srcs, ctx.files.resources)
 #     dart_info(
 #         label = ctx.label,
-#         packages = [dart_package_info(
-#             label = ctx.label,
-#             package_name = "foo",
-#             package_root = derive_package_root(ctx.label.workspace_root, ctx.label.package),
-#             language_version = ctx.attr.language_version,
-#         )],
+#         packages = [package.record],
 #         deps = ctx.attr.deps,
 #         srcs = ctx.files.srcs,
+#         resources = ctx.files.resources,
 #     )
 #
 # `packages` holds one record for a library, or several for one target built
 # over packages that depend on each other (pub allows it, Bazel does not).
 dart_info = _dart_info
+
+# The package a target is part of, declared as rules_dart's rules declare it. A
+# rule merges `package_identity_attrs()` (the `package` attribute, a
+# `dart_package_metadata`) into its `attrs`, so a package built by targets of
+# several rule sets names one declaration on each. It takes `mandatory` for a
+# rule that cannot do without one, and `doc` for the rule's own words:
+#
+#     attrs = {...} | package_identity_attrs(
+#         mandatory = True,
+#         doc = "The package this application is, ...",
+#     )
+#
+# `library_package(ctx, srcs, resources)` is what a library rule does with it:
+# it resolves the declaration, checks that the target's files sit under the
+# package's `lib/` and collide with none (a library naming a declaration in
+# another directory fails, naming the file), and returns
+# `struct(record, metadata, package_name, package_root, language_version)`:
+# the target's `DartPackageInfo`, for `dart_info(packages = [package.record])`,
+# and what it came from. A target naming no declaration is named after its
+# root's directory and states nothing else.
+#
+# For a rule whose sources are not files to check (an executable, which belongs
+# to its package wherever its BUILD file is), `resolve_package_identity(ctx)`
+# returns the declaration as
+# `struct(metadata, package_name, language_version, package_root, license_file)`,
+# and `executable_package_record(ctx.label, identity)` the target's
+# `DartPackageInfo`, rooted at `package_root`: the declaration's package root,
+# or the BUILD file's when none is named (`metadata` is `None`, and the name its
+# directory's). A target that takes its declaration from elsewhere (a test built
+# in its application's package) passes it: `resolve_package_identity(ctx,
+# metadata = application[DartPackageMetadataInfo])`; if the target also names
+# `package`, it must be the same one. Both are what `merged_package_record`
+# below takes.
+package_identity_attrs = _package_identity_attrs
+library_package = _library_package
+resolve_package_identity = _resolve_package_identity
+executable_package_record = _executable_package_record
 
 # The `DartPackageInfo` record of a package a target contributes, from what the
 # rule states about it; checks that its code assets are namespaced to it.
@@ -167,15 +202,17 @@ collect_packages = _collect_packages
 # whose own sources are the package's `lib/` — in place of the records of the
 # libraries rooted at its directory, which `package_config.json` cannot hold
 # beside it. The same merge as [collect_packages]: every field those records
-# state is carried through, code assets unioned, and `language_version` is the
-# target's statement, a library's when the target states none (`""`), an
-# error naming both when they differ.
+# state is carried through and code assets unioned. The target and the records
+# name the same `dart_package_metadata`, so their facts agree by construction; a
+# target naming none merges only with records naming none, and a record of
+# another package at that root is an error.
 #
+#     identity = resolve_package_identity(ctx)
+#     root = identity.package_root
 #     packages = collect_packages(ctx.attr.deps)
-#     root = derive_package_root(ctx.label.workspace_root, ctx.label.package)
 #     at_root = [p for p in packages if p.package_root == root]
 #     packages = [p for p in packages if p.package_root != root] + [
-#         merged_package_record(ctx.label, ctx.attr.package_name, root, ctx.attr.language_version, at_root),
+#         merged_package_record(ctx.label, identity.package_name, root, identity.metadata, at_root),
 #     ]
 merged_package_record = _merged_package_record
 

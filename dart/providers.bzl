@@ -65,7 +65,7 @@ collecting its output can check that both name the same package.""",
     fields = {
         "label": "Label or None: The `dart_package_metadata` target. `None` on the provider a codegen rule naming no declaration returns.",
         "package_name": "str: The Dart package name used in `package:` imports. Required.",
-        "package_root": "str: The package root's short_path: the directory of the declaring BUILD file, or the one above the `lib` it sits in. Empty for the main repository's root.",
+        "package_root": "str: The package root's short_path: the directory of the declaring BUILD file, which is at the root. Empty for the main repository's root.",
         "language_version": "str: Dart language version implied by the package's `environment.sdk` constraint, in `<major>.<minor>` form. Empty when the package states none.",
         "version": "str: The package's own resolved version; empty when unknown, as for a hand-written package.",
         "code_assets": "tuple[DartCodeAssetInfo]: Native code assets the package owns.",

@@ -245,7 +245,7 @@
     },
     "@@rules_dart+//dart/pub:extensions.bzl%pub": {
       "general": {
-        "bzlTransitiveDigest": "mzh8lHdHFVgoqukcjdMO7iE44pcHm4JDYGydX7nOM3I=",
+        "bzlTransitiveDigest": "GRuVqlCd8pzciKIkpL14FP4MeKeh9zw9EEVaUM7nLXg=",
         "usagesDigest": "rikhiV40Q96fsYUnfa5iY7dP7KDNFH/aeUunoK3JvpY=",
         "recordedInputs": [
           "REPO_MAPPING:rules_dart+,bsd_tar_toolchains_darwin_amd64 tar.bzl++toolchains+bsd_tar_toolchains_darwin_amd64",
@@ -2017,7 +2017,8 @@
             "attributes": {
               "package_name": "local_greeting",
               "version": "1.2.3",
-              "directory": "/Users/aran/Projects/rules_dart/e2e/pub_lock_path/local_greeting",
+              "lock": "@@//:pubspec.lock",
+              "path": "local_greeting",
               "code_assets": [],
               "ignore_hook": false
             }
@@ -2034,7 +2035,8 @@
             "attributes": {
               "package_name": "has_build",
               "version": "0.0.1",
-              "directory": "/Users/aran/Projects/rules_dart/e2e/pub_lock_path/has_build",
+              "lock": "@@//refused:pubspec.lock",
+              "path": "../has_build",
               "code_assets": [],
               "ignore_hook": false
             }

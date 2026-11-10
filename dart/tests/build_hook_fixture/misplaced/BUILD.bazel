@@ -1,0 +1,17 @@
+load("//dart:defs.bzl", "dart_package_metadata")
+load("//dart/tests:build_hook_test.bzl", "misplaced_build_hook_test")
+
+# A build hook that is not the package's `hook/build.dart`, which the
+# declaration refuses.
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "build_hook_misplaced",
+    build_hook = "build.dart",
+    tags = ["manual"],
+)
+
+misplaced_build_hook_test(
+    name = "misplaced_build_hook_test",
+    size = "small",
+    target_under_test = ":pubspec-metadata",
+)

@@ -1,7 +1,7 @@
 load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "split",
     language_version = "3.11",
     visibility = ["//split:__subpackages__"],
@@ -14,6 +14,6 @@ dart_library(
         "lib/src/model/model.dart",
         "lib/src/util/util.dart",
     ],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     visibility = ["//visibility:public"],
 )

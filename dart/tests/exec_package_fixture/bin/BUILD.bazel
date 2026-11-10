@@ -9,7 +9,7 @@ dart_binary(
     name = "member",
     compile_mode = "kernel",
     main = "main.dart",
-    package = "//dart/tests/exec_package_fixture:meta",
+    package = "//dart/tests/exec_package_fixture:pubspec-metadata",
     deps = ["//dart/tests/exec_package_fixture:lib"],
 )
 
@@ -28,7 +28,7 @@ dart_binary(
     name = "standalone",
     compile_mode = "kernel",
     main = "standalone.dart",
-    package = "//dart/tests/exec_package_fixture:meta",
+    package = "//dart/tests/exec_package_fixture:pubspec-metadata",
 )
 
 package_config_probe_test(

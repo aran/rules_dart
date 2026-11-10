@@ -11,21 +11,12 @@ cannot `select()` on the runtime constraint,
 web compilers reach it.
 """
 
+# The `dart_package_metadata` of a fetched package, which its library names.
+# The library is called after the package, and this is not a Dart package
+# name, so the two never collide.
+_METADATA_TARGET = "pubspec-metadata"
+
 _LOAD = 'load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")\n'
-
-def metadata_target_name(package_name):
-    """The name of the `dart_package_metadata` a spoke declares its package with.
-
-    `pubspec`, except for the package named `pubspec`, whose library has that
-    name.
-
-    Args:
-        package_name: The spoke's package.
-
-    Returns:
-        The target name.
-    """
-    return "pubspec_metadata" if package_name == "pubspec" else "pubspec"
 
 def _metadata_block(name, language_version, version = "", code_assets = [], build_hook = "", link_hook = "", license_file = ""):
     return """\
@@ -36,7 +27,7 @@ dart_package_metadata(
 {version}{assets}{hook}{license}{link_hook}    visibility = ["//visibility:public"],
 )
 """.format(
-        target = metadata_target_name(name),
+        target = _METADATA_TARGET,
         name = name,
         language_version = language_version,
         version = _string_block("version", version),
@@ -199,7 +190,7 @@ dart_library(
         # runner beside it; see `_TEST_RUNNER_BLOCK`.
         target = _TEST_LIBRARY if name == "test" else name,
         deps = _list_block("deps", deps),
-        metadata = metadata_target_name(name),
+        metadata = _METADATA_TARGET,
         visibility = "//visibility:private" if name == "test" else "//visibility:public",
     )
     if name != "test":
@@ -259,7 +250,7 @@ pub_package_member(
 )
 """.format(
         name = name,
-        metadata = metadata_target_name(name),
+        metadata = _METADATA_TARGET,
     )
 
 def make_pub_library_build_content(name, members = [], deps = [], owner = ""):

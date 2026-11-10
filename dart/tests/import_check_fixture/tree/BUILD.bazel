@@ -1,0 +1,18 @@
+load("//dart:defs.bzl", "dart_library", "dart_package_metadata", "dart_source_set")
+
+dart_source_set(
+    name = "tree_set",
+    srcs = ["lib/tree.dart"],
+)
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "import_check_tree",
+)
+
+dart_library(
+    name = "tree_lib",
+    package = ":pubspec-metadata",
+    srcs_dir = ":tree_set",
+    visibility = ["//dart/tests:__subpackages__"],
+)

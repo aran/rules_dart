@@ -1,10 +1,11 @@
 """Implementation of the dart_library rule."""
 
 load("//dart:providers.bzl", "DartInfo")
-load("//dart/private:common.bzl", "PACKAGE_IDENTITY_ATTRS", "codegen_identity_error", "own_packages", "resolve_package_identity")
+load("//dart/private:common.bzl", "codegen_identity_error", "identity_package_record", "own_packages", "package_identity_attrs", "resolve_package_identity")
 load("//dart/private:dart_import_check.bzl", "LIBRARY_IMPORT_CHECKER_ATTRS", "library_import_check")
-load("//dart/private:dart_info.bzl", "dart_info", "dart_package_info", "package_info_from_metadata", "package_lib_prefix")
+load("//dart/private:dart_info.bzl", "dart_info", "package_info_from_metadata", "package_lib_prefix")
 load("//dart/private:exec_groups.bzl", "PORTABLE_EXEC_GROUPS")
+load("//dart/private:package_root.bzl", "locate_package_root")
 load("//dart/private:runtime.bzl", "RUNTIME_INDEPENDENT_ATTR", "runtime_reset_when_independent")
 
 def check_no_duplicate_srcs(label, srcs, attr_name = "srcs"):
@@ -81,94 +82,103 @@ def check_files_under_package_root(label, package_root, files, attr_name = "srcs
             )
     return None
 
-def locate_package_root(workspace_root, label_package, files = []):
-    """The package root of a target, from the directory of its BUILD file.
+def checked_package_info(label, metadata, srcs, resources = []):
+    """The `DartPackageInfo` of a package declared by a `dart_package_metadata`, once its files are checked.
 
-    A BUILD file at a package's root takes its own directory. A BUILD file
-    anywhere inside the package's `lib/` — `lib/` itself or a directory under
-    it, `lib/src/model/` — belongs to the directory above that `lib`, as Dart
-    reads `<root>/lib/src/model/a.dart` as `package:<name>/src/model/a.dart`.
-    The root is the same for every target of one package, wherever in it the
-    target's BUILD file sits.
-
-    A directory named `lib` inside another `lib/` makes that ambiguous: a
-    BUILD file at `x/lib/y/` holding `x/lib/y/lib/a.dart` may be the root of a
-    package `y` or a directory of the package at `x`. Either case is an error,
-    not a guess.
-
-    For external repos, converts "external/X" to "../X" to match
-    File.short_path convention. Only the label's package path is read for
-    `lib` components, never the repository's directory name.
+    The package root is the declaration's, as a pubspec's directory is. Fails
+    when two files resolve to the same path or one is not under the package's
+    `lib/`.
 
     Args:
-        workspace_root: The workspace root of the label (ctx.label.workspace_root).
-        label_package: The Bazel label package path (ctx.label.package).
-        files: The target's own files, which tell a package whose root is
-          itself inside a `lib` directory (they sit under its own `lib/`).
+      label: The target's label.
+      metadata: The `DartPackageMetadataInfo` the target names.
+      srcs: The package's `lib/**/*.dart` Files.
+      resources: The rest of its `lib/` Files.
 
     Returns:
-        `struct(root, error)`: the root's short_path ("" for the main
-        repository's root), and an error message or None.
+      A `DartPackageInfo`.
     """
-    ws_root = workspace_root
-    if ws_root.startswith("external/"):
-        ws_root = "../" + ws_root[len("external/"):]
+    package_root = metadata.package_root
+    for err in [
+        check_no_duplicate_srcs(label, srcs),
+        check_no_duplicate_srcs(label, resources, "resources"),
+        check_files_under_package_root(label, package_root, srcs),
+        check_files_under_package_root(label, package_root, resources, "resources"),
+    ]:
+        if err != None:
+            fail(err)
+    return package_info_from_metadata(label, metadata, package_root)
 
-    def under_ws(rel):
-        if ws_root and rel:
-            return ws_root + "/" + rel
-        return ws_root or rel
+def library_package(ctx, srcs, resources = [], assembled_root = None):
+    """The Dart package a library target is, from the `dart_package_metadata` it names.
 
-    parts = label_package.split("/") if label_package else []
-    lib_at = [i for i, part in enumerate(parts) if part == "lib"]
-    if len(lib_at) > 1:
-        return struct(root = None, error = (
-            ("`//%s` has a directory named `lib` inside another `lib/`, so its " +
-             "Dart package root is ambiguous: it is the directory above one of " +
-             "the `lib` components, and nothing says which. Rename the inner " +
-             "`lib` directory.") % label_package
-        ))
-    if lib_at:
-        own_lib = under_ws(label_package) + "/lib/"
-        for f in files:
-            if f.short_path.startswith(own_lib):
-                return struct(root = None, error = (
-                    ("`%s` sits in a directory named `lib` under `//%s`, which is " +
-                     "itself inside a `lib/`, so its Dart package root is " +
-                     "ambiguous: `//%s` or `//%s`. Rename the inner `lib` " +
-                     "directory, or move the package out of the outer one.") %
-                    (f.short_path, label_package, label_package, "/".join(parts[:lib_at[0]]))
-                ))
-        parts = parts[:lib_at[0]]
-    return struct(root = under_ws("/".join(parts)), error = None)
+    What `dart_library` does with `package`, for a rule set whose library rule
+    declares it (`package_identity_attrs()`): resolves the declaration, checks
+    that the target's files sit under the package's `lib/` and collide with
+    none, and builds the record. A library naming a declaration in another
+    directory fails here, naming the file. A target naming none is named after
+    its root's directory, which `locate_package_root` finds from the BUILD
+    file and the files, and states nothing else.
 
-def derive_package_root(workspace_root, label_package):
-    """The package root of a target, from its label alone (see `locate_package_root`).
-
-    Fails where the path is ambiguous. Rules that have the target's files
-    call `locate_package_root` with them, which also catches a package rooted inside
-    a `lib` directory.
+    A generated source among the target's `srcs` (`ctx.attr.srcs`, the targets)
+    must be of the package the target names: a codegen rule naming another
+    declaration fails, naming both.
 
     Args:
-        workspace_root: The workspace root of the label (ctx.label.workspace_root).
-        label_package: The Bazel label package path (ctx.label.package).
+      ctx: The rule context. Must declare `package` (`package_identity_attrs()`)
+        and `srcs`.
+      srcs: The target's own Dart Files.
+      resources: The target's other files under `lib/`.
+      assembled_root: The `short_path` of the directory a pre-assembled
+        package is (a `dart_source_set`), when the target's sources are that
+        and not files to check; they are then not looked at.
 
     Returns:
-        The package root's short_path, without the `lib/` component.
+      `struct(record, metadata, package_name, package_root, language_version)`:
+      the target's `DartPackageInfo` and what it came from, as
+      `resolve_package_identity` returns it, with the root.
     """
-    result = locate_package_root(workspace_root, label_package)
-    if result.error != None:
-        fail(result.error)
-    return result.root
-
-def _dart_library_impl(ctx):
     identity = resolve_package_identity(ctx)
 
     # The one point a generated source and the library collecting it meet.
     err = codegen_identity_error(ctx.label, ctx.attr.srcs, identity.package_name, identity.metadata)
     if err != None:
         fail(err)
+    if assembled_root != None:
+        record = identity_package_record(ctx.label, identity, assembled_root)
+    elif identity.metadata != None:
+        record = checked_package_info(ctx.label, identity.metadata, srcs, resources)
+    else:
+        # Checked per attribute rather than over the concatenation, so the
+        # message names the list the reader has to go and look at. The two
+        # cannot collide with each other: identical short paths imply
+        # identical extensions, and a `.dart` file in `resources` is refused
+        # by the rule before this runs.
+        for err in [
+            check_no_duplicate_srcs(ctx.label, srcs),
+            check_no_duplicate_srcs(ctx.label, resources, "resources"),
+        ]:
+            if err != None:
+                fail(err)
+        root = locate_package_root(ctx.label.workspace_root, ctx.label.package, srcs + resources)
+        if root.error != None:
+            fail("%s: %s" % (ctx.label, root.error))
+        for err in [
+            check_files_under_package_root(ctx.label, root.root, srcs),
+            check_files_under_package_root(ctx.label, root.root, resources, "resources"),
+        ]:
+            if err != None:
+                fail(err)
+        record = identity_package_record(ctx.label, identity, root.root)
+    return struct(
+        record = record,
+        metadata = identity.metadata,
+        package_name = identity.package_name,
+        package_root = record.package_root,
+        language_version = identity.language_version,
+    )
 
+def _dart_library_impl(ctx):
     own_resources = ctx.files.resources
     for f in own_resources:
         if f.extension == "dart":
@@ -191,45 +201,12 @@ def _dart_library_impl(ctx):
                  "every file of the package, non-Dart ones included.") % ctx.label,
             )
         own_srcs = ctx.files.srcs_dir
-        package_root = own_srcs[0].short_path
+        package = library_package(ctx, own_srcs, assembled_root = own_srcs[0].short_path)
     else:
         # `srcs` may be empty: a `dart_library` with only `deps` is a valid
         # aggregate façade that re-exports its dependencies.
-        # Checked per attribute rather than over the concatenation, so the
-        # message names the list the reader has to go and look at. The two
-        # cannot collide with each other — identical short paths imply
-        # identical extensions, and a `.dart` file in `resources` is refused
-        # above — so nothing is lost by checking them apart.
-        err = check_no_duplicate_srcs(ctx.label, ctx.files.srcs)
-        if err == None:
-            err = check_no_duplicate_srcs(ctx.label, own_resources, "resources")
-        if err != None:
-            fail(err)
         own_srcs = ctx.files.srcs
-        if identity.metadata != None:
-            # The declaration's directory is the package root, as a pubspec's is.
-            package_root = identity.metadata.package_root
-        else:
-            root = locate_package_root(ctx.label.workspace_root, ctx.label.package, own_srcs + own_resources)
-            if root.error != None:
-                fail("%s: %s" % (ctx.label, root.error))
-            package_root = root.root
-        err = check_files_under_package_root(ctx.label, package_root, own_srcs)
-        if err != None:
-            fail(err)
-        err = check_files_under_package_root(ctx.label, package_root, own_resources, "resources")
-        if err != None:
-            fail(err)
-
-    if identity.metadata != None:
-        record = package_info_from_metadata(ctx.label, identity.metadata, package_root)
-    else:
-        record = dart_package_info(
-            label = ctx.label,
-            package_name = identity.package_name,
-            package_root = package_root,
-            language_version = "",
-        )
+        package = library_package(ctx, own_srcs, own_resources)
 
     # `dart_library` is a pure collector: it propagates its sources (source-tree
     # and/or generated) and package metadata unchanged. Co-location of a
@@ -239,7 +216,7 @@ def _dart_library_impl(ctx):
     # action is the check of what its sources import, a validation.
     info = dart_info(
         label = ctx.label,
-        packages = [record],
+        packages = [package.record],
         deps = ctx.attr.deps,
         srcs = own_srcs,
         resources = own_resources,
@@ -288,7 +265,7 @@ consumer's `data`.""",
             doc = "Other `dart_library` targets this library depends on. Their sources and package metadata are propagated transitively.",
             providers = [DartInfo],
         ),
-    } | PACKAGE_IDENTITY_ATTRS | RUNTIME_INDEPENDENT_ATTR | LIBRARY_IMPORT_CHECKER_ATTRS,
+    } | package_identity_attrs() | RUNTIME_INDEPENDENT_ATTR | LIBRARY_IMPORT_CHECKER_ATTRS,
     exec_groups = PORTABLE_EXEC_GROUPS,
     doc = "Collects Dart sources and propagates dependency information via `DartInfo`. Its package is the one the `dart_package_metadata` it names in `package` declares, or, naming none, one named after its root directory that states nothing else. Does not compile or assemble; consumers co-locate generated sources. Its `_validation` output group checks what its sources import, export and include as parts against its `deps` (see `dart_import_check.bzl`), so any build of the library runs the check.",
 )

@@ -4,7 +4,7 @@ load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
 load("//tools:changes.bzl", "dart_changes")
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "fix_suffixes",
 )
 
@@ -22,7 +22,7 @@ dart_library(
         "lib/thing.freezed.dart",
         "lib/thing.g.dart",
     ],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     tags = ["no-dart-analyze"],
 )
 

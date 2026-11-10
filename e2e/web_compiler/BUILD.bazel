@@ -11,12 +11,7 @@ load("//rules:defs.bzl", "branch_sources", "web_bundle")
 load("//rules:tests.bzl", "compiler_roots", "shared_test", "variant_test")
 
 dart_package_metadata(
-    name = "everything_pubspec",
-    package_name = "everything",
-)
-
-dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "web_compiler_e2e",
 )
 
@@ -26,7 +21,7 @@ dart_package_metadata(
 dart_library(
     name = "vec",
     srcs = ["lib/vec.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     visibility = ["//visibility:public"],
     deps = [
         "@pub_deps//:characters",
@@ -89,24 +84,10 @@ variant_test(
     target_under_test = ":app_wasm",
 )
 
-# Everything a web binary reaches, reached under each compiler and in a plain
-# build, to compare where each generated file is built.
-dart_library(
-    name = "everything",
-    srcs = [],
-    package = ":everything_pubspec",
-    tags = ["manual"],
-    deps = [
-        ":vec",
-        "//forked",
-        "//independent",
-    ],
-)
-
 compiler_roots(
     name = "everything_roots",
-    lib = ":everything",
-    plain = ":everything",
+    lib = "//everything",
+    plain = "//everything",
     tags = ["manual"],
 )
 

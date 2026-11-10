@@ -17,7 +17,7 @@ Usage:
         src = "schema.drift",
         generator_bin = "@rules_dart//dart/ext/drift:shim_prep",
         output_suffixes = [".drift_prep.json"],
-        package = ":pubspec",
+        package = ":pubspec-metadata",
         deps = ["@pub_deps//:drift"],
     )
 """
@@ -25,17 +25,16 @@ Usage:
 load("//dart:providers.bzl", "DartInfo")
 load(
     "//dart/private:common.bzl",
-    "PACKAGE_IDENTITY_ATTRS",
     "PATH_MAPPING",
     "add_shim_contract_args",
     "asset_path_for",
     "codegen_identity",
     "dart_package_root_for_package",
+    "package_identity_attrs",
     "resolve_package_identity",
     "same_package_library_dep_files",
     "synth_package_config",
 )
-load("//dart/private:dart_library.bzl", "derive_package_root")
 load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS", "portable_sdk")
 load("//dart/private:runtime.bzl", "non_dart_transition")
 
@@ -57,14 +56,9 @@ def _dart_sqlcodegen_impl(ctx):
         ctx.attr.deps,
         identity.package_name,
     )
-    if identity.metadata != None:
-        package_root = identity.metadata.package_root
-    elif package_root_from_deps != None:
+    package_root = identity.package_root
+    if identity.metadata == None and package_root_from_deps != None:
         package_root = package_root_from_deps
-    else:
-        # The root a `dart_library` beside this target would take, also when
-        # the target sits in a directory under the package's `lib/`.
-        package_root = derive_package_root(ctx.label.workspace_root, ctx.label.package)
 
     auto_staged, _ = same_package_library_dep_files(
         ctx.attr.deps,
@@ -198,7 +192,7 @@ dart_sqlcodegen = rule(
                   "passed as `--dep <exec>|<asset>` using `asset_path_for`.",
             allow_files = True,
         ),
-    } | PACKAGE_IDENTITY_ATTRS,
+    } | package_identity_attrs(),
     exec_groups = PORTABLE_EXEC_GROUPS,
     doc = "Runs a Dart code generator over a non-Dart input (`.drift`, " +
           "`.moor`, …), producing one or more sibling outputs.",

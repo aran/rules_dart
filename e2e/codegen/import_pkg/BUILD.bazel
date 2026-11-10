@@ -1,7 +1,7 @@
 load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_codegen", "dart_library", "dart_package_metadata", "dart_test")
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "import_fixture",
     language_version = "3.11",
 )
@@ -14,7 +14,7 @@ dart_codegen(
     src = "lib/via_package.dart",
     generator = "//tools:lib_gen.dart",
     output_suffixes = [".g.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
 )
 
 dart_codegen(
@@ -22,7 +22,7 @@ dart_codegen(
     src = "lib/via_relative.dart",
     generator = "//tools:lib_gen.dart",
     output_suffixes = [".g.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
 )
 
 dart_library(
@@ -33,7 +33,7 @@ dart_library(
         ":via_package_gen",
         ":via_relative_gen",
     ],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     visibility = ["//visibility:public"],
 )
 

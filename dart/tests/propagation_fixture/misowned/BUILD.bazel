@@ -1,0 +1,11 @@
+load("//dart:defs.bzl", "dart_package_metadata")
+
+# Same asset id, declared for a different package. The id is namespaced to
+# `prop_b`, so this must fail the ownership check.
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "not_prop_b",
+    code_assets = ["//dart/tests/propagation_fixture/b:code_asset"],
+    tags = ["manual"],
+    visibility = ["//dart/tests:__subpackages__"],
+)

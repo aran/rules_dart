@@ -3,7 +3,7 @@ load("@rules_dart//dart:defs.bzl", "dart_test")
 dart_test(
     name = "unit_test",
     main = "unit_test.dart",
-    package = "//app:pubspec",
+    package = "//app:pubspec-metadata",
     deps = [
         "//app",
         "@test",

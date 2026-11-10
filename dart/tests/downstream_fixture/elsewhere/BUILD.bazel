@@ -1,0 +1,9 @@
+load("//dart:defs.bzl", "dart_package_metadata")
+
+# Another package, whose root is this directory: what a library naming it from
+# the directory above has its files outside of.
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "elsewhere",
+    visibility = ["//dart/tests/downstream_fixture:__pkg__"],
+)

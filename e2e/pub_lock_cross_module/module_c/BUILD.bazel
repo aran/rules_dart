@@ -1,7 +1,7 @@
 load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "module_c",
 )
 
@@ -10,7 +10,7 @@ exports_files(["lock_c.lock"])
 dart_library(
     name = "logger",
     srcs = ["lib/logger.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     visibility = ["//visibility:public"],
     deps = ["@deps_a//:logging"],
 )

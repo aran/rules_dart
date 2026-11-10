@@ -1,15 +1,15 @@
 load("//dart:defs.bzl", "dart_library", "dart_package_metadata")
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "track_creation_marked",
 )
 
 dart_library(
     name = "marked",
     srcs = ["lib/marked.dart"],
-    package = ":pubspec",
-    visibility = ["//dart/tests/track_creation_fixture:__subpackages__"],
+    package = ":pubspec-metadata",
     # As a pub package is: one that must keep the flag all the same.
     runtime_independent = True,
+    visibility = ["//dart/tests/track_creation_fixture:__subpackages__"],
 )

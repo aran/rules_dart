@@ -48,7 +48,7 @@ func TestAgreement(t *testing.T) {
 	// A declaration whose attributes are marked `# keep`; Gazelle rewrites
 	// one whose are not, so it never disagrees.
 	decl := func(name, version string) *packageDecl {
-		return &packageDecl{Rel: "pkg", Name: "package", PackageName: name, LanguageVersion: version, KeepName: true, KeepVersion: true}
+		return &packageDecl{Rel: "pkg", Name: metadataName, PackageName: name, LanguageVersion: version, KeepName: true, KeepVersion: true}
 	}
 	for _, tt := range []struct {
 		name       string
@@ -74,18 +74,18 @@ func TestAgreement(t *testing.T) {
 		},
 		{
 			name: "declaration not kept, differing from pubspec", rel: "pkg", pubspec: pubspec,
-			decl: &packageDecl{Rel: "pkg", Name: "package", PackageName: "from_decl", LanguageVersion: "3.10"},
+			decl: &packageDecl{Rel: "pkg", Name: metadataName, PackageName: "from_decl", LanguageVersion: "3.10"},
 		},
 		{
 			name: "name: declaration and pubspec", rel: "pkg", pubspec: pubspec,
 			decl: decl("from_decl", "3.13"),
-			want: [][]string{{"package name", `"from_decl"`, "//pkg:package", `"from_pubspec"`, "pkg/pubspec.yaml"}},
+			want: [][]string{{"package name", `"from_decl"`, "//pkg:pubspec-metadata", `"from_pubspec"`, "pkg/pubspec.yaml"}},
 		},
 		{
 			name: "name: declaration and directive", rel: "pkg",
 			decl:       decl("from_decl", ""),
 			directives: map[string]string{keyPackageName: "from_directive"},
-			want:       [][]string{{"package name", `"from_decl"`, "//pkg:package", `"from_directive"`, "gazelle:dart_package_name` in pkg/BUILD.bazel"}},
+			want:       [][]string{{"package name", `"from_decl"`, "//pkg:pubspec-metadata", `"from_directive"`, "gazelle:dart_package_name` in pkg/BUILD.bazel"}},
 		},
 		{
 			name: "name: directive and pubspec", rel: "pkg/lib/src", pubspec: pubspec,
@@ -95,18 +95,18 @@ func TestAgreement(t *testing.T) {
 		{
 			name: "version: declaration and pubspec", rel: "pkg/lib/src", pubspec: pubspec,
 			decl: decl("from_pubspec", "3.10"),
-			want: [][]string{{"language version", `"3.10"`, "//pkg:package", `"3.13"`, "pkg/pubspec.yaml"}},
+			want: [][]string{{"language version", `"3.10"`, "//pkg:pubspec-metadata", `"3.13"`, "pkg/pubspec.yaml"}},
 		},
 		{
 			name: "version: a declaration stating none, and a pubspec", rel: "pkg", pubspec: pubspec,
 			decl: decl("from_pubspec", ""),
-			want: [][]string{{"language version", "none by dart_package_metadata //pkg:package (`# keep`)", `"3.13"`, "pkg/pubspec.yaml"}},
+			want: [][]string{{"language version", "none by dart_package_metadata //pkg:pubspec-metadata (`# keep`)", `"3.13"`, "pkg/pubspec.yaml"}},
 		},
 		{
 			name: "version: declaration and directive", rel: "pkg",
 			decl:       decl("x", "3.10"),
 			directives: map[string]string{keyLanguageVersion: "3.13"},
-			want:       [][]string{{"language version", `"3.10"`, "//pkg:package", `"3.13"`, "gazelle:dart_language_version"}},
+			want:       [][]string{{"language version", `"3.10"`, "//pkg:pubspec-metadata", `"3.13"`, "gazelle:dart_language_version"}},
 		},
 		{
 			name: "version: directive and pubspec", rel: "pkg/test", pubspec: pubspec,
@@ -119,6 +119,21 @@ func TestAgreement(t *testing.T) {
 			name: "name: directive and the pubspec above", rel: "pkg/sub/lib", pubspec: pubspec,
 			directives: map[string]string{keyPackageName: "sub"},
 			want:       [][]string{{"package name", `"sub"`, "gazelle:dart_package_name", `"from_pubspec"`, "pkg/pubspec.yaml"}},
+		},
+		{
+			// Any name is the package's declaration.
+			name: "a declaration under another name", rel: "pkg", pubspec: pubspec,
+			decl: &packageDecl{Rel: "pkg", Name: "pubspec", PackageName: "from_pubspec"},
+		},
+		{
+			name: "two declarations at the root", rel: "pkg", pubspec: pubspec,
+			decl: &packageDecl{Rel: "pkg", Name: "pubspec", PackageName: "from_pubspec", Others: []string{"again"}},
+			want: [][]string{{"more than one dart_package_metadata", "pubspec, again"}},
+		},
+		{
+			// Reported once, at the root, not again for each directory below.
+			name: "two declarations, below the root", rel: "pkg/test", pubspec: pubspec,
+			decl: &packageDecl{Rel: "pkg", Name: "pubspec", PackageName: "from_pubspec", Others: []string{"again"}},
 		},
 		{
 			name: "directive agrees with the pubspec above", rel: "pkg/tool", pubspec: pubspec,

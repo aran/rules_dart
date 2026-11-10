@@ -10,7 +10,7 @@ load(
 )
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "web_app",
 )
 
@@ -24,7 +24,7 @@ dart_analysis_config(
 dart_library(
     name = "rootlib",
     srcs = ["lib/root_greet.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     visibility = ["//visibility:public"],
 )
 

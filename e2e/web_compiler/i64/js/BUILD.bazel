@@ -1,7 +1,7 @@
 load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library", "dart_package_metadata")
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "i64",
 )
 
@@ -16,7 +16,7 @@ dart_codegen(
         "js",
     ],
     output_suffixes = [".g.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
 )
 
 dart_library(
@@ -25,6 +25,6 @@ dart_library(
         "lib/i64.dart",
         ":i64_g",
     ],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     visibility = ["//visibility:public"],
 )

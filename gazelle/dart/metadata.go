@@ -27,10 +27,16 @@ import (
 // target naming none is named after itself, so a package there with codegen
 // targets has one stating its library's name.
 //
-// A `dart_package_metadata` already at the root is the package's, whatever
-// its name. Gazelle rewrites what it writes there and keeps the rest, such as
+// A package has one `dart_package_metadata`. Gazelle writes it named
+// metadataName, and a `dart_package_metadata` already at the root is the
+// package's, whatever its name, and is an error where the root's BUILD file
+// holds two. Gazelle rewrites what it writes there and keeps the rest, such as
 // `code_assets`, which only a person states; a `# keep` attribute stays as it
 // is, and is an error where it disagrees with a directive or the pubspec.
+
+// metadataName is the name Gazelle gives a `dart_package_metadata` it
+// writes: not a Dart package name, so never the name of the package's library.
+const metadataName = "pubspec-metadata"
 
 // packageMetadata is the `dart_package_metadata` of the package rooted at
 // Root, named Name.
@@ -46,8 +52,7 @@ func (m *packageMetadata) labelFrom(rel string) string {
 // metadataOf is the `dart_package_metadata` of the package rooted at root,
 // or nil when it has none: the one already in its BUILD file, or the one
 // Gazelle writes when the package has Dart files it writes rules for and a
-// fact to state. It is named `pubspec`, or `pubspec_metadata` in a package
-// whose library is named `pubspec`, as pub's repositories name theirs.
+// fact to state.
 func (d *dartLang) metadataOf(c *config.Config, root string) *packageMetadata {
 	if decl := packageDeclAt(c, root); decl != nil {
 		return &packageMetadata{Root: root, Name: decl.Name}
@@ -61,11 +66,7 @@ func (d *dartLang) metadataOf(c *config.Config, root string) *packageMetadata {
 	if !d.scan.statesFacts(c, root) && (root != "" || len(scan.annotated) == 0) {
 		return nil
 	}
-	name := "pubspec"
-	if libraryName(root, c) == name {
-		name = "pubspec_metadata"
-	}
-	return &packageMetadata{Root: root, Name: name}
+	return &packageMetadata{Root: root, Name: metadataName}
 }
 
 // statesFacts reports whether anything states a fact of the package rooted

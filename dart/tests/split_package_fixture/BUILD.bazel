@@ -10,7 +10,7 @@ load("//dart:defs.bzl", "dart_binary", "dart_package_metadata")
 load("//dart/tests:package_record_test.bzl", "app_record_probe", "declaration_conflict_test", "package_config_language_version_test")
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "split_pkg",
     language_version = "3.7",
     visibility = ["//dart/tests/split_package_fixture:__subpackages__"],
@@ -33,31 +33,13 @@ package_config_language_version_test(
     target_under_test = ":app",
 )
 
-# A third directory naming another declaration of the same package.
-dart_binary(
-    name = "conflicting_app",
-    main = "main.dart",
-    tags = ["manual"],
-    deps = [
-        "//dart/tests/split_package_fixture/lib/other_version",
-        "//dart/tests/split_package_fixture/lib/plain",
-    ],
-)
-
-declaration_conflict_test(
-    name = "conflicting_declarations_test",
-    size = "small",
-    message = "  - @@//dart/tests/split_package_fixture/lib/other_version:pubspec, named by @@//dart/tests/split_package_fixture/lib/other_version:other_version\n  - @@//dart/tests/split_package_fixture:pubspec, named by @@//dart/tests/split_package_fixture/lib/plain:plain\n",
-    target_under_test = ":conflicting_app",
-)
-
 # A target that is itself the package, as a downstream app rule is, naming
 # the package's declaration.
 app_record_probe(
     name = "declared_record",
     package_name = "split_pkg",
     expected_language_version = "3.7",
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     package_root = "dart/tests/split_package_fixture",
     deps = [
         "//dart/tests/split_package_fixture/lib/plain",
@@ -82,6 +64,6 @@ app_record_probe(
 declaration_conflict_test(
     name = "app_record_conflict_test",
     size = "small",
-    message = "  - none, named by @@//dart/tests/split_package_fixture:undeclared_record\n  - @@//dart/tests/split_package_fixture:pubspec, named by @@//dart/tests/split_package_fixture/lib/versioned:versioned\n",
+    message = "  - none (package \"split_pkg\"), named by @@//dart/tests/split_package_fixture:undeclared_record\n  - @@//dart/tests/split_package_fixture:pubspec-metadata (package \"split_pkg\"), named by @@//dart/tests/split_package_fixture/lib/versioned:versioned\n",
     target_under_test = ":undeclared_record",
 )

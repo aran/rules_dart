@@ -6,7 +6,7 @@ executable contributes no package: its entrypoint takes whatever version the
 package containing it gives it through its `deps`, or the SDK's own.
 
 Set, the executable is a member of the package its `dart_package_metadata`
-declares, rooted at the declaration's directory wherever the executable's own
+declares, rooted at the declaration's package root wherever the executable's own
 BUILD file is, as Dart gives every file under a pubspec's directory to that
 package. It then carries the package's record like a library does, so the
 generated `package_config.json` covers its entrypoint with that
@@ -19,11 +19,11 @@ tested by calling it.
 """
 
 load("//dart:providers.bzl", "DartInfo")
-load("//dart/private:common.bzl", "PACKAGE_IDENTITY_ATTRS", "codegen_identity_error", "program_packages", "resolve_package_identity")
-load("//dart/private:dart_info.bzl", "dart_analyzable_info", "dart_analyzable_info_no_package", "package_info_from_metadata", "package_lib_prefix")
+load("//dart/private:common.bzl", "codegen_identity_error", "executable_package_record", "package_identity_attrs", "program_packages", "resolve_package_identity")
+load("//dart/private:dart_info.bzl", "dart_analyzable_info", "dart_analyzable_info_no_package", "package_lib_prefix")
 
 # The package attribute of every executable rule.
-EXECUTABLE_PACKAGE_ATTRS = PACKAGE_IDENTITY_ATTRS
+EXECUTABLE_PACKAGE_ATTRS = package_identity_attrs()
 
 def _in_root(path, root):
     """Whether a `short_path` lies under a package root directory."""
@@ -161,16 +161,16 @@ def executable_package(ctx, own_srcs):
     if err != None:
         fail(err)
 
-    # The declaration's directory is the package root, wherever this target's
+    # The declaration's package root is this target's, wherever this target's
     # BUILD file is.
-    root = identity.metadata.package_root
+    root = identity.package_root
 
     # The package's `lib/` files are reachable as `package:` URIs and join the
     # package's sources; the rest (the entrypoint) belong to no `lib/`.
     prefix = package_lib_prefix(root)
     analyzable = dart_analyzable_info(
         label = ctx.label,
-        packages = [package_info_from_metadata(ctx.label, identity.metadata, root)],
+        packages = [executable_package_record(ctx.label, identity)],
         deps = ctx.attr.deps,
         srcs = [f for f in own_srcs if f.short_path.startswith(prefix)],
         entry_srcs = [f for f in own_srcs if not f.short_path.startswith(prefix)],

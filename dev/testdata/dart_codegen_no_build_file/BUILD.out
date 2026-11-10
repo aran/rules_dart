@@ -2,7 +2,7 @@ load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
 load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_codegen")
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "no_build_file",
     language_version = "3.11",
     visibility = ["//:__subpackages__"],
@@ -12,7 +12,7 @@ json_serializable_codegen(
     name = "user_codegen",
     srcs = ["lib/user.dart"],
     annotation_dep = "@json_annotation",
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     deps = ["@json_annotation"],
 )
 
@@ -22,7 +22,7 @@ dart_library(
         "lib/user.dart",
         ":user_codegen",
     ],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     visibility = ["//visibility:public"],
     deps = ["@json_annotation"],
 )

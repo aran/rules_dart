@@ -21,7 +21,7 @@ load("//dart/tests:path_mapping_test.bzl", "path_mapping_test")
 exports_files(["gen.dart"])
 
 dart_package_metadata(
-    name = "pkg",
+    name = "pubspec-metadata",
     package_name = "ident_fixture",
     language_version = "3.11",
 )
@@ -34,7 +34,7 @@ dart_codegen(
     src = "lib/model.dart",
     generator = "gen.dart",
     output_suffixes = [".g.dart"],
-    package = ":pkg",
+    package = ":pubspec-metadata",
     tags = ["manual"],
 )
 
@@ -44,7 +44,7 @@ dart_library(
         "lib/model.dart",
         ":model_g",
     ],
-    package = ":pkg",
+    package = ":pubspec-metadata",
     tags = ["manual"],
 )
 
@@ -81,50 +81,34 @@ dart_library(
         "lib/misnamed.dart",
         ":misnamed_g",
     ],
-    package = ":pkg",
+    package = ":pubspec-metadata",
     tags = ["manual"],
 )
 
 codegen_identity_conflict_test(
     name = "codegen_package_name_conflict_test",
     size = "small",
-    message = "generates sources for package \"package_fixture\", which names no `dart_package_metadata`, but @@//dart/tests/package_fixture:misnamed_lib collects them into the package `@@//dart/tests/package_fixture:pkg` declares",
+    message = "generates sources for package \"package_fixture\", which names no `dart_package_metadata`, but @@//dart/tests/package_fixture:misnamed_lib collects them into the package `@@//dart/tests/package_fixture:pubspec-metadata` declares",
     target_under_test = ":misnamed_lib",
 )
 
 # Codegen and library naming two declarations of one package name: the
 # generator would run at one declaration's language version and the library
 # compile at the other's.
-dart_package_metadata(
-    name = "other_pkg",
-    package_name = "ident_fixture",
-    language_version = "3.10",
-    tags = ["manual"],
-)
-
-dart_codegen(
-    name = "defaulted_g",
-    src = "lib/defaulted.dart",
-    generator = "gen.dart",
-    output_suffixes = [".g.dart"],
-    package = ":other_pkg",
-    tags = ["manual"],
-)
-
 dart_library(
     name = "defaulted_lib",
     srcs = [
         "lib/defaulted.dart",
-        ":defaulted_g",
+        "//dart/tests/package_fixture/other:defaulted_g",
     ],
-    package = ":pkg",
+    package = ":pubspec-metadata",
     tags = ["manual"],
 )
 
 codegen_identity_conflict_test(
     name = "codegen_declaration_conflict_test",
     size = "small",
-    message = "generates sources for the package `@@//dart/tests/package_fixture:other_pkg` declares, but @@//dart/tests/package_fixture:defaulted_lib collects them into the package `@@//dart/tests/package_fixture:pkg` declares",
+    message = "generates sources for the package `@@//dart/tests/package_fixture/other:pubspec-metadata` declares, but @@//dart/tests/package_fixture:defaulted_lib collects them into the package `@@//dart/tests/package_fixture:pubspec-metadata` declares",
     target_under_test = ":defaulted_lib",
 )
 

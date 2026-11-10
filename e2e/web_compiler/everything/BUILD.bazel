@@ -1,0 +1,21 @@
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "everything",
+)
+
+# Everything a web binary reaches, reached under each compiler and in a plain
+# build, to compare where each generated file is built.
+dart_library(
+    name = "everything",
+    srcs = [],
+    package = ":pubspec-metadata",
+    tags = ["manual"],
+    visibility = ["//:__pkg__"],
+    deps = [
+        "//:vec",
+        "//forked",
+        "//independent",
+    ],
+)

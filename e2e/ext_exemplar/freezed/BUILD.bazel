@@ -7,7 +7,7 @@ load(
 load("@rules_dart//dart/ext/freezed:defs.bzl", "freezed_codegen")
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "freezed_fixture",
     language_version = "3.11",
 )
@@ -23,7 +23,7 @@ freezed_codegen(
         "lib/event.dart",
         "lib/network_result.dart",
     ],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
 )
 
 dart_library(
@@ -33,7 +33,7 @@ dart_library(
         "lib/network_result.dart",
         ":freezed_codegen",
     ],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     visibility = ["//visibility:public"],
     deps = ["@pub_deps//:freezed_annotation"],
 )

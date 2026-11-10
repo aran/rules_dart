@@ -256,7 +256,7 @@ def _write_packages(rctx, prefix, version):
 load("{defs}", "dart_library", "dart_package_metadata")
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "{package}",
     language_version = "{language_version}",
 )
@@ -264,7 +264,7 @@ dart_package_metadata(
 dart_library(
     name = "{package}",
     srcs = glob(["lib/**/*.dart"]),
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     visibility = ["//visibility:public"],
     deps = {deps},
 )

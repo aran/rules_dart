@@ -1,7 +1,7 @@
 load("//dart:defs.bzl", "dart_library", "dart_package_metadata")
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "toolchain_runtime",
     language_version = "3.11",
 )
@@ -10,7 +10,7 @@ dart_package_metadata(
 dart_library(
     name = "runtime",
     srcs = ["lib/runtime.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     visibility = ["//dart/tests/toolchain_dep_fixture:__pkg__"],
     deps = ["//dart/tests/toolchain_dep_fixture/inner"],
 )

@@ -7,7 +7,7 @@ load(
 load("@rules_dart//dart/ext/built_value:defs.bzl", "built_value_codegen")
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "built_value_sample",
     language_version = "3.11",
 )
@@ -30,7 +30,7 @@ built_value_codegen(
         "lib/serializers.dart",
         "lib/user.dart",
     ],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     deps = ["@pub_deps//:built_collection"],
 )
 
@@ -42,7 +42,7 @@ dart_library(
         "lib/user.dart",
         ":built_value_codegen",
     ],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     visibility = ["//visibility:public"],
     deps = [
         "@pub_deps//:built_collection",

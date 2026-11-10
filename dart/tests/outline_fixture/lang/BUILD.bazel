@@ -7,7 +7,7 @@ variant_source(
 )
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "outline_lang",
 )
 
@@ -17,6 +17,6 @@ dart_library(
         "lib/legacy.dart",
         ":src",
     ],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     visibility = ["//dart/tests/outline_fixture:__subpackages__"],
 )

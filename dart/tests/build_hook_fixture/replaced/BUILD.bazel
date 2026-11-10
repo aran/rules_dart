@@ -1,0 +1,59 @@
+load("//dart:defs.bzl", "dart_binary", "dart_code_asset", "dart_library", "dart_package_metadata")
+load(
+    "//dart/tests:build_hook_test.bzl",
+    "analyzes_test",
+    "records_build_hook_test",
+)
+
+# The package's own code asset replaces what its hook would build.
+dart_code_asset(
+    name = "answer",
+    asset_id = "package:build_hook_fixture/native.dart",
+    link_mode = "dynamic_loading_process",
+    tags = ["manual"],
+)
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "build_hook_fixture",
+    build_hook = "hook/build.dart",
+    code_assets = [":answer"],
+    tags = ["manual"],
+)
+
+dart_library(
+    name = "replaced",
+    srcs = ["lib/native.dart"],
+    package = ":pubspec-metadata",
+    tags = ["manual"],
+)
+
+records_build_hook_test(
+    name = "replaced_build_hook_test",
+    size = "small",
+    expected = "",
+    target_under_test = ":replaced",
+)
+
+# The declaration's code asset replaces the hook for every target of the
+# package.
+dart_library(
+    name = "split_replaced",
+    srcs = ["lib/plain.dart"],
+    package = ":pubspec-metadata",
+    tags = ["manual"],
+    deps = [":replaced"],
+)
+
+dart_binary(
+    name = "split_replaced_bin",
+    main = "main.dart",
+    tags = ["manual"],
+    deps = [":split_replaced"],
+)
+
+analyzes_test(
+    name = "split_package_replaced_hook_test",
+    size = "small",
+    target_under_test = ":split_replaced_bin",
+)

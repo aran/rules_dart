@@ -12,7 +12,7 @@ dart_codegen(
     src = "//sibling_aggregate_pkg/app:lib/item.dart",
     generator = "//tools:shard_gen.dart",
     output_suffixes = [".shard.json"],
-    package = "//sibling_aggregate_pkg/app:pkg",
+    package = "//sibling_aggregate_pkg/app:pubspec-metadata",
     deps = ["//sibling_aggregate_pkg/app:item_lib"],
 )
 
@@ -25,7 +25,7 @@ dart_aggregate_codegen(
     ],
     generator_script = "//tools:aggregate_gen.dart",
     outputs = ["lib/item.agg.dart"],
-    package = "//sibling_aggregate_pkg/app:pkg",
+    package = "//sibling_aggregate_pkg/app:pubspec-metadata",
     deps = ["//sibling_aggregate_pkg/app:item_lib"],
 )
 

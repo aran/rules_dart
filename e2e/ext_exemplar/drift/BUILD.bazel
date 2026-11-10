@@ -7,7 +7,7 @@ load(
 load("@rules_dart//dart/ext/drift:defs.bzl", "drift_codegen")
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "drift_fixture",
     language_version = "3.11",
 )
@@ -30,7 +30,7 @@ drift_codegen(
     ],
     config = "{\"store_date_time_values_as_text\": true}",
     drift_srcs = ["lib/database.drift"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
 )
 
 dart_library(
@@ -40,7 +40,7 @@ dart_library(
         "lib/posts_dao.dart",
         ":drift_codegen",
     ],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     visibility = ["//visibility:public"],
     deps = ["@pub_deps//:drift"],
 )

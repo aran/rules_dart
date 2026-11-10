@@ -9,7 +9,7 @@ load("@rules_dart//dart/ext:defs.bzl", "builder_shim_library")
 exports_files(["pubspec.lock"])
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "greeting_builder",
 )
 
@@ -21,7 +21,7 @@ builder_shim_library(
 dart_library(
     name = "greeting_builder",
     srcs = ["lib/greeting_builder.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     deps = [
         "@builder_pub_deps//:analyzer",
         "@builder_pub_deps//:build",

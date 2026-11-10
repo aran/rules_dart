@@ -15,13 +15,7 @@ load("//dart/tests:executable_package_test.bzl", "package_config_probe_test")
 # compiler, and a green format check means it reached the formatter.
 
 dart_package_metadata(
-    name = "meta",
-    package_name = "stated",
-    language_version = "3.6",
-)
-
-dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "stated",
     language_version = "3.6",
 )
@@ -30,7 +24,7 @@ dart_binary(
     name = "stated_main",
     compile_mode = "kernel",
     main = "bin/stated_main.dart",
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     visibility = ["//dart/tests/format_fixture:__pkg__"],
 )
 
@@ -38,29 +32,21 @@ dart_test(
     name = "stated_test",
     size = "small",
     main = "test/stated_test.dart",
-    package = ":pubspec",
-    visibility = ["//dart/tests/format_fixture:__pkg__"],
-)
-
-dart_test(
-    name = "meta_test",
-    size = "small",
-    main = "test/meta_test.dart",
-    package = ":meta",
+    package = ":pubspec-metadata",
     visibility = ["//dart/tests/format_fixture:__pkg__"],
 )
 
 dart_js_binary(
     name = "stated_js",
     main = "web/stated_web.dart",
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     visibility = ["//dart/tests/format_fixture:__pkg__"],
 )
 
 dart_wasm_binary(
     name = "stated_wasm",
     main = "web/stated_web.dart",
-    package = ":meta",
+    package = ":pubspec-metadata",
     visibility = ["//dart/tests/format_fixture:__pkg__"],
 )
 
@@ -78,7 +64,6 @@ dart_wasm_binary(
     for target, entry in [
         ("stated_main", '"name": "stated", "rootUri": "org-dartlang-root:///dart/tests/format_fixture/stated/", "packageUri": "lib/", "languageVersion": "3.6"'),
         ("stated_test", '"name": "stated", "rootUri": "org-dartlang-root:///dart/tests/format_fixture/stated/", "packageUri": "lib/", "languageVersion": "3.6"'),
-        ("meta_test", '"name": "stated", "rootUri": "org-dartlang-root:///dart/tests/format_fixture/stated/", "packageUri": "lib/", "languageVersion": "3.6"'),
         ("stated_js", '"name": "stated", "rootUri": "../src/dart/tests/format_fixture/stated", "packageUri": "lib/", "languageVersion": "3.6"'),
         ("stated_wasm", '"name": "stated", "rootUri": "../src/dart/tests/format_fixture/stated", "packageUri": "lib/", "languageVersion": "3.6"'),
     ]

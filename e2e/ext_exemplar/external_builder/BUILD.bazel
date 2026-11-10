@@ -6,14 +6,14 @@ load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata", "dar
 load("//external_builder/builder:defs.bzl", "greeting_codegen")
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "external_builder",
 )
 
 greeting_codegen(
     name = "person_greeting",
     srcs = ["lib/person.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
 )
 
 dart_library(
@@ -22,7 +22,7 @@ dart_library(
         "lib/person.dart",
         ":person_greeting",
     ],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     deps = ["//external_builder/annotation:greeting"],
 )
 

@@ -227,10 +227,11 @@ const extKeyPackageDecl = "dart_package_decl"
 // packageDecl is a `dart_package_metadata` already in a BUILD file: the
 // directory that declares it, its target name and the facts it states, and
 // whether each of those is marked `# keep`, so that Gazelle leaves it as it
-// is.
+// is. Others names any further `dart_package_metadata` in the same file.
 type packageDecl struct {
 	Rel, Name, PackageName, LanguageVersion string
 	KeepName, KeepVersion                   bool
+	Others                                  []string
 }
 
 // label is the declaration's label, from the repository root.
@@ -244,22 +245,31 @@ func configurePackageDecl(c *config.Config, rel string, f *rule.File) {
 	if f == nil {
 		return
 	}
+	var decl *packageDecl
 	for _, r := range f.Rules {
-		if r.Kind() == "dart_package_metadata" {
-			if c.Exts == nil {
-				c.Exts = make(map[string]interface{})
-			}
-			c.Exts[extKeyPackageDecl] = &packageDecl{
-				Rel:             rel,
-				Name:            r.Name(),
-				PackageName:     r.AttrString("package_name"),
-				LanguageVersion: r.AttrString("language_version"),
-				KeepName:        r.ShouldKeep() || kept(r, "package_name"),
-				KeepVersion:     r.ShouldKeep() || kept(r, "language_version"),
-			}
-			return
+		if r.Kind() != "dart_package_metadata" {
+			continue
+		}
+		if decl != nil {
+			decl.Others = append(decl.Others, r.Name())
+			continue
+		}
+		decl = &packageDecl{
+			Rel:             rel,
+			Name:            r.Name(),
+			PackageName:     r.AttrString("package_name"),
+			LanguageVersion: r.AttrString("language_version"),
+			KeepName:        r.ShouldKeep() || kept(r, "package_name"),
+			KeepVersion:     r.ShouldKeep() || kept(r, "language_version"),
 		}
 	}
+	if decl == nil {
+		return
+	}
+	if c.Exts == nil {
+		c.Exts = make(map[string]interface{})
+	}
+	c.Exts[extKeyPackageDecl] = decl
 }
 
 // packageDeclAt is the `dart_package_metadata` already in the BUILD file at

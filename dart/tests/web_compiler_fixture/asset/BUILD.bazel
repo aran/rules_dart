@@ -10,7 +10,7 @@ dart_code_asset(
 )
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "asset",
     code_assets = [":native"],
     tags = ["manual"],
@@ -19,7 +19,7 @@ dart_package_metadata(
 dart_library(
     name = "asset",
     srcs = ["lib/asset.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     tags = ["manual"],
     visibility = ["//dart/tests/web_compiler_fixture:__subpackages__"],
 )

@@ -25,7 +25,7 @@ dart_code_asset(
 )
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "colo_pkg",
     code_assets = [":code_asset"],
 )
@@ -36,7 +36,7 @@ dart_library(
         "lib/hand.dart",
         ":gen_src",
     ],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
 )
 
 colocate_probe(

@@ -19,17 +19,21 @@ def _library(name):
     return "fancy__" + name
 
 _RULES = str(Label("//ext:rules.bzl"))
+
+# The package's `dart_package_metadata`. Not a Dart package name, so never the
+# name of the member beside it, which is named for its package.
+_METADATA_TARGET = "fancy-metadata"
 _PUB_LIBRARY = str(Label("@rules_dart//dart/pub:pub_library.bzl"))
 
 _FILES = """\
     srcs = glob(["lib/**/*.dart"], allow_empty = True),
     resources = glob(["lib/**"], exclude = ["lib/**/*.dart"], allow_empty = True),
-    package = ":pubspec",
+    package = ":{metadata}",
 """
 
 _METADATA = """\
 dart_package_metadata(
-    name = "pubspec",
+    name = "{metadata}",
     package_name = "{name}",
     language_version = "{language_version}",
 )
@@ -43,6 +47,7 @@ def _fancy_source_impl(ctx):
     read = read_pubspec(ctx, ctx.attr.package_name)
     write_pubspec_dependencies(ctx, read.dependencies)
     metadata = _METADATA.format(
+        metadata = _METADATA_TARGET,
         name = ctx.attr.package_name,
         language_version = read.language_version,
     )
@@ -51,7 +56,7 @@ def _fancy_source_impl(ctx):
             rules = _RULES,
             name = ctx.attr.package_name,
             metadata = metadata,
-            files = _FILES,
+            files = _FILES.format(metadata = _METADATA_TARGET),
             greeting = ctx.attr.greeting,
         )
     else:
@@ -59,7 +64,7 @@ def _fancy_source_impl(ctx):
             rules = _PUB_LIBRARY,
             name = ctx.attr.package_name,
             metadata = metadata,
-            files = _FILES,
+            files = _FILES.format(metadata = _METADATA_TARGET),
         )
     ctx.file("BUILD.bazel", build)
 

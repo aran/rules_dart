@@ -4,6 +4,6 @@ dart_test(
     name = "cycle_test",
     srcs = ["//cycle/test/support"],
     main = "cycle_test.dart",
-    package = "//cycle:pubspec",
+    package = "//cycle:pubspec-metadata",
     deps = ["//cycle"],
 )

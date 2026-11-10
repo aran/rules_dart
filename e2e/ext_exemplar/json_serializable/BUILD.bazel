@@ -11,7 +11,7 @@ load(
 )
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "json_serializable_fixture",
     language_version = "3.11",
 )
@@ -36,7 +36,7 @@ dart_codegen(
     src = "lib/primitive_user.dart",
     generator_bin = "@rules_dart//dart/ext/json_serializable:shim",
     output_suffixes = [".json_serializable.g.part"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     deps = ["@pub_deps//:json_annotation"],
 )
 
@@ -45,7 +45,7 @@ dart_codegen(
     src = "lib/primitive_user.dart",
     generator_bin = "@rules_dart//dart/ext/combining_shim:bin",
     output_suffixes = [".g.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     parts = [":_primitive_user_json_part"],
 )
 
@@ -54,7 +54,7 @@ json_serializable_codegen(
     name = "cross_user_codegen",
     srcs = ["lib/cross_user.dart"],
     asset_deps = ["lib/base.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
 )
 
 # --- Advanced annotations via the macro. ---
@@ -68,7 +68,7 @@ json_serializable_codegen(
         "lib/user.dart",
         "lib/wrapper.dart",
     ],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     deps = ["@pub_deps//:meta"],
 )
 
@@ -86,7 +86,7 @@ dart_library(
         ":advanced_codegen",
         ":cross_user_codegen",
     ],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     visibility = ["//visibility:public"],
     deps = [
         "@pub_deps//:json_annotation",

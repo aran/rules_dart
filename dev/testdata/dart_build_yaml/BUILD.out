@@ -6,7 +6,7 @@ load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_code
 # gazelle:dart_builder_config CopyWith {"copy_with_null": true}
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "build_yaml_fixture",
     language_version = "3.11",
     visibility = ["//:__subpackages__"],
@@ -17,7 +17,7 @@ dart_codegen(
     src = "lib/event.dart",
     generator_bin = "@rules_dart//dart/ext/freezed:shim",
     output_suffixes = [".freezed.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     deps = ["@freezed_annotation"],
 )
 
@@ -28,7 +28,7 @@ dart_codegen(
     config = "{\"explicit_to_json\":true,\"field_rename\":\"pascal\"}",
     generator_bin = "@rules_dart//dart/ext/json_serializable:shim",
     output_suffixes = [".json_serializable.g.part"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     deps = [
         "@freezed_annotation",
         "@json_annotation",
@@ -40,7 +40,7 @@ dart_codegen(
     src = "lib/event.dart",
     generator_bin = "@rules_dart//dart/ext/combining_shim:bin",
     output_suffixes = [".g.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     parts = [":_event_json_serializable_gen"],
 )
 
@@ -49,7 +49,7 @@ copy_with_codegen(
     srcs = ["lib/profile.dart"],
     annotation_dep = "@copy_with_extension",
     config = "{\"copy_with_null\": true}",
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     deps = ["@copy_with_extension"],
 )
 
@@ -58,7 +58,7 @@ drift_codegen(
     srcs = ["lib/store.dart"],
     annotation_dep = "@drift",
     config = "{\"store_date_time_values_as_text\":true}",
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     deps = ["@drift"],
 )
 
@@ -67,7 +67,7 @@ json_serializable_codegen(
     srcs = ["lib/user.dart"],
     annotation_dep = "@json_annotation",
     config = "{\"explicit_to_json\":true,\"field_rename\":\"pascal\"}",
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     deps = ["@json_annotation"],
 )
 
@@ -84,7 +84,7 @@ dart_library(
         ":store_codegen",
         ":user_codegen",
     ],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     visibility = ["//visibility:public"],
     deps = [
         "@copy_with_extension",

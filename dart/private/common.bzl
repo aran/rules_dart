@@ -3,6 +3,7 @@
 load("//dart:providers.bzl", "CODE_ASSET_LINK_MODES", "DartCodeAssetInfo", "DartInfo", "DartPackageMetadataInfo")
 load("//dart/private:dart_info.bzl", "dart_package_info", "derived_package_info", "package_info_from_metadata", "package_lib_prefix")
 load("//dart/private:exec_groups.bzl", "PORTABLE", "portable_sdk")
+load("//dart/private:package_root.bzl", "derive_package_root")
 load("//dart/private:resources.bzl", "kernel_resources")
 load("//dart/private:source_set.bzl", "needs_source_assembly", "package_for_index", "package_index")
 
@@ -356,40 +357,119 @@ def codegen_language_version(ctx, identity):
     """
     return identity.language_version or default_language_version(portable_sdk(ctx))
 
-# The attribute every rule that builds part of a Dart package gains, pointing at
-# the one `dart_package_metadata` that declares the package's facts.
-PACKAGE_IDENTITY_ATTRS = {
-    "package": attr.label(
-        providers = [DartPackageMetadataInfo],
-        doc = "The `dart_package_metadata` declaring the Dart package this target is part of: its name, language version, license, hooks and code assets. Every target of a package names the same one. Unset, the target's package is named after its root's directory and states nothing else.",
-    ),
-}
+def package_identity_attrs(mandatory = False, doc = None):
+    """The `package` attribute every rule that builds part of a Dart package gains.
 
-def resolve_package_identity(ctx):
-    """Resolves the package a rule's target is part of, from its `package`.
+    It points at the one `dart_package_metadata` that declares the package's
+    facts. A rule merges the result into its `attrs`, so every rule set declares
+    the same attribute and cannot drift from it.
 
     Args:
-      ctx: The rule context. Must declare `package` (`PACKAGE_IDENTITY_ATTRS`).
+      mandatory: Whether the target must name a declaration. Unset, a target
+        naming none is named after its root's directory and states nothing else.
+      doc: The attribute's documentation, for a rule that says more of its
+        package than the default does. The default describes the declaration.
 
     Returns:
-      `struct(metadata, package_name, language_version)`: the
-      `DartPackageMetadataInfo` the target names and its two facts; when it
-      names none, `None`, the name of its root's directory
-      (`derive_package_name`) and "".
+      A dict with the one attribute, `package`.
     """
-    declaration = ctx.attr.package
-    if declaration == None:
+    return {
+        "package": attr.label(
+            providers = [DartPackageMetadataInfo],
+            mandatory = mandatory,
+            doc = doc or ("The `dart_package_metadata` declaring the Dart package this target is part of: its name, language version, license, hooks and code assets. Every target of a package names the same one." +
+                          ("" if mandatory else " Unset, the target's package is named after its root's directory and states nothing else.")),
+        ),
+    }
+
+def resolve_package_identity(ctx, metadata = None):
+    """Resolves the package a rule's target is part of.
+
+    From its `package` attribute, or from `metadata` when the declaration comes
+    from elsewhere: a test built in its application's package names the
+    application's.
+
+    Args:
+      ctx: The rule context. Declares `package` (`package_identity_attrs()`)
+        unless `metadata` is passed.
+      metadata: The `DartPackageMetadataInfo` the target belongs to, when it
+        does not come from `package`. If the rule's `package` is also set it
+        must name the same declaration, or the build fails.
+
+    Returns:
+      `struct(metadata, package_name, language_version, package_root,
+      license_file)`. With a declaration: it and its facts, and its directory as
+      `package_root`. Without one: `metadata` `None`, `package_name` the name of
+      the target's root directory (`derive_package_name`), `language_version`
+      "", `license_file` `None`, and `package_root` the root a `dart_library`
+      in the target's BUILD directory would take (`derive_package_root`, which
+      fails where `lib` makes it ambiguous). A library's own root is
+      `library_package`'s, which also reads its files.
+    """
+    named = getattr(ctx.attr, "package", None)
+    if named != None:
+        named = named[DartPackageMetadataInfo]
+        if metadata == None:
+            metadata = named
+        elif metadata.label != named.label:
+            fail(("%s: `package` names %s, but the package this target belongs " +
+                  "to is declared by %s. Drop `package`, or name the same " +
+                  "declaration.") % (ctx.label, named.label, metadata.label))
+    if metadata == None:
         return struct(
             metadata = None,
             package_name = derive_package_name("", ctx.label.package, ctx.label.name),
             language_version = "",
+            package_root = derive_package_root(ctx.label.workspace_root, ctx.label.package),
+            license_file = None,
         )
-    declared = declaration[DartPackageMetadataInfo]
     return struct(
-        metadata = declared,
-        package_name = declared.package_name,
-        language_version = declared.language_version,
+        metadata = metadata,
+        package_name = metadata.package_name,
+        language_version = metadata.language_version,
+        package_root = metadata.package_root,
+        license_file = metadata.license_file,
     )
+
+def identity_package_record(label, identity, package_root):
+    """The `DartPackageInfo` of a target of the package an identity names, rooted at `package_root`.
+
+    Every fact comes from the declaration when there is one; otherwise the
+    record has the name and the root and states nothing else.
+
+    Args:
+      label: The target's label, recorded as the record's `label`.
+      identity: The target's `resolve_package_identity` result.
+      package_root: Where the package's sources are.
+
+    Returns:
+      A `DartPackageInfo`.
+    """
+    if identity.metadata != None:
+        return package_info_from_metadata(label, identity.metadata, package_root)
+    return dart_package_info(
+        label = label,
+        package_name = identity.package_name,
+        package_root = package_root,
+        language_version = "",
+    )
+
+def executable_package_record(label, identity):
+    """The `DartPackageInfo` of an executable that is part of the package an identity names.
+
+    An executable belongs to its package wherever its BUILD file is, so the
+    record is rooted at the identity's `package_root`: the declaration's
+    directory, or the target's own when it names none.
+
+    Args:
+      label: The executable's label, recorded as the record's `label`.
+      identity: Its `resolve_package_identity` result.
+
+    Returns:
+      A `DartPackageInfo`, the one a `dart_library` of the same declaration
+      builds, rooted at the same place.
+    """
+    return identity_package_record(label, identity, identity.package_root)
 
 def codegen_identity(identity):
     """The `DartPackageMetadataInfo` a codegen rule returns for the library collecting its outputs.
@@ -551,39 +631,49 @@ def package_agreement_error(merged):
     return "\n".join(blocks)
 
 def _metadata_agreement_error(merged):
-    """Reports records of one package, at one root, that name different declarations.
+    """Reports records at one root that name different declarations.
 
-    Records at one root are one producer's targets of one package, which name
-    its one `dart_package_metadata`. Records at different roots (two pub hubs
-    each supplying a package) are compared by value instead.
+    A root has one `dart_package_metadata`, so every record rooted there that
+    names one names the same, whatever package name each declaration states:
+    two declarations for one root, in one BUILD file or one at the root and one
+    under `lib/`, are refused wherever their targets meet. A record naming none
+    is refused beside a declaration of its own package name. Records at
+    different roots (two pub hubs each supplying a package) are compared by
+    value instead.
     """
 
-    # (name, root) -> {metadata label or None: first target naming it}
-    stated = {}
+    # root -> {metadata label: first record naming it}, and
+    # root -> {package name: first record naming no declaration}
+    declared = {}
+    undeclared = {}
     order = []
     for pkg in merged:
-        key = (pkg.package_name, pkg.package_root)
-        seen = stated.get(key)
-        if seen == None:
-            seen = {}
-            stated[key] = seen
-            order.append(key)
+        root = pkg.package_root
+        if root not in declared:
+            declared[root] = {}
+            undeclared[root] = {}
+            order.append(root)
         metadata = getattr(pkg, "metadata", None)
-        if metadata not in seen:
-            seen[metadata] = getattr(pkg, "label", None)
+        if metadata != None:
+            declared[root].setdefault(metadata, pkg)
+        else:
+            undeclared[root].setdefault(pkg.package_name, pkg)
     reported = []
-    for key in order:
-        seen = stated[key]
-        if len(seen) < 2:
+    for root in order:
+        names = {pkg.package_name: True for pkg in declared[root].values()}
+        clashes = [pkg for name, pkg in undeclared[root].items() if name in names]
+        if len(declared[root]) < 2 and not clashes:
             continue
+        entries = [(str(m), pkg) for m, pkg in declared[root].items()] + [("none", pkg) for pkg in clashes]
         reported.append(
-            "Package \"%s\" rooted at `%s` is built by targets naming different `dart_package_metadata`:\n" % (key[0], key[1] or ".") +
+            "The package rooted at `%s` is built by targets naming different `dart_package_metadata`:\n" % (root or ".") +
             "".join([
-                "  - %s, named by %s\n" % (
-                    "none" if m == None else str(m),
-                    seen[m] if seen[m] != None else "a target",
+                "  - %s (package \"%s\"), named by %s\n" % (
+                    m,
+                    pkg.package_name,
+                    getattr(pkg, "label", None) or "a target",
                 )
-                for m in sorted(seen.keys(), key = lambda m: "" if m == None else str(m))
+                for m, pkg in sorted(entries, key = lambda e: "" if e[0] == "none" else e[0])
             ]),
         )
     if not reported:

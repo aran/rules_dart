@@ -35,7 +35,7 @@ Usage:
         src = "lib/user.dart",
         generator_bin = "@rules_dart//dart/ext/json_serializable:shim",
         output_suffixes = [".json_serializable.g.part"],
-        package = ":pubspec",
+        package = ":pubspec-metadata",
         deps = [
             ":models",                          # same-package sibling
             "@pub_deps//:json_annotation",      # import source
@@ -61,17 +61,16 @@ cost is amortised across the worker's lifetime.
 load("//dart:providers.bzl", "DartInfo")
 load(
     "//dart/private:common.bzl",
-    "PACKAGE_IDENTITY_ATTRS",
     "PATH_MAPPING",
     "add_shim_contract_args",
     "asset_path_for",
     "codegen_identity",
     "dart_package_root_for_package",
+    "package_identity_attrs",
     "resolve_package_identity",
     "same_package_library_dep_files",
     "synth_package_config",
 )
-load("//dart/private:dart_library.bzl", "derive_package_root")
 load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS", "portable_sdk")
 load("//dart/private:runtime.bzl", "non_dart_transition")
 
@@ -121,14 +120,9 @@ def _dart_codegen_impl(ctx):
         ctx.attr.deps,
         identity.package_name,
     )
-    if identity.metadata != None:
-        package_root = identity.metadata.package_root
-    elif package_root_from_deps != None:
+    package_root = identity.package_root
+    if identity.metadata == None and package_root_from_deps != None:
         package_root = package_root_from_deps
-    else:
-        # The root a `dart_library` beside this target would take, also when
-        # the target sits in a directory under the package's `lib/`.
-        package_root = derive_package_root(ctx.label.workspace_root, ctx.label.package)
 
     # Auto-stage same-package sibling files discovered in `deps` so builders
     # (stacked, mockito, cross-file resolvers, …) see them via the Resolver /
@@ -335,7 +329,7 @@ dart_codegen = rule(
                   "through `package:build`), use `data`.",
             allow_files = True,
         ),
-    } | PACKAGE_IDENTITY_ATTRS,
+    } | package_identity_attrs(),
     exec_groups = PORTABLE_EXEC_GROUPS,
     doc = "Runs a per-file Dart code generator, producing one or more " +
           "sibling outputs per input.",

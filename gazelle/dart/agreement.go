@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/bazelbuild/bazel-gazelle/config"
@@ -90,6 +91,12 @@ func (d *dartLang) checkAgreement(args language.GenerateArgs) {
 	name := []statement{}
 	version := []statement{}
 	if decl := packageDeclAt(args.Config, root); decl != nil {
+		if len(decl.Others) > 0 && args.Rel == root {
+			d.errs.add(fmt.Sprintf(
+				"dart: %s: the BUILD file declares the package with more than one dart_package_metadata (%s); a package has one",
+				dirName(args.Rel), strings.Join(append([]string{decl.Name}, decl.Others...), ", "),
+			))
+		}
 		where := "dart_package_metadata " + decl.label() + " (`# keep`)"
 		if decl.KeepName {
 			name = append(name, statement{decl.PackageName, where})

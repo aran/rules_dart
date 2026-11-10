@@ -66,7 +66,6 @@ formatted_test(
     for target in [
         "stated_main",
         "stated_test",
-        "meta_test",
         "stated_js",
         "stated_wasm",
     ]

@@ -1,0 +1,15 @@
+load("//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "license_file_facade",
+    tags = ["manual"],
+)
+
+dart_library(
+    name = "facade",
+    package = ":pubspec-metadata",
+    tags = ["manual"],
+    visibility = ["//dart/tests/license_file_fixture:__pkg__"],
+    deps = ["//dart/tests/license_file_fixture:sibling"],
+)

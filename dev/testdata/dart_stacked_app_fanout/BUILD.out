@@ -4,7 +4,7 @@ load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library", "dart_package
 # gazelle:dart_language_version 3.11
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "stacked_fanout",
     language_version = "3.11",
     visibility = ["//:__subpackages__"],
@@ -15,7 +15,7 @@ dart_codegen(
     src = "lib/app.dart",
     generator_bin = "@rules_dart//dart/ext/stacked:shim_bottomsheet",
     output_suffixes = [".bottomsheets.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     deps = ["@stacked"],
 )
 
@@ -24,7 +24,7 @@ dart_codegen(
     src = "lib/app.dart",
     generator_bin = "@rules_dart//dart/ext/stacked:shim_dialog",
     output_suffixes = [".dialogs.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     deps = ["@stacked"],
 )
 
@@ -33,7 +33,7 @@ dart_codegen(
     src = "lib/app.dart",
     generator_bin = "@rules_dart//dart/ext/stacked:shim_locator",
     output_suffixes = [".locator.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     deps = ["@stacked"],
 )
 
@@ -42,7 +42,7 @@ dart_codegen(
     src = "lib/app.dart",
     generator_bin = "@rules_dart//dart/ext/stacked:shim_logger",
     output_suffixes = [".logger.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     deps = ["@stacked"],
 )
 
@@ -51,7 +51,7 @@ dart_codegen(
     src = "lib/app.dart",
     generator_bin = "@rules_dart//dart/ext/stacked:shim_router",
     output_suffixes = [".router.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     deps = ["@stacked"],
 )
 
@@ -65,7 +65,7 @@ dart_library(
         ":_app_stacked_app_logger_gen",
         ":_app_stacked_app_router_gen",
     ],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     visibility = ["//visibility:public"],
     deps = ["@stacked"],
 )

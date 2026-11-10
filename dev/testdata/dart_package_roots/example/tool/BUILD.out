@@ -3,5 +3,5 @@ load("@rules_dart//dart:defs.bzl", "dart_binary")
 dart_binary(
     name = "check",
     main = "check.dart",
-    package = "//example:pubspec",
+    package = "//example:pubspec-metadata",
 )

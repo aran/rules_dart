@@ -6,7 +6,7 @@ load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_code
 # gazelle:dart_builder_config JsonSerializable {"field_rename": "snake"}
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "builder_config_fixture",
     language_version = "3.11",
     visibility = ["//:__subpackages__"],
@@ -17,7 +17,7 @@ json_serializable_codegen(
     srcs = ["lib/user.dart"],
     annotation_dep = "@json_annotation",
     config = "{\"field_rename\": \"snake\"}",
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     deps = ["@json_annotation"],
 )
 
@@ -27,7 +27,7 @@ dart_library(
         "lib/user.dart",
         ":user_codegen",
     ],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     visibility = ["//visibility:public"],
     deps = ["@json_annotation"],
 )

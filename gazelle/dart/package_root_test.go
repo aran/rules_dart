@@ -141,7 +141,7 @@ func TestPlaceOf(t *testing.T) {
 
 	// A `dart_package_metadata` roots a package as a pubspec.yaml does, and
 	// the innermost of the two wins.
-	c.Exts[extKeyPackageDecl] = &packageDecl{Rel: "pkg/vendored", Name: "pubspec"}
+	c.Exts[extKeyPackageDecl] = &packageDecl{Rel: "pkg/vendored", Name: "pubspec-metadata"}
 	for _, tt := range []struct{ rel, root string }{
 		{"pkg/vendored", "pkg/vendored"},
 		{"pkg/vendored/tool", "pkg/vendored"},

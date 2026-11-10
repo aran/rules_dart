@@ -3,6 +3,6 @@ load("@rules_dart//dart:defs.bzl", "dart_binary")
 dart_binary(
     name = "gen",
     main = "gen.dart",
-    package = "//:pubspec",
+    package = "//:pubspec-metadata",
     deps = ["//:app"],
 )

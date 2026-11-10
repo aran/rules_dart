@@ -5,12 +5,19 @@ load(":dart_module.bzl", "vm_kernel_sdk", "vm_program_kernel_sdk")
 load(":runtime.bzl", "target_runtime")
 
 bzl_library(
+    name = "package_root",
+    srcs = ["package_root.bzl"],
+    visibility = ["//dart:__subpackages__"],
+)
+
+bzl_library(
     name = "common",
     srcs = ["common.bzl"],
     visibility = ["//dart:__subpackages__"],
     deps = [
         ":dart_info",
         ":exec_groups",
+        ":package_root",
         ":resources",
         ":source_set",
         "//dart:providers",
@@ -49,8 +56,11 @@ bzl_library(
     srcs = ["dart_library.bzl"],
     visibility = ["//dart:__subpackages__"],
     deps = [
+        ":common",
+        ":dart_import_check",
         ":dart_info",
         ":exec_groups",
+        ":package_root",
         ":runtime",
         "//dart:providers",
     ],
@@ -348,7 +358,7 @@ bzl_library(
     visibility = ["//dart:__subpackages__"],
     deps = [
         ":dart_info",
-        ":dart_library",
+        ":package_root",
         "//dart:providers",
     ],
 )

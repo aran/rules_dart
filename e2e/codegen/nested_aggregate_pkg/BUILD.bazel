@@ -11,7 +11,7 @@ exports_files(
 
 # Stated once, for the rules here and the ones in `gen/`.
 dart_package_metadata(
-    name = "pkg",
+    name = "pubspec-metadata",
     package_name = "nested_aggregate_fixture",
     language_version = "3.11",
     visibility = ["//nested_aggregate_pkg/gen:__pkg__"],
@@ -20,6 +20,6 @@ dart_package_metadata(
 dart_library(
     name = "item_lib",
     srcs = ["lib/item.dart"],
-    package = ":pkg",
+    package = ":pubspec-metadata",
     visibility = ["//nested_aggregate_pkg/gen:__pkg__"],
 )

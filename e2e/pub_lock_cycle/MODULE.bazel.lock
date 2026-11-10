@@ -245,7 +245,7 @@
     },
     "@@rules_dart+//dart/pub:extensions.bzl%pub": {
       "general": {
-        "bzlTransitiveDigest": "mzh8lHdHFVgoqukcjdMO7iE44pcHm4JDYGydX7nOM3I=",
+        "bzlTransitiveDigest": "GRuVqlCd8pzciKIkpL14FP4MeKeh9zw9EEVaUM7nLXg=",
         "usagesDigest": "38y6fgZ0c1kFusDWnY6Tx0eu7aBOTbMa/ayxIUOp1WA=",
         "recordedInputs": [
           "REPO_MAPPING:rules_dart+,bsd_tar_toolchains_darwin_amd64 tar.bzl++toolchains+bsd_tar_toolchains_darwin_amd64",
@@ -2056,7 +2056,8 @@
             "attributes": {
               "package_name": "ping",
               "version": "1.0.0",
-              "directory": "/Users/aran/Projects/rules_dart/e2e/pub_lock_cycle/ping",
+              "lock": "@@//:pubspec.lock",
+              "path": "ping",
               "code_assets": [],
               "ignore_hook": false
             }
@@ -2073,7 +2074,8 @@
             "attributes": {
               "package_name": "pong",
               "version": "1.0.0",
-              "directory": "/Users/aran/Projects/rules_dart/e2e/pub_lock_cycle/pong",
+              "lock": "@@//:pubspec.lock",
+              "path": "pong",
               "code_assets": [],
               "ignore_hook": false
             }

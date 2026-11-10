@@ -15,7 +15,7 @@ exports_files(
 # reference this rather than repeating them, which is the case no macro can
 # cover: a macro cannot emit targets into two BUILD files.
 dart_package_metadata(
-    name = "pkg",
+    name = "pubspec-metadata",
     package_name = "sibling_aggregate_fixture",
     language_version = "3.11",
     visibility = ["//sibling_aggregate_pkg/gen:__pkg__"],
@@ -24,6 +24,6 @@ dart_package_metadata(
 dart_library(
     name = "item_lib",
     srcs = ["lib/item.dart"],
-    package = ":pkg",
+    package = ":pubspec-metadata",
     visibility = ["//sibling_aggregate_pkg/gen:__pkg__"],
 )

@@ -15,7 +15,7 @@ load(
 )
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "stacked_fixture",
     language_version = "3.11",
 )
@@ -44,7 +44,7 @@ stacked_locator_codegen(
     srcs = ["lib/app.dart"],
     annotation_dep = "@pub_deps//:stacked_shared",
     asset_deps = ["lib/services.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
 )
 
 dart_library(
@@ -55,7 +55,7 @@ dart_library(
         "lib/services.dart",
         ":app_locator",
     ],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     visibility = ["//visibility:public"],
     deps = ["@pub_deps//:stacked_shared"],
 )
@@ -77,7 +77,7 @@ stacked_router_codegen(
     srcs = ["lib/app.dart"],
     annotation_dep = "@pub_deps//:stacked_shared",
     asset_deps = ["lib/services.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
 )
 
 stacked_dialog_codegen(
@@ -85,7 +85,7 @@ stacked_dialog_codegen(
     srcs = ["lib/app.dart"],
     annotation_dep = "@pub_deps//:stacked_shared",
     asset_deps = ["lib/services.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
 )
 
 stacked_bottomsheet_codegen(
@@ -93,7 +93,7 @@ stacked_bottomsheet_codegen(
     srcs = ["lib/app.dart"],
     annotation_dep = "@pub_deps//:stacked_shared",
     asset_deps = ["lib/services.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
 )
 
 stacked_logger_codegen(
@@ -101,7 +101,7 @@ stacked_logger_codegen(
     srcs = ["lib/app.dart"],
     annotation_dep = "@pub_deps//:stacked_shared",
     asset_deps = ["lib/services.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
 )
 
 dart_test(
@@ -154,7 +154,7 @@ stacked_form_codegen(
     name = "login_view_form",
     srcs = ["lib/login_view.dart"],
     annotation_dep = "@pub_deps//:stacked_shared",
-    package = ":pubspec",
+    package = ":pubspec-metadata",
 )
 
 dart_test(

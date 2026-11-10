@@ -236,13 +236,17 @@ therefore be split over several BUILD files, each `dart_library` holding the
 files beside it.
 
 What `pubspec.yaml` says about a package (its name, its language version, its
-hooks, its license) is stated once, on a `dart_package_metadata` at the
-package's root, and every target of the package names it with `package`:
+hooks, its license) is stated once, on a `dart_package_metadata`, and every
+target of the package names it with `package`. Its name is yours to choose. It
+declares the package rooted at its BUILD file's directory, or, in a BUILD file
+under `lib/`, at the directory above that `lib`. A package has one, as it has
+one `pubspec.yaml`: a program, test, library or analysis that reaches targets
+naming two declarations for one root fails, naming both.
 
 ```starlark
 # greeter/BUILD.bazel
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "greeter",
     language_version = "3.11",
     license_file = "LICENSE",
@@ -252,7 +256,7 @@ dart_package_metadata(
 dart_library(
     name = "greeter",
     srcs = ["lib/greeter.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     deps = ["//greeter/lib/src/model"],
 )
 
@@ -260,7 +264,7 @@ dart_library(
 dart_library(
     name = "model",
     srcs = ["model.dart"],
-    package = "//greeter:pubspec",
+    package = "//greeter:pubspec-metadata",
 )
 ```
 
@@ -865,12 +869,12 @@ Add directives as comments in a `BUILD.bazel` file to control generation:
 
 #### pubspec.yaml and the package's metadata
 
-Gazelle states a package's facts once, on a `dart_package_metadata` named
-`pubspec` in the BUILD file at its root (`pubspec_metadata` for a package
-itself named `pubspec`), and every rule it writes for the package names it with
+Gazelle states a package's facts once, on the package's one
+`dart_package_metadata` in the BUILD file at its root, which it names
+`pubspec-metadata`, and every rule it writes for the package names it with
 `package`: the library and codegen targets, and the binaries and tests in
 every directory of the package, its root, `bin/`, `test/`, `tool/` and the
-rest (`package = "//my_app:pubspec"`). It writes there:
+rest (`package = "//my_app:pubspec-metadata"`). It writes there:
 
 - `package_name` and `language_version`: from a `pubspec.yaml` at the root
   (`name`, and the lower bound of `environment.sdk`), or the directives
@@ -886,9 +890,10 @@ with codegen targets gets one stating its library's name.
 
 **The attributes above are output: each run rewrites them from
 `pubspec.yaml`, the directives and the package's files, and `# keep` on one
-makes it yours.** A `dart_package_metadata` already at the root, under any
-name, is the package's: Gazelle merges into it and keeps what it does not
-write (`code_assets`, `version`). One with no `pubspec.yaml` or directive
+makes it yours.** A `dart_package_metadata` already at the root is the
+package's, whatever its name: Gazelle merges into it and keeps what it does not
+write (`code_assets`, `version`), and fails when the root's BUILD file holds
+two. One with no `pubspec.yaml` or directive
 beside it is itself the source of its name and version. A `# keep` attribute,
 a directive and the `pubspec.yaml` must agree: where two state a package's name
 or language version differently, Gazelle reports each disagreement, naming both
@@ -1111,7 +1116,7 @@ load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_aggregate_codegen")
 dart_codegen(
     name = "user_g",
     src = "lib/user.dart",
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     generator_bin = "@rules_dart//dart/ext/json_serializable:shim",
     output_suffixes = [".json_serializable.g.part"],
     deps = [
@@ -1123,7 +1128,7 @@ dart_codegen(
 dart_aggregate_codegen(
     name = "routes",
     srcs = glob(["lib/**/*.dart"]),
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     generator_bin = "//tools:route_shim",
     outputs = ["lib/router.gr.dart"],
     deps = [":my_lib"],
@@ -1168,13 +1173,13 @@ json_serializable_codegen(
     name = "user_codegen",
     srcs = ["lib/user.dart"],
     asset_deps = ["lib/role.dart"],  # the package's files user.dart imports
-    package = ":pubspec",
+    package = ":pubspec-metadata",
 )
 
 dart_library(
     name = "my_pkg",
     srcs = ["lib/role.dart", "lib/user.dart", ":user_codegen"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     deps = ["@pub_deps//:json_annotation"],
 )
 ```
@@ -1202,7 +1207,7 @@ and the format check assume too.
 load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library", "dart_package_metadata")
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "my_pkg",
     language_version = "3.11",
 )
@@ -1210,7 +1215,7 @@ dart_package_metadata(
 dart_codegen(
     name = "user_g",
     src = "lib/user.dart",
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     generator = "//tools:gen.dart",
     output_suffixes = [".g.dart"],
 )
@@ -1218,7 +1223,7 @@ dart_codegen(
 dart_library(
     name = "my_lib",
     srcs = ["lib/user.dart", ":user_g"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
 )
 ```
 
@@ -1236,14 +1241,14 @@ Dart gives every file under a package's root to that package, `bin/` and
 version. A `dart_binary`, `dart_test`, `dart_js_binary` or `dart_wasm_binary`
 says which package it is in by naming the package's `dart_package_metadata`
 with `package`, as a library does. Its package is then rooted at the
-declaration's directory, wherever the executable's own BUILD file is:
+declaration's package root, wherever the executable's own BUILD file is:
 
 ```starlark
 # greeter/test/BUILD.bazel
 dart_test(
     name = "greeter_test",
     main = "greeter_test.dart",
-    package = "//greeter:pubspec",
+    package = "//greeter:pubspec-metadata",
     deps = ["//greeter", "@pub_deps//:test"],
 )
 ```
@@ -1642,7 +1647,11 @@ names. Every `code_assets` entry provides `DartCodeAssetInfo`, which
   runs the code, or in the `dart_package_metadata` of the package that owns the
   bindings, from where it reaches every binary and test depending on any
   library of that package, and every one in the package (its `package`), as
-  upstream treats the root package like any other. A binary's libraries
+  upstream treats the root package like any other. A package has one `dart_package_metadata`, so its
+  assets are one set for all its libraries; assets that differ between programs
+  (a test's stub library, a build for another platform) are not a fact of the
+  package, and are the `code_assets` of the executable, which replace the
+  package's by id. Do not declare a second `dart_package_metadata` to vary them. A binary's libraries
   are linked into `<name>.native/` beside the executable, which must be
   installed with it (`cp -RL`, since they are links); a test finds them in
   runfiles.
@@ -1667,7 +1676,7 @@ names. Every `code_assets` entry provides `DartCodeAssetInfo`, which
 
   ```starlark
   dart_package_metadata(
-      name = "pubspec",
+      name = "pubspec-metadata",
       package_name = "bindings",
       build_hook = "hook/build.dart",
       code_assets = [":counter_asset"],
@@ -1676,7 +1685,7 @@ names. Every `code_assets` entry provides `DartCodeAssetInfo`, which
   dart_library(
       name = "bindings",
       srcs = glob(["lib/**/*.dart"]),
-      package = ":pubspec",
+      package = ":pubspec-metadata",
   )
   ```
 - A build tool that never loads native code sets `code_assets_from_deps = False`
@@ -1716,7 +1725,7 @@ over them and collects the data assets they emit.
 load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_library", "dart_link_hook", "dart_package_metadata")
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "glyphs",
     link_hook = "hook/link.dart",
 )
@@ -1724,7 +1733,7 @@ dart_package_metadata(
 dart_library(
     name = "glyphs",
     srcs = glob(["lib/**/*.dart"]),
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     deps = ["@pub_deps//:data_assets", "@pub_deps//:hooks", "@pub_deps//:meta", "@pub_deps//:record_use"],
 )
 

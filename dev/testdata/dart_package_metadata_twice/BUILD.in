@@ -1,0 +1,11 @@
+load("@rules_dart//dart:defs.bzl", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "twice",
+)
+
+dart_package_metadata(
+    name = "again",
+    package_name = "twice",
+)

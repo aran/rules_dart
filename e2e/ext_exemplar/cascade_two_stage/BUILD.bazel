@@ -12,7 +12,7 @@ load(
 )
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "cascade_two_stage",
 )
 
@@ -26,7 +26,7 @@ dart_codegen(
     src = "lib/event.dart",
     generator_bin = "@rules_dart//dart/ext/freezed:shim",
     output_suffixes = [".freezed.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     deps = _ANN_DEPS,
 )
 
@@ -36,7 +36,7 @@ dart_codegen(
     asset_deps = [":_event_freezed"],
     generator_bin = "@rules_dart//dart/ext/json_serializable:shim",
     output_suffixes = [".json_serializable.g.part"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     deps = _ANN_DEPS,
 )
 
@@ -45,7 +45,7 @@ dart_codegen(
     src = "lib/event.dart",
     generator_bin = "@rules_dart//dart/ext/combining_shim:bin",
     output_suffixes = [".g.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     parts = [":_event_json_part"],
 )
 
@@ -56,7 +56,7 @@ dart_library(
         ":_event_combined",
         ":_event_freezed",
     ],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     visibility = ["//visibility:public"],
     deps = _ANN_DEPS,
 )

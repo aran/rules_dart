@@ -1,7 +1,7 @@
 load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "app_example",
     visibility = ["//example:__subpackages__"],
 )
@@ -9,7 +9,7 @@ dart_package_metadata(
 dart_library(
     name = "app_example",
     srcs = ["lib/app_example.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     visibility = ["//visibility:public"],
     deps = ["//:app"],
 )

@@ -1,62 +1,11 @@
-load("//dart:defs.bzl", "dart_library", "dart_package_metadata", "dart_source_set")
+load("//dart:defs.bzl", "dart_library")
+
+# Each package that is not this one has its own directory, with its own
+# `dart_package_metadata`: `base/`, `user/` (depends on base), `tree/` (a
+# `dart_source_set`) and `tree_user/` (depends on tree).
 
 dart_library(
     name = "lone_lib",
     srcs = ["lib/x.dart"],
     visibility = ["//dart/tests:__pkg__"],
-)
-
-dart_package_metadata(
-    name = "base_lib_pubspec",
-    package_name = "import_check_base",
-)
-
-dart_library(
-    name = "base_lib",
-    srcs = ["lib/base.dart"],
-    package = ":base_lib_pubspec",
-    visibility = ["//dart/tests:__pkg__"],
-)
-
-dart_package_metadata(
-    name = "user_lib_pubspec",
-    package_name = "import_check_user",
-)
-
-dart_library(
-    name = "user_lib",
-    srcs = ["lib/user.dart"],
-    package = ":user_lib_pubspec",
-    visibility = ["//dart/tests:__pkg__"],
-    deps = [":base_lib"],
-)
-
-dart_source_set(
-    name = "tree_set",
-    srcs = ["lib/tree.dart"],
-)
-
-dart_package_metadata(
-    name = "tree_lib_pubspec",
-    package_name = "import_check_tree",
-)
-
-dart_library(
-    name = "tree_lib",
-    package = ":tree_lib_pubspec",
-    srcs_dir = ":tree_set",
-    visibility = ["//dart/tests:__pkg__"],
-)
-
-dart_package_metadata(
-    name = "tree_user_lib_pubspec",
-    package_name = "import_check_tree_user",
-)
-
-dart_library(
-    name = "tree_user_lib",
-    srcs = ["lib/tree_user.dart"],
-    package = ":tree_user_lib_pubspec",
-    visibility = ["//dart/tests:__pkg__"],
-    deps = [":tree_lib"],
 )

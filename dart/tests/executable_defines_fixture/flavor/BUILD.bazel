@@ -1,13 +1,13 @@
 load("//dart:defs.bzl", "dart_library", "dart_package_metadata")
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "executable_defines_flavor",
 )
 
 dart_library(
     name = "flavor",
     srcs = ["lib/flavor.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     visibility = ["//dart/tests/executable_defines_fixture:__pkg__"],
 )

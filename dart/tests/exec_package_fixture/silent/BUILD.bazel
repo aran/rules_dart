@@ -8,7 +8,7 @@ dart_library(
 )
 
 dart_package_metadata(
-    name = "loud_pubspec",
+    name = "pubspec-metadata",
     package_name = "silent",
     language_version = "3.6",
     tags = ["manual"],
@@ -20,7 +20,7 @@ dart_package_metadata(
 dart_binary(
     name = "loud",
     main = "bin/loud.dart",
-    package = ":loud_pubspec",
+    package = ":pubspec-metadata",
     tags = ["manual"],
     deps = [":silent"],
 )
@@ -28,7 +28,7 @@ dart_binary(
 executable_package_refused_test(
     name = "loud_test",
     size = "small",
-    message = "Package \"silent\" rooted at `dart/tests/exec_package_fixture/silent` is built by targets naming different `dart_package_metadata`:\n  - none, named by @@//dart/tests/exec_package_fixture/silent:silent\n  - @@//dart/tests/exec_package_fixture/silent:loud_pubspec, named by @@//dart/tests/exec_package_fixture/silent:loud\n",
+    message = "The package rooted at `dart/tests/exec_package_fixture/silent` is built by targets naming different `dart_package_metadata`:\n  - none (package \"silent\"), named by @@//dart/tests/exec_package_fixture/silent:silent\n  - @@//dart/tests/exec_package_fixture/silent:pubspec-metadata (package \"silent\"), named by @@//dart/tests/exec_package_fixture/silent:loud\n",
     target_under_test = ":loud",
 )
 
@@ -36,7 +36,7 @@ executable_package_refused_test(
 dart_binary(
     name = "outside",
     main = "//dart/tests/exec_package_fixture:test/member_test.dart",
-    package = ":loud_pubspec",
+    package = ":pubspec-metadata",
     tags = ["manual"],
     deps = ["//dart/tests/exec_package_fixture:lib"],
 )

@@ -3,7 +3,7 @@ load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_package_metadata")
 load(":transition.bzl", "build_under_platform")
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "foreign_platform_fixture",
     language_version = "3.11",
 )
@@ -35,7 +35,7 @@ dart_codegen(
     src = "lib/model.dart",
     generator = "//tools:lib_gen.dart",
     output_suffixes = [".g.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
 )
 
 # Force the codegen target onto the toolchain-less platform.

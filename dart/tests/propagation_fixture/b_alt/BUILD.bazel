@@ -9,7 +9,7 @@ dart_code_asset(
 )
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "prop_b",
     code_assets = [":alt_code_asset"],
     tags = ["manual"],
@@ -17,7 +17,7 @@ dart_package_metadata(
 
 dart_library(
     name = "b_alt",
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     tags = ["manual"],
     visibility = ["//dart/tests:__subpackages__"],
 )

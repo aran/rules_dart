@@ -9,7 +9,7 @@ load(
 )
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "unique_extension",
 )
 
@@ -18,7 +18,7 @@ dart_codegen(
     src = "lib/event.dart",
     generator_bin = "@rules_dart//dart/ext/freezed:shim",
     output_suffixes = [".freezed.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     deps = ["@pub_deps//:freezed_annotation"],
 )
 
@@ -28,7 +28,7 @@ dart_library(
         "lib/event.dart",
         ":_event_freezed_gen",
     ],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     visibility = ["//visibility:public"],
     deps = ["@pub_deps//:freezed_annotation"],
 )

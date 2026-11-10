@@ -31,7 +31,7 @@ Usage:
         generator_bin = "//tools:my_aggregate_shim",
         outputs = ["lib/main.config.dart", "lib/main.module.dart"],
         deps = ["@pub_deps//:my_annotations"],
-        package = ":pubspec",
+        package = ":pubspec-metadata",
     )
 
 `deps` is a list of `dart_library`-shaped targets (anything exporting
@@ -46,18 +46,17 @@ Worker mode (`supports-workers=1`, protobuf, singleplex) is enabled for
 load("//dart:providers.bzl", "DartInfo")
 load(
     "//dart/private:common.bzl",
-    "PACKAGE_IDENTITY_ATTRS",
     "PATH_MAPPING",
     "add_shim_contract_args",
     "asset_path_for",
     "codegen_identity",
     "dart_package_root_for_package",
     "format_literal",
+    "package_identity_attrs",
     "resolve_package_identity",
     "same_package_library_dep_files",
     "synth_package_config",
 )
-load("//dart/private:dart_library.bzl", "derive_package_root")
 load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS", "portable_sdk")
 load("//dart/private:runtime.bzl", "non_dart_transition")
 
@@ -83,14 +82,9 @@ def _dart_aggregate_codegen_impl(ctx):
         ctx.attr.deps,
         identity.package_name,
     )
-    if identity.metadata != None:
-        package_root = identity.metadata.package_root
-    elif package_root_from_deps != None:
+    package_root = identity.package_root
+    if identity.metadata == None and package_root_from_deps != None:
         package_root = package_root_from_deps
-    else:
-        # The root a `dart_library` beside this target would take, also when
-        # the target sits in a directory under the package's `lib/`.
-        package_root = derive_package_root(ctx.label.workspace_root, ctx.label.package)
 
     src_paths = [s.path for s in ctx.files.srcs]
     auto_staged, _ = same_package_library_dep_files(
@@ -240,7 +234,7 @@ dart_aggregate_codegen = rule(
                   "`--dep <exec>|<asset>` using `asset_path_for`.",
             allow_files = True,
         ),
-    } | PACKAGE_IDENTITY_ATTRS,
+    } | package_identity_attrs(),
     exec_groups = PORTABLE_EXEC_GROUPS,
     doc = "Runs a package-level aggregate Dart code generator, producing " +
           "one or more declared outputs per target.",

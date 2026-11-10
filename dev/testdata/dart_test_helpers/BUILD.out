@@ -1,7 +1,7 @@
 load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "helpers_fixture",
     visibility = ["//:__subpackages__"],
 )
@@ -9,6 +9,6 @@ dart_package_metadata(
 dart_library(
     name = "helpers_fixture",
     srcs = ["lib/greeter.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     visibility = ["//visibility:public"],
 )

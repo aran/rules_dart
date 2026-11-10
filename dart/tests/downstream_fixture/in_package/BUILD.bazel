@@ -1,0 +1,21 @@
+load("//dart/tests:downstream_test.bzl", "downstream_record_test")
+load("//dart/tests/downstream_fixture:rules.bzl", "downstream_member")
+
+# A test in a directory of its own, built in its application's package: its
+# package is rooted at the declaration's package root, not at this one.
+downstream_member(
+    name = "in_application_package",
+    application = "//dart/tests/downstream_fixture:application",
+    tags = ["manual"],
+)
+
+downstream_record_test(
+    name = "in_application_package_record_test",
+    size = "small",
+    expected_language_version = "3.9",
+    expected_metadata = "@@//dart/tests/downstream_fixture:pubspec-metadata",
+    expected_package_name = "downstream_pkg",
+    expected_package_root = "dart/tests/downstream_fixture",
+    same_as = "//dart/tests/downstream_fixture:rules_dart_binary",
+    target_under_test = ":in_application_package",
+)

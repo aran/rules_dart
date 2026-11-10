@@ -4,7 +4,7 @@ load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library", "dart_package
 load("//tools:changes.bzl", "dart_changes")
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "fix_dirty",
 )
 
@@ -26,7 +26,7 @@ dart_codegen(
     generator = "//tools:part_gen.dart",
     generator_args = ["--violation"],
     output_suffixes = [".g.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
 )
 
 dart_codegen(
@@ -35,7 +35,7 @@ dart_codegen(
     generator = "//tools:part_gen.dart",
     generator_args = ["--violation"],
     output_suffixes = [".freezed.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
 )
 
 dart_library(
@@ -45,7 +45,7 @@ dart_library(
         ":model_freezed",
         ":model_g",
     ],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     tags = ["no-dart-analyze"],
 )
 

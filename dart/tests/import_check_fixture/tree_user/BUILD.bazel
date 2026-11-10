@@ -1,0 +1,14 @@
+load("//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "import_check_tree_user",
+)
+
+dart_library(
+    name = "tree_user_lib",
+    srcs = ["lib/tree_user.dart"],
+    package = ":pubspec-metadata",
+    visibility = ["//dart/tests:__subpackages__"],
+    deps = ["//dart/tests/import_check_fixture/tree:tree_lib"],
+)

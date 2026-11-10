@@ -12,14 +12,14 @@ load(
 # package's `lib/`, so the aspect reaches it through `DartAnalyzableInfo`.
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "analyzable_dep",
 )
 
 dart_library(
     name = "dep",
     srcs = ["lib/dep.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
 )
 
 dart_binary(

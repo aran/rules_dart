@@ -1,7 +1,7 @@
 load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "generated_hook",
     link_hook = "hook/link.dart",
 )
@@ -21,7 +21,7 @@ dart_library(
         "lib/parts.dart",
         ":names",
     ],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     visibility = ["//visibility:public"],
     deps = [
         "@pub_deps//:data_assets",

@@ -7,7 +7,7 @@ load("//dart:defs.bzl", "dart_binary", "dart_library", "dart_package_metadata")
 load("//dart/tests:license_file_test.bzl", "conflicting_license_test", "records_license_test")
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "license_file_fixture",
     license_file = "LICENSE",
     tags = ["manual"],
@@ -16,7 +16,7 @@ dart_package_metadata(
 dart_library(
     name = "lib",
     srcs = ["lib/fixture.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     tags = ["manual"],
     deps = ["//dart/tests/license_file_fixture/other"],
 )
@@ -36,21 +36,9 @@ records_license_test(
 dart_library(
     name = "sibling",
     srcs = ["lib/fixture.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     tags = ["manual"],
-)
-
-dart_package_metadata(
-    name = "facade_pubspec",
-    package_name = "license_file_facade",
-    tags = ["manual"],
-)
-
-dart_library(
-    name = "facade",
-    package = ":facade_pubspec",
-    tags = ["manual"],
-    deps = [":sibling"],
+    visibility = ["//dart/tests/license_file_fixture/facade:__pkg__"],
 )
 
 records_license_test(
@@ -60,7 +48,7 @@ records_license_test(
         "license_file_facade": "",
         "license_file_fixture": "dart/tests/license_file_fixture/LICENSE",
     },
-    target_under_test = ":facade",
+    target_under_test = "//dart/tests/license_file_fixture/facade",
 )
 
 # A package two producers supply, each stating a different license: rooted

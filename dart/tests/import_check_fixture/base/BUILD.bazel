@@ -1,0 +1,13 @@
+load("//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "import_check_base",
+)
+
+dart_library(
+    name = "base_lib",
+    srcs = ["lib/base.dart"],
+    package = ":pubspec-metadata",
+    visibility = ["//dart/tests:__subpackages__"],
+)

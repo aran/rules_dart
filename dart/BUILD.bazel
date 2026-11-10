@@ -162,6 +162,7 @@ bzl_library(
     srcs = ["repositories.bzl"],
     visibility = ["//visibility:public"],
     deps = [
+        "//dart/private:dart_package_metadata",
         "//dart/private:toolchains_repo",
         "//dart/private:versions",
         "//dart/pub:pubspec",
@@ -214,7 +215,9 @@ bzl_library(
         "//dart/private:dart_coverage",
         "//dart/private:dart_info",
         "//dart/private:dart_library",
+        "//dart/private:dart_package_metadata",
         "//dart/private:exec_groups",
+        "//dart/private:package_root",
         "//dart/private:source_set",
         "//dart/private:runtime",
     ],

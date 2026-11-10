@@ -4,7 +4,7 @@ dart_test(
     name = "event_test",
     srcs = ["fixtures.dart"],
     main = "event_test.dart",
-    package = "//codegen:pubspec",
+    package = "//codegen:pubspec-metadata",
     deps = [
         "//codegen",
         "@pub_deps//:test",
@@ -15,7 +15,7 @@ dart_test(
     name = "profile_test",
     srcs = ["fixtures.dart"],
     main = "profile_test.dart",
-    package = "//codegen:pubspec",
+    package = "//codegen:pubspec-metadata",
     deps = [
         "//codegen",
         "@pub_deps//:test",
@@ -26,7 +26,7 @@ dart_test(
     name = "user_test",
     srcs = ["fixtures.dart"],
     main = "user_test.dart",
-    package = "//codegen:pubspec",
+    package = "//codegen:pubspec-metadata",
     deps = [
         "//codegen",
         "@pub_deps//:test",
@@ -36,7 +36,7 @@ dart_test(
 dart_test(
     name = "browser_only_test",
     main = "browser_only_test.dart",
-    package = "//codegen:pubspec",
+    package = "//codegen:pubspec-metadata",
     target_compatible_with = select({
         "@rules_dart//dart/constraints:vm": [
             "@platforms//:incompatible",
@@ -49,7 +49,7 @@ dart_test(
 dart_test(
     name = "address_test",
     main = "address_test.dart",
-    package = "//codegen:pubspec",
+    package = "//codegen:pubspec-metadata",
     deps = [
         "//codegen",
         "@pub_deps//:test",
@@ -59,7 +59,7 @@ dart_test(
 dart_test(
     name = "member_test",
     main = "member_test.dart",
-    package = "//codegen:pubspec",
+    package = "//codegen:pubspec-metadata",
     deps = [
         "//codegen",
         "@pub_deps//:test",

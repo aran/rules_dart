@@ -4,7 +4,7 @@ dart_test(
     name = "nested_test",
     srcs = ["//test"],
     main = "nested_test.dart",
-    package = "//:pubspec",
+    package = "//:pubspec-metadata",
     deps = [
         "//:helpers_fixture",
         "@meta",

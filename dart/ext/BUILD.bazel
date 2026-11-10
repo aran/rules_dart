@@ -38,7 +38,7 @@ bzl_library(
 )
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "rules_dart_ext",
     language_version = "3.12",
     visibility = ["//visibility:public"],

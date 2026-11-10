@@ -1,0 +1,24 @@
+load("//dart:defs.bzl", "dart_library", "dart_package_metadata")
+load("//dart/tests:link_hook_test.bzl", "misplaced_link_hook_test")
+
+# A link hook that is not the package's `hook/link.dart`, which the declaration
+# refuses.
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "link_hook_misplaced",
+    link_hook = "link.dart",
+    tags = ["manual"],
+)
+
+dart_library(
+    name = "misplaced",
+    srcs = ["lib/fixture.dart"],
+    package = ":pubspec-metadata",
+    tags = ["manual"],
+)
+
+misplaced_link_hook_test(
+    name = "misplaced_link_hook_test",
+    size = "small",
+    target_under_test = ":misplaced",
+)

@@ -353,7 +353,7 @@ def _expect_failure(msg):
     return analysistest.make(_impl, expect_failure = True)
 
 asset_without_hook_test = _expect_failure("which has no link hook in the program's packages")
-own_package_not_named_test = _expect_failure("is the uses of a program in the package declared by `@@//dart/tests/link_hook_fixture:lib_pubspec`, but `package` names none")
+own_package_not_named_test = _expect_failure("is the uses of a program in the package declared by `@@//dart/tests/link_hook_fixture:pubspec-metadata`, but `package` names none")
 malformed_asset_id_test = _expect_failure("is not of the form `package:<package>/<name>`")
 recorded_uses_not_json_test = _expect_failure("must provide `DartRecordedUsesInfo`")
 misplaced_link_hook_test = _expect_failure("`link_hook` must be the package's `hook/link.dart`")

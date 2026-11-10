@@ -3,7 +3,7 @@ load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
 load(":rules.bzl", "colocate")
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "pkg",
 )
 
@@ -19,7 +19,7 @@ dart_library(
         "lib/a.dart",
         ":gen",
     ],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
 )
 
 colocate(

@@ -2,7 +2,7 @@
 
 load("//dart:providers.bzl", "DartCodeAssetInfo", "DartPackageMetadataInfo")
 load("//dart/private:dart_info.bzl", "check_code_asset_ownership")
-load("//dart/private:dart_library.bzl", "locate_package_root")
+load("//dart/private:package_root.bzl", "locate_package_root")
 
 def link_hook_error(label, package_root, link_hook):
     """Checks that a `link_hook` is the package's `hook/link.dart`.
@@ -142,7 +142,7 @@ whichever of its targets a program reaches.
 
 ```starlark
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "my_app",
     language_version = "3.11",
     license_file = "LICENSE",
@@ -150,7 +150,7 @@ dart_package_metadata(
 
 dart_codegen(
     name = "model_g",
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     src = "lib/model.dart",
     generator = "//tools:gen.dart",
     output_suffixes = [".g.dart"],
@@ -158,23 +158,28 @@ dart_codegen(
 
 dart_library(
     name = "my_app",
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     srcs = ["lib/model.dart", ":model_g"],
 )
 ```
 
-Its location is the package root, as a pubspec's directory is: the directory of
-its BUILD file, or the one above the `lib` that BUILD file sits in. A library
+Its name is free. It declares the package rooted at its own directory, or, in
+a BUILD file under `lib/`, at the directory above that `lib`. A package has
+one, as it has one `pubspec.yaml`: a program, test or analysis that reaches
+targets naming two declarations for one root fails, naming both. Facts that differ
+between libraries of the package are not package facts: native assets that
+differ between programs are the `code_assets` of the executable. A library
 naming it must have its sources under that root's `lib/`; an executable naming
 it belongs to the package wherever its own BUILD file is
-(`pkg/test/BUILD.bazel` naming `//pkg:pubspec`), so its entrypoint takes the
+(`pkg/test/BUILD.bazel` naming `//pkg:pubspec-metadata`), so its entrypoint takes the
 package's language version, as Dart gives every file under a pubspec's
 directory. A target naming no `dart_package_metadata` is named after its root's
 directory and states nothing else.
 
-Gazelle writes it at each package root from `pubspec.yaml`, `hook/` and the
-license file, and keeps a hand-written `code_assets`. Pub's spoke repositories
-write one per package.
+Gazelle writes it at each package root, named `pubspec-metadata`, from
+`pubspec.yaml`, `hook/` and the license file; it adopts one already there,
+whatever its name, and keeps a hand-written `code_assets`. Pub's spoke
+repositories write one per package.
 
 Not to be confused with `pub.package()`, the module extension tag that fetches a
 published package from pub.dev. This declares facts about a package in the

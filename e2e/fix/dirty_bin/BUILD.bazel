@@ -4,7 +4,7 @@ load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_library", "dart_package_
 load("//tools:changes.bzl", "dart_changes")
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "fix_bin_dep",
 )
 
@@ -21,7 +21,7 @@ dart_package_metadata(
 dart_library(
     name = "dep",
     srcs = ["lib/dep.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     tags = ["no-dart-analyze"],
 )
 

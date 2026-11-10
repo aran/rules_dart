@@ -245,7 +245,7 @@
     },
     "@@rules_dart+//dart/pub:extensions.bzl%pub": {
       "general": {
-        "bzlTransitiveDigest": "mzh8lHdHFVgoqukcjdMO7iE44pcHm4JDYGydX7nOM3I=",
+        "bzlTransitiveDigest": "GRuVqlCd8pzciKIkpL14FP4MeKeh9zw9EEVaUM7nLXg=",
         "usagesDigest": "Feij9/7IlfZ5IUEBQSX+jv8OFe2mISCdo19thyF0MgM=",
         "recordedInputs": [
           "REPO_MAPPING:rules_dart+,bsd_tar_toolchains_darwin_amd64 tar.bzl++toolchains+bsd_tar_toolchains_darwin_amd64",
@@ -2022,7 +2022,8 @@
             "attributes": {
               "package_name": "left",
               "version": "1.0.0",
-              "directory": "/Users/aran/Projects/rules_dart/e2e/pub_cycle_refused/left",
+              "lock": "@@//:pubspec.lock",
+              "path": "left",
               "code_assets": [],
               "ignore_hook": false
             }
@@ -2039,7 +2040,8 @@
             "attributes": {
               "package_name": "old_a",
               "version": "1.0.0",
-              "directory": "/Users/aran/Projects/rules_dart/e2e/pub_cycle_refused/old_a",
+              "lock": "@@//:pubspec.lock",
+              "path": "old_a",
               "code_assets": [],
               "ignore_hook": false
             }
@@ -2056,7 +2058,8 @@
             "attributes": {
               "package_name": "old_b",
               "version": "1.0.0",
-              "directory": "/Users/aran/Projects/rules_dart/e2e/pub_cycle_refused/old_b",
+              "lock": "@@//:pubspec.lock",
+              "path": "old_b",
               "code_assets": [],
               "ignore_hook": false
             }
@@ -2073,7 +2076,8 @@
             "attributes": {
               "package_name": "right",
               "version": "1.0.0",
-              "directory": "/Users/aran/Projects/rules_dart/e2e/pub_cycle_refused/right",
+              "lock": "@@//:pubspec.lock",
+              "path": "right",
               "code_assets": [],
               "ignore_hook": false
             }
@@ -2090,7 +2094,8 @@
             "attributes": {
               "package_name": "tri_a",
               "version": "1.0.0",
-              "directory": "/Users/aran/Projects/rules_dart/e2e/pub_cycle_refused/tri_a",
+              "lock": "@@//:pubspec.lock",
+              "path": "tri_a",
               "code_assets": [],
               "ignore_hook": false
             }
@@ -2107,7 +2112,8 @@
             "attributes": {
               "package_name": "tri_b",
               "version": "1.0.0",
-              "directory": "/Users/aran/Projects/rules_dart/e2e/pub_cycle_refused/tri_b",
+              "lock": "@@//:pubspec.lock",
+              "path": "tri_b",
               "code_assets": [],
               "ignore_hook": false
             }
@@ -2124,7 +2130,8 @@
             "attributes": {
               "package_name": "tri_c",
               "version": "1.0.0",
-              "directory": "/Users/aran/Projects/rules_dart/e2e/pub_cycle_refused/tri_c",
+              "lock": "@@//:pubspec.lock",
+              "path": "tri_c",
               "code_assets": [],
               "ignore_hook": false
             }

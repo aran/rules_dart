@@ -35,7 +35,7 @@ imports what none of them provides fails only a program that reaches it.
 """
 
 load("//dart:providers.bzl", "DartImportCheckInfo", "DartInfo")
-load("//dart/private:common.bzl", "PATH_MAPPING", "add_kernel_roots", "own_packages")
+load("//dart/private:common.bzl", "PATH_MAPPING", "add_kernel_roots", "merge_package_records", "own_packages")
 load(
     "//dart/private:dart_deps.bzl",
     "direct_dart_deps",
@@ -151,10 +151,11 @@ def dart_import_check_action(ctx, kernel_tool, name, srcs, own, deps, indirect_d
     dep_srcs = depset(transitive = [info.transitive_srcs for info in dep_infos])
 
     # Package records by name, the target's own first, for mapping files to
-    # `package:` URIs; two hubs supplying one package agree on its name.
-    by_name = {}
-    for pkg in packages.to_list():
-        by_name.setdefault(pkg.package_name, pkg)
+    # `package:` URIs; two hubs supplying one package agree on its name. A
+    # package config is assembled here for every library, so the merge's
+    # agreement check refuses two declarations of one package where a library
+    # first reaches both, not only in the programs that use it.
+    by_name = {pkg.package_name: pkg for pkg in merge_package_records(packages.to_list())}
     package_config = ctx.actions.declare_file(name + ".import_check_package_config.json")
     ctx.actions.write(package_config, kernel_package_config(by_name.values()))
     result = ctx.actions.declare_file(name + ".import_check")

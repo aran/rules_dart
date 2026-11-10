@@ -7,7 +7,7 @@ dart_code_asset(
 )
 
 dart_package_metadata(
-    name = "metadata",
+    name = "pubspec-metadata",
     package_name = "kept",
     build_hook = "//hook:build",
     code_assets = [":native"],
@@ -19,6 +19,6 @@ dart_package_metadata(
 dart_library(
     name = "kept",
     srcs = ["lib/kept.dart"],
-    package = ":metadata",
+    package = ":pubspec-metadata",
     visibility = ["//visibility:public"],
 )

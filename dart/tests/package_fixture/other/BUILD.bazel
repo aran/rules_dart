@@ -1,0 +1,21 @@
+load("//dart:defs.bzl", "dart_codegen", "dart_package_metadata")
+
+# Another declaration of the package `ident_fixture`, in another directory, for
+# a codegen to name where the library collecting its output names the package's
+# own.
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "ident_fixture",
+    language_version = "3.10",
+    tags = ["manual"],
+)
+
+dart_codegen(
+    name = "defaulted_g",
+    src = "lib/defaulted.dart",
+    generator = "//dart/tests/package_fixture:gen.dart",
+    output_suffixes = [".g.dart"],
+    package = ":pubspec-metadata",
+    tags = ["manual"],
+    visibility = ["//dart/tests/package_fixture:__pkg__"],
+)

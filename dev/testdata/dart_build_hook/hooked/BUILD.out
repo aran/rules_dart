@@ -1,7 +1,7 @@
 load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "hooked",
     build_hook = "//hooked/hook:build",
     language_version = "3.10",
@@ -12,7 +12,7 @@ dart_package_metadata(
 dart_library(
     name = "hooked",
     srcs = ["lib/hooked.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     visibility = ["//visibility:public"],
     deps = ["@hooks"],
 )

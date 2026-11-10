@@ -1,7 +1,7 @@
 load("@rules_dart//dart:defs.bzl", "dart_package_metadata")
 
 dart_package_metadata(
-    name = "package",
+    name = "pubspec-metadata",
     package_name = "app",
     language_version = "3.13",
 )

@@ -66,7 +66,7 @@ def builder_shim_library(name, pub_hub, **kwargs):
     dart_library(
         name = name,
         srcs = _SHIM_SRCS,
-        package = Label("//dart/ext:pubspec"),
+        package = Label("//dart/ext:pubspec-metadata"),
         deps = ["{}//:{}".format(pub_hub, p) for p in _SHIM_PUB_PACKAGES],
         **kwargs
     )

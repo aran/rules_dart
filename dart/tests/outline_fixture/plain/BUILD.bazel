@@ -7,13 +7,13 @@ variant_source(
 )
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "outline_plain",
 )
 
 dart_library(
     name = "plain",
     srcs = [":src"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     visibility = ["//dart/tests/outline_fixture:__subpackages__"],
 )

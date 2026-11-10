@@ -198,7 +198,19 @@ def _agreement_rejects_two_declarations_at_one_root_test_impl(ctx):
         _pkg("//pkg:c"),
     ])
     asserts.true(env, err != None, "expected an error")
-    asserts.true(env, "Package \"split\" rooted at `pkg` is built by targets naming different `dart_package_metadata`:\n  - none, named by //pkg:c\n  - //pkg:other, named by //pkg:b\n  - //pkg:pubspec, named by //pkg:a\n" in err, err)
+    asserts.true(env, "The package rooted at `pkg` is built by targets naming different `dart_package_metadata`:\n  - none (package \"split\"), named by //pkg:c\n  - //pkg:other (package \"split\"), named by //pkg:b\n  - //pkg:pubspec (package \"split\"), named by //pkg:a\n" in err, err)
+    return unittest.end(env)
+
+def _agreement_rejects_two_packages_declared_at_one_root_test_impl(ctx):
+    # Two declarations for one root stating different package names: one
+    # directory is one package, so the two are refused, not merged apart.
+    env = unittest.begin(ctx)
+    err = package_agreement_error([
+        _pkg("//pkg:a", metadata = "//pkg:pubspec"),
+        _pkg("//pkg:b", package_name = "renamed", metadata = "//pkg:other"),
+    ])
+    asserts.true(env, err != None, "expected an error")
+    asserts.true(env, "  - //pkg:other (package \"renamed\"), named by //pkg:b\n  - //pkg:pubspec (package \"split\"), named by //pkg:a\n" in err, err)
     return unittest.end(env)
 
 def _agreement_accepts_two_hubs_declarations_test_impl(ctx):
@@ -270,6 +282,7 @@ _merged_record_without_records_is_fresh_test = unittest.make(_merged_record_with
 _merged_record_carries_every_field_test = unittest.make(_merged_record_carries_every_field_test_impl)
 _merged_record_without_declaration_is_name_only_test = unittest.make(_merged_record_without_declaration_is_name_only_test_impl)
 _agreement_rejects_two_declarations_at_one_root_test = unittest.make(_agreement_rejects_two_declarations_at_one_root_test_impl)
+_agreement_rejects_two_packages_declared_at_one_root_test = unittest.make(_agreement_rejects_two_packages_declared_at_one_root_test_impl)
 _agreement_accepts_two_hubs_declarations_test = unittest.make(_agreement_accepts_two_hubs_declarations_test_impl)
 
 def package_record_test_suite(name):
@@ -293,6 +306,7 @@ def package_record_test_suite(name):
         _merged_record_carries_every_field_test,
         _merged_record_without_declaration_is_name_only_test,
         _agreement_rejects_two_declarations_at_one_root_test,
+        _agreement_rejects_two_packages_declared_at_one_root_test,
         _agreement_accepts_two_hubs_declarations_test,
     )
 

@@ -1,0 +1,16 @@
+load("//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+# A declaration in a BUILD file under `lib/` declares the package at the
+# directory above that `lib`.
+dart_package_metadata(
+    name = "nested",
+    package_name = "one_declaration",
+    visibility = ["//dart/tests/one_declaration_fixture:__pkg__"],
+)
+
+dart_library(
+    name = "d",
+    srcs = ["d.dart"],
+    package = ":nested",
+    visibility = ["//dart/tests/one_declaration_fixture:__pkg__"],
+)

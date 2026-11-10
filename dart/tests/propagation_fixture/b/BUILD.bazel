@@ -11,7 +11,7 @@ dart_code_asset(
 )
 
 dart_package_metadata(
-    name = "b_pubspec",
+    name = "pubspec-metadata",
     package_name = "prop_b",
     code_assets = [":code_asset"],
 )
@@ -19,16 +19,6 @@ dart_package_metadata(
 dart_library(
     name = "b",
     srcs = ["lib/b.dart"],
-    package = ":b_pubspec",
-    visibility = ["//dart/tests:__subpackages__"],
-)
-
-# Same asset id, declared for a different package. The id is namespaced to
-# `prop_b`, so this must fail the ownership check.
-dart_package_metadata(
-    name = "misowned_pubspec",
-    package_name = "not_prop_b",
-    code_assets = [":code_asset"],
-    tags = ["manual"],
+    package = ":pubspec-metadata",
     visibility = ["//dart/tests:__subpackages__"],
 )

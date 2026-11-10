@@ -2,7 +2,7 @@ load("//dart:defs.bzl", "dart_package_metadata")
 load("//dart/pub:pub_library.bzl", "pub_library", "pub_package_member")
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "license_file_member",
     language_version = "3.0",
     license_file = "LICENSE",
@@ -12,7 +12,7 @@ dart_package_metadata(
 pub_package_member(
     name = "member",
     srcs = ["lib/member.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     tags = ["manual"],
     visibility = ["//dart/tests/license_file_fixture:__pkg__"],
 )

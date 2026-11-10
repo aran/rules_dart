@@ -6,12 +6,12 @@ greeting_codegen(
     srcs = ["lib/person.dart"],
     annotation_dep = "@greeting",
     config = "{\"salutation\":\"Hello\"}",
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     deps = ["@greeting"],
 )
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "app",
     language_version = "3.11",
     visibility = ["//app:__subpackages__"],
@@ -23,7 +23,7 @@ dart_codegen(
     config = "{\"salutation\":\"Hello\"}",
     generator_bin = "@greeting_rules//ext:shim",
     output_suffixes = [".greeting.g.part"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     deps = [
         "@greeting",
         "@json_annotation",
@@ -35,7 +35,7 @@ dart_codegen(
     src = "lib/user.dart",
     generator_bin = "@rules_dart//dart/ext/json_serializable:shim",
     output_suffixes = [".json_serializable.g.part"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     deps = [
         "@greeting",
         "@json_annotation",
@@ -47,7 +47,7 @@ dart_codegen(
     src = "lib/user.dart",
     generator_bin = "@rules_dart//dart/ext/combining_shim:bin",
     output_suffixes = [".g.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     parts = [
         ":_user_greeting_gen",
         ":_user_json_serializable_gen",
@@ -62,7 +62,7 @@ dart_library(
         ":_user_combined",
         ":person_codegen",
     ],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     visibility = ["//visibility:public"],
     deps = [
         "@greeting",

@@ -11,7 +11,7 @@ dart_codegen(
     src = "//nested_aggregate_pkg:lib/item.dart",
     generator = "//tools:shard_gen.dart",
     output_suffixes = [".shard.json"],
-    package = "//nested_aggregate_pkg:pkg",
+    package = "//nested_aggregate_pkg:pubspec-metadata",
     deps = ["//nested_aggregate_pkg:item_lib"],
 )
 
@@ -24,7 +24,7 @@ dart_aggregate_codegen(
     ],
     generator_script = "//tools:aggregate_gen.dart",
     outputs = ["lib/item.agg.dart"],
-    package = "//nested_aggregate_pkg:pkg",
+    package = "//nested_aggregate_pkg:pubspec-metadata",
     deps = ["//nested_aggregate_pkg:item_lib"],
 )
 

@@ -13,7 +13,6 @@ load(
     "library_records_link_hook_test",
     "link_hook_actions_test",
     "malformed_asset_id_test",
-    "misplaced_link_hook_test",
     "not_recording_binary_test",
     "own_package_not_named_test",
     "recorded_uses_not_json_test",
@@ -23,7 +22,7 @@ load(
 load("//dart/tests:path_mapping_test.bzl", "path_mapping_test")
 
 dart_package_metadata(
-    name = "lib_pubspec",
+    name = "pubspec-metadata",
     package_name = "link_hook_fixture",
     link_hook = "hook/link.dart",
 )
@@ -31,7 +30,7 @@ dart_package_metadata(
 dart_library(
     name = "lib",
     srcs = ["lib/fixture.dart"],
-    package = ":lib_pubspec",
+    package = ":pubspec-metadata",
     deps = ["//dart/tests/link_hook_fixture/dep"],
 )
 
@@ -40,26 +39,6 @@ library_records_link_hook_test(
     package_name = "link_hook_fixture",
     size = "small",
     target_under_test = ":lib",
-)
-
-dart_package_metadata(
-    name = "misplaced_pubspec",
-    package_name = "link_hook_fixture",
-    link_hook = "misplaced/link.dart",
-    tags = ["manual"],
-)
-
-dart_library(
-    name = "misplaced",
-    srcs = ["lib/fixture.dart"],
-    package = ":misplaced_pubspec",
-    tags = ["manual"],
-)
-
-misplaced_link_hook_test(
-    name = "misplaced_link_hook_test",
-    size = "small",
-    target_under_test = ":misplaced",
 )
 
 # --- dart_binary(record_use) ---
@@ -167,7 +146,7 @@ link_hook_actions_test(
 dart_link_hook(
     name = "linked_own_package",
     data_assets = ["package:link_hook_fixture/data/index.json"],
-    package = ":lib_pubspec",
+    package = ":pubspec-metadata",
     recorded_uses = "uses.json",
     tags = ["manual"],
     deps = ["//dart/tests/link_hook_fixture/dep"],
@@ -184,7 +163,7 @@ link_hook_actions_test(
 dart_binary(
     name = "own_exe",
     main = "main.dart",
-    package = ":lib_pubspec",
+    package = ":pubspec-metadata",
     record_use = True,
     tags = ["manual"],
     deps = [":lib"],

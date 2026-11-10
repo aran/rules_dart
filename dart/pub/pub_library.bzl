@@ -23,8 +23,8 @@ which builds a cycle only where one is declared.
 """
 
 load("//dart:providers.bzl", "DartInfo", "DartPackageMetadataInfo")
-load("//dart/private:dart_info.bzl", "dart_info", "package_info_from_metadata")
-load("//dart/private:dart_library.bzl", "check_files_under_package_root", "check_no_duplicate_srcs")
+load("//dart/private:dart_info.bzl", "dart_info")
+load("//dart/private:dart_library.bzl", "checked_package_info")
 load("//dart/private:dart_test_runner.bzl", _pub_test_runner = "pub_test_runner")
 load("//dart/private:runtime.bzl", "runtime_reset")
 
@@ -46,7 +46,7 @@ def dart_package_member_info(label, metadata, srcs = [], resources = []):
 
     For a member rule: rules_dart's `pub_package_member`, or another rule set's
     that returns this beside providers of its own. The package's facts are its
-    declaration's, and its root is the declaration's directory. Fails when a
+    declaration's, and its root is the declaration's. Fails when a
     file is not under the package's `lib/` or two resolve to the same path.
 
     Args:
@@ -59,17 +59,8 @@ def dart_package_member_info(label, metadata, srcs = [], resources = []):
     Returns:
       A `DartPackageMemberInfo`.
     """
-    package_root = metadata.package_root
-    for err in [
-        check_no_duplicate_srcs(label, srcs),
-        check_no_duplicate_srcs(label, resources, "resources"),
-        check_files_under_package_root(label, package_root, srcs),
-        check_files_under_package_root(label, package_root, resources, "resources"),
-    ]:
-        if err != None:
-            fail(err)
     return DartPackageMemberInfo(
-        package = package_info_from_metadata(label, metadata, package_root),
+        package = checked_package_info(label, metadata, srcs, resources),
         srcs = srcs,
         resources = resources,
     )

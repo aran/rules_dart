@@ -1,0 +1,213 @@
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+
+# A rule defined outside `dart/private`, building packages as rules_dart's rules do.
+#
+# `downstream_library` stands for another rule set's library rule: it declares
+# `package` with `package_identity_attrs()` and gets its record, and the check
+# that its files sit under the declaration's `lib/`, from `library_package`. Its
+# record is the one `dart_library` builds for the same declaration; naming a
+# declaration in another directory is refused.
+#
+# `downstream_application` and `downstream_member` stand for an executable that
+# is a package (`flutter_application`, whose `package` is required, in its own
+# words) and one built in its application's package (`flutter_test`). Their
+# records are the one `dart_binary` builds for the same declaration, rooted at
+# the declaration's package root wherever the target is.
+
+load("//dart:defs.bzl", "dart_binary", "dart_library", "dart_package_metadata")
+load(
+    "//dart/tests:downstream_test.bzl",
+    "downstream_record_test",
+    "downstream_refused_test",
+)
+load(":rules.bzl", "downstream_application", "downstream_library", "downstream_member")
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "downstream_pkg",
+    language_version = "3.9",
+    license_file = "LICENSE",
+    visibility = ["//dart/tests/downstream_fixture:__subpackages__"],
+)
+
+downstream_library(
+    name = "declared",
+    srcs = ["lib/a.dart"],
+    package = ":pubspec-metadata",
+    resources = ["lib/data.txt"],
+    tags = ["manual"],
+)
+
+dart_library(
+    name = "rules_dart_declared",
+    srcs = ["lib/a.dart"],
+    package = ":pubspec-metadata",
+    resources = ["lib/data.txt"],
+    tags = ["manual"],
+)
+
+downstream_record_test(
+    name = "declared_record_test",
+    size = "small",
+    expected_language_version = "3.9",
+    expected_metadata = "@@//dart/tests/downstream_fixture:pubspec-metadata",
+    expected_package_name = "downstream_pkg",
+    expected_package_root = "dart/tests/downstream_fixture",
+    same_as = ":rules_dart_declared",
+    target_under_test = ":declared",
+)
+
+# Naming none, the package is named after its root directory and states nothing else.
+downstream_library(
+    name = "undeclared",
+    srcs = ["lib/a.dart"],
+    tags = ["manual"],
+)
+
+dart_library(
+    name = "rules_dart_undeclared",
+    srcs = ["lib/a.dart"],
+    tags = ["manual"],
+)
+
+downstream_record_test(
+    name = "undeclared_record_test",
+    size = "small",
+    expected_package_name = "downstream_fixture",
+    expected_package_root = "dart/tests/downstream_fixture",
+    same_as = ":rules_dart_undeclared",
+    target_under_test = ":undeclared",
+)
+
+# The declaration's package root is `elsewhere/`, and this library's files are
+# not under `elsewhere/lib/`.
+downstream_library(
+    name = "outside_root",
+    srcs = ["lib/a.dart"],
+    package = "//dart/tests/downstream_fixture/elsewhere:pubspec-metadata",
+    tags = ["manual"],
+)
+
+downstream_refused_test(
+    name = "outside_root_refused_test",
+    size = "small",
+    message = "dart/tests/downstream_fixture/lib/a.dart` in `srcs` is not under `dart/tests/downstream_fixture/elsewhere/lib/`",
+    target_under_test = ":outside_root",
+)
+
+downstream_library(
+    name = "resource_outside_root",
+    package = "//dart/tests/downstream_fixture/elsewhere:pubspec-metadata",
+    resources = ["lib/data.txt"],
+    tags = ["manual"],
+)
+
+downstream_refused_test(
+    name = "resource_outside_root_refused_test",
+    size = "small",
+    message = "dart/tests/downstream_fixture/lib/data.txt` in `resources` is not under",
+    target_under_test = ":resource_outside_root",
+)
+
+dart_binary(
+    name = "rules_dart_binary",
+    main = "bin/main.dart",
+    package = ":pubspec-metadata",
+    tags = ["manual"],
+    visibility = ["//dart/tests/downstream_fixture:__subpackages__"],
+)
+
+downstream_application(
+    name = "application",
+    package = ":pubspec-metadata",
+    tags = ["manual"],
+    visibility = ["//dart/tests/downstream_fixture:__subpackages__"],
+)
+
+downstream_record_test(
+    name = "application_record_test",
+    size = "small",
+    expected_language_version = "3.9",
+    expected_metadata = "@@//dart/tests/downstream_fixture:pubspec-metadata",
+    expected_package_name = "downstream_pkg",
+    expected_package_root = "dart/tests/downstream_fixture",
+    same_as = ":rules_dart_binary",
+    target_under_test = ":application",
+)
+
+# Naming the declaration of the application it is built in, or none at all, it
+# is of that package; naming another is refused.
+downstream_member(
+    name = "named_by_application",
+    application = ":application",
+    tags = ["manual"],
+)
+
+downstream_record_test(
+    name = "named_by_application_record_test",
+    size = "small",
+    expected_language_version = "3.9",
+    expected_metadata = "@@//dart/tests/downstream_fixture:pubspec-metadata",
+    expected_package_name = "downstream_pkg",
+    expected_package_root = "dart/tests/downstream_fixture",
+    same_as = ":rules_dart_binary",
+    target_under_test = ":named_by_application",
+)
+
+downstream_member(
+    name = "agreeing_with_application",
+    application = ":application",
+    package = ":pubspec-metadata",
+    tags = ["manual"],
+)
+
+downstream_record_test(
+    name = "agreeing_with_application_record_test",
+    size = "small",
+    expected_language_version = "3.9",
+    expected_metadata = "@@//dart/tests/downstream_fixture:pubspec-metadata",
+    expected_package_name = "downstream_pkg",
+    expected_package_root = "dart/tests/downstream_fixture",
+    same_as = ":rules_dart_binary",
+    target_under_test = ":agreeing_with_application",
+)
+
+downstream_member(
+    name = "contradicting_application",
+    application = ":application",
+    package = "//dart/tests/downstream_fixture/elsewhere:pubspec-metadata",
+    tags = ["manual"],
+)
+
+downstream_refused_test(
+    name = "contradicting_application_refused_test",
+    size = "small",
+    message = "`package` names @@//dart/tests/downstream_fixture/elsewhere:pubspec-metadata, but the package this target belongs to is declared by @@//dart/tests/downstream_fixture:pubspec-metadata",
+    target_under_test = ":contradicting_application",
+)
+
+# Naming no declaration at all, the package is named after the target's own
+# directory and rooted there.
+downstream_member(
+    name = "undeclared_test",
+    tags = ["manual"],
+)
+
+downstream_record_test(
+    name = "undeclared_executable_record_test",
+    size = "small",
+    expected_package_name = "downstream_fixture",
+    expected_package_root = "dart/tests/downstream_fixture",
+    same_as = ":rules_dart_undeclared",
+    target_under_test = ":undeclared_test",
+)
+
+bzl_library(
+    name = "rules",
+    srcs = ["rules.bzl"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//dart:providers",
+        "//dart:utils",
+    ],
+)

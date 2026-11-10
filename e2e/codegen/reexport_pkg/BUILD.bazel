@@ -3,7 +3,7 @@ load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library", "dart_package
 # A dart_library that re-exports a Bazel-generated standalone library.
 
 dart_package_metadata(
-    name = "pkg",
+    name = "pubspec-metadata",
     package_name = "reexport_fixture",
     language_version = "3.11",
 )
@@ -13,7 +13,7 @@ dart_codegen(
     src = "lib/api.dart",
     generator = "//tools:lib_gen.dart",
     output_suffixes = [".g.dart"],
-    package = ":pkg",
+    package = ":pubspec-metadata",
 )
 
 dart_library(
@@ -22,7 +22,7 @@ dart_library(
         "lib/api.dart",
         ":api_gen",
     ],
-    package = ":pkg",
+    package = ":pubspec-metadata",
     visibility = ["//visibility:public"],
 )
 

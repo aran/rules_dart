@@ -63,10 +63,10 @@ def import_check_test_suite(name):
     )
     dependency_edit_test(
         name = "dependency_edit_test",
-        target_under_test = "//dart/tests/import_check_fixture:user_lib",
+        target_under_test = "//dart/tests/import_check_fixture/user:user_lib",
     )
     dependency_tree_test(
         name = "dependency_tree_test",
-        target_under_test = "//dart/tests/import_check_fixture:tree_user_lib",
+        target_under_test = "//dart/tests/import_check_fixture/tree_user:tree_user_lib",
     )
     native.test_suite(name = name, tests = [":library_checked_test", ":dependency_edit_test", ":dependency_tree_test"])

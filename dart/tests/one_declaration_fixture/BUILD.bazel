@@ -1,0 +1,145 @@
+"""Two `dart_package_metadata` for one package root, refused where they meet.
+
+A package has one declaration, as it has one `pubspec.yaml`. Its name is free
+and it may sit in any BUILD file of the package, so two declarations for one
+root can be written; a program, test or analysis reaching targets that name
+both fails, naming both.
+"""
+
+load("//dart:defs.bzl", "dart_binary", "dart_library", "dart_package_metadata", "dart_test")
+load("//dart/tests:one_declaration_test.bzl", "declaration_refused_test", "declared_root_test")
+
+dart_package_metadata(
+    name = "first",
+    package_name = "one_declaration",
+)
+
+# The same package declared again, under another name.
+dart_package_metadata(
+    name = "second",
+    package_name = "one_declaration",
+    tags = ["manual"],
+)
+
+# Another package declared at the same root.
+dart_package_metadata(
+    name = "renamed",
+    package_name = "other_name",
+    tags = ["manual"],
+)
+
+dart_library(
+    name = "a",
+    srcs = ["lib/a.dart"],
+    package = ":first",
+)
+
+dart_library(
+    name = "b",
+    srcs = ["lib/b.dart"],
+    package = ":second",
+    tags = ["manual"],
+)
+
+dart_library(
+    name = "c",
+    srcs = ["lib/c.dart"],
+    package = ":renamed",
+    tags = ["manual"],
+)
+
+dart_binary(
+    name = "same_name",
+    main = "bin/main.dart",
+    tags = ["manual"],
+    deps = [
+        ":a",
+        ":b",
+    ],
+)
+
+declaration_refused_test(
+    name = "same_name_test",
+    size = "small",
+    message = "The package rooted at `dart/tests/one_declaration_fixture` is built by targets naming different `dart_package_metadata`:\n  - @@//dart/tests/one_declaration_fixture:first (package \"one_declaration\"), named by @@//dart/tests/one_declaration_fixture:a\n  - @@//dart/tests/one_declaration_fixture:second (package \"one_declaration\"), named by @@//dart/tests/one_declaration_fixture:b\n",
+    target_under_test = ":same_name",
+)
+
+dart_binary(
+    name = "other_name",
+    main = "bin/main.dart",
+    tags = ["manual"],
+    deps = [
+        ":a",
+        ":c",
+    ],
+)
+
+declaration_refused_test(
+    name = "other_name_test",
+    size = "small",
+    message = "  - @@//dart/tests/one_declaration_fixture:first (package \"one_declaration\"), named by @@//dart/tests/one_declaration_fixture:a\n  - @@//dart/tests/one_declaration_fixture:renamed (package \"other_name\"), named by @@//dart/tests/one_declaration_fixture:c\n",
+    target_under_test = ":other_name",
+)
+
+# A declaration under `lib/` declares this same root.
+declared_root_test(
+    name = "under_lib_root_test",
+    size = "small",
+    root = "dart/tests/one_declaration_fixture",
+    target_under_test = "//dart/tests/one_declaration_fixture/lib/src:d",
+)
+
+dart_binary(
+    name = "under_lib",
+    main = "bin/main.dart",
+    tags = ["manual"],
+    deps = [
+        ":a",
+        "//dart/tests/one_declaration_fixture/lib/src:d",
+    ],
+)
+
+declaration_refused_test(
+    name = "under_lib_test",
+    size = "small",
+    message = "  - @@//dart/tests/one_declaration_fixture/lib/src:nested (package \"one_declaration\"), named by @@//dart/tests/one_declaration_fixture/lib/src:d\n  - @@//dart/tests/one_declaration_fixture:first (package \"one_declaration\"), named by @@//dart/tests/one_declaration_fixture:a\n",
+    target_under_test = ":under_lib",
+)
+
+dart_test(
+    name = "two_declarations",
+    size = "small",
+    main = "test/two_test.dart",
+    tags = ["manual"],
+    deps = [
+        ":a",
+        ":b",
+    ],
+)
+
+declaration_refused_test(
+    name = "test_reaching_both_test",
+    size = "small",
+    message = "is built by targets naming different `dart_package_metadata`",
+    target_under_test = ":two_declarations",
+)
+
+# A library reaching both, which no program need reach.
+dart_library(
+    name = "ab",
+    srcs = ["lib/ab.dart"],
+    package = ":first",
+    tags = ["manual"],
+    deps = [
+        ":a",
+        ":b",
+    ],
+)
+
+declaration_refused_test(
+    name = "library_reaching_both_test",
+    size = "small",
+    message = "is built by targets naming different `dart_package_metadata`",
+    target_under_test = ":ab",
+)

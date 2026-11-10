@@ -245,7 +245,7 @@
     },
     "@@rules_dart+//dart/pub:extensions.bzl%pub": {
       "general": {
-        "bzlTransitiveDigest": "mzh8lHdHFVgoqukcjdMO7iE44pcHm4JDYGydX7nOM3I=",
+        "bzlTransitiveDigest": "GRuVqlCd8pzciKIkpL14FP4MeKeh9zw9EEVaUM7nLXg=",
         "usagesDigest": "Lwy2fc7ITA61xUlt9pwpHI1txxP2ZViMmhPovDm4CvI=",
         "recordedInputs": [
           "REPO_MAPPING:,git_fixture +git_fixture+git_fixture",

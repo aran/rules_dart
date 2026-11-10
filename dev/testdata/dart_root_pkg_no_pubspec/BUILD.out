@@ -1,7 +1,7 @@
 load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library", "dart_package_metadata")
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "lib",
     visibility = ["//:__subpackages__"],
 )
@@ -11,7 +11,7 @@ dart_codegen(
     src = "lib/event.dart",
     generator_bin = "@rules_dart//dart/ext/freezed:shim",
     output_suffixes = [".freezed.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     deps = ["@freezed_annotation"],
 )
 
@@ -21,7 +21,7 @@ dart_codegen(
     asset_deps = [":_event_freezed_gen"],
     generator_bin = "@rules_dart//dart/ext/json_serializable:shim",
     output_suffixes = [".json_serializable.g.part"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     deps = [
         "@freezed_annotation",
         "@json_annotation",
@@ -33,7 +33,7 @@ dart_codegen(
     src = "lib/event.dart",
     generator_bin = "@rules_dart//dart/ext/combining_shim:bin",
     output_suffixes = [".g.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     parts = [":_event_json_serializable_gen"],
 )
 
@@ -44,7 +44,7 @@ dart_library(
         ":_event_combined",
         ":_event_freezed_gen",
     ],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     visibility = ["//visibility:public"],
     deps = [
         "@freezed_annotation",

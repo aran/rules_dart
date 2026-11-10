@@ -3,7 +3,7 @@ load("//dart:defs.bzl", "dart_library", "dart_package_metadata")
 exports_files(["bin/inner_main.dart"])
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "inner_pkg",
     language_version = "3.8",
 )
@@ -11,6 +11,6 @@ dart_package_metadata(
 dart_library(
     name = "inner",
     srcs = ["lib/inner.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     visibility = ["//dart/tests/exec_package_fixture:__subpackages__"],
 )

@@ -1,7 +1,7 @@
 load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "module_b",
 )
 
@@ -10,7 +10,7 @@ exports_files(["lock_b.lock"])
 dart_library(
     name = "greeter",
     srcs = ["lib/greeter.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     visibility = ["//visibility:public"],
     deps = ["@deps_b//:path"],
 )

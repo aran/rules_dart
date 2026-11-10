@@ -1,7 +1,7 @@
 load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_codegen", "dart_library", "dart_package_metadata", "dart_test")
 
 dart_package_metadata(
-    name = "pubspec",
+    name = "pubspec-metadata",
     package_name = "part_pkg_fixture",
     language_version = "3.11",
 )
@@ -13,7 +13,7 @@ dart_codegen(
     src = "lib/message.dart",
     generator = "//tools:part_gen.dart",
     output_suffixes = [".g.dart"],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
 )
 
 dart_library(
@@ -22,7 +22,7 @@ dart_library(
         "lib/message.dart",
         ":message_part",
     ],
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     visibility = ["//visibility:public"],
 )
 
@@ -60,7 +60,7 @@ dart_test(
     name = "member_lib_test",
     size = "small",
     main = "test/lib_test.dart",
-    package = ":pubspec",
+    package = ":pubspec-metadata",
     deps = [
         ":part_pkg_fixture",
         "@pub_deps//:test",

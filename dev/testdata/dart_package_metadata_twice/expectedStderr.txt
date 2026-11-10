@@ -1,0 +1,1 @@
+gazelle: dart: .: the BUILD file declares the package with more than one dart_package_metadata (pubspec, again); a package has one

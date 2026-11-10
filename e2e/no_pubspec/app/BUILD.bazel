@@ -14,7 +14,7 @@ load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_code
 # A package stated once, for every rule that builds part of it: the
 # generated model and the library holding it.
 dart_package_metadata(
-    name = "package",
+    name = "pubspec-metadata",
     package_name = "app",
     language_version = "3.11",
 )
@@ -26,7 +26,7 @@ json_serializable_codegen(
     name = "model_codegen",
     srcs = ["lib/src/model.dart"],
     annotation_dep = "@json_annotation",
-    package = ":package",
+    package = ":pubspec-metadata",
 )
 
 dart_library(
@@ -36,7 +36,7 @@ dart_library(
         "lib/src/model.dart",
         ":model_codegen",
     ],
-    package = ":package",
+    package = ":pubspec-metadata",
     deps = [
         "//greet",
         "@json_annotation",
