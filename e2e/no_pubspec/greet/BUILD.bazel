@@ -1,0 +1,10 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+# A package stated inline: its name and language version on the library.
+dart_library(
+    name = "greet",
+    package_name = "greet",
+    srcs = ["lib/greet.dart"],
+    language_version = "3.10",
+    visibility = ["//visibility:public"],
+)

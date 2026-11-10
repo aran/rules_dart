@@ -1,0 +1,30 @@
+load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
+load("@rules_dart//dart:defs.bzl", "dart_fix", "dart_library")
+
+# A library with a `prefer_final_locals` violation for `dart_fix` to fix, so it
+# opts out of the analysis the rest of the workspace passes.
+dart_library(
+    name = "fixme",
+    package_name = "fixme",
+    srcs = ["lib/fixme.dart"],
+    language_version = "3.11",
+    tags = ["no-dart-analyze"],
+)
+
+dart_fix(
+    name = "fix",
+    target = ":fixme",
+)
+
+filegroup(
+    name = "manifest",
+    srcs = [":fix"],
+    output_group = "dart_fix_manifest",
+)
+
+diff_test(
+    name = "manifest_test",
+    size = "small",
+    file1 = ":manifest",
+    file2 = "golden/fix_manifest.json",
+)

@@ -1,0 +1,100 @@
+load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
+load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
+load(
+    "@rules_dart//dart:defs.bzl",
+    "dart_binary",
+    "dart_js_binary",
+    "dart_library",
+    "dart_package_metadata",
+    "dart_test",
+    "dart_wasm_binary",
+)
+load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_library")
+
+# A package stated once, for every rule that builds part of it: the generated
+# model and the library over it.
+dart_package_metadata(
+    name = "package",
+    package_name = "app",
+    language_version = "3.11",
+)
+
+# json_serializable reads the package's pubspec for its name and for a
+# dependency on json_annotation; it reads the one the rule writes from this
+# target.
+json_serializable_library(
+    name = "model",
+    srcs = ["lib/src/model.dart"],
+    annotation_dep = "@json_annotation",
+    package = ":package",
+)
+
+dart_library(
+    name = "app",
+    srcs = ["lib/app.dart"],
+    package = ":package",
+    deps = [
+        ":model",
+        "//greet",
+    ],
+)
+
+# Every compile mode of the VM, and both web compilers.
+_MODES = {
+    "exe": "exe",
+    "aot": "aot-snapshot",
+    "jit": "jit-snapshot",
+    "kernel": "kernel",
+}
+
+[dart_binary(
+    name = "main_" + name,
+    compile_mode = mode,
+    main = "bin/main.dart",
+    deps = [":app"],
+) for name, mode in _MODES.items()]
+
+dart_js_binary(
+    name = "web_js",
+    main = "web/main.dart",
+    deps = [":app"],
+)
+
+dart_wasm_binary(
+    name = "web_wasm",
+    main = "web/main.dart",
+    deps = [":app"],
+)
+
+# Each VM binary runs and writes what it prints.
+[run_binary(
+    name = "run_" + name,
+    outs = ["run_%s.txt" % name],
+    args = ["$(execpath run_%s.txt)" % name],
+    tool = ":main_" + name,
+) for name in _MODES]
+
+[diff_test(
+    name = "run_%s_test" % name,
+    size = "small",
+    file1 = ":run_" + name,
+    file2 = "golden/run.txt",
+) for name in _MODES]
+
+dart_test(
+    name = "app_test",
+    size = "small",
+    main = "test/app_test.dart",
+    deps = [":app"],
+)
+
+dart_test(
+    name = "web_test",
+    size = "small",
+    data = [
+        ":web_js",
+        ":web_wasm",
+    ],
+    main = "test/web_test.dart",
+    deps = ["@rules_dart//dart/runfiles"],
+)

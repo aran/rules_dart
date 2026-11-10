@@ -1095,6 +1095,7 @@ The [`e2e/`](e2e/) directory contains complete working examples:
 | Example                                                     | What it demonstrates                                                                     |
 | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | [`hello_world`](e2e/hello_world/)                           | Minimal binary + all compile modes (`exe`, `aot-snapshot`, `kernel`, `jit-snapshot`)     |
+| [`no_pubspec`](e2e/no_pubspec/)                             | No `pubspec.yaml` anywhere: codegen, analysis, format, fix, tests, every binary          |
 | [`library_deps`](e2e/library_deps/)                         | Transitive `dart_library` dependencies, `srcs` attribute                                 |
 | [`dart_test`](e2e/dart_test/)                               | Tests with and without deps, `srcs` for test helpers                                     |
 | [`analysis`](e2e/analysis/)                                 | The `dart_analyze` aspect's checks with `package:`-included options                      |

@@ -1,0 +1,1 @@
+Hello, Bazel! {"name":"Bazel","visits":3}
