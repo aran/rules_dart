@@ -100,7 +100,7 @@ passes under `--config=deep`; at least one e2e workspace builds.
 
 - `MODULE.bazel` — `bazel_dep()` version strings
 - `gazelle/MODULE.bazel` (the Gazelle plugin's module) — `gazelle`, `rules_go`
-- `dev/MODULE.bazel` — `bazel_skylib`, `gazelle`, `rules_go`, `rules_shell`,
+- `dev/MODULE.bazel` — `bazel_skylib`, `gazelle`, `rules_go`,
   `bazel_skylib_gazelle_plugin`, and the Go SDK version
 - `MODULE.bazel` — the `webcrypto_pub_archive` `http_archive` (not on BCR): a
   new `package:webcrypto` release means a new url and sha256, and moving the

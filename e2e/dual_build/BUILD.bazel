@@ -1,24 +1,27 @@
-# Non-hermetic (network + writable FS), so `manual`: run it by name,
-#   bazel test //:run_build_runner_test
+# Not hermetic: `dart pub get` needs the network and a writable file system, so
+# the test asks for the network (`requires-network`) and gets a pub cache of its
+# own. It takes about 15 seconds, so it runs with the rest of the workspace.
 #
 # Fixture files are prefixed `fixture_` rather than nested in `fixture/` so
-# the fake BUILD.bazel the script writes into the tempdir doesn't create a
+# the fake BUILD.bazel the test writes into the tempdir doesn't create a
 # subpackage in THIS workspace.
 
-load("@rules_shell//shell:sh_test.bzl", "sh_test")
+load("@rules_dart//dart:defs.bzl", "dart_test")
 
-sh_test(
+dart_test(
     name = "run_build_runner_test",
-    srcs = ["run_build_runner_test.sh"],
+    size = "small",
+    timeout = "moderate",
     args = ["$(rlocationpath @rules_dart//dart)"],
     data = [
         "fixture_lib/user.dart",
         "fixture_pubspec.yaml",
         "@rules_dart//dart",
     ],
+    main = "run_build_runner_test.dart",
     tags = [
         "manual",
         "requires-network",
     ],
-    deps = ["@bazel_tools//tools/bash/runfiles"],
+    deps = ["@rules_dart//dart/runfiles"],
 )

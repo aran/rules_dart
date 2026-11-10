@@ -1,6 +1,6 @@
 load("@bazel_gazelle//:def.bzl", "gazelle", "gazelle_binary", "gazelle_generation_test")
 load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
-load("@rules_shell//shell:sh_test.bzl", "sh_test")
+load("@rules_dart//dart:defs.bzl", "dart_test")
 
 # gazelle:map_kind bzl_library bzl_library @bazel_skylib//:bzl_library.bzl
 gazelle_binary(
@@ -24,13 +24,13 @@ gazelle(
     gazelle = "bzl_gazelle_bin",
 )
 
-sh_test(
+dart_test(
     name = "gazelle_test",
     size = "small",
-    srcs = ["gazelle_test.sh"],
     args = ["$(rlocationpath :gazelle_bin)"],
     data = [":gazelle_bin"],
-    deps = ["@bazel_tools//tools/bash/runfiles"],
+    main = "gazelle_test.dart",
+    deps = ["@rules_dart//dart/runfiles"],
 )
 
 filegroup(

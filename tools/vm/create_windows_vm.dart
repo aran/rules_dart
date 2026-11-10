@@ -57,8 +57,8 @@ choco install -y visualstudio2022buildtools --package-parameters "--add Microsof
 # Point Bazel at the MSVC install.
 [System.Environment]::SetEnvironmentVariable("BAZEL_VC", "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC", "Machine")
 
-# Bazel on Windows needs a bash for its test infrastructure (sh_test,
-# collect_coverage). Point it at Git for Windows' bash; without this every
+# Bazel on Windows needs a bash for its test infrastructure
+# (collect_coverage). Point it at Git for Windows' bash; without this every
 # test-bearing target fails analysis with "No suitable shell toolchain found".
 [System.Environment]::SetEnvironmentVariable("BAZEL_SH", "C:\Program Files\Git\usr\bin\bash.exe", "Machine")
 

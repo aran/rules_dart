@@ -3,7 +3,7 @@ Add a basic smoke-test target below.
 """
 
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
-load("@rules_shell//shell:sh_test.bzl", "sh_test")
+load("@rules_dart//dart:defs.bzl", "dart_test")
 
 # Verify toolchain resolution works
 build_test(
@@ -14,11 +14,11 @@ build_test(
 )
 
 # Verify the dart SDK binary is runnable
-sh_test(
+dart_test(
     name = "dart_version_test",
     size = "small",
-    srcs = ["dart_version_test.sh"],
     args = ["$(rlocationpath @rules_dart//dart)"],
     data = ["@rules_dart//dart"],
-    deps = ["@bazel_tools//tools/bash/runfiles"],
+    main = "dart_version_test.dart",
+    deps = ["@rules_dart//dart/runfiles"],
 )
