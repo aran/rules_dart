@@ -1,0 +1,44 @@
+# The dart-lang/pub tests the pub_test scenario runs: those that pass under
+# Bazel. Most of pub's tests run bin/pub.dart from pub's own source tree at
+# run time, or read its lib/ directory, which a Bazel test does not have, and
+# fail for that reason.
+//test:error_group_test
+//test:git_test
+//test:ignore_test
+//test:io_test
+//test:levenshtein_test
+//test:lock_file_test
+//test:log_test
+//test:package_list_files_test
+//test:partial_solution_test
+//test:platform_info_test
+//test:precompilation_test
+//test:progress_test
+//test:pubspec_test
+//test:pubspec_utils_test
+//test:rate_limited_scheduler_test
+//test:reformat_ranges_test
+//test:transcript_test
+//test:utils_test
+//test/cache:detect_deprecated_dir_test
+//test/get/git:ssh_url_test
+//test/global/binstubs:runs_once_even_when_dart_is_batch_test
+//test/overrides:ensure_resolved_test
+//test/overrides:pubcommand_test
+//test/validator:changelog_test
+//test/validator:compiled_dartdoc_test
+//test/validator:deprecated_fields_test
+//test/validator:directory_test
+//test/validator:executable_test
+//test/validator:file_case_test
+//test/validator:flutter_plugin_format_test
+//test/validator:leak_detection_test
+//test/validator:license_test
+//test/validator:name_test
+//test/validator:pubspec_field_test
+//test/validator:pubspec_test
+//test/validator:pubspec_typo_test
+//test/validator:readme_test
+//test/validator:sdk_constraint_test
+//test/validator:size_test
+//test/validator:strict_dependencies_test

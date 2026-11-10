@@ -1,0 +1,36 @@
+# The bench's copy of dart-lang/pub, built with the rules_dart checkout the
+# bench runs from (@RULES_DART@ is its path).
+module(name = "bench_pub")
+
+bazel_dep(name = "rules_dart", version = "0.0.0")
+local_path_override(
+    module_name = "rules_dart",
+    path = "@RULES_DART@",
+)
+
+bazel_dep(name = "rules_dart_gazelle_plugin", version = "0.0.0")
+local_path_override(
+    module_name = "rules_dart_gazelle_plugin",
+    path = "@RULES_DART@/gazelle",
+)
+
+bazel_dep(name = "gazelle", version = "0.54.0")
+
+# For the platform constraints Gazelle writes from a test's `@TestOn`.
+bazel_dep(name = "platforms", version = "1.1.0")
+
+# Building Gazelle goes through the C++ toolchain, which on macOS is
+# apple_support's.
+bazel_dep(name = "apple_support", version = "2.10.1")
+
+dart = use_extension("@rules_dart//dart:extensions.bzl", "dart")
+use_repo(dart, "dart_toolchains")
+
+register_toolchains("@dart_toolchains//:all")
+
+pub = use_extension("@rules_dart//dart/pub:extensions.bzl", "pub")
+pub.from_lock(
+    name = "pub_deps",
+    lock = "//:pubspec.lock",
+)
+use_repo(pub, "pub_deps")

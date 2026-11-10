@@ -436,3 +436,73 @@ pinned to something else in this repo:
 4. Keep `actions/checkout` version consistent across all workflows
 
 **Verification**: CI workflow runs successfully.
+
+---
+
+## Build Benchmark
+
+**Trigger**: A change that may make users wait longer or shorter: compile
+actions, early cutoff, workers, analysis, codegen, Gazelle's target layout.
+
+**Files**: `tools/bench/` (the `dart_binary` and its scenarios), the
+`bench_pub_source` archive in `MODULE.bazel`.
+
+The bench is run by hand on one machine and compares two rules_dart commits.
+It is never part of `bazel test //...` or CI: timings are noisy and
+machine-bound. The target is `manual`, so `//...` neither builds it nor
+fetches the source it carries.
+
+It builds two workspaces in a scratch directory, each with its own output
+base, from the checkout `bazel run` is started in:
+
+- dart-lang/pub at a fixed commit, with BUILD files the Gazelle plugin
+  writes when the bench sets it up;
+- a copy of `e2e/ext_exemplar`, for codegen.
+
+| Scenario             | What it measures                                                                     |
+| -------------------- | ------------------------------------------------------------------------------------ |
+| `pub_cold_build`     | `bazel build` of pub's library, bin and every test target after `clean`, `shutdown`  |
+| `pub_body_edit`      | rebuild after a body-only edit in pub's library (the early-cutoff path)              |
+| `pub_api_edit`       | rebuild after adding a public function to that library                               |
+| `pub_test`           | `bazel test` of the pub tests in `tools/bench/pub_tests.txt`, warm, uncached results |
+| `pub_analysis_cold`  | the `dart_analyze` aspect over pub after `clean` and `shutdown` (no workers)         |
+| `pub_analysis_warm`  | the aspect after a body-only edit, workers warm                                      |
+| `codegen_cold_build` | ext_exemplar's targets that consume generated code, cold (none that build C)         |
+| `codegen_edit`       | rebuild after adding a `@JsonSerializable` class                                     |
+
+A cold build keeps the fetched repositories and turns the disk cache off;
+`--disk_cache=` is on every command. `pub_tests.txt` holds the pub tests that
+pass under Bazel: most of pub's tests run `bin/pub.dart` from pub's own source
+tree at run time, which a Bazel test does not have.
+
+**Procedure**:
+
+1. Make the machine quiet: no other builds. The bench records the load
+   average and the other Bazel servers when it starts, and the CPU other Bazel
+   servers use during each measured command, and warns when either is high.
+   A run with warnings is not a measurement.
+2. Run it in each checkout to compare, the same way. For a commit other than
+   the current one, use a worktree:
+   ```
+   git worktree add ../rules_dart-before <commit>
+   (cd ../rules_dart-before && bazel run //tools/bench -- --out=/tmp/before.json)
+   bazel run //tools/bench -- --out=/tmp/after.json
+   bazel run //tools/bench -- compare /tmp/before.json /tmp/after.json
+   ```
+   Options: `--runs=N` (default 3), `--scenarios=pub_body_edit,pub_api_edit`,
+   `--scratch=DIR`, `--keep` to keep the scratch directory. The worktree needs
+   the checkout's untracked `.bazelrc.user` and `tools/bazel`, if it has them:
+   the bench copies both into its workspaces, so that it runs Bazel the way
+   the checkout does.
+3. Each run writes the JSON result, the same table as Markdown beside it
+   (`.md`), and every command's `--profile` in a `.profiles` directory, for
+   `bazel analyze-profile` when a number needs explaining. The table gives the
+   median wall time (with the least and greatest), Bazel's own wall time, the
+   critical path and the actions executed.
+4. The scratch directory, output bases included (several GB), is deleted
+   when the run ends unless `--keep` is given.
+
+**Moving pub to a newer commit**: update `bench_pub_source` (URL, strip
+prefix, sha256), run `pub_test` and rewrite `pub_tests.txt` to the tests that
+pass, and check the edits `tools/bench/scenarios.dart` makes still apply (it
+fails naming the file when an anchor is gone).

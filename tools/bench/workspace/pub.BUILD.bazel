@@ -1,0 +1,16 @@
+load("@gazelle//:def.bzl", "gazelle", "gazelle_binary")
+
+# The bench runs Gazelle once when it sets the workspace up; it writes every
+# other BUILD file, and the analysis options targets below.
+# gazelle:exclude tool
+# gazelle:exclude tools
+# gazelle:dart_pub_deps_repo pub_deps
+gazelle_binary(
+    name = "gazelle_bin",
+    languages = ["@rules_dart_gazelle_plugin//dart"],
+)
+
+gazelle(
+    name = "gazelle",
+    gazelle = ":gazelle_bin",
+)

@@ -59,6 +59,26 @@ http_archive(
     urls = ["https://pub.dev/api/archives/webcrypto-0.6.1.tar.gz"],
 )
 
+# The open-source codebase //tools/bench builds: dart-lang/pub at a fixed
+# commit. Fetched only when the bench is built. Runfiles cannot hold the few
+# golden files with a space in their names, which no benchmarked test reads.
+http_archive(
+    name = "bench_pub_source",
+    build_file_content = """
+exports_files(["pubspec.yaml"])
+
+filegroup(
+    name = "files",
+    srcs = glob(["**"], exclude = ["**/* *"]),
+    visibility = ["//visibility:public"],
+)
+""",
+    dev_dependency = True,
+    sha256 = "d7ab16bd3a5dab31b0de228a69ebbf241426e39cc2fb5e8e077b403e158bcf2b",
+    strip_prefix = "pub-fe190660d68a4dd3070fe33fc406ff58d754dccc",
+    urls = ["https://github.com/dart-lang/pub/archive/fe190660d68a4dd3070fe33fc406ff58d754dccc.tar.gz"],
+)
+
 # On macOS, rules_cc leaves C++ to apple_support's toolchain. 2.9.0 builds that
 # toolchain's helper tools for macOS 11, the oldest Xcode 27's libc++ accepts
 # without a warning. Dev-only: the C++ toolchain is the consuming module's call.

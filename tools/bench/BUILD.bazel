@@ -1,0 +1,44 @@
+load("//dart:defs.bzl", "dart_binary", "dart_test")
+
+_SRCS = [
+    "bazel.dart",
+    "load.dart",
+    "metrics.dart",
+    "report.dart",
+    "scenarios.dart",
+    "workspace.dart",
+]
+
+# The build benchmark, run by hand (docs/CHORES.md, "Build Benchmark").
+# `manual`, so that `//...` neither builds it nor fetches the dart-lang/pub
+# source it carries.
+dart_binary(
+    name = "bench",
+    srcs = _SRCS,
+    args = [
+        "$(rlocationpath @bench_pub_source//:pubspec.yaml)",
+        "$(rlocationpath workspace/bazelrc)",
+        "$(rlocationpath pub_tests.txt)",
+    ],
+    data = [
+        "pub_tests.txt",
+        "workspace/bazelrc",
+        "workspace/pub.BUILD.bazel",
+        "workspace/pub.MODULE.bazel",
+        "@bench_pub_source//:files",
+        "@bench_pub_source//:pubspec.yaml",
+    ],
+    main = "bench.dart",
+    tags = ["manual"],
+    deps = ["//dart/runfiles"],
+)
+
+# The bench's reading of Bazel's events, the machine's load and its reports;
+# it never runs Bazel.
+dart_test(
+    name = "bench_test",
+    size = "small",
+    srcs = _SRCS,
+    main = "test/bench_test.dart",
+    deps = ["@ext_pub_deps//:test"],
+)

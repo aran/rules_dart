@@ -1,0 +1,6 @@
+# The bench's workspaces write their own MODULE.bazel.lock on the first build.
+common --lockfile_mode=update
+common --@rules_dart//dart:analysis_config=//:analysis_config
+
+# The per-user settings of the rules_dart checkout the bench runs from.
+try-import %workspace%/.bazelrc.user
