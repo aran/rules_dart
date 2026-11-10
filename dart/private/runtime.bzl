@@ -25,10 +25,13 @@ Only a rule nothing of which is compiled Dart (codegen, code assets, native
 modules) can turn it off: a library's kernel modules are compiled in its own
 configuration, and one compiled without the transform cannot be linked with
 one compiled with it. So pub packages keep it, and `non_dart_transition` resets
-both settings where `runtime_reset` resets the platform alone.
+both settings where `runtime_reset` resets the platform alone. An
+executable's environment declarations (`executable_defines_config`) fork them
+the same way, and `non_dart_transition` clears those too.
 """
 
 _TRACK_CREATION_LOCATIONS = str(Label("//dart:track_creation_locations"))
+_MODULE_DEFINES = str(Label("//dart/private:module_defines"))
 
 PLATFORMS = "//command_line_option:platforms"
 
@@ -120,14 +123,14 @@ runtime_reset = transition(
 )
 
 def _non_dart_transition_impl(settings, _attr):
-    return _restore(settings) | {_TRACK_CREATION_LOCATIONS: False}
+    return _restore(settings) | {_TRACK_CREATION_LOCATIONS: False, _MODULE_DEFINES: []}
 
-# `runtime_reset`, and `track_creation_locations` off: for a rule nothing
-# of which is compiled Dart.
+# `runtime_reset`, `track_creation_locations` off and no executable's
+# environment: for a rule nothing of which is compiled Dart.
 non_dart_transition = transition(
     implementation = _non_dart_transition_impl,
     inputs = WEB_PLATFORM_SETTINGS,
-    outputs = WEB_PLATFORM_SETTINGS + [_TRACK_CREATION_LOCATIONS],
+    outputs = WEB_PLATFORM_SETTINGS + [_TRACK_CREATION_LOCATIONS, _MODULE_DEFINES],
 )
 
 def _reset_when_independent_impl(settings, attr):

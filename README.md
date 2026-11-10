@@ -181,6 +181,35 @@ program's kernels through runfiles, `writeKernelList` writes a list naming
 them, and `joinKernels` joins them for a program that takes a single kernel
 file, in memory on Linux and in a temporary file elsewhere.
 
+A test's `defines` are configuration: its dependencies' modules are compiled in
+the same environment as its entrypoint. A rule set's executable gets that
+environment from `executable_defines_config` in `@rules_dart//dart:utils.bzl`,
+which also takes the declarations the rule derives from its other attributes:
+
+```starlark
+def _flavor_defines(attr):
+    return ["APP_FLAVOR=" + attr.flavor] if attr.flavor else []
+
+_ENVIRONMENT = executable_defines_config(_flavor_defines)
+
+my_test = rule(
+    attrs = _ENVIRONMENT.attrs | {
+        "deps": attr.label_list(aspects = [my_module_aspect], cfg = _ENVIRONMENT.cfg),
+        "defines": attr.string_list(),
+        "flavor": attr.string(),
+        "_extra_dart_defines": attr.label(default = "@rules_dart//dart:extra_dart_defines"),
+        # ...
+    },
+    # ...
+)
+```
+
+The environment is `defines`, then the derived declarations, then the
+`extra_dart_defines` flag. `dart_entry_kernel_action` compiles the entrypoint in
+it and fails if a dependency's modules were compiled in another; a compile the
+rule runs itself, such as one of the whole program, takes
+`executable_defines(ctx)`. A derived key that `defines` also sets is an error.
+
 ### Using pub.dev packages
 
 Declare individual packages with `pub.package()`:

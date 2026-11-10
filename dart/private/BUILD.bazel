@@ -272,9 +272,9 @@ dart_analysis_config(
     visibility = ["//visibility:public"],
 )
 
-# A test's own `defines`, carried to its dependencies' kernel modules by
-# `module_defines_transition`. Not a flag: `--@rules_dart//dart:extra_dart_defines`
-# is the command-line way in.
+# An executable's environment, carried to its dependencies' kernel modules by
+# the transition of `executable_defines_config`. Not a flag:
+# `--@rules_dart//dart:extra_dart_defines` is the command-line way in.
 string_list_setting(
     name = "module_defines",
     build_setting_default = [],

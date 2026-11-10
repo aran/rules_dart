@@ -106,30 +106,10 @@ def module_define_comma_error(define, source):
     """
     if "," not in define:
         return None
-    return ("`%s` (from %s): a Dart test's define cannot have a comma in its value. " +
-            "A test is compiled in modules, and the compiler of those (`kernel_worker`) " +
-            "splits every `-D` value on commas, so the test would see the value cut at " +
-            "the first one. A `dart_binary` accepts a comma. Encode the value (base64, " +
-            "say) and decode it in the test.") % (define, source)
-
-def merge_test_dart_defines(ctx):
-    """`merge_dart_defines` for a `dart_test`, which refuses a value with a comma.
-
-    Refused on both of a test's compile paths, so that the build-wide
-    `modular_kernel` setting never changes what a define means.
-
-    Args:
-      ctx: Rule context carrying `defines` and `_extra_dart_defines`.
-
-    Returns:
-      The merged list of define strings, flag values last.
-    """
-    defines = merge_dart_defines(ctx)
-    for define in defines:
-        err = module_define_comma_error(define, "the `defines` of %s or `--@rules_dart//dart:extra_dart_defines`" % ctx.label)
-        if err:
-            fail(err)
-    return defines
+    return ("`%s` (from %s): a define of a program compiled in modules cannot have a comma in its value. " +
+            "Their compiler (`kernel_worker`) splits every `-D` value on commas, so the " +
+            "program would see the value cut at the first one. A `dart_binary` accepts a " +
+            "comma. Encode the value (base64, say) and decode it in the program.") % (define, source)
 
 TRACK_CREATION_LOCATIONS_ATTR = {
     "_track_creation_locations": attr.label(

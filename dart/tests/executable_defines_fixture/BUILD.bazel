@@ -1,0 +1,129 @@
+load("//dart:defs.bzl", "dart_test")
+load(":rules.bzl", "flavored_program", "mismatched_program", "refused_test", "reset_library", "reset_reader", "reset_test")
+
+# A rule built on `executable_defines_config` derives `APP_FLAVOR` from its
+# `flavor` attribute. The dependency's module and the entrypoint each read it,
+# and `GREETING` from `defines`, with `String.fromEnvironment`; the run test
+# checks both saw the same.
+
+flavored_program(
+    name = "prod",
+    defines = ["GREETING=hello"],
+    flavor = "prod",
+    main = "main.dart",
+    deps = ["//dart/tests/executable_defines_fixture/flavor"],
+)
+
+dart_test(
+    name = "prod_run_test",
+    size = "small",
+    data = [":prod"],
+    env = {
+        "EXPECT": "prod hello prod hello",
+        "PROGRAM": "$(rlocationpath :prod)",
+    },
+    main = "run_test.dart",
+    deps = ["//dart/runfiles"],
+)
+
+# No flavor: nothing is implied, and both read the default.
+
+flavored_program(
+    name = "unflavored",
+    main = "main.dart",
+    deps = ["//dart/tests/executable_defines_fixture/flavor"],
+)
+
+dart_test(
+    name = "unflavored_run_test",
+    size = "small",
+    data = [":unflavored"],
+    env = {
+        "EXPECT": "unset unset unset unset",
+        "PROGRAM": "$(rlocationpath :unflavored)",
+    },
+    main = "run_test.dart",
+    deps = ["//dart/runfiles"],
+)
+
+# A key both implied and in `defines` is refused, as is an implied value with a
+# comma, which the module compiler would cut.
+
+flavored_program(
+    name = "collides",
+    defines = ["APP_FLAVOR=dev"],
+    flavor = "prod",
+    main = "main.dart",
+    tags = ["manual"],
+    deps = ["//dart/tests/executable_defines_fixture/flavor"],
+)
+
+refused_test(
+    name = "collision_refused_test",
+    size = "small",
+    message = "@@//dart/tests/executable_defines_fixture:collides: `APP_FLAVOR=prod` is derived from the target's attributes, and its `defines` sets it too (`APP_FLAVOR=dev`)",
+    target_under_test = ":collides",
+)
+
+flavored_program(
+    name = "comma",
+    flavor = "a,b",
+    main = "main.dart",
+    tags = ["manual"],
+    deps = ["//dart/tests/executable_defines_fixture/flavor"],
+)
+
+refused_test(
+    name = "comma_refused_test",
+    size = "small",
+    message = "`APP_FLAVOR=a,b` (from the defines the rule of @@//dart/tests/executable_defines_fixture:comma derives from its attributes): a define of a program compiled in modules cannot have a comma in its value",
+    target_under_test = ":comma",
+)
+
+# Dependencies compiled in another environment than the entrypoint's are
+# refused, not linked.
+
+mismatched_program(
+    name = "mismatched",
+    flavor = "prod",
+    main = "main.dart",
+    tags = ["manual"],
+    deps = ["//dart/tests/executable_defines_fixture/flavor"],
+)
+
+refused_test(
+    name = "mismatch_refused_test",
+    size = "small",
+    message = "compiles its entrypoint with [\"APP_FLAVOR=prod\"], but the modules of its dependency",
+    target_under_test = ":mismatched",
+)
+
+# A rule nothing of which is compiled Dart is configured without the
+# environment, so one below executables with different ones is built once.
+
+reset_reader(
+    name = "reset_reader",
+    tags = ["manual"],
+)
+
+reset_test(
+    name = "reset_test",
+    size = "small",
+    target_under_test = ":reset_reader",
+)
+
+# A dependency configured without the environment that holds no modules has
+# nothing compiled in another environment, so a program with defines accepts it.
+
+reset_library(name = "reset_library")
+
+flavored_program(
+    name = "with_reset_dependency",
+    defines = ["GREETING=hello"],
+    flavor = "prod",
+    main = "main.dart",
+    deps = [
+        ":reset_library",
+        "//dart/tests/executable_defines_fixture/flavor",
+    ],
+)

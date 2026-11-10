@@ -145,7 +145,7 @@ kernel_command_test = analysistest.make(
 
 def _comma_refused_test_impl(ctx):
     env = analysistest.begin(ctx)
-    asserts.expect_failure(env, "a Dart test's define cannot have a comma in its value")
+    asserts.expect_failure(env, "a define of a program compiled in modules cannot have a comma in its value")
     return analysistest.end(env)
 
 comma_refused_test = analysistest.make(_comma_refused_test_impl, expect_failure = True)

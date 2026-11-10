@@ -135,8 +135,9 @@ def _dart_sqlcodegen_impl(ctx):
 
 dart_sqlcodegen = rule(
     implementation = _dart_sqlcodegen_impl,
-    # Its outputs are the same under every web compiler and whether or not
-    # creation locations are tracked: built once, with neither.
+    # Its outputs are the same under every web compiler, whether or not
+    # creation locations are tracked and whatever environment the executable
+    # above it compiles in: built once, with none of them.
     cfg = non_dart_transition,
     attrs = {
         "src": attr.label(

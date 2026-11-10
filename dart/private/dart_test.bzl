@@ -12,7 +12,7 @@ kernel.
 
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("//dart:providers.bzl", "DartCodeAssetInfo", "DartInfo", "DartKernelSdkInfo")
-load("//dart/private:build_settings.bzl", "EXTRA_DART_DEFINES_ATTR", "KERNEL_LIST_ATTR", "RUNNER_SNAPSHOT_ATTR", "TRACK_CREATION_LOCATIONS_ATTR", "kernel_list", "merge_test_dart_defines", "runner_snapshot", "track_creation_locations")
+load("//dart/private:build_settings.bzl", "EXTRA_DART_DEFINES_ATTR", "KERNEL_LIST_ATTR", "RUNNER_SNAPSHOT_ATTR", "TRACK_CREATION_LOCATIONS_ATTR", "kernel_list", "runner_snapshot", "track_creation_locations")
 load(
     "//dart/private:common.bzl",
     "DART_ABI_CONSTRAINT_ATTRS",
@@ -36,13 +36,17 @@ load(
     "collect_modules",
     "dart_entry_kernel_action",
     "dart_link_kernel_action",
-    "module_defines_transition",
+    "executable_defines",
+    "executable_defines_config",
     "vm_module_aspect",
     "whole_program_kernel",
 )
 load("//dart/private:dart_test_runner.bzl", "DartTestRunnerInfo")
 load("//dart/private:exec_groups.bzl", "PORTABLE_EXEC_GROUPS")
 load("//dart/private:executable_package.bzl", "EXECUTABLE_PACKAGE_ATTRS", "executable_package")
+
+# The test's `defines` are the environment of its dependencies' modules too.
+_ENVIRONMENT = executable_defines_config()
 
 def _dart_test_impl(ctx):
     # The VM that runs the test: the target's, as everything the test runs is.
@@ -86,7 +90,7 @@ def _dart_test_impl(ctx):
             packages = packages,
             output_dill = dill,
             product = True,
-            defines = merge_test_dart_defines(ctx),
+            defines = executable_defines(ctx),
             native_assets_yaml = native_assets_yaml,
             track_creation_locations = track_creation_locations(ctx),
         )
@@ -221,7 +225,6 @@ def _link_modules(ctx, sdk, main, packages, own, native_assets_yaml, dill):
         modules = collect_modules(ctx.attr.deps),
         output = entry,
         own_package = own.record,
-        defines = merge_test_dart_defines(ctx),
         native_assets_yaml = native_assets_yaml,
         track_creation_locations = track_creation_locations(ctx),
     )
@@ -385,7 +388,7 @@ dart_test = rule(
             doc = "`dart_library` targets this test depends on.",
             providers = [DartInfo],
             aspects = [vm_module_aspect, dart_import_check_aspect],
-            cfg = module_defines_transition,
+            cfg = _ENVIRONMENT.cfg,
         ),
         "data": attr.label_list(
             doc = "Additional files needed at runtime. These are added to runfiles so they can be resolved via `Runfiles.rlocation()`.",
@@ -419,7 +422,7 @@ told where a runfile is (resolve it with `Runfiles.rlocation()`).""",
             executable = True,
             cfg = "target",
         ),
-    }, **dict(DART_ABI_CONSTRAINT_ATTRS, **dict(KERNEL_LIST_ATTR, **dict(RUNNER_SNAPSHOT_ATTR, **dict(EXTRA_DART_DEFINES_ATTR, **dict(TRACK_CREATION_LOCATIONS_ATTR, **dict(MODULE_EXECUTABLE_ATTRS, **EXECUTABLE_PACKAGE_ATTRS))))))),
+    }, **dict(DART_ABI_CONSTRAINT_ATTRS, **dict(KERNEL_LIST_ATTR, **dict(RUNNER_SNAPSHOT_ATTR, **dict(EXTRA_DART_DEFINES_ATTR, **dict(TRACK_CREATION_LOCATIONS_ATTR, **dict(MODULE_EXECUTABLE_ATTRS, **dict(_ENVIRONMENT.attrs, **EXECUTABLE_PACKAGE_ATTRS)))))))),
     test = True,
     # The compiles are `portable`. The run is Bazel's own `test` group, which
     # puts it on a host matching the target: everything it runs, the VM and

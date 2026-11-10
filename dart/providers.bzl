@@ -240,6 +240,7 @@ function body leaves unchanged; only the link reads the full `modules`.""",
         "outlines": "depset[File]: What dependents compile against, one directory per directory in `modules`, with the same files: `<directory>.outlines`, the modules without their function bodies, when the kernel SDK has an `outline_tool`; else the module directories themselves.",
         "manifests": "depset[File]: The `<directory>.json` manifest of each directory in `modules`.",
         "exported": "dict[Label, Target]: On a target that is not a library (a toolchain), the libraries it holds, for a library that names one in `DartInfo.deps`. Empty on a library.",
+        "defines": "list[str]: The environment declarations (`KEY=VALUE`) of this target's configuration, which its modules were compiled in, the platform's aside. An executable's entrypoint must be compiled in the same.",
     },
 )
 

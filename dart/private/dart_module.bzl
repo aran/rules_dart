@@ -39,7 +39,7 @@ Flutter SDK and gets its own modules, and everything else here is shared.
 
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("//dart:providers.bzl", "DartInfo", "DartKernelSdkInfo", "DartModuleInfo")
-load("//dart/private:build_settings.bzl", "module_define_comma_error", "track_creation_locations")
+load("//dart/private:build_settings.bzl", "module_define_comma_error", "track_creation_locations", "validate_dart_defines")
 load("//dart/private:common.bzl", "KERNEL_FILESYSTEM_SCHEME", "PATH_MAPPING", "add_kernel_roots", "collect_transitive_srcs", "dart_kernel_action", "kernel_root_path", "own_packages")
 load(
     "//dart/private:dart_deps.bzl",
@@ -149,12 +149,13 @@ def _new_args(ctx):
     return args
 
 def module_defines(ctx):
-    """The environment declarations a module compiles with.
+    """The environment declarations a module compiles with, in the aspect.
 
-    A test's own `defines` reach its dependencies' modules through
-    `module_defines_transition`, so its libraries are compiled (and cached) per
+    An executable's own `defines`, and those it derives from its other
+    attributes, reach its dependencies' modules through the transition of
+    `executable_defines_config`, so its libraries are compiled (and cached) per
     set of declarations; the command-line flag comes last and wins, as it does
-    for the test itself.
+    for the executable itself.
 
     Args:
       ctx: A context carrying `_module_defines` and `_extra_dart_defines`.
@@ -167,14 +168,15 @@ def module_defines(ctx):
 def _module_aspect_impl(target, ctx):
     # The build-wide escape hatch: executables compile whole programs, and
     # nothing reads a module.
+    defines = module_defines(ctx)
     if not ctx.attr._modular_kernel[BuildSettingInfo].value:
-        return [DartModuleInfo(modules = depset(), outlines = depset(), manifests = depset(), exported = {})]
+        return [DartModuleInfo(modules = depset(), outlines = depset(), manifests = depset(), exported = {}, defines = defines)]
     reached = reached_targets(ctx, DartModuleInfo)
 
     # Not a library: hand on the libraries it holds (a toolchain's runtime),
     # one hop, for the library that names them in its `DartInfo.deps`.
     if DartInfo not in target:
-        return [DartModuleInfo(modules = depset(), outlines = depset(), manifests = depset(), exported = exported_libraries(reached))]
+        return [DartModuleInfo(modules = depset(), outlines = depset(), manifests = depset(), exported = exported_libraries(reached), defines = defines)]
     info = target[DartInfo]
 
     # A target that passes on a dependency's `DartInfo` (`dart_test_package`
@@ -190,7 +192,7 @@ def _module_aspect_impl(target, ctx):
     # contributes no modules rather than failing.
     srcs = [f for f in getattr(info, "srcs", []) if f.is_directory or f.extension == "dart"]
     if not srcs:
-        return [DartModuleInfo(modules = modules.modules, outlines = modules.outlines, manifests = modules.manifests)]
+        return [DartModuleInfo(modules = modules.modules, outlines = modules.outlines, manifests = modules.manifests, defines = defines)]
 
     # Only the target's own packages: its dependencies are read from their
     # modules, which name every library they hold.
@@ -204,7 +206,7 @@ def _module_aspect_impl(target, ctx):
         packages = own,
         own_packages = own,
         modules = modules,
-        defines = module_defines(ctx),
+        defines = defines,
         track_creation_locations = track_creation_locations(ctx),
     )]
 
@@ -250,8 +252,6 @@ def _compile_modules(ctx, sdk, kernel_tool, name, srcs, packages, own_packages, 
     Returns:
       `DartModuleInfo` of the new modules and `modules`.
     """
-    for define in defines:
-        _check_no_comma(define, "the `defines` of the executable or `--@rules_dart//dart:extra_dart_defines`")
     base = "%s.%s" % (name, sdk.target)
     out = ctx.actions.declare_directory(base + ".modules")
     manifest = ctx.actions.declare_file(out.basename + ".json", sibling = out)
@@ -315,6 +315,7 @@ def _compile_modules(ctx, sdk, kernel_tool, name, srcs, packages, own_packages, 
         modules = depset([out], transitive = [modules.modules], order = "postorder"),
         outlines = depset([outlines], transitive = [modules.outlines], order = "postorder"),
         manifests = depset([manifest], transitive = [modules.manifests], order = "postorder"),
+        defines = defines,
     )
 
 def _add_sdk_args(args, sdk):
@@ -374,20 +375,110 @@ def _kernel_sdk_attr(kernel_sdk):
 
 vm_module_aspect = dart_module_aspect(Label("//dart/private:vm_kernel_sdk"))
 
-_MODULE_DEFINES = str(Label("//dart/private:module_defines"))
+_MODULE_DEFINES_SETTING = Label("//dart/private:module_defines")
+_MODULE_DEFINES = str(_MODULE_DEFINES_SETTING)
 
-def _module_defines_transition_impl(_settings, attr):
-    # Checked here, on the executable, rather than only when its first
-    # dependency's module is compiled, so the message names the right target.
-    for define in attr.defines:
-        _check_no_comma(define, "this target's `defines`")
-    return {_MODULE_DEFINES: list(attr.defines)}
+def _check_defines(defines, source):
+    validate_dart_defines(defines, source)
+    for define in defines:
+        _check_no_comma(define, source)
 
-module_defines_transition = transition(
-    implementation = _module_defines_transition_impl,
-    inputs = [],
-    outputs = [_MODULE_DEFINES],
-)
+def _executable_environment(attrs, implied_defines):
+    """An executable's `defines`, then those `implied_defines` derives from it.
+
+    Checked by `executable_defines`, in the rule, where a failure names the
+    target and an analysis test can see it.
+    """
+    own = list(attrs.defines)
+    if implied_defines == None:
+        return own
+    implied = implied_defines(attrs)
+    if type(implied) != "list":
+        fail("%s, for `%s`, must return a list of `KEY=VALUE` strings, not %r" % (implied_defines, attrs.name, implied))
+    return own + implied
+
+def executable_defines_config(implied_defines = None):
+    """Makes the environment an executable and its dependencies' modules compile in.
+
+    The environment is the executable's `defines`, then what `implied_defines`
+    derives from its attributes, then the command-line flag
+    (`_extra_dart_defines`). It reaches the dependencies' modules as
+    configuration: `cfg` is the transition for each attribute whose
+    dependencies are compiled into modules (`deps`, through the module
+    aspect), and `attrs` reads the same configuration back for the executable
+    itself, which `dart_entry_kernel_action` and `executable_defines` use. So a
+    declaration reaches both or neither: the entry compile also fails if its
+    dependencies' modules were compiled in any other.
+
+    Call it at the top level of a `.bzl` file and assign the result, once per
+    rule kind. The rule has a `defines` attribute and an `_extra_dart_defines`
+    one naming the same flag as its module aspect's.
+
+    Args:
+      implied_defines: A function of the executable's attributes (a
+        transition's `attr`) returning the `KEY=VALUE` declarations they imply,
+        appended after `defines`; or `None`. A key it returns that `defines`
+        sets too is an error.
+
+    Returns:
+      `struct(cfg, attrs)`: `cfg` the transition, and `attrs` to merge into
+      the rule's attributes.
+    """
+
+    def _transition_impl(_settings, attrs):
+        return {_MODULE_DEFINES: _executable_environment(attrs, implied_defines)}
+
+    cfg = transition(
+        implementation = _transition_impl,
+        inputs = [],
+        outputs = [_MODULE_DEFINES],
+    )
+    return struct(
+        cfg = cfg,
+        attrs = {
+            "_module_defines": attr.label(
+                doc = "The environment `cfg` carries to the dependencies' modules, read back for the executable.",
+                default = _MODULE_DEFINES_SETTING,
+                providers = [BuildSettingInfo],
+                cfg = cfg,
+            ),
+        },
+    )
+
+def executable_defines(ctx):
+    """The environment an executable made with `executable_defines_config` compiles in.
+
+    The same as its dependencies' modules: for a compile of its own the rule
+    runs, such as one of the whole program. `dart_entry_kernel_action` reads it
+    itself. Fails on a declaration a module compile would mangle, or a key the
+    rule derives that `defines` sets too, naming where it came from.
+
+    Args:
+      ctx: The rule context, with `executable_defines_config(...).attrs` and
+        `_extra_dart_defines` among its attributes.
+
+    Returns:
+      The `KEY=VALUE` strings, the flag's last.
+    """
+    if not hasattr(ctx.attr, "_module_defines") or not hasattr(ctx.attr, "_extra_dart_defines"):
+        fail("%s: the rule must merge `executable_defines_config(...).attrs` and an `_extra_dart_defines` attribute into its `attrs`" % ctx.label)
+
+    # One target: a label attribute with a Starlark transition is a list.
+    environment = ctx.attr._module_defines[0][BuildSettingInfo].value
+    own = ctx.attr.defines
+    implied = environment[len(own):]
+    _check_defines(own, "the `defines` of %s" % ctx.label)
+    _check_defines(implied, "the defines the rule of %s derives from its attributes" % ctx.label)
+    own_keys = {d.partition("=")[0]: d for d in own}
+    for define in implied:
+        key = define.partition("=")[0]
+        if key in own_keys:
+            fail(("%s: `%s` is derived from the target's attributes, and its `defines` sets it too " +
+                  "(`%s`). Remove it from `defines`.") % (ctx.label, define, own_keys[key]))
+    flag = ctx.attr._extra_dart_defines
+    for define in flag[BuildSettingInfo].value:
+        _check_no_comma(define, "`--%s`, building %s" % (flag.label, ctx.label))
+    return environment + flag[BuildSettingInfo].value
 
 # What an executable needs to compile its entrypoint and link: its `deps`,
 # through the module aspect and the defines transition, and the tools. The rule
@@ -403,9 +494,29 @@ def collect_modules(deps):
       deps: Targets carrying `DartModuleInfo` (through the aspect).
 
     Returns:
-      `struct(modules, outlines, manifests)` of depsets.
+      `struct(modules, outlines, manifests, defines)`: depsets, and the
+      environment each dependency's modules were compiled in.
     """
-    return _merge_modules([dep[DartModuleInfo] for dep in deps if DartModuleInfo in dep])
+    compiled = [dep for dep in deps if DartModuleInfo in dep]
+    merged = _merge_modules([dep[DartModuleInfo] for dep in compiled])
+    return struct(
+        modules = merged.modules,
+        outlines = merged.outlines,
+        manifests = merged.manifests,
+        # Only a dependency that holds modules has an environment they were
+        # compiled in; one configured by `non_dart_transition` that holds none
+        # (assets, say) cannot disagree.
+        defines = [(dep.label, dep[DartModuleInfo].defines) for dep in compiled if dep[DartModuleInfo].modules],
+    )
+
+def _check_same_environment(ctx, modules, defines):
+    for label, theirs in modules.defines:
+        if theirs != defines:
+            fail(("%s compiles its entrypoint with %s, but the modules of its dependency %s were " +
+                  "compiled with %s. Every attribute whose dependencies are compiled into modules " +
+                  "takes the `cfg` of the `executable_defines_config` whose `attrs` the rule merges, " +
+                  "and the rule's `_extra_dart_defines` names the flag its module aspect reads.") %
+                 (ctx.label, defines, label, theirs))
 
 def dart_entry_kernel_action(
         ctx,
@@ -417,7 +528,6 @@ def dart_entry_kernel_action(
         modules,
         output,
         own_package = None,
-        defines = [],
         native_assets_yaml = None,
         track_creation_locations = False):
     """Compiles an executable against the modules its entrypoint reaches.
@@ -440,11 +550,11 @@ def dart_entry_kernel_action(
       srcs: The executable's own source Files (its entrypoint among them).
       packages: Every `DartPackageInfo` the executable sees, one per name, so
         its files get the language version of the package containing them.
-      modules: `struct(modules, outlines, manifests)` from `collect_modules`.
+      modules: `struct(modules, outlines, manifests, defines)` from
+        `collect_modules`.
       output: The entry `.dill` to write.
       own_package: The `DartPackageInfo` of the package the executable states
         it belongs to, or `None`.
-      defines: Environment declarations, `KEY=VALUE`.
       native_assets_yaml: Optional `native_assets.yaml` to embed.
       track_creation_locations: Whether to compile with
         `--track-creation-locations`; the same as the modules were.
@@ -454,6 +564,11 @@ def dart_entry_kernel_action(
       sees, its own included, and the File naming those `main` reaches, to
       link with the entry.
     """
+
+    # The environment is the rule's configuration, not an argument, so that
+    # the entrypoint cannot be compiled in another than its modules.
+    defines = executable_defines(ctx)
+    _check_same_environment(ctx, modules, defines)
     own = _compile_modules(
         ctx,
         sdk = sdk,

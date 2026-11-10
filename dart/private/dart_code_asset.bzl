@@ -95,8 +95,9 @@ def _dart_code_asset_impl(ctx):
 
 dart_code_asset = rule(
     implementation = _dart_code_asset_impl,
-    # Its outputs are the same under every web compiler and whether or not
-    # creation locations are tracked: built once, with neither.
+    # Its outputs are the same under every web compiler, whether or not
+    # creation locations are tracked and whatever environment the executable
+    # above it compiles in: built once, with none of them.
     cfg = non_dart_transition,
     attrs = {
         "asset_id": attr.string(

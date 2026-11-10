@@ -169,8 +169,9 @@ def _dart_aggregate_codegen_impl(ctx):
 
 dart_aggregate_codegen = rule(
     implementation = _dart_aggregate_codegen_impl,
-    # Its outputs are the same under every web compiler and whether or not
-    # creation locations are tracked: built once, with neither.
+    # Its outputs are the same under every web compiler, whether or not
+    # creation locations are tracked and whatever environment the executable
+    # above it compiles in: built once, with none of them.
     cfg = non_dart_transition,
     attrs = {
         "srcs": attr.label_list(

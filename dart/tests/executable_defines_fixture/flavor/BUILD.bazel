@@ -1,0 +1,8 @@
+load("//dart:defs.bzl", "dart_library")
+
+dart_library(
+    name = "flavor",
+    package_name = "executable_defines_flavor",
+    srcs = ["lib/flavor.dart"],
+    visibility = ["//dart/tests/executable_defines_fixture:__pkg__"],
+)

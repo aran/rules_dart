@@ -37,8 +37,8 @@ def _native_module_impl(ctx):
     ]
 
 # Nothing of it is compiled Dart, so its output cannot depend on the web
-# compiler or on creation-location tracking, and every route into it reaches
-# one configured target, built once.
+# compiler, on creation-location tracking or on an executable's environment,
+# and every route into it reaches one configured target, built once.
 native_module = rule(
     implementation = _native_module_impl,
     cfg = non_dart_transition,

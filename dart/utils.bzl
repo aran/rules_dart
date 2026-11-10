@@ -60,8 +60,9 @@ load(
     _dart_entry_kernel_action = "dart_entry_kernel_action",
     _dart_link_kernel_action = "dart_link_kernel_action",
     _dart_module_aspect = "dart_module_aspect",
+    _executable_defines = "executable_defines",
+    _executable_defines_config = "executable_defines_config",
     _kernel_package_config = "kernel_package_config",
-    _module_defines_transition = "module_defines_transition",
 )
 load(
     "//dart/private:exec_groups.bzl",
@@ -201,11 +202,19 @@ parse_data_asset_ids = _parse_data_asset_ids
 
 # Per-library kernel compilation (see `dart_module.bzl`). A rule set with its own
 # platform makes its aspect once at top level, `dart_module_aspect(<label of a
-# DartKernelSdkInfo target>)`, attaches it to its executable's `deps` with
-# `cfg = module_defines_transition` (the executable's `defines` reach its
-# modules), compiles the entrypoint with `dart_entry_kernel_action` and links
-# with `dart_link_kernel_action`, merging
-# `KERNEL_TOOL_ATTR` into its `attrs`. `kernel_package_config` and
+# DartKernelSdkInfo target>)`, attaches it to its executable's `deps`,
+# compiles the entrypoint with `dart_entry_kernel_action` and links with
+# `dart_link_kernel_action`, merging `KERNEL_TOOL_ATTR` into its `attrs`.
+#
+# The executable and its modules compile in one environment, which is
+# configuration: `executable_defines_config(implied_defines)`, made once at top
+# level, gives the transition (`cfg`) its `deps` take and the `attrs` the rule
+# merges to read the same configuration back. The environment is the rule's
+# `defines`, then what `implied_defines(attr)` derives from its other
+# attributes (a flavor, say), then its `_extra_dart_defines` flag, which names
+# the flag its aspect reads. `dart_entry_kernel_action` reads it itself and
+# fails if a dependency's modules were compiled in another; a compile the rule
+# runs itself takes `executable_defines(ctx)`. `kernel_package_config` and
 # `add_kernel_roots` address sources through the same `org-dartlang-root:///`
 # roots the modules were compiled with.
 #
@@ -227,7 +236,8 @@ parse_data_asset_ids = _parse_data_asset_ids
 # `EXEC_TOOLS_TOOLCHAIN` and any toolchains more. `dart_module_aspect`'s
 # `exec_toolchains` adds those to the aspect's.
 dart_module_aspect = _dart_module_aspect
-module_defines_transition = _module_defines_transition
+executable_defines_config = _executable_defines_config
+executable_defines = _executable_defines
 collect_modules = _collect_modules
 dart_entry_kernel_action = _dart_entry_kernel_action
 dart_link_kernel_action = _dart_link_kernel_action
@@ -257,14 +267,16 @@ import_check_validation = _import_check_validation
 
 # The runtime, a constraint of the target platform
 # (`@rules_dart//dart/constraints:runtime`: `vm`, `js`, `wasm`), and
-# `--@rules_dart//dart:track_creation_locations` change what Dart compiles to.
+# `--@rules_dart//dart:track_creation_locations` change what Dart compiles to,
+# and an executable's environment declarations what its modules compile to.
 # A rule nothing of which is compiled Dart — a native library, a code
 # generator, a data asset, a module built by another language's toolchain —
-# takes `cfg = non_dart_transition`, which resets both, so every route into it,
-# from a web binary or a test tracking creation locations or neither, reaches
-# one configured target, built once. A Dart library must keep
-# `track_creation_locations`, since its kernel modules are compiled in its own
-# configuration and must match every other module of the program. One that is
+# takes `cfg = non_dart_transition`, which resets all three, so every route into
+# it, from a web binary or a test tracking creation locations or with its own
+# `defines` or none of these, reaches one configured target, built once. A Dart
+# library must keep `track_creation_locations` and the environment, since its
+# kernel modules are compiled in its own configuration and must match every
+# other module of the program. One that is
 # the same under every web compiler (a pub package) takes
 # `cfg = runtime_reset`, which resets the runtime alone. A rule some
 # of whose targets are compiler-independent and some not (one that wraps both
