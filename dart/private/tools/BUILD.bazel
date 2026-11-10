@@ -411,6 +411,80 @@ exports_files(
     visibility = ["//visibility:public"],
 )
 
+_SUMMARY_ANALYZER_SRCS = [
+    "summary_analyzer.dart",
+    "summary_analyzer/analyze.dart",
+    "summary_analyzer/args.dart",
+    "summary_analyzer/context.dart",
+    "summary_analyzer/guards.dart",
+    "summary_analyzer/report.dart",
+    "summary_analyzer/summarize.dart",
+]
+
+# The summary analyzer, built by each SDK's `dart_analyzer_source` on that
+# SDK's own analyzer and linter.
+exports_files(
+    _SUMMARY_ANALYZER_SRCS,
+    visibility = ["//visibility:public"],
+)
+
+# The summary analyzer on the pinned release's analyzer and linter, as its
+# `dart_analyzer_source` builds it, but here, so that its sources are analyzed
+# and format-checked with this repository's.
+dart_binary(
+    name = "summary_analyzer",
+    srcs = _SUMMARY_ANALYZER_SRCS[1:],
+    compile_mode = "exe",
+    main = "summary_analyzer.dart",
+    deps = [
+        "@dart_analyzer_source//analyzer",
+        "@dart_analyzer_source//linter",
+        "@ext_pub_deps//:bazel_worker",
+        "@ext_pub_deps//:path",
+        "@ext_pub_deps//:yaml",
+    ],
+)
+
+# The summary analyzer on staged projects: its reports, its refusals, and
+# which edits keep a summary's bytes. Built here, and as the pinned release's
+# `dart_analyzer_source(path = ...)` and `fetch_dart_analyzer_source` with a
+# prefix build it on a checkout of that release
+# (`//dart/tests:kernel_checkout.bzl`).
+[
+    dart_test(
+        name = name,
+        size = "small",
+        args = [
+            "$(rlocationpath %s)" % tool,
+            "$(rlocationpath //dart/private:summary_analyzer)",
+        ],
+        data = [
+            tool,
+            "//dart/private:summary_analyzer",
+        ] + extra,
+        main = "summary_analyzer_test.dart",
+        # The SDK summary is built only with summaries on.
+        target_compatible_with = select({
+            "//dart:is_analysis_summaries": [],
+            "//conditions:default": ["@platforms//:incompatible"],
+        }),
+        deps = [
+            "//dart/runfiles",
+            "@ext_pub_deps//:path",
+            "@ext_pub_deps//:test",
+        ],
+    )
+    for name, tool, extra in [
+        ("summary_analyzer_test", ":summary_analyzer", []),
+        ("summary_analyzer_checkout_test", "@analyzer_checkout_source//:summary_analyzer", []),
+        (
+            "summary_analyzer_prefixed_test",
+            "@analyzer_prefixed_source//analyzer_source:summary_analyzer",
+            ["@analyzer_prefixed_source//:root_marker"],
+        ),
+    ]
+]
+
 # The pinned release's stripper, and the ones built on a checkout of the same
 # release: `dart_kernel_source(path = ...)`, and `fetch_dart_kernel_source` with
 # a prefix, from a repository with a root package of its own

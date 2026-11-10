@@ -1464,6 +1464,86 @@ Bazel's own worker flags apply: `--worker_max_instances=DartAnalyze=N` (and
 hundred MB), and `--strategy=DartAnalyze=sandboxed`, or remote execution, runs
 each action once on its own server.
 
+#### Analysis against summaries
+
+Each target is analyzed against analyzer summaries of its dependencies, not
+their source. A summary records a library's declarations without its function
+bodies, comments or source positions, and every library gets one, written by
+an action of its own. An edit inside a function body, or to a comment, leaves
+the library's summary unchanged, so Bazel re-analyzes that library's own
+target and no target above it. An edit that changes a declaration, a private
+one included, changes the summary and re-analyzes the targets that depend on
+it.
+
+This uses parts of the analyzer that the Dart SDK does not support. The SDK
+removed the analyzer's own way of analyzing against summaries, its "build
+mode", in 2021
+([dart-lang/sdk@00a45e4](https://github.com/dart-lang/sdk/commit/00a45e425a7d944ad0da5f9417e21d760bf9235e),
+"Remove build mode from analyzer_cli"), and then the `dartanalyzer` tool that
+offered it in Dart 2.18
+([dart-lang/sdk#46100](https://github.com/dart-lang/sdk/issues/46100)). No SDK
+command reads summaries today, and `package:analyzer` offers reading and
+writing them only in its private `src/` API. So rules_dart builds its own
+analyzer on the SDK's `pkg/analyzer` and `pkg/linter`, unmodified, from the
+source archive of the SDK's release tag (`dart_analyzer_source`), and reports
+what that release's `dart analyze --fatal-infos` reports.
+
+Analyzing against summaries hits known analyzer bugs, and the summary analyzer
+fails the analysis, with the reason and this flag, wherever it can tell the
+answer is wrong:
+
+- **Crashes.** The analyzer crashes on some code that uses a dependency's
+  declarations, such as a public nullable field that is not promoted, or a
+  `const` constructor of a dependency whose evaluation fails. The library would
+  get no diagnostics at all. The analysis fails with the crash. The known
+  crashes happen only on code with a compile error.
+- **Swallowed exceptions.** An exception in a lint rule is caught and ignored
+  by the analyzer, losing the rule's diagnostics. The analysis fails with it.
+- **`base` and `final` class modifiers.** The analyzer does not report a class
+  that subtypes a dependency's `base` or `final` class without being `base`,
+  `final` or `sealed` itself (`subtype_of_base_is_not_base_final_or_sealed` and
+  its relatives). The summary analyzer finds those classes and fails with the
+  error the analyzer would have reported.
+- **`prefer_relative_imports` in a package split across targets.** The lint
+  does not fire for a `package:` import of the same package's file in another
+  target. With the lint on, the summary analyzer finds those imports and fails.
+- **`comment_references` from doc imports.** A name that an `@docImport` brings
+  in from a dependency or from the SDK is reported as not in scope. Analysis
+  fails on the diagnostic anyway, and the summary analyzer says which ones are
+  false.
+- **Context messages.** A diagnostic's context message that points into a
+  dependency ("'x' refers to a public property", "the error is in the field
+  initializer of 'E'") loses its location or is left out. The diagnostic itself
+  is reported as it would be.
+- **Plugins and data-driven fixes.** Analyzer plugins and validation of
+  `lib/fix_data.yaml` run only in the analysis server, which cannot read
+  summaries; a target whose options enable a plugin, or whose package has a
+  `lib/fix_data.yaml`, fails.
+
+These are the losses found by comparing analysis from summaries with
+analysis from source over this repository, its examples, 92 pub packages and
+the analyzer's and linter's own tests, on Dart 3.13.7. A loss nobody has found
+cannot be detected; analyzing with the flag off is the reference.
+
+The summary analyzer must be built from the same SDK release as the Dart
+toolchain: the `dart` extension registers it for its own SDK. A Dart SDK with
+no release tag (Flutter's beta and main channels, a local build) has no
+unmodified analyzer source to build it from, so analysis fails, naming this
+flag, unless you register a `dart_analyzer_toolchain` built from its checkout
+(`dart_analyzer_source(path = ...)`). Every library declares its summary, so
+with the flag on any build configures the summary analyzer and fetches the
+SDK's source archive it is built from (the same archive the outline stripper is
+built from, kept in the repository cache), as rules_java and rules_go fetch
+their toolchains' tools; nothing is built until an analysis reads a summary,
+and a failure to build it fails only that analysis. To analyze against
+dependencies' source, with the SDK's own `dart analyze`:
+
+```sh
+bazel test //... --@rules_dart//dart:analysis_summaries=false
+```
+
+`@rules_dart//dart/fix` always runs the SDK's own `dart fix`, from source.
+
 #### Checking targets `//...` does not reach
 
 The `.bazelrc` setup checks the targets a test run names, so it never reaches a
@@ -1788,6 +1868,7 @@ they are set to.
 | Flag                                               | Default | What it does                                                                                                                                                  |
 | -------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `--@rules_dart//dart:analysis_config=<label>`      | none    | The `dart_analysis_config` whose options analysis, fixes and formatting use.                                                                                  |
+| `--@rules_dart//dart:analysis_summaries`           | on      | Analyzes each target against analyzer summaries of its dependencies (see [Analysis against summaries](#analysis-against-summaries)); off analyzes their source. |
 | `--@rules_dart//dart:analysis_worker`              | on      | Runs analysis and fixes in persistent workers, one analysis server each; off runs `dart analyze`/`dart fix` per action.                                       |
 | `--@rules_dart//dart:extra_dart_defines=KEY=VALUE` | none    | Adds an environment declaration to every Dart compile, after target `defines`; repeat for more.                                                               |
 | `--@rules_dart//dart:kernel_list`                  | on      | Runs each test from a kernel list naming the kernels it reaches; off stores one joined kernel per test.                                                       |

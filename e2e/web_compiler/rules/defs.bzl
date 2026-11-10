@@ -11,7 +11,9 @@ load("@rules_dart//dart:providers.bzl", "DartInfo")
 load(
     "@rules_dart//dart:utils.bzl",
     "COPY_TO_DIRECTORY_TOOLCHAINS",
+    "PORTABLE_EXEC_GROUPS",
     "RUNTIME_INDEPENDENT_ATTR",
+    "SUMMARY_ATTRS",
     "collect_packages",
     "collect_transitive_srcs",
     "colocate_packages",
@@ -47,7 +49,7 @@ native_module = rule(
 def _module_library_impl(ctx):
     return [
         dart_info(
-            label = ctx.label,
+            ctx = ctx,
             packages = [dart_package_info(
                 label = ctx.label,
                 package_name = ctx.attr.package_name,
@@ -74,7 +76,9 @@ module_library = rule(
         "deps": attr.label_list(providers = [DartInfo]),
         "modules": attr.label_list(providers = [NativeModuleInfo]),
         "package_name": attr.string(mandatory = True),
-    } | RUNTIME_INDEPENDENT_ATTR,
+    } | RUNTIME_INDEPENDENT_ATTR | SUMMARY_ATTRS,
+    exec_groups = PORTABLE_EXEC_GROUPS,
+    toolchains = COPY_TO_DIRECTORY_TOOLCHAINS,
 )
 
 # The web platforms a rule set compiling one app for several compilers

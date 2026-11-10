@@ -1,0 +1,94 @@
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("//dart:defs.bzl", "dart_library", "dart_package_metadata")
+load("//dart/tests:analyze_test.bzl", "analyzed_test")
+load("//dart/tests:summaries_test.bzl", "summaries_reach_test", "summaries_refused_test")
+load(":rules.bzl", "reach_holder", "reach_outer", "reach_wrapper")
+
+# Analysis against summaries only: from source, none of this is in question.
+_SUMMARIES_ONLY = select({
+    "//dart:is_analysis_summaries": [],
+    "//conditions:default": ["@platforms//:incompatible"],
+})
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "summaries_fixture",
+)
+
+dart_library(
+    name = "lib",
+    srcs = ["lib/reach.dart"],
+    package = ":pubspec-metadata",
+)
+
+reach_holder(
+    name = "holder",
+    srcs = ["bin/main.dart"],
+    deps = [":lib"],
+)
+
+reach_wrapper(
+    name = "wrapper",
+    application = ":holder",
+)
+
+reach_outer(
+    name = "outer",
+    bundle = ":wrapper",
+)
+
+# `outer` reaches `lib` only through `wrapper`'s own provider, as
+# `flutter_apple_app` reaches its program's libraries through rules_apple's
+# bundle: its summaries are on the provider it passes on.
+summaries_reach_test(
+    name = "summaries_reach_through_providers_test",
+    size = "small",
+    target_compatible_with = _SUMMARIES_ONLY,
+    target_under_test = ":outer",
+)
+
+analyzed_test(
+    name = "outer_analyzed_test",
+    size = "small",
+    target = ":outer",
+    target_compatible_with = _SUMMARIES_ONLY,
+)
+
+# Declarations of a hand-written part, a generated part and a library beside a
+# part it does not include are read from the summary of their library.
+analyzed_test(
+    name = "parts_analyzed_test",
+    size = "small",
+    target = "//dart/tests/summaries_fixture/parts_user",
+    target_compatible_with = _SUMMARIES_ONLY,
+)
+
+# A rule that builds `DartInfo` with `dart_info()` and declares nothing for
+# summaries has none: analysis of it, or of anything above it, says what the
+# rule must declare and how to turn summaries off.
+[
+    summaries_refused_test(
+        name = "%s_refused_test" % name,
+        size = "small",
+        messages = [
+            "dart/tests/summaries_fixture/undeclared:undeclared: its rule builds `DartInfo` with `dart_info()` but declares no `SUMMARY_ATTRS`",
+            "--@rules_dart//dart:analysis_summaries=false",
+        ],
+        target_compatible_with = _SUMMARIES_ONLY,
+        target_under_test = target,
+    )
+    for name, target in [
+        ("undeclared", "//dart/tests/summaries_fixture/undeclared"),
+        ("undeclared_user", "//dart/tests/summaries_fixture/undeclared_user"),
+    ]
+]
+
+bzl_library(
+    name = "rules",
+    srcs = ["rules.bzl"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//dart:providers",
+        "//dart:utils",
+    ],
+)

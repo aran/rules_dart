@@ -1,0 +1,36 @@
+load("//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "summaries_parts",
+)
+
+# A generated part the library includes.
+genrule(
+    name = "parts_g",
+    outs = ["lib/parts.g.dart"],
+    cmd = "printf \"part of 'parts.dart';\\n\\n/// A generated part.\\nint generated() => 2;\\n\" > $@",
+)
+
+# A generated part no library includes, as a generator writing one per source
+# writes beside a source with nothing to generate.
+genrule(
+    name = "plain_g",
+    outs = ["lib/plain.g.dart"],
+    cmd = "printf \"part of 'plain.dart';\\n\" > $@",
+)
+
+# A library with a hand-written and a generated part, beside a part no library
+# includes: its summary holds both parts as units of their library.
+dart_library(
+    name = "parts",
+    srcs = [
+        "lib/parts.dart",
+        "lib/plain.dart",
+        "lib/src/hand.dart",
+        ":parts_g",
+        ":plain_g",
+    ],
+    package = ":pubspec-metadata",
+    visibility = ["//dart/tests/summaries_fixture:__subpackages__"],
+)

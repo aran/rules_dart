@@ -30,16 +30,18 @@ load(
     "//dart/private:dart_info.bzl",
     "dart_analyzable_info",
     "dart_analyzable_info_no_package",
-    "dart_info",
     "dart_info_no_package",
     "dart_package_info",
 )
+load("//dart/private:dart_summary.bzl", "SUMMARY_ATTRS", "dart_info")
+load("//dart/private:exec_groups.bzl", "PORTABLE_EXEC_GROUPS")
+load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS")
 
 def _wrapper_library_impl(ctx):
     return [
         DefaultInfo(files = depset(ctx.files.srcs + ctx.files.resources)),
         dart_info(
-            label = ctx.label,
+            ctx = ctx,
             packages = [dart_package_info(
                 label = ctx.label,
                 package_name = ctx.attr.package_name,
@@ -62,7 +64,9 @@ wrapper_library = rule(
         "code_assets": attr.label_list(providers = [DartCodeAssetInfo]),
         "package_name": attr.string(mandatory = True),
         "language_version": attr.string(),
-    },
+    } | SUMMARY_ATTRS,
+    exec_groups = PORTABLE_EXEC_GROUPS,
+    toolchains = COPY_TO_DIRECTORY_TOOLCHAINS,
     doc = "A non-`dart_library` producer of `DartInfo`, built through `dart_info()`.",
 )
 

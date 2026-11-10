@@ -2,13 +2,8 @@ load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@bazel_skylib//rules:common_settings.bzl", "bool_setting", "string_list_setting", "string_setting")
 load(":dart_analyze_aspect.bzl", "dart_analysis_config")
 load(":dart_module.bzl", "vm_kernel_sdk", "vm_program_kernel_sdk")
+load(":dart_summary.bzl", "summary_analyzer")
 load(":runtime.bzl", "target_runtime")
-
-bzl_library(
-    name = "package_root",
-    srcs = ["package_root.bzl"],
-    visibility = ["//dart:__subpackages__"],
-)
 
 bzl_library(
     name = "common",
@@ -59,9 +54,11 @@ bzl_library(
         ":common",
         ":dart_import_check",
         ":dart_info",
+        ":dart_summary",
         ":exec_groups",
         ":package_root",
         ":runtime",
+        ":source_set",
         "//dart:providers",
     ],
 )
@@ -171,11 +168,28 @@ bzl_library(
 )
 
 bzl_library(
+    name = "dart_summary",
+    srcs = ["dart_summary.bzl"],
+    visibility = ["//dart:__subpackages__"],
+    deps = [
+        ":common",
+        ":dart_info",
+        ":exec_groups",
+        ":project_staging",
+        ":resources",
+        ":source_set",
+        "//dart:providers",
+        "@bazel_skylib//rules:common_settings",
+    ],
+)
+
+bzl_library(
     name = "dart_analyze_aspect",
     srcs = ["dart_analyze_aspect.bzl"],
     visibility = ["//dart:__subpackages__"],
     deps = [
         ":common",
+        ":dart_summary",
         ":project_staging",
         ":resources",
         ":source_set",
@@ -207,8 +221,8 @@ bzl_library(
         ":exec_groups",
         ":executable_package",
         ":project_staging",
-        ":source_set",
         ":runtime",
+        ":source_set",
         "//dart:providers",
     ],
 )
@@ -268,6 +282,17 @@ alias(
     actual = select({
         ":without_import_check": ":no_import_checker",
         "//conditions:default": "//dart/private/tools:kernel_tool",
+    }),
+    visibility = ["//visibility:public"],
+)
+
+# The summary analyzer of the resolved Dart SDK, and that SDK's summary, for
+# `--@rules_dart//dart:analysis_summaries`.
+summary_analyzer(
+    name = "summary_analyzer",
+    enabled = select({
+        "//dart:is_analysis_summaries": True,
+        "//conditions:default": False,
     }),
     visibility = ["//visibility:public"],
 )
@@ -405,6 +430,12 @@ bzl_library(
 )
 
 bzl_library(
+    name = "package_root",
+    srcs = ["package_root.bzl"],
+    visibility = ["//dart:__subpackages__"],
+)
+
+bzl_library(
     name = "resolved_toolchain",
     srcs = ["resolved_toolchain.bzl"],
     visibility = ["//dart:__subpackages__"],
@@ -413,6 +444,12 @@ bzl_library(
 bzl_library(
     name = "resources",
     srcs = ["resources.bzl"],
+    visibility = ["//dart:__subpackages__"],
+)
+
+bzl_library(
+    name = "runtime",
+    srcs = ["runtime.bzl"],
     visibility = ["//dart:__subpackages__"],
 )
 
@@ -431,11 +468,5 @@ bzl_library(
 bzl_library(
     name = "versions",
     srcs = ["versions.bzl"],
-    visibility = ["//dart:__subpackages__"],
-)
-
-bzl_library(
-    name = "runtime",
-    srcs = ["runtime.bzl"],
     visibility = ["//dart:__subpackages__"],
 )

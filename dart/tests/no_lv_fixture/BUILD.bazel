@@ -19,6 +19,9 @@ no_lv_dart_library(
 dart_binary(
     name = "no_lv_binary",
     main = "main.dart",
+    # Compiled from an old provider; analysis of what reaches it is refused
+    # against summaries (`src_lib`).
+    tags = ["no-dart-analyze"],
     deps = [":no_lv_lib"],
 )
 
@@ -26,6 +29,9 @@ dart_test(
     name = "no_lv_dart_test",
     size = "small",
     main = "test.dart",
+    # Compiled from an old provider; analysis of what reaches it is refused
+    # against summaries (`src_lib`).
+    tags = ["no-dart-analyze"],
     deps = [":no_lv_lib"],
 )
 

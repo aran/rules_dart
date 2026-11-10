@@ -1,0 +1,40 @@
+load("//dart/tests:analyze_test.bzl", "analyzed_test")
+load("//dart/tests:summaries_test.bzl", "summarized_against_embedder_test")
+
+# Analysis against summaries only: from source, `dart analyze` reads the
+# embedder as the whole SDK, which a real one (Flutter's) maps in full and this
+# one does not.
+_SUMMARIES_ONLY = select({
+    "//dart:is_analysis_summaries": [],
+    "//conditions:default": ["@platforms//:incompatible"],
+})
+
+# A library importing what a `sky_engine` dependency's `_embedder.yaml` adds to
+# the SDK is analyzed clean against summaries: the SDK summary that
+# dependency's summary action writes holds the embedder's libraries, added to
+# the SDK's own, as `buildSdkSummary` adds them.
+[
+    analyzed_test(
+        name = "%s_analyzed_test" % name,
+        size = "small",
+        target = target,
+        target_compatible_with = _SUMMARIES_ONLY,
+    )
+    for name, target in [
+        ("embedder", "//dart/tests/embedder_fixture/user"),
+        # The engine is only in its `DartAnalyzableInfo`, as `sky_engine` is
+        # in a `flutter_library`'s.
+        ("analysis_only", "//dart/tests/embedder_fixture/analysis_only"),
+        ("above", "//dart/tests/embedder_fixture/above"),
+    ]
+]
+
+# The summary of a library whose engine is analysis-only is read against the
+# engine's SDK summary, which it hands on to what depends on it.
+summarized_against_embedder_test(
+    name = "analysis_only_summarized_test",
+    size = "small",
+    engine = "//dart/tests/embedder_fixture/engine",
+    target_compatible_with = _SUMMARIES_ONLY,
+    target_under_test = "//dart/tests/embedder_fixture/analysis_only",
+)

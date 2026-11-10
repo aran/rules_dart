@@ -59,6 +59,7 @@ never see different projects.
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("//dart:providers.bzl", "DartAnalysisOptionsInfo", "DartAnalyzableInfo", "DartInfo")
 load("//dart/private:common.bzl", "PATH_MAPPING", "SDK_ENV", "default_language_version", "merge_package_records", "own_packages")
+load("//dart/private:dart_summary.bzl", "DartSummaryAnalyzerInfo", "SUMMARIES_FLAG", "summary_analyzer_action")
 load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS", "portable_sdk")
 load("//dart/private:project_staging.bzl", "project_layout", "pubspec_stub", "stage_dart_project", "staged_pubspec_paths")
 load("//dart/private:resources.bzl", "analysis_resources")
@@ -292,6 +293,44 @@ def _analyze(ctx, name, staged, sdk_inputs):
     )
     return stamp
 
+def _analyze_against_summaries(ctx, name, config, info, entry, own, analyzer, summaries):
+    """Declares the analysis of `own` against the summaries of what it depends on; returns the stamp it writes on success.
+
+    The staged project holds the target's own files, generated ones among
+    them (no summary holds a target's own parts), and the options; every
+    other library resolves from a summary, so an edit that leaves a
+    dependency's summary unchanged does not re-run this action.
+    """
+    mine = [f for f in getattr(info, "srcs", []) if not f.short_path.startswith("../")]
+    staged = stage_config_project(
+        ctx,
+        config,
+        info.transitive_packages.to_list(),
+        mine + entry + own,
+        own,
+        name + ".summaries",
+        portable_sdk(ctx),
+    )
+    stamp = ctx.actions.declare_file(name + ".analyzed")
+    args = ctx.actions.args()
+    args.add("analyze")
+    _add_project(args, staged)
+    sdk_summary = summaries.sdk or analyzer.sdk_summary
+    args.add("--sdk-summary", sdk_summary)
+    args.add_all(summaries.deps, before_each = "--summary")
+    args.add("--stamp", stamp)
+    args.add("--fatal-infos")
+    summary_analyzer_action(
+        ctx,
+        analyzer,
+        args,
+        depset(staged.inputs + [sdk_summary], transitive = [summaries.deps]),
+        [stamp],
+        "DartAnalyze",
+        "Analyzing Dart sources of %{label} against summaries",
+    )
+    return stamp
+
 def _format_language_versions(info, own_paths, default):
     """Groups a target's own files by the language version to format them at.
 
@@ -399,6 +438,27 @@ def _format_check(ctx, name, changes):
     )
     return stamp
 
+def _summaries(ctx, analyzer, info):
+    """`info.summaries`, failing where analysis against them cannot run.
+
+    Read from the provider the analysis stages, so a target reaches its
+    libraries' summaries however its rule came by them (through another rule
+    set's aspect, say), and an executable's analysis-only dependencies (a
+    `sky_engine`) are among them.
+    """
+    if analyzer.error != None:
+        fail(analyzer.error)
+    summaries = getattr(info, "summaries", None)
+    if summaries == None:
+        fail(("%s: its `DartInfo` was not built by `dart_info()` (or `DartAnalyzableInfo` by " +
+              "`dart_analyzable_info()`) and carries no analyzer summaries, which analysis " +
+              "against summaries (`--@rules_dart//dart:analysis_summaries`, on by default) " +
+              "reads. Build it with the constructors in `@rules_dart//dart:utils.bzl`, or " +
+              "build with %s.") % (ctx.label, SUMMARIES_FLAG))
+    if summaries.error != None:
+        fail(summaries.error)
+    return summaries
+
 def _dart_analyze_aspect_impl(target, ctx):
     # Checked here, not with `required_providers`: that matches only rules that
     # advertise the provider via `provides`, which dart_library and downstream
@@ -448,8 +508,13 @@ def _dart_analyze_aspect_impl(target, ctx):
 
     tags = getattr(ctx.rule.attr, "tags", [])
     groups = {}
+    analyzer = ctx.attr._summary_analyzer[DartSummaryAnalyzerInfo]
     if NO_ANALYZE_TAG not in tags:
-        groups["dart_analyze"] = depset([_analyze(ctx, name, staged, sdk_inputs)])
+        if analyzer.enabled:
+            stamp = _analyze_against_summaries(ctx, name, config, info, entry, own.values(), analyzer, _summaries(ctx, analyzer, info))
+        else:
+            stamp = _analyze(ctx, name, staged, sdk_inputs)
+        groups["dart_analyze"] = depset([stamp])
     if NO_FORMAT_TAG not in tags:
         by_version = _format_language_versions(info, own_paths, default_language_version(dart_sdk_info))
         format_staged = stage_config_project(ctx, config, [], own.values(), own.values(), name + ".format", dart_sdk_info)
@@ -505,6 +570,11 @@ def _dart_analyze_aspect_impl(target, ctx):
 dart_analyze = aspect(
     implementation = _dart_analyze_aspect_impl,
     attrs = {
+        "_summary_analyzer": attr.label(
+            default = "//dart/private:summary_analyzer",
+            providers = [DartSummaryAnalyzerInfo],
+            cfg = config.exec(PORTABLE),
+        ),
         "_config": attr.label(
             default = "//dart:analysis_config",
             providers = [DartAnalysisConfigInfo],

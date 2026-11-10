@@ -1,0 +1,15 @@
+load("//dart:defs.bzl", "dart_package_metadata")
+load("//dart/tests/summaries_fixture:rules.bzl", "undeclared_library")
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "undeclared",
+)
+
+undeclared_library(
+    name = "undeclared",
+    srcs = ["lib/undeclared.dart"],
+    package = ":pubspec-metadata",
+    tags = ["manual"],
+    visibility = ["//dart/tests/summaries_fixture:__subpackages__"],
+)

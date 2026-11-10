@@ -1,0 +1,21 @@
+load("//dart:defs.bzl", "dart_package_metadata")
+load("//dart/tests/summaries_fixture:rules.bzl", "analysis_only_library")
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "analysis_only_user",
+)
+
+# A `flutter_library`: the engine is its analyzer's and not its compiler's.
+analysis_only_library(
+    name = "analysis_only",
+    srcs = ["lib/analysis_only.dart"],
+    engine = "//dart/tests/embedder_fixture/engine",
+    package = ":pubspec-metadata",
+    # Analyzed against summaries only (see `../engine`).
+    target_compatible_with = select({
+        "//dart:is_analysis_summaries": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    visibility = ["//dart/tests/embedder_fixture:__subpackages__"],
+)

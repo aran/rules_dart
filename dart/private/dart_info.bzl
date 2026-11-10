@@ -24,6 +24,9 @@ font and no Dart, and provides `DartInfo` only because
 `flutter_application(deps = ...)` requires one on every dep. Neither takes a
 field list, and the enumeration they share lives in `_merged_dart_info` below,
 so a field added to `DartInfo` is a change to this file and nowhere else.
+`dart_info()` itself is in `dart_summary.bzl`, because it also declares the
+library's analyzer summary, which needs the project staging this file cannot
+load; it builds the rest through `dart_info_with_summaries()` here.
 
 The narrow signature is the point for the second one. A target with no package
 can have no `srcs`, no `package_root`, and no `code_assets` — assets ride
@@ -135,46 +138,27 @@ def check_code_asset_ownership(label, package_name, assets):
             )
     return None
 
-def dart_info(
+def dart_info_with_summaries(
         label,
         packages,
-        deps = [],
-        srcs = [],
-        resources = [],
-        indirect_deps = []):
-    """Builds a `DartInfo` for a library, merging its dependencies' closures.
+        deps,
+        srcs,
+        resources,
+        indirect_deps,
+        summaries):
+    """`dart_info()` (`dart_summary.bzl`) once the library's summaries are known.
 
-    The caller supplies only what this target contributes itself; everything
-    transitive is merged here. Adding a field to `DartInfo` is therefore a
-    change to this file and nothing else.
-
-    A library contributes one package, built by `dart_package_info()`, or
-    several: pub allows packages to depend on each other (`dio` and
-    `dio_web_adapter`), Bazel does not allow a dependency cycle, so the
-    packages of such a cycle are one target, compiled together, each keeping
-    its own name and `package_root`. A target contributing none is what
-    `dart_info_no_package()` is for.
-
-    Attribute hygiene stays with the calling rule — whether `srcs` and
-    `srcs_dir` are mutually exclusive, whether a file sits under the package's
-    `lib/` — because those are statements about that rule's attributes, and a
-    rule generating its package as one tree artifact has no such files to check.
-    What belongs here is what is true of any `DartInfo`: the merges.
+    `dart_info()` declares the summary action, which needs the staging this
+    file must not load; everything else it does is here.
 
     Args:
       label: The constructing rule's label, for error messages.
-      packages: The `DartPackageInfo` records this target contributes, each
-        from `dart_package_info()`. At least one.
-      deps: Targets providing `DartInfo` whose closures are merged in.
-      srcs: This target's own Dart sources (or its source directory), of all
-        its packages.
-      resources: This target's own non-Dart files under its packages' `lib/`.
-      indirect_deps: Labels of targets that one of `deps` depends on and this
-        target's sources import, for sources whose imports a generator
-        chooses: `dart_proto_library`'s code imports the `fixnum` its protobuf
-        runtime is built on. Found by package in a dependency's
-        `DartInfo.deps`, so nobody names them by hand; the layering check
-        accepts their packages as direct.
+      packages: As `dart_info()`'s.
+      deps: As `dart_info()`'s.
+      srcs: As `dart_info()`'s.
+      resources: As `dart_info()`'s.
+      indirect_deps: As `dart_info()`'s.
+      summaries: The value of `DartInfo.summaries`, from `summaries_info()`.
 
     Returns:
       A `DartInfo`.
@@ -199,6 +183,83 @@ def dart_info(
         srcs = srcs,
         resources = resources,
         packages = packages,
+        summaries = summaries,
+    )
+
+def dep_summaries(label, deps):
+    """The summaries `deps` hand on, merged: what a target's own files are read against.
+
+    Two dependencies whose SDK summaries differ (two `sky_engine`s, or one in
+    two configurations) leave an error, since an analysis reads one SDK; one
+    reached by several routes is one File and merges.
+
+    Args:
+      label: The target's label, for the error, or None for one that has
+        none to give (`dart_info_no_package()`).
+      deps: Targets providing `DartInfo`.
+
+    Returns:
+      `struct(transitive, sdk, sdk_owner, error)`, as `DartInfo.summaries`
+      has them.
+    """
+    transitive = []
+    sdk = None
+    sdk_owner = None
+    error = None
+    who = "%s: " % label if label != None else ""
+    for dep in deps:
+        summaries = getattr(dep[DartInfo], "summaries", None)
+        if summaries == None:
+            error = error or (
+                ("%sdepends on %s, whose `DartInfo` was not built by `dart_info()` and carries no " +
+                 "analyzer summaries, which analysis against summaries " +
+                 "(`--@rules_dart//dart:analysis_summaries`, on by default) reads. Build it with " +
+                 "`dart_info()` from `@rules_dart//dart:utils.bzl`, or build with " +
+                 "`--@rules_dart//dart:analysis_summaries=false`.") % (who, dep.label)
+            )
+            continue
+        error = error or summaries.error
+        transitive.append(summaries.transitive)
+        if summaries.sdk == None:
+            continue
+        if sdk == None:
+            sdk = summaries.sdk
+            sdk_owner = summaries.sdk_owner
+        elif summaries.sdk != sdk and error == None:
+            error = (
+                ("%sreaches %s, each of which adds libraries to the Dart SDK with an " +
+                 "`_embedder.yaml`; analysis against summaries reads one SDK. Build with " +
+                 "`--@rules_dart//dart:analysis_summaries=false` to analyze from source.") %
+                (who, (
+                    "%s in two configurations (%s and %s)" % (sdk_owner, sdk.root.path, summaries.sdk.root.path)
+                ) if sdk_owner == summaries.sdk_owner else "%s and %s" % (sdk_owner, summaries.sdk_owner))
+            )
+    return struct(
+        transitive = depset(transitive = transitive),
+        sdk = sdk,
+        sdk_owner = sdk_owner,
+        error = error,
+    )
+
+def summaries_info(merged, summary = None, sdk_summary = None, sdk_owner = None, error = None):
+    """`DartInfo.summaries` over the merged `dep_summaries()` and what the target adds.
+
+    Args:
+      merged: `dep_summaries()` of the target's dependencies.
+      summary: The target's own summary File, or None.
+      sdk_summary: The SDK summary the target's own `_embedder.yaml` makes, or None.
+      sdk_owner: The target, when it makes `sdk_summary`.
+      error: Why the target has no summary, or None.
+
+    Returns:
+      A struct with `DartInfo.summaries`' fields.
+    """
+    return struct(
+        transitive = depset([summary], transitive = [merged.transitive]) if summary != None else merged.transitive,
+        deps = merged.transitive,
+        sdk = sdk_summary or merged.sdk,
+        sdk_owner = sdk_owner if sdk_summary != None else merged.sdk_owner,
+        error = error or merged.error,
     )
 
 def dart_package_info(
@@ -346,6 +407,8 @@ def dart_info_no_package(deps = []):
         srcs = [],
         resources = [],
         packages = [],
+        # The label is for an error, and a dependency names itself in it.
+        summaries = summaries_info(dep_summaries(None, deps)),
     )
 
 def dart_analyzable_info(
@@ -401,12 +464,17 @@ def dart_analyzable_info(
     Returns:
       A `DartAnalyzableInfo` whose nested `DartInfo` records these packages.
     """
-    info = dart_info(
+
+    # Its own files are analyzed from source, never imported: no summary of
+    # its own.
+    info = dart_info_with_summaries(
         label = label,
         packages = packages,
         deps = deps,
         srcs = srcs,
         resources = resources,
+        indirect_deps = [],
+        summaries = summaries_info(dep_summaries(label, deps)),
     )
     for f in entry_srcs:
         for p in packages:
@@ -519,7 +587,8 @@ def _merged_dart_info(
         indirect_deps,
         srcs,
         resources,
-        packages):
+        packages,
+        summaries):
     """Merges a target's own contributions with its dependencies' closures.
 
     The single place `DartInfo`'s fields are enumerated. Every public
@@ -533,11 +602,13 @@ def _merged_dart_info(
       srcs: This target's own Dart sources.
       resources: This target's own non-Dart files under `lib/`.
       packages: This target's own `DartPackageInfo` records.
+      summaries: Value for `DartInfo.summaries`, from `summaries_info()`.
 
     Returns:
       A `DartInfo`.
     """
     return DartInfo(
+        summaries = summaries,
         packages = tuple(packages),
         srcs = list(srcs),
         deps = dict(dep_packages),

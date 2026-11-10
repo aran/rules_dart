@@ -152,7 +152,9 @@ dart = use_extension("//dart:extensions.bzl", "dart")
 dart.toolchain(dart_version = "3.13.7")
 use_repo(
     dart,
-    # The pinned SDK's outline stripper, for its own test.
+    # The pinned SDK's summary analyzer and outline stripper, for their own
+    # tests.
+    "dart_analyzer_source",
     "dart_kernel_source",
     "dart_toolchains",
     # Each host's SDK, which compiles that host's pubspec reader.
@@ -163,15 +165,17 @@ use_repo(
     "dart_windows-x64",
 )
 
-# A Dart SDK source checkout on disk and the outline stripper built on it
-# (`dart_kernel_source(path = ...)`), and the same through `fetch_dart_kernel_source`
-# with a prefix, for their own tests.
+# A Dart SDK source checkout on disk and the outline stripper and summary
+# analyzer built on it (`dart_kernel_source(path = ...)`,
+# `dart_analyzer_source(path = ...)`), and the same through
+# `fetch_dart_kernel_source` and `fetch_dart_analyzer_source` with a prefix,
+# for their own tests.
 kernel_checkout_files = use_repo_rule("//dart/tests:kernel_checkout.bzl", "kernel_checkout_files")
 
 kernel_checkout_files(name = "kernel_checkout_files")
 
 kernel_checkout = use_extension("//dart/tests:kernel_checkout.bzl", "kernel_checkout", dev_dependency = True)
-use_repo(kernel_checkout, "kernel_checkout_source", "kernel_prefixed_source")
+use_repo(kernel_checkout, "analyzer_checkout_source", "analyzer_prefixed_source", "kernel_checkout_source", "kernel_prefixed_source")
 
 register_toolchains("@dart_toolchains//:all")
 

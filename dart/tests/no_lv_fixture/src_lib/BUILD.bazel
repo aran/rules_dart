@@ -1,10 +1,38 @@
+load("//dart/tests:summaries_test.bzl", "summaries_refused_test")
 load("//dart/tests/no_lv_fixture:no_lv_rules.bzl", "no_lv_dart_library")
 
 # A record with only `package_name` and `package_root`, as an older producer builds
-# it, over a hand-written file: the aspect checks it and must not assume the
-# optional `language_version` is present.
+# it, over a hand-written file: the aspect checks it from source and must not
+# assume the optional `language_version` is present.
 no_lv_dart_library(
     name = "src_lib",
     package_name = "no_lv_src_lib",
     srcs = ["lib/answer.dart"],
+    target_compatible_with = select({
+        "//dart:is_analysis_summaries": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
+)
+
+no_lv_dart_library(
+    name = "src_lib_summaries",
+    package_name = "no_lv_src_lib",
+    srcs = ["lib/answer.dart"],
+    tags = ["manual"],
+)
+
+# Such a provider carries no summaries, so analysis against them refuses it,
+# saying how to build it and how to turn summaries off.
+summaries_refused_test(
+    name = "src_lib_refused_test",
+    size = "small",
+    messages = [
+        "src_lib:src_lib_summaries: its `DartInfo` was not built by `dart_info()`",
+        "--@rules_dart//dart:analysis_summaries=false",
+    ],
+    target_compatible_with = select({
+        "//dart:is_analysis_summaries": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    target_under_test = ":src_lib_summaries",
 )

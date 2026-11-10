@@ -51,7 +51,6 @@ load(
     "//dart/private:dart_info.bzl",
     _dart_analyzable_info = "dart_analyzable_info",
     _dart_analyzable_info_no_package = "dart_analyzable_info_no_package",
-    _dart_info = "dart_info",
     _dart_info_no_package = "dart_info_no_package",
     _dart_package_info = "dart_package_info",
     _package_info_from_metadata = "package_info_from_metadata",
@@ -77,6 +76,7 @@ load(
     _executable_defines_config = "executable_defines_config",
     _kernel_package_config = "kernel_package_config",
 )
+load("//dart/private:dart_summary.bzl", _SUMMARY_ATTRS = "SUMMARY_ATTRS", _dart_info = "dart_info")
 load(
     "//dart/private:exec_groups.bzl",
     _EXEC_TOOLS_TOOLCHAIN = "EXEC_TOOLS_TOOLCHAIN",
@@ -111,7 +111,7 @@ load(
 #
 #     package = library_package(ctx, ctx.files.srcs, ctx.files.resources)
 #     dart_info(
-#         label = ctx.label,
+#         ctx = ctx,
 #         packages = [package.record],
 #         deps = ctx.attr.deps,
 #         srcs = ctx.files.srcs,
@@ -121,6 +121,12 @@ load(
 # `packages` holds one record for a library, or several for one target built
 # over packages that depend on each other (pub allows it, Bazel does not).
 dart_info = _dart_info
+
+# What a rule building `DartInfo` with `dart_info()` merges into its `attrs`,
+# beside `exec_groups = PORTABLE_EXEC_GROUPS` and `COPY_TO_DIRECTORY_TOOLCHAINS`
+# among its `toolchains`: `dart_info()` declares the library's analyzer
+# summary, which analysis against summaries reads and nothing else builds.
+SUMMARY_ATTRS = _SUMMARY_ATTRS
 
 # The package a target is part of, declared as rules_dart's rules declare it. A
 # rule merges `package_identity_attrs()` (the `package` attribute, a

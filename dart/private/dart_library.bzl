@@ -3,10 +3,12 @@
 load("//dart:providers.bzl", "DartInfo")
 load("//dart/private:common.bzl", "codegen_identity_error", "identity_package_record", "own_packages", "package_identity_attrs", "resolve_package_identity")
 load("//dart/private:dart_import_check.bzl", "LIBRARY_IMPORT_CHECKER_ATTRS", "library_import_check")
-load("//dart/private:dart_info.bzl", "dart_info", "package_info_from_metadata", "package_lib_prefix")
+load("//dart/private:dart_info.bzl", "package_info_from_metadata", "package_lib_prefix")
+load("//dart/private:dart_summary.bzl", "SUMMARY_ATTRS", "dart_info")
 load("//dart/private:exec_groups.bzl", "PORTABLE_EXEC_GROUPS")
 load("//dart/private:package_root.bzl", "locate_package_root")
 load("//dart/private:runtime.bzl", "RUNTIME_INDEPENDENT_ATTR", "runtime_reset_when_independent")
+load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS")
 
 def check_no_duplicate_srcs(label, srcs, attr_name = "srcs"):
     """Detects two entries that resolve to the same package-relative path.
@@ -215,7 +217,7 @@ def _dart_library_impl(ctx):
     # the only place that sees the package's complete file set. Its one
     # action is the check of what its sources import, a validation.
     info = dart_info(
-        label = ctx.label,
+        ctx = ctx,
         packages = [package.record],
         deps = ctx.attr.deps,
         srcs = own_srcs,
@@ -265,7 +267,8 @@ consumer's `data`.""",
             doc = "Other `dart_library` targets this library depends on. Their sources and package metadata are propagated transitively.",
             providers = [DartInfo],
         ),
-    } | package_identity_attrs() | RUNTIME_INDEPENDENT_ATTR | LIBRARY_IMPORT_CHECKER_ATTRS,
+    } | package_identity_attrs() | RUNTIME_INDEPENDENT_ATTR | LIBRARY_IMPORT_CHECKER_ATTRS | SUMMARY_ATTRS,
     exec_groups = PORTABLE_EXEC_GROUPS,
+    toolchains = COPY_TO_DIRECTORY_TOOLCHAINS,
     doc = "Collects Dart sources and propagates dependency information via `DartInfo`. Its package is the one the `dart_package_metadata` it names in `package` declares, or, naming none, one named after its root directory that states nothing else. Does not compile or assemble; consumers co-locate generated sources. Its `_validation` output group checks what its sources import, export and include as parts against its `deps` (see `dart_import_check.bzl`), so any build of the library runs the check.",
 )

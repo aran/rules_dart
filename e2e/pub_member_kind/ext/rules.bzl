@@ -11,7 +11,7 @@ on.
 """
 
 load("@rules_dart//dart:providers.bzl", "DartInfo", "DartPackageMetadataInfo")
-load("@rules_dart//dart:utils.bzl", "dart_analyzable_info", "dart_info", "runtime_reset")
+load("@rules_dart//dart:utils.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS", "PORTABLE_EXEC_GROUPS", "SUMMARY_ATTRS", "dart_analyzable_info", "dart_info", "runtime_reset")
 load("@rules_dart//dart/pub:pub_library.bzl", "DartPackageMemberInfo", "dart_package_member_info")
 
 FancyMemberInfo = provider(
@@ -64,11 +64,12 @@ def _fancy_library_impl(ctx):
             runfiles = ctx.runfiles(files = srcs + resources),
         ),
         dart_info(
-            label = ctx.label,
+            ctx = ctx,
             packages = packages,
             srcs = srcs,
             resources = resources,
             deps = ctx.attr.deps,
+            analysis_deps = [ctx.attr._engine],
         ),
         # The analyzer sees one more package than the compiler, as
         # `flutter_library`'s `sky_engine`.
@@ -95,7 +96,9 @@ fancy_library = rule(
         "members": attr.label_list(providers = [DartPackageMemberInfo], mandatory = True),
         "deps": attr.label_list(providers = [DartInfo]),
         "_engine": attr.label(default = Label("//engine"), providers = [DartInfo]),
-    },
+    } | SUMMARY_ATTRS,
+    exec_groups = PORTABLE_EXEC_GROUPS,
+    toolchains = COPY_TO_DIRECTORY_TOOLCHAINS,
 )
 
 def _fancy_native_impl(ctx):

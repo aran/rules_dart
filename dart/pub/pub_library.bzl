@@ -15,7 +15,7 @@ and `pub_library` are rules_dart's member and library. A rule set whose pub
 packages carry more (plugin metadata, native libraries, assets) defines its own
 member rule, returning `dart_package_member_info()` beside its own providers, and
 its own library rule, which reads both off its `members` and builds its
-`DartInfo` with `dart_info()`. Such a library rule may accept rules_dart's
+`DartInfo` with `dart_info()` (and so declares what `SUMMARY_ATTRS` says). Such a library rule may accept rules_dart's
 members too, since they carry the same provider, so one cycle can mix packages
 of both kinds. Which members form a cycle, and what the cycle depends on, is
 planned in the library repository by `dependency_cycle()` (`pub_graph.bzl`),
@@ -23,10 +23,12 @@ which builds a cycle only where one is declared.
 """
 
 load("//dart:providers.bzl", "DartInfo", "DartPackageMetadataInfo")
-load("//dart/private:dart_info.bzl", "dart_info")
 load("//dart/private:dart_library.bzl", "checked_package_info")
+load("//dart/private:dart_summary.bzl", "SUMMARY_ATTRS", "dart_info")
 load("//dart/private:dart_test_runner.bzl", _pub_test_runner = "pub_test_runner")
+load("//dart/private:exec_groups.bzl", "PORTABLE_EXEC_GROUPS")
 load("//dart/private:runtime.bzl", "runtime_reset")
+load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS")
 
 DartPackageMemberInfo = provider(
     doc = """One pub package's files and facts, for the library its dependency cycle is built as.
@@ -97,7 +99,7 @@ def _pub_library_impl(ctx):
             runfiles = ctx.runfiles(files = srcs + resources),
         ),
         dart_info(
-            label = ctx.label,
+            ctx = ctx,
             packages = [m.package for m in members],
             srcs = srcs,
             resources = resources,
@@ -119,7 +121,9 @@ pub_library = rule(
             providers = [DartInfo],
             doc = "The libraries of the packages the members depend on outside the cycle.",
         ),
-    },
+    } | SUMMARY_ATTRS,
+    exec_groups = PORTABLE_EXEC_GROUPS,
+    toolchains = COPY_TO_DIRECTORY_TOOLCHAINS,
     doc = "A pub package as a library: its dependency cycle's packages, compiled as one target.",
 )
 

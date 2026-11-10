@@ -156,7 +156,7 @@ def toolchains_repo_impl(repository_ctx):
 # By default all these toolchains are registered by the dart_register_toolchains macro
 # so you don't normally need to interact with these targets.
 
-load("@rules_dart//dart:toolchain.bzl", "dart_outline_toolchain")
+load("@rules_dart//dart:toolchain.bzl", "dart_analyzer_toolchain", "dart_outline_toolchain")
 """
 
     # Native toolchains: exec and target constraints match the same platform.
@@ -234,6 +234,24 @@ toolchain(
     name = "outline_toolchain",
     toolchain = ":outline",
     toolchain_type = "@rules_dart//dart:outline_toolchain_type",
+)
+
+# The summary analyzer of the same SDK, which reports what its `dart analyze`
+# does. Unset when `analysis_summaries` is off, so its SDK source is not
+# fetched.
+dart_analyzer_toolchain(
+    name = "analyzer",
+    tool = select({{
+        "@rules_dart//dart:is_analysis_summaries": "@{user_repository_name}_analyzer_source//:summary_analyzer",
+        "//conditions:default": None,
+    }}),
+    version = "{version}",
+)
+
+toolchain(
+    name = "analyzer_toolchain",
+    toolchain = ":analyzer",
+    toolchain_type = "@rules_dart//dart:analyzer_toolchain_type",
 )
 """.format(
         user_repository_name = repository_ctx.attr.user_repository_name,

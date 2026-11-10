@@ -1,0 +1,2 @@
+embedded_libs:
+  "dart:fake": "fake/fake.dart"

@@ -120,6 +120,21 @@ jobs:
       - name: analysis — format check inputs, ${{ matrix.name }}
         working-directory: e2e/analysis
         run: bazel run ${{ matrix.flags }} //format_inputs
+      # A body edit leaves a library's summary unchanged, so the library above
+      # it is not analyzed again: only the edited library's own summary and
+      # analysis run.
+      - name: analysis — a body edit re-analyzes only its own library, ${{ matrix.name }}
+        working-directory: e2e/analysis
+        run: |
+          sed -i 's/  return a + b;/  final sum = a + b;\n  return sum;/' mylib/lib/mylib.dart
+          bazel test ${{ matrix.flags }} --explain=explain.txt //... || [ $? -eq 4 ]
+          git checkout mylib/lib/mylib.dart
+          grep -q "Analyzing Dart sources of //mylib:mylib" explain.txt
+          if grep -q "Analyzing Dart sources of //:good_lib" explain.txt; then
+            echo "ERROR: //:good_lib was analyzed again after a body edit in //mylib"
+            exit 1
+          fi
+          echo "OK: analysis cut off above the edited library"
       - name: analysis_failure canary — ${{ matrix.name }}
         working-directory: e2e/analysis_failure
         run: bazel test ${{ matrix.flags }} //:clean_lib || [ $? -eq 4 ]
@@ -137,6 +152,20 @@ jobs:
       - name: dart_test whole-program — ${{ matrix.folder }}
         working-directory: ${{ matrix.folder }}
         run: bazel test --test_output=errors --@rules_dart//dart:modular_kernel=false //...
+  # Analysis from source: every target analyzed by the SDK's own `dart
+  # analyze` against its dependencies' source, the path the summaries flag
+  # turns back to, so it cannot rot.
+  analysis-from-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      matrix:
+        folder: [".", "e2e/analysis"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: analysis from source — ${{ matrix.folder }}
+        working-directory: ${{ matrix.folder }}
+        run: bazel test --test_output=errors --@rules_dart//dart:analysis_summaries=false //... || [ $? -eq 4 ]
   # The runner snapshot cache off, the default this repository's .bazelrc
   # overrides: `test_runner_test` checks that the runner then starts from its
   # kernel and no cache is touched.
@@ -460,6 +489,23 @@ jobs:
           fi
           bazel test //:bad_bin 2>&1 | grep -q "unused_import"
           echo "OK: expected analyzer failure detected"
+      # Analysis against summaries refuses where the stock analyzer drops an
+      # error it reports from source: here a subtype of a dependency's `base`
+      # class. It fails with the analyzer's own error and the flag that turns
+      # summaries off; with the flag off, `dart analyze` reports the error.
+      - name: analysis_failure — expect analysis against summaries to fail loudly where the analyzer drops an error
+        working-directory: e2e/analysis_failure
+        run: |
+          if bazel test //summaries/user 2>/dev/null; then
+            echo "ERROR: build should have failed: Sub is not base"
+            exit 1
+          fi
+          out=$(bazel test //summaries/user 2>&1 || true)
+          echo "$out" | grep -q "summaries/user/lib/user.dart:4:7: The type 'Sub' must be 'base', 'final' or 'sealed'"
+          echo "$out" | grep -q -- "--@rules_dart//dart:analysis_summaries=false"
+          out=$(bazel test --@rules_dart//dart:analysis_summaries=false //summaries/user 2>&1 || true)
+          echo "$out" | grep -q -- "- summaries/user/lib/user.dart:4:7 - The type 'Sub' must be 'base'"
+          echo "OK: dropped error refused against summaries, reported from source"
       # A `flutter_library` lists its files in `DefaultInfo` and leaves
       # `DartAnalyzableInfo.entry_srcs` empty; they are its own files all the same.
       - name: analysis_failure — expect a flutter_library-shaped target to be analyzed

@@ -41,9 +41,11 @@ bzl_library(
     visibility = ["//visibility:public"],
     deps = [
         "//dart:providers",
-        "//dart/private:dart_info",
         "//dart/private:dart_library",
+        "//dart/private:dart_summary",
+        "//dart/private:exec_groups",
         "//dart/private:runtime",
+        "//dart/private:source_set",
     ],
 )
 

@@ -1,0 +1,25 @@
+load("//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "sky_engine",
+)
+
+# A package that adds a library to the Dart SDK through its
+# `lib/_embedder.yaml`, as Flutter's `sky_engine` adds `dart:ui`. The analyzer
+# reads the embedder of a package by that name alone. Its own files are SDK
+# libraries, which no analysis checks, as nothing checks Flutter's.
+dart_library(
+    name = "engine",
+    srcs = ["lib/fake/fake.dart"],
+    package = ":pubspec-metadata",
+    resources = ["lib/_embedder.yaml"],
+    tags = ["no-dart-analyze"],
+    # From source, `dart analyze` reads an embedder as the whole SDK, which
+    # this one does not map: what reaches it is analyzed against summaries only.
+    target_compatible_with = select({
+        "//dart:is_analysis_summaries": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    visibility = ["//dart/tests/embedder_fixture:__subpackages__"],
+)

@@ -37,6 +37,7 @@ forwarded silently discards every dependency's values.""",
         "transitive_resources": "depset[File]: Non-Dart files shipped inside `lib/` (see `dart_library`'s `resources`) by this library and all transitive deps. Carried beside `transitive_srcs` rather than within it because the two are routed differently: everything that stages a whole package wants both, and nothing that feeds the compiler wants these.",
         "transitive_packages": "depset[DartPackageInfo]: Package records for this library and all transitive deps.",
         "transitive_code_asset_files": "depset[File]: The dynamic libraries of every transitive code asset. Carried separately from `transitive_packages` because a depset of providers cannot be turned back into files for runfiles.",
+        "summaries": "struct: The analyzer summaries analysis against summaries (`--@rules_dart//dart:analysis_summaries`) reads, declared by `dart_info()` and built only when an analysis reads them: `transitive` (depset[File]: this target's summary and every one it depends on, what a dependent reads), `deps` (depset[File]: those of its dependencies alone, what its own files are analyzed against), `sdk` (File or None: the SDK summary a `sky_engine` it reaches makes with its `_embedder.yaml`; None for the SDK's own), `sdk_owner` (Label or None: that `sky_engine`) and `error` (str or None: why analysis against summaries cannot read them, reported by an analysis that needs them). Absent from a provider built by hand, whose dependents' analysis against summaries fails.",
     },
 )
 

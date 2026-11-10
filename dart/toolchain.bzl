@@ -280,3 +280,49 @@ be of the same SDK `version` as the Dart toolchain that compiled them. The
 `dart` extension registers one beside each Dart toolchain. A Dart SDK of your
 own (a fork, a local build) registers its own, built from its `pkg/kernel`.""",
 )
+
+_SUMMARIES = "//dart:analysis_summaries"
+
+def _without_summaries_impl(_settings, _attr):
+    return {_SUMMARIES: False}
+
+# The summary analyzer is built of Dart libraries, and every library declares
+# its summary with the summary analyzer: built with summaries on, it would
+# depend on itself. Nothing analyzes the tool's own libraries.
+_without_summaries = transition(
+    implementation = _without_summaries_impl,
+    inputs = [],
+    outputs = [_SUMMARIES],
+)
+
+def _dart_analyzer_toolchain_impl(ctx):
+    return [platform_common.ToolchainInfo(
+        # A list: the attribute has a transition.
+        summary_analyzer = ctx.attr.tool[0][DefaultInfo].files_to_run if ctx.attr.tool else None,
+        version = ctx.attr.version,
+    )]
+
+dart_analyzer_toolchain = rule(
+    implementation = _dart_analyzer_toolchain_impl,
+    attrs = {
+        "tool": attr.label(
+            doc = "The summary analyzer, built on the `pkg/analyzer` and `pkg/linter` of the SDK `version` names, such as a `dart_analyzer_source` repository's `:summary_analyzer`. Leave it unset when `@rules_dart//dart:is_analysis_summaries` is not, so that it is not built: `select({\"@rules_dart//dart:is_analysis_summaries\": ..., \"//conditions:default\": None})`.",
+            executable = True,
+            # Built for the platform the rule resolving it is configured for
+            # (the host the analysis actions run on), with summaries off.
+            cfg = _without_summaries,
+        ),
+        "version": attr.string(
+            doc = "The version of the Dart SDK whose `pkg/analyzer` and `pkg/linter` `tool` is built on: the `version` of the `dart_toolchain` whose analysis it stands in for.",
+            mandatory = True,
+        ),
+    },
+    doc = """The summary analyzer of one Dart SDK: a toolchain of type `@rules_dart//dart:analyzer_toolchain_type`.
+
+With `--@rules_dart//dart:analysis_summaries` on, the `dart_analyze` aspect
+analyzes against dependencies' summaries with the analyzer of the toolchain
+that resolves, which must be of the same SDK `version` as the Dart toolchain
+of the analysis. The `dart` extension registers one beside each Dart toolchain.
+A Dart SDK of your own (a fork, a local build) registers its own, built from its
+`pkg/analyzer` and `pkg/linter` (`dart_analyzer_source(path = ...)`).""",
+)

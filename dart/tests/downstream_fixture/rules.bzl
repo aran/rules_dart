@@ -9,7 +9,7 @@ public surface, so they can only do what another rule set can.
 """
 
 load("//dart:providers.bzl", "DartInfo", "DartPackageMetadataInfo")
-load("//dart:utils.bzl", "dart_analyzable_info", "dart_info", "executable_package_record", "library_package", "package_identity_attrs", "resolve_package_identity")
+load("//dart:utils.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS", "PORTABLE_EXEC_GROUPS", "SUMMARY_ATTRS", "dart_analyzable_info", "dart_info", "executable_package_record", "library_package", "package_identity_attrs", "resolve_package_identity")
 
 def _downstream_library_impl(ctx):
     package = library_package(ctx, ctx.files.srcs, ctx.files.resources)
@@ -21,7 +21,7 @@ def _downstream_library_impl(ctx):
     return [
         DefaultInfo(files = depset(ctx.files.srcs + ctx.files.resources)),
         dart_info(
-            label = ctx.label,
+            ctx = ctx,
             packages = [package.record],
             deps = ctx.attr.deps,
             srcs = ctx.files.srcs,
@@ -35,7 +35,9 @@ downstream_library = rule(
         "srcs": attr.label_list(allow_files = [".dart"]),
         "resources": attr.label_list(allow_files = True),
         "deps": attr.label_list(providers = [DartInfo]),
-    } | package_identity_attrs(),
+    } | package_identity_attrs() | SUMMARY_ATTRS,
+    exec_groups = PORTABLE_EXEC_GROUPS,
+    toolchains = COPY_TO_DIRECTORY_TOOLCHAINS,
 )
 
 def _identity_agrees(ctx, identity, record):

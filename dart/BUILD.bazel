@@ -111,6 +111,34 @@ bool_flag(
     visibility = ["//visibility:public"],
 )
 
+# On (the default), the `dart_analyze` aspect analyzes each target against
+# analyzer summaries of its dependencies rather than their source, so an edit
+# that changes no declaration (a function body) re-analyzes only its own
+# target. Every dependency library gets a summary action of its own. The
+# summaries are read by an analyzer rules_dart builds on the SDK's own
+# `pkg/analyzer` and `pkg/linter`, unmodified (the analyzer toolchain,
+# `:analyzer_toolchain_type`), because no SDK tool reads them. The README's
+# "Analysis against summaries" says what it cannot do. Off, every target is
+# analyzed with its dependencies' source, by the SDK's own `dart analyze`:
+#   bazel test //... --@rules_dart//dart:analysis_summaries=false
+# It keeps Bazel's default scope, as `outline_kernel` does: the summary
+# analyzer is resolved in the exec configuration of the analysis actions, and
+# with the flag off its SDK source must not be fetched there either.
+bool_flag(
+    name = "analysis_summaries",
+    build_setting_default = True,
+    visibility = ["//visibility:public"],
+)
+
+# On when `analysis_summaries` is: the analyzer toolchain selects its tool on
+# it, so that with the flag off the tool, and the SDK source it is built from,
+# are not fetched.
+config_setting(
+    name = "is_analysis_summaries",
+    flag_values = {":analysis_summaries": "true"},
+    visibility = ["//visibility:public"],
+)
+
 # This is the target rule authors should put in their "toolchains"
 # attribute in order to get a runtime for the correct platform.
 # See https://docs.bazel.build/versions/main/toolchains.html#writing-rules-that-use-toolchains
@@ -136,6 +164,14 @@ toolchain_type(
 # extension registers one with each Dart toolchain.
 toolchain_type(
     name = "outline_toolchain_type",
+    visibility = ["//visibility:public"],
+)
+
+# The summary analyzer of a Dart SDK, for `analysis_summaries`: a
+# `dart_analyzer_toolchain`, built on that SDK's own `pkg/analyzer` and
+# `pkg/linter`. The `dart` extension registers one with each Dart toolchain.
+toolchain_type(
+    name = "analyzer_toolchain_type",
     visibility = ["//visibility:public"],
 )
 
@@ -226,10 +262,11 @@ bzl_library(
         "//dart/private:dart_info",
         "//dart/private:dart_library",
         "//dart/private:dart_package_metadata",
+        "//dart/private:dart_summary",
         "//dart/private:exec_groups",
         "//dart/private:package_root",
-        "//dart/private:source_set",
         "//dart/private:runtime",
+        "//dart/private:source_set",
     ],
 )
 

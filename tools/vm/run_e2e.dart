@@ -346,6 +346,13 @@ const _expectedFailureChecks = [
     'unused_element',
   ),
   _ExpectedFailure('e2e/analysis_failure', '//nested', 'avoid_print'),
+  // Analysis against summaries refuses, with the analyzer's own error, where
+  // the stock analyzer drops it.
+  _ExpectedFailure(
+    'e2e/analysis_failure',
+    '//summaries/user',
+    'analysis_summaries=false',
+  ),
   _ExpectedFailure(
     'e2e/analysis_failure',
     '//unresolved_ruleset:clean_lib',

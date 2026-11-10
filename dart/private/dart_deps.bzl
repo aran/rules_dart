@@ -7,7 +7,8 @@ Which attribute a dependency arrives through is the rule's business —
 attribute that is not a tool, plus the toolchains a rule lists in
 `DART_TOOLCHAIN_TYPES_ATTR`, and picks the dependencies out by
 `DartInfo.deps`, what the rule passed to `dart_info()`. A target reached that
-is not a library (a toolchain) hands on the libraries it holds, one hop, in its
+has no `DartInfo` (a toolchain, or an executable-like wrapper
+with only `DartAnalyzableInfo`) hands on the libraries it holds, one hop, in its
 provider's `exported`.
 """
 
