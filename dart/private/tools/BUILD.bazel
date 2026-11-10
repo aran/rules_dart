@@ -332,8 +332,27 @@ dart_test(
     ],
 )
 
-# The server's end with its worker is checked by process: Windows has no
-# parent-death check yet, so a killed worker leaves its server there.
+# The host's end with its parent, on every OS.
+dart_test(
+    name = "analysis_host_test",
+    size = "small",
+    args = [
+        "$(rlocationpath :analysis_host.dart)",
+        "$(rlocationpath //dart/tests/sdk_files:copy_analyze)",
+    ],
+    data = [
+        ":analysis_host.dart",
+        "//dart/tests/sdk_files:copy_analyze",
+    ],
+    main = "analysis_host_test.dart",
+    deps = [
+        "//dart/runfiles",
+        "@ext_pub_deps//:test",
+    ],
+)
+
+# The server's end with its worker, checked by process (`pgrep`), so not on
+# Windows.
 dart_test(
     name = "analysis_worker_test",
     size = "medium",

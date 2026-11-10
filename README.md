@@ -1329,8 +1329,7 @@ bazel test //... --@rules_dart//dart:analysis_worker=false
 Bazel's own worker flags apply: `--worker_max_instances=DartAnalyze=N` (and
 `DartFix=N` for fixes) sets how many servers run at once (each holds a few
 hundred MB), and `--strategy=DartAnalyze=sandboxed`, or remote execution, runs
-each action once on its own server. On Windows a worker that is killed, rather than stopped by
-Bazel, leaves its server running until Bazel's server shuts down.
+each action once on its own server.
 
 #### Checking targets `//...` does not reach
 
