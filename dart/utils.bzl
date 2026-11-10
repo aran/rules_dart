@@ -62,6 +62,17 @@ load(
     _PORTABLE_EXEC_GROUPS = "PORTABLE_EXEC_GROUPS",
 )
 load(
+    "//dart/private:runtime.bzl",
+    _RUNTIME_INDEPENDENT_ATTR = "RUNTIME_INDEPENDENT_ATTR",
+    _WEB_PLATFORM_SETTINGS = "WEB_PLATFORM_SETTINGS",
+    _runtime_reset = "runtime_reset",
+    _runtime_reset_when_independent = "runtime_reset_when_independent",
+    _web_platform_config_settings = "web_platform_config_settings",
+    _web_platform_settings = "web_platform_settings",
+    _web_platform_transition = "web_platform_transition",
+    _web_platforms_transition = "web_platforms_transition",
+)
+load(
     "//dart/private:source_set.bzl",
     _COPY_TO_DIRECTORY_TOOLCHAINS = "COPY_TO_DIRECTORY_TOOLCHAINS",
     _colocate_packages = "colocate_packages",
@@ -199,3 +210,50 @@ DART_TOOLCHAIN_TYPES_ATTR = _DART_TOOLCHAIN_TYPES_ATTR
 # own_package, ctx.attr.deps))`, merging `KERNEL_TOOL_ATTR` into its `attrs`.
 dart_import_check_aspect = _dart_import_check_aspect
 import_check_validation = _import_check_validation
+
+# The web compiler, a constraint of the target platform
+# (`@rules_dart//dart/constraints:runtime`: `none`, `js`, `wasm`).
+# A rule whose outputs cannot depend on it — a native library, a code
+# generator, a module built by another language's toolchain — takes
+# `cfg = runtime_reset`, so every route into it, from a web binary or not,
+# reaches one configured target, built once. A rule some of whose targets are
+# compiler-independent and some not (one that wraps both pub packages and
+# first-party code) merges `RUNTIME_INDEPENDENT_ATTR` into its `attrs` and
+# takes `cfg = runtime_reset_when_independent`, which resets the targets
+# that set `runtime_independent = True`, as `dart_library` does.
+runtime_reset = _runtime_reset
+runtime_reset_when_independent = _runtime_reset_when_independent
+RUNTIME_INDEPENDENT_ATTR = _RUNTIME_INDEPENDENT_ATTR
+
+# A rule that builds Dart code for a web platform does it with these, never by
+# setting `--platforms` itself: they record the platforms the build had, which
+# is what lets the resets above rejoin that configuration. `cfg =
+# web_platform_transition` on an attribute builds it for the platform in the
+# rule's `platform` attribute; `web_platforms_transition` builds it once per
+# platform in the rule's `web_platforms` (a split, keyed by platform label).
+web_platform_transition = _web_platform_transition
+web_platforms_transition = _web_platforms_transition
+
+# A rule set whose branches are computed from more than a list of platforms
+# (from `compilation_mode` too, say) writes its own transition with
+# `WEB_PLATFORM_SETTINGS` among its `inputs` and `outputs`, and returns
+# `web_platform_settings(settings, platform)` for each branch.
+WEB_PLATFORM_SETTINGS = _WEB_PLATFORM_SETTINGS
+web_platform_settings = _web_platform_settings
+
+# An analysis test, whose `config_settings` is a fixed dict rather than a
+# transition, configures its target under test as a web binary's `deps` with
+# `web_platform_config_settings(platform)`, merging any settings of its own:
+#
+#     analysistest.make(
+#         _impl,
+#         config_settings = web_platform_config_settings(
+#             Label("@rules_dart//dart/platforms:wasm"),
+#         ) | {"//command_line_option:compilation_mode": "opt"},
+#     )
+#
+# It records the platforms the build had, as the transitions do, so a reset
+# beneath the target goes back to them, as it would from a real web binary.
+# Those are the host's unless the tests run under another `--platforms`; then
+# pass them as `platforms`.
+web_platform_config_settings = _web_platform_config_settings

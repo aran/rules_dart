@@ -14,6 +14,7 @@ load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS", "port
 load("//dart/private:executable_package.bzl", "EXECUTABLE_PACKAGE_ATTRS", "executable_package")
 load("//dart/private:project_staging.bzl", "project_layout", "stage_dart_project")
 load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS")
+load("//dart/private:runtime.bzl", "RuntimeInfo", "web_platform_transition")
 
 def _get_web_compilation_mode_flags(ctx, compile_mode):
     """Returns compiler flags for the current Bazel compilation mode (web targets).
@@ -51,6 +52,20 @@ def _dart_web_compile(ctx, compile_mode):
     Returns:
         A list of providers.
     """
+
+    carried = ctx.attr._runtime[0][RuntimeInfo].value
+    if carried != compile_mode:
+        fail(("%s: its `platform`, %s, carries `@rules_dart//dart/constraints:%s`, not `:%s`. " +
+              "A platform a `%s` builds for must list `@rules_dart//dart/constraints:%s` in " +
+              "its `constraint_values` (or name `@rules_dart//dart/platforms:%s` as a parent).") % (
+            ctx.label,
+            ctx.attr.platform.label,
+            carried,
+            compile_mode,
+            "dart_js_binary" if compile_mode == "js" else "dart_wasm_binary",
+            compile_mode,
+            compile_mode,
+        ))
 
     # JavaScript and WebAssembly are the same whichever host compiles them.
     dart_sdk_info = portable_sdk(ctx)
@@ -126,31 +141,45 @@ def _dart_js_binary_impl(ctx):
 def _dart_wasm_binary_impl(ctx):
     return _dart_web_compile(ctx, "wasm")
 
-_WEB_BINARY_ATTRS = {
-    "main": attr.label(
-        doc = "The Dart entrypoint file containing a top-level `main()` function.",
-        mandatory = True,
-        allow_single_file = [".dart"],
-    ),
-    "srcs": attr.label_list(
-        doc = "Additional Dart source files that are part of this application's package but not reachable via `deps`.",
-        allow_files = [".dart"],
-    ),
-    "deps": attr.label_list(
-        doc = "`dart_library` targets this application depends on.",
-        providers = [DartInfo],
-    ),
-    "dart_compile_flags": attr.string_list(
-        doc = "Extra flags passed to `dart compile` after compilation-mode defaults. Flags appear last so they can override defaults (e.g., `-O4` for dart2js).",
-    ),
-    "defines": attr.string_list(
-        doc = "Dart environment declarations (`key=value`). Each entry becomes a `-Dkey=value` flag.",
-    ),
-} | EXTRA_DART_DEFINES_ATTR | EXECUTABLE_PACKAGE_ATTRS
+def _web_binary_attrs(compiler):
+    return {
+        "platform": attr.label(
+            doc = ("The platform `deps` are built for. It must carry " +
+                   "`@rules_dart//dart/constraints:{c}`; anything else on it (constraints of your own, " +
+                   "`flags`) is yours. Its `os` and `cpu`, if any, are not read: the output is the same " +
+                   "whichever host compiles it.").format(c = compiler),
+            default = "//dart/platforms:" + compiler,
+            providers = [platform_common.PlatformInfo],
+        ),
+        "_runtime": attr.label(
+            default = "//dart/private:target_runtime",
+            cfg = web_platform_transition,
+        ),
+        "main": attr.label(
+            doc = "The Dart entrypoint file containing a top-level `main()` function.",
+            mandatory = True,
+            allow_single_file = [".dart"],
+        ),
+        "srcs": attr.label_list(
+            doc = "Additional Dart source files that are part of this application's package but not reachable via `deps`.",
+            allow_files = [".dart"],
+        ),
+        "deps": attr.label_list(
+            doc = "`dart_library` targets this application depends on. They, and everything they depend on, are built for `platform`, so a `select()` on `@rules_dart//dart/constraints:js` or `:wasm` picks this compiler's variant.",
+            providers = [DartInfo],
+            cfg = web_platform_transition,
+        ),
+        "dart_compile_flags": attr.string_list(
+            doc = "Extra flags passed to `dart compile` after compilation-mode defaults. Flags appear last so they can override defaults (e.g., `-O4` for dart2js).",
+        ),
+        "defines": attr.string_list(
+            doc = "Dart environment declarations (`key=value`). Each entry becomes a `-Dkey=value` flag.",
+        ),
+    } | EXTRA_DART_DEFINES_ATTR | EXECUTABLE_PACKAGE_ATTRS
 
 dart_js_binary = rule(
     implementation = _dart_js_binary_impl,
-    attrs = _WEB_BINARY_ATTRS,
+    attrs = _web_binary_attrs("js"),
     toolchains = COPY_TO_DIRECTORY_TOOLCHAINS,
     exec_groups = PORTABLE_EXEC_GROUPS,
     doc = "Compiles a Dart web application to JavaScript via `dart compile js`.",
@@ -158,7 +187,7 @@ dart_js_binary = rule(
 
 dart_wasm_binary = rule(
     implementation = _dart_wasm_binary_impl,
-    attrs = _WEB_BINARY_ATTRS,
+    attrs = _web_binary_attrs("wasm"),
     toolchains = COPY_TO_DIRECTORY_TOOLCHAINS,
     exec_groups = PORTABLE_EXEC_GROUPS,
     doc = "Compiles a Dart web application to WebAssembly via `dart compile wasm`. Requires a browser with WasmGC support.\n\n" +

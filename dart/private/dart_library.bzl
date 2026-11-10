@@ -3,6 +3,7 @@
 load("//dart:providers.bzl", "DartCodeAssetInfo", "DartInfo")
 load("//dart/private:common.bzl", "PACKAGE_IDENTITY_ATTRS", "codegen_identity_error", "resolve_package_identity")
 load("//dart/private:dart_info.bzl", "dart_info", "package_lib_prefix")
+load("//dart/private:runtime.bzl", "RUNTIME_INDEPENDENT_ATTR", "runtime_reset_when_independent")
 
 def derive_package_name(package_name_attr, label_package, label_name):
     """Derive the Dart package name from rule attributes and label.
@@ -245,6 +246,7 @@ def _dart_library_impl(ctx):
 
 dart_library = rule(
     implementation = _dart_library_impl,
+    cfg = runtime_reset_when_independent,
     attrs = {
         "srcs": attr.label_list(
             doc = "Dart source files (`.dart`), source-tree or generated. Typically `glob([\"lib/**/*.dart\"])`, optionally plus `dart_codegen` outputs. Generated members are co-located with the rest of the package by the consuming `dart_binary`/`dart_test`. Mutually exclusive with `srcs_dir`.",
@@ -302,6 +304,6 @@ resolve at runtime.""",
         "version": attr.string(
             doc = "The package's own version, as resolved by pub (e.g. `2.2.0`). Set automatically by `pub.package()` / `pub.from_lock()`; leave it empty on hand-written targets, which have no resolved version to state. Its only use is agreement checking: when one package name arrives twice — two pub hubs each supplying `ffi`, say — a build whose two records name different versions would otherwise compile against whichever came first in dependency order, silently ignoring the other. Two *known*, differing versions fail the build; an empty one never conflicts.",
         ),
-    } | PACKAGE_IDENTITY_ATTRS,
+    } | PACKAGE_IDENTITY_ATTRS | RUNTIME_INDEPENDENT_ATTR,
     doc = "Collects Dart sources and propagates dependency information via `DartInfo`. Does not compile or assemble; consumers co-locate generated sources.",
 )

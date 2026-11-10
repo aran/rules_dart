@@ -33,6 +33,7 @@ const _ciFolders = [
   'e2e/pub_deps',
   'e2e/pub_lock',
   'e2e/web_app',
+  'e2e/web_compiler',
   'e2e/gazelle',
   'e2e/cross_compile',
   'e2e/pub_lock_cross_module',

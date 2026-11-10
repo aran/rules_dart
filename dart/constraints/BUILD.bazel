@@ -1,0 +1,34 @@
+# The runtime Dart code is built for, as a constraint of the target platform:
+# `vm` (the default, so every platform that does not mention it, host
+# included, builds for the Dart VM), `js` (dart2js and DDC) or `wasm`
+# (dart2wasm). Its values are package:test's: DDC and dart2js both build
+# `js`.
+#
+# A library picks a per-compiler variant with a `select()` keyed on these
+# values, and web-only code says so in `target_compatible_with`; see
+# "Per-compiler code" in docs/ARCHITECTURE.md. A platform a Dart web binary
+# builds for carries `:js` or `:wasm`, and nothing else is required of it:
+# rules_dart's own `//dart/platforms:js` and `:wasm` carry only that.
+constraint_setting(
+    name = "runtime",
+    default_constraint_value = ":vm",
+    visibility = ["//visibility:public"],
+)
+
+constraint_value(
+    name = "vm",
+    constraint_setting = ":runtime",
+    visibility = ["//visibility:public"],
+)
+
+constraint_value(
+    name = "js",
+    constraint_setting = ":runtime",
+    visibility = ["//visibility:public"],
+)
+
+constraint_value(
+    name = "wasm",
+    constraint_setting = ":runtime",
+    visibility = ["//visibility:public"],
+)

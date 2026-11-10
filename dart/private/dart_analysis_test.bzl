@@ -15,6 +15,7 @@ binary itself passes through.
 
 load("//dart/private:common.bzl", "test_executable")
 load("//dart/private:dart_analyze_aspect.bzl", "NO_ANALYZE_TAG", "NO_FORMAT_TAG", "dart_analyze")
+load("//dart/private:runtime.bzl", "web_platforms_transition")
 
 _CHECKS = ["dart_analyze", "dart_format"]
 
@@ -43,6 +44,15 @@ dart_analysis_test = rule(
             aspects = [dart_analyze],
             allow_empty = False,
             mandatory = True,
+            cfg = web_platforms_transition,
+        ),
+        "web_platforms": attr.label_list(
+            doc = "Web platforms to check `targets` on, each as a web binary would build it: " +
+                  "`@rules_dart//dart/platforms:js`, `:wasm`, or a platform of your own carrying " +
+                  "`@rules_dart//dart/constraints:js` or `:wasm`. Each target is checked once per " +
+                  "platform listed, and not on the build's own. For web-only code, which every " +
+                  "other platform skips as incompatible.",
+            providers = [platform_common.PlatformInfo],
         ),
         "_tool": attr.label(
             default = "//dart/private/tools:noop",

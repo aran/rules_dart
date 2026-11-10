@@ -72,6 +72,7 @@ load(
     "synth_package_config",
 )
 load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS", "portable_sdk")
+load("//dart/private:runtime.bzl", "runtime_reset")
 
 def compute_codegen_output_name(src_path, output_suffix):
     """Compute the output file path for a codegen source file.
@@ -246,6 +247,8 @@ def _transitive(d):
 
 dart_codegen = rule(
     implementation = _dart_codegen_impl,
+    # Its outputs are the same under every web compiler: built once, with none.
+    cfg = runtime_reset,
     attrs = {
         "src": attr.label(
             doc = "The single `.dart` input file to process. Use one " +

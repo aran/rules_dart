@@ -1,7 +1,8 @@
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
-load("@bazel_skylib//rules:common_settings.bzl", "string_list_setting")
+load("@bazel_skylib//rules:common_settings.bzl", "string_list_setting", "string_setting")
 load(":dart_analyze_aspect.bzl", "dart_analysis_config")
 load(":dart_module.bzl", "vm_kernel_sdk")
+load(":runtime.bzl", "target_runtime")
 
 bzl_library(
     name = "toolchains_repo",
@@ -24,6 +25,12 @@ bzl_library(
 bzl_library(
     name = "resolved_toolchain",
     srcs = ["resolved_toolchain.bzl"],
+    visibility = ["//dart:__subpackages__"],
+)
+
+bzl_library(
+    name = "runtime",
+    srcs = ["runtime.bzl"],
     visibility = ["//dart:__subpackages__"],
 )
 
@@ -75,6 +82,7 @@ bzl_library(
     visibility = ["//dart:__subpackages__"],
     deps = [
         ":dart_info",
+        ":runtime",
         "//dart:providers",
     ],
 )
@@ -230,6 +238,7 @@ bzl_library(
         ":executable_package",
         ":project_staging",
         ":source_set",
+        ":runtime",
         "//dart:providers",
     ],
 )
@@ -244,13 +253,17 @@ bzl_library(
     name = "dart_codegen",
     srcs = ["dart_codegen.bzl"],
     visibility = ["//dart:__subpackages__"],
+    deps = [":runtime"],
 )
 
 bzl_library(
     name = "dart_aggregate_codegen",
     srcs = ["dart_aggregate_codegen.bzl"],
     visibility = ["//dart:__subpackages__"],
-    deps = ["//dart:providers"],
+    deps = [
+        ":runtime",
+        "//dart:providers",
+    ],
 )
 
 dart_analysis_config(
@@ -269,5 +282,23 @@ string_list_setting(
 
 vm_kernel_sdk(
     name = "vm_kernel_sdk",
+    visibility = ["//visibility:public"],
+)
+
+# `--platforms` as it was before the nearest web transition, JSON-encoded; ""
+# outside one. The web transitions set it and `runtime_reset` restores
+# `--platforms` from it and clears it (runtime.bzl). `scope = "target"`
+# keeps it out of the exec configuration.
+string_setting(
+    name = "platforms_before_web",
+    build_setting_default = "",
+    scope = "target",
+    visibility = ["//visibility:public"],
+)
+
+# Which runtime a configuration's target platform carries; the web
+# binaries read it through their transition.
+target_runtime(
+    name = "target_runtime",
     visibility = ["//visibility:public"],
 )

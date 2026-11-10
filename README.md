@@ -531,6 +531,110 @@ dart_wasm_binary(
 )
 ```
 
+#### Per-compiler code
+
+Dart picks native or web code itself, with a conditional import on
+`dart.library.js_interop`. What it cannot do is give dart2js and dart2wasm
+different declared types or different files. For that, the runtime is a
+constraint of the target platform, `@rules_dart//dart/constraints:runtime`:
+`js` (dart2js and DDC), `wasm` (dart2wasm), or `vm`, the default, which every
+platform that does not mention it carries, the host included. Each web binary
+builds everything it depends on for a platform carrying its compiler,
+`@rules_dart//dart/platforms:js` or `:wasm` unless its `platform` attribute
+names one of your own. A library picks a variant with a `select()` in its
+`deps`:
+
+```starlark
+dart_library(
+    name = "vec",
+    srcs = ["lib/vec.dart"],  # import 'package:i64/i64.dart';
+    deps = select({
+        "@rules_dart//dart/constraints:js": ["//i64/js:i64"],
+        "@rules_dart//dart/constraints:wasm": ["//i64/typed:i64"],
+        "//conditions:default": ["//i64/typed:i64"],
+    }),
+)
+```
+
+The variants are separate `dart_library` targets with the same `package_name`,
+each in its own directory, so the import is the same whichever is picked.
+Building `:app` or `:app_wasm` builds only that binary's variant.
+
+A platform of your own carries the compiler's constraint value, and whatever
+constraints of yours a `select()` needs beside it. Give it no `flags`: they
+stay set beneath the binary, in the code it shares with VM builds, which is
+then built twice.
+
+```starlark
+platform(
+    name = "wasm_threads",
+    parents = ["@rules_dart//dart/platforms:wasm"],
+    constraint_values = [":threads"],
+)
+
+dart_wasm_binary(
+    name = "app_wasm_threads",
+    main = "bin/main.dart",
+    platform = ":wasm_threads",
+    deps = [":vec"],
+)
+```
+
+Code generators cannot vary by compiler: `dart_codegen` and its siblings are
+built for the platform the build had before any web binary, so their outputs
+are shared by both binaries and the VM. A generator that needs per-compiler
+output emits every variant, one `dart_codegen` per variant directory, and the
+library above chooses.
+
+Code with no variant for the VM (it imports `dart:js_interop` unconditionally,
+say) says so in `target_compatible_with`: incompatible where the runtime
+is `vm`. Then `bazel build //...` skips it on the host, and a VM program
+reaching it is incompatible too. Code with no variant for the web says
+`target_compatible_with = ["@rules_dart//dart/constraints:vm"]`. `bazel test
+//...` never analyses web-only code; a `dart_analysis_test` with
+`web_platforms` does:
+
+```starlark
+dart_library(
+    name = "interop",
+    srcs = ["lib/interop.dart"],
+    target_compatible_with = select({
+        "@rules_dart//dart/constraints:vm": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
+    deps = select({
+        "@rules_dart//dart/constraints:js": [":js_impl"],
+        "@rules_dart//dart/constraints:wasm": [":wasm_impl"],
+    }),
+)
+
+dart_analysis_test(
+    name = "interop_analysis_test",
+    targets = [":interop"],
+    web_platforms = [
+        "@rules_dart//dart/platforms:js",
+        "@rules_dart//dart/platforms:wasm",
+    ],
+)
+```
+
+Only the libraries on the path from a binary to such a `select()` are
+configured once per compiler; they run no actions. Pub packages, codegen and
+native code assets go back to the build's own platform and are built once. A
+hand-written library that cannot reach per-compiler code may say so with
+`runtime_independent = True`, as every pub package does, and is built once
+too.
+
+A rule set that builds Dart for a web platform uses the transitions in
+`@rules_dart//dart:utils.bzl` (`web_platform_transition`,
+`web_platforms_transition`, or `web_platform_settings` in a transition of its
+own), never `--platforms` alone: they record the platform the build had, which
+is what the resets go back to. Its split may see fewer keys in
+`ctx.split_attr` than it returned: branches that a dependency's reset brings to
+one configuration arrive as one key. Its analysis tests take
+`config_settings = web_platform_config_settings(platform)`, the same settings
+as a fixed dict.
+
 ### Recorded uses and link hooks
 
 A package can ship a `hook/link.dart` that decides what to include from how the
@@ -585,6 +689,7 @@ The [`e2e/`](e2e/) directory contains complete working examples:
 | [`fix`](e2e/fix/)                                     | `dart_fix` write-back, and that generated files are never rewritten                      |
 | [`analyze_composition`](e2e/analyze_composition/)     | A lint ruleset shared from another Bazel module                                          |
 | [`web_app`](e2e/web_app/)                             | JavaScript and WebAssembly compilation with library deps                                 |
+| [`web_compiler`](e2e/web_compiler/)                   | Per-compiler code by `select()`, and the resets other modules' rules use                 |
 | [`pub_deps`](e2e/pub_deps/)                           | Single pub.dev package via `pub.package()`                                               |
 | [`pub_lock`](e2e/pub_lock/)                           | Multiple packages from `pubspec.lock` via `pub.from_lock()`                              |
 | [`gazelle`](e2e/gazelle/)                             | Automatic BUILD file generation with Gazelle                                             |

@@ -36,6 +36,7 @@ load(
     "synth_package_config",
 )
 load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS", "portable_sdk")
+load("//dart/private:runtime.bzl", "runtime_reset")
 
 def _dart_sqlcodegen_impl(ctx):
     identity = resolve_package_identity(ctx)
@@ -132,6 +133,8 @@ def _dart_sqlcodegen_impl(ctx):
 
 dart_sqlcodegen = rule(
     implementation = _dart_sqlcodegen_impl,
+    # Its outputs are the same under every web compiler: built once, with none.
+    cfg = runtime_reset,
     attrs = {
         "src": attr.label(
             doc = "The single non-Dart input file (`.drift`, `.moor`, …).",

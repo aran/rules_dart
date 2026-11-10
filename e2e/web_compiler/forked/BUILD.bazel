@@ -1,0 +1,23 @@
+load("@bazel_skylib//rules:write_file.bzl", "write_file")
+load("//rules:defs.bzl", "module_library", "native_module")
+
+# The control: unmarked first-party code, configured once per compiler.
+write_file(
+    name = "src",
+    out = "lib/forked.dart",
+    content = [
+        "/// Generated.",
+        "const int forked = 1;",
+        "",
+    ],
+)
+
+native_module(name = "module")
+
+module_library(
+    name = "forked",
+    package_name = "forked",
+    srcs = [":src"],
+    modules = [":module"],
+    visibility = ["//visibility:public"],
+)

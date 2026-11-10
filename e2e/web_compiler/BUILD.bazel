@@ -1,0 +1,132 @@
+load(
+    "@rules_dart//dart:defs.bzl",
+    "dart_binary",
+    "dart_js_binary",
+    "dart_library",
+    "dart_test",
+    "dart_wasm_binary",
+)
+load("//rules:defs.bzl", "branch_sources", "web_bundle")
+load("//rules:tests.bzl", "compiler_roots", "shared_test", "variant_test")
+
+# Per-compiler code: `package:i64` comes in two variants, generated once each,
+# and this library picks one by the compiler it is built for. The VM, which no
+# web compiler builds, takes the `none` branch.
+dart_library(
+    name = "vec",
+    package_name = "web_compiler_e2e",
+    srcs = ["lib/vec.dart"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@pub_deps//:characters",
+    ] + select({
+        "@rules_dart//dart/constraints:js": ["//i64/js:i64"],
+        "@rules_dart//dart/constraints:wasm": ["//i64/typed:i64"],
+        "@rules_dart//dart/constraints:vm": ["//i64/typed:i64"],
+    }),
+)
+
+dart_js_binary(
+    name = "app_js",
+    main = "bin/main.dart",
+    deps = [":vec"],
+)
+
+dart_wasm_binary(
+    name = "app_wasm",
+    main = "bin/main.dart",
+    deps = [":vec"],
+)
+
+dart_binary(
+    name = "app_vm",
+    main = "bin/main.dart",
+    deps = [":vec"],
+)
+
+dart_test(
+    name = "vm_variant_test",
+    size = "small",
+    main = "test/vm_variant_test.dart",
+    deps = [":vec"],
+)
+
+dart_test(
+    name = "web_outputs_test",
+    size = "small",
+    data = [
+        ":app_js",
+        ":app_wasm",
+    ],
+    main = "test/web_outputs_test.dart",
+    deps = ["@rules_dart//dart/runfiles"],
+)
+
+variant_test(
+    name = "js_variant_test",
+    size = "small",
+    not_picked = "i64/typed/lib/i64.g.dart",
+    picked = "i64/js/lib/i64.g.dart",
+    target_under_test = ":app_js",
+)
+
+variant_test(
+    name = "wasm_variant_test",
+    size = "small",
+    not_picked = "i64/js/lib/i64.g.dart",
+    picked = "i64/typed/lib/i64.g.dart",
+    target_under_test = ":app_wasm",
+)
+
+# Everything a web binary reaches, reached under each compiler and in a plain
+# build, to compare where each generated file is built.
+dart_library(
+    name = "everything",
+    package_name = "everything",
+    srcs = [],
+    tags = ["manual"],
+    deps = [
+        ":vec",
+        "//forked",
+        "//independent",
+    ],
+)
+
+compiler_roots(
+    name = "everything_roots",
+    lib = ":everything",
+    plain = ":everything",
+    tags = ["manual"],
+)
+
+# Codegen, native modules (this module's `native_module`, reset with
+# `runtime_reset`) and a library marked `runtime_independent` (this
+# module's `module_library`) are built once, in the plain build's
+# configuration, under both compilers.
+shared_test(
+    name = "shared_test",
+    size = "small",
+    forked = ["forked/lib/forked.dart"],
+    shared = [
+        "i64/js/lib/i64.g.dart",
+        "i64/typed/lib/i64.g.dart",
+        "independent/lib/independent.dart",
+        "independent/module.bin",
+        "forked/module.bin",
+    ],
+    target_under_test = ":everything_roots",
+)
+
+# One branch's staging, configured once per compiler by `web_bundle`'s split.
+# Both branches assemble package `i64` (source plus generated part) under the
+# same name, `branch.i64.pkgsrcs`, each in its own output directory.
+branch_sources(
+    name = "branch",
+    tags = ["manual"],
+    deps = [":vec"],
+)
+
+web_bundle(
+    name = "bundle",
+    branch = ":branch",
+)

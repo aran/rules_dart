@@ -1,0 +1,1 @@
+part 'model.g.dart';

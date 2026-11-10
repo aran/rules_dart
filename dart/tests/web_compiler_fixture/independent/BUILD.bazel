@@ -1,0 +1,17 @@
+load("//dart:defs.bzl", "dart_library")
+
+# Marked compiler-independent, so it and the genrule beneath it are built once, with no web compiler, under every binary.
+# The generated source's output root says which configuration built it.
+genrule(
+    name = "src",
+    outs = ["lib/independent.dart"],
+    cmd = "echo 'const int independent = 1;' > $@",
+)
+
+dart_library(
+    name = "independent",
+    srcs = [":src"],
+    runtime_independent = True,
+    tags = ["manual"],
+    visibility = ["//dart/tests/web_compiler_fixture:__subpackages__"],
+)

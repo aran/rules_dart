@@ -1,0 +1,38 @@
+load("@rules_dart//dart:defs.bzl", "dart_analysis_test", "dart_binary", "dart_library")
+
+# Code with a variant for each web compiler and none for the Dart VM. It says
+# so in `target_compatible_with`, so a platform without a web compiler (the
+# host, in `//...`) skips it, and a VM program reaching it is incompatible too.
+dart_library(
+    name = "web_only",
+    package_name = "web_only",
+    srcs = ["lib/web_only.dart"],
+    target_compatible_with = select({
+        "@rules_dart//dart/constraints:vm": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
+    deps = select({
+        "@rules_dart//dart/constraints:js": ["//i64/js:i64"],
+        "@rules_dart//dart/constraints:wasm": ["//i64/typed:i64"],
+    }),
+)
+
+# The mistake web-only code is marked for: a VM program reaching it. `//...`
+# skips it as incompatible; CI builds it by name and expects Bazel's refusal.
+dart_binary(
+    name = "vm_reaching_web_only",
+    main = "main.dart",
+    deps = [":web_only"],
+)
+
+# `//...` never builds `:web_only` on the host, so the `dart_analyze` aspect
+# never reaches it there. This checks it as each web binary would build it.
+dart_analysis_test(
+    name = "web_only_analysis_test",
+    size = "small",
+    targets = [":web_only"],
+    web_platforms = [
+        "@rules_dart//dart/platforms:js",
+        "@rules_dart//dart/platforms:wasm",
+    ],
+)

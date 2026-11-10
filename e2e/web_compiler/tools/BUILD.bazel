@@ -1,0 +1,12 @@
+load("@rules_dart//dart:defs.bzl", "dart_binary")
+
+exports_files(
+    ["variant_gen.dart"],
+    visibility = ["//visibility:public"],
+)
+
+# Analysis handle for the script, which `dart_codegen` runs as a bare file.
+dart_binary(
+    name = "variant_gen",
+    main = "variant_gen.dart",
+)

@@ -4,6 +4,11 @@
 its own repository holding a single `dart_library`. Both emit that target
 through the one generator here, so a field added to the shape reaches both
 paths instead of only the one whose template was edited.
+
+Every spoke's library says `runtime_independent = True`: a pub package
+cannot `select()` on the runtime constraint,
+`@rules_dart//dart/constraints:runtime`, so it is built once however many
+web compilers reach it.
 """
 
 _LOAD = 'load("@rules_dart//dart:defs.bzl", "dart_library")\n'
@@ -142,6 +147,7 @@ dart_library(
         allow_empty = True,
     ),
     language_version = "{language_version}",
+    runtime_independent = True,
     visibility = ["{visibility}"],
 )
 """.format(

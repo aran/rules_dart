@@ -1,0 +1,135 @@
+load("//dart:defs.bzl", "dart_binary", "dart_js_binary", "dart_library", "dart_wasm_binary")
+load(
+    "//dart/tests:web_compiler_test.bzl",
+    "config_settings_test",
+    "constraints",
+    "resets_test",
+    "roots_under_js",
+    "variant_test",
+    "web_only_test",
+    "wrong_platform_test",
+)
+
+# A library that picks a per-compiler variant of package `variant` with a
+# `select()` in `deps`, as docs/ARCHITECTURE.md ("Per-compiler code") shows.
+dart_library(
+    name = "facade",
+    package_name = "web_compiler_fixture",
+    srcs = ["lib/facade.dart"],
+    deps = select({
+        "//dart/constraints:js": ["//dart/tests/web_compiler_fixture/js:variant"],
+        "//dart/constraints:wasm": ["//dart/tests/web_compiler_fixture/wasm:variant"],
+        "//dart/constraints:vm": ["//dart/tests/web_compiler_fixture/native:variant"],
+    }),
+)
+
+dart_js_binary(
+    name = "app_js",
+    main = "bin/main.dart",
+    deps = [":facade"],
+)
+
+dart_wasm_binary(
+    name = "app_wasm",
+    main = "bin/main.dart",
+    deps = [":facade"],
+)
+
+dart_binary(
+    name = "app_vm",
+    main = "bin/main.dart",
+    deps = [":facade"],
+)
+
+variant_test(
+    name = "js_variant_test",
+    size = "small",
+    expected = "js",
+    target_under_test = ":app_js",
+)
+
+variant_test(
+    name = "wasm_variant_test",
+    size = "small",
+    expected = "wasm",
+    target_under_test = ":app_wasm",
+)
+
+variant_test(
+    name = "vm_variant_test",
+    size = "small",
+    expected = "native",
+    target_under_test = ":app_vm",
+)
+
+# Every kind of compiler-independent target under one first-party library.
+dart_library(
+    name = "top",
+    package_name = "web_compiler_fixture",
+    srcs = [],
+    tags = ["manual"],
+    deps = [
+        "//dart/tests/web_compiler_fixture/asset",
+        "//dart/tests/web_compiler_fixture/forked",
+        "//dart/tests/web_compiler_fixture/gen",
+        "//dart/tests/web_compiler_fixture/independent",
+    ],
+)
+
+roots_under_js(
+    name = "top_roots",
+    library = ":top",
+    library_under_js = ":top",
+    tags = ["manual"],
+)
+
+resets_test(
+    name = "resets_under_js_test",
+    size = "small",
+    target_under_test = ":top_roots",
+)
+
+config_settings_test(
+    name = "config_settings_test",
+    size = "small",
+    by_dict = ":top",
+    by_transition = ":top",
+    plain = ":top",
+    target_under_test = ":top",
+)
+
+dart_wasm_binary(
+    name = "app_wasm_on_js",
+    main = "bin/main.dart",
+    platform = "//dart/platforms:js",
+    tags = ["manual"],
+    deps = [":facade"],
+)
+
+wrong_platform_test(
+    name = "wrong_platform_test",
+    size = "small",
+    target_under_test = ":app_wasm_on_js",
+)
+
+# What web-only code writes as its `target_compatible_with`.
+constraints(
+    name = "web_only",
+    constraints = select({
+        "//dart/constraints:vm": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
+    tags = ["manual"],
+)
+
+web_only_test(
+    name = "web_only_test",
+    size = "small",
+    plain = ":web_only",
+    target_under_test = ":web_only",
+    web = ":web_only",
+    web_platforms = [
+        "//dart/platforms:js",
+        "//dart/platforms:wasm",
+    ],
+)

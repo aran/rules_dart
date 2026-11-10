@@ -17,6 +17,7 @@ load(":source_set_test.bzl", "source_set_test_suite")
 load(":toolchain_selection_test.bzl", "toolchain_selection_test_suite")
 load(":toolchains_test.bzl", "toolchains_test_suite")
 load(":versions_test.bzl", "versions_test_suite")
+load(":web_compiler_test.bzl", "web_compiler_test_suite")
 load(":yaml_parser_test.bzl", "yaml_parser_test_suite")
 
 versions_test_suite(name = "versions_test")
@@ -54,6 +55,8 @@ library_test_suite(name = "library_test")
 link_hook_test_suite(name = "link_hook_test")
 
 semver_test_suite(name = "semver_test")
+
+web_compiler_test_suite(name = "web_compiler_test")
 
 provider_shape_probe(
     name = "provider_shape_probe_target",

@@ -1,0 +1,16 @@
+load("//dart:defs.bzl", "dart_library")
+
+# Unmarked, so under a web binary it and the genrule beneath it are configured for that binary's compiler.
+# The generated source's output root says which configuration built it.
+genrule(
+    name = "src",
+    outs = ["lib/forked.dart"],
+    cmd = "echo 'const int forked = 1;' > $@",
+)
+
+dart_library(
+    name = "forked",
+    srcs = [":src"],
+    tags = ["manual"],
+    visibility = ["//dart/tests/web_compiler_fixture:__subpackages__"],
+)

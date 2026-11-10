@@ -1,0 +1,10 @@
+load("//dart:defs.bzl", "dart_library")
+
+# The native variant of package `variant`. All three variants share the package
+# name and import path; `//dart/tests/web_compiler_fixture:facade` picks one.
+dart_library(
+    name = "variant",
+    package_name = "variant",
+    srcs = ["lib/variant.dart"],
+    visibility = ["//dart/tests/web_compiler_fixture:__subpackages__"],
+)

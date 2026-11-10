@@ -1,0 +1,5 @@
+name: web_compiler_e2e
+environment:
+  sdk: ^3.11.0
+dependencies:
+  characters: ^1.4.0
