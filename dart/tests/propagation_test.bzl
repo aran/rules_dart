@@ -387,7 +387,7 @@ def _manifest_contains_test_impl(ctx):
     """Asserts the binary's generated native_assets.yaml names the asset.
 
     The probe above proves the provider graph carries the asset; this proves
-    the terminal rule actually writes it into the manifest `gen_kernel`
+    the terminal rule actually writes it into the manifest `frontend_server`
     embeds — which is what makes it resolvable at runtime.
     """
     env = analysistest.begin(ctx)

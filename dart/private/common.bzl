@@ -920,7 +920,7 @@ def synth_package_config(ctx, library_deps):
     ctx.actions.write(output = package_config, content = content)
     return package_config, package_files
 
-# --- Native code-asset (gen_kernel --native-assets) helpers ---
+# --- Native code-asset (frontend_server --native-assets) helpers ---
 #
 # SKELETON STUBS: signatures exist so `dart_test`/`dart_binary` load and the
 # unit tests fail on assertions rather than missing symbols. Implemented in a
@@ -971,10 +971,10 @@ def target_dart_abi(ctx):
     return os + "_" + arch
 
 def find_sdk_kernel_tools(dart_sdk_info):
-    """Locates the gen_kernel toolchain files within the SDK tree.
+    """Locates the front-end toolchain files within the SDK tree.
 
     Returns a struct with the `dartaotruntime` executable, the
-    `gen_kernel_aot.dart.snapshot`, and the two VM platform dills `dart
+    `frontend_server_aot.dart.snapshot`, and the two VM platform dills `dart
     compile` chooses between (`vm_platform_product.dill` for a product
     runtime, `vm_platform.dill` for the JIT VM), found by exact path under the
     SDK root within the SDK's `kernel` set.
@@ -983,7 +983,7 @@ def find_sdk_kernel_tools(dart_sdk_info):
       dart_sdk_info: The `DartSdkInfo` from the toolchain.
 
     Returns:
-      `struct(dartaotruntime, gen_kernel_snapshot, platform_dill,
+      `struct(dartaotruntime, frontend_server_snapshot, platform_dill,
       platform_product_dill)` of Files.
     """
     sdk_root = sdk_path_from_dart(dart_sdk_info.dart)
@@ -992,7 +992,7 @@ def find_sdk_kernel_tools(dart_sdk_info):
             sdk_root + "/bin/dartaotruntime",
             sdk_root + "/bin/dartaotruntime.exe",
         ],
-        "gen_kernel_snapshot": [sdk_root + "/bin/snapshots/gen_kernel_aot.dart.snapshot"],
+        "frontend_server_snapshot": [sdk_root + "/bin/snapshots/frontend_server_aot.dart.snapshot"],
         "platform_dill": [sdk_root + "/lib/_internal/vm_platform.dill"],
         "platform_product_dill": [sdk_root + "/lib/_internal/vm_platform_product.dill"],
     }
@@ -1007,12 +1007,12 @@ def find_sdk_kernel_tools(dart_sdk_info):
         if key not in found:
             fail(("find_sdk_kernel_tools: could not locate %s under SDK root " +
                   "%r (Dart %s). The SDK layout may have changed across " +
-                  "versions; every VM compile runs the AOT gen_kernel " +
+                  "versions; every VM compile runs the AOT frontend_server " +
                   "snapshot.") %
                  (key, sdk_root, dart_sdk_info.version))
     return struct(
         dartaotruntime = found["dartaotruntime"],
-        gen_kernel_snapshot = found["gen_kernel_snapshot"],
+        frontend_server_snapshot = found["frontend_server_snapshot"],
         platform_dill = found["platform_dill"],
         platform_product_dill = found["platform_product_dill"],
     )
@@ -1258,7 +1258,7 @@ def stage_code_assets(ctx, assets, directory):
     return staged
 
 def generate_native_assets_yaml(abi, asset_entries):
-    """Generates the `native_assets.yaml` content for `gen_kernel --native-assets`.
+    """Generates the `native_assets.yaml` content for `frontend_server --native-assets`.
 
     Emits the documented format (JSON, which is valid YAML); the VM reads it
     as `vm:ffi:native-assets` kernel metadata.
@@ -1339,6 +1339,9 @@ def add_kernel_roots(args, flag, files):
 def _kernel_uri(f):
     return KERNEL_FILESYSTEM_SCHEME + ":///" + f.path
 
+def _sdk_root(platform):
+    return platform.dirname + "/"
+
 def dart_kernel_action(
         ctx,
         main,
@@ -1349,8 +1352,9 @@ def dart_kernel_action(
         defines = [],
         flags = [],
         native_assets_yaml = None,
-        track_creation_locations = False):
-    """Runs the Dart front end (`gen_kernel`) to produce a kernel `.dill`.
+        track_creation_locations = False,
+        kernel_tool = None):
+    """Runs the Dart front end (`frontend_server`) to produce a kernel `.dill`.
 
     Every VM compile goes through here first, and `dart compile` then turns the
     kernel into a snapshot or executable. The front end names each library that
@@ -1373,6 +1377,24 @@ def dart_kernel_action(
     front end folds, so they have to be right here; the step after sees only the
     folded result.
 
+    `frontend_server`, not `gen_kernel`, because it keeps a `-D` value whole:
+    `gen_kernel` splits every one on commas, so `-DA=x,y` would reach the
+    program as `A=x`. It runs as a one-shot compile of the entrypoint named on
+    its command line, and prints its protocol (a result line, the diagnostics,
+    an error count) rather than a quiet success; a compile with errors exits
+    non-zero. Its default is an ordinary non-incremental compile that writes
+    only `--output-dill`; `--no-print-incremental-dependencies` leaves out the
+    list of files read, which would name absolute paths in the build log. The
+    platform dill is named relative to `--sdk-root`.
+
+    Bazel shows the output of every action that succeeds, and the protocol is
+    output even when nothing is wrong, so `kernel_tool frontend` runs the
+    server and shows only the compiler's own messages. `kernel_tool` is built
+    by a `dart_binary`, so the targets that build it (`dart_tool_binary` and
+    `dart_bootstrap_binary`, which have no `_kernel_tool` of their own) pass no
+    `kernel_tool` and run the server directly; each of those compiles prints
+    the protocol once, when it is built.
+
     A kernel is the same whichever host compiles it, so this runs in
     `PORTABLE`, with that host's SDK.
 
@@ -1388,21 +1410,27 @@ def dart_kernel_action(
       defines: Environment declarations; each entry becomes a `-D` flag. This
         action runs the front end, so it is the only stage where they can still
         reach constant evaluation.
-      flags: Further front-end flags, e.g. `--enable-experiment=...`.
+      flags: Further front-end flags, e.g. `--enable-experiment=...`; those
+        `frontend_server` accepts.
       native_assets_yaml: Optional `native_assets.yaml` File, embedded as the
         `vm:ffi:native-assets` mapping. The libraries it names are a run-time
         (runfiles) dependency, not inputs.
       track_creation_locations: Whether to pass `--track-creation-locations`,
         which the whole program, here, is compiled with or without.
+      kernel_tool: The `kernel_tool` executable to run the front end through,
+        or None to run it directly (see above).
     """
     dart_sdk_info = portable_sdk(ctx)
     tools = find_sdk_kernel_tools(dart_sdk_info)
+    platform = tools.platform_product_dill if product else tools.platform_dill
 
     args = ctx.actions.args()
-    args.add(tools.gen_kernel_snapshot)
-    args.add("--platform", tools.platform_product_dill if product else tools.platform_dill)
+    args.add(tools.frontend_server_snapshot)
+    args.add_all([platform], before_each = "--sdk-root", map_each = _sdk_root)
+    args.add("--platform", platform.basename)
     args.add("-Ddart.vm.product=" + ("true" if product else "false"))
     args.add_all(["-Ddart.vm.asan=false", "-Ddart.vm.msan=false", "-Ddart.vm.tsan=false"])
+    args.add("--no-print-incremental-dependencies")
     args.add("--filesystem-scheme", KERNEL_FILESYSTEM_SCHEME)
     add_kernel_roots(args, "--filesystem-root", depset([main], transitive = [transitive_srcs] if transitive_srcs != None else []))
     if package_config != None:
@@ -1414,13 +1442,12 @@ def dart_kernel_action(
     if track_creation_locations:
         args.add("--track-creation-locations")
     args.add_all(flags)
-    args.add("-o", output_dill)
+    args.add("--output-dill", output_dill)
     args.add(KERNEL_FILESYSTEM_SCHEME + ":///" + kernel_root_path(main.short_path))
 
     # The front end reads only the files it is named: its snapshot, the
     # runtime and the platform.
-    platform = tools.platform_product_dill if product else tools.platform_dill
-    direct = [main, tools.dartaotruntime, tools.gen_kernel_snapshot, platform]
+    direct = [main, tools.dartaotruntime, tools.frontend_server_snapshot, platform]
     if package_config != None:
         direct.append(package_config)
     if native_assets_yaml != None:
@@ -1429,9 +1456,19 @@ def dart_kernel_action(
     if transitive_srcs != None:
         transitive.append(transitive_srcs)
 
+    if kernel_tool != None:
+        executable = kernel_tool
+        launch = ctx.actions.args()
+        launch.add("frontend")
+        launch.add("--runtime", tools.dartaotruntime)
+        launch.add("--")
+        arguments = [launch, args]
+    else:
+        executable = tools.dartaotruntime
+        arguments = [args]
     ctx.actions.run(
-        executable = tools.dartaotruntime,
-        arguments = [args],
+        executable = executable,
+        arguments = arguments,
         inputs = depset(direct = direct, transitive = transitive),
         outputs = [output_dill],
         mnemonic = "DartKernel",

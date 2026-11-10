@@ -1,5 +1,11 @@
 load("//dart:defs.bzl", "dart_binary", "dart_code_asset", "dart_test")
-load("//dart/tests:defines_test.bzl", "staged_defines_test")
+load(
+    "//dart/tests:defines_test.bzl",
+    "comma_refused_test",
+    "comma_refused_whole_program_test",
+    "kernel_command_test",
+    "staged_defines_test",
+)
 load("//dart/tests:path_mapping_test.bzl", "path_mapping_test")
 
 # Two `dart_binary` targets differing only in whether they carry a code asset,
@@ -67,4 +73,90 @@ path_mapping_test(
     name = "code_asset_test_path_mapping_test",
     size = "small",
     target_under_test = ":test_defines_with_code_asset_test",
+)
+
+# A define value with a comma, from `defines` and from a front-end flag, in every
+# compile mode: `frontend_server` keeps it whole. Run by `comma_run_test`.
+
+[
+    dart_binary(
+        name = "comma_" + mode.replace("-", "_"),
+        compile_mode = mode,
+        dart_compile_flags = ["-DMORE=1,2"],
+        defines = ["GREETING=hello,world"],
+        main = "comma_main.dart",
+    )
+    for mode in [
+        "exe",
+        "kernel",
+        "jit-snapshot",
+        "aot-snapshot",
+    ]
+]
+
+dart_test(
+    name = "comma_run_test",
+    size = "small",
+    args = [
+        "aot-snapshot=$(rlocationpath :comma_aot_snapshot)",
+        "exe=$(rlocationpath :comma_exe)",
+        "jit-snapshot=$(rlocationpath :comma_jit_snapshot)",
+        "kernel=$(rlocationpath :comma_kernel)",
+    ],
+    data = [
+        ":comma_aot_snapshot",
+        ":comma_exe",
+        ":comma_jit_snapshot",
+        ":comma_kernel",
+    ],
+    main = "comma_run_test.dart",
+    deps = ["//dart/runfiles"],
+)
+
+kernel_command_test(
+    name = "kernel_command_test",
+    size = "small",
+    expected_flags = [
+        "-DGREETING=hello,world",
+        "-DMORE=1,2",
+    ],
+    target_under_test = ":comma_kernel",
+)
+
+# `kernel_tool` and the tools it needs to be built are compiled by the front end
+# run directly: they cannot run through the tool they build.
+
+[
+    kernel_command_test(
+        name = "bootstrap_kernel_command_test_" + tool,
+        size = "small",
+        target_under_test = "//dart/private/tools:" + tool,
+        through_kernel_tool = False,
+    )
+    for tool in [
+        "kernel_tool",
+        "launcher",
+    ]
+]
+
+# A test refuses a comma in a define's value on both compile paths: its modules
+# are compiled by `kernel_worker`, which would cut it.
+
+dart_test(
+    name = "comma_define_test",
+    defines = ["GREETING=hello,world"],
+    main = "assert_channel.dart",
+    tags = ["manual"],
+)
+
+comma_refused_test(
+    name = "comma_refused_test",
+    size = "small",
+    target_under_test = ":comma_define_test",
+)
+
+comma_refused_whole_program_test(
+    name = "comma_refused_whole_program_test",
+    size = "small",
+    target_under_test = ":comma_define_test",
 )

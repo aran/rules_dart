@@ -16,6 +16,8 @@ const _optionsByCommand = {
     'native-assets', 'main', 'output', 'selection-output',
     'unused-inputs-output', //
   },
+  // What follows `--` is the compiler's own command line, passed on as it is.
+  'frontend': {'runtime'},
   'link': {'label', 'entry', 'selection', 'dep-manifest', 'output'},
   'check': {
     'label', 'package-config', 'package-name', 'lib-root', 'multi-root', 'src',
@@ -46,14 +48,19 @@ class UsageException implements Exception {
 /// Arguments of one command, from the command line or, as the last one, a
 /// `@paramsfile` with one argument per line.
 class Args {
-  Args._(this._values);
+  Args._(this._values, this.rest);
 
   static Args parse(String command, Iterable<String> argv) {
     final allowed = _optionsByCommand[command]!;
     final values = <String, List<String>>{};
     final list = argv.toList();
+    var rest = const <String>[];
     for (var i = 0; i < list.length; i++) {
       final arg = list[i];
+      if (arg == '--') {
+        rest = list.sublist(i + 1);
+        break;
+      }
       final name = arg.startsWith('--') ? arg.substring(2) : null;
       if (name != null && (_flagsByCommand[command]?.contains(name) ?? false)) {
         values[name] = const ['true'];
@@ -64,23 +71,32 @@ class Args {
       }
       (values[name] ??= []).add(list[++i]);
     }
-    return Args._(values);
+    return Args._(values, rest);
   }
 
-  /// [argv] with a `@paramsfile` replaced by the file's lines.
+  /// [argv] with a `@paramsfile` replaced by the file's lines. What follows
+  /// a `--` is left as it is, since it is not this tool's to read.
   static Iterable<String> expand(Iterable<String> argv) sync* {
+    var verbatim = false;
     for (final arg in argv) {
-      if (arg.startsWith('@')) {
-        yield* const LineSplitter().convert(
-          File(arg.substring(1)).readAsStringSync(),
-        );
-      } else {
+      if (verbatim || !arg.startsWith('@')) {
+        verbatim = verbatim || arg == '--';
         yield arg;
+        continue;
+      }
+      for (final line in const LineSplitter().convert(
+        File(arg.substring(1)).readAsStringSync(),
+      )) {
+        verbatim = verbatim || line == '--';
+        yield line;
       }
     }
   }
 
   final Map<String, List<String>> _values;
+
+  /// What followed `--`, verbatim; empty when nothing did.
+  final List<String> rest;
 
   List<String> all(String name) => _values[name] ?? const [];
 

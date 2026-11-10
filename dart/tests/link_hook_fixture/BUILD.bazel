@@ -81,7 +81,7 @@ recording_binary_test(
     target_under_test = ":aot",
 )
 
-# With a code asset the front end runs in gen_kernel; recording still happens
+# With a code asset the front end gets a native-assets mapping; recording still happens
 # in the `dart compile` that tree-shakes the resulting kernel.
 dart_code_asset(
     name = "asset",

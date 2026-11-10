@@ -42,7 +42,6 @@ SDK_FILE_SETS = {
     # it: its snapshots, the VM platforms and the `dart:` library list. An
     # action takes only the files of this set it names.
     "kernel": _DARTAOTRUNTIME + [
-        "bin/snapshots/gen_kernel_aot.dart.snapshot",
         "bin/snapshots/kernel_worker_aot.dart.snapshot",
         "bin/snapshots/frontend_server_aot.dart.snapshot",
         "lib/_internal/vm_platform.dill",

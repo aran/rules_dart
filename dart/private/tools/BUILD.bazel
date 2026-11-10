@@ -133,6 +133,7 @@ _KERNEL_TOOL_SRCS = [
     "kernel_tool/compile.dart",
     "kernel_tool/directives.dart",
     "kernel_tool/entry_command.dart",
+    "kernel_tool/frontend_command.dart",
     "kernel_tool/link_command.dart",
     "kernel_tool/manifest.dart",
     "kernel_tool/module_command.dart",
@@ -167,6 +168,26 @@ dart_test(
     srcs = _KERNEL_TOOL_SRCS,
     main = "kernel_tool_test.dart",
     deps = _KERNEL_TOOL_DEPS + ["@ext_pub_deps//:test"],
+)
+
+# `kernel_tool frontend` over the SDK's real front end: silent on success, the
+# compiler's message on failure.
+dart_test(
+    name = "frontend_command_test",
+    size = "small",
+    args = [
+        "$(rlocationpath :kernel_tool)",
+        "$(rlocationpath //dart/tests/sdk_files:copy_kernel)",
+    ],
+    data = [
+        ":kernel_tool",
+        "//dart/tests/sdk_files:copy_kernel",
+    ],
+    main = "frontend_command_test.dart",
+    deps = [
+        "//dart/runfiles",
+        "@ext_pub_deps//:test",
+    ],
 )
 
 dart_test(
@@ -251,7 +272,7 @@ dart_test(
 # Strips a target's kernel modules to the outlines dependents compile against
 # (`--@rules_dart//dart:outline_kernel`). Built on the pinned SDK tag's own
 # `pkg/kernel`, which must match the SDK whose modules it reads.
-dart_tool_binary(
+dart_binary(
     name = "outline_tool",
     compile_mode = "exe",
     main = "kernel_outline.dart",

@@ -15,6 +15,14 @@ dart_binary(
     deps = [":where"],
 )
 
+# The kernel itself, to read: it must name no path of where it was built.
+dart_binary(
+    name = "probe_kernel",
+    compile_mode = "kernel",
+    main = "bin/probe.dart",
+    deps = [":where"],
+)
+
 dart_code_asset(
     name = "asset",
     asset_id = "package:kernel_uri_fixture/src/ffi/kernel_uri_fixture.g.dart",
@@ -49,6 +57,7 @@ dart_test(
     data = [
         ":probe",
         ":probe_beside_generated",
+        ":probe_kernel",
         ":probe_with_asset",
     ],
     main = "kernel_uri_test.dart",

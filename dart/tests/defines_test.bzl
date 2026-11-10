@@ -2,10 +2,14 @@
 
 `-D` values are resolved during constant evaluation, so they take effect only
 in the action that compiles source. `dart_binary` compiles in two steps —
-`gen_kernel` produces the kernel, then `dart compile` turns it into an
+`frontend_server` produces the kernel, then `dart compile` turns it into an
 executable — and `dart compile` accepts `-D` on a kernel input while silently
 ignoring it. Nothing fails, the define just evaporates, so these tests pin
 which step receives the flag, with and without code assets.
+
+A define value with a comma reaches the program whole through `frontend_server`.
+`dart_test` compiles its modules with `kernel_worker`, which splits it, so a
+test refuses one.
 """
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts", "unittest")
@@ -57,6 +61,99 @@ def _staged_defines_test_impl(ctx):
 staged_defines_test = analysistest.make(
     _staged_defines_test_impl,
     attrs = {"expected_flags": attr.string_list()},
+)
+
+def _frontend_argv(argv, through_kernel_tool):
+    """The front end's own command line, snapshot first, or None if not as expected.
+
+    Through `kernel_tool` it follows the `--` of `kernel_tool frontend`;
+    otherwise it follows the runtime.
+    """
+    if through_kernel_tool:
+        if "--" not in argv or "kernel_tool" not in argv[0] or argv[1:2] != ["frontend"]:
+            return None
+        return argv[argv.index("--") + 1:]
+    if "dartaotruntime" not in argv[0]:
+        return None
+    return argv[1:]
+
+def _kernel_command_test_impl(ctx):
+    # The front end the kernel step runs, and how: `frontend_server` reading
+    # the sources through the exec-root filesystem and writing `--output-dill`,
+    # with each define one argument, a comma in it included. An executable runs
+    # it through `kernel_tool frontend`, which keeps the server's protocol out
+    # of the build log; the tools that build `kernel_tool` run it directly.
+    env = analysistest.begin(ctx)
+    full = _argv_for(env, _KERNEL)
+    if full == None:
+        asserts.true(env, False, "expected a %s action, saw %s" % (_KERNEL, _mnemonics(env)))
+        return analysistest.end(env)
+    argv = _frontend_argv(full, ctx.attr.through_kernel_tool)
+    if argv == None:
+        asserts.true(env, False, "the kernel step runs through kernel_tool: %s, saw %s" % (ctx.attr.through_kernel_tool, full))
+        return analysistest.end(env)
+    asserts.true(
+        env,
+        argv[0].endswith("/frontend_server_aot.dart.snapshot"),
+        "the kernel step must run frontend_server: %s" % argv,
+    )
+    asserts.equals(env, [], [a for a in argv if "gen_kernel" in a], "gen_kernel in %s" % argv)
+    for flag, value in [
+        ("--filesystem-scheme", "org-dartlang-root"),
+        ("--filesystem-root", "."),
+        ("--platform", "vm_platform_product.dill"),
+    ]:
+        values = [argv[i + 1] for i in range(len(argv) - 1) if argv[i] == flag]
+        asserts.true(env, value in values, "%s %s missing: %s" % (flag, value, argv))
+
+    # `frontend_server` reads `--platform` relative to `--sdk-root`, and a
+    # platform that does not resolve there is not reported as missing: the
+    # compile crashes later, in type inference. So the two must name an input.
+    action = [a for a in analysistest.target_actions(env) if a.mnemonic == _KERNEL][0]
+    input_paths = [f.path for f in action.inputs.to_list()]
+    sdk_roots = [argv[i + 1] for i in range(len(argv) - 1) if argv[i] == "--sdk-root"]
+    platforms = [argv[i + 1] for i in range(len(argv) - 1) if argv[i] == "--platform"]
+    asserts.equals(env, 1, len(sdk_roots), "one --sdk-root: %s" % argv)
+    asserts.equals(env, 1, len(platforms), "one --platform: %s" % argv)
+    if len(sdk_roots) == 1 and len(platforms) == 1:
+        asserts.true(
+            env,
+            sdk_roots[0].endswith("/") and (sdk_roots[0] + platforms[0]) in input_paths,
+            "--sdk-root %s and --platform %s must resolve to a platform dill the action reads; its inputs are %s" % (sdk_roots[0], platforms[0], input_paths),
+        )
+
+    # The front end's runtime is an input however it is started.
+    runtimes = [p for p in input_paths if p.endswith("/dartaotruntime") or p.endswith("/dartaotruntime.exe")]
+    asserts.equals(env, 1, len(runtimes), "the runtime must be an input: %s" % input_paths)
+    if ctx.attr.through_kernel_tool:
+        given = [full[i + 1] for i in range(len(full) - 1) if full[i] == "--runtime"]
+        asserts.equals(env, runtimes, given, "--runtime must name the input: %s" % full)
+    asserts.true(env, "--output-dill" in argv and "-o" not in argv, "the output goes to --output-dill: %s" % argv)
+    asserts.true(env, "--no-print-incremental-dependencies" in argv, "the files read would be named in the log: %s" % argv)
+    asserts.true(env, "-Ddart.vm.product=true" in argv, "product mode missing: %s" % argv)
+    for flag in ctx.attr.expected_flags:
+        asserts.true(env, flag in argv, "%s missing, or split: %s" % (flag, argv))
+    return analysistest.end(env)
+
+kernel_command_test = analysistest.make(
+    _kernel_command_test_impl,
+    attrs = {
+        "expected_flags": attr.string_list(),
+        "through_kernel_tool": attr.bool(default = True),
+    },
+)
+
+def _comma_refused_test_impl(ctx):
+    env = analysistest.begin(ctx)
+    asserts.expect_failure(env, "a Dart test's define cannot have a comma in its value")
+    return analysistest.end(env)
+
+comma_refused_test = analysistest.make(_comma_refused_test_impl, expect_failure = True)
+
+comma_refused_whole_program_test = analysistest.make(
+    _comma_refused_test_impl,
+    expect_failure = True,
+    config_settings = {str(Label("//dart:modular_kernel")): False},
 )
 
 # --- front_end_flags ---

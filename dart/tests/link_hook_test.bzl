@@ -2,7 +2,7 @@
 
 `dart_binary(record_use = True)` has two shapes — the compiler records in the
 modes that tree-shake, and an empty file stands in for the others — and each
-compile pipeline (direct, and via gen_kernel for code assets) must carry the
+compile pipeline (direct, and with a native-assets mapping for code assets) must carry the
 flag to the one action that records. `dart_link_hook` runs one action per
 package with a hook and declares exactly the data assets named in
 `data_assets`. Every `fail()` it can raise is a message a user reads, so each

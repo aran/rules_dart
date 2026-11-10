@@ -10,6 +10,7 @@ import 'kernel_tool/commands.dart';
 import 'kernel_tool/compile.dart';
 import 'kernel_tool/directives.dart';
 import 'kernel_tool/entry_command.dart';
+import 'kernel_tool/frontend_command.dart';
 import 'kernel_tool/manifest.dart';
 import 'kernel_tool/module_command.dart';
 import 'kernel_tool/module_graph.dart';
@@ -1052,6 +1053,35 @@ import 'package:app/own.dart';
       expect(Args.expand(['--label', 'a']), ['--label', 'a']);
     });
 
+    test('hands on what follows -- as it is', () {
+      final args = Args.parse('frontend', [
+        '--runtime',
+        'rt',
+        '--',
+        'snapshot',
+        '--runtime',
+        '-DA=x,y',
+        '@not-a-file',
+      ]);
+      expect(args.one('runtime'), 'rt');
+      expect(args.rest, ['snapshot', '--runtime', '-DA=x,y', '@not-a-file']);
+      expect(Args.parse('frontend', ['--runtime', 'rt']).rest, isEmpty);
+    });
+
+    test('expands a params file up to the -- and no further', () {
+      final dir = Directory.systemTemp.createTempSync('kernel_tool_test_');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final params = File('${dir.path}/p')
+        ..writeAsStringSync('--runtime\nrt\n--\n@x\n');
+      expect(Args.expand(['@${params.path}']), ['--runtime', 'rt', '--', '@x']);
+      expect(Args.expand(['--runtime', 'rt', '--', '@${params.path}']), [
+        '--runtime',
+        'rt',
+        '--',
+        '@${params.path}',
+      ]);
+    });
+
     test('reports a missing or unknown option instead of exiting', () {
       expect(
         () => Args.parse('module', []).one('label'),
@@ -1147,6 +1177,83 @@ import 'package:app/own.dart';
       expect(hashed, hasLength(32));
       file.writeAsStringSync('changed');
       expect(Digests().of(file.path), isNot(hashed));
+    });
+  });
+
+  group('runFrontend', () {
+    late Directory dir;
+    setUp(() => dir = Directory.systemTemp.createTempSync('kernel_tool_test_'));
+    tearDown(() => dir.deleteSync(recursive: true));
+
+    // A compiler that answers as `frontend_server` does, run by this VM.
+    Future<(int, String)> run(String protocol, {int exitCode = 0}) async {
+      final script = File('${dir.path}/fake.dart')
+        ..writeAsStringSync(
+          "import 'dart:io';\n"
+          'void main() {\n'
+          '  stdout.write(${jsonEncode(protocol)});\n'
+          '  exit($exitCode);\n'
+          '}\n',
+        );
+      final err = StringBuffer();
+      final code = await runFrontend(
+        Args.parse('frontend', [
+          '--runtime',
+          Platform.resolvedExecutable,
+          '--',
+          script.path,
+        ]),
+        err: err,
+      );
+      return (code, err.toString());
+    }
+
+    test('says nothing about a compile that succeeded', () async {
+      expect(await run('result abc\nabc\nabc out.dill 0\n'), (0, ''));
+    });
+
+    test(
+      'shows the compiler\'s messages, not its protocol, on failure',
+      () async {
+        final (code, err) = await run(
+          'result abc\nmain.dart:1:1: Error: Bad thing.\nabc\nabc out.dill 1\n',
+          exitCode: 254,
+        );
+        expect(code, 1);
+        expect(err, 'main.dart:1:1: Error: Bad thing.\n');
+      },
+    );
+
+    test('fails on an error count even when the exit status is 0', () async {
+      final (code, err) = await run(
+        'result abc\nmain.dart:1:1: Error: Bad thing.\nabc\nabc out.dill 1\n',
+      );
+      expect(code, 1);
+      expect(err, contains('Bad thing'));
+    });
+
+    test('keeps warnings from a compile that succeeded', () async {
+      final (code, err) = await run(
+        'result abc\nmain.dart:1:1: Warning: Odd.\nabc\nabc out.dill 0\n',
+      );
+      expect(code, 0);
+      expect(err, 'main.dart:1:1: Warning: Odd.\n');
+    });
+
+    test('reports a compiler that never answered', () async {
+      final (code, err) = await run('');
+      expect(code, 1);
+      expect(err, contains('did not report a result'));
+      final (crashCode, crashErr) = await run('boom\n', exitCode: 255);
+      expect(crashCode, 1);
+      expect(crashErr, 'boom\n');
+    });
+
+    test('needs a command line to run', () {
+      expect(
+        () => runFrontend(Args.parse('frontend', ['--runtime', 'rt'])),
+        throwsA(isA<UsageException>()),
+      );
     });
   });
 

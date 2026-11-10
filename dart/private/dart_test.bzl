@@ -10,7 +10,7 @@ the test compiles only its own files against them and links the program (see
 
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("//dart:providers.bzl", "DartCodeAssetInfo", "DartInfo", "DartKernelSdkInfo")
-load("//dart/private:build_settings.bzl", "EXTRA_DART_DEFINES_ATTR", "TRACK_CREATION_LOCATIONS_ATTR", "merge_vm_dart_defines", "track_creation_locations")
+load("//dart/private:build_settings.bzl", "EXTRA_DART_DEFINES_ATTR", "TRACK_CREATION_LOCATIONS_ATTR", "merge_test_dart_defines", "track_creation_locations")
 load(
     "//dart/private:common.bzl",
     "DART_ABI_CONSTRAINT_ATTRS",
@@ -81,7 +81,7 @@ def _dart_test_impl(ctx):
             packages = packages,
             output_dill = dill,
             product = True,
-            defines = merge_vm_dart_defines(ctx),
+            defines = merge_test_dart_defines(ctx),
             native_assets_yaml = native_assets_yaml,
             track_creation_locations = track_creation_locations(ctx),
         )
@@ -197,7 +197,7 @@ def _link_modules(ctx, sdk, main, packages, own, native_assets_yaml, dill):
         modules = collect_modules(ctx.attr.deps),
         output = entry,
         own_package = own.record,
-        defines = merge_vm_dart_defines(ctx),
+        defines = merge_test_dart_defines(ctx),
         native_assets_yaml = native_assets_yaml,
         track_creation_locations = track_creation_locations(ctx),
     )
@@ -369,7 +369,7 @@ declarations are resolved by the front end at that point — the VM cannot suppl
         "code_assets": attr.label_list(
             doc = """Native code assets (e.g. `//dart/ext/sqlite3:code_asset`) the test's \
 `@Native` FFI bindings resolve against. When set, the test's `main` is compiled to a kernel \
-with the code-asset mapping embedded (`gen_kernel --native-assets`), and the libraries ship in \
+with the code-asset mapping embedded (`frontend_server --native-assets`), and the libraries ship in \
 runfiles so the Dart VM resolves them — no `dart:ffi` ceremony in the test source. Each entry \
 must provide `DartCodeAssetInfo` (see the `dart_code_asset` rule). An entry replaces the asset with the same id that `deps` supply, so a test can load a differently built library under that id.""",
             providers = [DartCodeAssetInfo],

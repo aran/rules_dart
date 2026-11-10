@@ -39,7 +39,7 @@ Flutter SDK and gets its own modules, and everything else here is shared.
 
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("//dart:providers.bzl", "DartInfo", "DartKernelSdkInfo", "DartModuleInfo")
-load("//dart/private:build_settings.bzl", "track_creation_locations", "vm_define_comma_error")
+load("//dart/private:build_settings.bzl", "module_define_comma_error", "track_creation_locations")
 load("//dart/private:common.bzl", "KERNEL_FILESYSTEM_SCHEME", "PATH_MAPPING", "add_kernel_roots", "collect_transitive_srcs", "dart_kernel_action", "kernel_root_path", "own_packages")
 load(
     "//dart/private:dart_deps.bzl",
@@ -91,6 +91,9 @@ def whole_program_kernel(ctx, main, packages, output_dill, product, defines = []
     root and each output directory (`dart_kernel_action`), so generated and
     checked-in files of one directory resolve together.
 
+    The compile runs through the rule's `_kernel_tool`; a rule without one
+    (`dart_tool_binary`, which builds `kernel_tool`) runs the front end directly.
+
     Args:
       ctx: The rule context; the rule has `main`, `srcs` and `deps`.
       main: The entrypoint File: `ctx.file.main`, or one generated around it.
@@ -115,6 +118,7 @@ def whole_program_kernel(ctx, main, packages, output_dill, product, defines = []
         flags = flags,
         native_assets_yaml = native_assets_yaml,
         track_creation_locations = track_creation_locations,
+        kernel_tool = getattr(ctx.executable, "_kernel_tool", None),
     )
 
 _OUTLINES = ".outlines"
@@ -212,7 +216,7 @@ def _merge_modules(infos):
     )
 
 def _check_no_comma(define, source):
-    err = vm_define_comma_error(define, source)
+    err = module_define_comma_error(define, source)
     if err:
         fail(err)
 
@@ -247,7 +251,7 @@ def _compile_modules(ctx, sdk, kernel_tool, name, srcs, packages, own_packages, 
       `DartModuleInfo` of the new modules and `modules`.
     """
     for define in defines:
-        _check_no_comma(define, "the executable's `defines` or the extra defines flag")
+        _check_no_comma(define, "the `defines` of the executable or `--@rules_dart//dart:extra_dart_defines`")
     base = "%s.%s" % (name, sdk.target)
     out = ctx.actions.declare_directory(base + ".modules")
     manifest = ctx.actions.declare_file(out.basename + ".json", sibling = out)

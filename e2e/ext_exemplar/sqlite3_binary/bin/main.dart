@@ -18,7 +18,7 @@ void main() {
     exit(1);
   }
   // `const` forces resolution during constant evaluation, which is the stage
-  // the code-asset pipeline runs in gen_kernel rather than in `dart compile`.
+  // the front end runs, rather than in `dart compile`.
   const channel = String.fromEnvironment(
     'BUILD_CHANNEL',
     defaultValue: 'UNSET',

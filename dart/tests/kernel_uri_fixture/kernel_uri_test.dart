@@ -39,6 +39,22 @@ void main() {
     }
   }
 
+  // The kernel the front end wrote names no path of where it was built: every
+  // library not in a package is under the filesystem scheme, and the files it
+  // read are not listed. (The platform's own comments hold `file:` URIs, so it
+  // is a build directory that is looked for.)
+  final kernel = File(
+    runfiles.rlocation('_main/dart/tests/kernel_uri_fixture/probe_kernel.dill'),
+  ).readAsBytesSync();
+  final text = String.fromCharCodes(kernel);
+  final built = RegExp(r'file:///[ -~]{0,200}?(bazel-out|execroot|sandbox)');
+  if (built.firstMatch(text) case final match?) {
+    throw StateError('the kernel names a build path: ${match.group(0)}');
+  }
+  if (!text.contains(_entrypoint)) {
+    throw StateError('the kernel does not name $_entrypoint');
+  }
+
   // The test itself goes through the same front end.
   final frame = StackTrace.current.toString().split('\n').first;
   if (!frame.contains(

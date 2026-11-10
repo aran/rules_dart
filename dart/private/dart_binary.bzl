@@ -1,7 +1,7 @@
 """Implementation of the dart_binary rule."""
 
 load("//dart:providers.bzl", "DartCodeAssetInfo", "DartCompileInfo", "DartInfo", "DartRecordedUsesInfo")
-load("//dart/private:build_settings.bzl", "EXTRA_DART_DEFINES_ATTR", "TRACK_CREATION_LOCATIONS_ATTR", "merge_vm_dart_defines", "track_creation_locations")
+load("//dart/private:build_settings.bzl", "EXTRA_DART_DEFINES_ATTR", "TRACK_CREATION_LOCATIONS_ATTR", "merge_dart_defines", "track_creation_locations")
 load(
     "//dart/private:common.bzl",
     "DART_ABI_CONSTRAINT_ATTRS",
@@ -77,7 +77,7 @@ def _dart_binary_impl(ctx):
     # filesystem rooted at the exec root so the output does not depend on where
     # the action ran (see `dart_kernel_action`), and `dart compile` turns it
     # into the requested output. A `kernel` is the first step's output itself.
-    defines = merge_vm_dart_defines(ctx)
+    defines = merge_dart_defines(ctx)
     fe_flags, compile_flags = front_end_flags(ctx.attr.dart_compile_flags)
     code_asset_libs = []
 
@@ -301,7 +301,7 @@ def _dart_binary_rule(check_imports, compile_runner = True, launcher = True):
                 "code_assets": attr.label_list(
                     doc = """Native code assets (e.g. `//dart/ext/sqlite3:code_asset`) the binary's \
     `@Native` FFI bindings resolve against. When set, the main is compiled to a kernel with the \
-    code-asset mapping embedded (`gen_kernel --native-assets`) before the snapshot/exe is produced, \
+    code-asset mapping embedded (`frontend_server --native-assets`) before the snapshot/exe is produced, \
     and the libraries are linked into `<name>.native/` beside the executable, where the Dart VM \
     finds them at runtime: to install the binary, copy the executable and that directory together, following links (`cp -RL`), because the files there are symlinks into the output tree. Each entry must provide `DartCodeAssetInfo` (see the `dart_code_asset` rule). An entry replaces the asset with the same id that `deps` supply, so a binary can load a differently built library under that id.""",
                     providers = [DartCodeAssetInfo],
@@ -337,7 +337,7 @@ def _dart_binary_rule(check_imports, compile_runner = True, launcher = True):
                     values = ["exe", "aot-snapshot", "kernel", "jit-snapshot"],
                 ),
                 "dart_compile_flags": attr.string_list(
-                    doc = "Extra flags passed to `dart compile` after compilation-mode defaults. Flags appear last so they can override defaults (e.g., `--extra-gen-snapshot-options=--optimization_level=3`). Front-end flags (`--enable-experiment`, `-D`/`--define`) go to the front-end step that precedes `dart compile`, and `--verbosity` to both; in the `kernel` mode, which is that step alone, every flag does, and only those the front end (`gen_kernel`) accepts work.",
+                    doc = "Extra flags passed to `dart compile` after compilation-mode defaults. Flags appear last so they can override defaults (e.g., `--extra-gen-snapshot-options=--optimization_level=3`). Front-end flags (`--enable-experiment`, `-D`/`--define`) go to the front-end step that precedes `dart compile`, and `--verbosity` to both; in the `kernel` mode, which is that step alone, every flag does, and only those `frontend_server` accepts work.",
                 ),
                 "defines": attr.string_list(
                     doc = "Dart environment declarations (`key=value`). Each entry becomes a `-Dkey=value` flag.",

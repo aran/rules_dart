@@ -11,7 +11,7 @@ load("@rules_dart//dart/ext/sqlite3:defs.bzl", "sqlite3_code_asset")
 dart_binary(
     name = "app",
     code_assets = [sqlite3_code_asset()],
-    # Code assets split compilation into gen_kernel + `dart compile`, and only
+    # Compilation is split into the front end (`frontend_server`) + `dart compile`, and only
     # the first stage runs the front end that resolves `-D`. The run test
     # asserts this value reaches the binary, which it does not if the define
     # is handed to the second stage — `dart compile` accepts it on a kernel
@@ -34,7 +34,7 @@ dart_test(
     ],
 )
 
-# Exemplar of the dart_test code_assets path (test-time gen_kernel): a plain
+# Exemplar of the dart_test code_assets path (test-time front end): a plain
 # package:sqlite3 program with no codegen, so it isolates code-asset .so
 # resolution (via absolute rlocation) from any source co-location concern.
 dart_test(

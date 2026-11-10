@@ -114,19 +114,22 @@ void main(List<String> args) {
   tearDownAll(() => work.deleteSync(recursive: true));
 
   group('kernel', () {
-    test('gen_kernel compiles for a product and a JIT runtime', () async {
+    test('frontend_server compiles for a product and a JIT runtime', () async {
       for (final (platform, product, output) in [
         ('vm_platform_product.dill', true, productKernel),
         ('vm_platform.dill', false, jitKernel),
       ]) {
         await run(tool('kernel', 'dartaotruntime'), [
-          snapshot('kernel', 'gen_kernel_aot.dart.snapshot'),
+          snapshot('kernel', 'frontend_server_aot.dart.snapshot'),
+          '--sdk-root',
+          '${sdk('kernel')}/lib/_internal/',
           '--platform',
-          '${sdk('kernel')}/lib/_internal/$platform',
+          platform,
           '-Ddart.vm.product=$product',
+          '--no-print-incremental-dependencies',
           '--packages',
           packages,
-          '-o',
+          '--output-dill',
           output,
           'bin/main.dart',
         ]);

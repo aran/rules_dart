@@ -88,12 +88,14 @@ def merge_dart_defines(ctx):
     validate_dart_defines(ctx.attr.defines, "the `defines` attribute of %s" % ctx.label)
     return list(ctx.attr.defines) + ctx.attr._extra_dart_defines[BuildSettingInfo].value
 
-def vm_define_comma_error(define, source):
-    """The error for a define the Dart VM's front end would cut, or `None`.
+def module_define_comma_error(define, source):
+    """The error for a define a test's module compile would cut, or `None`.
 
-    `gen_kernel` and `kernel_worker` split every `-D` value on commas, so
-    `-DA=x,y` reaches the program as `A=x`, silently (`dart compile js` and
-    `wasm` do not split). Refused rather than passed on.
+    `kernel_worker`, which compiles the modules of a `dart_test` and of the
+    libraries it depends on, splits every `-D` value on commas, so `-DA=x,y`
+    reaches the test as `A=x`, silently. Refused rather than passed on. The
+    compiles of a whole program (`frontend_server`, which `dart_binary` uses)
+    and of the web (`dart compile js` and `wasm`) keep a value whole.
 
     Args:
       define: A `KEY=VALUE` string.
@@ -104,13 +106,17 @@ def vm_define_comma_error(define, source):
     """
     if "," not in define:
         return None
-    return ("`%s` (from %s): a Dart define's value cannot contain a comma when " +
-            "compiling for the Dart VM. Its front end splits every `-D` value on " +
-            "commas, so the program would see the value cut at the first one. " +
-            "Encode the value (base64, say) and decode it in the program.") % (define, source)
+    return ("`%s` (from %s): a Dart test's define cannot have a comma in its value. " +
+            "A test is compiled in modules, and the compiler of those (`kernel_worker`) " +
+            "splits every `-D` value on commas, so the test would see the value cut at " +
+            "the first one. A `dart_binary` accepts a comma. Encode the value (base64, " +
+            "say) and decode it in the test.") % (define, source)
 
-def merge_vm_dart_defines(ctx):
-    """`merge_dart_defines` for a VM compile, which refuses a value with a comma.
+def merge_test_dart_defines(ctx):
+    """`merge_dart_defines` for a `dart_test`, which refuses a value with a comma.
+
+    Refused on both of a test's compile paths, so that the build-wide
+    `modular_kernel` setting never changes what a define means.
 
     Args:
       ctx: Rule context carrying `defines` and `_extra_dart_defines`.
@@ -120,7 +126,7 @@ def merge_vm_dart_defines(ctx):
     """
     defines = merge_dart_defines(ctx)
     for define in defines:
-        err = vm_define_comma_error(define, "the `defines` of %s or `--@rules_dart//dart:extra_dart_defines`" % ctx.label)
+        err = module_define_comma_error(define, "the `defines` of %s or `--@rules_dart//dart:extra_dart_defines`" % ctx.label)
         if err:
             fail(err)
     return defines

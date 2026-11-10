@@ -5,7 +5,7 @@ code-asset id that the owning package's `@Native`/`@ffi.DefaultAsset` bindings
 use. This is the seam between Bazel's native build and Dart's code-asset
 resolution: `dart_test` / `dart_binary` consume `DartCodeAssetInfo` via their
 `code_assets` attribute and synthesise the `native_assets.yaml` that
-`gen_kernel --native-assets` embeds into the kernel.
+`frontend_server --native-assets` embeds into the kernel.
 
 Two-tier usage: a native-asset-owning package can ship a target exposing
 `DartCodeAssetInfo` itself; otherwise rules_dart provides one under

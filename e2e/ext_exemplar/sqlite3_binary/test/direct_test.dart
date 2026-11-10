@@ -5,7 +5,7 @@ import 'package:test/test.dart';
 /// plain `package:sqlite3` program whose `@Native` bindings resolve against
 /// the Bazel-built libsqlite3 (bound via `code_assets`). This complements
 /// `app_run_test` (the `dart_binary`/AOT path) and isolates code-asset `.so`
-/// resolution — which happens at *test* time via the runtime gen_kernel,
+/// resolution — which happens at *test* time via the runtime front end,
 /// using an absolute `rlocation` path — from any codegen co-location concern.
 void main() {
   test('sqlite3 round-trips via the Bazel-bundled libsqlite3', () {
