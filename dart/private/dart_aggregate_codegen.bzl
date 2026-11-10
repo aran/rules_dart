@@ -57,6 +57,7 @@ load(
     "same_package_library_dep_files",
     "synth_package_config",
 )
+load("//dart/private:dart_library.bzl", "derive_lib_root")
 load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS", "portable_sdk")
 load("//dart/private:runtime.bzl", "non_dart_transition")
 
@@ -82,7 +83,12 @@ def _dart_aggregate_codegen_impl(ctx):
         ctx.attr.deps,
         identity.package_name,
     )
-    lib_root = lib_root_from_deps if lib_root_from_deps != None else ctx.label.package
+    if lib_root_from_deps != None:
+        lib_root = lib_root_from_deps
+    else:
+        # The root a `dart_library` beside this target would take, also when
+        # the target sits in a directory under the package's `lib/`.
+        lib_root = derive_lib_root(ctx.label.workspace_root, ctx.label.package)
 
     src_paths = [s.path for s in ctx.files.srcs]
     auto_staged, _ = same_package_library_dep_files(

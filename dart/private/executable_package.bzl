@@ -7,7 +7,7 @@ executable contributes no package, exactly as before: its entrypoint takes
 whatever version the package containing it gives it, or the SDK's own.
 
 Set, the executable is a member of that package, rooted at its Bazel package
-directory (`derive_lib_root`, as for `dart_library`). It then carries the
+directory (`package_root`, as for `dart_library`). It then carries the
 package's record like a library does, so the generated `package_config.json`
 covers its entrypoint with that `languageVersion` at compile time, and analysis
 and the `dart_analyze` aspect's format check read the same version for its
@@ -22,13 +22,13 @@ pure, so each can be tested by calling it.
 load("//dart:providers.bzl", "DartInfo")
 load("//dart/private:common.bzl", "PACKAGE_IDENTITY_ATTRS", "codegen_identity_error", "merge_package_records", "resolve_package_identity")
 load("//dart/private:dart_info.bzl", "dart_analyzable_info", "dart_analyzable_info_with_packages", "dart_package_info", "package_lib_prefix")
-load("//dart/private:dart_library.bzl", "derive_lib_root", "derive_package_name")
+load("//dart/private:dart_library.bzl", "derive_package_name", "package_root")
 
 # The identity attributes of every executable rule: `package` from
 # `PACKAGE_IDENTITY_ATTRS`, and the inline pair it excludes.
 EXECUTABLE_PACKAGE_ATTRS = PACKAGE_IDENTITY_ATTRS | {
     "package_name": attr.string(
-        doc = "The Dart package this executable is part of. Optional: set it (or `language_version`, or `package`) only to make this target a member of a package rooted at its Bazel package directory, as a `dart_library` there would be; left unset, the target contributes no package and its entrypoint takes the version of the package whose root contains it. Defaults to the last component of the Bazel package path when only `language_version` is set. Must agree with every package in `deps` that shares its name or root. Set this or `package`, not both.",
+        doc = "The Dart package this executable is part of. Optional: set it (or `language_version`, or `package`) only to make this target a member of the package a `dart_library` beside it would be in, rooted at its Bazel package directory or above the `lib` it sits under; left unset, the target contributes no package and its entrypoint takes the version of the package whose root contains it. Defaults to the name of that root's directory when only `language_version` is set. Must agree with every package in `deps` that shares its name or root. Set this or `package`, not both.",
     ),
     "language_version": attr.string(
         doc = "Dart language version of the package this executable is part of, in `<major>.<minor>` form. Emitted as the package's `languageVersion` in the generated `package_config.json`, so the entrypoint compiles, analyzes and is format-checked at it. For an executable whose Bazel package has no `dart_library` to state it. Must equal the version a `dart_library` of the same package states. Set this or `package`, not both.",
@@ -196,7 +196,10 @@ def executable_package(ctx, own_srcs):
 
     identity = resolve_package_identity(ctx)
     name = derive_package_name(identity.package_name, ctx.label.package, ctx.label.name)
-    root = derive_lib_root(ctx.label.workspace_root, ctx.label.package)
+    root_result = package_root(ctx.label.workspace_root, ctx.label.package, own_srcs)
+    if root_result.error != None:
+        fail("%s: %s" % (ctx.label, root_result.error))
+    root = root_result.root
     if ctx.attr.package:
         stated_by = "`package = %s`" % ctx.attr.package.label
     elif identity.package_name:

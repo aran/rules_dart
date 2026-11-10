@@ -1,0 +1,7 @@
+load("//dart:defs.bzl", "dart_library")
+
+dart_library(
+    name = "util",
+    srcs = ["util.dart"],
+    visibility = ["//dart/tests/subdir_package_fixture:__subpackages__"],
+)

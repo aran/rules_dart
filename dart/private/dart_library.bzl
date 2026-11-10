@@ -10,6 +10,11 @@ load("//dart/private:runtime.bzl", "RUNTIME_INDEPENDENT_ATTR", "runtime_reset_wh
 def derive_package_name(package_name_attr, label_package, label_name):
     """Derive the Dart package name from rule attributes and label.
 
+    Without an explicit name, a package is named for its root directory: the
+    Bazel package's last component, or for a BUILD file inside `lib/` the
+    component above that `lib` (see `derive_lib_root`). A root at the top of
+    the workspace has no directory name, and takes the target's.
+
     Args:
         package_name_attr: Explicit package name attribute, or empty string.
         label_package: The Bazel label package path.
@@ -20,10 +25,10 @@ def derive_package_name(package_name_attr, label_package, label_name):
     """
     if package_name_attr:
         return package_name_attr
-    elif label_package:
-        return label_package.split("/")[-1]
-    else:
-        return label_name
+    parts = label_package.split("/") if label_package else []
+    if "lib" in parts:
+        parts = parts[:parts.index("lib")]
+    return parts[-1] if parts else label_name
 
 def check_no_duplicate_srcs(label, srcs, attr_name = "srcs"):
     """Detects two entries that resolve to the same package-relative path.
@@ -123,34 +128,85 @@ def link_hook_error(label, lib_root, link_hook):
                 "run against.") % (label, expected, link_hook.short_path)
     return None
 
-def derive_lib_root(workspace_root, label_package):
-    """Derive the library root path (short_path-based, without /lib suffix).
+def package_root(workspace_root, label_package, files = []):
+    """The package root of a target, from the directory of its BUILD file.
+
+    A BUILD file at a package's root takes its own directory. A BUILD file
+    anywhere inside the package's `lib/` — `lib/` itself or a directory under
+    it, `lib/src/model/` — belongs to the directory above that `lib`, as Dart
+    reads `<root>/lib/src/model/a.dart` as `package:<name>/src/model/a.dart`.
+    The root is the same for every target of one package, wherever in it the
+    target's BUILD file sits.
+
+    A directory named `lib` inside another `lib/` makes that ambiguous: a
+    BUILD file at `x/lib/y/` holding `x/lib/y/lib/a.dart` may be the root of a
+    package `y` or a directory of the package at `x`. Either case is an error,
+    not a guess.
 
     For external repos, converts "external/X" to "../X" to match
-    File.short_path convention. Strips trailing /lib since Dart's
-    packageUri: "lib/" is appended to rootUri in package_config.json.
+    File.short_path convention. Only the label's package path is read for
+    `lib` components, never the repository's directory name.
+
+    Args:
+        workspace_root: The workspace root of the label (ctx.label.workspace_root).
+        label_package: The Bazel label package path (ctx.label.package).
+        files: The target's own files, which tell a package whose root is
+          itself inside a `lib` directory (they sit under its own `lib/`).
+
+    Returns:
+        `struct(root, error)`: the root's short_path ("" for the main
+        repository's root), and an error message or None.
+    """
+    ws_root = workspace_root
+    if ws_root.startswith("external/"):
+        ws_root = "../" + ws_root[len("external/"):]
+
+    def under_ws(rel):
+        if ws_root and rel:
+            return ws_root + "/" + rel
+        return ws_root or rel
+
+    parts = label_package.split("/") if label_package else []
+    lib_at = [i for i, part in enumerate(parts) if part == "lib"]
+    if len(lib_at) > 1:
+        return struct(root = None, error = (
+            ("`//%s` has a directory named `lib` inside another `lib/`, so its " +
+             "Dart package root is ambiguous: it is the directory above one of " +
+             "the `lib` components, and nothing says which. Rename the inner " +
+             "`lib` directory.") % label_package
+        ))
+    if lib_at:
+        own_lib = under_ws(label_package) + "/lib/"
+        for f in files:
+            if f.short_path.startswith(own_lib):
+                return struct(root = None, error = (
+                    ("`%s` sits in a directory named `lib` under `//%s`, which is " +
+                     "itself inside a `lib/`, so its Dart package root is " +
+                     "ambiguous: `//%s` or `//%s`. Rename the inner `lib` " +
+                     "directory, or move the package out of the outer one.") %
+                    (f.short_path, label_package, label_package, "/".join(parts[:lib_at[0]]))
+                ))
+        parts = parts[:lib_at[0]]
+    return struct(root = under_ws("/".join(parts)), error = None)
+
+def derive_lib_root(workspace_root, label_package):
+    """The package root of a target, from its label alone (see `package_root`).
+
+    Fails where the path is ambiguous. Rules that have the target's files
+    call `package_root` with them, which also catches a package rooted inside
+    a `lib` directory.
 
     Args:
         workspace_root: The workspace root of the label (ctx.label.workspace_root).
         label_package: The Bazel label package path (ctx.label.package).
 
     Returns:
-        The library root path with any trailing /lib stripped.
+        The package root's short_path, without the `lib/` component.
     """
-    if workspace_root:
-        # Convert "external/X" -> "../X" to match File.short_path convention
-        ws_root = workspace_root
-        if ws_root.startswith("external/"):
-            ws_root = "../" + ws_root[len("external/"):]
-        if label_package:
-            lib_root = ws_root + "/" + label_package
-        else:
-            lib_root = ws_root
-    else:
-        lib_root = label_package
-    if lib_root.endswith("/lib") or lib_root == "lib":
-        lib_root = lib_root[:-4] if lib_root.endswith("/lib") else ""
-    return lib_root
+    result = package_root(workspace_root, label_package)
+    if result.error != None:
+        fail(result.error)
+    return result.root
 
 def _dart_library_impl(ctx):
     identity = resolve_package_identity(ctx)
@@ -209,7 +265,10 @@ def _dart_library_impl(ctx):
         if err != None:
             fail(err)
         own_srcs = ctx.files.srcs
-        lib_root = derive_lib_root(ctx.label.workspace_root, ctx.label.package)
+        root = package_root(ctx.label.workspace_root, ctx.label.package, own_srcs + own_resources)
+        if root.error != None:
+            fail("%s: %s" % (ctx.label, root.error))
+        lib_root = root.root
         err = check_files_under_lib_root(ctx.label, lib_root, own_srcs)
         if err != None:
             fail(err)
@@ -311,7 +370,7 @@ with an explanation, rather than producing a binary whose `@Native` bindings sil
 resolve at runtime.""",
         ),
         "package_name": attr.string(
-            doc = "The Dart package name used in `package:` imports. If omitted, defaults to the last component of the Bazel package path. Set this or `package`, not both.",
+            doc = "The Dart package name used in `package:` imports. If omitted, defaults to the name of the package root's directory (the Bazel package's, or for a BUILD file in or under `lib/` the one above that `lib`). Set this or `package`, not both.",
         ),
         "language_version": attr.string(
             doc = "Dart language version implied by the package's `environment.sdk` constraint, in `<major>.<minor>` form. Emitted as `languageVersion` in generated `package_config.json` entries. For pub packages this is set automatically by `pub.from_lock()`; for hand-written `dart_library` targets, set it from your workspace's `pubspec.yaml` if you want analyzer behaviour to match.",

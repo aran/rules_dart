@@ -103,6 +103,30 @@ dart_test(
 )
 ```
 
+#### Where a package's root is
+
+A package's root is the directory that holds its `lib/`. A `dart_library`
+whose BUILD file is at the root, or in `lib/`, or in any directory under
+`lib/`, belongs to the package rooted above that `lib`. One package can
+therefore be split over several BUILD files, each `dart_library` holding the
+files beside it:
+
+```starlark
+# greeter/lib/src/model/BUILD.bazel: package:greeter/src/model/model.dart
+dart_library(
+    name = "model",
+    package_name = "greeter",
+    srcs = ["model.dart"],
+    deps = ["//greeter/lib/src/util"],
+)
+```
+
+Each part depends on the parts its files import, relative imports included,
+and a consumer depends on the parts it imports. Without `package_name`, a
+package is named for its root directory. A directory named `lib` inside a
+`lib/` (`lib/src/lib/`, or a package rooted under some other `lib/`) leaves the
+root ambiguous and is an error; rename the inner directory.
+
 ### Tests
 
 A `dart_test` whose `deps` include `package:test` runs under `package:test`'s

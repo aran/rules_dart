@@ -23,7 +23,7 @@ planned in the library repository by `dependency_cycle()` (`pub_graph.bzl`).
 
 load("//dart:providers.bzl", "DartInfo")
 load("//dart/private:dart_info.bzl", "dart_info", "dart_package_info")
-load("//dart/private:dart_library.bzl", "check_files_under_lib_root", "check_no_duplicate_srcs", "derive_lib_root", "link_hook_error")
+load("//dart/private:dart_library.bzl", "check_files_under_lib_root", "check_no_duplicate_srcs", "link_hook_error", "package_root")
 load("//dart/private:dart_test_runner.bzl", _pub_test_runner = "pub_test_runner")
 load("//dart/private:runtime.bzl", "runtime_reset")
 
@@ -76,7 +76,10 @@ def dart_package_member_info(
     Returns:
       A `DartPackageMemberInfo`.
     """
-    lib_root = derive_lib_root(label.workspace_root, label.package)
+    root = package_root(label.workspace_root, label.package, srcs + resources)
+    if root.error != None:
+        fail("%s: %s" % (label, root.error))
+    lib_root = root.root
     for err in [
         check_no_duplicate_srcs(label, srcs),
         check_no_duplicate_srcs(label, resources, "resources"),

@@ -1,0 +1,18 @@
+load("//dart:defs.bzl", "dart_library")
+load("//dart/tests:library_test.bzl", "nested_lib_rejected_test")
+
+# A BUILD file in a directory named `lib` inside a `lib/`: its package root
+# could be `nested_lib_fixture/lib/src` or `nested_lib_fixture`. Manual: it
+# fails at analysis by design, and is built only as the test's
+# target_under_test.
+dart_library(
+    name = "nested",
+    srcs = ["nested.dart"],
+    tags = ["manual"],
+)
+
+nested_lib_rejected_test(
+    name = "nested_lib_rejected_test",
+    size = "small",
+    target_under_test = ":nested",
+)

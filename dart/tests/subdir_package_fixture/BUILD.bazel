@@ -1,0 +1,36 @@
+load("//dart:defs.bzl", "dart_binary", "dart_library", "dart_test")
+
+# One Dart package, `subdir_package_fixture`, split over three BUILD files:
+# this one for `lib/a.dart`, and one each in `lib/src/model/` and
+# `lib/src/util/`. The two under `lib/` take this directory as their package
+# root, so their files are `package:subdir_package_fixture/src/...`.
+dart_library(
+    name = "subdir_package_fixture",
+    srcs = ["lib/a.dart"],
+    deps = [
+        "//dart/tests/subdir_package_fixture/lib/src/model",
+        "//dart/tests/subdir_package_fixture/lib/src/util",
+    ],
+)
+
+dart_binary(
+    name = "describe",
+    main = "bin/describe.dart",
+    deps = [":subdir_package_fixture"],
+)
+
+# Imports the package's parts by `package:` URI through the modular compile,
+# then runs `describe`, a whole-program compile of the same package, as
+# `bazel run` would.
+dart_test(
+    name = "subdir_package_test",
+    size = "small",
+    args = ["$(rlocationpath :describe)"],
+    data = [":describe"],
+    main = "test/subdir_package_test.dart",
+    deps = [
+        ":subdir_package_fixture",
+        "//dart/runfiles",
+        "//dart/tests/subdir_package_fixture/lib/src/model",
+    ],
+)
