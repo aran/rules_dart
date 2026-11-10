@@ -1,3 +1,4 @@
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("//dart:defs.bzl", "dart_binary")
 
 # drift_dev's modern path is a 4-stage pipeline:
@@ -52,4 +53,11 @@ dart_binary(
         "//dart/ext:builder_shim",
         "@ext_pub_deps//:drift_dev",
     ],
+)
+
+bzl_library(
+    name = "defs",
+    srcs = ["defs.bzl"],
+    visibility = ["//visibility:public"],
+    deps = ["@rules_dart//dart:defs"],
 )

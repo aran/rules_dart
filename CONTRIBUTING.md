@@ -120,9 +120,9 @@ cd e2e/web_app && bazel build //...
 
 ## Updating BUILD files
 
-Some targets are generated from sources.
-Currently this is just the `bzl_library` targets.
-Run `bazel run @rules_dart_dev//:gazelle` to keep them up-to-date.
+Gazelle writes the `bzl_library` targets, and only those.
+Run `bazel run @rules_dart_dev//:gazelle` to keep them up-to-date; CI fails when
+it would change a BUILD file.
 
 ## Using this as a development dependency of other rules
 

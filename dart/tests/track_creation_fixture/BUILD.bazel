@@ -1,3 +1,4 @@
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("//dart:defs.bzl", "dart_binary", "dart_test")
 load("//dart/tests:track_creation_locations_test.bzl", "track_creation_locations_args_suite")
 load(":track_creation.bzl", "track_creation_locations_run_test")
@@ -79,4 +80,11 @@ track_creation_locations_args_suite(
     name = "args_test",
     binary = ":tracked_binary",
     test = ":tracked_dart_test",
+)
+
+bzl_library(
+    name = "track_creation",
+    srcs = ["track_creation.bzl"],
+    visibility = ["//visibility:public"],
+    deps = ["//dart:defs"],
 )

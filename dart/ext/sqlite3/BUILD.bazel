@@ -1,3 +1,4 @@
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("//dart:defs.bzl", "dart_code_asset")
 
@@ -44,5 +45,11 @@ dart_code_asset(
     # libsqlite3.g.dart; its hook emits the code asset under this id.
     asset_id = "package:sqlite3/src/ffi/libsqlite3.g.dart",
     shared_library = ":libsqlite3",
+    visibility = ["//visibility:public"],
+)
+
+bzl_library(
+    name = "defs",
+    srcs = ["defs.bzl"],
     visibility = ["//visibility:public"],
 )

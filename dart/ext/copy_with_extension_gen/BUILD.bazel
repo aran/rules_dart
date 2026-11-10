@@ -1,3 +1,4 @@
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("//dart:defs.bzl", "dart_binary")
 
 # Shim binary for copy_with_extension_gen. SharedPartBuilder; produces
@@ -12,4 +13,11 @@ dart_binary(
         "//dart/ext:builder_shim",
         "@ext_pub_deps//:copy_with_extension_gen",
     ],
+)
+
+bzl_library(
+    name = "defs",
+    srcs = ["defs.bzl"],
+    visibility = ["//visibility:public"],
+    deps = ["@rules_dart//dart/ext/_shared:defs"],
 )

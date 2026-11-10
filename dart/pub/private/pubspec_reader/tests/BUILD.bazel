@@ -5,6 +5,7 @@ load(":reader_unit_test.bzl", "reader_unit_test_suite")
 bzl_library(
     name = "cases",
     srcs = ["cases.bzl"],
+    visibility = ["//dart/pub:__subpackages__"],
     deps = ["//dart/pub/private/pubspec_reader:reader"],
 )
 

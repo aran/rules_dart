@@ -636,6 +636,8 @@ jobs:
           disk-cache: ${{ github.job }}
           repository-cache: true
       - run: bazel test --test_output=errors @rules_dart_gazelle_plugin//... @rules_dart_dev//...
+      - name: BUILD files are as Gazelle writes them
+        run: bazel run @rules_dart_dev//:gazelle -- -mode=diff
   # A consuming module must be able to load every package of the published
   # module: tools and IDE plugins enumerate `@rules_dart//...`. Development
   # tooling loads repos a consumer never sees, so it lives in directories

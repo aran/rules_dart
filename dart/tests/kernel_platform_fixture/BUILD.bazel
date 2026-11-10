@@ -1,3 +1,4 @@
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
 load("//dart:defs.bzl", "dart_binary", "dart_library")
@@ -104,4 +105,15 @@ tool_ignores_the_build_test(
     name = "tool_ignores_the_build_test",
     size = "small",
     target_under_test = "//dart/private/tools:launcher",
+)
+
+bzl_library(
+    name = "rules",
+    srcs = ["rules.bzl"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//dart:providers",
+        "//dart:utils",
+        "@bazel_skylib//lib:unittest",
+    ],
 )

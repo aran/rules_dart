@@ -1,3 +1,4 @@
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("//dart:defs.bzl", "dart_binary")
 
 # Six independent shim binaries, one per stacked_generator LibraryBuilder.
@@ -72,4 +73,11 @@ dart_binary(
         "//dart/ext:builder_shim",
         "@ext_pub_deps//:stacked_generator",
     ],
+)
+
+bzl_library(
+    name = "defs",
+    srcs = ["defs.bzl"],
+    visibility = ["//visibility:public"],
+    deps = ["@rules_dart//dart/ext/_shared:defs"],
 )

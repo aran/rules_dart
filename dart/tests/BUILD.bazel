@@ -1,3 +1,4 @@
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load(":code_asset_test.bzl", "code_asset_test_suite")
 load(":codegen_test.bzl", "codegen_test_suite")
@@ -82,3 +83,24 @@ build_test(
 )
 
 import_check_test_suite(name = "import_check_test")
+
+bzl_library(
+    name = "outline_guard",
+    srcs = ["outline_guard.bzl"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//dart:providers",
+        "//dart/private:dart_module",
+        "@bazel_skylib//rules:copy_file",
+    ],
+)
+
+bzl_library(
+    name = "small_suite",
+    srcs = ["small_suite.bzl"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@bazel_skylib//lib:partial",
+        "@bazel_skylib//lib:unittest",
+    ],
+)

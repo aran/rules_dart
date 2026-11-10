@@ -1,16 +1,13 @@
-load("@gazelle//:def.bzl", "gazelle", "gazelle_binary")
+load("@gazelle//:def.bzl", "gazelle_binary")
 load("@rules_dart//dart:defs.bzl", "dart_test")
 
+# Run by `gazelle_test` over copies of the sources below, never over this
+# workspace: the samples are its inputs and have no BUILD files of their own.
 gazelle_binary(
     name = "gazelle_bin",
     languages = [
         "@rules_dart_gazelle_plugin//dart",
     ],
-)
-
-gazelle(
-    name = "gazelle",
-    gazelle = "gazelle_bin",
 )
 
 _SAMPLES = [

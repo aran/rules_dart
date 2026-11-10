@@ -1,3 +1,4 @@
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("//dart:defs.bzl", "dart_test")
 load(":tree.bzl", "tree")
 
@@ -27,4 +28,10 @@ dart_test(
         "//dart/runfiles",
         "@ext_pub_deps//:test",
     ],
+)
+
+bzl_library(
+    name = "tree",
+    srcs = ["tree.bzl"],
+    visibility = ["//visibility:public"],
 )

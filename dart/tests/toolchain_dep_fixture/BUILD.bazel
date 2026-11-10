@@ -1,3 +1,5 @@
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+
 # A library whose Dart dependency is resolved through a toolchain, not an
 # attribute: the kernel module aspect has to reach the runtime through the
 # toolchain to compile the library, and a test that reaches the library has to
@@ -30,4 +32,14 @@ dart_test(
     size = "small",
     main = "test/toolchain_dep_test.dart",
     deps = [":toolchain_dep_fixture"],
+)
+
+bzl_library(
+    name = "rules",
+    srcs = ["rules.bzl"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//dart:providers",
+        "//dart:utils",
+    ],
 )

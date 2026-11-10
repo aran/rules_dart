@@ -11,9 +11,17 @@ gazelle_binary(
     ],
 )
 
+# Gazelle writes rules_dart's `bzl_library` targets, and only those: its Dart
+# targets are test fixtures and tools laid out by hand, often to be what
+# Gazelle would not write. CI fails when this would change a BUILD file.
+gazelle_binary(
+    name = "bzl_gazelle_bin",
+    languages = ["@bazel_skylib_gazelle_plugin//bzl"],
+)
+
 gazelle(
     name = "gazelle",
-    gazelle = "gazelle_bin",
+    gazelle = "bzl_gazelle_bin",
 )
 
 sh_test(

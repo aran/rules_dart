@@ -1,3 +1,4 @@
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("//dart:toolchain.bzl", "dart_outline_toolchain")
 load("//dart/private:dart_module.bzl", "vm_kernel_sdk")
 load(":rules.bzl", "refuses_no_tool_test", "refuses_other_version_test")
@@ -44,4 +45,11 @@ refuses_no_tool_test(
     name = "refuses_no_tool_test",
     size = "small",
     target_under_test = ":sdk",
+)
+
+bzl_library(
+    name = "rules",
+    srcs = ["rules.bzl"],
+    visibility = ["//visibility:public"],
+    deps = ["@bazel_skylib//lib:unittest"],
 )

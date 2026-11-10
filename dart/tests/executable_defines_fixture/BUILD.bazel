@@ -1,3 +1,4 @@
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("//dart:defs.bzl", "dart_test")
 load(":rules.bzl", "flavored_program", "mismatched_program", "refused_test", "reset_library", "reset_reader", "reset_test")
 
@@ -125,5 +126,17 @@ flavored_program(
     deps = [
         ":reset_library",
         "//dart/tests/executable_defines_fixture/flavor",
+    ],
+)
+
+bzl_library(
+    name = "rules",
+    srcs = ["rules.bzl"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//dart:providers",
+        "//dart:utils",
+        "@bazel_skylib//lib:unittest",
+        "@bazel_skylib//rules:common_settings",
     ],
 )
