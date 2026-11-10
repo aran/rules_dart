@@ -143,6 +143,10 @@ dart_analyzable_info = _dart_analyzable_info
 # `package_srcs` the packages' own files.
 dart_analyzable_info_with_packages = _dart_analyzable_info_with_packages
 
+# Every package a target's deps reach, one record per package: a package's
+# records (one per `dart_library` of a split package, one per pub hub supplying
+# it) are merged, each package-level fact taken from whichever record states
+# it, and the build fails naming both targets when two state it differently.
 collect_packages = _collect_packages
 
 # Returns a depset[File]; pass it to action inputs / runfiles directly and

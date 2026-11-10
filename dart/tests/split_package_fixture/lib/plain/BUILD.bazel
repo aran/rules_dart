@@ -1,0 +1,10 @@
+load("//dart:defs.bzl", "dart_library")
+
+# One directory of `split_pkg`, stating no language version.
+
+dart_library(
+    name = "plain",
+    package_name = "split_pkg",
+    srcs = ["plain.dart"],
+    visibility = ["//dart/tests/split_package_fixture:__pkg__"],
+)

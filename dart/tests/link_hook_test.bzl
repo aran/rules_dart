@@ -165,19 +165,24 @@ def _merge_adopts_link_hook_test_impl(ctx):
     # A package split across targets may carry its hook on any of them; the
     # merged record keeps it whichever comes first.
     env = unittest.begin(ctx)
+    hook = struct(short_path = "b/hook/link.dart")
     merged = merge_package_records([
         struct(package_name = "p", package_root = "a", link_hook = None),
-        struct(package_name = "p", package_root = "b", link_hook = "b/hook/link.dart"),
+        struct(package_name = "p", package_root = "b", link_hook = hook),
     ])
     asserts.equals(env, 1, len(merged))
     asserts.equals(env, "a", merged[0].package_root)
-    asserts.equals(env, "b/hook/link.dart", package_link_hook(merged[0]))
+    asserts.equals(env, hook, package_link_hook(merged[0]))
 
+    # Two hubs supplying one package name one hook in two places: they agree,
+    # and the first record's File is kept. Two different hooks are an error;
+    # see `package_record_test`.
+    first = struct(short_path = "a/hook/link.dart")
     kept = merge_package_records([
-        struct(package_name = "p", package_root = "a", link_hook = "a/hook/link.dart"),
-        struct(package_name = "p", package_root = "b", link_hook = "b/hook/link.dart"),
+        struct(package_name = "p", package_root = "a", link_hook = first),
+        struct(package_name = "p", package_root = "b", link_hook = struct(short_path = "b/hook/link.dart")),
     ])
-    asserts.equals(env, "a/hook/link.dart", package_link_hook(kept[0]))
+    asserts.equals(env, first, package_link_hook(kept[0]))
     return unittest.end(env)
 
 _merge_adopts_link_hook_test = unittest.make(_merge_adopts_link_hook_test_impl)

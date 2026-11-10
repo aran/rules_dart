@@ -88,21 +88,26 @@ def package_license_file(pkg):
     """
     return getattr(pkg, "license_file", None)
 
-def _license_key(pkg):
-    """What two records' license files must share to name the same license.
+def _in_package_key(pkg, f):
+    """What two records' files must share to name the same file of the package.
 
     The path within the package, not the File: two pub hubs supplying one
     package each fetch its archive, so their records name different Files
     (`../hub_a__ffi/LICENSE`, `../hub_b__ffi/LICENSE`) for the same text. A
     file outside the package root is compared by its own path.
     """
-    f = package_license_file(pkg)
     if f == None:
         return ""
     prefix = pkg.package_root + "/" if pkg.package_root else ""
     if prefix and f.short_path.startswith(prefix):
         return f.short_path[len(prefix):]
     return f.short_path
+
+def _license_key(pkg):
+    return _in_package_key(pkg, package_license_file(pkg))
+
+def _link_hook_key(pkg):
+    return _in_package_key(pkg, package_link_hook(pkg))
 
 def collect_code_asset_files(deps):
     """Merges `DartInfo.transitive_code_asset_files` across deps.
@@ -228,10 +233,44 @@ _LANGUAGE_VERSION_REMEDY = """
 Each package listed just above has records stating different
 `language_version`s, so the Dart semantics its sources compile under would be
 decided by dependency order. Set `language_version` consistently on every
-`dart_library` contributing to the package — Gazelle derives it from the
-nearest `pubspec.yaml`'s `environment.sdk` constraint and writes the same value
-on each.
+target contributing to the package, or on one and leave the others unset —
+Gazelle derives it from the nearest `pubspec.yaml`'s `environment.sdk`
+constraint and writes the same value on each.
 """
+
+_LINK_HOOK_REMEDY = """
+Each package listed just above has records naming different link hooks, so
+which one runs would be decided by dependency order. A package has one
+`hook/link.dart`: name it on one target contributing to the package
+(`dart_library.link_hook`, or `link_hook` of `dart_package_info()`), or the
+same file on each.
+"""
+
+_BUILD_HOOK_REMEDY = """
+Each package listed just above has records naming different build hooks. A
+package has one `hook/build.dart`; state the same path on every target
+contributing to the package that states one.
+"""
+
+# The package-level facts two records of one package must agree on: how each
+# record states it ("" when it states none), what the report calls it, and the
+# remedy. `merge_package_records` takes each from whichever record states it,
+# which is only order-independent because of this check.
+_AGREED_FIELDS = (
+    (lambda pkg: getattr(pkg, "version", ""), "versions", _VERSION_REMEDY),
+    (lambda pkg: getattr(pkg, "language_version", ""), "language versions", _LANGUAGE_VERSION_REMEDY),
+    (_license_key, "license files", _LICENSE_FILE_REMEDY),
+    (_link_hook_key, "link hooks", _LINK_HOOK_REMEDY),
+    (lambda pkg: getattr(pkg, "unreplaced_hook", ""), "build hooks", _BUILD_HOOK_REMEDY),
+)
+
+def _stated_by(pkg):
+    """Names the target behind a record, and where its package is rooted."""
+    root = pkg.package_root or "."
+    label = getattr(pkg, "label", None)
+    if label == None:
+        return root
+    return "%s at %s" % (label, root)
 
 def default_language_version(dart_sdk_info):
     """The language version of a package that states none: the SDK's own.
@@ -392,22 +431,28 @@ def package_agreement_error(merged):
     """Reports every duplicate record that states facts its twin contradicts.
 
     Two records for one `package_name` are normal — see `merge_package_records`
-    for why — but they are supposed to describe the *same* package. When they
-    disagree, `merge_package_records` keeps the first and discards the second,
-    which silently substitutes one version's entire source tree for the other's.
-    A skewed pair of lock files reproduces exactly that: the build succeeds, no
-    diagnostic is emitted, and a package compiles against sources its own lock
-    does not pin.
+    for why — but they are supposed to describe the *same* package. Were they
+    to disagree, `merge_package_records` would keep one and silently discard
+    the other: for `version`, one version's entire source tree substituted for
+    the other's, which a skewed pair of lock files reproduces; for
+    `language_version`, the package compiled under semantics one of its
+    targets did not state; for `link_hook`, one hook run and the other
+    skipped.
 
-    Only two *known* values can disagree. A record whose producer does not emit
-    the field carries "" — every `DartPackageInfo` built by a rule set that
-    predates it, and every hand-written `dart_library`, which has no version to
-    state. Treating "" as a disagreement would fail every dual-hub build
-    including the agreeing ones; treating it as "knows less" is what lets the
-    field be adopted one producer at a time.
+    The fields are the package's own facts: `version`, `language_version`,
+    `license_file`, `link_hook` and `unreplaced_hook`. Only two *stated* values
+    can disagree. A record that states none carries "" (or `None`) — every
+    `DartPackageInfo` built by a rule set that predates the field, every
+    hand-written `dart_library`, which has no version to state, and every
+    target of a split package but the one carrying the hook or the license.
+    Treating "" as a disagreement would fail every dual-hub build including
+    the agreeing ones; treating it as "knows less" is what lets the merge take
+    the fact from whichever record states it.
 
-    The license file is compared by its path within the package rather than as
-    a File, for the reason `_license_key` gives.
+    The license file and link hook are compared by their path within the
+    package rather than as Files, for the reason `_in_package_key` gives. Each
+    value is reported with the target that stated it first, from the record's
+    `label`, and the package root, which tells two pub hubs apart.
 
     Every disagreement is reported at once, across every field, because the
     cause is almost always one skew producing many of them: a pair of lock
@@ -430,12 +475,8 @@ def package_agreement_error(merged):
       duplicate agrees.
     """
     blocks = []
-    for read, label, remedy in (
-        (lambda pkg: getattr(pkg, "version", ""), "versions", _VERSION_REMEDY),
-        (lambda pkg: getattr(pkg, "language_version", ""), "language versions", _LANGUAGE_VERSION_REMEDY),
-        (_license_key, "license files", _LICENSE_FILE_REMEDY),
-    ):
-        # value -> package_root of the first record stating it, per package name.
+    for read, label, remedy in _AGREED_FIELDS:
+        # value -> the first record stating it, per package name.
         stated = {}
         for pkg in merged:
             value = read(pkg)
@@ -443,7 +484,7 @@ def package_agreement_error(merged):
                 continue
             seen = stated.setdefault(pkg.package_name, {})
             if value not in seen:
-                seen[value] = pkg.package_root
+                seen[value] = _stated_by(pkg)
 
         reported = []
         for package_name in sorted(stated.keys()):
@@ -468,34 +509,48 @@ def package_agreement_error(merged):
         return None
     return "\n".join(blocks)
 
+def _first_stated(records, read, empty):
+    for pkg in records:
+        value = read(pkg)
+        if value != empty:
+            return value
+    return empty
+
 def merge_package_records(merged):
-    """Dedups package records by name, unioning their code assets.
+    """Dedups package records by name, combining what each one states.
 
-    One `package_name` can legitimately appear with several `package_root`s:
+    One `package_name` can legitimately appear with several `package_root`s or
+    several records:
 
-      * a package split across `dart_library` targets — the case
-        `colocate_packages` exists to serve; and
+      * a package split across `dart_library` targets — Gazelle's
+        per-directory layout, and the case `colocate_packages` exists to
+        serve; and
       * a package supplied independently by two pub hubs, e.g. rules_flutter's
         `flutter.pub()` and rules_dart's `pub.from_lock()` both generating a
         spoke for `ffi`.
 
-    So the first record wins for source resolution, as it always has. Code
-    assets are the exception: dropping a later record's assets would silently
+    The merged record is the first record, for source resolution, with every
+    package-level fact taken from whichever record states it: `version`,
+    `language_version`, `license_file`, `link_hook` and `unreplaced_hook`. A
+    split package states each on one target or on all of them, so a fact
+    stated on any record is the package's; dropping it because a record
+    stating nothing came first would, for `language_version`, compile the
+    package under the current SDK's rules rather than the version it states.
+    Taking the first stated value is order-independent only because the
+    records agree, so this calls `package_agreement_error` first and fails,
+    naming both targets, when two of them state different values of any of
+    those fields.
+
+    Code assets union instead: dropping a later record's assets would silently
     lose a native library, and the failure would surface at runtime as an
-    unresolved `@Native` symbol. Union them instead, and let
-    `resolve_code_assets` fail later if — and only if — two assets genuinely
-    claim one id, which is the case the Dart VM cannot resolve either.
-
-    First-record-wins is only safe once the records are known to agree, so this
-    calls `package_agreement_error` first and fails when two of them state
-    different `version`s, `language_version`s or `license_file`s.
-
-    `unreplaced_hook` is not order-decided either: code assets belong to
-    the package, not to one record of it, so the merged package's hook is
-    unreplaced when any record names one and no record supplies code assets.
-    That serves both duplicate cases alike — a split package states its
-    `build_hook` on one target and its `code_assets` on another, and a hub
-    curating `code_assets` replaces the hook another hub still flags.
+    unresolved `@Native` symbol. `resolve_code_assets` fails later if — and
+    only if — two assets genuinely claim one id, which is the case the Dart VM
+    cannot resolve either. Code assets replace a build hook, so the merged
+    package's hook is unreplaced when any record names one and no record
+    supplies code assets. That serves both duplicate cases alike — a split
+    package states its `build_hook` on one target and its `code_assets` on
+    another, and a hub curating `code_assets` replaces the hook another hub
+    still flags.
 
     Split out from `collect_packages` because the dedup and union rules are a
     pure function of the record list, which makes them directly testable
@@ -512,40 +567,40 @@ def merge_package_records(merged):
     if err != None:
         fail(err)
 
-    packages = []
-    index_by_name = {}
+    names = []
+    records_by_name = {}
     for pkg in merged:
-        index = index_by_name.get(pkg.package_name)
-        if index == None:
-            index_by_name[pkg.package_name] = len(packages)
-            packages.append(pkg)
+        records = records_by_name.get(pkg.package_name)
+        if records == None:
+            names.append(pkg.package_name)
+            records_by_name[pkg.package_name] = [pkg]
         else:
-            kept = packages[index]
-            adopt_hook = package_link_hook(pkg) != None and package_link_hook(kept) == None
-            adopt_license = package_license_file(pkg) != None and package_license_file(kept) == None
-            adopt_build_hook = getattr(pkg, "unreplaced_hook", "") and not getattr(kept, "unreplaced_hook", "")
-            if not package_code_assets(pkg) and not adopt_hook and not adopt_license and not adopt_build_hook:
-                continue
+            records.append(pkg)
+    return [_merge_one(records_by_name[name]) for name in names]
 
-            # Only the assets, the build and link hooks and a missing license
-            # merge (the license only once the agreement check has passed, so
-            # it can differ only by being absent); every other field stays the
-            # kept record's. The hooks are adopted for the same reason the
-            # assets are: a package split across targets may carry its
-            # `hook/link.dart` or `hook/build.dart` on any one of them, and
-            # dropping it would silently skip the hook. Any record's assets
-            # replace any record's build hook, so the result does not depend
-            # on which record came first.
-            code_assets = package_code_assets(kept) + package_code_assets(pkg)
-            build_hook = getattr(kept, "unreplaced_hook", "") or getattr(pkg, "unreplaced_hook", "")
-            packages[index] = derived_package_info(
-                kept,
-                code_assets = code_assets,
-                unreplaced_hook = "" if code_assets else build_hook,
-                link_hook = package_link_hook(pkg) if adopt_hook else None,
-                license_file = package_license_file(pkg) if adopt_license else None,
-            )
-    return packages
+def _merge_one(records):
+    """The first of one package's agreeing records, completed from the others."""
+    kept = records[0]
+    if len(records) == 1:
+        return kept
+    code_assets = ()
+    for pkg in records:
+        code_assets += package_code_assets(pkg)
+    merged = derived_package_info(
+        kept,
+        version = _first_stated(records, lambda p: getattr(p, "version", ""), ""),
+        language_version = _first_stated(records, lambda p: getattr(p, "language_version", ""), ""),
+        code_assets = code_assets,
+        unreplaced_hook = "" if code_assets else _first_stated(records, lambda p: getattr(p, "unreplaced_hook", ""), ""),
+        link_hook = _first_stated(records, package_link_hook, None),
+        license_file = _first_stated(records, package_license_file, None),
+    )
+
+    # A record that already states everything the others do is kept as it is,
+    # so a duplicate that adds nothing leaves the record unchanged.
+    if merged == derived_package_info(kept):
+        return kept
+    return merged
 
 def launcher_executable(ctx, tool):
     """Symlinks a pre-compiled launcher as a rule's executable, `<name>[.exe]`.

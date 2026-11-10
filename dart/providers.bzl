@@ -70,6 +70,7 @@ trap `DartAnalyzableInfo` exists to avoid.""",
 DartPackageInfo = provider(
     doc = "Record of a single Dart package in the build graph, carried in depsets within DartInfo.",
     fields = {
+        "label": "Label or None: The target that stated this record — for a merged record, the first of the targets whose records were merged. Read only for error messages, which name the targets whose statements disagree. Optional; absent from a record built by a producer predating the field.",
         "package_name": "str: The Dart package name. Required.",
         "package_root": "str: The short_path-based path to the package root directory (parent of `lib/`). Configuration-independent. Required; empty string for the root package.",
         "version": "str: The package's own version, as resolved by pub (e.g. `2.2.0`). Optional; empty string when unknown, which is what a `dart_library` written by hand and a producer predating this field both carry. Recorded so that two records for one package name can be checked for agreement — see `package_agreement_error`.",

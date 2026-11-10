@@ -1,0 +1,44 @@
+"""A package split across `dart_library` targets, one per directory of its `lib/`.
+
+The layout Gazelle generates. Every target is a record of the one package
+`split_pkg`, and the package's `languageVersion` is whatever any of them
+states, whichever comes first in `deps`.
+"""
+
+load("//dart:defs.bzl", "dart_binary")
+load("//dart/tests:package_record_test.bzl", "language_version_conflict_test", "package_config_language_version_test")
+
+# The record stating nothing comes first.
+dart_binary(
+    name = "app",
+    main = "main.dart",
+    deps = [
+        "//dart/tests/split_package_fixture/lib/plain",
+        "//dart/tests/split_package_fixture/lib/versioned",
+    ],
+)
+
+package_config_language_version_test(
+    name = "stated_version_reaches_package_config_test",
+    package_name = "split_pkg",
+    size = "small",
+    expected_language_version = "3.7",
+    target_under_test = ":app",
+)
+
+dart_binary(
+    name = "conflicting_app",
+    main = "main.dart",
+    tags = ["manual"],
+    deps = [
+        "//dart/tests/split_package_fixture/lib/other_version",
+        "//dart/tests/split_package_fixture/lib/plain",
+        "//dart/tests/split_package_fixture/lib/versioned",
+    ],
+)
+
+language_version_conflict_test(
+    name = "conflicting_language_versions_test",
+    size = "small",
+    target_under_test = ":conflicting_app",
+)

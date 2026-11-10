@@ -1,0 +1,11 @@
+load("//dart:defs.bzl", "dart_library")
+
+# A third directory of `split_pkg`, contradicting `versioned`.
+
+dart_library(
+    name = "other_version",
+    package_name = "split_pkg",
+    srcs = ["other_version.dart"],
+    language_version = "3.4",
+    visibility = ["//dart/tests/split_package_fixture:__pkg__"],
+)

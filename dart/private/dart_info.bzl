@@ -217,7 +217,8 @@ def dart_package_info(
     copied from another goes through `derived_package_info()`.
 
     Args:
-      label: The constructing rule's label, for error messages.
+      label: The constructing rule's label, for error messages. Recorded as
+        the record's `label`, so a later disagreement names this target.
       package_name: The Dart package name. Required: a package has one.
       package_root: `short_path`-based path to the package root (parent of `lib/`).
         Empty string for the root package.
@@ -250,6 +251,7 @@ def dart_package_info(
     if err != None:
         fail(err)
     return DartPackageInfo(
+        label = label,
         package_name = package_name,
         package_root = package_root,
         version = version,
@@ -394,7 +396,15 @@ def dart_analyzable_info_with_packages(
         package_srcs = depset(package_srcs),
     )
 
-def derived_package_info(pkg, package_root = None, code_assets = None, unreplaced_hook = None, link_hook = None, license_file = None):
+def derived_package_info(
+        pkg,
+        package_root = None,
+        version = None,
+        language_version = None,
+        code_assets = None,
+        unreplaced_hook = None,
+        link_hook = None,
+        license_file = None):
     """Copies `pkg`, overriding the named fields and carrying the rest through.
 
     Deriving one package record from another — `colocate_packages` rewriting
@@ -414,6 +424,10 @@ def derived_package_info(pkg, package_root = None, code_assets = None, unreplace
     Args:
       pkg: The `DartPackageInfo` (or `DartPackageInfo`-shaped struct) to copy.
       package_root: Replacement `package_root`, or `None` to keep `pkg`'s.
+      version: Replacement `version` string (`""` for unknown), or `None` to
+        keep `pkg`'s.
+      language_version: Replacement `language_version` string (`""` for none
+        stated), or `None` to keep `pkg`'s.
       code_assets: Replacement `code_assets` tuple, or `None` to keep `pkg`'s.
       unreplaced_hook: Replacement `unreplaced_hook` string (`""` for
         none), or `None` to keep `pkg`'s.
@@ -428,10 +442,13 @@ def derived_package_info(pkg, package_root = None, code_assets = None, unreplace
     # a record from a rule's attributes, this one from an existing record.
     # Those are the only two places the fields are named, and both are here.
     return DartPackageInfo(
+        label = getattr(pkg, "label", None),
         package_name = pkg.package_name,
         package_root = pkg.package_root if package_root == None else package_root,
-        version = getattr(pkg, "version", ""),
-        language_version = getattr(pkg, "language_version", ""),
+        version = getattr(pkg, "version", "") if version == None else version,
+        language_version = (
+            getattr(pkg, "language_version", "") if language_version == None else language_version
+        ),
         code_assets = (
             getattr(pkg, "code_assets", ()) if code_assets == None else code_assets
         ),
