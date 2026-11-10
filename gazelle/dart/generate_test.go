@@ -77,21 +77,15 @@ func TestStageTargetName(t *testing.T) {
 	}
 }
 
-func TestFilterOutGeneratedFiles(t *testing.T) {
-	registry := registryWith(&builderInfo{
-		Annotation: "X",
-		Produces:   []string{".x.g.part"},
-	})
-	in := []DartFileInfo{
-		{Path: "lib/user.dart"},
-		{Path: "lib/user.g.dart"},
-		{Path: "lib/user.x.g.part"},
-		{Path: "lib/user.freezed.dart"},
-		{Path: "lib/user.mocks.dart"},
-	}
-	out := filterOutGeneratedFiles(in, registry)
-	if len(out) != 1 || out[0].Path != "lib/user.dart" {
-		t.Fatalf("filter dropped wrong files: %#v", out)
+func TestProducedFiles(t *testing.T) {
+	registry := registryWith(
+		&builderInfo{Annotation: "X", Produces: []string{".x.g.part"}, SharedPart: true},
+		&builderInfo{Annotation: "Y", Produces: []string{".y.dart"}},
+	)
+	got := producedFiles("pkg/lib/src/user.dart", []string{"X", "Y"}, registry)
+	want := []string{"pkg/lib/src/user.g.dart", "pkg/lib/src/user.y.dart"}
+	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Errorf("produced %v, want %v", got, want)
 	}
 }
 

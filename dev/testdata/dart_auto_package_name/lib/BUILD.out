@@ -1,8 +1,0 @@
-load("@rules_dart//dart:defs.bzl", "dart_library")
-
-dart_library(
-    name = "my_cool_app",
-    package_name = "my_cool_app",
-    srcs = ["app.dart"],
-    visibility = ["//visibility:public"],
-)

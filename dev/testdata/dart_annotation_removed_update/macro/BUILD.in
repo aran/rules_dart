@@ -3,7 +3,7 @@ load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_libr
 json_serializable_library(
     name = "user",
     package_name = "macro",
-    srcs = ["user.dart"],
+    srcs = ["lib/user.dart"],
     visibility = ["//visibility:public"],
     deps = ["@json_annotation"],
 )

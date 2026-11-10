@@ -1,0 +1,14 @@
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "pkg",
+    package_name = "from_metadata",
+    language_version = "3.11",
+)
+
+dart_library(
+    name = "from_metadata",
+    srcs = ["lib/whisper.dart"],
+    package = ":pkg",
+    visibility = ["//visibility:public"],
+)

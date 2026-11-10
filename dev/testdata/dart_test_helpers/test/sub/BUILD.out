@@ -5,7 +5,7 @@ dart_test(
     srcs = ["//test"],
     main = "nested_test.dart",
     deps = [
-        "//lib:helpers_fixture",
+        "//:helpers_fixture",
         "@meta",
         "@test",
     ],

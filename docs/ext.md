@@ -297,7 +297,11 @@ deeper Bazel-package path than the Dart package root
 
 The Gazelle plugin (`gazelle/dart/`) scans `.dart` sources for
 annotations matching registered builders, then emits the appropriate
-codegen chain:
+codegen chain. It writes every target for a package's `lib/` in the BUILD
+file at the package's root, as it writes the package's own `dart_library`
+there; the targets for a source are named for its path under `lib/`
+without `.dart` (`user` for `lib/user.dart`, `src/model/user` for
+`lib/src/model/user.dart`):
 
 - **Single-annotation source + the builder ships a convenience macro**
   → emit one `<builder>_library(...)` call. (Most `dart_library` users
@@ -316,10 +320,14 @@ codegen chain:
 - **Fan-out annotation** (e.g. `@StackedApp` drives five sub-builders)
   → emit one `dart_codegen` primitive per sub-builder, plus a wrapping
   `dart_library` with every generated output in `srcs`.
-- **Generated files** (`.g.dart`, `.freezed.dart`, `.mocks.dart`,
-  `.config.dart`, `.module.dart`, any registered `produces=` extension)
-  are excluded from `dart_library` srcs — see `filterOutGeneratedFiles`
-  in `generate.go`.
+- **Generated files in the source tree**, as a published package carries
+  them: a file a codegen target Gazelle writes produces (a SharedPart
+  builder's source's `.g.dart`, any other builder's `produces=`
+  extensions) is in no `srcs`. Any other file is a source, whatever its
+  name: a `.g.dart` no builder here writes, from a builder rules_dart does
+  not know or written by hand, is in the package's library, as it is to
+  `build_runner`, which treats as generated only what a builder it runs
+  produces.
 
 ### Directives
 
@@ -388,10 +396,10 @@ that produces `lib/user.g.dart`. rules_dart never runs `build_runner`; three
 independent mechanisms keep the checked-in file from breaking the Bazel
 build. Each has a dedicated test.
 
-- **Gazelle drops the files from generated BUILD files.**
-  `filterOutGeneratedFiles` in `gazelle/dart/generate.go` excludes every
-  registered `produces=` extension (`.g.dart`, `.freezed.dart`,
-  `.mocks.dart`, …) from `dart_library.srcs`. Pinned by the
+- **Gazelle leaves generated files out of the BUILD files it writes.**
+  A file a codegen target Gazelle writes produces is in no `srcs`; a file
+  no target produces is a source, whatever its name (see
+  [Gazelle synthesis](#gazelle-synthesis)). Pinned by the
   `dev/testdata/dart_generated_in_source_tree` fixture (first-time
   generation) and `dev/testdata/dart_generated_in_source_tree_update`
   (rewrite of an existing BUILD whose `srcs` still lists the files).

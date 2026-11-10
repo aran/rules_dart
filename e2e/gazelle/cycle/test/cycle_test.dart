@@ -1,5 +1,5 @@
-// The libraries Gazelle wrote for the package's import cycles build and run,
-// and so does a test helper in a directory of its own.
+// The package's library, holding its import cycles, builds and runs, and so
+// does a test helper in a directory of its own.
 import 'dart:io';
 
 import 'package:cycle/cycle.dart';

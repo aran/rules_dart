@@ -1,5 +1,5 @@
-// The package Gazelle split over one BUILD file per directory of `lib/`
-// resolves as one package.
+// A package with files in directories under `lib/` is one library, at the
+// package's root.
 import 'dart:io';
 
 import 'package:split/a.dart';

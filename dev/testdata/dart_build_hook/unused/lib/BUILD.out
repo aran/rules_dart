@@ -1,9 +1,0 @@
-load("@rules_dart//dart:defs.bzl", "dart_library")
-
-dart_library(
-    name = "unused",
-    package_name = "unused",
-    srcs = ["unused.dart"],
-    language_version = "3.10",
-    visibility = ["//visibility:public"],
-)

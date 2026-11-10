@@ -1,0 +1,23 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_library")
+
+json_serializable_library(
+    name = "user",
+    package_name = "from_pubspec",
+    srcs = ["lib/user.dart"],
+    annotation_dep = "@json_annotation",
+    language_version = "3.11",
+    visibility = ["//visibility:public"],
+    deps = ["@json_annotation"],
+)
+
+dart_library(
+    name = "from_pubspec",
+    package_name = "from_pubspec",
+    srcs = [
+        "lib/greeter.dart",
+        "lib/src/model/name.dart",
+    ],
+    language_version = "3.11",
+    visibility = ["//visibility:public"],
+)

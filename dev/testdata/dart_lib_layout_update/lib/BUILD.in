@@ -1,0 +1,14 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+dart_library(
+    name = "layout",
+    package_name = "layout",
+    srcs = [
+        "layout.dart",
+        "//lib/src/a",
+        "//lib/src/b",
+    ],
+    language_version = "3.11",
+    visibility = ["//visibility:public"],
+    deps = ["//lib/src/model:user"],
+)

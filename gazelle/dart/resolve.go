@@ -32,23 +32,16 @@ func (d *dartLang) Imports(c *config.Config, r *rule.Rule, f *rule.File) []resol
 
 // importSpecs is what a rule in Bazel package rel provides: the `package:`
 // URI of each of its sources, and the package itself, by its rule name and
-// `package_name`, unless the rule is one directory under its package's lib/
-// -- that directory's name is no package's, and the library in lib/ is the
-// one that stands for the package. The library of a cycle of lib/
-// directories provides the files of each directory whose filegroup its
-// `srcs` lists too.
+// `package_name`.
 func (d *dartLang) importSpecs(c *config.Config, r *rule.Rule, rel string) []resolve.ImportSpec {
 	if !indexedKinds[r.Kind()] {
 		return nil
 	}
 	place := placeDir(rel)
 	pkgName := r.AttrString("package_name")
-	var specs []resolve.ImportSpec
-	if !place.Split {
-		specs = append(specs, resolve.ImportSpec{Lang: dartName, Imp: r.Name()})
-		if pkgName != "" && pkgName != r.Name() {
-			specs = append(specs, resolve.ImportSpec{Lang: dartName, Imp: pkgName})
-		}
+	specs := []resolve.ImportSpec{{Lang: dartName, Imp: r.Name()}}
+	if pkgName != "" && pkgName != r.Name() {
+		specs = append(specs, resolve.ImportSpec{Lang: dartName, Imp: pkgName})
 	}
 	if place.Err != nil {
 		return specs
@@ -56,47 +49,19 @@ func (d *dartLang) importSpecs(c *config.Config, r *rule.Rule, rel string) []res
 	if pkgName == "" {
 		if d, ok := c.Exts[extKeyPackageDecl].(*packageDecl); ok && d != nil && r.AttrString("package") != "" {
 			pkgName = d.PackageName
-		} else if place.Split {
-			pkgName = packageNameIn(c, rel)
 		} else {
 			pkgName = r.Name()
 		}
 	}
-	var files []string
 	for _, src := range r.AttrStrings("srcs") {
-		switch {
-		case src == "" || src[0] == '@':
-		case strings.HasPrefix(src, "//"):
-			files = append(files, d.lentFiles(c, place.Root, rel, src)...)
-		case !strings.ContainsAny(src[:1], ":/"):
-			files = append(files, path.Join(rel, src))
+		if src == "" || strings.ContainsAny(src[:1], "@:/") {
+			continue
 		}
-	}
-	for _, file := range files {
-		if uri := packageURI(pkgName, place.Root, file); uri != "" {
+		if uri := packageURI(pkgName, place.Root, path.Join(rel, src)); uri != "" {
 			specs = append(specs, resolve.ImportSpec{Lang: dartName, Imp: uri})
 		}
 	}
 	return specs
-}
-
-// lentFiles is the repo-relative files of the lib/ directory whose filegroup
-// src names, when that directory lends them to the library of the Bazel
-// package rel, in the package rooted at root.
-func (d *dartLang) lentFiles(c *config.Config, root, rel, src string) []string {
-	scan := d.scan.scanOf(c, root)
-	if g := scan.groups[rel]; g != nil && g.Owner == rel {
-		for _, m := range g.Members {
-			if m != rel && dirLabel(m, rel) == src {
-				var files []string
-				for _, f := range scan.lib[m] {
-					files = append(files, f.Path)
-				}
-				return files
-			}
-		}
-	}
-	return nil
 }
 
 // Embeds returns rules that this rule embeds (not used for Dart).
@@ -125,9 +90,6 @@ func (d *dartLang) Resolve(c *config.Config, ix *resolve.RuleIndex, rc *repo.Rem
 	provided := map[string]bool{}
 	for _, spec := range d.importSpecs(c, r, from.Pkg) {
 		provided[spec.Imp] = true
-	}
-	if indexedKinds[r.Kind()] && placeDir(from.Pkg).Split {
-		provided[packageNameIn(c, from.Pkg)] = true
 	}
 
 	var deps []string

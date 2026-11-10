@@ -1,0 +1,9 @@
+load("@rules_dart//dart:defs.bzl", "dart_code_asset")
+
+# gazelle:dart_pub_deps_repo pub_deps
+
+dart_code_asset(
+    name = "native",
+    asset_id = "package:refused/native.dart",
+    link_mode = "dynamic_loading_process",
+)

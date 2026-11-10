@@ -3,20 +3,20 @@ load("@rules_dart//dart:defs.bzl", "dart_binary")
 dart_binary(
     name = "basic",
     main = "basic.dart",
-    deps = ["//lib"],
+    deps = ["//:lib"],
 )
 
 dart_binary(
     name = "double_quotes",
     main = "double_quotes.dart",
-    deps = ["//lib"],
+    deps = ["//:lib"],
 )
 
 dart_binary(
     name = "multi_dep",
     main = "multi_dep.dart",
     deps = [
-        "//lib",
+        "//:lib",
         "@http",
     ],
 )
@@ -24,7 +24,7 @@ dart_binary(
 dart_binary(
     name = "multiline_show",
     main = "multiline_show.dart",
-    deps = ["//lib"],
+    deps = ["//:lib"],
 )
 
 dart_binary(
@@ -35,29 +35,29 @@ dart_binary(
 dart_binary(
     name = "with_as",
     main = "with_as.dart",
-    deps = ["//lib"],
+    deps = ["//:lib"],
 )
 
 dart_binary(
     name = "with_deferred",
     main = "with_deferred.dart",
-    deps = ["//lib"],
+    deps = ["//:lib"],
 )
 
 dart_binary(
     name = "with_hide",
     main = "with_hide.dart",
-    deps = ["//lib"],
+    deps = ["//:lib"],
 )
 
 dart_binary(
     name = "with_show",
     main = "with_show.dart",
-    deps = ["//lib"],
+    deps = ["//:lib"],
 )
 
 dart_binary(
     name = "with_show_hide",
     main = "with_show_hide.dart",
-    deps = ["//lib"],
+    deps = ["//:lib"],
 )

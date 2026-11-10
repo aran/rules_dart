@@ -1,0 +1,2 @@
+gazelle: dart: lib/BUILD.bazel holds dart_code_asset `native`, `# gazelle:dart_pub_deps_repo`, which Gazelle did not write; the package's `dart_library` in BUILD.bazel holds every file under lib/, which a BUILD file under lib/ would cut off, so move what it holds there and delete it
+gazelle: dart: lib/src/BUILD.bazel holds `code_assets` on dart_library `src`, which Gazelle did not write; the package's `dart_library` in BUILD.bazel holds every file under lib/, which a BUILD file under lib/ would cut off, so move what it holds there and delete it

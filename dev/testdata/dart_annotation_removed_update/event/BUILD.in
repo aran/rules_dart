@@ -3,7 +3,7 @@ load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library")
 dart_codegen(
     name = "_event_freezed_gen",
     package_name = "event",
-    src = "event.dart",
+    src = "lib/event.dart",
     generator_bin = "@rules_dart//dart/ext/freezed:shim",
     output_suffixes = [".freezed.dart"],
     deps = ["@pub_deps//:freezed_annotation"],
@@ -12,7 +12,7 @@ dart_codegen(
 dart_codegen(
     name = "_event_json_serializable_gen",
     package_name = "event",
-    src = "event.dart",
+    src = "lib/event.dart",
     generator_bin = "@rules_dart//dart/ext/json_serializable:shim",
     output_suffixes = [".json_serializable.g.part"],
     deps = ["@pub_deps//:json_annotation"],
@@ -21,7 +21,7 @@ dart_codegen(
 dart_codegen(
     name = "_event_combined",
     package_name = "event",
-    src = "event.dart",
+    src = "lib/event.dart",
     generator_bin = "@rules_dart//dart/ext/_shared/combining_shim:bin",
     output_suffixes = [".g.dart"],
     parts = [":_event_json_serializable_gen"],
@@ -30,7 +30,7 @@ dart_codegen(
 dart_library(
     name = "event",
     srcs = [
-        "event.dart",
+        "lib/event.dart",
         ":_event_combined",
         ":_event_freezed_gen",
     ],

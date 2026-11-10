@@ -1,1 +1,10 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
 # gazelle:resolve dart shelf //third_party:shelf_custom
+
+dart_library(
+    name = "lib",
+    srcs = ["lib/server.dart"],
+    visibility = ["//visibility:public"],
+    deps = ["//third_party:shelf_custom"],
+)

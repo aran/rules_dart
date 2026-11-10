@@ -9,18 +9,10 @@ import (
 	"github.com/bazelbuild/bazel-gazelle/config"
 )
 
-func TestScanGroupsLibCycles(t *testing.T) {
+func writeTree(t *testing.T, files map[string]string) string {
+	t.Helper()
 	root := t.TempDir()
-	for file, content := range map[string]string{
-		"pkg/pubspec.yaml":          "name: app\n",
-		"pkg/lib/app.dart":          "import 'src/x/x.dart';\n",
-		"pkg/lib/src/x/x.dart":      "import '../y/y.dart';\n",
-		"pkg/lib/src/y/y.dart":      "import 'package:app/src/x/x.dart';\nimport 'package:app/src/z/deep/z.dart';\n",
-		"pkg/lib/src/z/deep/z.dart": "import 'package:app/src/w/w.dart';\n",
-		"pkg/lib/src/w/w.dart":      "import '../z/deep/z.dart';\n",
-		"pkg/lib/src/v/v.dart":      "import 'package:other/other.dart';\npart 'p/p.dart';\n",
-		"pkg/lib/src/v/p/p.dart":    "part of '../v.dart';\n",
-	} {
+	for file, content := range files {
 		p := filepath.Join(root, file)
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 			t.Fatal(err)
@@ -29,33 +21,55 @@ func TestScanGroupsLibCycles(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	return root
+}
+
+// The whole of lib/ is the package's, whatever its directories and import
+// cycles; an annotated source is set apart, and only the files its codegen
+// produces are dropped.
+func TestScanHoldsAllOfLib(t *testing.T) {
+	root := writeTree(t, map[string]string{
+		"pkg/pubspec.yaml":            "name: app\n",
+		"pkg/lib/app.dart":            "import 'src/x/x.dart';\n",
+		"pkg/lib/src/x/x.dart":        "import '../y/y.dart';\n",
+		"pkg/lib/src/y/y.dart":        "import 'package:app/src/x/x.dart';\n",
+		"pkg/lib/src/m/user.dart":     "import 'package:json_annotation/json_annotation.dart';\npart 'user.g.dart';\n@JsonSerializable()\nclass User {}\n",
+		"pkg/lib/src/m/user.g.dart":   "part of 'user.dart';\n",
+		"pkg/lib/src/m/other.g.dart":  "// checked in, and no target here produces it\n",
+		"pkg/lib/.hidden/h.dart":      "",
+		"pkg/lib/nested/MODULE.bazel": "",
+		"pkg/lib/nested/n.dart":       "",
+	})
 	c := config.New()
 	c.RepoRoot = root
-	scan := (&scanState{}).scanOf(c, "pkg")
-	for dir, want := range map[string]*libGroup{
-		"pkg/lib":            nil,
-		"pkg/lib/src/v":      {Owner: "pkg/lib/src/v", Members: []string{"pkg/lib/src/v", "pkg/lib/src/v/p"}},
-		"pkg/lib/src/v/p":    {Owner: "pkg/lib/src/v", Members: []string{"pkg/lib/src/v", "pkg/lib/src/v/p"}},
-		"pkg/lib/src/x":      {Owner: "pkg/lib/src/x", Members: []string{"pkg/lib/src/x", "pkg/lib/src/y"}},
-		"pkg/lib/src/y":      {Owner: "pkg/lib/src/x", Members: []string{"pkg/lib/src/x", "pkg/lib/src/y"}},
-		"pkg/lib/src/w":      {Owner: "pkg/lib/src/w", Members: []string{"pkg/lib/src/w", "pkg/lib/src/z/deep"}},
-		"pkg/lib/src/z/deep": {Owner: "pkg/lib/src/w", Members: []string{"pkg/lib/src/w", "pkg/lib/src/z/deep"}},
-	} {
-		got := scan.groups[dir]
-		switch {
-		case want == nil && got != nil:
-			t.Errorf("%s: in cycle %v, want none", dir, got.Members)
-		case want != nil && (got == nil || got.Owner != want.Owner || !slices.Equal(got.Members, want.Members)):
-			t.Errorf("%s: group %+v, want %+v", dir, got, want)
-		}
+	builderRegistryOf(c)
+	scan := (&scanState{list: osDir(root)}).scanOf(c, "pkg")
+	var got []string
+	for _, f := range scan.lib {
+		got = append(got, f.Path)
+	}
+	want := []string{
+		"pkg/lib/app.dart",
+		"pkg/lib/src/m/other.g.dart",
+		"pkg/lib/src/m/user.dart",
+		"pkg/lib/src/x/x.dart",
+		"pkg/lib/src/y/y.dart",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("lib %v, want %v", got, want)
+	}
+	if anns := scan.annotated["pkg/lib/src/m/user.dart"]; !slices.Equal(anns, []string{"JsonSerializable"}) {
+		t.Errorf("annotations of user.dart %v, want [JsonSerializable]", anns)
 	}
 }
 
-func TestStronglyConnected(t *testing.T) {
-	got := stronglyConnected([]string{"a", "b", "c", "d"}, map[string][]string{
-		"a": {"b"}, "b": {"c"}, "c": {"a", "d"},
-	})
-	if len(got) != 2 || len(got[0]) != 1 || got[0][0] != "d" || len(got[1]) != 3 {
-		t.Errorf("components %v, want [[d] [a b c]]", got)
+func TestLibStem(t *testing.T) {
+	for in, want := range map[string]string{
+		"lib/user.dart":           "user",
+		"lib/src/model/user.dart": "src/model/user",
+	} {
+		if got := libStem(in); got != want {
+			t.Errorf("libStem(%q) = %q, want %q", in, got, want)
+		}
 	}
 }

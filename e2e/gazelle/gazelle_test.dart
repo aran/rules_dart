@@ -93,7 +93,7 @@ void main(List<String> args) {
   w.markRoot();
   w.gazelle();
 
-  w.check('lib/BUILD.bazel', 'dart_library', 'dart_library rule');
+  w.check('BUILD.bazel', 'dart_library', 'dart_library rule');
   for (final src in [
     'greeter.dart',
     'platform_client.dart',
@@ -101,7 +101,7 @@ void main(List<String> args) {
     'io_impl.dart',
     'web_impl.dart',
   ]) {
-    w.check('lib/BUILD.bazel', src, '$src in srcs');
+    w.check('BUILD.bazel', '"lib/$src"', '$src in srcs');
   }
   w.check('bin/BUILD.bazel', 'dart_binary', 'dart_binary rule');
   w.check('bin/BUILD.bazel', 'hello.dart', 'hello.dart as main');
@@ -111,7 +111,7 @@ void main(List<String> args) {
     'deferred_import',
     'deferred_import rule (deferred modifier)',
   );
-  w.check('bin/BUILD.bazel', '//lib', '//lib dep for modifier imports');
+  w.check('bin/BUILD.bazel', '//:lib', '//:lib dep for modifier imports');
   w.check('test/BUILD.bazel', 'dart_test', 'dart_test rule');
   w.check('test/BUILD.bazel', 'greeter_test.dart', 'greeter_test.dart as main');
   w.dispose();
@@ -130,36 +130,29 @@ import 'package:shelf/shelf.dart';
 import 'package:path/path.dart';
 void main() {}
 ''');
-  w.write('lib/BUILD.bazel', '');
   w.gazelle();
-  w.check('lib/BUILD.bazel', '@pub_deps//:shelf', '@pub_deps//:shelf dep');
-  w.check('lib/BUILD.bazel', '@pub_deps//:path', '@pub_deps//:path dep');
+  w.check('BUILD.bazel', '@pub_deps//:shelf', '@pub_deps//:shelf dep');
+  w.check('BUILD.bazel', '@pub_deps//:path', '@pub_deps//:path dep');
   w.dispose();
 
   // ---- dart_package_name directive emits package_name -------------------
   w = Workspace();
-  w.markRoot();
-  w.write('lib/BUILD.bazel', '# gazelle:dart_package_name my_app\n');
+  w.markRoot(build: '# gazelle:dart_package_name my_app\n');
   w.write('lib/app.dart', "String hello() => 'hello';\n");
   w.gazelle();
-  w.check('lib/BUILD.bazel', 'name = "my_app"', 'name = my_app');
-  w.check(
-    'lib/BUILD.bazel',
-    'package_name = "my_app"',
-    'package_name = my_app',
-  );
+  w.check('BUILD.bazel', 'name = "my_app"', 'name = my_app');
+  w.check('BUILD.bazel', 'package_name = "my_app"', 'package_name = my_app');
   w.dispose();
 
   // ---- pubspec.yaml auto-detection of the package name ------------------
   w = Workspace();
   w.markRoot();
-  w.write('lib/BUILD.bazel', '');
   w.write('pubspec.yaml', 'name: my_server\n');
   w.write('lib/app.dart', "String greet() => 'hi';\n");
   w.gazelle();
-  w.check('lib/BUILD.bazel', 'name = "my_server"', 'name = my_server');
+  w.check('BUILD.bazel', 'name = "my_server"', 'name = my_server');
   w.check(
-    'lib/BUILD.bazel',
+    'BUILD.bazel',
     'package_name = "my_server"',
     'package_name = my_server',
   );
@@ -177,14 +170,13 @@ import 'package:shelf/shelf.dart';
 import 'package:path/path.dart';
 void main() {}
 ''');
-  w.write('lib/BUILD.bazel', '');
   w.gazelle();
   w.check(
-    'lib/BUILD.bazel',
+    'BUILD.bazel',
     '//third_party:shelf_custom',
     'gazelle:resolve override for shelf',
   );
-  w.check('lib/BUILD.bazel', '@path', 'default resolution for path');
+  w.check('BUILD.bazel', '@path', 'default resolution for path');
   w.dispose();
 
   // ---- @JsonSerializable -> convenience macro ---------------------------
@@ -205,27 +197,27 @@ class User {
   // A single-annotation file emits the macro, which wires the shard and
   // combining stages itself, not the primitive chain.
   w.check(
-    'lib/BUILD.bazel',
+    'BUILD.bazel',
     'json_serializable_library(',
     'json_serializable_library macro call',
   );
-  w.check('lib/BUILD.bazel', 'name = "user"', 'macro target name');
+  w.check('BUILD.bazel', 'name = "user"', 'macro target name');
   w.check(
-    'lib/BUILD.bazel',
+    'BUILD.bazel',
     'package_name = "my_models"',
     'package_name propagated to macro',
   );
   w.check(
-    'lib/BUILD.bazel',
+    'BUILD.bazel',
     'language_version = ',
     'language_version propagated to macro',
   );
   w.check(
-    'lib/BUILD.bazel',
+    'BUILD.bazel',
     'load("@rules_dart//dart/ext/json_serializable:defs.bzl"',
     'json_serializable_library load',
   );
-  final macroBuild = w.read('lib/BUILD.bazel');
+  final macroBuild = w.read('BUILD.bazel');
   if ([
     '_user_json_serializable_gen',
     '_user_combined',
@@ -256,42 +248,32 @@ abstract class Event with _\$Event {
   w.gazelle();
   // Freezed (PartBuilder) runs before JsonSerializable (SharedPart), then a
   // combining stage on the JsonSerializable shard.
-  w.check('lib/BUILD.bazel', '_event_freezed_gen', 'freezed stage');
-  w.check(
-    'lib/BUILD.bazel',
-    '_event_json_serializable_gen',
-    'json shard stage',
-  );
-  w.check('lib/BUILD.bazel', '_event_combined', 'combining stage');
+  w.check('BUILD.bazel', '_event_freezed_gen', 'freezed stage');
+  w.check('BUILD.bazel', '_event_json_serializable_gen', 'json shard stage');
+  w.check('BUILD.bazel', '_event_combined', 'combining stage');
   w.dispose();
 
-  // ---- generated files are suppressed -----------------------------------
+  // ---- only the files a codegen target produces are left out -----------
   w = Workspace();
-  w.markRoot();
+  w.markRoot(build: '# gazelle:dart_pub_deps_repo pub_deps\n');
   w.write('pubspec.yaml', 'name: my_skip\n');
   w.write('lib/keep.dart', 'class Keep {}\n');
-  w.write('lib/keep.g.dart', 'class GoneG {}\n');
-  w.write('lib/keep.freezed.dart', 'class GoneFreezed {}\n');
-  w.write('lib/keep.mocks.dart', 'class GoneMocks {}\n');
+  w.write('lib/notes.g.dart', '// Written by hand.\nclass Notes {}\n');
+  w.write('lib/user.dart', '''
+import 'package:json_annotation/json_annotation.dart';
+part 'user.g.dart';
+@JsonSerializable()
+class User {}
+''');
+  w.write('lib/user.g.dart', "part of 'user.dart';\n");
   w.gazelle();
-  final skipBuild = w.read('lib/BUILD.bazel');
-  if ([
-    'keep.g.dart',
-    'keep.freezed.dart',
-    'keep.mocks.dart',
-  ].any(skipBuild.contains)) {
-    fail('lib/BUILD.bazel mentions a generated-file extension\n$skipBuild');
-  } else {
-    stdout.writeln(
-      'PASS: generated files (.g.dart/.freezed.dart/.mocks.dart) '
-      'suppressed',
-    );
-  }
-  if (skipBuild.contains('keep.dart')) {
-    stdout.writeln('PASS: real source kept');
-  } else {
-    fail('lib/BUILD.bazel missing keep.dart (the real source)');
-  }
+  w.checkAbsent(
+    'BUILD.bazel',
+    '"lib/user.g.dart"',
+    "the checked-in output of user.dart's codegen left out",
+  );
+  w.check('BUILD.bazel', '"lib/notes.g.dart"', 'a .g.dart no target produces');
+  w.check('BUILD.bazel', '"lib/keep.dart"', 'the plain source');
   w.dispose();
 
   // ---- analysis options: per-directory targets and the root config ------
@@ -389,81 +371,50 @@ abstract class Event with _\$Event {
   );
   w.dispose();
 
-  // ---- lib/ directories in an import cycle are one library ------------
-  // Two directories that import each other: the library of the first holds
-  // both, and the other lends it its sources.
+  // ---- one library holds the whole of lib/ ----------------------------
+  // Directories under lib/, and import cycles between them, mean nothing to
+  // Dart: the package's library, at its root, holds every file, and an
+  // annotated source in a subdirectory is its own library, named for its
+  // path under lib/.
   w = Workspace();
-  w.markRoot();
+  w.markRoot(build: '# gazelle:dart_pub_deps_repo pub_deps\n');
   w.write('pubspec.yaml', 'name: two\n');
   w.write('lib/two.dart', "import 'src/a/a.dart';\n");
-  w.write('lib/src/a/a.dart', "import '../b/b.dart';\n");
-  w.write('lib/src/b/b.dart', "import 'package:two/src/c/c.dart';\n");
-  w.write('lib/src/c/c.dart', 'class C {}\n');
-  w.gazelle();
-  w.check('lib/src/b/BUILD.bazel', 'dart_library(', 'b a library of its own');
-  w.check('lib/src/a/BUILD.bazel', '"//lib/src/b"', 'a depends on b');
-
-  // Creating the cycle moves b's sources into a's library.
   w.write(
-    'lib/src/b/b.dart',
-    "import 'package:two/src/a/a.dart';\nimport '../c/c.dart';\n",
+    'lib/src/a/a.dart',
+    "import '../b/b.dart';\nimport '../m/user.dart';\n",
   );
+  w.write('lib/src/b/b.dart', "import 'package:two/src/a/a.dart';\n");
+  w.write('lib/src/m/user.dart', '''
+import 'package:json_annotation/json_annotation.dart';
+part 'user.g.dart';
+@JsonSerializable()
+class User {}
+''');
   w.gazelle();
   w.check(
-    'lib/src/a/BUILD.bazel',
-    'srcs = [\n        "a.dart",\n        "//lib/src/b",\n    ],',
-    "b's filegroup in a's srcs",
+    'BUILD.bazel',
+    'srcs = [\n        "lib/src/a/a.dart",\n        "lib/src/b/b.dart",\n'
+        '        "lib/two.dart",\n    ],',
+    'every plain file under lib/ in the one library',
   );
-  w.check('lib/src/a/BUILD.bazel', 'deps = ["//lib/src/c"]', "b's deps on a");
   w.check(
-    'lib/src/b/BUILD.bazel',
-    'filegroup(\n    name = "b",\n    srcs = ["b.dart"],\n'
-        '    visibility = ["//lib/src/a:__pkg__"],\n)',
-    "b's sources lent to a",
+    'BUILD.bazel',
+    'name = "src/m/user"',
+    "the annotated source's library",
   );
-  w.checkAbsent('lib/src/b/BUILD.bazel', 'dart_library', 'b kept its library');
-  w.check('lib/BUILD.bazel', 'deps = ["//lib/src/a"]', 'lib on a only');
-  String cycleFiles() => [
-    for (final d in ['lib', 'lib/src/a', 'lib/src/b']) w.read('$d/BUILD.bazel'),
-  ].join();
-  final cycleRun = cycleFiles();
-  w.gazelle();
-  if (cycleFiles() == cycleRun) {
-    stdout.writeln('PASS: a second run over a cycle is a no-op');
-  } else {
-    fail('a second run over a cycle changed the BUILD files');
+  w.check('BUILD.bazel', 'deps = [":src/m/user"]', 'the library on it');
+  for (final d in ['lib', 'lib/src/a', 'lib/src/b', 'lib/src/m']) {
+    if (File(w.path('$d/BUILD.bazel')).existsSync()) {
+      fail('Gazelle wrote $d/BUILD.bazel');
+    }
   }
-
-  // Removing it gives b its library back.
-  w.write('lib/src/b/b.dart', "import '../c/c.dart';\n");
+  final oneRun = w.read('BUILD.bazel');
   w.gazelle();
-  w.check('lib/src/b/BUILD.bazel', 'dart_library(', 'b a library again');
-  w.checkAbsent('lib/src/b/BUILD.bazel', 'filegroup', 'b kept its filegroup');
-  w.check('lib/src/a/BUILD.bazel', 'srcs = ["a.dart"],', "a's srcs alone");
-  w.check('lib/src/a/BUILD.bazel', 'deps = ["//lib/src/b"]', 'a on b again');
-  w.dispose();
-
-  // A chain through lib/ itself: the package's own library holds the cycle.
-  w = Workspace();
-  w.markRoot();
-  w.write('pubspec.yaml', 'name: chain\n');
-  w.write('lib/chain.dart', "export 'src/a/a.dart';\n");
-  w.write('lib/src/a/a.dart', "import '../b/b.dart';\n");
-  w.write('lib/src/b/b.dart', "import 'package:chain/chain.dart';\n");
-  w.gazelle();
-  w.check(
-    'lib/BUILD.bazel',
-    'srcs = [\n        "chain.dart",\n        "//lib/src/a",\n'
-        '        "//lib/src/b",\n    ],',
-    'the cycle in the package library',
-  );
-  w.checkAbsent('lib/BUILD.bazel', 'deps', 'a dep inside the cycle');
-  for (final d in ['a', 'b']) {
-    w.check(
-      'lib/src/$d/BUILD.bazel',
-      'visibility = ["//lib:__pkg__"]',
-      '$d lent to lib',
-    );
+  if (w.read('BUILD.bazel') == oneRun) {
+    stdout.writeln('PASS: a second run is a no-op');
+  } else {
+    fail('a second run changed the BUILD file');
   }
   w.dispose();
 
@@ -491,7 +442,7 @@ abstract class Event with _\$Event {
     "the test's srcs: its directory's helper and the helper filegroup",
   );
   w.check('test/BUILD.bazel', '"@pub_deps//:path"', "the helper's import");
-  w.check('test/BUILD.bazel', '"//lib:helped"', "the helper's helper's import");
+  w.check('test/BUILD.bazel', '"//:helped"', "the helper's helper's import");
   File(w.path('test/a_test.dart')).writeAsStringSync('void main() {}\n');
   w.gazelle();
   w.checkAbsent(

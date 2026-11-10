@@ -3,5 +3,5 @@ load("@rules_dart//dart:defs.bzl", "dart_test")
 dart_test(
     name = "greeter_test",
     main = "greeter_test.dart",
-    deps = ["//lib"],
+    deps = ["//:lib"],
 )

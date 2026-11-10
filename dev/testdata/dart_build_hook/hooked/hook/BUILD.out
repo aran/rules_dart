@@ -1,11 +1,11 @@
 filegroup(
     name = "build",
     srcs = ["build.dart"],
-    visibility = ["//hooked/lib:__pkg__"],
+    visibility = ["//hooked:__pkg__"],
 )
 
 filegroup(
     name = "link",
     srcs = ["link.dart"],
-    visibility = ["//hooked/lib:__pkg__"],
+    visibility = ["//hooked:__pkg__"],
 )

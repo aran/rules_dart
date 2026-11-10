@@ -71,10 +71,11 @@ func TestResolveLibraryDoesNotDependOnPackageItProvides(t *testing.T) {
 	}
 }
 
-// splitIndex indexes one package, `app`, rooted at //pkg and split over
-// //pkg/lib (a.dart), //pkg/lib/src/model (model.dart) and
-// //pkg/lib/src/util (util.dart), as Gazelle generates it.
-func splitIndex(t *testing.T) (*config.Config, *resolve.RuleIndex, language.Language) {
+// packageIndex indexes one package, `app`, rooted at //pkg as Gazelle
+// generates it: its library, holding lib/a.dart and
+// lib/src/model/model.dart, and the library of an annotated source,
+// lib/src/model/user.dart.
+func packageIndex(t *testing.T) (*config.Config, *resolve.RuleIndex, language.Language) {
 	t.Helper()
 	c := config.New()
 	c.Exts["dart_pub_deps_repo"] = "pub_deps"
@@ -88,15 +89,17 @@ func splitIndex(t *testing.T) (*config.Config, *resolve.RuleIndex, language.Lang
 
 	lang := NewLanguage()
 	ix := resolve.NewRuleIndex(func(*rule.Rule, string) resolve.Resolver { return lang })
-	for _, l := range []struct{ pkg, name, src string }{
-		{"pkg/lib", "app", "a.dart"},
-		{"pkg/lib/src/model", "model", "model.dart"},
-		{"pkg/lib/src/util", "util", "util.dart"},
+	f := rule.EmptyFile("pkg/BUILD.bazel", "pkg")
+	for _, l := range []struct {
+		name string
+		srcs []string
+	}{
+		{"app", []string{"lib/a.dart", "lib/src/model/model.dart"}},
+		{"src/model/user", []string{"lib/src/model/user.dart", ":_src/model/user_combined"}},
 	} {
-		f := rule.EmptyFile(l.pkg+"/BUILD.bazel", l.pkg)
 		r := rule.NewRule("dart_library", l.name)
 		r.SetAttr("package_name", "app")
-		r.SetAttr("srcs", []string{l.src})
+		r.SetAttr("srcs", l.srcs)
 		r.Insert(f)
 		ix.AddRule(c, r, f)
 	}
@@ -104,14 +107,15 @@ func splitIndex(t *testing.T) (*config.Config, *resolve.RuleIndex, language.Lang
 	return c, ix, lang
 }
 
-// resolveSplit resolves, against splitIndex, a rule importing uris (a bare
+// resolveAgainstPackage resolves, against packageIndex, a rule importing uris (a bare
 // package name, or a file's `package:` URI).
-func resolveSplit(t *testing.T, kind, pkg, name string, uris ...string) []string {
+func resolveAgainstPackage(t *testing.T, kind, pkg, name string, uris ...string) []string {
 	t.Helper()
-	c, ix, lang := splitIndex(t)
+	c, ix, lang := packageIndex(t)
 	r := rule.NewRule(kind, name)
 	if kind == "dart_library" {
 		r.SetAttr("package_name", "app")
+		r.SetAttr("srcs", []string{"lib/a.dart", "lib/src/model/model.dart"})
 	}
 	is := &importSet{packages: map[string]bool{}, uris: map[string]map[string]bool{}}
 	for _, u := range uris {
@@ -128,60 +132,53 @@ func resolveSplit(t *testing.T, kind, pkg, name string, uris ...string) []string
 	return r.AttrStrings("deps")
 }
 
-func TestResolveSplitPackageByFile(t *testing.T) {
+func TestResolvePackageByFile(t *testing.T) {
 	for _, tt := range []struct {
 		desc, kind, pkg, name string
 		uris                  []string
 		want                  []string
 	}{
 		{
-			"lib/ library to its directories, never itself",
-			"dart_library", "pkg/lib", "app",
-			[]string{"package:app/a.dart", "package:app/src/model/model.dart", "package:app/src/util/util.dart"},
-			[]string{"//pkg/lib/src/model", "//pkg/lib/src/util"},
-		},
-		{
-			"directory library to a sibling, not the package's lib/ library",
-			"dart_library", "pkg/lib/src/model", "model",
-			[]string{"package:app/src/util/util.dart"},
-			[]string{"//pkg/lib/src/util"},
+			"the package's library to an annotated source's, never itself",
+			"dart_library", "pkg", "app",
+			[]string{"package:app/a.dart", "package:app/src/model/model.dart", "package:app/src/model/user.dart"},
+			[]string{":src/model/user"},
 		},
 		{
 			"an own-package file no rule holds is never a dep",
-			"dart_library", "pkg/lib/src/model", "model",
-			[]string{"package:app/src/model/model.g.dart"},
+			"dart_library", "pkg", "app",
+			[]string{"package:app/src/model/user.g.dart"},
 			nil,
 		},
 		{
 			"test to the rule holding each imported file, pub by package",
 			"dart_test", "pkg/test", "app_test",
-			[]string{"package:app/a.dart", "package:app/src/model/model.dart", "package:path/path.dart"},
-			[]string{"//pkg/lib/src/model", "//pkg/lib:app", "@pub_deps//:path"},
+			[]string{"package:app/a.dart", "package:app/src/model/user.dart", "package:path/path.dart"},
+			[]string{"//pkg:app", "//pkg:src/model/user", "@pub_deps//:path"},
 		},
 		{
 			"a file no rule holds falls back to the package",
 			"dart_binary", "pkg/bin", "main",
 			[]string{"package:app/missing.dart"},
-			[]string{"//pkg/lib:app"},
+			[]string{"//pkg:app"},
 		},
 	} {
-		got := resolveSplit(t, tt.kind, tt.pkg, tt.name, tt.uris...)
+		got := resolveAgainstPackage(t, tt.kind, tt.pkg, tt.name, tt.uris...)
 		if !slices.Equal(got, tt.want) {
 			t.Errorf("%s: deps %v, want %v", tt.desc, got, tt.want)
 		}
 	}
 }
 
-func TestSplitLibraryIndexedByFileNotDirectoryName(t *testing.T) {
-	c, _, _ := splitIndex(t)
-	r := rule.NewRule("dart_library", "path")
-	r.SetAttr("package_name", "app")
-	r.SetAttr("srcs", []string{"path.dart"})
+func TestPackageLibraryIndexedByFile(t *testing.T) {
+	c, _, _ := packageIndex(t)
+	r := rule.NewRule("dart_library", "app")
+	r.SetAttr("srcs", []string{"lib/path.dart", "lib/src/x.dart", ":_gen", "//other:x"})
 	var got []string
-	for _, s := range (&dartLang{}).importSpecs(c, r, "pkg/lib/src/path") {
+	for _, s := range (&dartLang{}).importSpecs(c, r, "pkg") {
 		got = append(got, s.Imp)
 	}
-	want := []string{"package:app/src/path/path.dart"}
+	want := []string{"app", "package:app/path.dart", "package:app/src/x.dart"}
 	if !slices.Equal(got, want) {
 		t.Errorf("specs %v, want %v", got, want)
 	}

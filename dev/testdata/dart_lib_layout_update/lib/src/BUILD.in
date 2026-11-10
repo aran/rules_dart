@@ -1,0 +1,9 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+dart_library(
+    name = "src",
+    package_name = "layout",
+    srcs = ["legacy.g.dart"],
+    language_version = "3.11",
+    visibility = ["//visibility:public"],
+)

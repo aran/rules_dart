@@ -1,5 +1,0 @@
-filegroup(
-    name = "a",
-    srcs = ["a.dart"],
-    visibility = ["//cycle/lib:__pkg__"],
-)

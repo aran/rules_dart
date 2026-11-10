@@ -1,7 +1,6 @@
 package dart
 
 import (
-	"io/fs"
 	"log"
 	"os"
 	"path"
@@ -13,54 +12,50 @@ import (
 	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/label"
 	"github.com/bazelbuild/bazel-gazelle/rule"
+	"github.com/bazelbuild/bazel-gazelle/walk"
 )
 
-// A Dart package's directories can need each other's files, which no single
-// directory's sources show: two directories under lib/ whose libraries
-// import each other, directly or through a chain, and a test that imports a
-// helper in another directory under test/. Gazelle reads the whole package
-// from disk once per run to see that, and each directory takes its share.
+// A Dart package is one `dart_library`: every file under its lib/, in the
+// BUILD file at the package's root, as `pub.from_lock()` builds a pub
+// package. Directories under lib/ mean nothing to Dart, to the analyzer or
+// to build_modules, which groups a package's libraries by top-level
+// directory alone, and import cycles inside a package are ordinary Dart. A
+// source carrying a registered annotation is its own library, with the
+// codegen targets that generate its parts, in that BUILD file too.
 //
-// Library directories that import each other (a strongly connected
-// component of the import graph between a package's lib/ directories) are
-// one `dart_library`, since Bazel builds no cycle; it is the same answer
-// `pub.from_lock()` gives packages that depend on each other. The library is
-// the one of the directory nearest the package's lib/ (by depth, then by
-// path), so it keeps that directory's name: the package's own library when
-// lib/ is in the cycle. Every other directory of the cycle holds its sources
-// in a `filegroup` named for the directory, visible to that library only,
-// which lists it in `srcs`. A directory in no cycle has its own library.
-//
-// A test-tree directory a file in another directory imports from holds its
-// helpers, and any test imported from elsewhere, in a `filegroup` named for
-// the directory, visible to the package's test tree; a test lists it in
-// `srcs` beside the files of its own directory it imports.
+// Gazelle reads the whole package from disk once per run, since the
+// package's root holds what is under lib/ and a test can import a helper in
+// another directory under test/. A test-tree directory a file in another
+// directory imports from holds its helpers, and any test imported from
+// elsewhere, in a `filegroup` named for the directory, visible to the
+// package's test tree; a test lists it in `srcs` beside the files of its own
+// directory it imports.
 
 // scanState holds the scan of each package read in this Gazelle run.
 type scanState struct {
 	mu    sync.Mutex
 	scans map[string]*packageScan // package root -> its scan
+	// list reads a directory, repo-relative: the subdirectories and regular
+	// files Gazelle sees. nil reads them as Gazelle's walk does, minus what
+	// `# gazelle:exclude` excludes.
+	list func(rel string) (dirs, files []string, err error)
 }
 
 // packageScan is what Gazelle reads of one Dart package's lib/ and test/.
 type packageScan struct {
-	// lib holds the plain sources of each lib/ directory: those no
-	// generator writes or reads. Paths are repo-relative.
-	lib map[string][]DartFileInfo
-	// groups is the cycle of each lib/ directory in one.
-	groups map[string]*libGroup
+	// lib holds the sources under lib/ that Gazelle builds, repo-relative
+	// and sorted by path: every Dart file there except those a codegen
+	// target Gazelle writes produces.
+	lib []DartFileInfo
+	// annotated holds the registered annotations of each source in lib that
+	// carries any, in the order the source states them.
+	annotated map[string][]string
 	// tests holds the sources of each test-tree directory, repo-relative.
 	tests map[string][]DartFileInfo
 	// lent holds what each test-tree directory that a file in another
 	// directory imports from lends: its helpers (the files that are not
 	// tests), and each test another directory imports.
 	lent map[string][]DartFileInfo
-}
-
-// libGroup is a cycle of lib/ directories, held by the library of Owner.
-type libGroup struct {
-	Owner   string
-	Members []string // sorted, Owner among them
 }
 
 // scanOf returns the scan of the package rooted at root, reading it on
@@ -74,57 +69,56 @@ func (s *scanState) scanOf(c *config.Config, root string) *packageScan {
 	if s.scans == nil {
 		s.scans = map[string]*packageScan{}
 	}
-	p := scanPackage(c, root)
+	p := s.scanPackage(c, root)
 	s.scans[root] = p
 	return p
 }
 
-func scanPackage(c *config.Config, root string) *packageScan {
+func (s *scanState) scanPackage(c *config.Config, root string) *packageScan {
 	registry, _ := c.Exts[extKeyBuilderRegistry].(*builderRegistry)
-	self := libraryName(root, c)
 	p := &packageScan{
-		lib:    map[string][]DartFileInfo{},
-		groups: map[string]*libGroup{},
-		tests:  map[string][]DartFileInfo{},
-		lent:   map[string][]DartFileInfo{},
+		annotated: map[string][]string{},
+		tests:     map[string][]DartFileInfo{},
+		lent:      map[string][]DartFileInfo{},
 	}
 
-	// lib/: the plain sources of each directory, and the parts each names.
-	parts := map[string][]string{}
-	walkDartDirs(c, libDirOf(root), func(rel string) bool {
+	// lib/: every source, then those Gazelle's codegen targets produce out.
+	var all []DartFileInfo
+	s.walkDartDirs(c, libDirOf(root), func(rel string) bool {
 		return placeDir(rel).Err == nil
 	}, func(rel string, files []DartFileInfo) {
-		var plain []DartFileInfo
-		for _, f := range filterOutGeneratedFiles(files, registry) {
-			anns, err := ParseDartCodegenTriggers(filepath.Join(c.RepoRoot, filepath.FromSlash(rel), f.Path))
-			if err == nil && hasRegistered(anns, registry) {
+		for _, f := range files {
+			file := path.Join(rel, f.Path)
+			all = append(all, DartFileInfo{Path: file, Imports: f.Imports})
+			anns, err := ParseDartCodegenTriggers(filepath.Join(c.RepoRoot, filepath.FromSlash(file)))
+			if err != nil {
+				log.Printf("dart: %s: annotation parse failed: %v", file, err)
 				continue
 			}
-			file := path.Join(rel, f.Path)
-			plain = append(plain, DartFileInfo{Path: file, Imports: f.Imports})
-			uris, _ := ParseDartParts(filepath.Join(c.RepoRoot, filepath.FromSlash(file)))
-			for _, u := range uris {
-				if part := ownFile(self, root, file, classifyURI(u)); part != "" {
-					parts[file] = append(parts[file], part)
-				}
+			if reg := registeredAnnotations(anns, registry); len(reg) > 0 {
+				p.annotated[file] = reg
 			}
 		}
-		if len(plain) > 0 {
-			p.lib[rel] = plain
-		}
 	})
-	for _, g := range libraryGroups(self, root, p.lib, parts) {
-		for _, m := range g.Members {
-			p.groups[m] = g
+	produced := map[string]bool{}
+	for file, anns := range p.annotated {
+		for _, out := range producedFiles(file, anns, registry) {
+			produced[out] = true
 		}
 	}
+	for _, f := range all {
+		if !produced[f.Path] {
+			p.lib = append(p.lib, f)
+		}
+	}
+	sort.Slice(p.lib, func(i, j int) bool { return p.lib[i].Path < p.lib[j].Path })
 
 	// test/: the sources of each directory, and what each lends the others.
-	walkDartDirs(c, path.Join(root, "test"), func(rel string) bool {
+	s.walkDartDirs(c, path.Join(root, "test"), func(rel string) bool {
 		layout, r := layoutOf(rel)
 		return layout == "test" && r == root
 	}, func(rel string, files []DartFileInfo) {
-		for _, f := range filterOutGeneratedFiles(files, registry) {
+		for _, f := range files {
 			p.tests[rel] = append(p.tests[rel], DartFileInfo{Path: path.Join(rel, f.Path), Imports: f.Imports})
 		}
 	})
@@ -152,158 +146,114 @@ func scanPackage(c *config.Config, root string) *packageScan {
 	return p
 }
 
-// libraryGroups decides the package's library granularity: which lib/
-// directories (keys of lib, holding their plain sources) share one
-// `dart_library`, and which directory's library that is. A directory in no
-// group has a library of its own. This is the one place the granularity is
-// decided; generation and resolution follow whatever groups it returns.
-//
-// Today a group is a cycle of directories that import each other (a strongly
-// connected component of the import graph between directories), held by the
-// directory nearest lib/, by depth and then by path. A part (parts maps a
-// file to the repo-relative parts it names) is in its library's target, so
-// the directories of a library and of its part are a cycle too.
-func libraryGroups(self, root string, lib map[string][]DartFileInfo, parts map[string][]string) []*libGroup {
-	held := map[string]bool{}
-	for _, files := range lib {
-		for _, f := range files {
-			held[f.Path] = true
+// registeredAnnotations is the annotations that have a registered builder,
+// each once, in the order given.
+func registeredAnnotations(anns []string, registry *builderRegistry) []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, a := range anns {
+		if !seen[a] && registry.lookup(a) != nil {
+			seen[a] = true
+			out = append(out, a)
 		}
 	}
-	seen := map[[2]string]bool{}
-	edges := map[string][]string{}
-	edge := func(from, to string) {
-		if from != to && !seen[[2]string{from, to}] {
-			seen[[2]string{from, to}] = true
-			edges[from] = append(edges[from], to)
-		}
-	}
-	for dir, files := range lib {
-		for _, f := range files {
-			for _, imp := range f.Imports {
-				if target := ownFile(self, root, f.Path, imp); held[target] {
-					edge(dir, path.Dir(target))
-				}
-			}
-			for _, part := range parts[f.Path] {
-				if held[part] {
-					edge(dir, path.Dir(part))
-					edge(path.Dir(part), dir)
-				}
-			}
-		}
-	}
-	for dir := range edges {
-		sort.Strings(edges[dir])
-	}
-	var groups []*libGroup
-	for _, scc := range stronglyConnected(sortedKeys(lib), edges) {
-		if len(scc) < 2 {
-			continue
-		}
-		sort.Strings(scc)
-		owner := scc[0]
-		for _, m := range scc[1:] {
-			if depth(m) < depth(owner) {
-				owner = m
-			}
-		}
-		groups = append(groups, &libGroup{Owner: owner, Members: scc})
-	}
-	return groups
+	return out
 }
 
-// libShare is what a lib/ directory's plain sources go into (libraryGroups):
-// lendTo, the directory whose library holds them, when that is another's;
-// else the labels of the filegroups its own library lists in `srcs`, and
-// the repo-relative files those hold.
-func (p *packageScan) libShare(rel string) (lendTo string, lent []string, files []DartFileInfo) {
-	g := p.groups[rel]
-	if g == nil {
-		return "", nil, nil
-	}
-	if g.Owner != rel {
-		return g.Owner, nil, nil
-	}
-	for _, m := range g.Members {
-		if m != rel {
-			lent = append(lent, dirLabel(m, rel))
-			files = append(files, p.lib[m]...)
+// producedFiles is the source-tree path of each Dart file the codegen
+// targets Gazelle writes for the source at file, which carries the
+// registered annotations anns, produce: a SharedPart builder's shard is
+// combined into the source's `.g.dart`, any other builder writes its own
+// extensions. A file of that path in the source tree is the output checked
+// in, as a published package carries it, and is no source of the library.
+func producedFiles(file string, anns []string, registry *builderRegistry) []string {
+	stem := strings.TrimSuffix(file, ".dart")
+	var out []string
+	for _, a := range anns {
+		for _, b := range registry.lookup(a) {
+			if b.SharedPart {
+				out = append(out, stem+".g.dart")
+				continue
+			}
+			for _, ext := range b.Produces {
+				out = append(out, stem+ext)
+			}
 		}
 	}
-	sort.Strings(lent)
-	return "", lent, files
+	return out
 }
 
 // walkDartDirs calls each with the Dart files of every directory at or under
 // top that keep allows, a directory keep refuses ending its subtree. Hidden
-// directories and the ones holding a different Bazel repository are skipped.
-func walkDartDirs(c *config.Config, top string, keep func(rel string) bool, each func(rel string, files []DartFileInfo)) {
-	abs := filepath.Join(c.RepoRoot, filepath.FromSlash(top))
-	_ = filepath.WalkDir(abs, func(p string, e fs.DirEntry, err error) error {
-		if err != nil || !e.IsDir() {
-			return nil
+// directories, excluded ones and the ones holding a different Bazel
+// repository are skipped.
+func (s *scanState) walkDartDirs(c *config.Config, top string, keep func(rel string) bool, each func(rel string, files []DartFileInfo)) {
+	list := s.list
+	if list == nil {
+		list = gazelleDir
+	}
+	var visit func(rel string)
+	visit = func(rel string) {
+		if !keep(rel) {
+			return
 		}
-		rel, rerr := filepath.Rel(c.RepoRoot, p)
-		if rerr != nil {
-			return fs.SkipDir
+		dirs, names, err := list(rel)
+		if err != nil {
+			return
 		}
-		rel = filepath.ToSlash(rel)
-		if (p != abs && strings.HasPrefix(e.Name(), ".")) || !keep(rel) {
-			return fs.SkipDir
-		}
-		ents, rerr := readDirNames(p)
-		if rerr != nil {
-			log.Printf("dart: reading %s: %v", rel, rerr)
-			return nil
-		}
-		for _, n := range ents {
-			if n == "MODULE.bazel" || n == "REPO.bazel" || n == "WORKSPACE" || n == "WORKSPACE.bazel" {
-				return fs.SkipDir
+		if rel != top {
+			for _, n := range names {
+				if n == "MODULE.bazel" || n == "REPO.bazel" || n == "WORKSPACE" || n == "WORKSPACE.bazel" {
+					return
+				}
 			}
 		}
-		files, _ := ParseDartDir(p, ents)
+		files, _ := ParseDartDir(filepath.Join(c.RepoRoot, filepath.FromSlash(rel)), names)
 		if len(files) > 0 {
 			each(rel, files)
 		}
-		return nil
-	})
+		for _, d := range dirs {
+			if !strings.HasPrefix(d, ".") {
+				visit(path.Join(rel, d))
+			}
+		}
+	}
+	visit(top)
 }
 
-func readDirNames(dir string) ([]string, error) {
-	ents, err := os.ReadDir(dir)
+// gazelleDir is a directory's subdirectories and regular files as Gazelle's
+// walk sees them, sorted.
+func gazelleDir(rel string) ([]string, []string, error) {
+	di, err := walk.GetDirInfo(rel)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	var names []string
-	for _, e := range ents {
-		if e.Type().IsRegular() {
-			names = append(names, e.Name())
-		}
-	}
-	sort.Strings(names)
-	return names, nil
+	dirs := append([]string(nil), di.Subdirs...)
+	files := append([]string(nil), di.RegularFiles...)
+	sort.Strings(dirs)
+	sort.Strings(files)
+	return dirs, files, nil
 }
 
-// hasRegistered reports whether any annotation has a registered builder.
-func hasRegistered(anns []string, registry *builderRegistry) bool {
-	for _, a := range anns {
-		if registry.lookup(a) != nil {
-			return true
+// osDir is a directory's subdirectories and regular files as the file
+// system has them, sorted: what Gazelle's walk sees with nothing excluded.
+func osDir(repoRoot string) func(rel string) ([]string, []string, error) {
+	return func(rel string) ([]string, []string, error) {
+		ents, err := os.ReadDir(filepath.Join(repoRoot, filepath.FromSlash(rel)))
+		if err != nil {
+			return nil, nil, err
 		}
+		var dirs, files []string
+		for _, e := range ents {
+			switch {
+			case e.IsDir():
+				dirs = append(dirs, e.Name())
+			case e.Type().IsRegular():
+				files = append(files, e.Name())
+			}
+		}
+		return dirs, files, nil
 	}
-	return false
-}
-
-// ownFile is the repo-relative path of the file of the package (named self,
-// rooted at root) that an import in the repo-relative file names, or "".
-func ownFile(self, root, file string, imp DartImport) string {
-	uri := importedURI(self, root, file, imp)
-	prefix := "package:" + self + "/"
-	if !strings.HasPrefix(uri, prefix) {
-		return ""
-	}
-	return libDirOf(root) + "/" + strings.TrimPrefix(uri, prefix)
 }
 
 // relativeTarget is the repo-relative path a relative import in the
@@ -330,52 +280,6 @@ func (p *packageScan) testDirOf(file string) (string, bool) {
 	return "", false
 }
 
-// stronglyConnected returns the strongly connected components of the graph
-// (Tarjan), each node in exactly one, visiting nodes in the given order.
-func stronglyConnected(nodes []string, edges map[string][]string) [][]string {
-	index := map[string]int{}
-	low := map[string]int{}
-	onStack := map[string]bool{}
-	var stack []string
-	var out [][]string
-	var visit func(v string)
-	visit = func(v string) {
-		index[v] = len(index)
-		low[v] = index[v]
-		stack = append(stack, v)
-		onStack[v] = true
-		for _, w := range edges[v] {
-			if _, ok := index[w]; !ok {
-				visit(w)
-				low[v] = min(low[v], low[w])
-			} else if onStack[w] {
-				low[v] = min(low[v], index[w])
-			}
-		}
-		if low[v] == index[v] {
-			var scc []string
-			for {
-				w := stack[len(stack)-1]
-				stack = stack[:len(stack)-1]
-				onStack[w] = false
-				scc = append(scc, w)
-				if w == v {
-					break
-				}
-			}
-			out = append(out, scc)
-		}
-	}
-	for _, v := range nodes {
-		if _, ok := index[v]; !ok {
-			visit(v)
-		}
-	}
-	return out
-}
-
-func depth(rel string) int { return strings.Count(rel, "/") }
-
 func sortedKeys[V any](m map[string]V) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
@@ -386,7 +290,7 @@ func sortedKeys[V any](m map[string]V) []string {
 }
 
 // dirLabel is the label of the target named for directory dir, relative to
-// the Bazel package from: `//lib/src/model` for the `model` filegroup.
+// the Bazel package from: `//test/support` for the `support` filegroup.
 func dirLabel(dir, from string) string {
 	return label.New("", dir, path.Base(dir)).Rel("", from).String()
 }

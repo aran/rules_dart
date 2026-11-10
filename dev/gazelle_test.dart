@@ -54,6 +54,33 @@ void main() {
   assert(greeter.greet() == 'Hello, Test!');
 }
 ''');
+  _write(work, 'lib/src/util.dart', r'''
+String shout(String s) => s.toUpperCase();
+''');
+  // The BUILD files earlier Gazelle versions wrote, one per directory under
+  // lib/, which the package's library at its root replaces.
+  _write(work, 'lib/BUILD.bazel', r'''
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+dart_library(
+    name = "lib",
+    srcs = [
+        "formatter.dart",
+        "greeter.dart",
+    ],
+    visibility = ["//visibility:public"],
+    deps = ["//lib/src"],
+)
+''');
+  _write(work, 'lib/src/BUILD.bazel', r'''
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+dart_library(
+    name = "src",
+    srcs = ["util.dart"],
+    visibility = ["//visibility:public"],
+)
+''');
   // Gazelle needs a root marker.
   _write(work, 'BUILD.bazel', '');
   _write(work, 'WORKSPACE', '');
@@ -108,24 +135,37 @@ void main() {
 
   stdout.writeln('=== Checking generated BUILD files ===');
 
-  // lib/ has a dart_library with both source files.
-  checkFile('lib/BUILD.bazel');
-  checkContains('lib/BUILD.bazel', 'dart_library', 'dart_library rule');
-  checkContains('lib/BUILD.bazel', 'greeter.dart', 'greeter.dart in srcs');
-  checkContains('lib/BUILD.bazel', 'formatter.dart', 'formatter.dart in srcs');
-  checkContains('lib/BUILD.bazel', 'visibility', 'visibility attribute');
+  // The package's root has its dart_library, holding every file under lib/,
+  // and no BUILD file is left under lib/.
+  checkContains('BUILD.bazel', 'dart_library', 'dart_library rule');
+  checkContains('BUILD.bazel', '"lib/greeter.dart"', 'greeter.dart in srcs');
+  checkContains(
+    'BUILD.bazel',
+    '"lib/formatter.dart"',
+    'formatter.dart in srcs',
+  );
+  checkContains('BUILD.bazel', '"lib/src/util.dart"', 'util.dart in srcs');
+  checkContains('BUILD.bazel', 'visibility', 'visibility attribute');
+  for (final file in ['lib/BUILD.bazel', 'lib/src/BUILD.bazel']) {
+    if (File(_at(work, file)).existsSync()) {
+      stdout.writeln('FAIL: $file is still there');
+      failed = true;
+    } else {
+      stdout.writeln('PASS: $file deleted');
+    }
+  }
 
-  // bin/ has a dart_binary with a dep on //lib (from the package:lib import).
+  // bin/ has a dart_binary with a dep on //:lib (from the package:lib import).
   checkFile('bin/BUILD.bazel');
   checkContains('bin/BUILD.bazel', 'dart_binary', 'dart_binary rule');
   checkContains('bin/BUILD.bazel', 'hello.dart', 'hello.dart as main');
   checkContains(
     'bin/BUILD.bazel',
-    '//lib',
-    'dep on //lib from package:lib import',
+    '//:lib',
+    'dep on //:lib from package:lib import',
   );
 
-  // test/ has a dart_test with a dep on //lib.
+  // test/ has a dart_test with a dep on //:lib.
   checkFile('test/BUILD.bazel');
   checkContains('test/BUILD.bazel', 'dart_test', 'dart_test rule');
   checkContains(
@@ -135,17 +175,13 @@ void main() {
   );
   checkContains(
     'test/BUILD.bazel',
-    '//lib',
-    'dep on //lib from package:lib import',
+    '//:lib',
+    'dep on //:lib from package:lib import',
   );
 
   stdout.writeln();
   stdout.writeln('=== Generated BUILD files ===');
-  for (final file in [
-    'lib/BUILD.bazel',
-    'bin/BUILD.bazel',
-    'test/BUILD.bazel',
-  ]) {
+  for (final file in ['BUILD.bazel', 'bin/BUILD.bazel', 'test/BUILD.bazel']) {
     final f = File(_at(work, file));
     if (f.existsSync()) {
       stdout.writeln('--- $file ---');

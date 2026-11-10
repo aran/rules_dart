@@ -1,0 +1,16 @@
+load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_library")
+
+# gazelle:dart_package_name generated_in_source_tree_update
+
+json_serializable_library(
+    name = "user",
+    srcs = [
+        "lib/user.dart",
+        "lib/user.freezed.dart",
+        "lib/user.g.dart",
+    ],
+    package_name = "generated_in_source_tree_update",
+    language_version = "3.11",
+    visibility = ["//visibility:public"],
+    deps = ["@json_annotation"],
+)

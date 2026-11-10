@@ -1,0 +1,26 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_library")
+
+json_serializable_library(
+    name = "src/model/user",
+    package_name = "layout",
+    srcs = ["lib/src/model/user.dart"],
+    annotation_dep = "@json_annotation",
+    language_version = "3.11",
+    visibility = ["//visibility:public"],
+    deps = ["@json_annotation"],
+)
+
+dart_library(
+    name = "layout",
+    package_name = "layout",
+    srcs = [
+        "lib/layout.dart",
+        "lib/src/a/a.dart",
+        "lib/src/b/b.dart",
+        "lib/src/legacy.g.dart",
+    ],
+    language_version = "3.11",
+    visibility = ["//visibility:public"],
+    deps = [":src/model/user"],
+)

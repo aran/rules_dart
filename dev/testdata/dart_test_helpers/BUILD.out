@@ -1,0 +1,8 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+dart_library(
+    name = "helpers_fixture",
+    package_name = "helpers_fixture",
+    srcs = ["lib/greeter.dart"],
+    visibility = ["//visibility:public"],
+)

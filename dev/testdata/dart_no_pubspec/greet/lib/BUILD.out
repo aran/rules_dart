@@ -1,7 +1,0 @@
-load("@rules_dart//dart:defs.bzl", "dart_library")
-
-dart_library(
-    name = "greet",
-    srcs = ["greet.dart"],
-    visibility = ["//visibility:public"],
-)

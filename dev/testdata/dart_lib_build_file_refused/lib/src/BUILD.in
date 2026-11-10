@@ -1,0 +1,9 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+dart_library(
+    name = "src",
+    package_name = "refused",
+    srcs = ["util.dart"],
+    code_assets = ["//lib:native"],
+    visibility = ["//visibility:public"],
+)

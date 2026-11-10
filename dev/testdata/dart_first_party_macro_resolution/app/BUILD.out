@@ -2,7 +2,7 @@ load("@rules_dart//dart:defs.bzl", "dart_library")
 
 dart_library(
     name = "app",
-    srcs = ["app.dart"],
+    srcs = ["lib/app.dart"],
     visibility = ["//visibility:public"],
     deps = ["//models"],
 )

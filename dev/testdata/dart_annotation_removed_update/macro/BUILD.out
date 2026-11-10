@@ -2,6 +2,6 @@ load("@rules_dart//dart:defs.bzl", "dart_library")
 
 dart_library(
     name = "macro",
-    srcs = ["user.dart"],
+    srcs = ["lib/user.dart"],
     visibility = ["//visibility:public"],
 )

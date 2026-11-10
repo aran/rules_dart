@@ -1,5 +1,0 @@
-filegroup(
-    name = "parts",
-    srcs = ["twice.dart"],
-    visibility = ["//cycle/lib/src/e:__pkg__"],
-)

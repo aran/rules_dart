@@ -3,8 +3,5 @@ load("@rules_dart//dart:defs.bzl", "dart_test")
 dart_test(
     name = "split_test",
     main = "split_test.dart",
-    deps = [
-        "//split/lib:split",
-        "//split/lib/src/model",
-    ],
+    deps = ["//split"],
 )

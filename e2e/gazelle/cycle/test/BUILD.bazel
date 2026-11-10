@@ -4,9 +4,5 @@ dart_test(
     name = "cycle_test",
     srcs = ["//cycle/test/support"],
     main = "cycle_test.dart",
-    deps = [
-        "//cycle/lib:cycle",
-        "//cycle/lib/src/c",
-        "//cycle/lib/src/e",
-    ],
+    deps = ["//cycle"],
 )

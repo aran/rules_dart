@@ -1,0 +1,17 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+dart_library(
+    name = "lib",
+    srcs = [
+        "lib/cross_platform.dart",
+        "lib/io_impl.dart",
+        "lib/platform_client.dart",
+        "lib/stub.dart",
+        "lib/web_impl.dart",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@native_helpers",
+        "@web_helpers",
+    ],
+)

@@ -1,0 +1,5 @@
+filegroup(
+    name = "a",
+    srcs = ["a.dart"],
+    visibility = ["//lib:__pkg__"],
+)

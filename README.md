@@ -778,18 +778,22 @@ under `test/` that a file elsewhere imports from gets a `filegroup` named for
 it, holding its helpers (and any test imported from elsewhere), visible to the
 package's `test/` tree, and the test lists that instead.
 
-Each directory under `lib/` gets its own `dart_library`, named for the
-directory, in the package rooted above `lib/` (see
-[Where a package's root is](#where-a-packages-root-is)). Bazel builds no
-dependency cycle, so directories whose files import each other, directly or
-through a chain, are one `dart_library`, as `pub.from_lock()` builds pub
-packages that depend on each other as one library; a `part` in another
-directory joins its library's directory the same way. That library is the one
-of the directory in the cycle nearest `lib/` (the fewest levels down, then the
-first by path): the package's own library when `lib/` is in the cycle. Each
-other directory of the cycle holds its files in a `filegroup` named for the
-directory, visible only to that library, which lists it in `srcs`. Gazelle
-moves the targets when a cycle forms or breaks. An imported file,
+A package is one `dart_library`, in the BUILD file at the package's root
+(see [Where a package's root is](#where-a-packages-root-is)), named for the
+package and holding every file under its `lib/`, as `pub.from_lock()` builds a
+pub package. Directories under `lib/` mean nothing to Dart, and import cycles
+between them are ordinary Dart, so they need nothing of Bazel. A source
+carrying a builder's annotation is a library of its own, beside it (see
+[Code generation](#code-generation)), named for its path under `lib/` without
+`.dart`: `//my_app:src/model/user` for `lib/src/model/user.dart`. A file one
+of those codegen targets produces is in no `srcs`, even when it is in the
+source tree, as a published package carries it; any other file is a source,
+whatever its name. No BUILD file may be under `lib/`, since one would cut the
+package's library off from the files below it. Gazelle removes the rules it
+wrote in one, as earlier versions wrote one per directory, and in fix mode
+deletes the file; one holding anything else (a rule, an attribute or a
+directive Gazelle does not write) fails the run, naming the file, so that you
+move what it holds to the package's root. An imported file,
 by `package:` URI or relative path, resolves to the rule that lists it; only
 an import of a file no generated or hand-written rule lists by name (a pub
 package's, or one in a `glob`) resolves by package name. A file two rules list
@@ -873,8 +877,7 @@ builder are a disagreement, as for the package's name.
 
 A package's `hook/build.dart` is its library's `build_hook`, and its
 `hook/link.dart` its library's `link_hook`: Gazelle puts each hook in a
-`filegroup` in `hook/` and names it on the `dart_library` of the package's
-`lib/`. A build hook fails every binary and test that reaches the package
+`filegroup` in `hook/` and names it on the package's `dart_library`. A build hook fails every binary and test that reaches the package
 until the package's `code_assets` supply what the hook would build (see
 [Native code assets](#native-code-assets)); `code_assets` is yours: Gazelle
 never writes or removes it. A link hook's imports are that library's `deps`,

@@ -23,6 +23,9 @@ type dartLang struct {
 	errs      generationErrors
 	scan      scanState
 	buildYaml buildYamlState
+	stale     staleBuildFiles
+	// mode is Gazelle's -mode: "fix" (the default), "print" or "diff".
+	mode string
 }
 
 // NewLanguage creates a new Dart language extension for Gazelle.
@@ -33,7 +36,15 @@ func NewLanguage() language.Language {
 func (*dartLang) Name() string { return dartName }
 
 func (*dartLang) RegisterFlags(fs *flag.FlagSet, cmd string, c *config.Config) {}
-func (*dartLang) CheckFlags(fs *flag.FlagSet, c *config.Config) error          { return nil }
+
+// CheckFlags reads Gazelle's -mode, which decides whether a BUILD file
+// under a package's lib/ is deleted (lib_dir.go).
+func (d *dartLang) CheckFlags(fs *flag.FlagSet, c *config.Config) error {
+	if f := fs.Lookup("mode"); f != nil {
+		d.mode = f.Value.String()
+	}
+	return nil
+}
 
 func (*dartLang) KnownDirectives() []string {
 	return []string{

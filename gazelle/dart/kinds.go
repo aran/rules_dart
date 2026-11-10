@@ -53,7 +53,8 @@ var dartKinds = func() map[string]rule.KindInfo {
 }()
 
 var _primitiveDartKinds = map[string]rule.KindInfo{
-	// The sources a directory lends another's rule (package_scan.go).
+	// The helpers a test-tree directory lends the tests of others
+	// (package_scan.go), and a package's hooks (hook.go).
 	"filegroup": {
 		NonEmptyAttrs:  map[string]bool{"srcs": true},
 		MergeableAttrs: map[string]bool{"srcs": true, "visibility": true},

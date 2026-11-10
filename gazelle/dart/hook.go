@@ -12,7 +12,7 @@ import (
 )
 
 // A package's hooks live in its hook/ directory, and Gazelle states each on
-// the library of the package's lib/ directory.
+// the library of the package, at its root.
 //
 // hook/build.dart builds native code when pub gets the package. rules_dart
 // never runs it, and fails every binary and test that reaches a library
@@ -68,7 +68,7 @@ func hookLabel(h hookKind, root, from string) string {
 }
 
 // setHooks states the hooks of the package rooted at root on r, the library
-// of its lib/ directory, and returns the link hook's imports, named from the
+// at its root, and returns the link hook's imports, named from the
 // repository root, for r's dependencies.
 func setHooks(r *rule.Rule, repoRoot, root, from string) []DartFileInfo {
 	for _, h := range hookKinds {
@@ -103,7 +103,7 @@ func logUnstatedHooks(root string) {
 }
 
 // hookRules is what Gazelle writes in a package's hook/ directory: a
-// filegroup holding each hook, visible to the package's lib/, and nothing for
+// filegroup holding each hook, visible to the package's root, where its library is, and nothing for
 // the hooks' imports, which the library's dependencies carry. A
 // `dart_library` of the directory's files, which earlier Gazelle versions
 // wrote, is deleted, as is a hook's filegroup once the hook is gone.
@@ -117,7 +117,7 @@ func hookRules(args language.GenerateArgs, root string) language.GenerateResult 
 		}
 		r := rule.NewRule("filegroup", h.target)
 		r.SetAttr("srcs", []string{h.file})
-		r.SetAttr("visibility", []string{label.New("", libDirOf(root), "__pkg__").String()})
+		r.SetAttr("visibility", []string{label.New("", root, "__pkg__").String()})
 		res.Gen = append(res.Gen, r)
 		res.Imports = append(res.Imports, nil)
 	}
