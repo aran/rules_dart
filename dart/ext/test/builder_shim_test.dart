@@ -1047,6 +1047,59 @@ void main() {
       expect(File(out).readAsStringSync(), contains('// generated'));
     });
 
+    group('analysis collection dispose failure', () {
+      Future<List<String>> run(Builder Function(BuilderOptions) factory) async {
+        final input = File(p.join(tmp.path, 'a.dart'))
+          ..writeAsStringSync('class Foo {}');
+        final out = p.join(tmp.path, 'a.g.dart');
+        final stage = await Directory(p.join(tmp.path, 'stage')).create();
+        final captured = <String>[];
+        await runShim(
+          [
+            '--input',
+            input.path,
+            '--input-asset',
+            'lib/a.dart',
+            '--output',
+            out,
+            '--package',
+            'p',
+            '--root-language-version',
+            '3.11',
+          ],
+          factory,
+          stagingRoot: stage,
+          writeDiagnostic: captured.add,
+          buildAnalysisContext:
+              ({
+                required List<String> includedPaths,
+                required String sdkPath,
+                required ResourceProvider resourceProvider,
+              }) async => _DisposeThrowsCollection(),
+        );
+        return captured;
+      }
+
+      test('fails the action with a clear message', () async {
+        final captured = await run((_) => _NoopBuilder());
+        expect(exitCode, 1);
+        expect(
+          captured.join('\n'),
+          contains('AnalysisContextCollection.dispose failed'),
+        );
+        exitCode = 0;
+      });
+
+      test('does not mask the builder error', () async {
+        final captured = await run((_) => _ThrowingBuilder());
+        expect(exitCode, 1);
+        final combined = captured.join('\n');
+        expect(combined, contains('intentional failure'));
+        expect(combined, contains('dispose failed'));
+        exitCode = 0;
+      });
+    });
+
     test('builder throw routes message + stack trace to sink', () async {
       final input = File(p.join(tmp.path, 'a.dart'))
         ..writeAsStringSync('class Foo {}');
@@ -1524,6 +1577,63 @@ void main() {
     });
   });
 
+  group('Resource disposal failure', () {
+    late Directory tmp;
+    setUp(() async {
+      tmp = await Directory.systemTemp.createTemp('shim_resource_fail_');
+    });
+    tearDown(() async {
+      if (await tmp.exists()) await tmp.delete(recursive: true);
+    });
+
+    Future<void> run(Future<void> Function(BuildStep) body) {
+      final input = File(p.join(tmp.path, 'src.dart'))
+        ..writeAsStringSync('class Foo {}');
+      return runShimWithArgs(
+        _shimArgs(
+          inputPath: input.path,
+          inputAssetPath: 'lib/src.dart',
+          outputPath: p.join(tmp.path, 'src.g.dart'),
+        ),
+        [(_) => _CapturingBuilder(body)],
+      );
+    }
+
+    final failing = Resource<Object>(
+      () => Object(),
+      dispose: (_) => throw StateError('resource boom'),
+    );
+
+    test('fails the action with the failure message', () async {
+      await expectLater(
+        run((step) async => step.fetchResource(failing)),
+        throwsA(
+          isA<StateError>().having(
+            (e) => e.message,
+            'message',
+            contains('ResourceManager.disposeAll failed'),
+          ),
+        ),
+      );
+    });
+
+    test('does not mask a builder error', () async {
+      await expectLater(
+        run((step) async {
+          await step.fetchResource(failing);
+          throw StateError('builder boom');
+        }),
+        throwsA(
+          isA<StateError>().having(
+            (e) => e.message,
+            'message',
+            contains('builder boom'),
+          ),
+        ),
+      );
+    });
+  });
+
   group('intermediate-stage buildExtensions validation', () {
     // `_expectedOutputsFor` derives intermediate AssetIds by suffix
     // replacement. An empty-string key (PackageBuilder pattern) makes
@@ -1744,6 +1854,15 @@ void main() {
 }
 
 /// A Builder declared to produce `.g.dart` outputs but that emits nothing.
+class _DisposeThrowsCollection implements AnalysisContextCollection {
+  @override
+  Future<void> dispose({bool forTesting = false}) async =>
+      throw StateError('boom');
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 class _NoopBuilder implements Builder {
   @override
   Map<String, List<String>> get buildExtensions => const {

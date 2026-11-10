@@ -643,6 +643,7 @@ Future<void> _runWithStaging(
     );
   });
   final lastIndex = builders.length - 1;
+  var buildSucceeded = false;
   try {
     // Set the level inside the try so the `finally` below always
     // restores it — even if anything between here and the `for` loop
@@ -671,15 +672,20 @@ Future<void> _runWithStaging(
         zoneValues: {#buildLog: logger},
       );
     }
+    buildSucceeded = true;
   } finally {
     // Drain any Resources a Builder held via `fetchResource` so they don't
     // leak across sequential worker requests. One disposeAll for the whole
     // pipeline — the manager is shared across stages. Disposal-phase log
     // records still flow to the listener because we cancel *after* disposal.
+    // A disposal failure fails the action. Both disposals always run; when
+    // the build already failed, that error is the one that propagates and the
+    // disposal failures are only reported.
+    final disposeFailures = <String>[];
     try {
       await resourceManager.disposeAll();
     } catch (e, st) {
-      writeDiagnostic('ResourceManager.disposeAll failed: $e\n$st');
+      disposeFailures.add('ResourceManager.disposeAll failed: $e\n$st');
     }
     await logSub.cancel();
     Logger.root.level = originalLevel;
@@ -688,9 +694,12 @@ Future<void> _runWithStaging(
     // across every request until it exhausts file descriptors.
     try {
       await collection.dispose();
-    } catch (_) {
-      // Older analyzer releases don't expose dispose; swallow so we don't
-      // regress workers on versions that lack it.
+    } catch (e, st) {
+      disposeFailures.add('AnalysisContextCollection.dispose failed: $e\n$st');
+    }
+    if (disposeFailures.isNotEmpty) {
+      if (buildSucceeded) throw StateError(disposeFailures.join('\n'));
+      disposeFailures.forEach(writeDiagnostic);
     }
   }
 
