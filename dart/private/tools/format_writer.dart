@@ -134,6 +134,9 @@ int _format(
       '--language-version=$languageVersion',
       src,
     ],
+    // As in every build action (`SDK_ENV`): `bazel run` gives the user's own
+    // home, where dartdev would otherwise record analytics.
+    environment: {'DASH__SUPPRESS_ANALYTICS': 'true'},
     stdoutEncoding: systemEncoding,
     stderrEncoding: systemEncoding,
   );

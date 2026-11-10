@@ -484,7 +484,9 @@ def launcher_executable(ctx, tool):
 # The environment of an action that runs the SDK's `dart`, which suppresses its
 # analytics: dartdev otherwise records them under the home directory. No action
 # needs a home of its own; one that compiles for a cross target adds the home
-# its `cross_tools` names.
+# its `cross_tools` names. A runnable target that starts `dart` for the user
+# (`@rules_dart//dart`, `dart_format`) sets it too: the home is then the
+# user's own.
 SDK_ENV = {"DASH__SUPPRESS_ANALYTICS": "true"}
 
 def relative_path(from_dir, to_dir):
