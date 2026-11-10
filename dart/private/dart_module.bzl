@@ -464,11 +464,17 @@ def dart_entry_kernel_action(
     args.add("--output", output)
     args.add("--selection-output", selection)
 
+    # The module directories `main` reaches nothing in: a change to one cannot
+    # change the entrypoint, and Bazel does not rerun it for one.
+    unused = ctx.actions.declare_file(output.basename + ".unused_inputs", sibling = output)
+    args.add("--unused-inputs-output", unused)
+
     ctx.actions.run(
         executable = kernel_tool,
         arguments = ["entry", _snapshot_args(ctx, sdk.frontend_server), args],
         inputs = depset(inputs, transitive = [own.outlines, own.manifests, sdk.tool_files]),
-        outputs = [output, selection],
+        outputs = [output, selection, unused],
+        unused_inputs_list = unused,
         mnemonic = "DartEntryKernel",
         exec_group = PORTABLE,
         progress_message = "Compiling Dart entrypoint %{label}",

@@ -13,7 +13,8 @@ const _optionsByCommand = {
   'entry': {
     'runtime', 'snapshot', 'sdk-root', 'label', 'platform', 'target',
     'package-config', 'multi-root', 'dep-modules', 'dep-manifest', 'define',
-    'native-assets', 'main', 'output', 'selection-output', //
+    'native-assets', 'main', 'output', 'selection-output',
+    'unused-inputs-output', //
   },
   'link': {'label', 'entry', 'selection', 'dep-manifest', 'output'},
   'check': {

@@ -897,6 +897,24 @@ import 'package:app/own.dart';
     });
   });
 
+  group('unusedModuleDirs', () {
+    test('names the directories the entrypoint reaches nothing in', () {
+      final a = _manifest('//a:a', [
+        _module(0, ['package:a/a.dart'], deps: ['package:b/b.dart']),
+        _module(1, ['package:a/other.dart']),
+      ]);
+      final b = _manifest('//b:b', [
+        _module(0, ['package:b/b.dart']),
+      ]);
+      final c = _manifest('//c:c', [
+        _module(0, ['package:c/c.dart']),
+      ]);
+      final reach = ModuleIndex([a, b, c]).reach(['package:a/a.dart']);
+      // `a` is reached in part, so its directory stays an input.
+      expect(unusedModuleDirs([a, b, c], reach), [c.dir]);
+    });
+  });
+
   group('reachError', () {
     ModuleReach reach(List<Manifest> manifests, List<String> imports) =>
         ModuleIndex(manifests).reach(imports);
