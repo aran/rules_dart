@@ -182,7 +182,13 @@ def dart_import_check_action(ctx, kernel_tool, name, srcs, own, deps, indirect_d
     ctx.actions.run(
         executable = kernel_tool,
         arguments = ["check", args],
-        inputs = depset(srcs + [package_config], transitive = [dep_srcs]),
+        # The check names a dependency's file by its path alone, so only a
+        # directory, which it lists, is an input: a body edit in a dependency
+        # does not rerun the check of everything above it.
+        inputs = depset(
+            srcs + [package_config],
+            transitive = [getattr(info, "transitive_src_dirs", depset()) for info in dep_infos],
+        ),
         outputs = [result],
         mnemonic = "DartImportCheck",
         exec_group = PORTABLE,

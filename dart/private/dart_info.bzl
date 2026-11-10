@@ -475,6 +475,11 @@ def _merged_dart_info(
         # different places. Everything that stages a whole package — the
         # analyzer's project tree, a binary's runfiles — wants both; everything
         # that feeds the compiler wants only the first.
+        transitive_src_dirs = depset(
+            direct = [f for f in srcs if f.is_directory],
+            # `getattr`: a provider built before the field existed has none.
+            transitive = [getattr(info, "transitive_src_dirs", depset()) for info in dep_infos],
+        ),
         transitive_resources = depset(
             direct = resources,
             transitive = [info.transitive_resources for info in dep_infos],

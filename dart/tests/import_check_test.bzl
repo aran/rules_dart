@@ -21,6 +21,36 @@ def _library_checked_test_impl(ctx):
 
 library_checked_test = analysistest.make(_library_checked_test_impl)
 
+def _dependency_edit_test_impl(ctx):
+    # The check reads a dependency's file names, not its contents: an edit to a
+    # body in a dependency must not rerun the check of what depends on it.
+    env = analysistest.begin(ctx)
+    checks = [a for a in analysistest.target_actions(env) if a.mnemonic == "DartImportCheck"]
+    asserts.equals(env, 1, len(checks))
+    if checks:
+        check = checks[0]
+        argv = " ".join(check.argv)
+        asserts.true(env, "lib/base.dart" in argv, "the check no longer names the dependency's file: %s" % argv)
+        read = " ".join([f.short_path for f in check.inputs.to_list()])
+        asserts.true(env, "lib/user.dart" in read, "the library's own source is not an input: %s" % read)
+        asserts.false(env, "lib/base.dart" in read, "a dependency's source is an input of the check: %s" % read)
+    return analysistest.end(env)
+
+dependency_edit_test = analysistest.make(_dependency_edit_test_impl)
+
+def _dependency_tree_test_impl(ctx):
+    # A dependency that is a directory is listed by the check, so it stays an
+    # input: its files can change without its path changing.
+    env = analysistest.begin(ctx)
+    checks = [a for a in analysistest.target_actions(env) if a.mnemonic == "DartImportCheck"]
+    asserts.equals(env, 1, len(checks))
+    if checks:
+        read = [f for f in checks[0].inputs.to_list() if f.is_directory]
+        asserts.true(env, any([f.short_path.endswith("tree_set") for f in read]), "the dependency's directory is not an input of the check: %s" % read)
+    return analysistest.end(env)
+
+dependency_tree_test = analysistest.make(_dependency_tree_test_impl)
+
 def import_check_test_suite(name):
     """Registers the tests of where the import check runs.
 
@@ -31,4 +61,12 @@ def import_check_test_suite(name):
         name = "library_checked_test",
         target_under_test = "//dart/tests/import_check_fixture:lone_lib",
     )
-    native.test_suite(name = name, tests = [":library_checked_test"])
+    dependency_edit_test(
+        name = "dependency_edit_test",
+        target_under_test = "//dart/tests/import_check_fixture:user_lib",
+    )
+    dependency_tree_test(
+        name = "dependency_tree_test",
+        target_under_test = "//dart/tests/import_check_fixture:tree_user_lib",
+    )
+    native.test_suite(name = name, tests = [":library_checked_test", ":dependency_edit_test", ":dependency_tree_test"])

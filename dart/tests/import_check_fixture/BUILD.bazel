@@ -1,8 +1,43 @@
-load("//dart:defs.bzl", "dart_library")
+load("//dart:defs.bzl", "dart_library", "dart_source_set")
 
 dart_library(
     name = "lone_lib",
     package_name = "import_check_fixture",
     srcs = ["lib/x.dart"],
     visibility = ["//dart/tests:__pkg__"],
+)
+
+dart_library(
+    name = "base_lib",
+    package_name = "import_check_base",
+    srcs = ["lib/base.dart"],
+    visibility = ["//dart/tests:__pkg__"],
+)
+
+dart_library(
+    name = "user_lib",
+    package_name = "import_check_user",
+    srcs = ["lib/user.dart"],
+    visibility = ["//dart/tests:__pkg__"],
+    deps = [":base_lib"],
+)
+
+dart_source_set(
+    name = "tree_set",
+    srcs = ["lib/tree.dart"],
+)
+
+dart_library(
+    name = "tree_lib",
+    package_name = "import_check_tree",
+    srcs_dir = ":tree_set",
+    visibility = ["//dart/tests:__pkg__"],
+)
+
+dart_library(
+    name = "tree_user_lib",
+    package_name = "import_check_tree_user",
+    srcs = ["lib/tree_user.dart"],
+    visibility = ["//dart/tests:__pkg__"],
+    deps = [":tree_lib"],
 )
