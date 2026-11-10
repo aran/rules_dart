@@ -489,7 +489,8 @@ pinned to something else in this repo:
 **Procedure**:
 
 1. For each `uses:` reference, check the repo's tags/releases for newer versions
-2. Update the version ref
+2. Update the commit SHA and the trailing version comment together
+   (`uses: owner/repo@<sha> # v1.2.3`); references are always SHA-pinned
 3. For reusable workflows, review changelogs for new inputs or breaking changes
 4. Keep `actions/checkout` version consistent across all workflows
 

@@ -29,7 +29,7 @@ jobs:
   # workspace, 60 for the whole-program run of the root workspace. A caller of
   # a reusable workflow (`test`) cannot set one.
   test:
-    uses: bazel-contrib/.github/.github/workflows/bazel.yaml@v7.7.0
+    uses: bazel-contrib/.github/.github/workflows/bazel.yaml@1d798ff015ed0696433e01e2c3ccbb2abefadad7 # v7.7.0
     with:
       bazel_versions: '["9.3.0"]'
       # Exit code 4 means "build succeeded but no test targets found", which is
@@ -104,7 +104,7 @@ jobs:
           - name: manifest runfiles, local
             flags: "--noenable_runfiles --spawn_strategy=standalone"
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: analysis — ${{ matrix.name }}
         working-directory: e2e/analysis
         # Exit code 4: the workspace has no test targets, only the aspect's
@@ -129,7 +129,7 @@ jobs:
       matrix:
         folder: [".", "e2e/dart_test", "e2e/codegen"]
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: dart_test whole-program — ${{ matrix.folder }}
         working-directory: ${{ matrix.folder }}
         run: bazel test --test_output=errors --@rules_dart//dart:modular_kernel=false //...
@@ -140,7 +140,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: dart_test without the runner snapshot cache
         run: bazel test --test_output=errors --@rules_dart//dart:runner_snapshot=false //dart/private/tools:test_runner_test
   # Workspaces that are expected to fail at module resolution.
@@ -149,7 +149,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: pub_lock_conflict — expect version conflict error
         working-directory: e2e/pub_lock_conflict
         run: |
@@ -535,8 +535,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
-      - uses: dart-lang/setup-dart@v1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1
       - name: pub_archive_links — expect no fetched archive to reach outside its package
         working-directory: e2e/pub_archive_links
         run: dart check.dart
@@ -550,7 +550,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: hello_world — build all compile modes under -c dbg
         working-directory: e2e/hello_world
         run: bazel build -c dbg //...
@@ -563,8 +563,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
-      - uses: bazel-contrib/setup-bazel@0.19.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: bazel-contrib/setup-bazel@104e3eea9447cdaa4b00d0fb46191a3985d26ab3 # 0.19.1
         with:
           cache-version: ${{ env.CACHE_VERSION }}
           bazelisk-cache: true
@@ -583,8 +583,8 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
-      - uses: actions/checkout@v7
-      - uses: bazel-contrib/setup-bazel@0.19.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: bazel-contrib/setup-bazel@104e3eea9447cdaa4b00d0fb46191a3985d26ab3 # 0.19.1
         with:
           cache-version: ${{ env.CACHE_VERSION }}
           bazelisk-cache: true
@@ -599,8 +599,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
-      - uses: bazel-contrib/setup-bazel@0.19.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: bazel-contrib/setup-bazel@104e3eea9447cdaa4b00d0fb46191a3985d26ab3 # 0.19.1
         with:
           cache-version: ${{ env.CACHE_VERSION }}
           bazelisk-cache: true
@@ -616,8 +616,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
-      - uses: bazel-contrib/setup-bazel@0.19.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: bazel-contrib/setup-bazel@104e3eea9447cdaa4b00d0fb46191a3985d26ab3 # 0.19.1
         with:
           cache-version: ${{ env.CACHE_VERSION }}
           bazelisk-cache: true

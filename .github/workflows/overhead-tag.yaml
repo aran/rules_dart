@@ -55,7 +55,7 @@ jobs:
       new-tag-version: ${{ steps.ccv.outputs.new-tag-version }}
       new-tag-version-type: ${{ steps.ccv.outputs.new-tag-version-type }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           # Need enough history to find the prior release tag
           fetch-depth: 0
@@ -94,4 +94,4 @@ jobs:
       - name: Bump tag if necessary
         id: ccv
         if: github.event_name != 'schedule' || steps.recent-tag.outputs.recently-tagged != 'true'
-        uses: smlx/ccv@v0.10.0
+        uses: smlx/ccv@7318e2f25a52dcd550e75384b84983973251a1f8 # v0.10.0
