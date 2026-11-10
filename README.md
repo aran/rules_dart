@@ -7,7 +7,8 @@ Bazel rule set for building Dart applications and libraries.
 Add to your `MODULE.bazel`:
 
 ```starlark
-bazel_dep(name = "rules_dart", version = "0.1.0")
+bazel_dep(name = "rules_dart", version = "<the latest release>")
+bazel_dep(name = "rules_dart_gazelle_plugin", version = "<the same version>")  # optional, see Gazelle
 
 dart = use_extension("@rules_dart//dart:extensions.bzl", "dart")
 dart.toolchain(dart_version = "3.13.7")
@@ -15,6 +16,15 @@ use_repo(dart, "dart_toolchains")
 
 register_toolchains("@dart_toolchains//:all")
 ```
+
+The version is the newest release in the
+[Bazel Central Registry](https://registry.bazel.build/modules/rules_dart). Each
+[GitHub release](https://github.com/aran/rules_dart/releases)'s notes open with
+the exact `bazel_dep` lines for both modules. `rules_dart_gazelle_plugin` is
+released with rules_dart, from the same tag, so both take the same version; it
+is a module of its own so that rules_dart brings no Go dependency, and a
+workspace that does not generate its BUILD files with
+[Gazelle](#build-file-generation-with-gazelle) leaves it out.
 
 ### Faster tests and builds (optional)
 
@@ -69,13 +79,18 @@ automatically. To run the `dart` CLI directly:
 
 ```shell
 bazel run @rules_dart//dart -- --version
-bazel run @rules_dart//dart -- analyze lib/
-bazel run @rules_dart//dart -- format lib/
 ```
 
 It runs in the directory `bazel run` was invoked from, and, like every build
 action, with Dart's analytics off, so it writes nothing into your home
 directory.
+
+Use it for commands that need no package resolution. It is not the way to
+analyze, format or test: the packages Bazel builds have no
+`.dart_tool/package_config.json`, and the files code generation writes exist
+only under `bazel-bin`, so `dart analyze` reports their imports and generated
+members as unresolved, errors the build does not have. Those jobs have Bazel
+commands, which the [command map](#command-map) lists.
 
 To write or re-resolve a `pubspec.lock` with the same SDK, run pub:
 
@@ -91,6 +106,55 @@ refusal prints tell you to run it.
 
 > **Tip**: Consider using [`bazel_env`](https://github.com/buildbuddy-io/bazel_env.bzl)
 > to put Bazel-managed tool binaries on your `PATH` for IDE and shell use.
+
+### Command map
+
+Dart's own guidance, and the tools and coding agents that follow it, name
+commands that assume a pub-resolved package on disk. In a rules_dart workspace
+Bazel builds each package, so each command has a Bazel counterpart or none.
+`<dir>` is a package's directory relative to the workspace root.
+
+| Dart command | In a rules_dart workspace |
+| --- | --- |
+| `dart pub add foo`, `remove`, `get`, `upgrade`, `outdated`, `deps` | `bazel run @rules_dart//dart/pub -- add foo --directory=<dir>` (any pub subcommand), which runs the pinned SDK at the workspace root. The build reads `pubspec.lock` alone, so a `pubspec.yaml` edit changes nothing until pub re-resolves. After `add`, run Gazelle. See [Adding a dependency](#adding-a-dependency). |
+| `dart analyze` (`--fatal-infos`) | `bazel test //<dir>/...`, with the `dart_analyze` aspect lines in `.bazelrc`. Every diagnostic, infos included, fails the test. `bazel build` does not analyze. See [Static analysis and formatting](#static-analysis-and-formatting). |
+| `dart format` | The check is part of the same `bazel test` (the `dart_format` output group). To rewrite files: `bazel run //:format -- lib test`, from a `dart_format` target (named `format` here). |
+| `dart fix --dry-run` / `--apply` | `bazel run //:fix -- --dry-run` / `bazel run //:fix`, from a `dart_fix` target. A `dart_fix` fixes the one library it names (`target`); there is no whole-workspace form, so a package needs one per library. |
+| `dart test` | `bazel test //<dir>:<name>`, or `//<dir>/...`. See below for its flags. |
+| `dart run build_runner build` / `watch` | None: do not run `build_runner`. The build generates the code, and the outputs are under `bazel-bin`, at the source file's path. See [Code generation](#code-generation). |
+| `dart run bin/app.dart` | `bazel run //<dir>:app`, a `dart_binary`. |
+| `dart compile exe` / `aot-snapshot` / `kernel` / `jit-snapshot` | `dart_binary(compile_mode = ...)`, default `exe`. |
+| `dart compile js` / `wasm` | `dart_js_binary` / `dart_wasm_binary`. See [Web compilation](#web-compilation). |
+| `dart doc` | None. |
+| `dart run coverage:test_with_coverage`, `--coverage` | None. Dart tests provide no coverage data, so `bazel coverage` reports nothing for them. |
+
+`dart test`'s options map as follows.
+
+| `dart test` | `bazel test` |
+| --- | --- |
+| `--name`, `-n` | `--test_filter=<regex>`, which the runner passes on as `--name`, so it is a regular expression. It selects within the targets named, so `bazel test //<dir>:<name> --test_filter=...` runs one case. |
+| `--plain-name`, `-N` | None; escape the regex metacharacters in `--test_filter`. |
+| `--tags`, `-t`, `--exclude-tags`, `-x` | The target's `include_tags` / `exclude_tags`, or `--test_env=DART_TEST_TAGS=<selector>` / `DART_TEST_EXCLUDE_TAGS` for one run. A file's `@Tags` also select whole targets through `--test_tag_filters`. See [Tests](#tests). |
+| `--shard-index`, `--total-shards` | `shard_count`. |
+| `--timeout` | The target's `size` or `timeout`. |
+| `--concurrency`, `-j` | Bazel runs targets in parallel (`--local_test_jobs`); a target's cases run in one runner. |
+| `--reporter`, `--file-reporter`, other runner flags | No pass-through. Cases appear in Bazel's report (`test.xml`); `--test_output=errors` or `all` shows the runner's output. |
+
+`dart_test.yaml` is not read, neither a package's nor the workspace's: each
+setting has its place on the target or in Bazel (see [Tests](#tests)). The
+runner's warning that a tag is "not specified in dart_test.yaml" is harmless;
+creating the file does not silence it and changes nothing. `build.yaml` is not
+read either: a builder's options go in its macro's `config` (or
+`# gazelle:dart_builder_config`), and the macro's `srcs` choose the files it
+runs on (see [`docs/ext.md`](./docs/ext.md)).
+
+Tools that follow Dart's guidance directly, an editor's analysis server and
+`dart mcp-server`'s `analyze_files` and `run_tests` among them, read
+`.dart_tool/package_config.json`, which only `pub get` writes and which knows
+nothing of the packages Bazel builds or of generated files in `bazel-bin`. They
+report unresolved imports and undefined generated members that `bazel test`
+does not. Do not add those packages to `pubspec.yaml`, or hand-write the
+generated files, to quiet them: run `bazel test`, which is the analyzer here.
 
 ### Rules
 
@@ -460,6 +524,50 @@ versions and the module; raise the root's version, or hold the older one on
 purpose with `pub.settings(allow_older_than_dependencies = True)` in the root
 module.
 
+#### Adding a dependency
+
+pub resolves and records versions; Bazel builds exactly what `pubspec.lock`
+records. Adding a package takes three steps:
+
+```shell
+bazel run @rules_dart//dart/pub -- add foo --directory=app   # edits app/pubspec.yaml and app/pubspec.lock
+bazel run //:gazelle                                          # puts @pub_deps//:foo in the deps that import it
+bazel build //app/...
+```
+
+1. `pub add` runs the toolchain's pinned SDK at the workspace root, so
+   `--directory` names the package holding the `pubspec.yaml`, and takes pub's
+   usual forms (`add dev:foo`, `add foo:^1.2.0`, `remove foo`). It must be the
+   directory whose `pubspec.lock` the `pub.from_lock()` names. To change a
+   constraint by hand, edit `pubspec.yaml` and run `pub get` (or
+   `pub upgrade foo`): the build reads only the lock, so an edit pub has not
+   resolved changes nothing.
+2. Import the package in the source, then run Gazelle, which resolves
+   `package:foo/...` to `@pub_deps//:foo` (the repository named by
+   `# gazelle:dart_pub_deps_repo`). Without Gazelle, add `@pub_deps//:foo` to
+   the `deps` of the targets that import it.
+3. Build. An error that `@pub_deps//:foo` does not exist means the lock does
+   not list `foo`: step 1 has not run for that lock.
+
+`use_repo(pub, "pub_deps")` does not change: the hub holds every package the
+lock names. A workspace with no `pubspec.yaml`, only `pub.package()`
+declarations, has nothing for `pub add` to edit; add the declaration by hand,
+with the digest below.
+
+#### The sha256 of a `pub.package()`
+
+`pub.package()` needs the digest of the package's archive, which Bazel checks
+on download: 64 lowercase hex digits, as `pubspec.lock` records it. Take it
+from pub.dev's API, where it is `archive_sha256`:
+
+```shell
+curl -s https://pub.dev/api/packages/path/versions/1.9.1 | jq -r .archive_sha256
+```
+
+or, for a package that is in a `pubspec.lock` already, from the `sha256:`
+under its `description`. A digest of any other shape fails when
+`pub.package()` is read, naming the package.
+
 ### BUILD file generation with Gazelle
 
 rules_dart's [Gazelle](https://github.com/bazelbuild/bazel-gazelle) plugin
@@ -682,7 +790,10 @@ For first-party builders (`json_serializable`, `freezed`, `built_value`,
 `freezed_library`, …) under `dart/ext/<builder>/defs.bzl`. Gazelle discovers
 the matching annotations in sources and emits the macro automatically. See
 [`docs/ext.md`](./docs/ext.md) for the shim contract, worker behaviour, and
-dual-build migration guide when coexisting with `build_runner`.
+dual-build migration guide when coexisting with `build_runner`. Two more
+`dart/ext` packages are not builders but Bazel builds of a package's native
+library: `sqlite3` (`sqlite3_code_asset()`) and `webcrypto` (see
+[Native code assets](#native-code-assets)).
 
 #### Stating a package's name once
 
@@ -1058,6 +1169,93 @@ is what the resets go back to. Its split may see fewer keys in
 one configuration arrive as one key. Its analysis tests take
 `config_settings = web_platform_config_settings(platform)`, the same settings
 as a fixed dict.
+
+### Native code assets
+
+A Dart package that needs native code usually builds it in a
+`hook/build.dart`. rules_dart does not run a package's build hook; a native
+library is built by Bazel and bound to the id the Dart bindings use. The chain
+is `cc_library` → `cc_shared_library` → `dart_code_asset` → `code_assets`:
+
+```starlark
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
+load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_code_asset")
+
+cc_library(
+    name = "counter",
+    srcs = ["counter.cc"],
+)
+
+cc_shared_library(
+    name = "counter_shared",
+    # A Windows DLL exports nothing unless told to.
+    features = select({
+        "@platforms//os:windows": ["windows_export_all_symbols"],
+        "//conditions:default": [],
+    }),
+    deps = [":counter"],
+)
+
+dart_code_asset(
+    name = "counter_asset",
+    asset_id = "package:counter/counter.dart",  # the id the `@Native` bindings declare
+    shared_library = ":counter_shared",
+)
+
+dart_binary(
+    name = "app",
+    main = "bin/main.dart",
+    code_assets = [":counter_asset"],
+)
+```
+
+The `asset_id` is the id the bindings resolve against: the `package:` URI of the
+library that declares the `@Native` functions, or the one its `@DefaultAsset`
+names. Every `code_assets` entry provides `DartCodeAssetInfo`, which
+`dart_code_asset` does.
+
+- Name the asset in the `code_assets` of the `dart_binary` or `dart_test` that
+  runs the code, or in the `dart_library` that owns the bindings, from where it
+  reaches every binary and test depending on that library. A binary's libraries
+  are linked into `<name>.native/` beside the executable, which must be
+  installed with it (`cp -RL`, since they are links); a test finds them in
+  runfiles.
+- An entry in a target's own `code_assets` replaces the asset of the same id
+  that its `deps` bring, so a test can load a differently built library under
+  the id a package declares. Two different assets for one id from `deps` fail,
+  naming both.
+- `link_mode` is `dynamic_loading_bundle` by default, a library Bazel builds and
+  ships with the program. `dynamic_loading_system` (with `system_uri`),
+  `dynamic_loading_executable` and `dynamic_loading_process` look the symbols up
+  in the executable or the running process. `static` is refused.
+- A pub package whose `hook/build.dart` has no Bazel replacement fails any
+  `dart_binary` or `dart_test` that reaches it, naming the package. Supply a
+  `dart_code_asset`, or list the package in `pub.from_lock(ignore_hooks = [...])`
+  if its native code is not used.
+- A build tool that never loads native code sets `code_assets_from_deps = False`
+  on its `dart_binary`, so it neither builds the libraries in its dependency
+  closure nor hits that error.
+
+rules_dart ships replacements for two packages, under `dart/ext`:
+`sqlite3_code_asset()` from `@rules_dart//dart/ext/sqlite3:defs.bzl`
+(`package:sqlite3` 2.0.0 and later) and `@rules_dart//dart/ext/webcrypto:code_asset`
+(`package:webcrypto` 0.6.1). `pub.from_lock()` attaches them to a lock that
+pins those versions, so a program using `package:sqlite3` needs nothing more
+than the dependency. Naming one explicitly, as the
+[`sqlite3_binary`](e2e/ext_exemplar/sqlite3_binary/) exemplar does, builds the
+same library for that target:
+
+```starlark
+load("@rules_dart//dart/ext/sqlite3:defs.bzl", "sqlite3_code_asset")
+
+dart_binary(
+    name = "app",
+    main = "bin/main.dart",
+    code_assets = [sqlite3_code_asset()],
+    deps = ["@pub_deps//:sqlite3"],
+)
+```
 
 ### Recorded uses and link hooks
 
