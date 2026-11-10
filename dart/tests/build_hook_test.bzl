@@ -68,10 +68,10 @@ def _unreplaced_build_hook_test_impl(ctx):
 
 _unreplaced_build_hook_unit_test = unittest.make(_unreplaced_build_hook_test_impl)
 
-def _record(lib_root, hook = "", assets = ()):
+def _record(package_root, hook = "", assets = ()):
     return DartPackageInfo(
         package_name = "split",
-        lib_root = lib_root,
+        package_root = package_root,
         code_assets = assets,
         has_unreplaced_hook = hook,
     )

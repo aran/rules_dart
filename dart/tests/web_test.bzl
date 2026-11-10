@@ -2,7 +2,7 @@
 
 The web compile must be a direct `dart` invocation over staged declared
 artifacts — no shell, no mktemp — with every dep package (including the
-empty-lib_root root package) present in the staged package_config.
+empty-package_root root package) present in the staged package_config.
 """
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts")

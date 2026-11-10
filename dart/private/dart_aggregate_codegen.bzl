@@ -51,13 +51,13 @@ load(
     "add_shim_contract_args",
     "asset_path_for",
     "codegen_language_version",
-    "dart_lib_root_for_package",
+    "dart_package_root_for_package",
     "format_literal",
     "resolve_package_identity",
     "same_package_library_dep_files",
     "synth_package_config",
 )
-load("//dart/private:dart_library.bzl", "derive_lib_root")
+load("//dart/private:dart_library.bzl", "derive_package_root")
 load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS", "portable_sdk")
 load("//dart/private:runtime.bzl", "non_dart_transition")
 
@@ -79,16 +79,16 @@ def _dart_aggregate_codegen_impl(ctx):
     outputs = [ctx.actions.declare_file(path) for path in ctx.attr.outputs]
     synth_pc, package_files = synth_package_config(ctx, ctx.attr.deps)
 
-    lib_root_from_deps = dart_lib_root_for_package(
+    package_root_from_deps = dart_package_root_for_package(
         ctx.attr.deps,
         identity.package_name,
     )
-    if lib_root_from_deps != None:
-        lib_root = lib_root_from_deps
+    if package_root_from_deps != None:
+        package_root = package_root_from_deps
     else:
         # The root a `dart_library` beside this target would take, also when
         # the target sits in a directory under the package's `lib/`.
-        lib_root = derive_lib_root(ctx.label.workspace_root, ctx.label.package)
+        package_root = derive_package_root(ctx.label.workspace_root, ctx.label.package)
 
     src_paths = [s.path for s in ctx.files.srcs]
     auto_staged, _ = same_package_library_dep_files(
@@ -107,11 +107,11 @@ def _dart_aggregate_codegen_impl(ctx):
         args.set_param_file_format("multiline")
     primary = ctx.files.srcs[0]
     args.add("--input", primary)
-    args.add("--input-asset", asset_path_for(primary, lib_root))
+    args.add("--input-asset", asset_path_for(primary, package_root))
     for output in outputs:
         args.add("--output", output)
     for src in ctx.files.srcs[1:]:
-        args.add("--input-asset-extra", src, format = "%s|" + format_literal(asset_path_for(src, lib_root)))
+        args.add("--input-asset-extra", src, format = "%s|" + format_literal(asset_path_for(src, package_root)))
     extra_inputs = add_shim_contract_args(
         args,
         ctx,
@@ -119,7 +119,7 @@ def _dart_aggregate_codegen_impl(ctx):
         dart_sdk_info.dart,
         auto_stage_srcs = auto_staged,
         asset_deps = ctx.files.asset_deps,
-        lib_root = lib_root,
+        package_root = package_root,
     )
     args.add_all(ctx.attr.generator_args)
 

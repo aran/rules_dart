@@ -21,10 +21,10 @@ load(":small_suite.bzl", "small_unittest_suite")
 def _file(short_path):
     return struct(short_path = short_path)
 
-def _pkg(lib_root, license_file = None, package_name = "ffi"):
+def _pkg(package_root, license_file = None, package_name = "ffi"):
     return DartPackageInfo(
         package_name = package_name,
-        lib_root = lib_root,
+        package_root = package_root,
         version = "",
         language_version = "",
         code_assets = (),
@@ -99,7 +99,7 @@ def _agreement_tolerates_one_sided_license_test_impl(ctx):
     asserts.equals(env, None, package_agreement_error([
         _pkg("../hub_a__ffi"),
         _pkg("../hub_b__ffi", _file("../hub_b__ffi/LICENSE")),
-        struct(package_name = "ffi", lib_root = "../old"),
+        struct(package_name = "ffi", package_root = "../old"),
     ]))
     return unittest.end(env)
 
@@ -114,16 +114,16 @@ def _merge_adopts_license_test_impl(ctx):
     license = _file("../b/LICENSE")
     merged = merge_package_records([_pkg("../a"), _pkg("../b", license)])
     asserts.equals(env, 1, len(merged))
-    asserts.equals(env, "../a", merged[0].lib_root)
+    asserts.equals(env, "../a", merged[0].package_root)
     asserts.equals(env, license, package_license_file(merged[0]))
     return unittest.end(env)
 
 def _derived_keeps_license_test_impl(ctx):
     env = unittest.begin(ctx)
     license = _file("pkg/LICENSE")
-    out = derived_package_info(_pkg("pkg", license), lib_root = "bazel-out/k8/bin/app.pkg.pkgsrcs")
+    out = derived_package_info(_pkg("pkg", license), package_root = "bazel-out/k8/bin/app.pkg.pkgsrcs")
     asserts.equals(env, license, out.license_file)
-    asserts.equals(env, None, package_license_file(struct(package_name = "p", lib_root = "")))
+    asserts.equals(env, None, package_license_file(struct(package_name = "p", package_root = "")))
     return unittest.end(env)
 
 _merge_adopts_license_test = unittest.make(_merge_adopts_license_test_impl)

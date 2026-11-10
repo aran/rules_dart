@@ -13,7 +13,7 @@ dart_analysis_config(
     options = [":options"],
 )
 
-# Root package (empty lib_root): its lib/ sources must be staged for the web
+# Root package (empty package_root): its lib/ sources must be staged for the web
 # compile like any other dep package.
 dart_library(
     name = "rootlib",

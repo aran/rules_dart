@@ -83,7 +83,7 @@ def package_for(short_path, packages):
 
     Args:
       short_path: A File's `short_path`.
-      packages: List of `DartPackageInfo` (read for `package_name` and `lib_root`).
+      packages: List of `DartPackageInfo` (read for `package_name` and `package_root`).
 
     Returns:
       The matching `package_name`, or `None` if no package owns the path.
@@ -92,18 +92,18 @@ def package_for(short_path, packages):
     return record.package_name if record != None else None
 
 def package_record_for(short_path, packages):
-    """Returns the package record owning `short_path`, by longest matching `lib_root`.
+    """Returns the package record owning `short_path`, by longest matching `package_root`.
 
-    A package owns its `<lib_root>/lib/` subtree and nothing else in the
+    A package owns its `<package_root>/lib/` subtree and nothing else in the
     directory: `lib/` is what a `package:` URI can reach, and staging strips
-    `lib_root`, so a `test/` or `tool/` file co-located into the package would
+    `package_root`, so a `test/` or `tool/` file co-located into the package would
     land somewhere no import resolves — and a generated entrypoint would lose
     the relative imports that resolved from its real location. The rule is the
-    same wherever the package sits. Among several matches the longest `lib_root`
+    same wherever the package sits. Among several matches the longest `package_root`
     wins; the root package's is empty, so it is taken only when nothing else
     matched at all.
 
-    The one path that is not under `lib/` is `lib_root` itself, which matches
+    The one path that is not under `lib/` is `package_root` itself, which matches
     exactly. That is a package whose files arrive as one opaque directory — a
     `dart_library(srcs_dir = ...)`, or a record `colocate_packages` already
     rewrote to its `.pkgsrcs` directory — where the directory *is* the package
@@ -111,41 +111,41 @@ def package_record_for(short_path, packages):
 
     Args:
       short_path: A File's `short_path`.
-      packages: List of `DartPackageInfo` (read for `package_name` and `lib_root`).
+      packages: List of `DartPackageInfo` (read for `package_name` and `package_root`).
 
     Returns:
       The matching record, or `None` if no package owns the path. A package
-      split across several `lib_root`s has a record per root, and the one
+      split across several `package_root`s has a record per root, and the one
       whose root holds the file is returned.
     """
     return package_record_for_index(short_path, package_record_index(packages))
 
 def package_record_index(packages):
-    """Indexes package records by `lib_root`, for `package_record_for_index`.
+    """Indexes package records by `package_root`, for `package_record_for_index`.
 
-    Where several records share a `lib_root`, the first keeps it, as the scan
+    Where several records share a `package_root`, the first keeps it, as the scan
     in list order always decided.
 
     Args:
-      packages: List of `DartPackageInfo` (read for `lib_root`).
+      packages: List of `DartPackageInfo` (read for `package_root`).
 
     Returns:
-      Dict of `lib_root` to the first record with it.
+      Dict of `package_root` to the first record with it.
     """
     index = {}
     for p in packages:
-        if p.lib_root not in index:
-            index[p.lib_root] = p
+        if p.package_root not in index:
+            index[p.package_root] = p
     return index
 
 def package_index(packages):
-    """Indexes packages by `lib_root`, for `package_for_index`.
+    """Indexes packages by `package_root`, for `package_for_index`.
 
     Args:
-      packages: List of `DartPackageInfo` (read for `package_name` and `lib_root`).
+      packages: List of `DartPackageInfo` (read for `package_name` and `package_root`).
 
     Returns:
-      Dict of `lib_root` to the first record with it.
+      Dict of `package_root` to the first record with it.
     """
     return package_record_index(packages)
 
@@ -165,7 +165,7 @@ def package_for_index(short_path, index):
 def package_record_for_index(short_path, index):
     """`package_record_for` against an index from `package_record_index`.
 
-    The only `lib_root`s that can own a path are the path itself (an opaque
+    The only `package_root`s that can own a path are the path itself (an opaque
     package directory) and each prefix that ends just before a `lib` component
     of it. Trying those longest first and taking the first that names a record
     is the longest-match rule in time proportional to the path's depth, not to
@@ -174,14 +174,14 @@ def package_record_for_index(short_path, index):
 
     Args:
       short_path: A File's `short_path`.
-      index: Dict of `lib_root` to record, from `package_record_index`.
+      index: Dict of `package_root` to record, from `package_record_index`.
 
     Returns:
       The matching record, or `None` if no package owns the path.
     """
 
     # The path itself is longer than any prefix of it. The root package's
-    # empty `lib_root` owns only its `lib/`, never a path by equality.
+    # empty `package_root` owns only its `lib/`, never a path by equality.
     if short_path:
         record = index.get(short_path)
         if record != None:
@@ -198,7 +198,7 @@ def colocate_packages(ctx, packages, all_srcs, members = {}):
     """Co-locates each package's split source/generated files into one directory.
 
     Groups `all_srcs` by the package whose `lib/` they belong to (longest
-    `lib_root` match — see `package_for`).
+    `package_root` match — see `package_for`).
     Any package with at least one generated file (and not already a single
     pre-assembled directory) is assembled into one tree-artifact directory, so it
     has a single real `rootUri` at compile time. This is what makes a package
@@ -216,7 +216,7 @@ def colocate_packages(ctx, packages, all_srcs, members = {}):
         inside its root, where its `languageVersion` applies.
 
     Returns:
-      `(packages2, srcs2)` — packages with each assembled package's `lib_root`
+      `(packages2, srcs2)` — packages with each assembled package's `package_root`
       rewritten to its assembled directory, and the matching File list (assembled
       directories plus untouched files) to feed the compile action.
     """
@@ -250,14 +250,14 @@ def colocate_packages(ctx, packages, all_srcs, members = {}):
                 ctx,
                 ctx.label.name + "." + mangled + ".pkgsrcs",
                 files,
-                root_paths = [p.lib_root] if p.lib_root else ["."],
+                root_paths = [p.package_root] if p.package_root else ["."],
             )
 
-            # Only `lib_root` changes. Everything else the record carries —
+            # Only `package_root` changes. Everything else the record carries —
             # its language version, the code assets the package owns — is as
             # true of the assembled copy as of the original, and is carried
             # through rather than re-listed here.
-            packages2.append(derived_package_info(p, lib_root = assembled.short_path))
+            packages2.append(derived_package_info(p, package_root = assembled.short_path))
             srcs2.append(assembled)
         else:
             packages2.append(p)

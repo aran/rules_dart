@@ -7,7 +7,7 @@ files and the facts it states about itself, which need nothing but its own
 archive. Its library repository holds a *library* over the members of its
 dependency cycle (usually just itself) and the libraries of whatever the cycle
 depends on. A cycle is then one target, compiled as one, and each package in it
-keeps its own name, `lib_root` and language version: `package_config.json`
+keeps its own name, `package_root` and language version: `package_config.json`
 cannot tell it apart from packages built one per target.
 
 `DartPackageMemberInfo` is the contract between the two. `pub_package_member`
@@ -23,7 +23,7 @@ planned in the library repository by `dependency_cycle()` (`pub_graph.bzl`).
 
 load("//dart:providers.bzl", "DartInfo")
 load("//dart/private:dart_info.bzl", "dart_info", "dart_package_info")
-load("//dart/private:dart_library.bzl", "check_files_under_lib_root", "check_no_duplicate_srcs", "link_hook_error", "package_root")
+load("//dart/private:dart_library.bzl", "check_files_under_package_root", "check_no_duplicate_srcs", "link_hook_error", "locate_package_root")
 load("//dart/private:dart_test_runner.bzl", _pub_test_runner = "pub_test_runner")
 load("//dart/private:runtime.bzl", "runtime_reset")
 
@@ -76,16 +76,16 @@ def dart_package_member_info(
     Returns:
       A `DartPackageMemberInfo`.
     """
-    root = package_root(label.workspace_root, label.package, srcs + resources)
+    root = locate_package_root(label.workspace_root, label.package, srcs + resources)
     if root.error != None:
         fail("%s: %s" % (label, root.error))
-    lib_root = root.root
+    package_root = root.root
     for err in [
         check_no_duplicate_srcs(label, srcs),
         check_no_duplicate_srcs(label, resources, "resources"),
-        check_files_under_lib_root(label, lib_root, srcs),
-        check_files_under_lib_root(label, lib_root, resources, "resources"),
-        link_hook_error(label, lib_root, link_hook),
+        check_files_under_package_root(label, package_root, srcs),
+        check_files_under_package_root(label, package_root, resources, "resources"),
+        link_hook_error(label, package_root, link_hook),
     ]:
         if err != None:
             fail(err)
@@ -93,7 +93,7 @@ def dart_package_member_info(
         package = dart_package_info(
             label = label,
             package_name = package_name,
-            lib_root = lib_root,
+            package_root = package_root,
             language_version = language_version,
             code_assets = code_assets,
             has_unreplaced_hook = has_unreplaced_hook,

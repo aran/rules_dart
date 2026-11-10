@@ -8,7 +8,7 @@ const _optionsByCommand = {
     'runtime', 'snapshot', 'label', 'platform', 'target', 'libraries-spec',
     'libraries-target', 'package-config', 'multi-root', 'src', 'dep-modules',
     'dep-manifest', 'define', 'output-dir', 'manifest-output', 'package-name',
-    'lib-root', 'outline-tool', 'outline-dir', //
+    'package-root', 'outline-tool', 'outline-dir', //
   },
   'entry': {
     'runtime', 'snapshot', 'sdk-root', 'label', 'platform', 'target',
@@ -23,7 +23,12 @@ const _optionsByCommand = {
     'entry-short-path', 'dep-short-path', 'workspace-name', //
   },
   'check': {
-    'label', 'package-config', 'package-name', 'lib-root', 'multi-root', 'src',
+    'label',
+    'package-config',
+    'package-name',
+    'package-root',
+    'multi-root',
+    'src',
     'dep-file', 'available-package', 'direct-package', 'output', //
   },
   'digest': {'input', 'output'},
@@ -132,14 +137,14 @@ class Args {
 }
 
 /// The target's own packages, by name, from its paired `--package-name` and
-/// `--lib-root` options.
+/// `--package-root` options.
 Map<String, String> ownPackages(Args args) {
   final names = args.all('package-name');
-  final roots = args.all('lib-root');
+  final roots = args.all('package-root');
   if (names.length != roots.length) {
     throw UsageException(
       'kernel_tool: ${names.length} --package-name for ${roots.length} '
-      '--lib-root',
+      '--package-root',
     );
   }
   return {for (var i = 0; i < names.length; i++) names[i]: roots[i]};

@@ -293,8 +293,8 @@ library of such files would fail its import check.
 
 Implementation: `same_package_library_dep_files` + `asset_path_for` in
 `dart/private/common.bzl`. The helper returns both the sibling files and
-the Dart package's `lib_root`, so asset paths are computed by stripping
-`lib_root` from `short_path` (not the codegen rule's Bazel package
+the Dart package's `package_root`, so asset paths are computed by stripping
+`package_root` from `short_path` (not the codegen rule's Bazel package
 path). This survives configurations where the codegen rule lives at a
 deeper Bazel-package path than the Dart package root
 (`//myapp/lib:codegen` for Dart package `myapp`).

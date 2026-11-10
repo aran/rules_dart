@@ -35,7 +35,7 @@ load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS", "port
 load(
     "//dart/private:project_staging.bzl",
     "project_layout",
-    "resolve_package_roots_from_outside",
+    "resolve_package_exec_roots_from_outside",
     "staged_package_config_content",
 )
 load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS")
@@ -162,10 +162,10 @@ def dart_link_hook_actions(ctx, runner, recorded_uses, deps, data_asset_ids, nam
     hook_keys = {}
     for pkg in packages:
         if pkg.package_name in hooks:
-            key = (pkg.package_name, pkg.lib_root)
+            key = (pkg.package_name, pkg.package_root)
             hook_keys[pkg.package_name] = key
             dep_files.setdefault(key, []).append(hooks[pkg.package_name])
-    roots = resolve_package_roots_from_outside(
+    roots = resolve_package_exec_roots_from_outside(
         ctx,
         name,
         dep_files,

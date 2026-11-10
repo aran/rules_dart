@@ -83,7 +83,7 @@ def kernel_package_config(packages, scheme = KERNEL_FILESYSTEM_SCHEME):
     """
     entries = []
     for pkg in packages:
-        root = kernel_root_path(pkg.lib_root)
+        root = kernel_root_path(pkg.package_root)
         lv = ""
         if getattr(pkg, "language_version", ""):
             lv = ', "languageVersion": "%s"' % pkg.language_version
@@ -399,7 +399,7 @@ def _compile_modules(ctx, sdk, kernel_tool, name, srcs, packages, own_packages, 
     args.add("--package-config", package_config)
     for own in own_packages:
         args.add("--package-name", own.package_name)
-        args.add("--lib-root", own.lib_root)
+        args.add("--package-root", own.package_root)
     add_kernel_roots(args, "--multi-root", srcs)
     args.add_all(srcs, before_each = "--src", expand_directories = False)
     _add_deps(args, modules.outlines)

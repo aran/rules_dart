@@ -30,12 +30,12 @@ load(
     "add_shim_contract_args",
     "asset_path_for",
     "codegen_language_version",
-    "dart_lib_root_for_package",
+    "dart_package_root_for_package",
     "resolve_package_identity",
     "same_package_library_dep_files",
     "synth_package_config",
 )
-load("//dart/private:dart_library.bzl", "derive_lib_root")
+load("//dart/private:dart_library.bzl", "derive_package_root")
 load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS", "portable_sdk")
 load("//dart/private:runtime.bzl", "non_dart_transition")
 
@@ -53,16 +53,16 @@ def _dart_sqlcodegen_impl(ctx):
     src = ctx.file.src
     synth_pc, package_files = synth_package_config(ctx, ctx.attr.deps)
 
-    lib_root_from_deps = dart_lib_root_for_package(
+    package_root_from_deps = dart_package_root_for_package(
         ctx.attr.deps,
         identity.package_name,
     )
-    if lib_root_from_deps != None:
-        lib_root = lib_root_from_deps
+    if package_root_from_deps != None:
+        package_root = package_root_from_deps
     else:
         # The root a `dart_library` beside this target would take, also when
         # the target sits in a directory under the package's `lib/`.
-        lib_root = derive_lib_root(ctx.label.workspace_root, ctx.label.package)
+        package_root = derive_package_root(ctx.label.workspace_root, ctx.label.package)
 
     auto_staged, _ = same_package_library_dep_files(
         ctx.attr.deps,
@@ -93,7 +93,7 @@ def _dart_sqlcodegen_impl(ctx):
     args.use_param_file("@%s", use_always = True)
     args.set_param_file_format("multiline")
     args.add("--input", src)
-    args.add("--input-asset", asset_path_for(src, lib_root))
+    args.add("--input-asset", asset_path_for(src, package_root))
     for output in outputs:
         args.add("--output", output)
 
@@ -105,7 +105,7 @@ def _dart_sqlcodegen_impl(ctx):
         sdk.dart,
         auto_stage_srcs = auto_staged,
         asset_deps = ctx.files.asset_deps,
-        lib_root = lib_root,
+        package_root = package_root,
     ))
     args.add_all(ctx.attr.generator_args)
 

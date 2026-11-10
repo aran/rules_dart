@@ -3,7 +3,7 @@ load("//dart/tests:package_config_test.bzl", "package_config_own_srcs_test")
 load("//dart/tests:path_mapping_test.bzl", "path_mapping_test")
 load("//dart/tests:web_test.bzl", "web_compile_hermetic_test")
 
-# Façade: carries the package metadata (name + lib_root) but no sources.
+# Façade: carries the package metadata (name + package_root) but no sources.
 # The consuming binary/test supplies the package's files via its own `srcs`.
 dart_library(
     name = "pc_facade_lib",

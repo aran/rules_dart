@@ -3,7 +3,7 @@ load("@rules_dart//dart:defs.bzl", "dart_aggregate_codegen", "dart_codegen", "da
 # Codegen targets in a Bazel package that is a SIBLING of the Dart package
 # root. The shard generated here has short_path
 # `sibling_aggregate_pkg/gen/sibling_aggregate_pkg/app/lib/item.shard.json`,
-# which does not start with the lib_root `sibling_aggregate_pkg/app` at all;
+# which does not start with the package_root `sibling_aggregate_pkg/app` at all;
 # the aggregate stage must recover `lib/item.shard.json` from the owning
 # package + declared path.
 

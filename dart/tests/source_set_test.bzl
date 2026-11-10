@@ -1,7 +1,7 @@
 """Unit tests for the source-assembly helpers (`needs_source_assembly`, `package_for`).
 
 Also covers `derived_package_info`, which `colocate_packages` uses to rewrite an
-assembled package's `lib_root`. That helper is the single place a
+assembled package's `package_root`. That helper is the single place a
 `DartPackageInfo` is copied, so the tests below pin what a copy carries — not
 just the field the caller overrode.
 """
@@ -20,9 +20,9 @@ def _fake_src(short_path, is_source = True, is_directory = False):
     # colocate_packages inspects short_path, is_source, is_directory.
     return struct(short_path = short_path, is_source = is_source, is_directory = is_directory)
 
-def _fake_pkg(package_name, lib_root):
-    # package_for only inspects DartPackageInfo.package_name and .lib_root.
-    return struct(package_name = package_name, lib_root = lib_root)
+def _fake_pkg(package_name, package_root):
+    # package_for only inspects DartPackageInfo.package_name and .package_root.
+    return struct(package_name = package_name, package_root = package_root)
 
 def _all_source_no_assembly_test_impl(ctx):
     # Pure source-tree files already share one directory → no assembly.
@@ -43,7 +43,7 @@ def _empty_no_assembly_test_impl(ctx):
     return unittest.end(env)
 
 def _package_for_root_package_test_impl(ctx):
-    # The root package (empty lib_root) owns `lib/...` and nothing else.
+    # The root package (empty package_root) owns `lib/...` and nothing else.
     env = unittest.begin(ctx)
     pkgs = [_fake_pkg("root", "")]
     asserts.equals(env, "root", package_for("lib/a.dart", pkgs))
@@ -52,7 +52,7 @@ def _package_for_root_package_test_impl(ctx):
     return unittest.end(env)
 
 def _package_for_longest_prefix_test_impl(ctx):
-    # When two lib_roots both prefix the path, the longest one wins.
+    # When two package_roots both prefix the path, the longest one wins.
     env = unittest.begin(ctx)
     pkgs = [_fake_pkg("foo", "foo"), _fake_pkg("foobar", "foo/bar")]
     asserts.equals(env, "foobar", package_for("foo/bar/lib/x.dart", pkgs))
@@ -60,7 +60,7 @@ def _package_for_longest_prefix_test_impl(ctx):
     return unittest.end(env)
 
 def _package_for_exact_dir_test_impl(ctx):
-    # An assembled package directory (short_path == lib_root) matches exactly.
+    # An assembled package directory (short_path == package_root) matches exactly.
     env = unittest.begin(ctx)
     pkgs = [_fake_pkg("p", "pkg/p.pkgsrcs")]
     asserts.equals(env, "p", package_for("pkg/p.pkgsrcs", pkgs))
@@ -86,12 +86,12 @@ def _package_for_non_root_only_claims_lib_test_impl(ctx):
     asserts.equals(env, None, package_for("pkgs/sub/bin/main.dart", pkgs))
     asserts.equals(env, None, package_for("pkgs/sub/pubspec.yaml", pkgs))
 
-    # A sibling directory whose name merely starts with the lib_root.
+    # A sibling directory whose name merely starts with the package_root.
     asserts.equals(env, None, package_for("pkgs/subway/lib/a.dart", pkgs))
     return unittest.end(env)
 
 def _package_for_external_and_nomatch_test_impl(ctx):
-    # External-repo lib_root prefix matches; an unrelated path matches nothing.
+    # External-repo package_root prefix matches; an unrelated path matches nothing.
     env = unittest.begin(ctx)
     pkgs = [_fake_pkg("foo", "../pub/foo")]
     asserts.equals(env, "foo", package_for("../pub/foo/lib/x.dart", pkgs))
@@ -103,7 +103,7 @@ def _scan_oracle(short_path, packages):
     best = None
     best_len = -1
     for p in packages:
-        lr = p.lib_root
+        lr = p.package_root
         prefix = package_lib_prefix(lr)
         under_lib = short_path == prefix[:-1] or short_path.startswith(prefix)
         if not lr:
@@ -208,21 +208,21 @@ def _fake_asset(asset_id):
     return struct(asset_id = asset_id)
 
 def _derive_carries_every_field_test_impl(ctx):
-    # The point of the helper: overriding `lib_root` must not cost the record
+    # The point of the helper: overriding `package_root` must not cost the record
     # anything else it was carrying. A field dropped here is dropped only for
     # packages that happened to need assembly, which is the hardest shape of
     # this bug to notice.
     env = unittest.begin(ctx)
     p = DartPackageInfo(
         package_name = "pkg",
-        lib_root = "old/root",
+        package_root = "old/root",
         language_version = "2.12",
         code_assets = (_fake_asset("package:pkg/a.g.dart"),),
         has_unreplaced_hook = "hook/build.dart",
     )
-    out = derived_package_info(p, lib_root = "bazel-out/k8/bin/app.pkg.pkgsrcs")
+    out = derived_package_info(p, package_root = "bazel-out/k8/bin/app.pkg.pkgsrcs")
     asserts.equals(env, "pkg", out.package_name)
-    asserts.equals(env, "bazel-out/k8/bin/app.pkg.pkgsrcs", out.lib_root)
+    asserts.equals(env, "bazel-out/k8/bin/app.pkg.pkgsrcs", out.package_root)
     asserts.equals(env, "2.12", out.language_version)
     asserts.equals(env, ["package:pkg/a.g.dart"], [a.asset_id for a in out.code_assets])
     asserts.equals(env, "hook/build.dart", out.has_unreplaced_hook)
@@ -232,28 +232,28 @@ def _derive_defaults_absent_fields_test_impl(ctx):
     # A record from a producer predating the later fields — the `no_lv_fixture`
     # shape — copies to a complete record rather than failing on the read.
     env = unittest.begin(ctx)
-    p = DartPackageInfo(package_name = "pkg", lib_root = "old/root")
-    out = derived_package_info(p, lib_root = "bazel-out/k8/bin/app.pkg.pkgsrcs")
+    p = DartPackageInfo(package_name = "pkg", package_root = "old/root")
+    out = derived_package_info(p, package_root = "bazel-out/k8/bin/app.pkg.pkgsrcs")
     asserts.equals(env, "pkg", out.package_name)
-    asserts.equals(env, "bazel-out/k8/bin/app.pkg.pkgsrcs", out.lib_root)
+    asserts.equals(env, "bazel-out/k8/bin/app.pkg.pkgsrcs", out.package_root)
     asserts.equals(env, "", out.language_version)
     asserts.equals(env, (), out.code_assets)
     asserts.equals(env, "", out.has_unreplaced_hook)
     return unittest.end(env)
 
 def _derive_overrides_only_named_test_impl(ctx):
-    # Overriding `code_assets` leaves `lib_root` alone, and vice versa — the
+    # Overriding `code_assets` leaves `package_root` alone, and vice versa — the
     # two call sites each name exactly one field.
     env = unittest.begin(ctx)
     p = DartPackageInfo(
         package_name = "pkg",
-        lib_root = "keep/me",
+        package_root = "keep/me",
         language_version = "3.0",
         code_assets = (_fake_asset("package:pkg/a.g.dart"),),
         has_unreplaced_hook = "",
     )
     out = derived_package_info(p, code_assets = (_fake_asset("package:pkg/b.g.dart"),))
-    asserts.equals(env, "keep/me", out.lib_root)
+    asserts.equals(env, "keep/me", out.package_root)
     asserts.equals(env, "3.0", out.language_version)
     asserts.equals(env, ["package:pkg/b.g.dart"], [a.asset_id for a in out.code_assets])
 
@@ -289,10 +289,10 @@ def _colocate_probe_impl(ctx):
              (ctx.label, ctx.attr.package_name, len(matches)))
     pkg = matches[0]
 
-    if not pkg.lib_root.endswith(".pkgsrcs"):
-        fail(("%s: %r was not assembled (lib_root %r) — this fixture must " +
+    if not pkg.package_root.endswith(".pkgsrcs"):
+        fail(("%s: %r was not assembled (package_root %r) — this fixture must " +
               "contain a generated source, or it proves nothing.") %
-             (ctx.label, ctx.attr.package_name, pkg.lib_root))
+             (ctx.label, ctx.attr.package_name, pkg.package_root))
 
     ids = sorted([a.asset_id for a in package_code_assets(pkg)])
     if ids != sorted(ctx.attr.expected_asset_ids):

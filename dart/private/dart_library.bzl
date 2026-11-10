@@ -12,7 +12,7 @@ def derive_package_name(package_name_attr, label_package, label_name):
 
     Without an explicit name, a package is named for its root directory: the
     Bazel package's last component, or for a BUILD file inside `lib/` the
-    component above that `lib` (see `derive_lib_root`). A root at the top of
+    component above that `lib` (see `derive_package_root`). A root at the top of
     the workspace has no directory name, and takes the target's.
 
     Args:
@@ -64,12 +64,12 @@ def check_no_duplicate_srcs(label, srcs, attr_name = "srcs"):
         seen[src.short_path] = src.path
     return None
 
-def check_files_under_lib_root(label, lib_root, files, attr_name = "srcs"):
+def check_files_under_package_root(label, package_root, files, attr_name = "srcs"):
     """Detects `srcs`/`resources` entries that do not sit under the package's `lib/`.
 
-    A Dart package resolves `package:<name>/x.dart` to `<lib_root>/lib/x.dart`,
-    and the consumer stages a package by stripping `lib_root` from each file
-    (`colocate_packages`). A file outside `<lib_root>/lib/` therefore lands
+    A Dart package resolves `package:<name>/x.dart` to `<package_root>/lib/x.dart`,
+    and the consumer stages a package by stripping `package_root` from each file
+    (`colocate_packages`). A file outside `<package_root>/lib/` therefore lands
     outside `lib/` in the staged tree and resolves to nothing. Nothing fails
     until the kernel compile, which reports only a missing path inside a
     `.pkgsrcs` directory — no target name, no mention of `lib/`.
@@ -77,11 +77,11 @@ def check_files_under_lib_root(label, lib_root, files, attr_name = "srcs"):
     Generated files are subject to the same rule: `declare_file` paths are
     relative to the *producing* rule's Bazel package, so a codegen target
     outside the Dart package root emits a path that no longer starts with
-    `lib_root`.
+    `package_root`.
 
     Args:
       label: The owning rule's label (included in the error message).
-      lib_root: The package's library root, from `derive_lib_root`. Empty for a
+      package_root: The package's library root, from `derive_package_root`. Empty for a
         root package, where files sit at `lib/` directly.
       files: The file list to inspect.
       attr_name: Attribute the list came from, named in the error message.
@@ -89,7 +89,7 @@ def check_files_under_lib_root(label, lib_root, files, attr_name = "srcs"):
     Returns:
       An error message string for the first offending file, or `None`.
     """
-    prefix = package_lib_prefix(lib_root)
+    prefix = package_lib_prefix(package_root)
     for f in files:
         if not f.short_path.startswith(prefix):
             return (
@@ -100,11 +100,11 @@ def check_files_under_lib_root(label, lib_root, files, attr_name = "srcs"):
                  "producing codegen target in a BUILD file at the Dart " +
                  "package root so its output path resolves inside the " +
                  "package.") %
-                (label, f.short_path, attr_name, prefix, lib_root if lib_root else ".", prefix)
+                (label, f.short_path, attr_name, prefix, package_root if package_root else ".", prefix)
             )
     return None
 
-def link_hook_error(label, lib_root, link_hook):
+def link_hook_error(label, package_root, link_hook):
     """Checks that a `link_hook` is the package's `hook/link.dart`.
 
     The hook's location is how `dart_link_hook` finds the package root it
@@ -113,7 +113,7 @@ def link_hook_error(label, lib_root, link_hook):
 
     Args:
         label: The library's label, for the message.
-        lib_root: The package root's `short_path`; empty for the root package.
+        package_root: The package root's `short_path`; empty for the root package.
         link_hook: The `link_hook` File, or None.
 
     Returns:
@@ -121,19 +121,19 @@ def link_hook_error(label, lib_root, link_hook):
     """
     if link_hook == None:
         return None
-    expected = (lib_root + "/" if lib_root else "") + "hook/link.dart"
+    expected = (package_root + "/" if package_root else "") + "hook/link.dart"
     if link_hook.short_path != expected:
         return ("%s: `link_hook` must be the package's `hook/link.dart` (`%s`), " +
                 "got `%s`. The hook's location is the package root it is " +
                 "run against.") % (label, expected, link_hook.short_path)
     return None
 
-def build_hook_error(label, lib_root, build_hook):
+def build_hook_error(label, package_root, build_hook):
     """Checks that a `build_hook` is the package's `hook/build.dart`.
 
     Args:
         label: The library's label, for the message.
-        lib_root: The package root's `short_path`; empty for the root package.
+        package_root: The package root's `short_path`; empty for the root package.
         build_hook: The `build_hook` File, or None.
 
     Returns:
@@ -141,7 +141,7 @@ def build_hook_error(label, lib_root, build_hook):
     """
     if build_hook == None:
         return None
-    expected = (lib_root + "/" if lib_root else "") + "hook/build.dart"
+    expected = (package_root + "/" if package_root else "") + "hook/build.dart"
     if build_hook.short_path != expected:
         return ("%s: `build_hook` must be the package's `hook/build.dart` (`%s`), " +
                 "got `%s`.") % (label, expected, build_hook.short_path)
@@ -164,7 +164,7 @@ def unreplaced_build_hook(build_hook, code_assets):
         return ""
     return "hook/build.dart"
 
-def package_root(workspace_root, label_package, files = []):
+def locate_package_root(workspace_root, label_package, files = []):
     """The package root of a target, from the directory of its BUILD file.
 
     A BUILD file at a package's root takes its own directory. A BUILD file
@@ -225,11 +225,11 @@ def package_root(workspace_root, label_package, files = []):
         parts = parts[:lib_at[0]]
     return struct(root = under_ws("/".join(parts)), error = None)
 
-def derive_lib_root(workspace_root, label_package):
-    """The package root of a target, from its label alone (see `package_root`).
+def derive_package_root(workspace_root, label_package):
+    """The package root of a target, from its label alone (see `locate_package_root`).
 
     Fails where the path is ambiguous. Rules that have the target's files
-    call `package_root` with them, which also catches a package rooted inside
+    call `locate_package_root` with them, which also catches a package rooted inside
     a `lib` directory.
 
     Args:
@@ -239,7 +239,7 @@ def derive_lib_root(workspace_root, label_package):
     Returns:
         The package root's short_path, without the `lib/` component.
     """
-    result = package_root(workspace_root, label_package)
+    result = locate_package_root(workspace_root, label_package)
     if result.error != None:
         fail(result.error)
     return result.root
@@ -286,7 +286,7 @@ def _dart_library_impl(ctx):
                  "every file of the package, non-Dart ones included.") % ctx.label,
             )
         own_srcs = ctx.files.srcs_dir
-        lib_root = own_srcs[0].short_path
+        package_root = own_srcs[0].short_path
     else:
         # `srcs` may be empty: a `dart_library` with only `deps` is a valid
         # aggregate façade that re-exports its dependencies.
@@ -301,20 +301,20 @@ def _dart_library_impl(ctx):
         if err != None:
             fail(err)
         own_srcs = ctx.files.srcs
-        root = package_root(ctx.label.workspace_root, ctx.label.package, own_srcs + own_resources)
+        root = locate_package_root(ctx.label.workspace_root, ctx.label.package, own_srcs + own_resources)
         if root.error != None:
             fail("%s: %s" % (ctx.label, root.error))
-        lib_root = root.root
-        err = check_files_under_lib_root(ctx.label, lib_root, own_srcs)
+        package_root = root.root
+        err = check_files_under_package_root(ctx.label, package_root, own_srcs)
         if err != None:
             fail(err)
-        err = check_files_under_lib_root(ctx.label, lib_root, own_resources, "resources")
+        err = check_files_under_package_root(ctx.label, package_root, own_resources, "resources")
         if err != None:
             fail(err)
 
-    err = link_hook_error(ctx.label, lib_root, ctx.file.link_hook)
+    err = link_hook_error(ctx.label, package_root, ctx.file.link_hook)
     if err == None:
-        err = build_hook_error(ctx.label, lib_root, ctx.file.build_hook)
+        err = build_hook_error(ctx.label, package_root, ctx.file.build_hook)
     if err != None:
         fail(err)
 
@@ -329,7 +329,7 @@ def _dart_library_impl(ctx):
         packages = [dart_package_info(
             label = ctx.label,
             package_name = package_name,
-            lib_root = lib_root,
+            package_root = package_root,
             code_assets = ctx.attr.code_assets,
             language_version = identity.language_version,
             has_unreplaced_hook = unreplaced_build_hook(ctx.file.build_hook, ctx.attr.code_assets),

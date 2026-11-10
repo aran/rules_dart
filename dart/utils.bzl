@@ -45,8 +45,8 @@ load(
 )
 load(
     "//dart/private:dart_library.bzl",
-    _derive_lib_root = "derive_lib_root",
     _derive_package_name = "derive_package_name",
+    _derive_package_root = "derive_package_root",
 )
 load(
     "//dart/private:dart_link_hook.bzl",
@@ -103,7 +103,7 @@ load(
 #         packages = [dart_package_info(
 #             label = ctx.label,
 #             package_name = "foo",
-#             lib_root = derive_lib_root(ctx.label.workspace_root, ctx.label.package),
+#             package_root = derive_package_root(ctx.label.workspace_root, ctx.label.package),
 #             language_version = ctx.attr.language_version,
 #         )],
 #         deps = ctx.attr.deps,
@@ -121,7 +121,7 @@ dart_package_info = _dart_package_info
 # The other constructor, for a target that ships no Dart package at all and
 # provides `DartInfo` only to satisfy a `deps` attribute that requires one (a
 # font-only target, a facade grouping other libraries). Takes `deps` and nothing
-# else: with no package there is no `package_name`, no `lib_root`, no sources,
+# else: with no package there is no `package_name`, no `package_root`, no sources,
 # and no code assets to declare, and the signature says so.
 dart_info_no_package = _dart_info_no_package
 
@@ -190,7 +190,7 @@ package_license_file = _package_license_file
 # add them to an action whose arguments reach output paths only through Files
 # (`Args.add`, `add_all`, `map_each`) and whose generated inputs name none.
 PATH_MAPPING = _PATH_MAPPING
-derive_lib_root = _derive_lib_root
+derive_package_root = _derive_package_root
 derive_package_name = _derive_package_name
 
 # Source co-location: assemble a package whose hand-written and generated files

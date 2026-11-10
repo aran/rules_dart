@@ -6,7 +6,7 @@ def _no_lv_dart_library_impl(ctx):
     srcs = ctx.files.srcs
     pkg = DartPackageInfo(
         package_name = ctx.attr.package_name,
-        lib_root = ctx.label.package,
+        package_root = ctx.label.package,
         # `language_version` omitted.
     )
     return [

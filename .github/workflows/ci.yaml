@@ -490,7 +490,7 @@ jobs:
           bazel test //vga:double_quoted_lib 2>&1 | grep -q "prefer_single_quotes"
           echo "OK: included ruleset's lints reached the code"
       # The layout-gated half: `public_member_api_docs` only fires when the
-      # nearest-pubspec walk roots the file's package at its true lib_root,
+      # nearest-pubspec walk roots the file's package at its true package_root,
       # which the per-package stub pubspecs staged by `stage_dart_project`
       # provide. If they go missing this build silently turns green.
       - name: analysis_failure — expect package-root-gated lints to be applied

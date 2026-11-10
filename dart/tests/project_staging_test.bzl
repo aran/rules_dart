@@ -4,8 +4,8 @@ load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
 load("//dart/private:project_staging.bzl", "in_place_root", "main_package_roots", "project_layout", "pubspec_stub", "staged_package_config_content")
 load(":small_suite.bzl", "small_unittest_suite")
 
-def _pkg(name, language_version = "", lib_root = ""):
-    return struct(package_name = name, language_version = language_version, lib_root = lib_root)
+def _pkg(name, language_version = "", package_root = ""):
+    return struct(package_name = name, language_version = language_version, package_root = package_root)
 
 def _file(short_path):
     if short_path.startswith("../"):
@@ -40,9 +40,9 @@ def _sdk_toolchain_version_test_impl(ctx):
 def _layout_home_test_impl(ctx):
     env = unittest.begin(ctx)
     pkgs = [
-        _pkg("app", lib_root = "app"),
-        _pkg("util", lib_root = "util"),
-        _pkg("path", lib_root = "../+pub+path"),
+        _pkg("app", package_root = "app"),
+        _pkg("util", package_root = "util"),
+        _pkg("path", package_root = "../+pub+path"),
     ]
     test = _file("app/test/a_test.dart")
     files = [
@@ -73,7 +73,7 @@ def _layout_home_test_impl(ctx):
 
 def _layout_deepest_root_test_impl(ctx):
     env = unittest.begin(ctx)
-    pkgs = [_pkg("root"), _pkg("inner", lib_root = "pkgs/inner")]
+    pkgs = [_pkg("root"), _pkg("inner", package_root = "pkgs/inner")]
     entry = _file("pkgs/inner/bin/main.dart")
     layout = project_layout(pkgs, [entry, _file("lib/root.dart")], [entry])
 
@@ -84,7 +84,7 @@ def _layout_deepest_root_test_impl(ctx):
 
 def _config_skips_unstaged_test_impl(ctx):
     env = unittest.begin(ctx)
-    pkgs = [_pkg("app", "3.5", lib_root = "app"), _pkg("gone", lib_root = "gone")]
+    pkgs = [_pkg("app", "3.5", package_root = "app"), _pkg("gone", package_root = "gone")]
     content = staged_package_config_content(pkgs, {("app", "app"): "../src/app"})
     asserts.true(env, '{"name": "app", "rootUri": "../src/app", "packageUri": "lib/", "languageVersion": "3.5"}' in content)
     asserts.false(env, "gone" in content)
@@ -114,7 +114,7 @@ def _dependencies_test_impl(ctx):
     env = unittest.begin(ctx)
     pkgs = [
         _pkg("app", "3.5"),
-        struct(package_name = "json_annotation", language_version = "3.0", lib_root = "", version = "4.12.0"),
+        struct(package_name = "json_annotation", language_version = "3.0", package_root = "", version = "4.12.0"),
         _pkg("util"),
     ]
 

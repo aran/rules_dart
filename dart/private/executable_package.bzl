@@ -7,7 +7,7 @@ executable contributes no package, exactly as before: its entrypoint takes
 whatever version the package containing it gives it, or the SDK's own.
 
 Set, the executable is a member of that package, rooted at its Bazel package
-directory (`package_root`, as for `dart_library`). It then carries the
+directory (`locate_package_root`, as for `dart_library`). It then carries the
 package's record like a library does, so the generated `package_config.json`
 covers its entrypoint with that `languageVersion` at compile time, and analysis
 and the `dart_analyze` aspect's format check read the same version for its
@@ -22,7 +22,7 @@ pure, so each can be tested by calling it.
 load("//dart:providers.bzl", "DartInfo")
 load("//dart/private:common.bzl", "PACKAGE_IDENTITY_ATTRS", "codegen_identity_error", "merge_package_records", "resolve_package_identity")
 load("//dart/private:dart_info.bzl", "dart_analyzable_info", "dart_analyzable_info_with_packages", "dart_package_info", "package_lib_prefix")
-load("//dart/private:dart_library.bzl", "derive_package_name", "package_root")
+load("//dart/private:dart_library.bzl", "derive_package_name", "locate_package_root")
 
 # The identity attributes of every executable rule: `package` from
 # `PACKAGE_IDENTITY_ATTRS`, and the inline pair it excludes.
@@ -86,7 +86,7 @@ def executable_package_error(label, own, stated_by, own_paths, dep_packages, rea
       An error message, or `None`.
     """
     name = own.package_name
-    root = own.lib_root
+    root = own.package_root
     shown_root = root or "."
     me = _how_stated(label, stated_by)
 
@@ -103,7 +103,7 @@ def executable_package_error(label, own, stated_by, own_paths, dep_packages, rea
             )
 
     same_name = [p for p in dep_packages if p.package_name == name]
-    if same_name and not [p for p in same_name if p.lib_root == root]:
+    if same_name and not [p for p in same_name if p.package_root == root]:
         other = same_name[0]
         return (
             ("%s states package \"%s\" rooted at `%s`, but %s supplies package " +
@@ -114,11 +114,11 @@ def executable_package_error(label, own, stated_by, own_paths, dep_packages, rea
              "`language_version` — its entrypoint then takes that package's " +
              "version if the package's root contains it. Otherwise give it a " +
              "different `package_name`.") %
-            (me, name, shown_root, reached_through(other), name, other.lib_root or ".", other.lib_root or ".")
+            (me, name, shown_root, reached_through(other), name, other.package_root or ".", other.package_root or ".")
         )
 
     for p in dep_packages:
-        if p.lib_root == root and p.package_name != name:
+        if p.package_root == root and p.package_name != name:
             return (
                 ("%s states package \"%s\", but %s declares the same directory " +
                  "`%s` as package \"%s\". One directory is one package. Name " +
@@ -128,7 +128,7 @@ def executable_package_error(label, own, stated_by, own_paths, dep_packages, rea
             )
 
     for p in dep_packages:
-        if p.package_name != name or p.lib_root != root:
+        if p.package_name != name or p.package_root != root:
             continue
         theirs = getattr(p, "language_version", "")
         if theirs != own.language_version:
@@ -150,7 +150,7 @@ def executable_package_error(label, own, stated_by, own_paths, dep_packages, rea
 
     for path in own_paths:
         for p in dep_packages:
-            r = p.lib_root
+            r = p.package_root
             if r != root and _in_root(r, root) and _in_root(path, r):
                 return (
                     ("%s states package \"%s\" rooted at `%s`, but its source " +
@@ -196,7 +196,7 @@ def executable_package(ctx, own_srcs):
 
     identity = resolve_package_identity(ctx)
     name = derive_package_name(identity.package_name, ctx.label.package, ctx.label.name)
-    root_result = package_root(ctx.label.workspace_root, ctx.label.package, own_srcs)
+    root_result = locate_package_root(ctx.label.workspace_root, ctx.label.package, own_srcs)
     if root_result.error != None:
         fail("%s: %s" % (ctx.label, root_result.error))
     root = root_result.root
@@ -225,7 +225,7 @@ def executable_package(ctx, own_srcs):
         packages = [dart_package_info(
             label = ctx.label,
             package_name = name,
-            lib_root = root,
+            package_root = root,
             language_version = identity.language_version,
         )],
         deps = ctx.attr.deps,

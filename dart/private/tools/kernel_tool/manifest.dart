@@ -76,7 +76,7 @@ class Manifest {
       label: m['label'] as String,
       packages: {
         for (final p in ((m['packages'] as List?) ?? const []).cast<Map>())
-          p['name'] as String: p['lib_root'] as String,
+          p['name'] as String: p['package_root'] as String,
       },
       dir: dir,
       modules: [
@@ -90,7 +90,7 @@ class Manifest {
   final String label;
 
   /// The packages the target's own files belong to, by name, each with its
-  /// `lib_root`: one for a library, none for an executable stating none,
+  /// `package_root`: one for a library, none for an executable stating none,
   /// several for packages that depend on each other.
   final Map<String, String> packages;
   final String dir;
@@ -99,7 +99,8 @@ class Manifest {
   String toJson() => const JsonEncoder.withIndent('  ').convert({
     'label': label,
     'packages': [
-      for (final e in packages.entries) {'name': e.key, 'lib_root': e.value},
+      for (final e in packages.entries)
+        {'name': e.key, 'package_root': e.value},
     ],
     'modules': modules,
   });
@@ -136,7 +137,7 @@ class ModuleReach {
 /// Which module holds each library, across manifests given dependencies first.
 class ModuleIndex {
   /// A manifest that holds a library an earlier one does is ignored whole if
-  /// it is the same package from another `lib_root` (a package reaching the
+  /// it is the same package from another `package_root` (a package reaching the
   /// build from two package hubs); the earlier one has everything it has.
   /// For any other overlap the earlier module keeps the library and `link`
   /// refuses the build if both modules are used.
@@ -193,7 +194,7 @@ class ModuleIndex {
   }
 }
 
-/// Whether [a] and [b] hold the same packages from other `lib_root`s: one
+/// Whether [a] and [b] hold the same packages from other `package_root`s: one
 /// package (or one set of packages that depend on each other) supplied by two
 /// package hubs.
 bool sameHubPackage(Manifest a, Manifest b) =>
@@ -212,7 +213,7 @@ class Overlap {
 
 /// Picks of [selected] those that may be linked together so that no library is
 /// defined twice. A module that overlaps an earlier one is dropped whole. If
-/// it is the same package under another `lib_root` that is all; any other
+/// it is the same package under another `package_root` that is all; any other
 /// overlap is also reported in `conflicts`.
 ({List<ModuleRef> kept, List<Overlap> conflicts}) uniqueModules(
   List<ModuleRef> selected,

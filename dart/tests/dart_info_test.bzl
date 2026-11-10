@@ -42,7 +42,7 @@ def _wrapper_library_impl(ctx):
             packages = [dart_package_info(
                 label = ctx.label,
                 package_name = ctx.attr.package_name,
-                lib_root = ctx.label.package,
+                package_root = ctx.label.package,
                 code_assets = ctx.attr.code_assets,
                 language_version = ctx.attr.language_version,
             )],
@@ -88,7 +88,7 @@ def _wrapper_executable_impl(ctx):
             packages = [dart_package_info(
                 label = ctx.label,
                 package_name = ctx.attr.package_name,
-                lib_root = ctx.label.package,
+                package_root = ctx.label.package,
                 code_assets = ctx.attr.code_assets,
                 language_version = ctx.attr.language_version,
             )],
@@ -250,8 +250,8 @@ def _analyzable_with_package_test_impl(ctx):
         return analysistest.end(env)
     asserts.true(
         env,
-        own[0].lib_root.endswith("dart_info_fixture"),
-        "the package record's lib_root is wrong: %s" % own[0].lib_root,
+        own[0].package_root.endswith("dart_info_fixture"),
+        "the package record's package_root is wrong: %s" % own[0].package_root,
     )
     asserts.equals(env, "3.11", own[0].language_version)
 

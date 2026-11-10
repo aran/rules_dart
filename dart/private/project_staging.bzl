@@ -7,7 +7,7 @@ declared artifacts — no `mktemp`, no shell — as sibling outputs:
 
     <name>.proj/.dart_tool/package_config.json   (declared file)
     <name>.proj/src/...                          (tree artifact; workspace-relative paths)
-    <name>.proj/src/<lib_root>/pubspec.yaml      (stub, one per home package)
+    <name>.proj/src/<package_root>/pubspec.yaml      (stub, one per home package)
     <name>.pkgs/<pkg>/...                        (tree artifact, per assembled package)
 
 Only the *home* packages are copied into `src`: those whose root holds a file
@@ -34,7 +34,7 @@ file to a package by walking up to the *nearest enclosing pubspec.yaml*
 consulting `WorkspacePackage.contains` — decides whether to fire from that
 package's root (`isInLibDir` is `<package root>/lib` containing the file).
 With only a project-level pubspec, a staged file's "package root" would be
-`<name>.proj` itself, its path relative to it `src/<lib_root>/lib/…`, and
+`<name>.proj` itself, its path relative to it `src/<package_root>/lib/…`, and
 those lints silently decline. The stubs restore each package's true root; a
 nested pubspec does not split analysis contexts (context roots split on
 options/package_config files, not pubspecs — `ContextLocatorImpl`, verified
@@ -42,7 +42,7 @@ on Dart 3.12.2), so options still come from the nearest `analysis_options.yaml`
 above each file, never from a pubspec's position.
 """
 
-load("//dart/private:common.bzl", "default_language_version", "derived_pubspec", "package_root_of", "relative_path")
+load("//dart/private:common.bzl", "default_language_version", "derived_pubspec", "package_exec_root", "relative_path")
 load("//dart/private:source_set.bzl", "assemble_source_dir", "package_record_for_index", "package_record_index")
 
 def mangle_package_dir(name):
@@ -58,21 +58,21 @@ def mangle_package_dir(name):
         name = name.replace(ch, "_")
     return name
 
-def _external_sub_path(lib_root):
-    """Returns the repo-relative directory of an external `lib_root`.
+def _external_sub_path(package_root):
+    """Returns the repo-relative directory of an external `package_root`.
 
-    An external `lib_root` is `../<repo>[/<sub>]`; `copy_to_directory` stages
+    An external `package_root` is `../<repo>[/<sub>]`; `copy_to_directory` stages
     external files at their repo-relative paths, so the package root inside
     its staged tree is `<sub>` (usually empty — pub spokes keep `lib/` at the
     repo root).
 
     Args:
-      lib_root: The external package's `lib_root` (`../`-prefixed).
+      package_root: The external package's `package_root` (`../`-prefixed).
 
     Returns:
       The repo-relative sub path string (possibly empty).
     """
-    parts = lib_root.split("/")
+    parts = package_root.split("/")
     return "/".join(parts[2:])
 
 def staged_package_config_content(packages, root_uris):
@@ -80,7 +80,7 @@ def staged_package_config_content(packages, root_uris):
 
     Args:
       packages: List of DartPackageInfo providers.
-      root_uris: Dict of `(package_name, lib_root)` to the record's rootUri,
+      root_uris: Dict of `(package_name, package_root)` to the record's rootUri,
         relative to the config's directory. Records without one are skipped:
         nothing is staged for them to point at.
 
@@ -89,7 +89,7 @@ def staged_package_config_content(packages, root_uris):
     """
     entries = []
     for pkg in packages:
-        root_uri = root_uris.get((pkg.package_name, pkg.lib_root))
+        root_uri = root_uris.get((pkg.package_name, pkg.package_root))
         if root_uri == None:
             continue
         lv = ""
@@ -153,7 +153,7 @@ def pubspec_stub(packages, dart_sdk_info, name = "analyze_stub"):
     return derived_pubspec(name, sdk, packages)
 
 def _deepest_root_record(short_path, index):
-    """The record whose `lib_root` is the deepest directory holding `short_path`.
+    """The record whose `package_root` is the deepest directory holding `short_path`.
 
     Tries the path itself, then each ancestor directory, then the empty root.
     """
@@ -180,27 +180,27 @@ def project_layout(packages, files, home_files):
     Returns:
       struct(
         packages: `packages`,
-        home: dict of `(package_name, lib_root)` of each home package record,
+        home: dict of `(package_name, package_root)` of each home package record,
         src_files: the Files staged under `src/`,
-        dep_files: dict of `(package_name, lib_root)` to the Files of each
+        dep_files: dict of `(package_name, package_root)` to the Files of each
           package record resolved from outside the project,
       )
     """
-    main = [p for p in packages if p.package_name and not p.lib_root.startswith("../")]
+    main = [p for p in packages if p.package_name and not p.package_root.startswith("../")]
     main_index = package_record_index(main)
     index = package_record_index(packages)
     home = {}
     for f in home_files:
         best = _deepest_root_record(f.short_path, main_index)
         if best != None:
-            home[(best.package_name, best.lib_root)] = True
+            home[(best.package_name, best.package_root)] = True
 
     src_files = []
     dep_files = {}
     for f in files:
         owner = package_record_for_index(f.short_path, index)
-        if owner != None and (owner.package_name, owner.lib_root) not in home:
-            dep_files.setdefault((owner.package_name, owner.lib_root), []).append(f)
+        if owner != None and (owner.package_name, owner.package_root) not in home:
+            dep_files.setdefault((owner.package_name, owner.package_root), []).append(f)
         elif not f.short_path.startswith("../"):
             src_files.append(f)
 
@@ -212,7 +212,7 @@ def project_layout(packages, files, home_files):
 def main_package_roots(layout):
     """Returns the home package roots that receive a stub pubspec.
 
-    One entry per distinct `lib_root`; when several package records share a
+    One entry per distinct `package_root`; when several package records share a
     root (the split-package case), the lexically-first name wins so the choice
     is deterministic.
 
@@ -220,13 +220,13 @@ def main_package_roots(layout):
       layout: The `project_layout` struct.
 
     Returns:
-      Sorted list of (lib_root, package_name) tuples.
+      Sorted list of (package_root, package_name) tuples.
     """
     seen = {}
-    for package_name, lib_root in layout.home:
-        prev = seen.get(lib_root)
+    for package_name, package_root in layout.home:
+        prev = seen.get(package_root)
         if prev == None or package_name < prev:
-            seen[lib_root] = package_name
+            seen[package_root] = package_name
     return sorted(seen.items())
 
 def staged_pubspec_paths(layout):
@@ -244,11 +244,11 @@ def staged_pubspec_paths(layout):
       Sorted list of `src/...` path strings, one per stub pubspec.
     """
     return [
-        ("src/%s/pubspec.yaml" % lib_root) if lib_root else "src/pubspec.yaml"
-        for lib_root, _ in main_package_roots(layout)
+        ("src/%s/pubspec.yaml" % package_root) if package_root else "src/pubspec.yaml"
+        for package_root, _ in main_package_roots(layout)
     ]
 
-def in_place_root(files, lib_root, output_root):
+def in_place_root(files, package_root, output_root):
     """Returns where a package's files sit, if the project can point there.
 
     A rootUri is written into the package config as text, which path mapping
@@ -261,14 +261,14 @@ def in_place_root(files, lib_root, output_root):
 
     Args:
       files: The package record's Files.
-      lib_root: The package record's `lib_root`.
+      package_root: The package record's `package_root`.
       output_root: The project's own output root (`File.root.path`).
 
     Returns:
       The exec path of the package root, or None when the files have no
       single root the project can name.
     """
-    roots = {package_root_of(f, lib_root): True for f in files}
+    roots = {package_exec_root(f, package_root): True for f in files}
     if len(roots) != 1:
         return None
     for f in files:
@@ -278,12 +278,12 @@ def in_place_root(files, lib_root, output_root):
 
 def _assembled_root(ctx, name, key, files, shared_name):
     """Assembles one package record's files beside the project; returns its root."""
-    package_name, lib_root = key
+    package_name, package_root = key
     dir_name = mangle_package_dir(package_name)
     if shared_name:
         # One name, several roots: a directory each.
-        dir_name += "/" + mangle_package_dir(lib_root)
-    if lib_root.startswith("../"):
+        dir_name += "/" + mangle_package_dir(package_root)
+    if package_root.startswith("../"):
         tree = assemble_source_dir(
             ctx,
             "{}.pkgs/{}".format(name, dir_name),
@@ -291,17 +291,17 @@ def _assembled_root(ctx, name, key, files, shared_name):
             root_paths = [],
             include_external_repositories = ["*"],
         )
-        sub = _external_sub_path(lib_root)
+        sub = _external_sub_path(package_root)
         return tree.path + "/" + sub if sub else tree.path, tree
     tree = assemble_source_dir(
         ctx,
         "{}.pkgs/{}".format(name, dir_name),
         files,
-        root_paths = [lib_root] if lib_root else [],
+        root_paths = [package_root] if package_root else [],
     )
     return tree.path, tree
 
-def resolve_package_roots_from_outside(ctx, name, dep_files, config_file, relocatable = False, assemble = {}):
+def resolve_package_exec_roots_from_outside(ctx, name, dep_files, config_file, relocatable = False, assemble = {}):
     """Decides where each package record is read from, and what that needs.
 
     A record whose files have one root the config can name is read where its
@@ -313,11 +313,11 @@ def resolve_package_roots_from_outside(ctx, name, dep_files, config_file, reloca
     Args:
       ctx: The rule context (must carry `COPY_TO_DIRECTORY_TOOLCHAINS`).
       name: Prefix for the assembled trees.
-      dep_files: Dict of `(package_name, lib_root)` to the record's Files.
+      dep_files: Dict of `(package_name, package_root)` to the record's Files.
       config_file: The `package_config.json` File the roots are relative to.
       relocatable: Whether the config is read somewhere other than the exec
         root, so every record is assembled.
-      assemble: Dict of the `(package_name, lib_root)` keys to assemble
+      assemble: Dict of the `(package_name, package_root)` keys to assemble
         whatever their files' roots.
 
     Returns:
@@ -380,23 +380,23 @@ def stage_dart_project(ctx, layout, dart_sdk_info, relocatable = False, extra_pr
     # `copy_to_directory` that assembles the tree.
     stub_files = []
     replace_prefixes = {}
-    for lib_root, package_name in main_package_roots(layout):
+    for package_root, package_name in main_package_roots(layout):
         stub = ctx.actions.declare_file("{}.pkgstubs/{}/pubspec.yaml".format(
             name,
-            mangle_package_dir(lib_root) if lib_root else "_root",
+            mangle_package_dir(package_root) if package_root else "_root",
         ))
         ctx.actions.write(stub, pubspec_stub(packages, dart_sdk_info, name = package_name))
 
         # Key on the stub's workspace-relative directory: with `root_paths=[]`
         # that is exactly the path prefix it would keep inside the tree.
-        replace_prefixes[stub.short_path.rsplit("/", 1)[0]] = lib_root
+        replace_prefixes[stub.short_path.rsplit("/", 1)[0]] = package_root
         stub_files.append(stub)
 
     src_tree = assemble_source_dir(
         ctx,
         name + ".proj/src",
         layout.src_files + stub_files,
-        # Keep workspace-relative paths: each home package's lib_root must be
+        # Keep workspace-relative paths: each home package's package_root must be
         # a real directory under src/ for its rootUri to hold.
         root_paths = [],
         replace_prefixes = replace_prefixes,
@@ -407,7 +407,7 @@ def stage_dart_project(ctx, layout, dart_sdk_info, relocatable = False, extra_pr
     root_uris = {}
     for key in layout.home:
         root_uris[key] = "../src/" + key[1] if key[1] else "../src"
-    for key, resolved in resolve_package_roots_from_outside(
+    for key, resolved in resolve_package_exec_roots_from_outside(
         ctx,
         name,
         layout.dep_files,

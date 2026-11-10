@@ -13,7 +13,7 @@ def _impl(ctx):
     for pkg in collect_packages(ctx.attr.deps):
         f = package_license_file(pkg)
         got[pkg.package_name] = "" if f == None else (
-            f.short_path[len(pkg.lib_root) + 1:] if f.short_path.startswith(pkg.lib_root + "/") else f.short_path
+            f.short_path[len(pkg.package_root) + 1:] if f.short_path.startswith(pkg.package_root + "/") else f.short_path
         )
     if got != ctx.attr.license_files:
         fail("license files by package (a path relative to its root):\n  got  %s\n  want %s" % (got, ctx.attr.license_files))

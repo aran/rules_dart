@@ -54,7 +54,7 @@ def package_code_assets(pkg):
     `DartPackageInfo` built against a rules_dart that predates the field omits
     it, and such a record keeps working — it simply contributes no assets.
     `//dart/tests/no_lv_fixture` pins that tolerance, emitting a record with
-    only `package_name` and `lib_root`.
+    only `package_name` and `package_root`.
 
     Args:
       pkg: A `DartPackageInfo`.
@@ -99,7 +99,7 @@ def _license_key(pkg):
     f = package_license_file(pkg)
     if f == None:
         return ""
-    prefix = pkg.lib_root + "/" if pkg.lib_root else ""
+    prefix = pkg.package_root + "/" if pkg.package_root else ""
     if prefix and f.short_path.startswith(prefix):
         return f.short_path[len(prefix):]
     return f.short_path
@@ -435,7 +435,7 @@ def package_agreement_error(merged):
         (lambda pkg: getattr(pkg, "language_version", ""), "language versions", _LANGUAGE_VERSION_REMEDY),
         (_license_key, "license files", _LICENSE_FILE_REMEDY),
     ):
-        # value -> lib_root of the first record stating it, per package name.
+        # value -> package_root of the first record stating it, per package name.
         stated = {}
         for pkg in merged:
             value = read(pkg)
@@ -443,7 +443,7 @@ def package_agreement_error(merged):
                 continue
             seen = stated.setdefault(pkg.package_name, {})
             if value not in seen:
-                seen[value] = pkg.lib_root
+                seen[value] = pkg.package_root
 
         reported = []
         for package_name in sorted(stated.keys()):
@@ -471,7 +471,7 @@ def package_agreement_error(merged):
 def merge_package_records(merged):
     """Dedups package records by name, unioning their code assets.
 
-    One `package_name` can legitimately appear with several `lib_root`s:
+    One `package_name` can legitimately appear with several `package_root`s:
 
       * a package split across `dart_library` targets — the case
         `colocate_packages` exists to serve; and
@@ -608,9 +608,9 @@ def relative_path(from_dir, to_dir):
     return "/".join(parts) if parts else "."
 
 def check_single_root_package(packages):
-    """Checks that at most one package claims the empty (root) `lib_root`.
+    """Checks that at most one package claims the empty (root) `package_root`.
 
-    Two or more empty-lib_root packages are ambiguous: the empty-prefix match
+    Two or more empty-package_root packages are ambiguous: the empty-prefix match
     would race to claim any `lib/`-prefixed source.
 
     Args:
@@ -618,24 +618,24 @@ def check_single_root_package(packages):
 
     Returns:
         An error message string when more than one package has an empty
-        `lib_root`, else `None`.
+        `package_root`, else `None`.
     """
-    root_names = [pkg.package_name for pkg in packages if not pkg.lib_root]
+    root_names = [pkg.package_name for pkg in packages if not pkg.package_root]
     if len(root_names) > 1:
         return (
-            "Multiple packages declare an empty `lib_root`: %s. Each " +
+            "Multiple packages declare an empty `package_root`: %s. Each " +
             "Bazel build graph can only attribute `lib/...` sources to " +
             "one root package."
         ) % ", ".join(root_names)
     return None
 
-def resolve_package_roots(packages, all_srcs):
+def resolve_package_exec_roots(packages, all_srcs):
     """Match packages to source files, returning exec-root-relative roots.
 
     Ownership is `package_for`'s and only `package_for`'s: a file resolves a
     package's root only if it is one the package could actually export — under
-    `<lib_root>/lib/`, or the `lib_root` directory itself. Matching anything
-    else under `lib_root` was the bug: a `dart_test` sitting in the same Bazel
+    `<package_root>/lib/`, or the `package_root` directory itself. Matching anything
+    else under `package_root` was the bug: a `dart_test` sitting in the same Bazel
     package as the library it tests (`packages/foo/BUILD.bazel` declaring both
     `dart_library(foo)` and its test, which is the ordinary pub layout) makes
     the rule declare its dependencies' assembled `.pkgsrcs` directories at
@@ -649,7 +649,7 @@ def resolve_package_roots(packages, all_srcs):
     and then reads the roots computed here; the two disagreeing meant a
     package's files and its root could come from different packages.
 
-    Two or more packages with an empty `lib_root` are ambiguous — the
+    Two or more packages with an empty `package_root` are ambiguous — the
     empty-prefix match would race to claim any `lib/`-prefixed source.
     Fail loud if detected; callers should not be building transitive
     `DartInfo` graphs with colliding root assignments.
@@ -673,15 +673,15 @@ def resolve_package_roots(packages, all_srcs):
         if name == None or name in roots:
             continue
 
-        roots[name] = package_root_of(src, by_name[name].lib_root)
+        roots[name] = package_exec_root(src, by_name[name].package_root)
     return roots
 
-def package_root_of(src, lib_root):
+def package_exec_root(src, package_root):
     """Returns the exec-root-relative root of the package `src` belongs to.
 
     Args:
         src: A File the package owns (see `package_for`).
-        lib_root: The owning package's `lib_root`.
+        package_root: The owning package's `package_root`.
 
     Returns:
         The exec path of the package root directory.
@@ -690,15 +690,15 @@ def package_root_of(src, lib_root):
     # The package-relative tail, stripped off the exec path to leave the
     # root. Empty when the file *is* the package root (an assembled
     # directory); otherwise "/lib/…", or "lib/…" for the root package,
-    # whose empty `lib_root` leaves a trailing slash to trim.
-    suffix = src.short_path[len(lib_root):]
+    # whose empty `package_root` leaves a trailing slash to trim.
+    suffix = src.short_path[len(package_root):]
     exec_root = src.path[:len(src.path) - len(suffix)]
     if exec_root.endswith("/"):
         exec_root = exec_root[:-1]
     return exec_root
 
 def generate_package_config(packages, all_srcs, config_file):
-    """Generate package_config.json content using short_path-based lib_root.
+    """Generate package_config.json content using short_path-based package_root.
 
     Resolves exec-root paths from source files, then computes relative
     rootUri from config_file's dirname to each package's exec-root location.
@@ -714,7 +714,7 @@ def generate_package_config(packages, all_srcs, config_file):
     if not packages:
         return '{"configVersion": 2, "packages": []}\n'
 
-    exec_roots = resolve_package_roots(packages, all_srcs)
+    exec_roots = resolve_package_exec_roots(packages, all_srcs)
     config_dir = config_file.dirname
 
     entries = []
@@ -722,7 +722,7 @@ def generate_package_config(packages, all_srcs, config_file):
         exec_root = exec_roots.get(pkg.package_name)
         if exec_root != None:
             root_uri = relative_path(config_dir, exec_root)
-        elif not pkg.lib_root:
+        elif not pkg.package_root:
             # Root package with no sources found — fall back to depth-based
             root_uri = relative_path(config_dir, "")
         else:
@@ -772,7 +772,7 @@ def generate_dev_package_config(packages, all_srcs, config_file, scheme = "org-d
     and `bazel-out` would, under the normal generator, get a `rootUri` pointing
     at the frozen assembled (`*.pkgsrcs`) directory — so a dev tool reading it
     sees stale generated output and never sees live source edits. Instead, this
-    emits a `<scheme>:///<lib_root>` `rootUri` for each such package and reports
+    emits a `<scheme>:///<package_root>` `rootUri` for each such package and reports
     the filesystem roots the frontend_server must search (`--filesystem-root`,
     `--filesystem-scheme`) to resolve those scheme URIs across BOTH the live
     source tree and the generated `bazel-out` outputs. Non-assembled packages
@@ -781,7 +781,7 @@ def generate_dev_package_config(packages, all_srcs, config_file, scheme = "org-d
 
     Args:
         packages: List of DartPackageInfo providers (pre-colocation, so the app
-            package still has its real `lib_root`).
+            package still has its real `package_root`).
         all_srcs: List of File objects (pre-colocation, so `is_source` is intact).
         config_file: The output File for the dev package_config.json (for dirname).
         scheme: Filesystem scheme for assembled packages' rootUris.
@@ -799,7 +799,7 @@ def generate_dev_package_config(packages, all_srcs, config_file, scheme = "org-d
           generated_source_uris: the `package:` URI for each entry in
             generated_source_paths, index-aligned, so the dev tool can map a
             changed file straight to the URI to invalidate without re-deriving it.
-          source_packages: (name, lib_root) for each package contributing a
+          source_packages: (name, package_root) for each package contributing a
             first-party (editable, main-repo) source file — the dev tool's
             path->package: map for live edits. Excludes pub/external deps and
             generated-only packages.
@@ -822,14 +822,14 @@ def generate_dev_package_config(packages, all_srcs, config_file, scheme = "org-d
             continue
         by_pkg.setdefault(name, []).append(f)
 
-    exec_roots = resolve_package_roots(packages, all_srcs)
+    exec_roots = resolve_package_exec_roots(packages, all_srcs)
     config_dir = config_file.dirname
 
-    # First-party source packages (name, lib_root) the dev tool can map a live
+    # First-party source packages (name, package_root) the dev tool can map a live
     # edit back to: any package contributing an `is_source` file that lives in
     # the main repo (short_path not under `external/` or `../<repo>`). Excludes
     # pub/external deps (not editable, never watched) and generated-only
-    # packages. `lib_root` is short_path-relative, i.e. workspace-relative, so
+    # packages. `package_root` is short_path-relative, i.e. workspace-relative, so
     # the dev tool resolves a path to `package:<name>/<rel>` without inverting
     # rootUris — see the dev tool's PackageUriResolver.
     source_packages = []
@@ -838,7 +838,7 @@ def generate_dev_package_config(packages, all_srcs, config_file, scheme = "org-d
             if (f.is_source and
                 not f.short_path.startswith("external/") and
                 not f.short_path.startswith("../")):
-                source_packages.append((pkg.package_name, pkg.lib_root))
+                source_packages.append((pkg.package_name, pkg.package_root))
                 break
 
     source_roots = []
@@ -849,11 +849,11 @@ def generate_dev_package_config(packages, all_srcs, config_file, scheme = "org-d
     for pkg in packages:
         files = by_pkg.get(pkg.package_name, [])
         if needs_source_assembly(files):
-            root_uri = "{scheme}:///{lib_root}".format(
+            root_uri = "{scheme}:///{package_root}".format(
                 scheme = scheme,
-                lib_root = pkg.lib_root,
+                package_root = pkg.package_root,
             )
-            lib_prefix = package_lib_prefix(pkg.lib_root)
+            lib_prefix = package_lib_prefix(pkg.package_root)
             for f in files:
                 er = _exec_root_of(f)
                 if f.is_source:
@@ -876,7 +876,7 @@ def generate_dev_package_config(packages, all_srcs, config_file, scheme = "org-d
             exec_root = exec_roots.get(pkg.package_name)
             if exec_root != None:
                 root_uri = relative_path(config_dir, exec_root)
-            elif not pkg.lib_root:
+            elif not pkg.package_root:
                 root_uri = relative_path(config_dir, "")
             else:
                 continue
@@ -907,11 +907,11 @@ def generate_package_config_content(packages, prefix):
 
     Simple version for staging-directory contexts where the relationship between
     the config file and package roots is known statically (e.g., dart_analyze
-    where config is at .dart_tool/ and packages are at ../<lib_root>).
+    where config is at .dart_tool/ and packages are at ../<package_root>).
 
     Args:
         packages: List of DartPackageInfo providers.
-        prefix: Path prefix to prepend to each package's lib_root for rootUri.
+        prefix: Path prefix to prepend to each package's package_root for rootUri.
 
     Returns:
         String content of the package_config.json file.
@@ -921,7 +921,7 @@ def generate_package_config_content(packages, prefix):
 
     entries = []
     for pkg in packages:
-        root_uri = prefix + "/" + pkg.lib_root if pkg.lib_root else prefix
+        root_uri = prefix + "/" + pkg.package_root if pkg.package_root else prefix
         lv = ""
         if hasattr(pkg, "language_version") and pkg.language_version:
             lv = ', "languageVersion": "{lv}"'.format(lv = pkg.language_version)
@@ -1359,7 +1359,7 @@ def kernel_root_path(short_path):
     at `external/<repo>/…` under the exec root and the output directories.
 
     Args:
-      short_path: A `File.short_path`, or a `lib_root`.
+      short_path: A `File.short_path`, or a `package_root`.
 
     Returns:
       The root-relative path.
@@ -1643,11 +1643,11 @@ def bootstrap_kernel_action(ctx, main, srcs, package_config, output_dill, produc
         execution_requirements = PATH_MAPPING,
     )
 
-def asset_path_for(file, lib_root):
+def asset_path_for(file, package_root):
     """Computes the in-package asset path for a File.
 
-    Strips `lib_root` (plus the trailing `/`) from the short_path. When
-    `lib_root` is empty the short_path is returned unchanged — that's the
+    Strips `package_root` (plus the trailing `/`) from the short_path. When
+    `package_root` is empty the short_path is returned unchanged — that's the
     root-package case and the file's short_path IS its asset path.
 
     Generated files need one extra step first: `declare_file` paths are
@@ -1656,10 +1656,10 @@ def asset_path_for(file, lib_root):
     the generated short_path is `owner.package + "/" + declared_path`
     where `declared_path` embeds the source's short_path (`dart_codegen`
     declares outputs source-relative). Stripping `owner.package` and then
-    `lib_root` recovers the in-package asset path. When the declared path
-    does not start with `lib_root` (the codegen target's package is at or
+    `package_root` recovers the in-package asset path. When the declared path
+    does not start with `package_root` (the codegen target's package is at or
     below the Dart package root with a same-package src), the generated
-    short_path mirrors a source file's and the plain `lib_root` strip
+    short_path mirrors a source file's and the plain `package_root` strip
     below stays correct.
 
     Fails loudly when neither derivation matches: the unmatched short_path
@@ -1669,7 +1669,7 @@ def asset_path_for(file, lib_root):
 
     Args:
       file: The File to compute the asset path for.
-      lib_root: The Dart package's short_path prefix (empty for the root
+      package_root: The Dart package's short_path prefix (empty for the root
         workspace; e.g. `external/pub_deps++pub+foo` for external pub
         packages).
 
@@ -1677,30 +1677,30 @@ def asset_path_for(file, lib_root):
       The asset path string (relative to the Dart package root).
     """
     rel = file.short_path
-    if not lib_root:
+    if not package_root:
         return rel
     if not file.is_source and file.owner != None:
         pkg_prefix = file.owner.package + "/" if file.owner.package else ""
         if pkg_prefix and rel.startswith(pkg_prefix):
             declared = rel[len(pkg_prefix):]
-            if declared.startswith(lib_root + "/"):
-                return declared[len(lib_root) + 1:]
-    if rel.startswith(lib_root + "/"):
-        return rel[len(lib_root) + 1:]
+            if declared.startswith(package_root + "/"):
+                return declared[len(package_root) + 1:]
+    if rel.startswith(package_root + "/"):
+        return rel[len(package_root) + 1:]
     fail(
         ("asset_path_for: file %r (short_path %r) is not under " +
-         "lib_root %r. Every codegen input / asset_dep must live inside " +
-         "the Dart package's lib_root — check that the owning " +
+         "package_root %r. Every codegen input / asset_dep must live inside " +
+         "the Dart package's package_root — check that the owning " +
          "`dart_library` target for this file has the correct " +
          "`package_name`, or pass the file through `deps` instead. For " +
          "generated files, declare the producing codegen target in a " +
          "BUILD file at (or below) the Dart package root so its declared " +
          "output path resolves inside the package.") %
-        (file.path, rel, lib_root),
+        (file.path, rel, package_root),
     )
 
-def dart_lib_root_for_package(deps, package_name):
-    """Looks up the Dart package's lib_root from the transitive DartInfo set.
+def dart_package_root_for_package(deps, package_name):
+    """Looks up the Dart package's package_root from the transitive DartInfo set.
 
     Scans every dep in `deps`; the first `DartPackageInfo` whose
     `package_name` matches wins.
@@ -1715,19 +1715,19 @@ def dart_lib_root_for_package(deps, package_name):
       package_name: The Dart package name to look up.
 
     Returns:
-      The lib_root string (possibly `""` for the root workspace package),
+      The package_root string (possibly `""` for the root workspace package),
       or `None` when no matching package is found.
     """
     merged = depset(transitive = [dep[DartInfo].transitive_packages for dep in deps])
     for pkg in merged.to_list():
         if pkg.package_name == package_name:
-            return pkg.lib_root
+            return pkg.package_root
     return None
 
 def same_package_library_dep_files(deps, package_name, exclude_paths = None):
-    """Returns same-package sibling files from `deps` plus the package's lib_root.
+    """Returns same-package sibling files from `deps` plus the package's package_root.
 
-    Sources and `resources` alike: files at `<lib_root>/lib/...` in any
+    Sources and `resources` alike: files at `<package_root>/lib/...` in any
     transitive package whose name matches `package_name` are returned. Filenames whose exec path is in
     `exclude_paths` (e.g. the action's own `src` file) are skipped so the
     input isn't staged twice.
@@ -1738,15 +1738,15 @@ def same_package_library_dep_files(deps, package_name, exclude_paths = None):
       exclude_paths: Optional list of exec path strings to skip.
 
     Returns:
-      `(files, lib_root)` — the matching sibling Files and the package's
-      lib_root. Returns `([], None)` when no matching package is found.
+      `(files, package_root)` — the matching sibling Files and the package's
+      package_root. Returns `([], None)` when no matching package is found.
     """
     if exclude_paths == None:
         exclude_paths = []
-    lib_root = dart_lib_root_for_package(deps, package_name)
-    if lib_root == None:
+    package_root = dart_package_root_for_package(deps, package_name)
+    if package_root == None:
         return [], None
-    prefix = package_lib_prefix(lib_root)
+    prefix = package_lib_prefix(package_root)
     excluded = {p: True for p in exclude_paths}
     seen = {}
     out = []
@@ -1762,7 +1762,7 @@ def same_package_library_dep_files(deps, package_name, exclude_paths = None):
             continue
         seen[src.short_path] = True
         out.append(src)
-    return out, lib_root
+    return out, package_root
 
 def add_shim_contract_args(
         args,
@@ -1771,7 +1771,7 @@ def add_shim_contract_args(
         sdk_dart,
         auto_stage_srcs = [],
         asset_deps = [],
-        lib_root = ""):
+        package_root = ""):
     """Appends the typed shim-contract flags to `args`.
 
     Covers `--package`, `--root-language-version`, `--dep` (repeatable —
@@ -1798,7 +1798,7 @@ def add_shim_contract_args(
         files the Builder's Resolver must see via `findAssets` /
         `readAsString`). De-duplicated against `auto_stage_srcs` by exec
         path.
-      lib_root: The Dart package's lib_root (used to compute asset paths
+      package_root: The Dart package's package_root (used to compute asset paths
         for `auto_stage_srcs` / `asset_deps`).
 
     Returns:
@@ -1820,20 +1820,20 @@ def add_shim_contract_args(
         if src.path in seen:
             continue
         seen[src.path] = True
-        args.add("--dep", src, format = "%s|" + format_literal(asset_path_for(src, lib_root)))
+        args.add("--dep", src, format = "%s|" + format_literal(asset_path_for(src, package_root)))
         extra_inputs.append(src)
     for src in asset_deps:
         if src.path in seen:
             continue
         seen[src.path] = True
-        args.add("--dep", src, format = "%s|" + format_literal(asset_path_for(src, lib_root)))
+        args.add("--dep", src, format = "%s|" + format_literal(asset_path_for(src, package_root)))
         extra_inputs.append(src)
 
     # Builders read the package's pubspec (`source_gen` its name,
     # `json_serializable` its dependencies). Unless the target passes its own
     # in `asset_deps`, which the shim checks against the target, it is written
     # from the target.
-    if not [f for f in asset_deps if asset_path_for(f, lib_root) == "pubspec.yaml"]:
+    if not [f for f in asset_deps if asset_path_for(f, package_root) == "pubspec.yaml"]:
         pubspec = ctx.actions.declare_file(ctx.label.name + ".codegen/pubspec.yaml")
         ctx.actions.write(pubspec, derived_pubspec(
             identity.package_name,

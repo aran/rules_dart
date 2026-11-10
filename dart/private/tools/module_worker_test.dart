@@ -97,7 +97,7 @@ void main(List<String> args) {
           config,
           '--package-name',
           'app',
-          '--lib-root',
+          '--package-root',
           'app',
           // As `add_kernel_roots` writes them: output directories first.
           if (srcs.any((s) => s.startsWith(bin))) ...['--multi-root', bin],

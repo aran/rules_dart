@@ -28,7 +28,7 @@ so a field added here needs no change in the rule sets that produce `DartInfo` \
 enumerating and merging each field by hand, and a field left empty rather than \
 forwarded silently discards every dependency's values.""",
     fields = {
-        "packages": "tuple[DartPackageInfo]: The packages this target contributes itself, also found in `transitive_packages`. One for a library; none for a target built by `dart_info_no_package()`; several for a library over packages that depend on each other (pub allows a dependency cycle, Bazel does not), each keeping its own name and `lib_root`.",
+        "packages": "tuple[DartPackageInfo]: The packages this target contributes itself, also found in `transitive_packages`. One for a library; none for a target built by `dart_info_no_package()`; several for a library over packages that depend on each other (pub allows a dependency cycle, Bazel does not), each keeping its own name and `package_root`.",
         "srcs": "list[File]: This target's own Dart sources (or its source directory), without its dependencies', whichever of its `packages` they belong to. The unit a per-library kernel compile builds.",
         "deps": "dict[Label, tuple[str]]: The targets this one depends on directly, as passed to `dart_info()` from whatever attribute or toolchain they came, each with the names of the packages it contributes (its `packages`). The modules a per-library compile builds against, and the packages it may import.",
         "indirect_deps": "list[Label]: Targets one of `deps` depends on that this target's sources import, which the layering check accepts as direct. See `dart_info()`.",
@@ -71,7 +71,7 @@ DartPackageInfo = provider(
     doc = "Record of a single Dart package in the build graph, carried in depsets within DartInfo.",
     fields = {
         "package_name": "str: The Dart package name. Required.",
-        "lib_root": "str: The short_path-based path to the package root directory (parent of `lib/`). Configuration-independent. Required; empty string for the root package.",
+        "package_root": "str: The short_path-based path to the package root directory (parent of `lib/`). Configuration-independent. Required; empty string for the root package.",
         "version": "str: The package's own version, as resolved by pub (e.g. `2.2.0`). Optional; empty string when unknown, which is what a `dart_library` written by hand and a producer predating this field both carry. Recorded so that two records for one package name can be checked for agreement — see `package_agreement_error`.",
         "language_version": "str: Dart language version implied by the package's `environment.sdk` constraint, in `<major>.<minor>` form. Optional; empty string when unknown.",
         "code_assets": "tuple[DartCodeAssetInfo]: Native code assets this package owns. A tuple rather than a list because `DartPackageInfo` is carried in a depset, whose elements must be hashable.",

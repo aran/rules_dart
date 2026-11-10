@@ -17,7 +17,7 @@ load(
     "colocate_packages",
     "dart_info",
     "dart_package_info",
-    "derive_lib_root",
+    "derive_package_root",
     "non_dart_transition",
     "runtime_reset_when_independent",
     "web_platforms_transition",
@@ -51,7 +51,7 @@ def _module_library_impl(ctx):
             packages = [dart_package_info(
                 label = ctx.label,
                 package_name = ctx.attr.package_name,
-                lib_root = derive_lib_root(ctx.label.workspace_root, ctx.label.package),
+                package_root = derive_package_root(ctx.label.workspace_root, ctx.label.package),
                 language_version = "",
             )],
             deps = ctx.attr.deps,

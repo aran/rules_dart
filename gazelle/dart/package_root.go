@@ -13,7 +13,7 @@ import (
 )
 
 // placement is where a directory sits in its Dart package, by the rule
-// `dart_library` applies (`package_root` in dart_library.bzl): a directory
+// `dart_library` applies (`locate_package_root` in dart_library.bzl): a directory
 // with no `lib` component is a package root; a directory inside a `lib/` --
 // `lib/` itself or one under it -- belongs to the package rooted above that
 // `lib`. A directory with two `lib` components is ambiguous.

@@ -28,10 +28,10 @@ def _asset(asset_id, owner_path = "libfoo.so", link_mode = "dynamic_loading_bund
         system_uri = system_uri,
     )
 
-def _pkg(package_name, lib_root, code_assets = (), version = "", language_version = ""):
+def _pkg(package_name, package_root, code_assets = (), version = "", language_version = ""):
     return DartPackageInfo(
         package_name = package_name,
-        lib_root = lib_root,
+        package_root = package_root,
         version = version,
         language_version = language_version,
         code_assets = code_assets,
@@ -109,7 +109,7 @@ def _resolve_keeps_non_bundle_modes_test_impl(ctx):
 def _two_hubs_supply_one_package_test_impl(ctx):
     # Regression: two independent pub hubs — rules_flutter's `flutter.pub()`
     # and rules_dart's `pub.from_lock()` — each generate a spoke for `ffi`,
-    # giving one package name two `lib_root`s. This is normal, not an error.
+    # giving one package name two `package_root`s. This is normal, not an error.
     # The same shape arises from a package deliberately split across
     # `dart_library` targets, which `colocate_packages` exists to support.
     env = unittest.begin(ctx)
@@ -122,7 +122,7 @@ def _two_hubs_supply_one_package_test_impl(ctx):
     asserts.equals(env, ["ffi", "meta"], [p.package_name for p in packages])
 
     # First record wins for source resolution, as it always has.
-    asserts.equals(env, "../rules_flutter++flutter+deps__ffi", packages[0].lib_root)
+    asserts.equals(env, "../rules_flutter++flutter+deps__ffi", packages[0].package_root)
     return unittest.end(env)
 
 def _unions_assets_across_differing_roots_test_impl(ctx):
@@ -159,7 +159,7 @@ def _union_keeps_other_fields_test_impl(ctx):
     env = unittest.begin(ctx)
     kept = DartPackageInfo(
         package_name = "dual",
-        lib_root = "first/dual",
+        package_root = "first/dual",
         version = "1.2.3",
         language_version = "3.4",
         code_assets = (_asset("package:dual/a.g.dart"),),
@@ -169,7 +169,7 @@ def _union_keeps_other_fields_test_impl(ctx):
         _pkg("dual", "second/dual", (_asset("package:dual/b.g.dart", "libb.so"),)),
     ])
     asserts.equals(env, 1, len(packages))
-    asserts.equals(env, "first/dual", packages[0].lib_root)
+    asserts.equals(env, "first/dual", packages[0].package_root)
     asserts.equals(env, "1.2.3", packages[0].version)
     asserts.equals(env, "3.4", packages[0].language_version)
     asserts.equals(
@@ -184,7 +184,7 @@ def _collect_tolerates_missing_field_test_impl(ctx):
     # own) omits `code_assets`; that must not crash the collector.
     env = unittest.begin(ctx)
     packages = merge_package_records([
-        DartPackageInfo(package_name = "legacy", lib_root = "legacy"),
+        DartPackageInfo(package_name = "legacy", package_root = "legacy"),
     ])
     asserts.equals(env, 1, len(packages))
     asserts.equals(env, (), package_code_assets(packages[0]))
@@ -222,7 +222,7 @@ def _agreement_rejects_disagreeing_versions_test_impl(ctx):
     asserts.true(
         env,
         "../rules_dart++pub+dart_pub__ffi" in err,
-        "message names each record's lib_root",
+        "message names each record's package_root",
     )
     return unittest.end(env)
 
@@ -284,7 +284,7 @@ def _agreement_tolerates_records_without_the_field_test_impl(ctx):
     # `code_assets` and `language_version`.
     env = unittest.begin(ctx)
     err = package_agreement_error([
-        DartPackageInfo(package_name = "legacy", lib_root = "first/legacy"),
+        DartPackageInfo(package_name = "legacy", package_root = "first/legacy"),
         _pkg("legacy", "second/legacy", version = "1.0.0"),
     ])
     asserts.equals(env, None, err)

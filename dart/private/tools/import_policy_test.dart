@@ -64,7 +64,7 @@ void main() {
       '${dir.path}/root/app/pc.json',
       '--package-name',
       'app',
-      '--lib-root',
+      '--package-root',
       'app',
       '--multi-root',
       '${dir.path}/root',

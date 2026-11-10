@@ -2,7 +2,7 @@
 
 `resolved_graph_check` fails analysis (so `bazel build //...` fails) when the
 target it names does not depend directly on the stated packages, or reaches a
-stated package anywhere but at the stated `lib_root`. Building it is the test.
+stated package anywhere but at the stated `package_root`. Building it is the test.
 """
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts")
@@ -14,13 +14,13 @@ def _resolved_graph_check_impl(ctx):
     direct = {name: True for names in info.deps.values() for name in names}
     roots = {}
     for pkg in info.transitive_packages.to_list():
-        roots.setdefault(pkg.package_name, {})[pkg.lib_root] = True
+        roots.setdefault(pkg.package_name, {})[pkg.package_root] = True
 
     problems = []
     for dep in ctx.attr.direct_deps:
         if dep not in direct:
             problems.append("%s lacks a direct dependency on package `%s` (has: %s)" % (label, dep, sorted(direct.keys())))
-    for name, want in ctx.attr.lib_roots.items():
+    for name, want in ctx.attr.package_roots.items():
         got = sorted(roots.get(name, {}).keys())
         if got != [want]:
             problems.append("%s reaches package `%s` at %s, expected only [%s]" % (label, name, got, want))
@@ -36,7 +36,7 @@ resolved_graph_check = rule(
     attrs = {
         "target": attr.label(mandatory = True, providers = [DartInfo]),
         "direct_deps": attr.string_list(doc = "Package names the target must depend on directly."),
-        "lib_roots": attr.string_dict(doc = "package name -> the one `lib_root` it must have in the target's closure."),
+        "package_roots": attr.string_dict(doc = "package name -> the one `package_root` it must have in the target's closure."),
     },
 )
 

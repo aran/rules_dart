@@ -16,7 +16,7 @@ def _package_only_library_impl(ctx):
             packages = [dart_package_info(
                 label = ctx.label,
                 package_name = ctx.attr.package_name,
-                lib_root = ctx.label.package,
+                package_root = ctx.label.package,
                 language_version = "",
             )],
             package_srcs = ctx.files.srcs,
@@ -43,7 +43,7 @@ def _bundle_shaped_impl(ctx):
             packages = [dart_package_info(
                 label = ctx.label,
                 package_name = ctx.attr.package_name,
-                lib_root = ctx.label.package,
+                package_root = ctx.label.package,
                 language_version = "",
             )],
             package_srcs = ctx.files.srcs,

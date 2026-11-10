@@ -23,7 +23,7 @@ def _pkg_executable_impl(ctx):
             packages = [dart_package_info(
                 label = ctx.label,
                 package_name = ctx.attr.package_name,
-                lib_root = ctx.label.package,
+                package_root = ctx.label.package,
                 language_version = ctx.attr.language_version,
             )],
             deps = ctx.attr.deps,

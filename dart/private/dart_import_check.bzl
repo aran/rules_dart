@@ -166,7 +166,7 @@ def dart_import_check_action(ctx, kernel_tool, name, srcs, own, deps, indirect_d
     args.add("--package-config", package_config)
     for pkg in own:
         args.add("--package-name", pkg.package_name)
-        args.add("--lib-root", pkg.lib_root)
+        args.add("--package-root", pkg.package_root)
 
     # Every directory a file is read from, the result's included: a
     # dependency built in another configuration (a test's `defines`) has its

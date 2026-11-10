@@ -1,7 +1,7 @@
 load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
 
 # Dart package root. The codegen targets consuming this library live in the
-# NESTED Bazel package `gen/` — lib_root resolves to `nested_aggregate_pkg`
+# NESTED Bazel package `gen/` — package_root resolves to `nested_aggregate_pkg`
 # while the generated shards' short_paths sit under `nested_aggregate_pkg/gen/`.
 
 exports_files(

@@ -16,14 +16,14 @@ dart_binary(
 resolved_graph_check(
     name = "locked_package_gets_the_mapped_target",
     direct_deps = ["petitparser"],
-    lib_roots = {"petitparser": "third_party/petitparser"},
+    package_roots = {"petitparser": "third_party/petitparser"},
     target = "@pub//:xml",
 )
 
 # The hub's label for the `path` package is the workspace target.
 resolved_graph_check(
     name = "hub_label_is_the_mapped_target",
-    lib_roots = {
+    package_roots = {
         "petitparser": "third_party/petitparser",
         "shared_models": "shared_models",
     },

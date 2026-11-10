@@ -325,14 +325,14 @@ def _format_language_versions(info, own_paths, default):
     roots = own or [
         p
         for p in info.transitive_packages.to_list()
-        if not p.lib_root.startswith("../")
+        if not p.package_root.startswith("../")
     ]
     groups = {}
     for path in own_paths:
         best = None
         for p in roots:
-            if p.lib_root == "" or path.startswith(p.lib_root + "/"):
-                if best == None or len(p.lib_root) > len(best.lib_root):
+            if p.package_root == "" or path.startswith(p.package_root + "/"):
+                if best == None or len(p.package_root) > len(best.package_root):
                     best = p
         version = (getattr(best, "language_version", "") if best else "") or default
         groups.setdefault(version, []).append(path)

@@ -10,7 +10,7 @@ load(
     "generate_package_config",
     "generate_package_config_content",
     "relative_path",
-    "resolve_package_roots",
+    "resolve_package_exec_roots",
 )
 load(":small_suite.bzl", "small_unittest_suite")
 
@@ -24,7 +24,7 @@ def _empty_packages_test_impl(ctx):
 
 def _single_package_test_impl(ctx):
     env = unittest.begin(ctx)
-    pkg = struct(package_name = "foo", lib_root = "foo")
+    pkg = struct(package_name = "foo", package_root = "foo")
     result = generate_package_config_content([pkg], "..")
     asserts.true(env, '"configVersion": 2' in result)
     asserts.true(env, '"name": "foo"' in result)
@@ -35,8 +35,8 @@ def _single_package_test_impl(ctx):
 def _multiple_packages_test_impl(ctx):
     env = unittest.begin(ctx)
     pkgs = [
-        struct(package_name = "alpha", lib_root = "alpha"),
-        struct(package_name = "beta", lib_root = "path/to/beta"),
+        struct(package_name = "alpha", package_root = "alpha"),
+        struct(package_name = "beta", package_root = "path/to/beta"),
     ]
     result = generate_package_config_content(pkgs, "../..")
     asserts.true(env, '"name": "alpha"' in result)
@@ -45,9 +45,9 @@ def _multiple_packages_test_impl(ctx):
     asserts.true(env, '"rootUri": "../../path/to/beta"' in result)
     return unittest.end(env)
 
-def _empty_lib_root_test_impl(ctx):
+def _empty_package_root_test_impl(ctx):
     env = unittest.begin(ctx)
-    pkg = struct(package_name = "root_pkg", lib_root = "")
+    pkg = struct(package_name = "root_pkg", package_root = "")
     result = generate_package_config_content([pkg], "../..")
     asserts.true(env, '"rootUri": "../.."' in result)
     return unittest.end(env)
@@ -90,14 +90,14 @@ def _relative_path_from_empty_test_impl(ctx):
     asserts.equals(env, "a/b", relative_path("", "a/b"))
     return unittest.end(env)
 
-# --- generate_package_config / resolve_package_roots tests (exec-root-relative) ---
+# --- generate_package_config / resolve_package_exec_roots tests (exec-root-relative) ---
 #
 # The exec-root variant takes real `File` objects and a `File` config-output —
 # but only reads `short_path`, `path`, `is_directory`, and `dirname`. We fake
 # them with `struct`, matching the idiom in `source_set_test.bzl`.
 
-def _fake_pkg(package_name, lib_root):
-    return struct(package_name = package_name, lib_root = lib_root)
+def _fake_pkg(package_name, package_root):
+    return struct(package_name = package_name, package_root = package_root)
 
 def _fake_src(short_path, path = None, is_directory = False):
     return struct(
@@ -123,8 +123,8 @@ def _fake_config(dirname):
     return struct(dirname = dirname)
 
 def _resolve_skips_source_less_test_impl(ctx):
-    # `resolve_package_roots` only registers packages it can locate an
-    # exec-root for. A package whose lib_root is non-empty but contributes
+    # `resolve_package_exec_roots` only registers packages it can locate an
+    # exec-root for. A package whose package_root is non-empty but contributes
     # zero files to `all_srcs` must be absent from the returned dict.
     env = unittest.begin(ctx)
     pkgs = [
@@ -132,7 +132,7 @@ def _resolve_skips_source_less_test_impl(ctx):
         _fake_pkg("missing_pkg", "external/missing_pkg"),
     ]
     srcs = [_fake_src("present_pkg/lib/x.dart")]
-    roots = resolve_package_roots(pkgs, srcs)
+    roots = resolve_package_exec_roots(pkgs, srcs)
     asserts.true(env, "present_pkg" in roots)
     asserts.false(env, "missing_pkg" in roots, "source-less package must not be in roots")
     return unittest.end(env)
@@ -157,7 +157,7 @@ def _resolve_ignores_colocated_sibling_dir_test_impl(ctx):
         ),
         _fake_src("packages/foo/lib/foo.dart"),
     ]
-    roots = resolve_package_roots(pkgs, srcs)
+    roots = resolve_package_exec_roots(pkgs, srcs)
     asserts.equals(env, "packages/foo", roots["foo"])
     asserts.equals(
         env,
@@ -176,7 +176,7 @@ def _resolve_ignores_generated_non_lib_file_test_impl(ctx):
         _fake_gen("packages/foo/test/foo_test.mocks.dart", "packages/foo"),
         _fake_src("packages/foo/lib/foo.dart"),
     ]
-    roots = resolve_package_roots(pkgs, srcs)
+    roots = resolve_package_exec_roots(pkgs, srcs)
     asserts.equals(env, "packages/foo", roots["foo"])
     return unittest.end(env)
 
@@ -189,14 +189,14 @@ def _resolve_nested_package_wins_test_impl(ctx):
         _fake_src("pkgs/inner/lib/i.dart"),
         _fake_src("pkgs/lib/o.dart"),
     ]
-    roots = resolve_package_roots(pkgs, srcs)
+    roots = resolve_package_exec_roots(pkgs, srcs)
     asserts.equals(env, "pkgs", roots["outer"])
     asserts.equals(env, "pkgs/inner", roots["inner"])
     return unittest.end(env)
 
-def _gpc_source_less_lib_root_skipped_test_impl(ctx):
+def _gpc_source_less_package_root_skipped_test_impl(ctx):
     # Regression for the bug surfaced from rules_flutter: a package with a
-    # non-empty lib_root but no Dart sources in the transitive closure
+    # non-empty package_root but no Dart sources in the transitive closure
     # (asset/font-only pub deps like cupertino_icons, aggregate
     # `dart_library(srcs = [])` facades) must be silently omitted from the
     # generated package_config — not a fatal Starlark fail. If anything later
@@ -225,7 +225,7 @@ def _gpc_all_source_less_test_impl(ctx):
     return unittest.end(env)
 
 def _gpc_root_package_no_srcs_still_falls_back_test_impl(ctx):
-    # Regression guard: a root package (empty lib_root) with no sources keeps
+    # Regression guard: a root package (empty package_root) with no sources keeps
     # its depth-based fallback rootUri. This path is distinct from the
     # source-less-non-root case and must keep working.
     env = unittest.begin(ctx)
@@ -288,7 +288,7 @@ def _gdpc_no_assembly_matches_normal_test_impl(ctx):
     return unittest.end(env)
 
 def _gdpc_assembled_app_uses_scheme_and_roots_test_impl(ctx):
-    # App package (root, lib_root="") mixes a source main.dart with a generated
+    # App package (root, package_root="") mixes a source main.dart with a generated
     # user.g.dart → its rootUri becomes `org-dartlang-app:///` and both the
     # source exec root ("") and the generated exec root ("bazel-out/k8/bin")
     # are reported, source first. The pub dep stays relative.
@@ -317,7 +317,7 @@ def _gdpc_assembled_app_uses_scheme_and_roots_test_impl(ctx):
     return unittest.end(env)
 
 def _gdpc_non_root_assembled_package_test_impl(ctx):
-    # A non-root package that is itself assembled gets `scheme:///<lib_root>`.
+    # A non-root package that is itself assembled gets `scheme:///<package_root>`.
     env = unittest.begin(ctx)
     pkgs = [_fake_pkg("sub", "pkgs/sub")]
     srcs = [
@@ -333,7 +333,7 @@ def _gdpc_non_root_assembled_package_test_impl(ctx):
     return unittest.end(env)
 
 def _gdpc_source_packages_lists_first_party_test_impl(ctx):
-    # source_packages = (name, lib_root) for every package contributing a
+    # source_packages = (name, package_root) for every package contributing a
     # FIRST-PARTY source file (is_source, short_path not under external/ or ../).
     # Pub/external deps are excluded (not editable, never watched). Order follows
     # `packages`.
@@ -376,7 +376,7 @@ def _gdpc_source_packages_excludes_generated_only_test_impl(ctx):
 def _gdpc_source_packages_includes_assembled_test_impl(ctx):
     # The feature's target case: an ASSEMBLED package (hand-written source +
     # generated member straddling tree and bazel-out) is still editable via its
-    # source member, so it must appear in source_packages with its REAL lib_root
+    # source member, so it must appear in source_packages with its REAL package_root
     # (not the assembled/scheme one). Guards against a regression where the
     # assembly path stops contributing to the path->package: map.
     env = unittest.begin(ctx)
@@ -393,21 +393,21 @@ def _check_single_root_ok_test_impl(ctx):
     # One root package (or none) is fine — no error.
     env = unittest.begin(ctx)
     asserts.equals(env, None, check_single_root_package([
-        struct(package_name = "app", lib_root = ""),
-        struct(package_name = "sub", lib_root = "pkgs/sub"),
+        struct(package_name = "app", package_root = ""),
+        struct(package_name = "sub", package_root = "pkgs/sub"),
     ]))
     asserts.equals(env, None, check_single_root_package([]))
     return unittest.end(env)
 
 def _check_single_root_conflict_test_impl(ctx):
-    # Two empty-lib_root packages must produce a diagnostic NAMING BOTH
+    # Two empty-package_root packages must produce a diagnostic NAMING BOTH
     # packages. Regression: the old inline fail() applied `%` to a
     # placeholder-free fragment ("+" bound looser than "%"), so hitting the
     # condition crashed on the fail-message itself instead of reporting it.
     env = unittest.begin(ctx)
     err = check_single_root_package([
-        struct(package_name = "app_a", lib_root = ""),
-        struct(package_name = "app_b", lib_root = ""),
+        struct(package_name = "app_a", package_root = ""),
+        struct(package_name = "app_b", package_root = ""),
     ])
     asserts.true(env, err != None)
     asserts.true(env, "app_a" in err)
@@ -448,13 +448,13 @@ def _hooks_offender_test_impl(ctx):
 
 # --- asset_path_for tests ---
 
-def _apf_source_under_lib_root_test_impl(ctx):
+def _apf_source_under_package_root_test_impl(ctx):
     env = unittest.begin(ctx)
     src = _fake_src("pkg/lib/a.dart")
     asserts.equals(env, "lib/a.dart", asset_path_for(src, "pkg"))
     return unittest.end(env)
 
-def _apf_empty_lib_root_test_impl(ctx):
+def _apf_empty_package_root_test_impl(ctx):
     env = unittest.begin(ctx)
     src = _fake_src("lib/a.dart")
     asserts.equals(env, "lib/a.dart", asset_path_for(src, ""))
@@ -462,7 +462,7 @@ def _apf_empty_lib_root_test_impl(ctx):
 
 def _apf_generated_colocated_test_impl(ctx):
     # Codegen target in the same BUILD as the Dart package root: declared
-    # path is already package-root-relative; the lib_root strip applies.
+    # path is already package-root-relative; the package_root strip applies.
     env = unittest.begin(ctx)
     gen = _fake_gen("pkg/lib/a.g.dart", owner_package = "pkg")
     asserts.equals(env, "lib/a.g.dart", asset_path_for(gen, "pkg"))
@@ -472,7 +472,7 @@ def _apf_generated_nested_package_test_impl(ctx):
     # Codegen target in a Bazel package NESTED below the Dart package root
     # with a cross-package src: dart_codegen declares the output at the
     # src's full short_path, so the generated short_path embeds it after
-    # the owning package. The naive lib_root strip would return the wrong
+    # the owning package. The naive package_root strip would return the wrong
     # `gen/pkg/lib/a.shard.json`.
     env = unittest.begin(ctx)
     gen = _fake_gen(
@@ -484,7 +484,7 @@ def _apf_generated_nested_package_test_impl(ctx):
 
 def _apf_generated_sibling_package_test_impl(ctx):
     # Codegen target in a SIBLING Bazel package of the Dart package root:
-    # the generated short_path is entirely outside lib_root; the owning
+    # the generated short_path is entirely outside package_root; the owning
     # package + declared path recover the asset.
     env = unittest.begin(ctx)
     gen = _fake_gen(
@@ -498,7 +498,7 @@ def _apf_generated_deeper_build_test_impl(ctx):
     # Codegen target at `pkg/lib/BUILD` for Dart package root `pkg` with a
     # same-package src: dart_codegen strips its own package from the src's
     # short_path, so the generated short_path mirrors a source file's and
-    # the standard lib_root strip stays correct.
+    # the standard package_root strip stays correct.
     env = unittest.begin(ctx)
     gen = _fake_gen("pkg/lib/model.g.dart", owner_package = "pkg/lib")
     asserts.equals(env, "lib/model.g.dart", asset_path_for(gen, "pkg"))
@@ -507,7 +507,7 @@ def _apf_generated_deeper_build_test_impl(ctx):
 _t0_test = unittest.make(_empty_packages_test_impl)
 _t1_test = unittest.make(_single_package_test_impl)
 _t2_test = unittest.make(_multiple_packages_test_impl)
-_t3_test = unittest.make(_empty_lib_root_test_impl)
+_t3_test = unittest.make(_empty_package_root_test_impl)
 _t4_test = unittest.make(_relative_path_same_dir_test_impl)
 _t5_test = unittest.make(_relative_path_sibling_test_impl)
 _t6_test = unittest.make(_relative_path_deep_to_shallow_test_impl)
@@ -515,7 +515,7 @@ _t7_test = unittest.make(_relative_path_same_prefix_test_impl)
 _t8_test = unittest.make(_relative_path_to_root_test_impl)
 _t9_test = unittest.make(_relative_path_from_empty_test_impl)
 _t10_test = unittest.make(_resolve_skips_source_less_test_impl)
-_t11_test = unittest.make(_gpc_source_less_lib_root_skipped_test_impl)
+_t11_test = unittest.make(_gpc_source_less_package_root_skipped_test_impl)
 _t12_test = unittest.make(_gpc_all_source_less_test_impl)
 _t13_test = unittest.make(_gpc_root_package_no_srcs_still_falls_back_test_impl)
 _t14_test = unittest.make(_gpc_mixed_root_real_and_source_less_test_impl)
@@ -527,8 +527,8 @@ _t19_test = unittest.make(_gdpc_source_packages_excludes_generated_only_test_imp
 _t20_test = unittest.make(_gdpc_source_packages_includes_assembled_test_impl)
 _t21_test = unittest.make(_check_single_root_ok_test_impl)
 _t22_test = unittest.make(_check_single_root_conflict_test_impl)
-_t23_test = unittest.make(_apf_source_under_lib_root_test_impl)
-_t24_test = unittest.make(_apf_empty_lib_root_test_impl)
+_t23_test = unittest.make(_apf_source_under_package_root_test_impl)
+_t24_test = unittest.make(_apf_empty_package_root_test_impl)
 _t25_test = unittest.make(_apf_generated_colocated_test_impl)
 _t26_test = unittest.make(_apf_generated_nested_package_test_impl)
 _t27_test = unittest.make(_apf_generated_sibling_package_test_impl)

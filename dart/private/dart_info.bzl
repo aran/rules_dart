@@ -26,13 +26,13 @@ field list, and the enumeration they share lives in `_merged_dart_info` below,
 so a field added to `DartInfo` is a change to this file and nowhere else.
 
 The narrow signature is the point for the second one. A target with no package
-can have no `srcs`, no `lib_root`, and no `code_assets` — assets ride
+can have no `srcs`, no `package_root`, and no `code_assets` — assets ride
 `DartPackageInfo`, which it does not have — so leaving them out makes the
 degeneracy structural rather than a convention a caller has to honour.
 
 `DartPackageInfo` — the record `transitive_packages` carries — has a second
 construction shape that needed the same treatment: *derivation*.
-`colocate_packages` rewrites a package's `lib_root` to its assembled directory
+`colocate_packages` rewrites a package's `package_root` to its assembled directory
 and `merge_package_records` unions two records' code assets; each builds a
 record from an existing one. Hand-written, those sites re-list the fields they
 carry, and a field one of them forgets is dropped from *that record only* — so
@@ -80,30 +80,30 @@ say: `language_version = ""` remains legal and keeps its meaning, which
 
 load("//dart:providers.bzl", "DartAnalyzableInfo", "DartCodeAssetInfo", "DartInfo", "DartPackageInfo")
 
-def package_lib_prefix(lib_root):
+def package_lib_prefix(package_root):
     """Returns the short_path prefix under which a package's importable files live.
 
-    A Dart package resolves `package:<name>/x.dart` against `<lib_root>/lib/`,
-    so that — not `lib_root` itself — is the prefix that answers "does this file
+    A Dart package resolves `package:<name>/x.dart` against `<package_root>/lib/`,
+    so that — not `package_root` itself — is the prefix that answers "does this file
     belong to the package?" and "what is this file's package-relative path?".
-    The root package (empty `lib_root`) is the same rule with an empty left half,
+    The root package (empty `package_root`) is the same rule with an empty left half,
     which is the whole reason to write it once: open-coded, the conditional is
     easy to drop, and dropping it silently widens the prefix to the package's
     entire directory — `test/`, `tool/` and `bin/` included.
 
-    Lives here, next to the `DartPackageInfo` that defines `lib_root`, because
+    Lives here, next to the `DartPackageInfo` that defines `package_root`, because
     this file loads only `//dart:providers.bzl` while `source_set.bzl`,
     `common.bzl` and `dart_library.bzl` — the three consumers — already load it.
     Any other home would introduce a load cycle or a new edge.
 
     Args:
-      lib_root: A `DartPackageInfo.lib_root` — the package root's short_path,
+      package_root: A `DartPackageInfo.package_root` — the package root's short_path,
         empty for the root workspace package.
 
     Returns:
       The trailing-slashed prefix, e.g. `"pkgs/sub/lib/"` or `"lib/"`.
     """
-    return (lib_root + "/lib/") if lib_root else "lib/"
+    return (package_root + "/lib/") if package_root else "lib/"
 
 def check_code_asset_ownership(label, package_name, assets):
     """Checks that every declared asset id is namespaced to this package.
@@ -152,7 +152,7 @@ def dart_info(
     several: pub allows packages to depend on each other (`dio` and
     `dio_web_adapter`), Bazel does not allow a dependency cycle, so the
     packages of such a cycle are one target, compiled together, each keeping
-    its own name and `lib_root`. A target contributing none is what
+    its own name and `package_root`. A target contributing none is what
     `dart_info_no_package()` is for.
 
     Attribute hygiene stays with the calling rule — whether `srcs` and
@@ -204,7 +204,7 @@ def dart_info(
 def dart_package_info(
         label,
         package_name,
-        lib_root,
+        package_root,
         language_version,
         code_assets = [],
         has_unreplaced_hook = "",
@@ -219,7 +219,7 @@ def dart_package_info(
     Args:
       label: The constructing rule's label, for error messages.
       package_name: The Dart package name. Required: a package has one.
-      lib_root: `short_path`-based path to the package root (parent of `lib/`).
+      package_root: `short_path`-based path to the package root (parent of `lib/`).
         Empty string for the root package.
       language_version: Dart language version in `<major>.<minor>` form, or ""
         when the package states none. Required to pass — not because a package
@@ -251,7 +251,7 @@ def dart_package_info(
         fail(err)
     return DartPackageInfo(
         package_name = package_name,
-        lib_root = lib_root,
+        package_root = package_root,
         version = version,
         language_version = language_version,
         code_assets = tuple(own_assets),
@@ -275,7 +275,7 @@ def dart_info_no_package(deps = []):
     `DartPackageInfo`, so nothing it is listed on gains a `package_config.json`
     entry or a source to compile.
 
-    There is deliberately no `package_name`, `lib_root`, `srcs`, `resources` or
+    There is deliberately no `package_name`, `package_root`, `srcs`, `resources` or
     `code_assets` here: its `DartInfo.packages` is empty. Code assets are owned
     by a `DartPackageInfo`, which this target does not have.
 
@@ -394,11 +394,11 @@ def dart_analyzable_info_with_packages(
         package_srcs = depset(package_srcs),
     )
 
-def derived_package_info(pkg, lib_root = None, code_assets = None, has_unreplaced_hook = None, link_hook = None, license_file = None):
+def derived_package_info(pkg, package_root = None, code_assets = None, has_unreplaced_hook = None, link_hook = None, license_file = None):
     """Copies `pkg`, overriding the named fields and carrying the rest through.
 
     Deriving one package record from another — `colocate_packages` rewriting
-    `lib_root` to an assembled directory, `merge_package_records` unioning two
+    `package_root` to an assembled directory, `merge_package_records` unioning two
     records' assets — is a copy, not a construction, and the caller has an
     opinion about one or two fields at most. Passing the rest through by
     default means a field added to `DartPackageInfo` reaches every derived
@@ -413,7 +413,7 @@ def derived_package_info(pkg, lib_root = None, code_assets = None, has_unreplace
 
     Args:
       pkg: The `DartPackageInfo` (or `DartPackageInfo`-shaped struct) to copy.
-      lib_root: Replacement `lib_root`, or `None` to keep `pkg`'s.
+      package_root: Replacement `package_root`, or `None` to keep `pkg`'s.
       code_assets: Replacement `code_assets` tuple, or `None` to keep `pkg`'s.
       has_unreplaced_hook: Replacement `has_unreplaced_hook` string (`""` for
         none), or `None` to keep `pkg`'s.
@@ -429,7 +429,7 @@ def derived_package_info(pkg, lib_root = None, code_assets = None, has_unreplace
     # Those are the only two places the fields are named, and both are here.
     return DartPackageInfo(
         package_name = pkg.package_name,
-        lib_root = pkg.lib_root if lib_root == None else lib_root,
+        package_root = pkg.package_root if package_root == None else package_root,
         version = getattr(pkg, "version", ""),
         language_version = getattr(pkg, "language_version", ""),
         code_assets = (

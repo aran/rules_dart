@@ -17,8 +17,8 @@ def _impl(ctx):
     for pkg in info.transitive_packages.to_list():
         versions.setdefault(pkg.package_name, {})[pkg.version] = True
         f = getattr(pkg, "license_file", None)
-        if f != None and f.short_path.startswith(pkg.lib_root + "/"):
-            licenses[pkg.package_name] = f.short_path[len(pkg.lib_root) + 1:]
+        if f != None and f.short_path.startswith(pkg.package_root + "/"):
+            licenses[pkg.package_name] = f.short_path[len(pkg.package_root) + 1:]
 
     problems = []
     for dep in ctx.attr.direct_deps:

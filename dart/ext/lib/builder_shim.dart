@@ -1480,11 +1480,11 @@ class _ShimAnalyzerResolver implements Resolver {
       // can still carry `file://` URIs).
       final filePath = p.normalize(p.fromUri(uri));
       for (final pkg in _packageConfig.packages) {
-        final libRoot = p.normalize(p.fromUri(pkg.packageUriRoot));
+        final libDir = p.normalize(p.fromUri(pkg.packageUriRoot));
         final rootDir = p.normalize(p.fromUri(pkg.root));
-        if (p.isWithin(libRoot, filePath) || p.equals(libRoot, filePath)) {
+        if (p.isWithin(libDir, filePath) || p.equals(libDir, filePath)) {
           final rel = p.posix.joinAll(
-            p.split(p.relative(filePath, from: libRoot)),
+            p.split(p.relative(filePath, from: libDir)),
           );
           return AssetId(pkg.name, p.posix.join('lib', rel));
         }

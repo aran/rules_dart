@@ -166,16 +166,16 @@ def _merge_adopts_link_hook_test_impl(ctx):
     # merged record keeps it whichever comes first.
     env = unittest.begin(ctx)
     merged = merge_package_records([
-        struct(package_name = "p", lib_root = "a", link_hook = None),
-        struct(package_name = "p", lib_root = "b", link_hook = "b/hook/link.dart"),
+        struct(package_name = "p", package_root = "a", link_hook = None),
+        struct(package_name = "p", package_root = "b", link_hook = "b/hook/link.dart"),
     ])
     asserts.equals(env, 1, len(merged))
-    asserts.equals(env, "a", merged[0].lib_root)
+    asserts.equals(env, "a", merged[0].package_root)
     asserts.equals(env, "b/hook/link.dart", package_link_hook(merged[0]))
 
     kept = merge_package_records([
-        struct(package_name = "p", lib_root = "a", link_hook = "a/hook/link.dart"),
-        struct(package_name = "p", lib_root = "b", link_hook = "b/hook/link.dart"),
+        struct(package_name = "p", package_root = "a", link_hook = "a/hook/link.dart"),
+        struct(package_name = "p", package_root = "b", link_hook = "b/hook/link.dart"),
     ])
     asserts.equals(env, "a/hook/link.dart", package_link_hook(kept[0]))
     return unittest.end(env)

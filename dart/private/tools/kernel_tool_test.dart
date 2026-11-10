@@ -90,10 +90,10 @@ Manifest _manifest(
   String label,
   List<ModuleRecord> modules, {
   String? package,
-  String? libRoot,
+  String? packageRoot,
 }) => Manifest(
   label: label,
-  packages: {?package: libRoot ?? ''},
+  packages: {?package: packageRoot ?? ''},
   dir: 'out/${label.replaceAll(RegExp('[/:]'), '_')}',
   modules: modules,
 );
@@ -848,7 +848,7 @@ import 'package:app/own.dart';
           _module(0, ['package:p/p.dart']),
         ],
         package: 'p',
-        libRoot: '../hub1',
+        packageRoot: '../hub1',
       );
       final second = _manifest(
         '//hub2:p',
@@ -857,7 +857,7 @@ import 'package:app/own.dart';
           _module(1, ['package:p/extra.dart']),
         ],
         package: 'p',
-        libRoot: '../hub2',
+        packageRoot: '../hub2',
       );
       final index = ModuleIndex([first, second]);
       expect(index.moduleOf('package:p/p.dart')!.manifest, first);
@@ -975,7 +975,7 @@ import 'package:app/own.dart';
           _module(0, ['package:p/p.dart']),
         ],
         package: 'p',
-        libRoot: '../h1',
+        packageRoot: '../h1',
       );
       final b = _manifest(
         '//h2:p',
@@ -983,7 +983,7 @@ import 'package:app/own.dart';
           _module(0, ['package:p/p.dart']),
         ],
         package: 'p',
-        libRoot: '../h2',
+        packageRoot: '../h2',
       );
       final u = uniqueModules([ref(a, 0), ref(b, 0)]);
       expect(u.kept.map((r) => r.manifest.label), ['//h1:p']);
@@ -1005,14 +1005,14 @@ import 'package:app/own.dart';
       ]);
     });
 
-    test('same package and same lib_root is still an error', () {
+    test('same package and same package_root is still an error', () {
       final a = _manifest(
         '//a:p',
         [
           _module(0, ['package:p/p.dart']),
         ],
         package: 'p',
-        libRoot: 'r',
+        packageRoot: 'r',
       );
       final b = _manifest(
         '//b:p',
@@ -1020,7 +1020,7 @@ import 'package:app/own.dart';
           _module(0, ['package:p/p.dart']),
         ],
         package: 'p',
-        libRoot: 'r',
+        packageRoot: 'r',
       );
       expect(uniqueModules([ref(a, 0), ref(b, 0)]).conflicts, hasLength(1));
     });
@@ -1381,7 +1381,7 @@ import 'package:app/own.dart';
         ),
       ],
       package: 'a',
-      libRoot: 'lib',
+      packageRoot: 'lib',
     );
     final file = File('${dir.path}/m.json')..writeAsStringSync(m.toJson());
     final back = Manifest.read('out', file.path);
@@ -1446,7 +1446,7 @@ import 'package:app/own.dart';
         path('root/app/pc.json'),
         '--package-name',
         'app',
-        '--lib-root',
+        '--package-root',
         'app',
         '--multi-root',
         path('root'),
@@ -1479,7 +1479,7 @@ import 'package:app/own.dart';
       final m = manifestOf('lib');
       expect(m['label'], '//app:lib');
       expect(m['packages'], [
-        {'name': 'app', 'lib_root': 'app'},
+        {'name': 'app', 'package_root': 'app'},
       ]);
       final modules = (m['modules'] as List).cast<Map<String, dynamic>>();
       expect(modules.map((m) => m['status']), ['unsupported', 'failed']);
@@ -1563,7 +1563,7 @@ import 'package:app/own.dart';
         path('root/app/pc.json'),
         '--package-name',
         'app',
-        '--lib-root',
+        '--package-root',
         'app',
         '--multi-root',
         path('root'),
