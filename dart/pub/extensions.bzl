@@ -273,7 +273,7 @@ def _pub_impl(ctx):
     root_lock_names = {}
     for mod in ctx.modules:
         for lock_tag in mod.tags.from_lock:
-            lock_pkgs = parse_pubspec_lock(ctx.read(lock_tag.lock))
+            lock_pkgs = parse_pubspec_lock(ctx.read(lock_tag.lock), lock_tag.lock)
             locks.append(struct(module = mod, tag = lock_tag, packages = lock_pkgs))
             if mod.is_root:
                 for name in lock_pkgs:
