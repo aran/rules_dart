@@ -19,9 +19,6 @@ dart_test(
         "@rules_dart//dart",
     ],
     main = "run_build_runner_test.dart",
-    tags = [
-        "manual",
-        "requires-network",
-    ],
+    tags = ["requires-network"],
     deps = ["@rules_dart//dart/runfiles"],
 )

@@ -382,9 +382,8 @@ Three independent mechanisms guard this. Each has a dedicated test.
 `package:build`'s asset discovery walks only `lib/`, `test/`, `bin/`,
 `web/`, `tool/` — never the repo root, where `BUILD.bazel`,
 `MODULE.bazel`, and `bazel-*` convenience symlinks live. Pinned by
-`e2e/dual_build/run_build_runner_test` (tagged `manual` because it runs
-real `dart pub get`, so only `bazel test //:run_build_runner_test` in that
-workspace runs it).
+`e2e/dual_build/run_build_runner_test`, which runs real `dart pub get` and
+so needs the network.
 
 ### Recommendations
 
