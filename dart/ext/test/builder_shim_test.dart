@@ -299,6 +299,8 @@ void main() {
           factoryOrFactories: (_) => _CapturingBuilder((s) async {
             final seen = <String, Object?>{};
             await body(s, seen);
+            // The worker captures a builder's `print` into the response output.
+            // ignore: avoid_print
             print(jsonEncode(seen));
           }),
         );
@@ -1186,7 +1188,7 @@ void main() {
           outputPath: output.path,
           config: jsonDecode(configJson) as Map<String, dynamic>,
         ),
-        (options) => _ConfigEchoBuilder(options),
+        (BuilderOptions options) => _ConfigEchoBuilder(options),
       );
       final got = jsonDecode(output.readAsStringSync()) as Map<String, dynamic>;
       expect(got['foo'], 'bar');

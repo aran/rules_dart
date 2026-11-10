@@ -3,10 +3,10 @@
 /// `source_gen|combining_builder` from build_runner.
 ///
 /// CLI:
-///   --input <source.dart>   The original Dart source the parts belong to.
+///   `--input <source.dart>` The original Dart source the parts belong to.
 ///                           Used only for the `part of` header reference.
-///   --output <out.g.dart>   Where to write the combined file.
-///   --part <shard.g.part>   Repeatable. Path to a SharedPartBuilder shard.
+///   `--output <out.g.dart>` Where to write the combined file.
+///   `--part <shard.g.part>` Repeatable. Path to a SharedPartBuilder shard.
 ///
 /// Shards are concatenated in lexicographic order for determinism. A
 /// `part of` directive at the very start of a shard — URI form
@@ -50,7 +50,7 @@ class _CombiningWorker extends AsyncWorkerLoop {
   @override
   Future<WorkResponse> performRequest(WorkRequest request) async {
     final buf = StringBuffer();
-    final sink = (String msg) => buf.writeln(msg);
+    void sink(String msg) => buf.writeln(msg);
     int exit = 0;
     try {
       await runZoned(

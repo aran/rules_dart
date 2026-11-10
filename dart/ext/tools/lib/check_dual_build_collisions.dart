@@ -7,6 +7,7 @@
 /// it generates rules for, from a copy of the list of its own.
 ///
 /// Usage: `bazel run @rules_dart//dart/ext/tools:check_dual_build_collisions -- path/to/repo`
+library;
 
 import 'dart:io';
 
@@ -96,28 +97,30 @@ Future<int> runCli(List<String> args) async {
   final extensions = loadBaselineExtensions(args.first);
   final report = checkDualBuildCollisions(root, extensions);
   if (report.isEmpty) {
-    print('no generated-file collisions found under ${root.path}');
+    stdout.writeln('no generated-file collisions found under ${root.path}');
     return 0;
   }
   final count = report.collisions.length;
-  print(
+  stdout.writeln(
     'found $count source-tree generated file(s) that would collide with Bazel codegen outputs:',
   );
   for (final p in report.collisions) {
-    print(p);
+    stdout.writeln(p);
   }
-  print('');
-  print('to resolve:');
-  print('  1. remove these files from the source tree (`git rm` each one)');
-  print(
+  stdout.writeln('');
+  stdout.writeln('to resolve:');
+  stdout.writeln(
+    '  1. remove these files from the source tree (`git rm` each one)',
+  );
+  stdout.writeln(
     '  2. add matching patterns to `.gitignore` so `build_runner` output stops',
   );
-  print('     being committed during the migration:');
+  stdout.writeln('     being committed during the migration:');
   for (final ext in extensions) {
-    print('       **/*$ext');
+    stdout.writeln('       **/*$ext');
   }
-  print('');
-  print(
+  stdout.writeln('');
+  stdout.writeln(
     'see docs/ext.md (Dual-build coexistence) for the full catalog of collision modes.',
   );
   return 1;

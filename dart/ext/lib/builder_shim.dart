@@ -414,7 +414,7 @@ void checkPubspecAgreement({
   required LanguageVersion languageVersion,
 }) {
   final fields = loadYaml(content, sourceUrl: Uri.file(shownAs));
-  final map = fields is Map ? fields : const {};
+  final map = fields is Map ? fields : const <Object?, Object?>{};
   final problems = <String>[];
   final name = map['name'];
   if (name != packageName) {
@@ -1062,7 +1062,7 @@ String _serializePackageConfig(PackageConfig config) {
 // AssetReader implementation.
 // ---------------------------------------------------------------------------
 
-/// AssetReader backed by a Map<AssetId, file path> plus the shim's
+/// AssetReader backed by a `Map<AssetId, file path>` plus the shim's
 /// in-memory writer (so multi-stage pipelines can read prior stages'
 /// outputs via `findAssets`/`readAsString`).
 class _ShimAssetReader extends AssetReader {
@@ -1176,18 +1176,13 @@ class _ShimAssetWriter implements AssetWriter {
 class _ShimBuildStep implements BuildStep {
   _ShimBuildStep({
     required this.inputId,
-    required _ShimAssetReader reader,
-    required _ShimAssetWriter writer,
-    required _ShimAnalyzerResolver resolver,
+    required this._reader,
+    required this._writer,
+    required this._resolver,
     required Iterable<AssetId> allowedOutputsValue,
-    required PackageConfig packageConfig,
-    required ResourceManager resourceManager,
-  }) : _reader = reader,
-       _writer = writer,
-       _resolver = resolver,
-       _allowedOutputs = allowedOutputsValue,
-       _packageConfig = packageConfig,
-       _resourceManager = resourceManager;
+    required this._packageConfig,
+    required this._resourceManager,
+  }) : _allowedOutputs = allowedOutputsValue;
 
   @override
   final AssetId inputId;
