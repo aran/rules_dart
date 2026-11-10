@@ -28,6 +28,28 @@ def index_repo(prefix):
 
 _INDEX = "index.json"
 
+def unsupplied_dependency_error(package, version, dep, why):
+    """The error for a fetched package depending on a locked package nothing fetches.
+
+    Args:
+      package: The package with the dependency.
+      version: Its version.
+      dep: The package it depends on.
+      why: How the lock lists `dep`, e.g. "a `path` package in @//:pubspec.lock".
+
+    Returns:
+      The message.
+    """
+    return (
+        "pub.from_lock(): `{package}` {version} depends on `{dep}`, which is {why}. " +
+        "`pub.from_lock()` fetches only hosted packages, so nothing supplies `{dep}`, " +
+        "and `{package}` would be built without it. Either let pub resolve `{dep}` " +
+        "from a package repository (drop the `dependency_overrides` or path " +
+        "dependency that put it in the lock, and run `dart pub get`), or declare it " +
+        "with `pub.package(name = \"{dep}\", version = ..., sha256 = ...)`. Flutter " +
+        "SDK packages come from rules_flutter's pub extension."
+    ).format(package = package, version = version, dep = dep, why = why)
+
 def _sibling(ctx, repo):
     # A sibling's canonical name: this repository's, with its own name (as the
     # extension gave it) replaced. Read through the canonical name, not a label
@@ -47,7 +69,8 @@ def _pub_lock_library_impl(ctx):
     index = _read_index(ctx)
     fetched = index["versions"]
     explicit = {p: True for p in index["explicit"]}
-    known = fetched | explicit
+    unsupplied = index["unsupplied"]
+    known = fetched | explicit | unsupplied
 
     # Every package this one reaches through fetched packages. A package
     # declared with `pub.package()` is its own repository, whose dependencies
@@ -78,6 +101,8 @@ def _pub_lock_library_impl(ctx):
     deps = {}
     for member in cycle:
         for dep in graph[member]:
+            if dep in unsupplied:
+                fail(unsupplied_dependency_error(member, fetched[member], dep, unsupplied[dep]))
             if dep in in_cycle:
                 continue
             if dep in explicit:
@@ -106,6 +131,7 @@ def _pub_lock_index_impl(ctx):
     ctx.file(_INDEX, json.encode({
         "versions": ctx.attr.versions,
         "explicit": ctx.attr.explicit_packages,
+        "unsupplied": ctx.attr.unsupplied,
     }))
     return ctx.repo_metadata(reproducible = True)
 
@@ -118,6 +144,7 @@ pub_lock_index = repository_rule(
     attrs = {
         "versions": attr.string_dict(doc = "Every package with a source repository, with its version."),
         "explicit_packages": attr.string_list(doc = "Packages declared with `pub.package()`: a dependency on one is on its own repository."),
+        "unsupplied": attr.string_dict(doc = "Packages a lock lists that nothing fetches, each with how the lock lists it. Depending on one is an error."),
     },
     doc = "The packages every `pub_lock_library` of one extension plans against.",
 )

@@ -223,6 +223,11 @@ const _expectedFailureChecks = [
     '//:app',
     'conflicting versions across lock files',
   ),
+  _ExpectedFailure(
+    'e2e/pub_lock_path_override',
+    '//...',
+    'nothing supplies `petitparser`',
+  ),
   // Every pub archive is checked against a pinned digest.
   _ExpectedFailure(
     'e2e/pub_lock_unpinned',

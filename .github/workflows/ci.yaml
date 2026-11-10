@@ -128,6 +128,17 @@ jobs:
           fi
           bazel build //:app 2>&1 | grep -q "conflicting versions across lock files"
           echo "OK: expected conflict error detected"
+      - name: pub_lock_path_override — expect a dependency on an unfetched path package to fail
+        working-directory: e2e/pub_lock_path_override
+        run: |
+          if out=$(bazel build //... 2>&1); then
+            echo "ERROR: build should have failed: xml depends on the path package petitparser"
+            exit 1
+          fi
+          echo "$out" | grep -q "nothing supplies \`petitparser\`"
+          echo "OK: expected unsupplied dependency detected"
+      # Every pub archive is checked against a pinned digest: a lock entry or a
+      # `pub.package()` without one, or two locks disagreeing on one, fails.
       - name: pub_lock_unpinned — expect a lock entry without sha256 to be refused
         working-directory: e2e/pub_lock_unpinned
         run: |

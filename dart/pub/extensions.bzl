@@ -116,6 +116,10 @@ def _pub_impl(ctx):
     # package being undeclared, naming neither the duplicate nor the two locks.
     hub_packages = {}
 
+    # Packages a lock lists that no repository is fetched for (path, git and
+    # SDK sources), with how the first such lock lists each.
+    non_hosted = {}
+
     for mod in ctx.modules:
         for lock_tag in mod.tags.from_lock:
             hub_name = lock_tag.name
@@ -142,6 +146,7 @@ def _pub_impl(ctx):
                 source = info.get("source", "unknown")
                 if source != "hosted":
                     skipped_by_source.setdefault(source, []).append(name)
+                    non_hosted.setdefault(name, "a `%s` package in %s" % (source, lock_tag.lock))
                     continue
 
                 hub_packages[hub_name][name] = True
@@ -255,10 +260,16 @@ def _pub_impl(ctx):
 
     # Create a source repository and a library repository per package.
     explicit_names = sorted(explicit.keys())
+    unsupplied = {
+        name: why
+        for name, why in non_hosted.items()
+        if name not in resolved
+    }
     pub_lock_index(
         name = index_repo(_SPOKE_PREFIX),
         versions = {name: pkg.version for name, pkg in resolved.items()},
         explicit_packages = explicit_names,
+        unsupplied = unsupplied,
     )
     for name, pkg in resolved.items():
         pub_lock_package(

@@ -187,6 +187,7 @@ load to) anything in `dart/pub/extensions.bzl`'s closure invalidates the lock of
 - `e2e/link_hook`
 - `e2e/pub_hub_surface`
 - `e2e/pub_lock_cycle`
+- `e2e/pub_lock_path_override`
 
 `e2e/pub_lock_cross_module`'s `module_b` and `module_c` are skipped by the
 tool (`_skipWorkspaces` in `tool/refresh_locks.dart`): they are consumed only
