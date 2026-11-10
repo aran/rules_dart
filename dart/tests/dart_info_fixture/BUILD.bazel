@@ -1,4 +1,4 @@
-load("//dart:defs.bzl", "dart_code_asset", "dart_library")
+load("//dart:defs.bzl", "dart_code_asset", "dart_library", "dart_package_metadata")
 load(
     "//dart/tests:dart_info_test.bzl",
     "analyzable_no_package_test",
@@ -25,11 +25,16 @@ dart_code_asset(
     shared_library = "//dart/tests/cc_fixture:empty_shared",
 )
 
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "info_dep",
+    code_assets = [":dep_asset"],
+)
+
 dart_library(
     name = "dep",
-    package_name = "info_dep",
     srcs = ["lib/dep.dart"],
-    code_assets = [":dep_asset"],
+    package = ":pubspec",
     resources = ["lib/dep.yaml"],
 )
 

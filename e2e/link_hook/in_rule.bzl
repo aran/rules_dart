@@ -8,6 +8,8 @@ def _impl(ctx):
         ctx,
         runner = ctx.executable._link_hook_runner,
         recorded_uses = ctx.attr.recorded_uses[DartRecordedUsesInfo].file,
+        package = None,
+        package_files = [],
         deps = ctx.attr.deps,
         data_asset_ids = ctx.attr.data_assets,
         name = ctx.label.name,

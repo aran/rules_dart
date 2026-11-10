@@ -21,12 +21,14 @@ load(
     _collect_transitive_code_assets = "collect_transitive_code_assets",
     _collect_transitive_resources = "collect_transitive_resources",
     _collect_transitive_srcs = "collect_transitive_srcs",
+    _derive_package_name = "derive_package_name",
     _generate_dev_package_config = "generate_dev_package_config",
     _generate_package_config = "generate_package_config",
     _generate_package_config_content = "generate_package_config_content",
     _merged_package_record = "merged_package_record",
     _package_code_assets = "package_code_assets",
     _package_license_file = "package_license_file",
+    _program_packages = "program_packages",
     _resolve_code_assets = "resolve_code_assets",
     _runfiles_path = "runfiles_path",
 )
@@ -49,11 +51,11 @@ load(
     _dart_info = "dart_info",
     _dart_info_no_package = "dart_info_no_package",
     _dart_package_info = "dart_package_info",
+    _package_info_from_metadata = "package_info_from_metadata",
     _package_lib_prefix = "package_lib_prefix",
 )
 load(
     "//dart/private:dart_library.bzl",
-    _derive_package_name = "derive_package_name",
     _derive_package_root = "derive_package_root",
 )
 load(
@@ -125,6 +127,11 @@ dart_info = _dart_info
 # The `DartPackageInfo` record of a package a target contributes, from what the
 # rule states about it; checks that its code assets are namespaced to it.
 dart_package_info = _dart_package_info
+
+# The `DartPackageInfo` record of a target that names a `dart_package_metadata`
+# (its `DartPackageMetadataInfo`), rooted where the target's sources are. Every
+# fact comes from the declaration.
+package_info_from_metadata = _package_info_from_metadata
 
 # The other constructor, for a target that ships no Dart package at all and
 # provides `DartInfo` only to satisfy a `deps` attribute that requires one (a
@@ -201,10 +208,19 @@ generate_dev_package_config = _generate_dev_package_config
 generate_package_config_content = _generate_package_config_content
 runfiles_path = _runfiles_path
 
+# A program's packages: its own package's record (`package_info_from_metadata`
+# of its declaration, or the record a rule whose sources are its package builds;
+# `None` for a program in no package) and every package its `deps` reach,
+# merged. The helpers below that collect what a program ships take the same
+# `(package, deps)`, so the program's own package ships its assets and runs its
+# link hook exactly as a dependency's does, as upstream's hooks runner treats
+# the root package.
+program_packages = _program_packages
+
 # Code asset resolution, as `dart_binary` and `dart_test` do it, for a rule set
 # that stages a program's native libraries itself. `resolve_code_assets` unions
-# what `collect_transitive_code_assets` reaches with a target's own
-# `code_assets`, one asset per id, and fails on two definitions of one id as
+# what `collect_transitive_code_assets(package, deps)` reaches with a target's
+# own `code_assets`, one asset per id, and fails on two definitions of one id as
 # `code_asset_identity` tells them apart. `package_code_assets` reads one
 # `DartPackageInfo`'s assets.
 code_asset_identity = _code_asset_identity
@@ -257,8 +273,11 @@ colocate_packages = _colocate_packages
 COPY_TO_DIRECTORY_TOOLCHAINS = _COPY_TO_DIRECTORY_TOOLCHAINS
 
 # Run link hooks from inside another rule, for one that compiles its own kernel
-# and so cannot depend on a `dart_link_hook` target without a cycle. The hooks
-# run in `PORTABLE`: the rule declares `PORTABLE_EXEC_GROUPS` and merges
+# and so cannot depend on a `dart_link_hook` target without a cycle. It takes
+# the program's `(package, deps)` as the helpers above do, and with `package`
+# the program's own files under that package's `lib/` (`package_files`, `[]`
+# for none), which the package's link hook may import. The hooks run in
+# `PORTABLE`: the rule declares `PORTABLE_EXEC_GROUPS` and merges
 # `link_hook_runner_attr()` into its `attrs`.
 dart_link_hook_actions = _dart_link_hook_actions
 link_hook_runner_attr = _link_hook_runner_attr

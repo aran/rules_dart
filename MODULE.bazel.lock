@@ -296,8 +296,8 @@
   "moduleExtensions": {
     "//dart/pub:extensions.bzl%pub": {
       "general": {
-        "bzlTransitiveDigest": "ezZZipZrYqnXp3XD9WLTyQgz42uFH0RvX0EmqlsU93o=",
-        "usagesDigest": "cgAHMdwo+441oPVJrrX60ZsXECa0X7VRGNfOzMcLysY=",
+        "bzlTransitiveDigest": "GHT3HWFdkvgEMgbCeVPl7OQujVbogJda+ZU+SHWo7xM=",
+        "usagesDigest": "NlzcSXDORd8D6q6inTFimcXvhRtCnzoBfUs7+dfx6zM=",
         "recordedInputs": [
           "REPO_MAPPING:,bsd_tar_toolchains_darwin_amd64 tar.bzl++toolchains+bsd_tar_toolchains_darwin_amd64",
           "REPO_MAPPING:,bsd_tar_toolchains_darwin_arm64 tar.bzl++toolchains+bsd_tar_toolchains_darwin_arm64",
@@ -320,6 +320,7 @@
               "package_name": "lints",
               "version": "6.1.0",
               "sha256": "12f842a479589fea194fe5c5a3095abc7be0c1f2ddfa9a0e76aed1dbd26a87df",
+              "base_url": "https://pub.dev",
               "code_assets": [],
               "ignore_hook": false
             }

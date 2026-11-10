@@ -1,9 +1,16 @@
 load(
     "@rules_dart//dart:defs.bzl",
     "dart_library",
+    "dart_package_metadata",
     "dart_test",
 )
 load("@rules_dart//dart/ext/drift:defs.bzl", "drift_codegen")
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "drift_fixture",
+    language_version = "3.11",
+)
 
 # Comprehensive e2e for drift:
 #  - .drift file include (todos + `AS Todo` data class + `allTodos` query)
@@ -17,25 +24,23 @@ load("@rules_dart//dart/ext/drift:defs.bzl", "drift_codegen")
 
 drift_codegen(
     name = "drift_codegen",
-    package_name = "drift_fixture",
     srcs = [
         "lib/database.dart",
         "lib/posts_dao.dart",
     ],
     config = "{\"store_date_time_values_as_text\": true}",
     drift_srcs = ["lib/database.drift"],
-    language_version = "3.11",
+    package = ":pubspec",
 )
 
 dart_library(
     name = "drift_fixture",
-    package_name = "drift_fixture",
     srcs = [
         "lib/database.dart",
         "lib/posts_dao.dart",
         ":drift_codegen",
     ],
-    language_version = "3.11",
+    package = ":pubspec",
     visibility = ["//visibility:public"],
     deps = ["@pub_deps//:drift"],
 )

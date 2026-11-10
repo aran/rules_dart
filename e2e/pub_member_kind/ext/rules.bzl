@@ -10,7 +10,7 @@ library, which depends on the native libraries of whatever the cycle depends
 on.
 """
 
-load("@rules_dart//dart:providers.bzl", "DartInfo")
+load("@rules_dart//dart:providers.bzl", "DartInfo", "DartPackageMetadataInfo")
 load("@rules_dart//dart:utils.bzl", "dart_analyzable_info", "dart_info", "runtime_reset")
 load("@rules_dart//dart/pub:pub_library.bzl", "DartPackageMemberInfo", "dart_package_member_info")
 
@@ -31,11 +31,9 @@ def _fancy_member_impl(ctx):
     return [
         dart_package_member_info(
             label = ctx.label,
-            package_name = ctx.attr.package_name,
-            language_version = ctx.attr.language_version,
+            metadata = ctx.attr.package[DartPackageMetadataInfo],
             srcs = ctx.files.srcs,
             resources = ctx.files.resources,
-            version = ctx.attr.version,
         ),
         FancyMemberInfo(greeting = ctx.attr.greeting),
     ]
@@ -45,9 +43,7 @@ fancy_member = rule(
     attrs = {
         "srcs": attr.label_list(allow_files = [".dart"]),
         "resources": attr.label_list(allow_files = True),
-        "package_name": attr.string(mandatory = True),
-        "language_version": attr.string(),
-        "version": attr.string(),
+        "package": attr.label(mandatory = True, providers = [DartPackageMetadataInfo]),
         "greeting": attr.string(mandatory = True),
     },
 )

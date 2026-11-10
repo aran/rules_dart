@@ -10,36 +10,40 @@
 load(
     "@rules_dart//dart:defs.bzl",
     "dart_library",
+    "dart_package_metadata",
     "dart_test",
 )
 load("@rules_dart//dart/ext/mockito:defs.bzl", "mockito_codegen")
 
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "mockito_fixture",
+    language_version = "3.11",
+)
+
 dart_library(
     name = "mockito_fixture",
-    package_name = "mockito_fixture",
     srcs = [
         "lib/api.dart",
         "lib/clock.dart",
     ],
-    language_version = "3.11",
+    package = ":pubspec",
     visibility = ["//visibility:public"],
 )
 
 mockito_codegen(
     name = "api_test_mocks",
-    package_name = "mockito_fixture",
     testonly = True,
     srcs = ["test/api_test.dart"],
-    language_version = "3.11",
+    package = ":pubspec",
     deps = [":mockito_fixture"],
 )
 
 mockito_codegen(
     name = "nice_mock_test_mocks",
-    package_name = "mockito_fixture",
     testonly = True,
     srcs = ["test/nice_mock_test.dart"],
-    language_version = "3.11",
+    package = ":pubspec",
     deps = [":mockito_fixture"],
 )
 

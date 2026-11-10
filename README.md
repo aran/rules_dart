@@ -227,29 +227,54 @@ dart_test(
 )
 ```
 
-#### Where a package's root is
+#### A package's facts, and where its root is
 
 A package's root is the directory that holds its `lib/`. A `dart_library`
 whose BUILD file is at the root, or in `lib/`, or in any directory under
 `lib/`, belongs to the package rooted above that `lib`. One package can
 therefore be split over several BUILD files, each `dart_library` holding the
-files beside it:
+files beside it.
+
+What `pubspec.yaml` says about a package (its name, its language version, its
+hooks, its license) is stated once, on a `dart_package_metadata` at the
+package's root, and every target of the package names it with `package`:
 
 ```starlark
+# greeter/BUILD.bazel
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "greeter",
+    language_version = "3.11",
+    license_file = "LICENSE",
+    visibility = [":__subpackages__"],
+)
+
+dart_library(
+    name = "greeter",
+    srcs = ["lib/greeter.dart"],
+    package = ":pubspec",
+    deps = ["//greeter/lib/src/model"],
+)
+
 # greeter/lib/src/model/BUILD.bazel: package:greeter/src/model/model.dart
 dart_library(
     name = "model",
-    package_name = "greeter",
     srcs = ["model.dart"],
-    deps = ["//greeter/lib/src/util"],
+    package = "//greeter:pubspec",
 )
 ```
 
 Each part depends on the parts its files import, relative imports included,
-and a consumer depends on the parts it imports. Without `package_name`, a
-package is named for its root directory. A directory named `lib` inside a
-`lib/` (`lib/src/lib/`, or a package rooted under some other `lib/`) leaves the
-root ambiguous and is an error; rename the inner directory.
+and a consumer depends on the parts it imports. Every record of the package
+then carries every fact, whichever of its targets a program reaches; two
+targets of one package naming different `dart_package_metadata`, or one naming
+it and one not, fail the build, naming both. A package with no
+`dart_package_metadata` is named for its root directory and states nothing
+else: its sources compile at the SDK's own language version. A directory named
+`lib` inside a `lib/` (`lib/src/lib/`, or a package rooted under some other
+`lib/`) leaves the root ambiguous and is an error; rename the inner directory.
+Gazelle writes the `dart_package_metadata` from `pubspec.yaml` (see
+[Gazelle](#gazelle)).
 
 ### Tests
 
@@ -561,8 +586,8 @@ pub.from_lock(
 
 A mapped package is that target for the whole build: `@pub_deps//:http`
 aliases it, and every locked package that depends on `http` depends on it. The
-target must build the package of that name (its `dart_library`'s
-`package_name`), which is checked when it is analyzed, and must be visible to
+target must build the package of that name (the `package_name` of its
+`dart_package_metadata`), which is checked when it is analyzed, and must be visible to
 the extension's repositories (`//visibility:public`). The lock's version is not
 checked. A `path` package left unmapped, or a mapped name the lock does not
 list, fails when the lock is read, naming each; two `from_lock()` calls that map
@@ -998,13 +1023,13 @@ a pubspec gives has a home in Bazel:
 
 | The pubspec states | Bazel states it as |
 | --- | --- |
-| `name` | `package_name` on the `dart_library` (and executables), or a `dart_package_metadata`; `# gazelle:dart_package_name` for Gazelle. Unstated, the package root directory's name. |
-| `environment.sdk`, its lower bound | `language_version` likewise, or `# gazelle:dart_language_version`. Unstated, the SDK's own. |
+| `name` | `package_name` on the package's `dart_package_metadata`; `# gazelle:dart_package_name` for Gazelle. With no `dart_package_metadata`, the package root directory's name. |
+| `environment.sdk`, its lower bound | `language_version` on the `dart_package_metadata`, or `# gazelle:dart_language_version`. Unstated, the SDK's own. |
 | `dependencies`, `dev_dependencies` | The `deps` of the target that imports the package, which Gazelle writes from the imports. |
 | The versions in `pubspec.lock`, `dependency_overrides` | `pub.package()` pins, each with `version` and `sha256` (see [Using pub.dev packages](#using-pubdev-packages)). A pin in the root module decides. |
-| `hook/build.dart`, `hook/link.dart` | `build_hook` and `link_hook` on the `dart_library`. |
-| Native libraries a hook would build | `code_assets` (see [Native code assets](#native-code-assets)). |
-| The license file | `license_file` on the `dart_library`. |
+| `hook/build.dart`, `hook/link.dart` | `build_hook` and `link_hook` on the `dart_package_metadata`. |
+| Native libraries a hook would build | `code_assets` on the `dart_package_metadata` (see [Native code assets](#native-code-assets)). |
+| The license file | `license_file` on the `dart_package_metadata`. |
 | `executables:` | A `dart_binary`. |
 
 [`e2e/no_pubspec`](e2e/no_pubspec/) is the worked example, and a test in it
@@ -1012,7 +1037,7 @@ fails if a `pubspec.yaml` or `pubspec.lock` appears anywhere in the workspace.
 Its `MODULE.bazel` pins `json_annotation` and `meta`; `app/BUILD.bazel` states
 `app`'s name and language version once in a `dart_package_metadata`, which its
 `json_serializable_codegen` and `dart_library` share, and `greet/BUILD.bazel`
-states `greet`'s inline.
+states nothing, so `greet` is named for its directory.
 
 Gazelle works without a pubspec. A package's root is the directory above its
 `lib/`, `bin/` and `test/`, its name is the root directory's unless a
@@ -1056,7 +1081,7 @@ load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_aggregate_codegen")
 dart_codegen(
     name = "user_g",
     src = "lib/user.dart",
-    package_name = "my_pkg",
+    package = ":pubspec",
     generator_bin = "@rules_dart//dart/ext/json_serializable:shim",
     output_suffixes = [".json_serializable.g.part"],
     deps = [
@@ -1068,7 +1093,7 @@ dart_codegen(
 dart_aggregate_codegen(
     name = "routes",
     srcs = glob(["lib/**/*.dart"]),
-    package_name = "my_pkg",
+    package = ":pubspec",
     generator_bin = "//tools:route_shim",
     outputs = ["lib/router.gr.dart"],
     deps = [":my_lib"],
@@ -1114,13 +1139,13 @@ json_serializable_codegen(
     name = "user_codegen",
     srcs = ["lib/user.dart"],
     asset_deps = ["lib/role.dart"],  # the package's files user.dart imports
-    package = ":pkg",
+    package = ":pubspec",
 )
 
 dart_library(
     name = "my_pkg",
     srcs = ["lib/role.dart", "lib/user.dart", ":user_codegen"],
-    package = ":pkg",
+    package = ":pubspec",
     deps = ["@pub_deps//:json_annotation"],
 )
 ```
@@ -1135,18 +1160,20 @@ the guards for generated files checked into a source tree. Two more
 library: `sqlite3` (`sqlite3_code_asset()`) and `webcrypto` (see
 [Native code assets](#native-code-assets)).
 
-#### Stating a package's name once
+#### A generator and its package
 
-Every rule that builds part of a package must agree on its `package_name` and
-`language_version`: the `dart_codegen` above states them, and the `dart_library`
-collecting its output has to state the same pair. A `dart_package_metadata`
-target declares them once and the rules point at it:
+A generated file is part of the package whose sources it was generated from, so
+a codegen rule and the `dart_library` collecting its output name the same
+`dart_package_metadata`, and the build fails naming both when they do not. The
+generator runs at the package's language version: the one its
+`dart_package_metadata` states, else the SDK's own, which is what the analyzer
+and the format check assume too.
 
 ```starlark
 load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library", "dart_package_metadata")
 
 dart_package_metadata(
-    name = "pkg",
+    name = "pubspec",
     package_name = "my_pkg",
     language_version = "3.11",
 )
@@ -1154,7 +1181,7 @@ dart_package_metadata(
 dart_codegen(
     name = "user_g",
     src = "lib/user.dart",
-    package = ":pkg",
+    package = ":pubspec",
     generator = "//tools:gen.dart",
     output_suffixes = [".g.dart"],
 )
@@ -1162,53 +1189,45 @@ dart_codegen(
 dart_library(
     name = "my_lib",
     srcs = ["lib/user.dart", ":user_g"],
-    package = ":pkg",
+    package = ":pubspec",
 )
 ```
 
-Set `package` or the inline attributes, never both — the rules refuse the
-overlap rather than silently ignoring one. Because it is a target rather than a
-macro, the rules referencing it can sit in different BUILD files, which is the
-case nothing else covers. The builder macros (`json_serializable_codegen` and
-friends) accept `package` too and forward it to every rule they emit.
-
-A package that states no `language_version` has the SDK's own: it compiles at
-that version, and code generators, the analyzer and the format check all
-assume it too.
+Because `package` names a target, the rules naming it can sit in different
+BUILD files. The builder macros (`json_serializable_codegen` and friends) take
+`package` too and forward it to every rule they emit.
 
 This is not `pub.package()`, which fetches a published package from pub.dev;
 `dart_package_metadata` states facts about a package you are building yourself.
 
 #### Executables in a package
 
-A `dart_binary`, `dart_test`, `dart_js_binary` or `dart_wasm_binary` belongs to
-no package unless it says so. Its entrypoint then takes the language version of
-the package whose root directory contains it, as Dart does for `bin/` and
-`test/`, but only a package that its `deps` bring: a package is brought by its
-libraries, so an executable that depends on none of them has no record of the
-package it sits in. An entrypoint that no brought package's root contains
-compiles, analyzes and is format-checked at the SDK's version, whatever the
-package around it states. A package with no `dart_library` among the
-executable's `deps` has nothing to state the version, so the executable may
-state it itself, with the same `package`, or inline `package_name` /
-`language_version`, that a library takes:
+Dart gives every file under a package's root to that package, `bin/` and
+`test/` included, so an entrypoint there compiles at the package's language
+version. A `dart_binary`, `dart_test`, `dart_js_binary` or `dart_wasm_binary`
+says which package it is in by naming the package's `dart_package_metadata`
+with `package`, as a library does. Its package is then rooted at the
+declaration's directory, wherever the executable's own BUILD file is:
 
 ```starlark
-dart_binary(
-    name = "tool",
-    main = "bin/tool.dart",
-    language_version = "3.6",
+# greeter/test/BUILD.bazel
+dart_test(
+    name = "greeter_test",
+    main = "greeter_test.dart",
+    package = "//greeter:pubspec",
+    deps = ["//greeter", "@pub_deps//:test"],
 )
 ```
 
-It is then a member of that package, rooted at its BUILD file's directory as a
-`dart_library` there would be: the entrypoint compiles, analyzes and is
-format-checked at that version. The package name defaults to the directory's
-name. Everything it states must agree with its `deps`, or the build fails
-naming both sides: a library of the same package (same directory) must state
-the same name and the same `language_version`; a package in `deps` with the
-same name must be rooted in the same directory; and each of the executable's
-own files must sit in its directory and not inside another package's.
+The entrypoint compiles, analyzes and is format-checked at the package's
+version, whether or not the executable depends on a library of the package. An
+executable naming no `dart_package_metadata` adds no package of its own: its
+entrypoint takes the version of a package its `deps` bring whose root contains
+it, or else the SDK's. The build fails naming both sides when an executable's
+package contradicts its `deps`: a package in `deps` rooted at the same
+directory must be the same package; one with the same name must be rooted
+there; and each of the executable's own files must sit under the package root
+and not inside another package's.
 
 ### Static analysis and formatting
 
@@ -1289,11 +1308,11 @@ itself would.
 
 The language version selects the formatting _style_: below `3.7`, `dart format`
 writes the old short style, and from `3.7` on the tall one. The check formats
-each target at its own package's `language_version` (set on the `dart_library`
-or its `dart_package_metadata`; Gazelle copies it from `pubspec.yaml`). An
-executable's entrypoint takes the version of the package its `deps` bring whose
-root directory contains it, or the one the executable states for itself (see
-[Executables in a package](#executables-in-a-package)). With no version
+each target at its own package's `language_version` (set on its
+`dart_package_metadata`; Gazelle copies it from `pubspec.yaml`). An
+executable's entrypoint takes the version of the package it names with
+`package`, or else of the package its `deps` bring whose root directory
+contains it (see [Executables in a package](#executables-in-a-package)). With no version
 stated, the check uses the newest the SDK knows, so a package on an older
 version must state it for the check to hold it to the style its own
 `dart format` produces.
@@ -1466,8 +1485,8 @@ dart_library(
 )
 ```
 
-The variants are separate `dart_library` targets with the same `package_name`,
-each in its own directory, so the import is the same whichever is picked.
+The variants are separate `dart_library` targets of packages with the same
+`package_name`, each in its own directory, so the import is the same whichever is picked.
 Building `:app` or `:app_wasm` builds only that binary's variant.
 
 A platform of your own carries the compiler's constraint value, and whatever
@@ -1591,8 +1610,10 @@ names. Every `code_assets` entry provides `DartCodeAssetInfo`, which
 `dart_code_asset` does.
 
 - Name the asset in the `code_assets` of the `dart_binary` or `dart_test` that
-  runs the code, or in the `dart_library` that owns the bindings, from where it
-  reaches every binary and test depending on that library. A binary's libraries
+  runs the code, or in the `dart_package_metadata` of the package that owns the
+  bindings, from where it reaches every binary and test depending on any
+  library of that package, and every one in the package (its `package`), as
+  upstream treats the root package like any other. A binary's libraries
   are linked into `<name>.native/` beside the executable, which must be
   installed with it (`cp -RL`, since they are links); a test finds them in
   runfiles.
@@ -1609,17 +1630,24 @@ names. Every `code_assets` entry provides `DartCodeAssetInfo`, which
   package, rules_dart sees the hook; supply a replacement with
   `pub.from_lock(resolve = ...)`, or, if its native code is not used, list it in
   `pub.from_lock(ignore_hooks = [...])` or set `pub.package(ignore_hook = True)`.
-  Your own package states its hook with `build_hook`, since a rule cannot look
-  for files (Gazelle states it for you, see [Hooks](#hooks)), and
-  replaces it with the `code_assets` of a `dart_library` of the package; a
-  binary's or test's own `code_assets` do not replace a package's hook:
+  Your own package states its hook with `build_hook` on its
+  `dart_package_metadata`, since a rule cannot look for files (Gazelle states
+  it for you, see [Hooks](#hooks)), and replaces it with the `code_assets` of
+  the same `dart_package_metadata`; a binary's or test's own `code_assets` do
+  not replace a package's hook:
 
   ```starlark
+  dart_package_metadata(
+      name = "pubspec",
+      package_name = "bindings",
+      build_hook = "hook/build.dart",
+      code_assets = [":counter_asset"],
+  )
+
   dart_library(
       name = "bindings",
       srcs = glob(["lib/**/*.dart"]),
-      build_hook = "hook/build.dart",
-      code_assets = [":counter_asset"],
+      package = ":pubspec",
   )
   ```
 - A build tool that never loads native code sets `code_assets_from_deps = False`
@@ -1656,12 +1684,18 @@ beside the executable, and `dart_link_hook` runs the link hooks in its `deps`
 over them and collects the data assets they emit.
 
 ```starlark
-load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_library", "dart_link_hook")
+load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_library", "dart_link_hook", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "glyphs",
+    link_hook = "hook/link.dart",
+)
 
 dart_library(
     name = "glyphs",
     srcs = glob(["lib/**/*.dart"]),
-    link_hook = "hook/link.dart",
+    package = ":pubspec",
     deps = ["@pub_deps//:data_assets", "@pub_deps//:hooks", "@pub_deps//:meta", "@pub_deps//:record_use"],
 )
 
@@ -1684,7 +1718,11 @@ Uses are recorded in the `exe` and `aot-snapshot` modes; in `kernel` the hooks
 see none. The data assets a hook emits are declared by
 id in `data_assets`, since Bazel names every output before the hooks run; the
 build fails if a hook emits a different set, or if it fails itself, with the
-hook's message. Pub packages that ship a link hook get `link_hook` set by
+hook's message. The program's own package is linked like those in `deps`: name
+it in `package`, as the `dart_binary` in `recorded_uses` does (the two must
+agree), and its hook runs. A link hook's imports are `deps` of the package's
+library, as pub requires, or of the program for its own package's hook, which
+may also import the program's own files under the package's `lib/`. Pub packages that ship a link hook get `link_hook` set by
 `pub.from_lock()`, and Gazelle sets it for your own (see [Hooks](#hooks)).
 
 ## Flags

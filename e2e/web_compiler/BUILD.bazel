@@ -3,19 +3,30 @@ load(
     "dart_binary",
     "dart_js_binary",
     "dart_library",
+    "dart_package_metadata",
     "dart_test",
     "dart_wasm_binary",
 )
 load("//rules:defs.bzl", "branch_sources", "web_bundle")
 load("//rules:tests.bzl", "compiler_roots", "shared_test", "variant_test")
 
+dart_package_metadata(
+    name = "everything_pubspec",
+    package_name = "everything",
+)
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "web_compiler_e2e",
+)
+
 # Per-compiler code: `package:i64` comes in two variants, generated once each,
 # and this library picks one by the compiler it is built for. The VM, which no
 # web compiler builds, takes the `none` branch.
 dart_library(
     name = "vec",
-    package_name = "web_compiler_e2e",
     srcs = ["lib/vec.dart"],
+    package = ":pubspec",
     visibility = ["//visibility:public"],
     deps = [
         "@pub_deps//:characters",
@@ -82,8 +93,8 @@ variant_test(
 # build, to compare where each generated file is built.
 dart_library(
     name = "everything",
-    package_name = "everything",
     srcs = [],
+    package = ":everything_pubspec",
     tags = ["manual"],
     deps = [
         ":vec",

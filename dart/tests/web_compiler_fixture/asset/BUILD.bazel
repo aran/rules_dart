@@ -1,4 +1,4 @@
-load("//dart:defs.bzl", "dart_code_asset", "dart_library")
+load("//dart:defs.bzl", "dart_code_asset", "dart_library", "dart_package_metadata")
 
 # A native library under a web binary: `dart_code_asset` resets the web
 # compiler, so the shared library is built once, in the configuration a plain
@@ -9,10 +9,17 @@ dart_code_asset(
     shared_library = "//dart/tests/cc_fixture:empty_shared",
 )
 
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "asset",
+    code_assets = [":native"],
+    tags = ["manual"],
+)
+
 dart_library(
     name = "asset",
     srcs = ["lib/asset.dart"],
-    code_assets = [":native"],
+    package = ":pubspec",
     tags = ["manual"],
     visibility = ["//dart/tests/web_compiler_fixture:__subpackages__"],
 )

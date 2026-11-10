@@ -35,7 +35,7 @@ Usage:
         src = "lib/user.dart",
         generator_bin = "@rules_dart//dart/ext/json_serializable:shim",
         output_suffixes = [".json_serializable.g.part"],
-        package_name = "my_pkg",
+        package = ":pubspec",
         deps = [
             ":models",                          # same-package sibling
             "@pub_deps//:json_annotation",      # import source
@@ -58,14 +58,14 @@ reusing across requests is a silent-corruption hazard due to
 cost is amortised across the worker's lifetime.
 """
 
-load("//dart:providers.bzl", "DartInfo", "DartPackageMetadataInfo")
+load("//dart:providers.bzl", "DartInfo")
 load(
     "//dart/private:common.bzl",
     "PACKAGE_IDENTITY_ATTRS",
     "PATH_MAPPING",
     "add_shim_contract_args",
     "asset_path_for",
-    "codegen_language_version",
+    "codegen_identity",
     "dart_package_root_for_package",
     "resolve_package_identity",
     "same_package_library_dep_files",
@@ -121,7 +121,9 @@ def _dart_codegen_impl(ctx):
         ctx.attr.deps,
         identity.package_name,
     )
-    if package_root_from_deps != None:
+    if identity.metadata != None:
+        package_root = identity.metadata.package_root
+    elif package_root_from_deps != None:
         package_root = package_root_from_deps
     else:
         # The root a `dart_library` beside this target would take, also when
@@ -232,10 +234,7 @@ def _dart_codegen_impl(ctx):
         # The *effective* values, the SDK's version included: a library stating
         # an older one over a generator that states none is exactly the
         # disagreement `codegen_identity_error` exists to name.
-        DartPackageMetadataInfo(
-            package_name = identity.package_name,
-            language_version = codegen_language_version(ctx, identity),
-        ),
+        codegen_identity(identity),
     ]
 
 def _transitive(d):
@@ -284,19 +283,6 @@ dart_codegen = rule(
                   "'.module.dart']` for a builder that " +
                   "emits both per input. At least one suffix is required.",
             mandatory = True,
-        ),
-        "package_name": attr.string(
-            doc = "Dart package name owning `src`. Must match the " +
-                  "consuming `dart_library`'s `package_name` — enforced " +
-                  "where the two meet, in that library's `srcs`. Passed as " +
-                  "`--package`. Set this or `package`, not both; `package` " +
-                  "is how one declaration serves every rule building the " +
-                  "package, including rules in other BUILD files.",
-        ),
-        "language_version": attr.string(
-            doc = "Dart language version of the consuming package, in " +
-                  "`<major>.<minor>` form (e.g. `3.11`). When empty, " +
-                  "the SDK's own, as for a `dart_library` that states none.",
         ),
         "deps": attr.label_list(
             doc = "`dart_library`-shaped targets (anything exporting " +

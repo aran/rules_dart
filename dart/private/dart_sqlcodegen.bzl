@@ -1,7 +1,7 @@
 """Code generation from non-Dart input files (drift `.drift` / `.moor`).
 
 Mirrors `dart_codegen` in shape but accepts any file extension on `src`.
-Same shim-contract attrs (`package_name`, `deps`, `parts`, `config`,
+Same shim-contract attrs (`package`, `deps`, `parts`, `config`,
 `package_config`, `generator_args`); same per-file behaviour — one input,
 one or more outputs derived by applying each `output_suffixes` entry.
 
@@ -17,19 +17,19 @@ Usage:
         src = "schema.drift",
         generator_bin = "@rules_dart//dart/ext/drift:shim_prep",
         output_suffixes = [".drift_prep.json"],
-        package_name = "my_app",
+        package = ":pubspec",
         deps = ["@pub_deps//:drift"],
     )
 """
 
-load("//dart:providers.bzl", "DartInfo", "DartPackageMetadataInfo")
+load("//dart:providers.bzl", "DartInfo")
 load(
     "//dart/private:common.bzl",
     "PACKAGE_IDENTITY_ATTRS",
     "PATH_MAPPING",
     "add_shim_contract_args",
     "asset_path_for",
-    "codegen_language_version",
+    "codegen_identity",
     "dart_package_root_for_package",
     "resolve_package_identity",
     "same_package_library_dep_files",
@@ -57,7 +57,9 @@ def _dart_sqlcodegen_impl(ctx):
         ctx.attr.deps,
         identity.package_name,
     )
-    if package_root_from_deps != None:
+    if identity.metadata != None:
+        package_root = identity.metadata.package_root
+    elif package_root_from_deps != None:
         package_root = package_root_from_deps
     else:
         # The root a `dart_library` beside this target would take, also when
@@ -131,10 +133,7 @@ def _dart_sqlcodegen_impl(ctx):
         # The *effective* values, the SDK's version included: a library stating
         # an older one over a generator that states none is exactly the
         # disagreement `codegen_identity_error` exists to name.
-        DartPackageMetadataInfo(
-            package_name = identity.package_name,
-            language_version = codegen_language_version(ctx, identity),
-        ),
+        codegen_identity(identity),
     ]
 
 dart_sqlcodegen = rule(
@@ -163,19 +162,6 @@ dart_sqlcodegen = rule(
                   "both `.drift_prep.json` and `.expr.temp.dart`) declare " +
                   "all suffixes here.",
             mandatory = True,
-        ),
-        "package_name": attr.string(
-            doc = "Dart package name owning `src`. Must match the " +
-                  "consuming `dart_library`'s `package_name` — enforced " +
-                  "where the two meet, in that library's `srcs`. Set this " +
-                  "or `package`, not both; `package` is how one declaration " +
-                  "serves every rule building the package, including rules " +
-                  "in other BUILD files.",
-        ),
-        "language_version": attr.string(
-            doc = "Dart language version in `<major>.<minor>` form. " +
-                  "When empty, the SDK's own, as for a " +
-                  "`dart_library` that states none.",
         ),
         "deps": attr.label_list(
             doc = "`dart_library`-shaped targets (anything exporting " +

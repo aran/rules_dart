@@ -3,7 +3,7 @@
 Load this file from your BUILD files to access the following rules:
 
 - `dart_library`: Collects Dart sources and propagates dependency information. Does not compile.
-- `dart_package_metadata`: Declares a Dart package's name and language version once, for every rule that builds part of it.
+- `dart_package_metadata`: Declares a Dart package's facts once (the Bazel stand-in for its `pubspec.yaml`); every target of the package names it with `package`.
 - `dart_source_set`: Assembles Dart sources (hand-written + generated) into one directory.
 - `dart_binary`: Compiles a Dart application (`exe`, `aot-snapshot` or `kernel`).
 - `dart_test`: Runs a Dart test file using the Dart VM.

@@ -1,24 +1,28 @@
-load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_codegen", "dart_library", "dart_test")
+load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_codegen", "dart_library", "dart_package_metadata", "dart_test")
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "part_pkg_fixture",
+    language_version = "3.11",
+)
 
 # A Bazel-generated `part` file feeding a runnable program and a test.
 
 dart_codegen(
     name = "message_part",
-    package_name = "part_pkg_fixture",
     src = "lib/message.dart",
     generator = "//tools:part_gen.dart",
-    language_version = "3.11",
     output_suffixes = [".g.dart"],
+    package = ":pubspec",
 )
 
 dart_library(
     name = "part_pkg_fixture",
-    package_name = "part_pkg_fixture",
     srcs = [
         "lib/message.dart",
         ":message_part",
     ],
-    language_version = "3.11",
+    package = ":pubspec",
     visibility = ["//visibility:public"],
 )
 
@@ -54,10 +58,9 @@ dart_test(
 # them and sits inside the package root its `package_config.json` names.
 dart_test(
     name = "member_lib_test",
-    package_name = "part_pkg_fixture",
     size = "small",
-    language_version = "3.11",
     main = "test/lib_test.dart",
+    package = ":pubspec",
     deps = [
         ":part_pkg_fixture",
         "@pub_deps//:test",

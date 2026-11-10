@@ -5,7 +5,7 @@ so the hook is never run and no binary is compiled. The behaviour the hooks
 produce is `e2e/link_hook`'s to show.
 """
 
-load("//dart:defs.bzl", "dart_binary", "dart_code_asset", "dart_library", "dart_link_hook")
+load("//dart:defs.bzl", "dart_binary", "dart_code_asset", "dart_library", "dart_link_hook", "dart_package_metadata")
 load(
     "//dart/tests:link_hook_test.bzl",
     "asset_without_hook_test",
@@ -15,17 +15,23 @@ load(
     "malformed_asset_id_test",
     "misplaced_link_hook_test",
     "not_recording_binary_test",
+    "own_package_not_named_test",
     "recorded_uses_not_json_test",
     "recording_binary_test",
     "validation_runs_assetless_hook_test",
 )
 load("//dart/tests:path_mapping_test.bzl", "path_mapping_test")
 
+dart_package_metadata(
+    name = "lib_pubspec",
+    package_name = "link_hook_fixture",
+    link_hook = "hook/link.dart",
+)
+
 dart_library(
     name = "lib",
-    package_name = "link_hook_fixture",
     srcs = ["lib/fixture.dart"],
-    link_hook = "hook/link.dart",
+    package = ":lib_pubspec",
     deps = ["//dart/tests/link_hook_fixture/dep"],
 )
 
@@ -36,11 +42,17 @@ library_records_link_hook_test(
     target_under_test = ":lib",
 )
 
+dart_package_metadata(
+    name = "misplaced_pubspec",
+    package_name = "link_hook_fixture",
+    link_hook = "misplaced/link.dart",
+    tags = ["manual"],
+)
+
 dart_library(
     name = "misplaced",
-    package_name = "link_hook_fixture",
     srcs = ["lib/fixture.dart"],
-    link_hook = "misplaced/link.dart",
+    package = ":misplaced_pubspec",
     tags = ["manual"],
 )
 
@@ -148,6 +160,47 @@ link_hook_actions_test(
     size = "small",
     recorded_uses_basename = "exe.recorded_uses.json",
     target_under_test = ":linked",
+)
+
+# The hook's package is the program's own, and no library of it is in `deps`:
+# its hook runs as a dependency's would.
+dart_link_hook(
+    name = "linked_own_package",
+    data_assets = ["package:link_hook_fixture/data/index.json"],
+    package = ":lib_pubspec",
+    recorded_uses = "uses.json",
+    tags = ["manual"],
+    deps = ["//dart/tests/link_hook_fixture/dep"],
+)
+
+link_hook_actions_test(
+    name = "link_hook_own_package_actions_test",
+    size = "small",
+    recorded_uses_basename = "uses.json",
+    target_under_test = ":linked_own_package",
+)
+
+# A program in the package, linked without naming it: its hook would not run.
+dart_binary(
+    name = "own_exe",
+    main = "main.dart",
+    package = ":lib_pubspec",
+    record_use = True,
+    tags = ["manual"],
+    deps = [":lib"],
+)
+
+dart_link_hook(
+    name = "own_package_not_named",
+    recorded_uses = ":own_exe",
+    tags = ["manual"],
+    deps = [":lib"],
+)
+
+own_package_not_named_test(
+    name = "own_package_not_named_test",
+    size = "small",
+    target_under_test = ":own_package_not_named",
 )
 
 dart_link_hook(

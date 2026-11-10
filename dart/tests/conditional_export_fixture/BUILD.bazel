@@ -6,7 +6,6 @@ load("//dart:defs.bzl", "dart_library", "dart_test")
 # instead of failing on them.
 dart_library(
     name = "conditional_export_fixture",
-    package_name = "conditional_export_fixture",
     srcs = [
         "lib/init.dart",
         "lib/src/init_native.dart",

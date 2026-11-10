@@ -1,0 +1,18 @@
+load("//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+# `license_file_fixture` again, as a second producer would supply it: rooted
+# here, with another license.
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "license_file_fixture",
+    license_file = "NOTICES",
+    tags = ["manual"],
+)
+
+dart_library(
+    name = "second",
+    srcs = ["lib/fixture.dart"],
+    package = ":pubspec",
+    tags = ["manual"],
+    visibility = ["//dart/tests/license_file_fixture:__pkg__"],
+)

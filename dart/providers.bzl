@@ -41,29 +41,37 @@ forwarded silently discards every dependency's values.""",
 )
 
 DartPackageMetadataInfo = provider(
-    doc = """The two facts a Dart package states about itself: its name and the \
-language version its sources are written against.
+    doc = """A Dart package's own facts, declared once: the Bazel stand-in for its \
+`pubspec.yaml`, made by `dart_package_metadata`.
 
 Distinct from `DartPackageInfo`, which is a *record of a package in the build \
-graph* — where its sources live, what version pub resolved, what native assets \
-it owns — accumulated by `dart_info()` and carried in depsets. This is the \
-*declaration* a `dart_package_metadata` target makes, read back through an \
-attribute by the rules that would otherwise each ask for the same two strings.
+graph*, accumulated by `dart_info()` and carried in depsets. This is the \
+*declaration* every target of the package names with `package`, so a fact is \
+stated in one place and every record of the package carries it, whichever of \
+its targets a program reaches. Build a record from it with \
+`package_info_from_metadata()`.
 
-It exists because those two facts are properties of a package, not of a rule, \
-and a package is routinely built by more than one rule: a `dart_codegen` \
-generating part of it and the `dart_library` collecting the result must agree \
-on both, and `sibling_aggregate_pkg` shows the two living in different BUILD \
-files, where no macro can hold them together. A referenceable declaration can.
+Its location is the package root, as a pubspec's directory is: an executable \
+naming it belongs to the package wherever its own BUILD file sits.
 
 Deliberately a leaf: it carries no `DartInfo`, so a `dart_package_metadata` \
 cannot be mistaken for a dependency. `attr.label(providers = ...)` is \
 require-only, and a target providing `DartInfo` would make \
-`dart_library(deps = [":pkg"])` legal with nothing to say about it — the same \
-trap `DartAnalyzableInfo` exists to avoid.""",
+`dart_library(deps = [":pkg"])` legal with nothing to say about it.
+
+A codegen rule returns the declaration it was built for, or, when it names \
+none, one with only the package name (`label` `None`), so the library \
+collecting its output can check that both name the same package.""",
     fields = {
+        "label": "Label or None: The `dart_package_metadata` target. `None` on the provider a codegen rule naming no declaration returns.",
         "package_name": "str: The Dart package name used in `package:` imports. Required.",
+        "package_root": "str: The package root's short_path: the directory of the declaring BUILD file, or the one above the `lib` it sits in. Empty for the main repository's root.",
         "language_version": "str: Dart language version implied by the package's `environment.sdk` constraint, in `<major>.<minor>` form. Empty when the package states none.",
+        "version": "str: The package's own resolved version; empty when unknown, as for a hand-written package.",
+        "code_assets": "tuple[DartCodeAssetInfo]: Native code assets the package owns.",
+        "unreplaced_hook": "str: `hook/build.dart` when the package has a build hook and no `code_assets` replace it; empty otherwise.",
+        "link_hook": "File or None: The package's `hook/link.dart`.",
+        "license_file": "File or None: The package's license text.",
     },
 )
 
@@ -79,6 +87,7 @@ DartPackageInfo = provider(
         "unreplaced_hook": "str: Path of a `hook/build.dart` this package ships that has no Bazel replacement (empty when none). Merged across a package's records: unreplaced when any states one and none has `code_assets`. Acted on by `dart_binary`/`dart_test`.",
         "link_hook": "File or None: The package's `hook/link.dart`, which `dart_link_hook` runs. Optional; `None` when the package has none, and absent from a record built by a producer predating the field.",
         "license_file": "File or None: The package's license text — for a pub package, the `NOTICES` file at its root if it has one, else its `LICENSE`, the file `flutter build` collects for the license page. Optional; `None` when the package has none, and absent from a record built by a producer predating the field. Read it with `package_license_file()` from `//dart:utils.bzl`.",
+        "metadata": "Label or None: The `dart_package_metadata` the record was built from (`package_info_from_metadata()`), or `None` for a package that names none. Records of one package rooted at one directory must name the same one. Optional; absent from a record built by a producer predating the field.",
     },
 )
 
@@ -90,7 +99,7 @@ Provided by executable rules — `dart_binary`, `dart_test`, `dart_js_binary`, \
 `dart_wasm_binary` here, and downstream by rules whose target is an executable \
 that *also* contributes a package (a `flutter_test` whose `srcs` are its own \
 package's `lib/` files). The executables here contribute one too when they \
-state a `package`, `package_name` or `language_version`. A library needs nothing extra: for it `DartInfo` *is* \
+name a `package`. A library needs nothing extra: for it `DartInfo` *is* \
 the analyzable closure, and the aspect accepts either provider, which is what \
 keeps `dart_proto_library` analyzable without adopting anything. The aspect \
 checks a target's own files: its `DefaultInfo` `.dart` files (a library's \
@@ -163,6 +172,8 @@ unchanged.""",
     fields = {
         "file": "File: The recorded-uses JSON.",
         "kind": "str: `aot` when the compiler recorded the uses — the `exe` and `aot-snapshot` modes, whose tree-shaking is what makes the set of uses known — or `empty` for the `kernel` mode, which records nothing; their file is the empty JSON object the compiler writes when there is nothing to record.",
+        "package": "Label or None: the `dart_package_metadata` of the program's own package (its `package`), which a `dart_link_hook` over these uses must name too.",
+        "package_files": "list[File]: The program's own files under its package's `lib/`, which that package's link hook may import; what `dart_link_hook_actions` takes as `package_files`.",
     },
 )
 

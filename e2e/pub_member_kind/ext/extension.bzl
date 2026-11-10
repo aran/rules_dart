@@ -24,8 +24,16 @@ _PUB_LIBRARY = str(Label("@rules_dart//dart/pub:pub_library.bzl"))
 _FILES = """\
     srcs = glob(["lib/**/*.dart"], allow_empty = True),
     resources = glob(["lib/**"], exclude = ["lib/**/*.dart"], allow_empty = True),
+    package = ":pubspec",
+"""
+
+_METADATA = """\
+dart_package_metadata(
+    name = "pubspec",
     package_name = "{name}",
     language_version = "{language_version}",
+)
+
 """
 
 def _fancy_source_impl(ctx):
@@ -34,22 +42,24 @@ def _fancy_source_impl(ctx):
     ctx.symlink(pubspec, "pubspec.yaml")
     read = read_pubspec(ctx, ctx.attr.package_name)
     write_pubspec_dependencies(ctx, read.dependencies)
-    files = _FILES.format(
+    metadata = _METADATA.format(
         name = ctx.attr.package_name,
         language_version = read.language_version,
     )
     if ctx.attr.greeting:
-        build = 'load("{rules}", "fancy_member")\n\nfancy_member(\n    name = "{name}",\n{files}    greeting = "{greeting}",\n    visibility = ["//visibility:public"],\n)\n'.format(
+        build = 'load("@rules_dart//dart:defs.bzl", "dart_package_metadata")\nload("{rules}", "fancy_member")\n\n{metadata}fancy_member(\n    name = "{name}",\n{files}    greeting = "{greeting}",\n    visibility = ["//visibility:public"],\n)\n'.format(
             rules = _RULES,
             name = ctx.attr.package_name,
-            files = files,
+            metadata = metadata,
+            files = _FILES,
             greeting = ctx.attr.greeting,
         )
     else:
-        build = 'load("{rules}", "pub_package_member")\n\npub_package_member(\n    name = "{name}",\n{files}    visibility = ["//visibility:public"],\n)\n'.format(
+        build = 'load("@rules_dart//dart:defs.bzl", "dart_package_metadata")\nload("{rules}", "pub_package_member")\n\n{metadata}pub_package_member(\n    name = "{name}",\n{files}    visibility = ["//visibility:public"],\n)\n'.format(
             rules = _PUB_LIBRARY,
             name = ctx.attr.package_name,
-            files = files,
+            metadata = metadata,
+            files = _FILES,
         )
     ctx.file("BUILD.bazel", build)
 

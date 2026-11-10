@@ -1,13 +1,18 @@
-load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_library", "dart_test")
+load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_library", "dart_package_metadata", "dart_test")
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "import_check_spellings",
+    language_version = "3.11",
+)
 
 # Expected red: each target names a file by a spelling its declared inputs do
 # not provide, so the import check must refuse it, saying what to write instead.
 
 dart_library(
     name = "x",
-    package_name = "import_check_spellings",
     srcs = ["lib/x.dart"],
-    language_version = "3.11",
+    package = ":pubspec",
 )
 
 # `../lib/x.dart` is a different library to the compiler from the
@@ -28,7 +33,6 @@ dart_binary(
 # A library nothing executable reaches checks itself: a build of it alone fails.
 dart_library(
     name = "unheld_part",
-    package_name = "import_check_spellings",
     srcs = ["lib/unheld_part.dart"],
-    language_version = "3.11",
+    package = ":pubspec",
 )

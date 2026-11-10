@@ -3,7 +3,7 @@ load(":checks.bzl", "pub_graph_check")
 
 # A workspace with no `pubspec.yaml` anywhere: every fact a pubspec would state
 # is stated on targets. Package names and language versions are on
-# `dart_library` or a `dart_package_metadata`, dependencies are `deps`, pub
+# `dart_package_metadata`, dependencies are `deps`, pub
 # packages are `pub.package()` pins, executables are `dart_binary` targets.
 dart_analysis_options(
     name = "options",

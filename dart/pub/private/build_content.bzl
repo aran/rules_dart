@@ -11,7 +11,40 @@ cannot `select()` on the runtime constraint,
 web compilers reach it.
 """
 
-_LOAD = 'load("@rules_dart//dart:defs.bzl", "dart_library")\n'
+_LOAD = 'load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")\n'
+
+def metadata_target_name(package_name):
+    """The name of the `dart_package_metadata` a spoke declares its package with.
+
+    `pubspec`, except for the package named `pubspec`, whose library has that
+    name.
+
+    Args:
+        package_name: The spoke's package.
+
+    Returns:
+        The target name.
+    """
+    return "pubspec_metadata" if package_name == "pubspec" else "pubspec"
+
+def _metadata_block(name, language_version, version = "", code_assets = [], build_hook = "", link_hook = "", license_file = ""):
+    return """\
+dart_package_metadata(
+    name = "{target}",
+    package_name = "{name}",
+    language_version = "{language_version}",
+{version}{assets}{hook}{license}{link_hook}    visibility = ["//visibility:public"],
+)
+""".format(
+        target = metadata_target_name(name),
+        name = name,
+        language_version = language_version,
+        version = _string_block("version", version),
+        assets = _list_block("code_assets", code_assets),
+        hook = _string_block("build_hook", build_hook),
+        license = _string_block("license_file", license_file),
+        link_hook = _string_block("link_hook", link_hook),
+    )
 
 _TEST_LIBRARY = "test_library"
 
@@ -94,10 +127,10 @@ def find_pub_license_file(rctx):
 def make_dart_library_build_content(name, deps, language_version, code_assets = [], build_hook = "", version = "", link_hook = "", license_file = ""):
     """Generate the BUILD.bazel content for a single `dart_library` spoke.
 
-    The shape — `srcs = glob(["lib/**/*.dart"], allow_empty = True)`, the
-    non-Dart remainder of `lib/` as `resources`, a `package_name` matching the
-    target name, public visibility, optional deps block — is the canonical
-    pub-spoke layout. Resource-only and Swift-only/Kotlin-only Flutter platform
+    The shape — a `dart_package_metadata` stating the package's facts, and a
+    `dart_library` naming it with `srcs = glob(["lib/**/*.dart"], allow_empty = True)`,
+    the non-Dart remainder of `lib/` as `resources`, public visibility and an
+    optional deps block — is the canonical pub-spoke layout. Resource-only and Swift-only/Kotlin-only Flutter platform
     packages produce empty source globs but must still resolve as labels, hence
     `allow_empty`.
 
@@ -110,7 +143,7 @@ def make_dart_library_build_content(name, deps, language_version, code_assets = 
     dropped for being unanticipated.
 
     Args:
-        name: Target name (also the `package_name` for the dart_library).
+        name: The package's name, also the library's target name.
         deps: List of fully-qualified Bazel label strings for sibling spokes
             (e.g. `"@hub__dep//:dep"`). Pass an empty list for no deps.
         language_version: Dart language version string (e.g. `"3.0"`),
@@ -140,39 +173,24 @@ def make_dart_library_build_content(name, deps, language_version, code_assets = 
     Returns:
         BUILD.bazel content as a string.
     """
-    deps_block = ""
-    if deps:
-        dep_lines = ['        "{}",'.format(dep) for dep in deps]
-        deps_block = "    deps = [\n{}\n    ],\n".format("\n".join(dep_lines))
-
-    assets_block = ""
-    if code_assets:
-        asset_lines = ['        "{}",'.format(a) for a in code_assets]
-        assets_block = "    code_assets = [\n{}\n    ],\n".format("\n".join(asset_lines))
-
-    hook_block = _string_block("build_hook", build_hook)
-
-    link_hook_block = ""
-    if link_hook:
-        link_hook_block = '    link_hook = "{}",\n'.format(link_hook)
-
-    license_block = _string_block("license_file", license_file)
-
-    version_block = ""
-    if version:
-        version_block = '    version = "{}",\n'.format(version)
-
-    library = """\
+    library = _metadata_block(
+        name,
+        language_version,
+        version = version,
+        code_assets = code_assets,
+        build_hook = build_hook,
+        link_hook = link_hook,
+        license_file = license_file,
+    ) + """
 dart_library(
     name = "{target}",
     srcs = glob(["lib/**/*.dart"], allow_empty = True),
-{assets}{hook}{deps}{license}{link_hook}{version}    package_name = "{name}",
+{deps}    package = ":{metadata}",
     resources = glob(
         ["lib/**"],
         exclude = ["lib/**/*.dart"],
         allow_empty = True,
     ),
-    language_version = "{language_version}",
     runtime_independent = True,
     visibility = ["{visibility}"],
 )
@@ -180,14 +198,8 @@ dart_library(
         # `package:test` keeps its public name for the target that carries the
         # runner beside it; see `_TEST_RUNNER_BLOCK`.
         target = _TEST_LIBRARY if name == "test" else name,
-        name = name,
-        assets = assets_block,
-        deps = deps_block,
-        hook = hook_block,
-        license = license_block,
-        link_hook = link_hook_block,
-        version = version_block,
-        language_version = language_version,
+        deps = _list_block("deps", deps),
+        metadata = metadata_target_name(name),
         visibility = "//visibility:private" if name == "test" else "//visibility:public",
     )
     if name != "test":
@@ -225,7 +237,15 @@ def make_pub_member_build_content(name, language_version, version, code_assets =
     Returns:
         BUILD.bazel content.
     """
-    return _PUB_LIBRARY_LOAD.format(rule = "pub_package_member") + """
+    return 'load("@rules_dart//dart:defs.bzl", "dart_package_metadata")\n' + _PUB_LIBRARY_LOAD.format(rule = "pub_package_member") + "\n" + _metadata_block(
+        name,
+        language_version,
+        version = version,
+        code_assets = code_assets,
+        build_hook = unreplaced_hook,
+        link_hook = link_hook,
+        license_file = license_file,
+    ) + """
 pub_package_member(
     name = "{name}",
     srcs = glob(["lib/**/*.dart"], allow_empty = True),
@@ -234,19 +254,12 @@ pub_package_member(
         exclude = ["lib/**/*.dart"],
         allow_empty = True,
     ),
-    package_name = "{name}",
-{assets}{hook}{license}{link_hook}    language_version = "{language_version}",
-    version = "{version}",
+    package = ":{metadata}",
     visibility = ["//visibility:public"],
 )
 """.format(
         name = name,
-        assets = _list_block("code_assets", code_assets),
-        hook = _string_block("unreplaced_hook", unreplaced_hook),
-        license = _string_block("license_file", license_file),
-        link_hook = _string_block("link_hook", link_hook),
-        language_version = language_version,
-        version = version,
+        metadata = metadata_target_name(name),
     )
 
 def make_pub_library_build_content(name, members = [], deps = [], owner = ""):

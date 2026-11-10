@@ -4,7 +4,7 @@
 # pub.dev builder (json_serializable, freezed, …). See docs/ext.md.
 
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
-load("//dart:defs.bzl", "dart_library", "dart_test")
+load("//dart:defs.bzl", "dart_library", "dart_package_metadata", "dart_test")
 
 exports_files(
     ["pubspec.lock"],
@@ -22,16 +22,22 @@ bzl_library(
     deps = ["//dart/pub:defs"],
 )
 
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "rules_dart_ext",
+    language_version = "3.12",
+    visibility = ["//dart/ext:__subpackages__"],
+)
+
 # Shim-runner library — used by every per-builder shim binary in dart/ext/<*>/.
 dart_library(
     name = "builder_shim",
-    package_name = "rules_dart_ext",
     srcs = [
         "lib/builder_shim.dart",
         "lib/src/declared_file_system.dart",
         "lib/worker_entry.dart",
     ],
-    language_version = "3.12",
+    package = ":pubspec",
     visibility = ["//dart/ext:__subpackages__"],
     deps = [
         "@ext_pub_deps//:analyzer",

@@ -4,8 +4,14 @@ load(
     "dart_analysis_options",
     "dart_js_binary",
     "dart_library",
+    "dart_package_metadata",
     "dart_test",
     "dart_wasm_binary",
+)
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "web_app",
 )
 
 dart_analysis_config(
@@ -17,8 +23,8 @@ dart_analysis_config(
 # compile like any other dep package.
 dart_library(
     name = "rootlib",
-    package_name = "web_app",
     srcs = ["lib/root_greet.dart"],
+    package = ":pubspec",
     visibility = ["//visibility:public"],
 )
 

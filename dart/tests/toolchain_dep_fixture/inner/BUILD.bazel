@@ -1,11 +1,16 @@
-load("//dart:defs.bzl", "dart_library")
+load("//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "toolchain_inner",
+    language_version = "3.11",
+)
 
 # A package the runtime is built on, which the fixture's library imports too
 # without depending on it: its `indirect_imports`.
 dart_library(
     name = "inner",
-    package_name = "toolchain_inner",
     srcs = ["lib/inner.dart"],
-    language_version = "3.11",
+    package = ":pubspec",
     visibility = ["//dart/tests/toolchain_dep_fixture/runtime:__pkg__"],
 )

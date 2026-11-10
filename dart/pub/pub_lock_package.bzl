@@ -17,7 +17,7 @@ rules do, `is_relative_git_url` says whether a lock's
 git `url` is relative to the lock (only then does the package depend on it),
 `find_pub_license_file` finds a package's
 license file as `flutter build` does, and `make_dart_library_build_content` emits the
-same `dart_library` shape for non-plugin packages.
+same `dart_package_metadata` and `dart_library` shape for non-plugin packages.
 """
 
 load("//dart/pub:pub_graph.bzl", "write_pubspec_dependencies")
@@ -130,8 +130,8 @@ _MEMBER_ATTRS = {
     "code_assets": attr.string_list(
         doc = "Labels of `dart_code_asset` targets replacing this package's " +
               "`hook/build.dart` output. Resolved by the `pub` extension from " +
-              "rules_dart's curated registry; attached to the generated " +
-              "`dart_library` so they propagate to every consumer.",
+              "rules_dart's curated registry; stated on the generated " +
+              "`dart_package_metadata` so they propagate to every consumer.",
         default = [],
     ),
 }

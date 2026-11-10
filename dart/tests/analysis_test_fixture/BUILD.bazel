@@ -22,7 +22,6 @@ dart_binary(
 # its analysis still runs.
 dart_library(
     name = "format_opted_out",
-    package_name = "analysis_test_fixture",
     srcs = ["lib/unformatted.dart"],
     tags = [
         "manual",

@@ -129,9 +129,8 @@ def check_code_asset_ownership(label, package_name, assets):
             return (
                 ("%s: code asset id `%s` is not namespaced to this package. " +
                  "Expected it to start with `%s`, because a code asset is " +
-                 "owned by the package declaring it. Either set " +
-                 "`package_name = \"…\"` to the owning package, or move the " +
-                 "asset to that package's `dart_library`.") %
+                 "owned by the package declaring it. Move the asset to the " +
+                 "`dart_package_metadata` of the package its id names.") %
                 (label, asset.asset_id, prefix)
             )
     return None
@@ -214,8 +213,10 @@ def dart_package_info(
         license_file = None):
     """Builds the `DartPackageInfo` a package's own facts make, checking its code assets.
 
-    The one place a record is constructed from what a rule states; a record
-    copied from another goes through `derived_package_info()`.
+    For a rule author whose rule states a package's facts itself. A rule whose
+    target names a `dart_package_metadata` builds its record with
+    `package_info_from_metadata()` instead; a record copied from another goes
+    through `derived_package_info()`.
 
     Args:
       label: The constructing rule's label, for error messages. Recorded as
@@ -243,15 +244,11 @@ def dart_package_info(
     Returns:
       A `DartPackageInfo`.
     """
-    if not package_name:
-        fail(("%s: `package_name` is empty. A target that contributes no " +
-              "package is what `dart_info_no_package()` and " +
-              "`dart_analyzable_info_no_package()` are for.") % label)
     own_assets = [dep[DartCodeAssetInfo] for dep in code_assets]
     err = check_code_asset_ownership(label, package_name, own_assets)
     if err != None:
         fail(err)
-    return DartPackageInfo(
+    return _package_record(
         label = label,
         package_name = package_name,
         package_root = package_root,
@@ -261,6 +258,56 @@ def dart_package_info(
         unreplaced_hook = unreplaced_hook,
         link_hook = link_hook,
         license_file = license_file,
+        metadata = None,
+    )
+
+def package_info_from_metadata(label, metadata, package_root):
+    """Builds the `DartPackageInfo` of a target that names a `dart_package_metadata`.
+
+    Every fact comes from the declaration, so every record of the package
+    carries all of them, whichever of its targets a program reaches. The record
+    names the declaration, which is how records of one package are checked to
+    name the same one.
+
+    Args:
+      label: The constructing rule's label, recorded as the record's `label`.
+      metadata: The `DartPackageMetadataInfo` the target names.
+      package_root: Where the package's sources are: `metadata.package_root`
+        for a target of the package itself, or another directory for a rule
+        that assembles the package elsewhere (a `dart_source_set`).
+
+    Returns:
+      A `DartPackageInfo`.
+    """
+    return _package_record(
+        label = label,
+        package_name = metadata.package_name,
+        package_root = package_root,
+        version = metadata.version,
+        language_version = metadata.language_version,
+        code_assets = metadata.code_assets,
+        unreplaced_hook = metadata.unreplaced_hook,
+        link_hook = metadata.link_hook,
+        license_file = metadata.license_file,
+        metadata = metadata.label,
+    )
+
+def _package_record(label, package_name, package_root, version, language_version, code_assets, unreplaced_hook, link_hook, license_file, metadata):
+    if not package_name:
+        fail(("%s: `package_name` is empty. A target that contributes no " +
+              "package is what `dart_info_no_package()` and " +
+              "`dart_analyzable_info_no_package()` are for.") % label)
+    return DartPackageInfo(
+        label = label,
+        package_name = package_name,
+        package_root = package_root,
+        version = version,
+        language_version = language_version,
+        code_assets = code_assets,
+        unreplaced_hook = unreplaced_hook,
+        link_hook = link_hook,
+        license_file = license_file,
+        metadata = metadata,
     )
 
 def _dep_packages(deps):
@@ -444,8 +491,8 @@ def derived_package_info(
       A `DartPackageInfo`.
     """
 
-    # Paired with the `DartPackageInfo(...)` in `dart_package_info()` above: one builds
-    # a record from a rule's attributes, this one from an existing record.
+    # Paired with the `DartPackageInfo(...)` in `_package_record()` above: one builds
+    # a record from stated facts, this one from an existing record.
     # Those are the only two places the fields are named, and both are here.
     return DartPackageInfo(
         label = getattr(pkg, "label", None),
@@ -463,6 +510,7 @@ def derived_package_info(
         ),
         link_hook = getattr(pkg, "link_hook", None) if link_hook == None else link_hook,
         license_file = getattr(pkg, "license_file", None) if license_file == None else license_file,
+        metadata = getattr(pkg, "metadata", None),
     )
 
 def _merged_dart_info(

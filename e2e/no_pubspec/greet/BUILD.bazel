@@ -1,10 +1,15 @@
-load("@rules_dart//dart:defs.bzl", "dart_library")
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
 
-# A package stated inline: its name and language version on the library.
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "greet",
+    language_version = "3.10",
+)
+
+# A package stated by its own `dart_package_metadata`, as a pubspec would.
 dart_library(
     name = "greet",
-    package_name = "greet",
     srcs = ["lib/greet.dart"],
-    language_version = "3.10",
+    package = ":pubspec",
     visibility = ["//visibility:public"],
 )

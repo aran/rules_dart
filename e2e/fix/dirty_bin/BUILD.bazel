@@ -1,7 +1,12 @@
 load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
 load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
-load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_library")
+load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_library", "dart_package_metadata")
 load("//tools:changes.bzl", "dart_changes")
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "fix_bin_dep",
+)
 
 # The entrypoint counterpart of //dirty. A `dart_binary`'s `main` is under no
 # package's `lib/`, so it reaches the fixes through `DartAnalyzableInfo` rather
@@ -15,8 +20,8 @@ load("//tools:changes.bzl", "dart_changes")
 
 dart_library(
     name = "dep",
-    package_name = "fix_bin_dep",
     srcs = ["lib/dep.dart"],
+    package = ":pubspec",
     tags = ["no-dart-analyze"],
 )
 

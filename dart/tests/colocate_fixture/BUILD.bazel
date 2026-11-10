@@ -7,7 +7,7 @@ and a package with no code asset has nothing to lose in it.
 """
 
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
-load("//dart:defs.bzl", "dart_code_asset", "dart_library")
+load("//dart:defs.bzl", "dart_code_asset", "dart_library", "dart_package_metadata")
 load("//dart/tests:source_set_test.bzl", "colocate_probe")
 
 # The generated half of the package. A genrule stands in for `dart_codegen`
@@ -24,14 +24,19 @@ dart_code_asset(
     shared_library = "//dart/tests/cc_fixture:empty_shared",
 )
 
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "colo_pkg",
+    code_assets = [":code_asset"],
+)
+
 dart_library(
     name = "colo_pkg",
-    package_name = "colo_pkg",
     srcs = [
         "lib/hand.dart",
         ":gen_src",
     ],
-    code_assets = [":code_asset"],
+    package = ":pubspec",
 )
 
 colocate_probe(

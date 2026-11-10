@@ -1,11 +1,16 @@
-load("//dart:defs.bzl", "dart_library")
+load("//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "codegen_fixture_dep",
+)
 
 # A dependency that ships a non-Dart file in `lib/`, as pub packages ship
 # templates and schemas. A generator may read it through the package config.
 dart_library(
     name = "dep",
-    package_name = "codegen_fixture_dep",
     srcs = ["lib/dep.dart"],
+    package = ":pubspec",
     resources = ["lib/template.txt"],
     visibility = ["//dart/tests/codegen_fixture:__pkg__"],
 )

@@ -1,4 +1,10 @@
-load("@rules_dart//dart:defs.bzl", "dart_library")
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "generated_hook",
+    link_hook = "hook/link.dart",
+)
 
 # A package whose hook imports a library with a generated part: the part is
 # written to `bazel-out` and the library beside it is in the source tree, so
@@ -11,12 +17,11 @@ genrule(
 
 dart_library(
     name = "generated",
-    package_name = "generated_hook",
     srcs = [
         "lib/parts.dart",
         ":names",
     ],
-    link_hook = "hook/link.dart",
+    package = ":pubspec",
     visibility = ["//visibility:public"],
     deps = [
         "@pub_deps//:data_assets",

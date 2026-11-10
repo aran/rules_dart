@@ -44,8 +44,6 @@ def _token(s):
 def drift_codegen(
         name,
         srcs,
-        package_name = "",
-        language_version = "",
         package = None,
         drift_srcs = [],
         deps = [],
@@ -59,11 +57,8 @@ def drift_codegen(
       name: The filegroup of the generated parts.
       srcs: `.dart` source files carrying `@DriftDatabase` / `@DriftAccessor`
         annotations.
-      package_name: Dart package name.
-      language_version: Dart language version (`<major>.<minor>`).
-      package: A `dart_package_metadata` declaring both of the above once,
-        forwarded to every rule this macro emits. Mutually exclusive with the
-        two inline arguments.
+      package: The `dart_package_metadata` of the sources' package,
+        forwarded to every rule this macro emits.
       drift_srcs: Optional `.drift` / `.moor` schema files. Each goes
         through prep + discover + analyzer so drift's `BuildCacheReader`
         can satisfy `readDiscovery` / `readElementCacheFor` when the main
@@ -99,8 +94,6 @@ def drift_codegen(
             src = drift_src,
             generator_bin = "@rules_dart//dart/ext/drift:shim_prep",
             output_suffixes = [".drift_prep.json", ".expr.temp.dart"],
-            package_name = package_name,
-            language_version = language_version,
             package = package,
             deps = effective_deps,
             **common
@@ -122,8 +115,6 @@ def drift_codegen(
             generator_bin = "@rules_dart//dart/ext/drift:shim_discover",
             config = config,
             output_suffixes = [".drift.drift_elements.json"],
-            package_name = package_name,
-            language_version = language_version,
             package = package,
             deps = effective_deps,
             asset_deps = drift_srcs + prep_targets,
@@ -158,8 +149,6 @@ def drift_codegen(
             generator_bin = "@rules_dart//dart/ext/drift:shim_discover",
             config = config,
             output_suffixes = [".dart.drift_elements.json"],
-            package_name = package_name,
-            language_version = language_version,
             package = package,
             deps = effective_deps,
             asset_deps = drift_srcs + prep_targets + discover_targets + visible_files(srcs, src, asset_deps),
@@ -192,8 +181,6 @@ def drift_codegen(
                 ".dart.drift_module.json",
                 ".dart.types.temp.dart",
             ],
-            package_name = package_name,
-            language_version = language_version,
             package = package,
             deps = effective_deps,
             asset_deps = (
@@ -224,8 +211,6 @@ def drift_codegen(
                 ".drift.drift_module.json",
                 ".drift.types.temp.dart",
             ],
-            package_name = package_name,
-            language_version = language_version,
             package = package,
             deps = effective_deps,
             asset_deps = (
@@ -265,8 +250,6 @@ def drift_codegen(
             generator_bin = "@rules_dart//dart/ext/drift:shim_drift",
             config = config,
             output_suffixes = [".drift.g.part"],
-            package_name = package_name,
-            language_version = language_version,
             package = package,
             deps = effective_deps,
             asset_deps = drift_side_outputs + visible_files(srcs, src, asset_deps),
@@ -280,8 +263,6 @@ def drift_codegen(
             generator_bin = "@rules_dart//dart/ext/_shared/combining_shim:bin",
             output_suffixes = [".g.dart"],
             parts = [":" + part_target],
-            package_name = package_name,
-            language_version = language_version,
             package = package,
             **common
         )

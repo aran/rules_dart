@@ -97,8 +97,6 @@ def shared_part_codegen(
         shim,
         part_suffix,
         annotation_dep,
-        package_name = "",
-        language_version = "",
         package = None,
         deps = [],
         asset_deps = [],
@@ -115,13 +113,8 @@ def shared_part_codegen(
     Args:
       name: The filegroup of the generated parts.
       srcs: `.dart` source files carrying the builder's annotation.
-      package_name: Dart package name (matches consumer pubspec `name:`).
-        Omit when passing `package`.
-      language_version: Dart language version (`<major>.<minor>`). Omit when
-        passing `package`.
-      package: A `dart_package_metadata` declaring both of the above once,
-        forwarded to every rule this macro emits. Mutually exclusive with the
-        two inline arguments — the rules themselves refuse the overlap.
+      package: The `dart_package_metadata` of the sources' package,
+        forwarded to every rule this macro emits.
       shim: Label of the per-builder SharedPart shim binary.
       part_suffix: Output extension for the shim (e.g.
         `.json_serializable.g.part`). Exactly one per call.
@@ -149,8 +142,6 @@ def shared_part_codegen(
             src = src,
             generator_bin = shim,
             output_suffixes = [part_suffix],
-            package_name = package_name,
-            language_version = language_version,
             package = package,
             deps = codegen_deps,
             asset_deps = visible_files(srcs, src, asset_deps),
@@ -163,8 +154,6 @@ def shared_part_codegen(
             generator_bin = "@rules_dart//dart/ext/_shared/combining_shim:bin",
             output_suffixes = [".g.dart"],
             parts = [":" + part_target],
-            package_name = package_name,
-            language_version = language_version,
             package = package,
             **common
         )
@@ -177,8 +166,6 @@ def library_builder_codegen(
         shim,
         output_suffixes,
         annotation_dep,
-        package_name = "",
-        language_version = "",
         package = None,
         deps = [],
         asset_deps = [],
@@ -194,12 +181,8 @@ def library_builder_codegen(
     Args:
       name: The filegroup of the generated files.
       srcs: `.dart` source files carrying the builder's annotation.
-      package_name: Dart package name. Omit when passing `package`.
-      language_version: Dart language version (`<major>.<minor>`). Omit when
-        passing `package`.
-      package: A `dart_package_metadata` declaring both of the above once,
-        forwarded to every rule this macro emits. Mutually exclusive with the
-        two inline arguments — the rules themselves refuse the overlap.
+      package: The `dart_package_metadata` of the sources' package,
+        forwarded to every rule this macro emits.
       shim: Label of the per-builder shim binary.
       output_suffixes: Output file extensions (e.g. `['.freezed.dart']`,
         `['.mocks.dart']`, or several for a builder that emits more than one
@@ -223,8 +206,6 @@ def library_builder_codegen(
             src = src,
             generator_bin = shim,
             output_suffixes = output_suffixes,
-            package_name = package_name,
-            language_version = language_version,
             package = package,
             deps = codegen_deps,
             asset_deps = visible_files(srcs, src, asset_deps),

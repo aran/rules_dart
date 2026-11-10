@@ -347,7 +347,7 @@ def _agreement_reports_both_fields_together_test_impl(ctx):
     )
     asserts.true(
         env,
-        "Set `language_version` consistently on every" in err,
+        "state the same\n`language_version`" in err,
         "the language-version remedy is present",
     )
     return unittest.end(env)

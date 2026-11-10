@@ -5,7 +5,6 @@ load("//dart/tests:codegen_test.bzl", "codegen_inputs_test", "codegen_language_v
 
 dart_library(
     name = "lib",
-    package_name = "codegen_fixture",
     srcs = ["lib/b.dart"],
     deps = ["//dart/tests/codegen_fixture/dep"],
 )
@@ -19,7 +18,6 @@ dart_binary(
 # One-shot path: the generator is a script run by `dart`.
 dart_codegen(
     name = "per_file",
-    package_name = "codegen_fixture",
     src = "lib/a.dart",
     generator = "gen.dart",
     output_suffixes = [".g.dart"],
@@ -36,7 +34,6 @@ codegen_inputs_test(
 # Worker path: a compiled shim.
 dart_codegen(
     name = "per_file_bin",
-    package_name = "codegen_fixture",
     src = "lib/a.dart",
     generator_bin = ":gen_bin",
     output_suffixes = [".bin.dart"],
@@ -52,7 +49,6 @@ codegen_inputs_test(
 
 dart_aggregate_codegen(
     name = "aggregate",
-    package_name = "codegen_fixture",
     srcs = ["lib/a.dart"],
     generator_script = "gen.dart",
     outputs = ["lib/a.agg.dart"],
@@ -68,7 +64,6 @@ codegen_inputs_test(
 
 dart_sqlcodegen(
     name = "sql",
-    package_name = "codegen_fixture",
     src = "lib/a.dart",
     generator_bin = ":gen_bin",
     output_suffixes = [".sql.json"],

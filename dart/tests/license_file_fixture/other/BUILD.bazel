@@ -1,9 +1,15 @@
-load("//dart:defs.bzl", "dart_library")
+load("//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "license_file_other",
+    tags = ["manual"],
+)
 
 dart_library(
     name = "other",
-    package_name = "license_file_other",
     srcs = ["lib/other.dart"],
+    package = ":pubspec",
     tags = ["manual"],
     visibility = ["//dart/tests/license_file_fixture:__pkg__"],
 )

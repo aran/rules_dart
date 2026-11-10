@@ -13,8 +13,6 @@ _DEFAULT_RUNTIME_DEP = "@pub_deps//:stacked"
 def stacked_router_codegen(
         name,
         srcs,
-        package_name = "",
-        language_version = "",
         deps = [],
         asset_deps = [],
         annotation_dep = _DEFAULT_RUNTIME_DEP,
@@ -25,8 +23,6 @@ def stacked_router_codegen(
     Args:
       name: The filegroup of the generated files.
       srcs: `.dart` sources carrying the builder's annotation.
-      package_name: Dart package name; omit when passing `package`.
-      language_version: Dart language version; omit when passing `package`.
       deps: The libraries of other packages the sources import.
       asset_deps: The files of the sources' own package they import.
       annotation_dep: The builder's runtime library, added to `deps`.
@@ -37,8 +33,6 @@ def stacked_router_codegen(
     library_builder_codegen(
         name = name,
         srcs = srcs,
-        package_name = package_name,
-        language_version = language_version,
         shim = "@rules_dart//dart/ext/stacked:shim_router",
         output_suffixes = [".router.dart"],
         annotation_dep = annotation_dep,
@@ -51,8 +45,6 @@ def stacked_router_codegen(
 def stacked_locator_codegen(
         name,
         srcs,
-        package_name = "",
-        language_version = "",
         deps = [],
         asset_deps = [],
         annotation_dep = _DEFAULT_RUNTIME_DEP,
@@ -63,8 +55,6 @@ def stacked_locator_codegen(
     Args:
       name: The filegroup of the generated files.
       srcs: `.dart` sources carrying the builder's annotation.
-      package_name: Dart package name; omit when passing `package`.
-      language_version: Dart language version; omit when passing `package`.
       deps: The libraries of other packages the sources import.
       asset_deps: The files of the sources' own package they import.
       annotation_dep: The builder's runtime library, added to `deps`.
@@ -75,8 +65,6 @@ def stacked_locator_codegen(
     library_builder_codegen(
         name = name,
         srcs = srcs,
-        package_name = package_name,
-        language_version = language_version,
         shim = "@rules_dart//dart/ext/stacked:shim_locator",
         output_suffixes = [".locator.dart"],
         annotation_dep = annotation_dep,
@@ -89,8 +77,6 @@ def stacked_locator_codegen(
 def stacked_form_codegen(
         name,
         srcs,
-        package_name = "",
-        language_version = "",
         deps = [],
         asset_deps = [],
         annotation_dep = _DEFAULT_RUNTIME_DEP,
@@ -101,8 +87,6 @@ def stacked_form_codegen(
     Args:
       name: The filegroup of the generated files.
       srcs: `.dart` sources carrying the builder's annotation.
-      package_name: Dart package name; omit when passing `package`.
-      language_version: Dart language version; omit when passing `package`.
       deps: The libraries of other packages the sources import.
       asset_deps: The files of the sources' own package they import.
       annotation_dep: The builder's runtime library, added to `deps`.
@@ -113,8 +97,6 @@ def stacked_form_codegen(
     library_builder_codegen(
         name = name,
         srcs = srcs,
-        package_name = package_name,
-        language_version = language_version,
         shim = "@rules_dart//dart/ext/stacked:shim_form",
         output_suffixes = [".form.dart"],
         annotation_dep = annotation_dep,
@@ -127,8 +109,6 @@ def stacked_form_codegen(
 def stacked_logger_codegen(
         name,
         srcs,
-        package_name = "",
-        language_version = "",
         deps = [],
         asset_deps = [],
         annotation_dep = _DEFAULT_RUNTIME_DEP,
@@ -139,8 +119,6 @@ def stacked_logger_codegen(
     Args:
       name: The filegroup of the generated files.
       srcs: `.dart` sources carrying the builder's annotation.
-      package_name: Dart package name; omit when passing `package`.
-      language_version: Dart language version; omit when passing `package`.
       deps: The libraries of other packages the sources import.
       asset_deps: The files of the sources' own package they import.
       annotation_dep: The builder's runtime library, added to `deps`.
@@ -151,8 +129,6 @@ def stacked_logger_codegen(
     library_builder_codegen(
         name = name,
         srcs = srcs,
-        package_name = package_name,
-        language_version = language_version,
         shim = "@rules_dart//dart/ext/stacked:shim_logger",
         output_suffixes = [".logger.dart"],
         annotation_dep = annotation_dep,
@@ -165,8 +141,6 @@ def stacked_logger_codegen(
 def stacked_dialog_codegen(
         name,
         srcs,
-        package_name = "",
-        language_version = "",
         deps = [],
         asset_deps = [],
         annotation_dep = _DEFAULT_RUNTIME_DEP,
@@ -177,8 +151,6 @@ def stacked_dialog_codegen(
     Args:
       name: The filegroup of the generated files.
       srcs: `.dart` sources carrying the builder's annotation.
-      package_name: Dart package name; omit when passing `package`.
-      language_version: Dart language version; omit when passing `package`.
       deps: The libraries of other packages the sources import.
       asset_deps: The files of the sources' own package they import.
       annotation_dep: The builder's runtime library, added to `deps`.
@@ -189,8 +161,6 @@ def stacked_dialog_codegen(
     library_builder_codegen(
         name = name,
         srcs = srcs,
-        package_name = package_name,
-        language_version = language_version,
         shim = "@rules_dart//dart/ext/stacked:shim_dialog",
         output_suffixes = [".dialogs.dart"],
         annotation_dep = annotation_dep,
@@ -203,8 +173,6 @@ def stacked_dialog_codegen(
 def stacked_bottomsheet_codegen(
         name,
         srcs,
-        package_name = "",
-        language_version = "",
         deps = [],
         asset_deps = [],
         annotation_dep = _DEFAULT_RUNTIME_DEP,
@@ -215,8 +183,6 @@ def stacked_bottomsheet_codegen(
     Args:
       name: The filegroup of the generated files.
       srcs: `.dart` sources carrying the builder's annotation.
-      package_name: Dart package name; omit when passing `package`.
-      language_version: Dart language version; omit when passing `package`.
       deps: The libraries of other packages the sources import.
       asset_deps: The files of the sources' own package they import.
       annotation_dep: The builder's runtime library, added to `deps`.
@@ -227,8 +193,6 @@ def stacked_bottomsheet_codegen(
     library_builder_codegen(
         name = name,
         srcs = srcs,
-        package_name = package_name,
-        language_version = language_version,
         shim = "@rules_dart//dart/ext/stacked:shim_bottomsheet",
         output_suffixes = [".bottomsheets.dart"],
         annotation_dep = annotation_dep,

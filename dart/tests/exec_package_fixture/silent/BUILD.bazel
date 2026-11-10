@@ -1,18 +1,26 @@
-load("//dart:defs.bzl", "dart_binary", "dart_library")
+load("//dart:defs.bzl", "dart_binary", "dart_library", "dart_package_metadata")
 load("//dart/tests:executable_package_test.bzl", "executable_package_refused_test")
 
-# States no language version.
+# Names no `dart_package_metadata`.
 dart_library(
     name = "silent",
     srcs = ["lib/silent.dart"],
 )
 
-# The same package, stating one: the library's files would compile at 3.6 in
-# this binary and at the SDK's version everywhere else.
+dart_package_metadata(
+    name = "loud_pubspec",
+    package_name = "silent",
+    language_version = "3.6",
+    tags = ["manual"],
+)
+
+# The same package, naming a declaration its library does not: the library's
+# files would compile at 3.6 in this binary and at the SDK's version everywhere
+# else.
 dart_binary(
     name = "loud",
-    language_version = "3.6",
     main = "bin/loud.dart",
+    package = ":loud_pubspec",
     tags = ["manual"],
     deps = [":silent"],
 )
@@ -20,15 +28,15 @@ dart_binary(
 executable_package_refused_test(
     name = "loud_test",
     size = "small",
-    message = "states package \"silent\" at language version 3.6, but @@//dart/tests/exec_package_fixture/silent:silent, the same package, states none",
+    message = "Package \"silent\" rooted at `dart/tests/exec_package_fixture/silent` is built by targets naming different `dart_package_metadata`:\n  - none, named by @@//dart/tests/exec_package_fixture/silent:silent\n  - @@//dart/tests/exec_package_fixture/silent:loud_pubspec, named by @@//dart/tests/exec_package_fixture/silent:loud\n",
     target_under_test = ":loud",
 )
 
 # An entrypoint from another directory cannot take this package's version.
 dart_binary(
     name = "outside",
-    language_version = "3.6",
     main = "//dart/tests/exec_package_fixture:test/member_test.dart",
+    package = ":loud_pubspec",
     tags = ["manual"],
     deps = ["//dart/tests/exec_package_fixture:lib"],
 )

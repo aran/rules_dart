@@ -1,10 +1,9 @@
 """One `dart_package_metadata` declaration, and the ways rules can contradict it.
 
-`dart_codegen` and the `dart_library` collecting its output each state the
+`dart_codegen` and the `dart_library` collecting its output each name the
 package they belong to, in BUILD files that may not even be the same one. These
-fixtures pin both halves of the answer: pointing both at one `dart_package_metadata`
-makes the duplication impossible, and where the inline attributes are still
-used, a contradiction stops the build instead of being resolved silently.
+fixtures pin both halves: pointing both at one `dart_package_metadata` states
+the package once, and naming two different ones stops the build.
 
 Nothing here executes. Every assertion is an `analysistest`, so `gen.dart` is
 never run and the generator's outputs are never produced.
@@ -14,10 +13,8 @@ load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("//dart:defs.bzl", "dart_codegen", "dart_library", "dart_package_metadata")
 load(
     "//dart/tests:package_identity_test.bzl",
-    "codegen_package_name_conflict_test",
+    "codegen_identity_conflict_test",
     "identity_probe",
-    "language_version_conflict_test",
-    "package_and_inline_conflict_test",
 )
 load("//dart/tests:path_mapping_test.bzl", "path_mapping_test")
 
@@ -68,79 +65,67 @@ build_test(
 
 # --- contradictions the build must refuse -----------------------------------
 
-# Says the generated file belongs to one package while the library collecting
-# it says another. `dart_codegen`'s documentation has always required these to
-# match; before this check, nothing did.
+# A codegen naming no declaration, so its package is named after its
+# directory, collected by a library of the package `:pkg` declares.
 dart_codegen(
     name = "misnamed_g",
-    package_name = "some_other_package",
     src = "lib/misnamed.dart",
     generator = "gen.dart",
-    language_version = "3.11",
     output_suffixes = [".g.dart"],
     tags = ["manual"],
 )
 
 dart_library(
     name = "misnamed_lib",
-    package_name = "ident_fixture",
     srcs = [
         "lib/misnamed.dart",
         ":misnamed_g",
     ],
+    package = ":pkg",
     tags = ["manual"],
 )
 
-codegen_package_name_conflict_test(
+codegen_identity_conflict_test(
     name = "codegen_package_name_conflict_test",
     size = "small",
+    message = "generates sources for package \"package_fixture\", which names no `dart_package_metadata`, but @@//dart/tests/package_fixture:misnamed_lib collects them into the package `@@//dart/tests/package_fixture:pkg` declares",
     target_under_test = ":misnamed_lib",
 )
 
-# The generator states no `language_version` and so ran under the built-in
-# default, while the library compiles the same package as 3.11. Silent before:
-# the generator read the package's sources under semantics the package does not
-# use.
+# Codegen and library naming two declarations of one package name: the
+# generator would run at one declaration's language version and the library
+# compile at the other's.
+dart_package_metadata(
+    name = "other_pkg",
+    package_name = "ident_fixture",
+    language_version = "3.10",
+    tags = ["manual"],
+)
+
 dart_codegen(
     name = "defaulted_g",
-    package_name = "ident_fixture",
     src = "lib/defaulted.dart",
     generator = "gen.dart",
     output_suffixes = [".g.dart"],
+    package = ":other_pkg",
     tags = ["manual"],
 )
 
 dart_library(
     name = "defaulted_lib",
-    package_name = "ident_fixture",
     srcs = [
         "lib/defaulted.dart",
         ":defaulted_g",
     ],
-    language_version = "3.11",
-    tags = ["manual"],
-)
-
-language_version_conflict_test(
-    name = "language_version_conflict_test",
-    size = "small",
-    target_under_test = ":defaulted_lib",
-)
-
-# Two ways to state one fact is two ways for it to be wrong, so setting both is
-# refused whether or not they currently agree.
-dart_library(
-    name = "double_declared",
-    package_name = "ident_fixture",
-    srcs = ["lib/model.dart"],
     package = ":pkg",
     tags = ["manual"],
 )
 
-package_and_inline_conflict_test(
-    name = "package_and_inline_conflict_test",
+codegen_identity_conflict_test(
+    name = "codegen_declaration_conflict_test",
     size = "small",
-    target_under_test = ":double_declared",
+    message = "generates sources for the package `@@//dart/tests/package_fixture:other_pkg` declares, but @@//dart/tests/package_fixture:defaulted_lib collects them into the package `@@//dart/tests/package_fixture:pkg` declares",
+    target_under_test = ":defaulted_lib",
 )
 
 path_mapping_test(

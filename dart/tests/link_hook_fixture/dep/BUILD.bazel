@@ -1,8 +1,13 @@
-load("//dart:defs.bzl", "dart_library")
+load("//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "link_hook_fixture_dep",
+)
 
 dart_library(
     name = "dep",
-    package_name = "link_hook_fixture_dep",
     srcs = ["lib/dep.dart"],
+    package = ":pubspec",
     visibility = ["//dart/tests/link_hook_fixture:__pkg__"],
 )

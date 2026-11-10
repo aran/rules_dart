@@ -1,11 +1,16 @@
-load("//dart:defs.bzl", "dart_library")
+load("//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "toolchain_runtime",
+    language_version = "3.11",
+)
 
 # The library the fixture's toolchain supplies.
 dart_library(
     name = "runtime",
-    package_name = "toolchain_runtime",
     srcs = ["lib/runtime.dart"],
-    language_version = "3.11",
+    package = ":pubspec",
     visibility = ["//dart/tests/toolchain_dep_fixture:__pkg__"],
     deps = ["//dart/tests/toolchain_dep_fixture/inner"],
 )

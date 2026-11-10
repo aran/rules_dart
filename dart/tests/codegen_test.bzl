@@ -1,7 +1,6 @@
 """Tests for the codegen rules: output names, action inputs and language version."""
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts", "unittest")
-load("//dart:providers.bzl", "DartPackageMetadataInfo")
 load("//dart/private:dart_codegen.bzl", "compute_codegen_output_name")
 load(":small_suite.bzl", "small_unittest_suite")
 
@@ -59,7 +58,7 @@ codegen_inputs_test = analysistest.make(_codegen_inputs_test_impl)
 # --- the language version of a target that states none ---
 
 def _codegen_language_version_test_impl(ctx):
-    # A codegen target stating no `language_version` runs its generator at the
+    # A codegen target whose package states no `language_version` runs its generator at the
     # SDK's own, which is what the package compiles at and what the analyzer
     # and the format check assume for it (`default_language_version`): never a
     # value of its own.
@@ -79,11 +78,6 @@ def _codegen_language_version_test_impl(ctx):
         env,
         'sdk: "^%s.0"' % expected in pubspecs[0].content,
         "pubspec states another SDK: %s" % pubspecs[0].content,
-    )
-    asserts.equals(
-        env,
-        expected,
-        analysistest.target_under_test(env)[DartPackageMetadataInfo].language_version,
     )
     return analysistest.end(env)
 

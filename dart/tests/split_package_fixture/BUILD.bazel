@@ -1,15 +1,21 @@
 """A package split across `dart_library` targets, one per directory of its `lib/`.
 
-The layout Gazelle generates. Every target is a record of the one package
-`split_pkg`, and the package's `languageVersion` is whatever any of them
-states, whichever comes first in `deps`.
+The layout Gazelle generates. Every target names the package's one
+`dart_package_metadata`, so every record carries its language version,
+whichever comes first in `deps`.
 """
 
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
-load("//dart:defs.bzl", "dart_binary")
-load("//dart/tests:package_record_test.bzl", "app_record_conflict_test", "app_record_probe", "language_version_conflict_test", "package_config_language_version_test")
+load("//dart:defs.bzl", "dart_binary", "dart_package_metadata")
+load("//dart/tests:package_record_test.bzl", "app_record_probe", "declaration_conflict_test", "package_config_language_version_test")
 
-# The record stating nothing comes first.
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "split_pkg",
+    language_version = "3.7",
+    visibility = ["//dart/tests/split_package_fixture:__subpackages__"],
+)
+
 dart_binary(
     name = "app",
     main = "main.dart",
@@ -27,6 +33,7 @@ package_config_language_version_test(
     target_under_test = ":app",
 )
 
+# A third directory naming another declaration of the same package.
 dart_binary(
     name = "conflicting_app",
     main = "main.dart",
@@ -34,22 +41,23 @@ dart_binary(
     deps = [
         "//dart/tests/split_package_fixture/lib/other_version",
         "//dart/tests/split_package_fixture/lib/plain",
-        "//dart/tests/split_package_fixture/lib/versioned",
     ],
 )
 
-language_version_conflict_test(
-    name = "conflicting_language_versions_test",
+declaration_conflict_test(
+    name = "conflicting_declarations_test",
     size = "small",
+    message = "  - @@//dart/tests/split_package_fixture/lib/other_version:pubspec, named by @@//dart/tests/split_package_fixture/lib/other_version:other_version\n  - @@//dart/tests/split_package_fixture:pubspec, named by @@//dart/tests/split_package_fixture/lib/plain:plain\n",
     target_under_test = ":conflicting_app",
 )
 
-# A target that is itself the package, as a downstream app rule is, stating
-# no language version: it takes the one its libraries state.
+# A target that is itself the package, as a downstream app rule is, naming
+# the package's declaration.
 app_record_probe(
-    name = "unstated_record",
+    name = "declared_record",
     package_name = "split_pkg",
     expected_language_version = "3.7",
+    package = ":pubspec",
     package_root = "dart/tests/split_package_fixture",
     deps = [
         "//dart/tests/split_package_fixture/lib/plain",
@@ -58,22 +66,22 @@ app_record_probe(
 )
 
 build_test(
-    name = "app_record_takes_library_version_test",
-    targets = [":unstated_record"],
+    name = "app_record_takes_declared_version_test",
+    targets = [":declared_record"],
 )
 
-# Stating one its libraries contradict is an error naming both.
+# Naming none, while its libraries name one, is an error naming both.
 app_record_probe(
-    name = "conflicting_record",
+    name = "undeclared_record",
     package_name = "split_pkg",
-    language_version = "3.4",
     package_root = "dart/tests/split_package_fixture",
     tags = ["manual"],
     deps = ["//dart/tests/split_package_fixture/lib/versioned"],
 )
 
-app_record_conflict_test(
+declaration_conflict_test(
     name = "app_record_conflict_test",
     size = "small",
-    target_under_test = ":conflicting_record",
+    message = "  - none, named by @@//dart/tests/split_package_fixture:undeclared_record\n  - @@//dart/tests/split_package_fixture:pubspec, named by @@//dart/tests/split_package_fixture/lib/versioned:versioned\n",
+    target_under_test = ":undeclared_record",
 )

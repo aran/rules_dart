@@ -346,7 +346,11 @@ bzl_library(
     name = "dart_package_metadata",
     srcs = ["dart_package_metadata.bzl"],
     visibility = ["//dart:__subpackages__"],
-    deps = ["//dart:providers"],
+    deps = [
+        ":dart_info",
+        ":dart_library",
+        "//dart:providers",
+    ],
 )
 
 bzl_library(

@@ -1,42 +1,29 @@
-"""The package an executable may state it belongs to, and the checks that keep it honest.
+"""The package an executable may name, and the checks that keep it honest.
 
 `dart_binary`, `dart_test`, `dart_js_binary` and `dart_wasm_binary` accept the
-same package identity `dart_library` does — `package`, or inline
-`package_name` / `language_version` — and none of it is required. Unset, an
-executable contributes no package, exactly as before: its entrypoint takes
-whatever version the package containing it gives it, or the SDK's own.
+`package` every target of a Dart package takes, and none requires it. Unset, an
+executable contributes no package: its entrypoint takes whatever version the
+package containing it gives it through its `deps`, or the SDK's own.
 
-Set, the executable is a member of that package, rooted at its Bazel package
-directory (`locate_package_root`, as for `dart_library`). It then carries the
-package's record like a library does, so the generated `package_config.json`
-covers its entrypoint with that `languageVersion` at compile time, and analysis
-and the `dart_analyze` aspect's format check read the same version for its
-files.
+Set, the executable is a member of the package its `dart_package_metadata`
+declares, rooted at the declaration's directory wherever the executable's own
+BUILD file is, as Dart gives every file under a pubspec's directory to that
+package. It then carries the package's record like a library does, so the
+generated `package_config.json` covers its entrypoint with that
+`languageVersion` at compile time, and analysis and the `dart_analyze`
+aspect's format check read the same version for its files.
 
-A stated identity is a second statement of facts the build may already know —
-which package a directory is, what version it has — so everything here is about
-making the two agree or fail. `executable_package_error` holds the rules and is
-pure, so each can be tested by calling it.
+`executable_package_error` holds the rules that keep the executable's files and
+the packages in its `deps` consistent with that, and is pure, so each can be
+tested by calling it.
 """
 
 load("//dart:providers.bzl", "DartInfo")
-load("//dart/private:common.bzl", "PACKAGE_IDENTITY_ATTRS", "codegen_identity_error", "merge_package_records", "resolve_package_identity")
-load("//dart/private:dart_info.bzl", "dart_analyzable_info", "dart_analyzable_info_no_package", "dart_package_info", "package_lib_prefix")
-load("//dart/private:dart_library.bzl", "derive_package_name", "locate_package_root")
+load("//dart/private:common.bzl", "PACKAGE_IDENTITY_ATTRS", "codegen_identity_error", "program_packages", "resolve_package_identity")
+load("//dart/private:dart_info.bzl", "dart_analyzable_info", "dart_analyzable_info_no_package", "package_info_from_metadata", "package_lib_prefix")
 
-# The identity attributes of every executable rule: `package` from
-# `PACKAGE_IDENTITY_ATTRS`, and the inline pair it excludes.
-EXECUTABLE_PACKAGE_ATTRS = PACKAGE_IDENTITY_ATTRS | {
-    "package_name": attr.string(
-        doc = "The Dart package this executable is part of. Optional: set it (or `language_version`, or `package`) only to make this target a member of the package a `dart_library` beside it would be in, rooted at its Bazel package directory or above the `lib` it sits under; left unset, the target contributes no package and its entrypoint takes the version of the package whose root contains it. Defaults to the name of that root's directory when only `language_version` is set. Must agree with every package in `deps` that shares its name or root. Set this or `package`, not both.",
-    ),
-    "language_version": attr.string(
-        doc = "Dart language version of the package this executable is part of, in `<major>.<minor>` form. Emitted as the package's `languageVersion` in the generated `package_config.json`, so the entrypoint compiles, analyzes and is format-checked at it. For an executable whose Bazel package has no `dart_library` to state it. Must equal the version a `dart_library` of the same package states. Set this or `package`, not both.",
-    ),
-}
-
-def _states_identity(ctx):
-    return bool(ctx.attr.package or ctx.attr.package_name or ctx.attr.language_version)
+# The package attribute of every executable rule.
+EXECUTABLE_PACKAGE_ATTRS = PACKAGE_IDENTITY_ATTRS
 
 def _in_root(path, root):
     """Whether a `short_path` lies under a package root directory."""
@@ -44,29 +31,26 @@ def _in_root(path, root):
         return not path.startswith("../")
     return path.startswith(root + "/")
 
-def _how_stated(label, stated_by):
-    return "%s (via %s)" % (label, stated_by)
+def executable_package_error(label, own, own_paths, dep_packages, reached_through):
+    """Reports an executable's package that contradicts its files or its deps.
 
-def executable_package_error(label, own, stated_by, own_paths, dep_packages, reached_through):
-    """Reports a stated executable package that contradicts what its deps say.
-
-    The rules, each a pair of statements that can disagree:
+    The rules:
 
       * **Its files are in its package.** Every own file must lie under the
         package root, and no package in `deps` may have a root nested deeper
         that also contains one of them — Dart gives a file to the innermost
-        package containing it, so the stated version would not reach it.
+        package containing it, so the package's version would not reach it.
       * **One name, one package.** If `deps` supply records named like this
         package, one of them must share its root. A name reached at several
-        roots is legitimate (a split package; two pub hubs) and is not
-        second-guessed — but a package whose every record is rooted elsewhere is
-        a different package with the same name, and the build can keep only one.
+        roots is legitimate (two pub hubs) and is not second-guessed — but a
+        package whose every record is rooted elsewhere is a different package
+        with the same name, and the build can keep only one.
       * **One root, one name.** Any package in `deps` rooted at the same
         directory must have the same name: one directory is one package.
-      * **One package, one version.** A record in `deps` for the same package
-        (same name and root) must state the same `language_version`, stated or
-        not. The executable's record would otherwise decide the version of the
-        library's files in this build only.
+
+    That a record in `deps` for the same package names the same
+    `dart_package_metadata` is `merge_package_records`'s check, as for any two
+    records of one package.
 
     A package in `deps` whose root merely *contains* this one, under a different
     name, is not a conflict: that is a nested package (a pub package's
@@ -74,9 +58,8 @@ def executable_package_error(label, own, stated_by, own_paths, dep_packages, rea
 
     Args:
       label: The executable's label.
-      own: The executable's own `DartPackageInfo`.
-      stated_by: How the identity was stated, for messages (e.g. "`package =
-        //pkg:meta`").
+      own: The executable's own `DartPackageInfo`, from the declaration it
+        names.
       own_paths: `short_path`s of the executable's own sources.
       dep_packages: Every `DartPackageInfo` its `deps` reach, duplicates kept.
       reached_through: Function from a record to the label of the direct dep
@@ -88,17 +71,16 @@ def executable_package_error(label, own, stated_by, own_paths, dep_packages, rea
     name = own.package_name
     root = own.package_root
     shown_root = root or "."
-    me = _how_stated(label, stated_by)
+    me = "%s (via `package = %s`)" % (label, own.metadata)
 
     for path in own_paths:
         if not _in_root(path, root):
             return (
-                ("%s states package \"%s\", rooted at its Bazel package " +
-                 "directory `%s`, but its source `%s` is outside that " +
-                 "directory — Dart would not give it the package's language " +
-                 "version. Move the file into this package, or drop `package` " +
-                 "/ `package_name` / `language_version` so the file takes the " +
-                 "version of the package that does contain it.") %
+                ("%s is part of package \"%s\", rooted at `%s`, but its " +
+                 "source `%s` is outside that directory — Dart would not give " +
+                 "it the package's language version. Move the file into the " +
+                 "package, or drop `package` so the file takes the version of " +
+                 "the package that does contain it.") %
                 (me, name, shown_root, path)
             )
 
@@ -106,46 +88,22 @@ def executable_package_error(label, own, stated_by, own_paths, dep_packages, rea
     if same_name and not [p for p in same_name if p.package_root == root]:
         other = same_name[0]
         return (
-            ("%s states package \"%s\" rooted at `%s`, but %s supplies package " +
-             "\"%s\" rooted at `%s`. One package has one root, so these are two " +
-             "packages with one name, and a build keeps only one of them. If " +
-             "this target is part of that package, declare it in the BUILD " +
-             "file at `%s`, or drop `package` / `package_name` / " +
-             "`language_version` — its entrypoint then takes that package's " +
-             "version if the package's root contains it. Otherwise give it a " +
-             "different `package_name`.") %
-            (me, name, shown_root, reached_through(other), name, other.package_root or ".", other.package_root or ".")
+            ("%s is part of package \"%s\" rooted at `%s`, but %s supplies " +
+             "package \"%s\" rooted at `%s`. One package has one root, so " +
+             "these are two packages with one name, and a build keeps only " +
+             "one of them. If this target is part of that package, name its " +
+             "`dart_package_metadata`; otherwise give one of the two packages " +
+             "a different `package_name`.") %
+            (me, name, shown_root, reached_through(other), name, other.package_root or ".")
         )
 
     for p in dep_packages:
         if p.package_root == root and p.package_name != name:
             return (
-                ("%s states package \"%s\", but %s declares the same directory " +
-                 "`%s` as package \"%s\". One directory is one package. Name " +
-                 "the same package on both, ideally by pointing both at one " +
-                 "`dart_package_metadata`.") %
+                ("%s is part of package \"%s\", but %s declares the same " +
+                 "directory `%s` as package \"%s\". One directory is one " +
+                 "package: point both at one `dart_package_metadata`.") %
                 (me, name, reached_through(p), shown_root, p.package_name)
-            )
-
-    for p in dep_packages:
-        if p.package_name != name or p.package_root != root:
-            continue
-        theirs = getattr(p, "language_version", "")
-        if theirs != own.language_version:
-            return (
-                ("%s states package \"%s\" at language version %s, but %s, " +
-                 "the same package, states %s. One package has one language " +
-                 "version, and this target's statement would decide it for " +
-                 "the library's files in this build alone. Point both at one " +
-                 "`dart_package_metadata`, or state the same " +
-                 "`language_version` on each.") %
-                (
-                    me,
-                    name,
-                    own.language_version or "none",
-                    reached_through(p),
-                    theirs or "none",
-                )
             )
 
     for path in own_paths:
@@ -153,11 +111,11 @@ def executable_package_error(label, own, stated_by, own_paths, dep_packages, rea
             r = p.package_root
             if r != root and _in_root(r, root) and _in_root(path, r):
                 return (
-                    ("%s states package \"%s\" rooted at `%s`, but its source " +
-                     "`%s` lies inside package \"%s\" (root `%s`, from %s), " +
-                     "which Dart gives it instead. Declare this target in " +
-                     "that package's BUILD file with its identity, or drop " +
-                     "`package` / `package_name` / `language_version` here.") %
+                    ("%s is part of package \"%s\" rooted at `%s`, but its " +
+                     "source `%s` lies inside package \"%s\" (root `%s`, " +
+                     "from %s), which Dart gives it instead. Name that " +
+                     "package's `dart_package_metadata`, or drop `package` " +
+                     "here.") %
                     (me, name, shown_root, path, p.package_name, r, reached_through(p))
                 )
     return None
@@ -181,53 +139,38 @@ def executable_package(ctx, own_srcs):
         any colocation.
 
     Returns:
-      `struct(record, packages, analyzable)`: the executable's own
-      `DartPackageInfo` (`None` when it states none), the deduplicated package
-      list to compile against with that record first, and its
+      `struct(record, package_files, packages, analyzable)`: the
+      executable's own `DartPackageInfo` (`None` when it names no package),
+      its own files under that package's `lib/`, the program's
+      packages (`program_packages`) to compile against, and its
       `DartAnalyzableInfo`.
     """
     dep_packages = depset(transitive = [dep[DartInfo].transitive_packages for dep in ctx.attr.deps]).to_list()
-    if not _states_identity(ctx):
+    identity = resolve_package_identity(ctx)
+    if identity.metadata == None:
         return struct(
             record = None,
-            packages = merge_package_records(dep_packages),
+            package_files = [],
+            packages = program_packages(None, ctx.attr.deps),
             analyzable = dart_analyzable_info_no_package(deps = ctx.attr.deps, entry_srcs = own_srcs),
         )
 
-    identity = resolve_package_identity(ctx)
-    name = derive_package_name(identity.package_name, ctx.label.package, ctx.label.name)
-    root_result = locate_package_root(ctx.label.workspace_root, ctx.label.package, own_srcs)
-    if root_result.error != None:
-        fail("%s: %s" % (ctx.label, root_result.error))
-    root = root_result.root
-    if ctx.attr.package:
-        stated_by = "`package = %s`" % ctx.attr.package.label
-    elif identity.package_name:
-        stated_by = "`package_name = \"%s\"`" % identity.package_name
-    else:
-        stated_by = "`language_version = \"%s\"`" % identity.language_version
-
     # Generated sources this target collects name the package they were
-    # generated for; that is one more statement of the same identity.
-    err = codegen_identity_error(
-        ctx.label,
-        ctx.attr.srcs,
-        struct(package_name = name, language_version = identity.language_version),
-    )
+    # generated for, and must be this one's.
+    err = codegen_identity_error(ctx.label, ctx.attr.srcs, identity.package_name, identity.metadata)
     if err != None:
         fail(err)
+
+    # The declaration's directory is the package root, wherever this target's
+    # BUILD file is.
+    root = identity.metadata.package_root
 
     # The package's `lib/` files are reachable as `package:` URIs and join the
     # package's sources; the rest (the entrypoint) belong to no `lib/`.
     prefix = package_lib_prefix(root)
     analyzable = dart_analyzable_info(
         label = ctx.label,
-        packages = [dart_package_info(
-            label = ctx.label,
-            package_name = name,
-            package_root = root,
-            language_version = identity.language_version,
-        )],
+        packages = [package_info_from_metadata(ctx.label, identity.metadata, root)],
         deps = ctx.attr.deps,
         srcs = [f for f in own_srcs if f.short_path.startswith(prefix)],
         entry_srcs = [f for f in own_srcs if not f.short_path.startswith(prefix)],
@@ -240,7 +183,6 @@ def executable_package(ctx, own_srcs):
     err = executable_package_error(
         ctx.label,
         record,
-        stated_by,
         [f.short_path for f in own_srcs],
         dep_packages,
         _reached_through(ctx.attr.deps),
@@ -250,6 +192,7 @@ def executable_package(ctx, own_srcs):
 
     return struct(
         record = record,
-        packages = merge_package_records([record] + dep_packages),
+        package_files = [f for f in own_srcs if f.short_path.startswith(prefix)],
+        packages = program_packages(record, ctx.attr.deps),
         analyzable = analyzable,
     )

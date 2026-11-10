@@ -1,4 +1,10 @@
-load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_library")
+load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_library", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "import_check_user",
+    language_version = "3.11",
+)
 
 # Expected red: `user.dart` imports `package:import_check_leaf`, which only its
 # dependency `mid` depends on. The layering check, a validation action of any
@@ -6,9 +12,8 @@ load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_library")
 # though nothing is compiled per library for a `dart_binary`.
 dart_library(
     name = "user",
-    package_name = "import_check_user",
     srcs = ["lib/user.dart"],
-    language_version = "3.11",
+    package = ":pubspec",
     deps = ["//import_check/mid"],
 )
 

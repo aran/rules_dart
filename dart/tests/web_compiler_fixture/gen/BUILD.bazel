@@ -4,7 +4,6 @@ load("//dart:defs.bzl", "dart_codegen", "dart_library")
 # reaches it, so it runs once.
 dart_codegen(
     name = "model_g",
-    package_name = "gen",
     src = "lib/model.dart",
     generator = "part_generator.dart",
     output_suffixes = [".g.dart"],

@@ -7,7 +7,7 @@ The analysis tests are declared beside their fixtures, in
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts", "unittest")
 load("//dart:providers.bzl", "DartCodeAssetInfo", "DartInfo", "DartPackageInfo")
 load("//dart/private:common.bzl", "merge_package_records")
-load("//dart/private:dart_library.bzl", "build_hook_error", "unreplaced_build_hook")
+load("//dart/private:dart_package_metadata.bzl", "build_hook_error", "unreplaced_build_hook")
 load(":small_suite.bzl", "small_unittest_suite")
 
 def _records_build_hook_test_impl(ctx):
@@ -44,7 +44,7 @@ def _expect_failure(*fragments):
 unreplaced_build_hook_test = _expect_failure(
     "build_hook_fixture (hook/build.dart)",
     "remove its `build_hook`",
-    "in that library's `code_assets`",
+    "in the `code_assets` of the package's",
 )
 misplaced_build_hook_test = _expect_failure("`build_hook` must be the package's `hook/build.dart`")
 

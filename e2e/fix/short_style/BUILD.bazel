@@ -1,16 +1,21 @@
 load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
 load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
-load("@rules_dart//dart:defs.bzl", "dart_library")
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
 load("//tools:changes.bzl", "dart_changes")
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "short_style",
+    language_version = "3.6",
+)
 
 # A package on 3.6, whose short style no later version produces, with a file
 # its format check would reject. `manual`, so `bazel test //...` does not
 # check it; `bazel run //write_back` formats it and puts it back.
 dart_library(
     name = "lib",
-    package_name = "short_style",
     srcs = ["lib/short.dart"],
-    language_version = "3.6",
+    package = ":pubspec",
     tags = ["manual"],
 )
 

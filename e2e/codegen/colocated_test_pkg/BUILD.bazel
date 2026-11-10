@@ -1,4 +1,10 @@
-load("@rules_dart//dart:defs.bzl", "dart_library", "dart_test")
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata", "dart_test")
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "colocated_fixture",
+    language_version = "3.11",
+)
 
 # A test declared in the same Bazel package as the library it tests — the
 # ordinary pub layout — where the library itself is pure source and its
@@ -19,9 +25,8 @@ load("@rules_dart//dart:defs.bzl", "dart_library", "dart_test")
 
 dart_library(
     name = "colocated_fixture",
-    package_name = "colocated_fixture",
     srcs = ["lib/consumer.dart"],
-    language_version = "3.11",
+    package = ":pubspec",
     deps = ["//import_pkg:import_fixture"],
 )
 

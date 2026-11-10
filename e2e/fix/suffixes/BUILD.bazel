@@ -1,7 +1,12 @@
 load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
 load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
-load("@rules_dart//dart:defs.bzl", "dart_library")
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
 load("//tools:changes.bzl", "dart_changes")
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "fix_suffixes",
+)
 
 # Pins the heuristic fixes cannot rely on. `dart fix` skips files called
 # `*.g.dart` and no other name, so a `.freezed.dart` part is rewritten like any
@@ -12,12 +17,12 @@ load("//tools:changes.bzl", "dart_changes")
 # it: that would rewrite the fixture and take the assertion with it.
 dart_library(
     name = "lib",
-    package_name = "fix_suffixes",
     srcs = [
         "lib/thing.dart",
         "lib/thing.freezed.dart",
         "lib/thing.g.dart",
     ],
+    package = ":pubspec",
     tags = ["no-dart-analyze"],
 )
 

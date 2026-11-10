@@ -87,9 +87,9 @@ def _dart_binary_impl(ctx):
     fe_flags, compile_flags = front_end_flags(ctx.attr.dart_compile_flags)
     code_asset_libs = []
 
-    # Assets reach a binary two ways: propagated from any package in `deps`
-    # that owns one (the upstream semantics — depending on a package gets you
-    # its assets), or named outright. The explicit attr is for
+    # Assets reach a binary two ways: propagated from any of its packages that
+    # owns one, its own or one in `deps` (the upstream semantics — depending on
+    # a package gets you its assets), or named outright. The explicit attr is for
     # hand-written cases. The
     # mapping is embedded in the kernel, its `relative` paths resolved against
     # the final executable at run time: each library is linked into
@@ -97,7 +97,7 @@ def _dart_binary_impl(ctx):
     # that directory go together.
     resolved_assets = resolve_code_assets(
         ctx.label,
-        collect_transitive_code_assets(ctx.attr.deps) if ctx.attr.code_assets_from_deps else [],
+        collect_transitive_code_assets(own.record, ctx.attr.deps) if ctx.attr.code_assets_from_deps else [],
         [dep[DartCodeAssetInfo] for dep in ctx.attr.code_assets],
     )
     native_assets_yaml = None
@@ -140,7 +140,12 @@ def _dart_binary_impl(ctx):
             compile_recorded_uses = recorded_uses
         else:
             ctx.actions.write(output = recorded_uses, content = "{}")
-        recorded_uses_info = [DartRecordedUsesInfo(file = recorded_uses, kind = kind)]
+        recorded_uses_info = [DartRecordedUsesInfo(
+            file = recorded_uses,
+            kind = kind,
+            package = own.record.metadata if own.record != None else None,
+            package_files = own.package_files,
+        )]
 
     if compile_mode != "kernel":
         dart_compile_action(
@@ -313,7 +318,8 @@ def _dart_binary_rule(check_imports, compile_runner = True, launcher = True):
                 ),
                 "code_assets_from_deps": attr.bool(
                     default = True,
-                    doc = """Whether to pick up native code assets propagated through `deps`.
+                    doc = """Whether to pick up the native code assets the binary's packages declare: its own \
+    `package`'s and those of every package `deps` reach.
 
     Leave this on for a program that runs the packages it depends on. Turn it off for a `dart_binary` \
     used purely as a *build tool* — a code generator, a linter — which imports pub packages for their \

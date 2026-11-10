@@ -1,10 +1,8 @@
 load("//dart:defs.bzl", "dart_library")
 
-# `package_name` is set, as Gazelle writes it; the sibling in `../util` leaves
-# it to be derived from the package root.
+# Named after the package root, as its sibling in `../util` is.
 dart_library(
     name = "model",
-    package_name = "subdir_package_fixture",
     srcs = ["model.dart"],
     visibility = ["//dart/tests/subdir_package_fixture:__subpackages__"],
     deps = ["//dart/tests/subdir_package_fixture/lib/src/util"],

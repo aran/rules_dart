@@ -1,6 +1,11 @@
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
-load("@rules_dart//dart:defs.bzl", "dart_library")
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
 load(":rules.bzl", "colocate")
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "pkg",
+)
 
 genrule(
     name = "gen",
@@ -10,11 +15,11 @@ genrule(
 
 dart_library(
     name = "pkg",
-    package_name = "pkg",
     srcs = [
         "lib/a.dart",
         ":gen",
     ],
+    package = ":pubspec",
 )
 
 colocate(

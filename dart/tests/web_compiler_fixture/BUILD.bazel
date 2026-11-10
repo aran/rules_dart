@@ -16,7 +16,6 @@ load(
 # `select()` in `deps`, as docs/ARCHITECTURE.md ("Per-compiler code") shows.
 dart_library(
     name = "facade",
-    package_name = "web_compiler_fixture",
     srcs = ["lib/facade.dart"],
     deps = select({
         "//dart/constraints:js": ["//dart/tests/web_compiler_fixture/js:variant"],
@@ -67,7 +66,6 @@ variant_test(
 # Every kind of compiler-independent target under one first-party library.
 dart_library(
     name = "top",
-    package_name = "web_compiler_fixture",
     srcs = [],
     tags = ["manual"],
     deps = [

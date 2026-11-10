@@ -33,7 +33,7 @@ manifest_contains_test(
 ownership_violation_test(
     name = "ownership_violation_test",
     size = "small",
-    target_under_test = "//dart/tests/propagation_fixture/b:misowned",
+    target_under_test = "//dart/tests/propagation_fixture/b:misowned_pubspec",
 )
 
 # Same asset id as the one `prop_b` propagates, but backed by a different
@@ -69,7 +69,7 @@ dart_binary(
     tags = ["manual"],
     deps = [
         "//dart/tests/propagation_fixture/a",
-        "//dart/tests/propagation_fixture/b:b_alt",
+        "//dart/tests/propagation_fixture/b_alt",
     ],
 )
 

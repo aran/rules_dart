@@ -1,4 +1,4 @@
-load("//dart:defs.bzl", "dart_code_asset", "dart_library")
+load("//dart:defs.bzl", "dart_code_asset", "dart_library", "dart_package_metadata")
 
 # The far side of the diamond: the package that *owns* a native code asset.
 # Nothing downstream names this asset; it must arrive by propagation alone.
@@ -10,36 +10,25 @@ dart_code_asset(
     visibility = ["//dart/tests:__subpackages__"],
 )
 
+dart_package_metadata(
+    name = "b_pubspec",
+    package_name = "prop_b",
+    code_assets = [":code_asset"],
+)
+
 dart_library(
     name = "b",
-    package_name = "prop_b",
     srcs = ["lib/b.dart"],
-    code_assets = [":code_asset"],
+    package = ":b_pubspec",
     visibility = ["//dart/tests:__subpackages__"],
 )
 
-# Same asset id, declared by a library claiming a different package. The id is
-# namespaced to `prop_b`, so this must fail the ownership check.
-dart_library(
-    name = "misowned",
+# Same asset id, declared for a different package. The id is namespaced to
+# `prop_b`, so this must fail the ownership check.
+dart_package_metadata(
+    name = "misowned_pubspec",
     package_name = "not_prop_b",
     code_assets = [":code_asset"],
-    tags = ["manual"],
-    visibility = ["//dart/tests:__subpackages__"],
-)
-
-# `prop_b` again, split across a second target that backs the same id with a
-# different library: two definitions of one id reached through `deps`.
-dart_code_asset(
-    name = "alt_code_asset",
-    asset_id = "package:prop_b/src/ffi/prop_b.g.dart",
-    shared_library = "//dart/tests/cc_fixture:empty_shared_alt",
-)
-
-dart_library(
-    name = "b_alt",
-    package_name = "prop_b",
-    code_assets = [":alt_code_asset"],
     tags = ["manual"],
     visibility = ["//dart/tests:__subpackages__"],
 )

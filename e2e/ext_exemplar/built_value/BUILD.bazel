@@ -1,9 +1,16 @@
 load(
     "@rules_dart//dart:defs.bzl",
     "dart_library",
+    "dart_package_metadata",
     "dart_test",
 )
 load("@rules_dart//dart/ext/built_value:defs.bzl", "built_value_codegen")
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "built_value_sample",
+    language_version = "3.11",
+)
 
 # Comprehensive e2e for built_value_codegen:
 #  - user.dart / profile.dart — Built<T, TBuilder> value classes, one with
@@ -18,26 +25,24 @@ load("@rules_dart//dart/ext/built_value:defs.bzl", "built_value_codegen")
 
 built_value_codegen(
     name = "built_value_codegen",
-    package_name = "built_value_sample",
     srcs = [
         "lib/profile.dart",
         "lib/serializers.dart",
         "lib/user.dart",
     ],
-    language_version = "3.11",
+    package = ":pubspec",
     deps = ["@pub_deps//:built_collection"],
 )
 
 dart_library(
     name = "built_value",
-    package_name = "built_value_sample",
     srcs = [
         "lib/profile.dart",
         "lib/serializers.dart",
         "lib/user.dart",
         ":built_value_codegen",
     ],
-    language_version = "3.11",
+    package = ":pubspec",
     visibility = ["//visibility:public"],
     deps = [
         "@pub_deps//:built_collection",

@@ -1,19 +1,41 @@
 load("//dart:defs.bzl", "dart_binary")
-load("//dart/tests:executable_package_test.bzl", "executable_package_refused_test")
+load("//dart/tests:executable_package_test.bzl", "package_config_probe_test")
 
-# `exec_pkg` is rooted one directory up, where its library is; this BUILD file
-# is not that directory, so naming the package here names a second one.
+# `exec_pkg` is rooted one directory up, where its `dart_package_metadata` is.
+# A binary declared here that names it belongs to that package, as Dart gives
+# every file under a pubspec's directory to its package, and its entrypoint
+# takes the package's version.
 dart_binary(
-    name = "elsewhere",
+    name = "member",
+    compile_mode = "kernel",
     main = "main.dart",
     package = "//dart/tests/exec_package_fixture:meta",
-    tags = ["manual"],
     deps = ["//dart/tests/exec_package_fixture:lib"],
 )
 
-executable_package_refused_test(
-    name = "elsewhere_test",
+package_config_probe_test(
+    name = "member_package_config_test",
     size = "small",
-    message = "states package \"exec_pkg\" rooted at `dart/tests/exec_package_fixture/bin`, but @@//dart/tests/exec_package_fixture:lib supplies package \"exec_pkg\" rooted at `dart/tests/exec_package_fixture`",
-    target_under_test = ":elsewhere",
+    expected = ['"name": "exec_pkg", "rootUri": "org-dartlang-root:///dart/tests/exec_package_fixture/", "packageUri": "lib/", "languageVersion": "3.8"'],
+    expected_language_version = "3.8",
+    expected_package_name = "exec_pkg",
+    target_under_test = ":member",
+)
+
+# One that reaches no library of the package still gets its version: the
+# record comes from the declaration, not from a dependency.
+dart_binary(
+    name = "standalone",
+    compile_mode = "kernel",
+    main = "standalone.dart",
+    package = "//dart/tests/exec_package_fixture:meta",
+)
+
+package_config_probe_test(
+    name = "standalone_package_config_test",
+    size = "small",
+    expected = ['"name": "exec_pkg", "rootUri": "org-dartlang-root:///dart/tests/exec_package_fixture/", "packageUri": "lib/", "languageVersion": "3.8"'],
+    expected_language_version = "3.8",
+    expected_package_name = "exec_pkg",
+    target_under_test = ":standalone",
 )

@@ -31,7 +31,7 @@ Usage:
         generator_bin = "//tools:my_aggregate_shim",
         outputs = ["lib/main.config.dart", "lib/main.module.dart"],
         deps = ["@pub_deps//:my_annotations"],
-        package_name = "my_app",
+        package = ":pubspec",
     )
 
 `deps` is a list of `dart_library`-shaped targets (anything exporting
@@ -43,14 +43,14 @@ Worker mode (`supports-workers=1`, protobuf, singleplex) is enabled for
 `generator_bin` actions; worker requests go through `dart/ext/lib/worker_entry.dart`.
 """
 
-load("//dart:providers.bzl", "DartInfo", "DartPackageMetadataInfo")
+load("//dart:providers.bzl", "DartInfo")
 load(
     "//dart/private:common.bzl",
     "PACKAGE_IDENTITY_ATTRS",
     "PATH_MAPPING",
     "add_shim_contract_args",
     "asset_path_for",
-    "codegen_language_version",
+    "codegen_identity",
     "dart_package_root_for_package",
     "format_literal",
     "resolve_package_identity",
@@ -83,7 +83,9 @@ def _dart_aggregate_codegen_impl(ctx):
         ctx.attr.deps,
         identity.package_name,
     )
-    if package_root_from_deps != None:
+    if identity.metadata != None:
+        package_root = identity.metadata.package_root
+    elif package_root_from_deps != None:
         package_root = package_root_from_deps
     else:
         # The root a `dart_library` beside this target would take, also when
@@ -165,10 +167,7 @@ def _dart_aggregate_codegen_impl(ctx):
         # The *effective* values, the SDK's version included: a library stating
         # an older one over a generator that states none is exactly the
         # disagreement `codegen_identity_error` exists to name.
-        DartPackageMetadataInfo(
-            package_name = identity.package_name,
-            language_version = codegen_language_version(ctx, identity),
-        ),
+        codegen_identity(identity),
     ]
 
 dart_aggregate_codegen = rule(
@@ -215,19 +214,6 @@ dart_aggregate_codegen = rule(
                   "builder-produced extension — e.g. `['lib/app.config.dart', " +
                   "'lib/app.module.dart']` for a builder emitting both.",
             mandatory = True,
-        ),
-        "package_name": attr.string(
-            doc = "Dart package name owning `srcs`. Must match the " +
-                  "consuming `dart_library`'s `package_name` — enforced " +
-                  "where the two meet, in that library's `srcs`. Set this " +
-                  "or `package`, not both; `package` is how one declaration " +
-                  "serves every rule building the package, including rules " +
-                  "in other BUILD files.",
-        ),
-        "language_version": attr.string(
-            doc = "Dart language version of the consuming package, in " +
-                  "`<major>.<minor>` form. When empty, the SDK's own, " +
-                  "as for a `dart_library` that states none.",
         ),
         "parts": attr.label_list(
             doc = "Additional input files passed as `--part <path>` " +

@@ -1,4 +1,9 @@
-load("@rules_dart//dart:defs.bzl", "dart_library", "dart_test")
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata", "dart_test")
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "shapes",
+)
 
 # `bazel coverage --combined_report=lcov //coverage/...` reports this library
 # and `//coverage/units` from both tests, merged, without the lines and files
@@ -6,8 +11,8 @@ load("@rules_dart//dart:defs.bzl", "dart_library", "dart_test")
 # report against the `// covered` and `// uncovered` marks in their sources.
 dart_library(
     name = "shapes",
-    package_name = "shapes",
     srcs = ["lib/shapes.dart"],
+    package = ":pubspec",
     visibility = ["//coverage:__subpackages__"],
     deps = [
         "//coverage/excluded",

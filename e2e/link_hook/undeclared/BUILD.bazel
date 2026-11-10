@@ -1,13 +1,18 @@
-load("@rules_dart//dart:defs.bzl", "dart_library")
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "undeclared_hook",
+    link_hook = "hook/link.dart",
+)
 
 # A package whose hook imports `lib/extra.dart`, which is in the package's
 # directory but in no target's `srcs`. Bazel declared nothing for it, so the
 # hook must not find it.
 dart_library(
     name = "undeclared",
-    package_name = "undeclared_hook",
     srcs = ["lib/undeclared_hook.dart"],
-    link_hook = "hook/link.dart",
+    package = ":pubspec",
     tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [

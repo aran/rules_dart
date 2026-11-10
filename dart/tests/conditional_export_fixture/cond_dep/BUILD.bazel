@@ -4,7 +4,6 @@ load("//dart:defs.bzl", "dart_library")
 # there. The VM module leaves that file out.
 dart_library(
     name = "cond_dep",
-    package_name = "cond_dep",
     srcs = [
         "lib/cond_dep.dart",
         "lib/src/vm.dart",

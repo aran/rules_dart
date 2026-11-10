@@ -1,5 +1,11 @@
-load("@rules_dart//dart:defs.bzl", "dart_test")
+load("@rules_dart//dart:defs.bzl", "dart_package_metadata", "dart_test")
 load("@rules_dart//dart/ext/go_router:defs.bzl", "go_router_codegen")
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "go_router_routes",
+    language_version = "3.11",
+)
 
 # End-to-end test for go_router_builder. go_router's published package
 # depends on Flutter (package:flutter/widgets.dart), so we can't bring it
@@ -16,10 +22,9 @@ load("@rules_dart//dart/ext/go_router:defs.bzl", "go_router_codegen")
 
 go_router_codegen(
     name = "app_router_codegen",
-    package_name = "go_router_routes",
     srcs = ["lib/app_router.dart"],
     annotation_dep = "//go_router/_go_router_stub:go_router_stub",
-    language_version = "3.11",
+    package = ":pubspec",
 )
 
 dart_test(

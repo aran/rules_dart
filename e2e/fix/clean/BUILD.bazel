@@ -1,7 +1,12 @@
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
-load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library")
+load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library", "dart_package_metadata")
 load("//tools:changes.bzl", "dart_changes")
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "fix_clean",
+)
 
 # The green end of the red/green pair. //dirty holds the same library with two
 # violations in it; this one is what `bazel run @rules_dart//dart/fix --
@@ -12,28 +17,28 @@ exports_files(["lib/model.dart"])
 
 dart_codegen(
     name = "model_g",
-    package_name = "fix_clean",
     src = "lib/model.dart",
     generator = "//tools:part_gen.dart",
     output_suffixes = [".g.dart"],
+    package = ":pubspec",
 )
 
 dart_codegen(
     name = "model_freezed",
-    package_name = "fix_clean",
     src = "lib/model.dart",
     generator = "//tools:part_gen.dart",
     output_suffixes = [".freezed.dart"],
+    package = ":pubspec",
 )
 
 dart_library(
     name = "lib",
-    package_name = "fix_clean",
     srcs = [
         "lib/model.dart",
         ":model_freezed",
         ":model_g",
     ],
+    package = ":pubspec",
 )
 
 dart_changes(

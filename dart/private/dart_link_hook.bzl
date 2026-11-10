@@ -20,17 +20,19 @@ an asset that is not declared, or not emitting one that is, fails the action
 and lists both sets.
 """
 
-load("//dart:providers.bzl", "DartDataAssetInfo", "DartInfo", "DartRecordedUsesInfo")
+load("//dart:providers.bzl", "DartDataAssetInfo", "DartInfo", "DartPackageMetadataInfo", "DartRecordedUsesInfo")
 load(
     "//dart/private:common.bzl",
     "PATH_MAPPING",
     "SDK_ENV",
-    "collect_packages",
     "collect_transitive_resources",
     "collect_transitive_srcs",
     "format_literal",
     "package_link_hook",
+    "program_packages",
+    "resolve_package_identity",
 )
+load("//dart/private:dart_info.bzl", "package_info_from_metadata", "package_lib_prefix")
 load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS", "portable_sdk")
 load(
     "//dart/private:project_staging.bzl",
@@ -83,15 +85,73 @@ def recorded_uses_file_error(label, files):
             "`dart_binary` with `record_use = True`) or be a single `.json` " +
             "file; got %s.") % (label, [f.short_path for f in files])
 
-def _recorded_uses(ctx):
+def recorded_uses_package_error(label, program, named):
+    """Checks that a `dart_link_hook` names the package of the program it links.
+
+    Args:
+      label: The rule's label, for messages.
+      program: The `dart_package_metadata` label of the program whose uses
+        `recorded_uses` provides, or None when it is in no package.
+      named: The one the rule's `package` names, or None.
+
+    Returns:
+      An error string, or None when they are the same.
+    """
+    if program == named:
+        return None
+    return ("%s: `recorded_uses` is the uses of a program in the package " +
+            "%s, but `package` names %s. The program's own package is linked " +
+            "with its `deps`: its link hook runs and its data assets ship. " +
+            "Name the program's `dart_package_metadata` in `package`.") % (
+        label,
+        "declared by `%s`" % program if program != None else "of no `dart_package_metadata`",
+        "`%s`" % named if named != None else "none",
+    )
+
+def package_files_error(label, package, files):
+    """Checks that a program's own package files are in its package's `lib/`.
+
+    Args:
+      label: The rule's label, for messages.
+      package: The program's own `DartPackageInfo`, or None.
+      files: The `package_files` given with it.
+
+    Returns:
+      An error string, or None.
+    """
+    if package == None:
+        if files:
+            return ("%s: `package_files` %s are given for a program in no " +
+                    "package. Pass the program's own package with them.") % (
+                label,
+                [f.short_path for f in files],
+            )
+        return None
+    prefix = package_lib_prefix(package.package_root)
+    outside = [f.short_path for f in files if not f.short_path.startswith(prefix)]
+    if outside:
+        return ("%s: `package_files` %s are not under `%s`, the `lib/` of " +
+                "package `%s`. Pass only the program's own files its link " +
+                "hook can import.") % (label, outside, prefix, package.package_name)
+    return None
+
+def _recorded_uses(ctx, package):
     target = ctx.attr.recorded_uses
     if DartRecordedUsesInfo in target:
-        return target[DartRecordedUsesInfo].file
+        info = target[DartRecordedUsesInfo]
+        err = recorded_uses_package_error(
+            ctx.label,
+            info.package,
+            package.metadata if package != None else None,
+        )
+        if err != None:
+            fail(err)
+        return info.file, info.package_files
     files = target[DefaultInfo].files.to_list()
     err = recorded_uses_file_error(ctx.label, files)
     if err != None:
         fail(err)
-    return files[0]
+    return files[0], []
 
 def link_hook_runner_attr():
     """The private attribute a rule calling `dart_link_hook_actions` declares.
@@ -108,7 +168,7 @@ def link_hook_runner_attr():
         ),
     }
 
-def dart_link_hook_actions(ctx, runner, recorded_uses, deps, data_asset_ids, name):
+def dart_link_hook_actions(ctx, runner, recorded_uses, package, package_files, deps, data_asset_ids, name):
     """Registers the link-hook actions for a closure; what `dart_link_hook` runs.
 
     For a rule that compiles its own kernel and so cannot depend on a
@@ -122,7 +182,15 @@ def dart_link_hook_actions(ctx, runner, recorded_uses, deps, data_asset_ids, nam
         `toolchains`, which assembles each hook's package.
       runner: The link-hook runner executable (`ctx.executable._link_hook_runner`).
       recorded_uses: The recorded-uses JSON File.
-      deps: Targets providing `DartInfo`; their closure is linked.
+      package: The program's own `DartPackageInfo`, or `None` for a program
+        in no package. Its link hook runs as a dependency's does
+        (`program_packages`).
+      package_files: The program's own Files under that package's `lib/`
+        (its sources and resources there; `[]` when it has none), which the
+        package's link hook may import as any package's hook imports its
+        own `lib/`. A file elsewhere fails.
+      deps: Targets providing `DartInfo`; their closure is linked with the
+        program's own package.
       data_asset_ids: The declared ids, each `package:<package>/<name>`.
       name: Prefix for declared outputs, unique within the package.
 
@@ -137,7 +205,7 @@ def dart_link_hook_actions(ctx, runner, recorded_uses, deps, data_asset_ids, nam
     if err != None:
         fail(err)
 
-    packages = collect_packages(deps)
+    packages = program_packages(package, deps)
     hooks = {
         pkg.package_name: package_link_hook(pkg)
         for pkg in packages
@@ -146,10 +214,13 @@ def dart_link_hook_actions(ctx, runner, recorded_uses, deps, data_asset_ids, nam
     for asset in declared:
         if asset.package not in hooks:
             fail(("%s: data asset `%s` is declared for package `%s`, which has " +
-                  "no link hook in `deps`. Packages with one: %s.") %
+                  "no link hook in the program's packages. Packages with one: %s.") %
                  (ctx.label, asset.id, asset.package, sorted(hooks.keys()) or "none"))
 
-    srcs = collect_transitive_srcs(deps)
+    err = package_files_error(ctx.label, package, package_files)
+    if err != None:
+        fail(err)
+    srcs = depset(package_files, transitive = [collect_transitive_srcs(deps)])
     resources = collect_transitive_resources(deps)
     package_config = ctx.actions.declare_file(name + ".package_config.json")
 
@@ -241,10 +312,18 @@ def dart_link_hook_actions(ctx, runner, recorded_uses, deps, data_asset_ids, nam
     return struct(assets = asset_infos, validation_outputs = link_outputs)
 
 def _dart_link_hook_impl(ctx):
+    metadata = resolve_package_identity(ctx).metadata
+    package = package_info_from_metadata(ctx.label, metadata, metadata.package_root) if metadata != None else None
+
+    # A program's own files in its package's `lib/` come with its uses; a
+    # plain JSON file brings none, and the package's files are its libraries'.
+    recorded_uses, package_files = _recorded_uses(ctx, package)
     result = dart_link_hook_actions(
         ctx,
         runner = ctx.executable._link_hook_runner,
-        recorded_uses = _recorded_uses(ctx),
+        recorded_uses = recorded_uses,
+        package = package,
+        package_files = package_files,
         deps = ctx.attr.deps,
         data_asset_ids = ctx.attr.data_assets,
         name = ctx.label.name,
@@ -272,10 +351,16 @@ format the Dart compiler writes.""",
             allow_files = True,
         ),
         "deps": attr.label_list(
-            doc = """`dart_library` targets whose closure is linked. Every package in it with a \
-`link_hook` has its hook run; packages without one are skipped. Usually the same `deps` as the \
-`dart_binary` named in `recorded_uses`.""",
+            doc = """`dart_library` targets whose closure is linked, with the program's own \
+`package`. Every package there with a `link_hook` has its hook run; packages without one are \
+skipped. Usually the same `deps` as the `dart_binary` named in `recorded_uses`.""",
             providers = [DartInfo],
+        ),
+        "package": attr.label(
+            doc = """The `dart_package_metadata` of the program's own package, the `package` of \
+the `dart_binary` named in `recorded_uses` (which must agree). It is linked as a package in \
+`deps` is: its link hook runs. Unset, the program is in no package.""",
+            providers = [DartPackageMetadataInfo],
         ),
         "data_assets": attr.string_list(
             doc = """The ids (`package:<package>/<name>`) of the data assets the hooks emit. \

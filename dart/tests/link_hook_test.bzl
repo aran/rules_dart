@@ -16,12 +16,13 @@ load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts", "unittest")
 load("//dart:providers.bzl", "DartDataAssetInfo", "DartInfo", "DartRecordedUsesInfo")
 load("//dart/private:common.bzl", "merge_package_records", "package_link_hook")
 load("//dart/private:dart_compile.bzl", "recorded_uses_kind")
-load("//dart/private:dart_library.bzl", "link_hook_error")
 load(
     "//dart/private:dart_link_hook.bzl",
+    "package_files_error",
     "parse_data_asset_ids",
     "recorded_uses_file_error",
 )
+load("//dart/private:dart_package_metadata.bzl", "link_hook_error")
 
 # buildifier: disable=bzl-visibility
 load("//dart/pub/private:build_content.bzl", "classify_pub_hooks", "make_dart_library_build_content")
@@ -103,6 +104,24 @@ def _recorded_uses_file_test_impl(ctx):
     return unittest.end(env)
 
 _recorded_uses_file_test = unittest.make(_recorded_uses_file_test_impl)
+
+# --- package_files_error ---
+
+def _package_files_test_impl(ctx):
+    # A program's own files reach its package's hook only from that
+    # package's `lib/`, and only with the package they belong to.
+    env = unittest.begin(ctx)
+    pkg = struct(package_name = "app", package_root = "app")
+    lib = struct(short_path = "app/lib/a.dart")
+    asserts.equals(env, None, package_files_error("//a:b", pkg, [lib]))
+    asserts.equals(env, None, package_files_error("//a:b", None, []))
+    err = package_files_error("//a:b", pkg, [struct(short_path = "app/bin/main.dart")])
+    asserts.true(env, err != None and "are not under `app/lib/`" in err, err)
+    err = package_files_error("//a:b", None, [lib])
+    asserts.true(env, err != None and "for a program in no package" in err, err)
+    return unittest.end(env)
+
+_package_files_test = unittest.make(_package_files_test_impl)
 
 # --- link_hook_error ---
 
@@ -333,7 +352,8 @@ def _expect_failure(msg):
 
     return analysistest.make(_impl, expect_failure = True)
 
-asset_without_hook_test = _expect_failure("which has no link hook in `deps`")
+asset_without_hook_test = _expect_failure("which has no link hook in the program's packages")
+own_package_not_named_test = _expect_failure("is the uses of a program in the package declared by `@@//dart/tests/link_hook_fixture:lib_pubspec`, but `package` names none")
 malformed_asset_id_test = _expect_failure("is not of the form `package:<package>/<name>`")
 recorded_uses_not_json_test = _expect_failure("must provide `DartRecordedUsesInfo`")
 misplaced_link_hook_test = _expect_failure("`link_hook` must be the package's `hook/link.dart`")
@@ -354,6 +374,7 @@ def link_hook_test_suite(name):
         _rejects_malformed_ids_test,
         _rejects_duplicate_ids_test,
         _recorded_uses_file_test,
+        _package_files_test,
         _link_hook_location_test,
         _classify_pub_hooks_test,
         _spoke_states_link_hook_test,

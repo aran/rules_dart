@@ -1,4 +1,9 @@
-load("@rules_dart//dart:defs.bzl", "dart_library", "dart_test")
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata", "dart_test")
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "ownpkg",
+)
 
 # Regression check: a package whose metadata comes from a srcs-less façade
 # library while the files arrive via the consuming rule's own `srcs` must
@@ -7,8 +12,8 @@ load("@rules_dart//dart:defs.bzl", "dart_library", "dart_test")
 # through the test's own `srcs`.
 dart_library(
     name = "ownpkg_facade",
-    package_name = "ownpkg",
     srcs = [],
+    package = ":pubspec",
 )
 
 dart_test(

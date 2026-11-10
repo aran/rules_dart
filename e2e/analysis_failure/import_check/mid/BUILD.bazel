@@ -1,10 +1,15 @@
-load("@rules_dart//dart:defs.bzl", "dart_library")
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "import_check_mid",
+    language_version = "3.11",
+)
 
 dart_library(
     name = "mid",
-    package_name = "import_check_mid",
     srcs = ["lib/mid.dart"],
-    language_version = "3.11",
+    package = ":pubspec",
     visibility = ["//import_check:__subpackages__"],
     deps = ["//import_check/leaf"],
 )

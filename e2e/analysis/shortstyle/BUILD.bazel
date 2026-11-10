@@ -1,4 +1,10 @@
-load("@rules_dart//dart:defs.bzl", "dart_library")
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "shortstyle",
+    language_version = "3.6",
+)
 
 # The language version selects the formatting style, and the format check takes
 # it from the target's own package. This package declares 3.6, whose short
@@ -9,7 +15,7 @@ load("@rules_dart//dart:defs.bzl", "dart_library")
 dart_library(
     name = "shortstyle",
     srcs = ["lib/short.dart"],
-    language_version = "3.6",
+    package = ":pubspec",
     # Laid out in the 3.6 short style for the format check, which the root
     # ruleset's trailing-comma lint rejects.
     tags = ["no-dart-analyze"],

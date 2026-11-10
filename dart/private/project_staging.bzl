@@ -123,8 +123,8 @@ def pubspec_stub(packages, dart_sdk_info, name = "analyze_stub"):
     needs a self-dependency (measured on Dart 3.12.2).
 
     The SDK constraint is `^<language_version>.0` for the package named
-    `name` when it states a `language_version` (which is itself derived from
-    the package's real constraint), so `sdk_version_since` judges the code
+    `name` when it states a `language_version` (from its
+    `dart_package_metadata`), so `sdk_version_since` judges the code
     against what the package declares. Otherwise it is that of
     `default_language_version`, the version the package compiles at.
 

@@ -1,10 +1,14 @@
-load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library")
+load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "i64",
+)
 
 # The typed variant of package `i64`. Its generated part is built once, with no
 # web compiler, whichever binary reaches it.
 dart_codegen(
     name = "i64_g",
-    package_name = "i64",
     src = "lib/i64.dart",
     generator = "//tools:variant_gen.dart",
     generator_args = [
@@ -12,14 +16,15 @@ dart_codegen(
         "typed",
     ],
     output_suffixes = [".g.dart"],
+    package = ":pubspec",
 )
 
 dart_library(
     name = "i64",
-    package_name = "i64",
     srcs = [
         "lib/i64.dart",
         ":i64_g",
     ],
+    package = ":pubspec",
     visibility = ["//visibility:public"],
 )

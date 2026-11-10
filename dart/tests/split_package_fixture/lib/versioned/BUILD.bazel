@@ -1,11 +1,9 @@
 load("//dart:defs.bzl", "dart_library")
 
-# Another directory of `split_pkg`, stating the package's language version.
-
+# One directory of `split_pkg`.
 dart_library(
     name = "versioned",
-    package_name = "split_pkg",
     srcs = ["versioned.dart"],
-    language_version = "3.7",
+    package = "//dart/tests/split_package_fixture:pubspec",
     visibility = ["//dart/tests/split_package_fixture:__pkg__"],
 )

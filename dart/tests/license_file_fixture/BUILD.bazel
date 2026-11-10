@@ -3,14 +3,20 @@
 Nothing here is built: every target an assertion reads is tagged `manual`.
 """
 
-load("//dart:defs.bzl", "dart_binary", "dart_library")
+load("//dart:defs.bzl", "dart_binary", "dart_library", "dart_package_metadata")
 load("//dart/tests:license_file_test.bzl", "conflicting_license_test", "records_license_test")
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "license_file_fixture",
+    license_file = "LICENSE",
+    tags = ["manual"],
+)
 
 dart_library(
     name = "lib",
-    package_name = "license_file_fixture",
     srcs = ["lib/fixture.dart"],
-    license_file = "LICENSE",
+    package = ":pubspec",
     tags = ["manual"],
     deps = ["//dart/tests/license_file_fixture/other"],
 )
@@ -25,52 +31,47 @@ records_license_test(
     target_under_test = ":lib",
 )
 
-# A target of the same package that names no license: the merge keeps the one
-# that does, whichever record comes first.
+# Another target of the package carries the license too, from the one
+# declaration, whichever of the two a program reaches.
 dart_library(
-    name = "unstated",
-    package_name = "license_file_fixture",
+    name = "sibling",
     srcs = ["lib/fixture.dart"],
+    package = ":pubspec",
+    tags = ["manual"],
+)
+
+dart_package_metadata(
+    name = "facade_pubspec",
+    package_name = "license_file_facade",
     tags = ["manual"],
 )
 
 dart_library(
     name = "facade",
-    package_name = "license_file_facade",
+    package = ":facade_pubspec",
     tags = ["manual"],
-    deps = [
-        ":lib",
-        ":unstated",
-    ],
+    deps = [":sibling"],
 )
 
 records_license_test(
-    name = "merge_keeps_stated_license_test",
+    name = "every_target_carries_license_test",
     size = "small",
     license_files = {
         "license_file_facade": "",
         "license_file_fixture": "dart/tests/license_file_fixture/LICENSE",
-        "license_file_other": "",
     },
     target_under_test = ":facade",
 )
 
-# Two targets of one package naming different licenses.
-dart_library(
-    name = "notices",
-    package_name = "license_file_fixture",
-    srcs = ["lib/fixture.dart"],
-    license_file = "NOTICES",
-    tags = ["manual"],
-)
-
+# A package two producers supply, each stating a different license: rooted
+# apart, so compared by value.
 dart_binary(
     name = "conflict",
     main = "main.dart",
     tags = ["manual"],
     deps = [
         ":lib",
-        ":notices",
+        "//dart/tests/license_file_fixture/second",
     ],
 )
 

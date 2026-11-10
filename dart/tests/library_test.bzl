@@ -1,7 +1,8 @@
 """Unit tests for dart_library.bzl helpers."""
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts", "unittest")
-load("//dart/private:dart_library.bzl", "check_files_under_package_root", "check_no_duplicate_srcs", "derive_package_name", "locate_package_root")
+load("//dart/private:common.bzl", "derive_package_name")
+load("//dart/private:dart_library.bzl", "check_files_under_package_root", "check_no_duplicate_srcs", "locate_package_root")
 
 def _stray_src_rejected_test_impl(ctx):
     # The helper is unit-tested below; this asserts `dart_library` actually

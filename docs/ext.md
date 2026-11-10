@@ -261,7 +261,7 @@ so cross-action `fetchResource` state doesn't leak.
 accepts `dart_library`-shaped targets (anything exporting `DartInfo`).
 The rule walks each dep's `DartInfo.transitive_srcs` and
 `transitive_resources` and auto-stages any file whose owning package matches
-the codegen target's `package_name` — i.e. same-package sibling files. Every
+the codegen target's package name — i.e. same-package sibling files. Every
 file of every other package in `deps`, sources and `resources` alike, is an
 input of the action, since a generator may read any of them through the
 package config.
@@ -269,7 +269,7 @@ package config.
 The staging root is the package root a builder sees. Builders read its
 `pubspec.yaml` (`source_gen` for the package name, `json_serializable` for its
 dependency on `json_annotation`), so the rule writes one from the target: its
-`package_name`, an `environment.sdk` of `^<language_version>.0`, and every
+package's name, an `environment.sdk` of `^<language_version>.0`, and every
 package its `deps` reach, at the version the build uses (`any` for a workspace
 package, which has none). A `pubspec.yaml` passed in `asset_deps` at the package
 root is staged instead; the shim fails the action, naming both, when its `name`
@@ -359,10 +359,9 @@ tune _registered_ builders:
   `environment.sdk` constraint in the `pubspec.yaml` at the package's root;
   a directive that disagrees with it is an error.
 
-Every macro also accepts `package`, a `dart_package_metadata` label
-declaring the package's `package_name` and `language_version` once. It is
-forwarded to every rule the macro emits, and is mutually exclusive with
-passing those two inline.
+Every macro takes `package`, the `dart_package_metadata` of the sources'
+package, and forwards it to every rule it emits; the `dart_library` collecting
+the outputs names the same one.
 
 ### build.yaml
 

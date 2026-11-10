@@ -1,7 +1,12 @@
 load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
 load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
-load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library")
+load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library", "dart_package_metadata")
 load("//tools:changes.bzl", "dart_changes")
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "fix_dirty",
+)
 
 # The red end of the red/green pair, and the fixture the whole workspace exists
 # for. Both generated parts carry the same `prefer_final_locals` violation as
@@ -17,30 +22,30 @@ load("//tools:changes.bzl", "dart_changes")
 # //clean is the analyzed half.
 dart_codegen(
     name = "model_g",
-    package_name = "fix_dirty",
     src = "lib/model.dart",
     generator = "//tools:part_gen.dart",
     generator_args = ["--violation"],
     output_suffixes = [".g.dart"],
+    package = ":pubspec",
 )
 
 dart_codegen(
     name = "model_freezed",
-    package_name = "fix_dirty",
     src = "lib/model.dart",
     generator = "//tools:part_gen.dart",
     generator_args = ["--violation"],
     output_suffixes = [".freezed.dart"],
+    package = ":pubspec",
 )
 
 dart_library(
     name = "lib",
-    package_name = "fix_dirty",
     srcs = [
         "lib/model.dart",
         ":model_freezed",
         ":model_g",
     ],
+    package = ":pubspec",
     tags = ["no-dart-analyze"],
 )
 

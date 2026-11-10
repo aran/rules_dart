@@ -1,6 +1,12 @@
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
-load("@rules_dart//dart:defs.bzl", "dart_codegen")
+load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_package_metadata")
 load(":transition.bzl", "build_under_platform")
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "foreign_platform_fixture",
+    language_version = "3.11",
+)
 
 # Regression guard for codegen toolchain resolution under a foreign target
 # platform. `dart_codegen` is a build-time generator that emits platform-
@@ -26,11 +32,10 @@ platform(
 
 dart_codegen(
     name = "gen",
-    package_name = "foreign_platform_fixture",
     src = "lib/model.dart",
     generator = "//tools:lib_gen.dart",
-    language_version = "3.11",
     output_suffixes = [".g.dart"],
+    package = ":pubspec",
 )
 
 # Force the codegen target onto the toolchain-less platform.

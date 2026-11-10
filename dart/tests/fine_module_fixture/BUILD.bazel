@@ -7,7 +7,6 @@ load("//dart:defs.bzl", "dart_library", "dart_test")
 # unusable on the VM.
 dart_library(
     name = "fine_module_fixture",
-    package_name = "fine_module_fixture",
     srcs = [
         "lib/fine_web.dart",
         "lib/src/pool_workers.dart",

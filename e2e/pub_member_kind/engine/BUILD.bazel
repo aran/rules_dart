@@ -1,9 +1,14 @@
-load("@rules_dart//dart:defs.bzl", "dart_library")
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "engine",
+)
 
 # Stands in for `sky_engine`: a package the analyzer sees and the compiler does not.
 dart_library(
     name = "engine",
-    package_name = "engine",
     srcs = ["lib/engine.dart"],
+    package = ":pubspec",
     visibility = ["//visibility:public"],
 )

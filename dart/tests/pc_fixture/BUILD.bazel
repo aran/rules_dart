@@ -1,14 +1,19 @@
-load("//dart:defs.bzl", "dart_binary", "dart_js_binary", "dart_library", "dart_test")
+load("//dart:defs.bzl", "dart_binary", "dart_js_binary", "dart_library", "dart_package_metadata", "dart_test")
 load("//dart/tests:package_config_test.bzl", "package_config_own_srcs_test")
 load("//dart/tests:path_mapping_test.bzl", "path_mapping_test")
 load("//dart/tests:web_test.bzl", "web_compile_hermetic_test")
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "pc_own_srcs_fixture",
+)
 
 # Façade: carries the package metadata (name + package_root) but no sources.
 # The consuming binary/test supplies the package's files via its own `srcs`.
 dart_library(
     name = "pc_facade_lib",
-    package_name = "pc_own_srcs_fixture",
     srcs = [],
+    package = ":pubspec",
 )
 
 dart_binary(

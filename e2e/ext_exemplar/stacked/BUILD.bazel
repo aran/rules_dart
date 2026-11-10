@@ -1,6 +1,7 @@
 load(
     "@rules_dart//dart:defs.bzl",
     "dart_library",
+    "dart_package_metadata",
     "dart_test",
 )
 load(
@@ -11,6 +12,12 @@ load(
     "stacked_locator_codegen",
     "stacked_logger_codegen",
     "stacked_router_codegen",
+)
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "stacked_fixture",
+    language_version = "3.11",
 )
 
 # Comprehensive stacked exemplar covering all six sub-builders:
@@ -34,23 +41,21 @@ load(
 
 stacked_locator_codegen(
     name = "app_locator",
-    package_name = "stacked_fixture",
     srcs = ["lib/app.dart"],
     annotation_dep = "@pub_deps//:stacked_shared",
     asset_deps = ["lib/services.dart"],
-    language_version = "3.11",
+    package = ":pubspec",
 )
 
 dart_library(
     name = "stacked_fixture",
-    package_name = "stacked_fixture",
     srcs = [
         "lib/app.dart",
         "lib/login_view.dart",
         "lib/services.dart",
         ":app_locator",
     ],
-    language_version = "3.11",
+    package = ":pubspec",
     visibility = ["//visibility:public"],
     deps = ["@pub_deps//:stacked_shared"],
 )
@@ -69,38 +74,34 @@ dart_test(
 
 stacked_router_codegen(
     name = "app_router",
-    package_name = "stacked_fixture",
     srcs = ["lib/app.dart"],
     annotation_dep = "@pub_deps//:stacked_shared",
     asset_deps = ["lib/services.dart"],
-    language_version = "3.11",
+    package = ":pubspec",
 )
 
 stacked_dialog_codegen(
     name = "app_dialog",
-    package_name = "stacked_fixture",
     srcs = ["lib/app.dart"],
     annotation_dep = "@pub_deps//:stacked_shared",
     asset_deps = ["lib/services.dart"],
-    language_version = "3.11",
+    package = ":pubspec",
 )
 
 stacked_bottomsheet_codegen(
     name = "app_bottomsheet",
-    package_name = "stacked_fixture",
     srcs = ["lib/app.dart"],
     annotation_dep = "@pub_deps//:stacked_shared",
     asset_deps = ["lib/services.dart"],
-    language_version = "3.11",
+    package = ":pubspec",
 )
 
 stacked_logger_codegen(
     name = "app_logger",
-    package_name = "stacked_fixture",
     srcs = ["lib/app.dart"],
     annotation_dep = "@pub_deps//:stacked_shared",
     asset_deps = ["lib/services.dart"],
-    language_version = "3.11",
+    package = ":pubspec",
 )
 
 dart_test(
@@ -151,10 +152,9 @@ dart_test(
 
 stacked_form_codegen(
     name = "login_view_form",
-    package_name = "stacked_fixture",
     srcs = ["lib/login_view.dart"],
     annotation_dep = "@pub_deps//:stacked_shared",
-    language_version = "3.11",
+    package = ":pubspec",
 )
 
 dart_test(

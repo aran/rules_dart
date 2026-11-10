@@ -5,7 +5,6 @@ load("//dart/tests:library_test.bzl", "stray_src_rejected_test")
 # and not merely rejecting things.
 dart_library(
     name = "ok",
-    package_name = "package_root_fixture",
     srcs = ["lib/ok.dart"],
 )
 
@@ -14,7 +13,6 @@ dart_library(
 # and is built only as this test's target_under_test.
 dart_library(
     name = "stray",
-    package_name = "package_root_fixture",
     srcs = ["stray.dart"],
     tags = ["manual"],
 )

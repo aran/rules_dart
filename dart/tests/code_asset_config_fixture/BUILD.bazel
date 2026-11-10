@@ -1,7 +1,8 @@
 load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
-load("//dart:defs.bzl", "dart_code_asset", "dart_library", "dart_test")
+load("//dart:defs.bzl", "dart_binary", "dart_code_asset", "dart_library", "dart_package_metadata", "dart_test")
+load("//dart/tests:propagation_test.bzl", "manifest_contains_test")
 load(":transitioned_asset.bzl", "transitioned_asset")
 
 # A test whose code asset is built in another configuration than the test,
@@ -58,11 +59,16 @@ dart_test(
     main = "transitioned_asset_test.dart",
 )
 
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "code_asset_config_fixture",
+    code_assets = [":asset"],
+)
+
 # The package that owns the asset, carrying the ordinary build of it.
 dart_library(
     name = "owner",
-    package_name = "code_asset_config_fixture",
-    code_assets = [":asset"],
+    package = ":pubspec",
 )
 
 # The same test, but the asset reaches it through `deps`, and the transitioned
@@ -73,4 +79,26 @@ dart_test(
     code_assets = [":transitioned_asset"],
     main = "transitioned_asset_test.dart",
     deps = [":owner"],
+)
+
+# A program in the package that declares the asset, with no library of the
+# package in `deps`: its own package's assets reach it as a dependency's do.
+dart_test(
+    name = "own_package_asset_test",
+    size = "small",
+    main = "own_package_asset_test.dart",
+    package = ":pubspec",
+)
+
+dart_binary(
+    name = "own_package_app",
+    main = "own_package_asset_test.dart",
+    package = ":pubspec",
+)
+
+manifest_contains_test(
+    name = "own_package_app_manifest_test",
+    size = "small",
+    expected_asset_ids = ["package:code_asset_config_fixture/which.dart"],
+    target_under_test = ":own_package_app",
 )

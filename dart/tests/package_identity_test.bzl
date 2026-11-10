@@ -1,10 +1,8 @@
 """Tests for `dart_package_metadata` and the identity agreement it makes checkable.
 
 Analysis-time throughout. `codegen_identity_error` reads a provider off a
-target in `srcs` and `resolve_package_identity` reads a rule's attributes, so
-neither can be exercised by calling it with plain structs the way
-`package_agreement_error` can — both need real targets, which is what
-`analysistest` supplies.
+target in `srcs`, so it needs real targets, which is what `analysistest`
+supplies.
 """
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts")
@@ -43,32 +41,15 @@ identity_probe = rule(
     doc = "Fails unless `target`'s own package record carries the expected identity.",
 )
 
-def _codegen_package_name_conflict_impl(ctx):
+def _codegen_identity_conflict_impl(ctx):
     env = analysistest.begin(ctx)
-    asserts.expect_failure(env, "collects them into package")
+    asserts.expect_failure(env, ctx.attr.message)
     return analysistest.end(env)
 
-codegen_package_name_conflict_test = analysistest.make(
-    _codegen_package_name_conflict_impl,
-    expect_failure = True,
-)
-
-def _language_version_conflict_impl(ctx):
-    env = analysistest.begin(ctx)
-    asserts.expect_failure(env, "ran its generator under Dart language version")
-    return analysistest.end(env)
-
-language_version_conflict_test = analysistest.make(
-    _language_version_conflict_impl,
-    expect_failure = True,
-)
-
-def _package_and_inline_conflict_impl(ctx):
-    env = analysistest.begin(ctx)
-    asserts.expect_failure(env, "sets `package` and also")
-    return analysistest.end(env)
-
-package_and_inline_conflict_test = analysistest.make(
-    _package_and_inline_conflict_impl,
+# A library collecting generated sources for another package than its own, and
+# the error that names both.
+codegen_identity_conflict_test = analysistest.make(
+    _codegen_identity_conflict_impl,
+    attrs = {"message": attr.string(mandatory = True)},
     expect_failure = True,
 )

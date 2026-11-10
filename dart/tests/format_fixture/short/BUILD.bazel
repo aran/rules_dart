@@ -1,11 +1,17 @@
-load("//dart:defs.bzl", "dart_binary", "dart_library")
+load("//dart:defs.bzl", "dart_binary", "dart_library", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "short",
+    language_version = "3.6",
+)
 
 # Declares 3.6, whose short style no later version produces, so `short.dart`
 # is formatted correctly only if that version reaches the formatter.
 dart_library(
     name = "short",
     srcs = ["lib/short.dart"],
-    language_version = "3.6",
+    package = ":pubspec",
     visibility = ["//dart/tests/format_fixture:__pkg__"],
 )
 

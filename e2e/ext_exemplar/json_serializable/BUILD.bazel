@@ -2,11 +2,18 @@ load(
     "@rules_dart//dart:defs.bzl",
     "dart_codegen",
     "dart_library",
+    "dart_package_metadata",
     "dart_test",
 )
 load(
     "@rules_dart//dart/ext/json_serializable:defs.bzl",
     "json_serializable_codegen",
+)
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "json_serializable_fixture",
+    language_version = "3.11",
 )
 
 # Comprehensive e2e for json_serializable. Demonstrates:
@@ -26,33 +33,28 @@ load(
 # --- Primitives-form demonstration. ---
 dart_codegen(
     name = "_primitive_user_json_part",
-    package_name = "json_serializable_fixture",
     src = "lib/primitive_user.dart",
     generator_bin = "@rules_dart//dart/ext/json_serializable:shim",
-    language_version = "3.11",
     output_suffixes = [".json_serializable.g.part"],
+    package = ":pubspec",
     deps = ["@pub_deps//:json_annotation"],
 )
 
 dart_codegen(
     name = "_primitive_user_combined",
-    package_name = "json_serializable_fixture",
     src = "lib/primitive_user.dart",
     generator_bin = "@rules_dart//dart/ext/_shared/combining_shim:bin",
-    language_version = "3.11",
     output_suffixes = [".g.dart"],
+    package = ":pubspec",
     parts = [":_primitive_user_json_part"],
 )
 
 # --- Cross-file Resolver (base.dart is a plain source of the package). ---
-# NOTE: deliberately omits language_version — Gazelle only emits the attr
-# when one is derivable (directive or pubspec), so the macro must tolerate
-# its absence (the rules then use the SDK's own).
 json_serializable_codegen(
     name = "cross_user_codegen",
-    package_name = "json_serializable_fixture",
     srcs = ["lib/cross_user.dart"],
     asset_deps = ["lib/base.dart"],
+    package = ":pubspec",
 )
 
 # --- Advanced annotations via the macro. ---
@@ -60,20 +62,18 @@ json_serializable_codegen(
 # sees its siblings through the macro.
 json_serializable_codegen(
     name = "advanced_codegen",
-    package_name = "json_serializable_fixture",
     srcs = [
         "lib/custom_id.dart",
         "lib/role.dart",
         "lib/user.dart",
         "lib/wrapper.dart",
     ],
-    language_version = "3.11",
+    package = ":pubspec",
     deps = ["@pub_deps//:meta"],
 )
 
 dart_library(
     name = "json_serializable_fixture",
-    package_name = "json_serializable_fixture",
     srcs = [
         "lib/base.dart",
         "lib/cross_user.dart",
@@ -86,7 +86,7 @@ dart_library(
         ":advanced_codegen",
         ":cross_user_codegen",
     ],
-    language_version = "3.11",
+    package = ":pubspec",
     visibility = ["//visibility:public"],
     deps = [
         "@pub_deps//:json_annotation",

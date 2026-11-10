@@ -1,7 +1,7 @@
 """Shared utilities for Dart rules."""
 
 load("//dart:providers.bzl", "CODE_ASSET_LINK_MODES", "DartCodeAssetInfo", "DartInfo", "DartPackageMetadataInfo")
-load("//dart/private:dart_info.bzl", "dart_package_info", "derived_package_info", "package_lib_prefix")
+load("//dart/private:dart_info.bzl", "dart_package_info", "derived_package_info", "package_info_from_metadata", "package_lib_prefix")
 load("//dart/private:exec_groups.bzl", "PORTABLE", "portable_sdk")
 load("//dart/private:resources.bzl", "kernel_resources")
 load("//dart/private:source_set.bzl", "needs_source_assembly", "package_for_index", "package_index")
@@ -124,18 +124,44 @@ def collect_code_asset_files(deps):
         if hasattr(dep[DartInfo], "transitive_code_asset_files")
     ])
 
-def collect_transitive_code_assets(deps):
-    """Collects `DartCodeAssetInfo` from every package reachable through deps.
+def program_packages(package, deps):
+    """Every package of a program: its own, when it has one, and those its deps reach.
+
+    A program's own package is one of its packages exactly as a dependency's
+    is, as upstream's hooks runner plans the root package with the rest: its
+    code and data assets ship and its link hook runs. Merged as
+    `collect_packages` merges, the program's record first, so a library in
+    `deps` of the same package merges into it.
 
     Args:
+      package: The program's own `DartPackageInfo` (`executable_package_record`,
+        or the record a rule whose sources are its package builds), or `None`
+        for a program in no package.
       deps: List of targets providing `DartInfo`.
 
     Returns:
-      List of `DartCodeAssetInfo`, in dependency order, with duplicates from
-      diamonds left in place — callers dedup by asset id.
+      List of unique `DartPackageInfo` records, the program's first.
+    """
+    return merge_package_records(
+        ([package] if package != None else []) +
+        depset(transitive = [dep[DartInfo].transitive_packages for dep in deps]).to_list(),
+    )
+
+def collect_transitive_code_assets(package, deps):
+    """Collects `DartCodeAssetInfo` from every package of a program.
+
+    Args:
+      package: The program's own `DartPackageInfo`, or `None`; see
+        `program_packages`.
+      deps: List of targets providing `DartInfo`.
+
+    Returns:
+      List of `DartCodeAssetInfo`, the program's own package's first, then in
+      dependency order, with duplicates left in place — callers dedup by asset
+      id.
     """
     assets = []
-    for pkg in collect_packages(deps):
+    for pkg in program_packages(package, deps):
         assets.extend(list(package_code_assets(pkg)))
     return assets
 
@@ -166,9 +192,7 @@ def collect_packages(deps):
     Returns:
         List of unique DartPackageInfo providers in dependency order.
     """
-    return merge_package_records(
-        depset(transitive = [dep[DartInfo].transitive_packages for dep in deps]).to_list(),
-    )
+    return program_packages(None, deps)
 
 def derived_pubspec(name, sdk, packages):
     """The `pubspec.yaml` a package's targets imply, for tools that read one.
@@ -221,35 +245,42 @@ them.
 rules_dart does not support multiple versions of a package.
 """
 
+# Within one repository every target of a package names one
+# `dart_package_metadata`, so its records agree by construction; these fire for
+# a package two producers supply (two pub hubs), or for records a rule builds
+# with `dart_package_info()`.
 _LICENSE_FILE_REMEDY = """
 Each package listed just above has records naming different license files, so
 which license text the package is reported with would be decided by dependency
-order. Name the same file on every target contributing to the package
-(`dart_library.license_file`, or `license_file` of `dart_package_info()` or
-`dart_package_member_info()`), or name it on one and leave the others unset.
+order. Make the producers of those records state the same `license_file`, or
+have only one of them state it.
 """
 
 _LANGUAGE_VERSION_REMEDY = """
 Each package listed just above has records stating different
 `language_version`s, so the Dart semantics its sources compile under would be
-decided by dependency order. Set `language_version` consistently on every
-target contributing to the package, or on one and leave the others unset —
-Gazelle derives it from the nearest `pubspec.yaml`'s `environment.sdk`
-constraint and writes the same value on each.
+decided by dependency order. Make the producers of those records state the same
+`language_version`, or have only one of them state it.
 """
 
 _LINK_HOOK_REMEDY = """
 Each package listed just above has records naming different link hooks, so
 which one runs would be decided by dependency order. A package has one
-`hook/link.dart`: name it on one target contributing to the package
-(`dart_library.link_hook`, or `link_hook` of `dart_package_info()`), or the
-same file on each.
+`hook/link.dart`: make the producers name the same `link_hook`, or only one of
+them.
 """
 
 _BUILD_HOOK_REMEDY = """
 Each package listed just above has records naming different build hooks. A
-package has one `hook/build.dart`; state the same path on every target
-contributing to the package that states one.
+package has one `hook/build.dart`; make every producer that states one state
+the same path.
+"""
+
+_METADATA_REMEDY = """
+Every target of one package names the package's one `dart_package_metadata`
+with `package`, so each of its records carries every fact the package states,
+whichever target a program reaches. Set `package` on each target listed with
+none, or point the targets listed above at the same `dart_package_metadata`.
 """
 
 # The package-level facts two records of one package must agree on: how each
@@ -271,6 +302,29 @@ def _stated_by(pkg):
     if label == None:
         return root
     return "%s at %s" % (label, root)
+
+def derive_package_name(package_name_attr, label_package, label_name):
+    """Derive the Dart package name from rule attributes and label.
+
+    Without an explicit name, a package is named for its root directory: the
+    Bazel package's last component, or for a BUILD file inside `lib/` the
+    component above that `lib` (see `derive_package_root`). A root at the top of
+    the workspace has no directory name, and takes the target's.
+
+    Args:
+        package_name_attr: Explicit package name attribute, or empty string.
+        label_package: The Bazel label package path.
+        label_name: The Bazel label name.
+
+    Returns:
+        The derived Dart package name.
+    """
+    if package_name_attr:
+        return package_name_attr
+    parts = label_package.split("/") if label_package else []
+    if "lib" in parts:
+        parts = parts[:parts.index("lib")]
+    return parts[-1] if parts else label_name
 
 def default_language_version(dart_sdk_info):
     """The language version of a package that states none: the SDK's own.
@@ -298,133 +352,114 @@ def codegen_language_version(ctx, identity):
       identity: The rule's `resolve_package_identity` result.
 
     Returns:
-      The stated `language_version`, else `default_language_version`'s.
+      The declared `language_version`, else `default_language_version`'s.
     """
     return identity.language_version or default_language_version(portable_sdk(ctx))
 
 # The attribute every rule that builds part of a Dart package gains, pointing at
-# the one `dart_package_metadata` that declares the package's name and language version.
+# the one `dart_package_metadata` that declares the package's facts.
 PACKAGE_IDENTITY_ATTRS = {
     "package": attr.label(
         providers = [DartPackageMetadataInfo],
-        doc = "A `dart_package_metadata` declaring this Dart package's `package_name` and `language_version`. Mutually exclusive with the inline `package_name` / `language_version` attributes: set `package` to state those facts once for every rule building this package, or set them inline, but never both. Referencing a target is what lets rules in *different* BUILD files share one declaration, which a macro cannot do.",
+        doc = "The `dart_package_metadata` declaring the Dart package this target is part of: its name, language version, license, hooks and code assets. Every target of a package names the same one. Unset, the target's package is named after its root's directory and states nothing else.",
     ),
 }
 
 def resolve_package_identity(ctx):
-    """Resolves a rule's Dart package identity from `package` or inline attrs.
-
-    Two ways to state one thing would be two ways for it to be wrong, so this
-    refuses the overlap outright rather than defining a precedence: a rule that
-    sets `package` and an inline attribute fails, whether or not the two agree.
-    Agreement today is not agreement after the next edit, and a silently ignored
-    attribute is the failure this whole mechanism exists to remove.
-
-    Tolerant about which attributes the calling rule actually declares: a rule
-    with a `language_version` and no `package_name` needs no change here.
+    """Resolves the package a rule's target is part of, from its `package`.
 
     Args:
-      ctx: The rule context. Must declare `package`; may declare
-        `package_name` and/or `language_version`.
+      ctx: The rule context. Must declare `package` (`PACKAGE_IDENTITY_ATTRS`).
 
     Returns:
-      `struct(package_name, language_version)`, either of which may be "".
+      `struct(metadata, package_name, language_version)`: the
+      `DartPackageMetadataInfo` the target names and its two facts; when it
+      names none, `None`, the name of its root's directory
+      (`derive_package_name`) and "".
     """
-    inline_name = getattr(ctx.attr, "package_name", "")
-    inline_language_version = getattr(ctx.attr, "language_version", "")
-    declaration = getattr(ctx.attr, "package", None)
-
+    declaration = ctx.attr.package
     if declaration == None:
         return struct(
-            package_name = inline_name,
-            language_version = inline_language_version,
+            metadata = None,
+            package_name = derive_package_name("", ctx.label.package, ctx.label.name),
+            language_version = "",
         )
-
-    also_set = []
-    if inline_name:
-        also_set.append("package_name")
-    if inline_language_version:
-        also_set.append("language_version")
-    if also_set:
-        fail(("%s: sets `package` and also %s. `package = \"%s\"` already " +
-              "states %s for this package; drop the inline %s, or drop " +
-              "`package` and state everything inline.") % (
-            ctx.label,
-            " and ".join(["`%s`" % a for a in also_set]),
-            declaration.label,
-            "them" if len(also_set) > 1 else "it",
-            "attributes" if len(also_set) > 1 else "attribute",
-        ))
-
     declared = declaration[DartPackageMetadataInfo]
     return struct(
+        metadata = declared,
         package_name = declared.package_name,
         language_version = declared.language_version,
     )
 
-def codegen_identity_error(label, srcs, identity):
-    """Reports a generated source whose package identity contradicts its library.
+def codegen_identity(identity):
+    """The `DartPackageMetadataInfo` a codegen rule returns for the library collecting its outputs.
 
-    `dart_codegen` and its consuming `dart_library` each state the package the
-    generated file belongs to, and `dart_codegen`'s own documentation has always
-    required them to match — with nothing checking that they do. They cannot be
-    made to agree by construction either: the library depends on the codegen's
-    output, so no provider reaches from the codegen to the library, and the two
-    are routinely written in different BUILD files. `srcs` is where they meet.
+    The declaration it names, or, when it names none, one with only the
+    package name its directory gives it, so `codegen_identity_error` can tell
+    the two cases apart.
 
-    The language version compared here is the generator's *effective* one, so a
-    `dart_codegen` that states none — and therefore ran under the SDK's own
-    (`default_language_version`) — is reported against a library that states
-    an older one, instead of the mismatch surfacing later as a generated file
-    the analyzer rejects. A library that states none of its own asks for nothing and
-    is not second-guessed: `e2e/fix/clean` is that shape, both sides silent, and
-    it is not this function's business to invent an opinion for it.
+    Args:
+      identity: The codegen rule's `resolve_package_identity` result.
+
+    Returns:
+      A `DartPackageMetadataInfo`.
+    """
+    if identity.metadata != None:
+        return identity.metadata
+    return DartPackageMetadataInfo(
+        label = None,
+        package_name = identity.package_name,
+        package_root = "",
+        language_version = "",
+        version = "",
+        code_assets = (),
+        unreplaced_hook = "",
+        link_hook = None,
+        license_file = None,
+    )
+
+def _declared_by(metadata_label, package_name):
+    if metadata_label == None:
+        return "package \"%s\", which names no `dart_package_metadata`" % package_name
+    return "the package `%s` declares" % metadata_label
+
+def codegen_identity_error(label, srcs, package_name, metadata):
+    """Reports a generated source whose package contradicts its library's.
+
+    A codegen rule and the library collecting its outputs each name the package
+    the generated file belongs to. They cannot be made to agree by
+    construction: the library depends on the codegen's output, so no provider
+    reaches from the codegen to the library, and the two are routinely written
+    in different BUILD files. `srcs` is where they meet. Both must name the
+    same `dart_package_metadata`, or, naming none, the same package name.
 
     Args:
       label: The consuming rule's label, for the error message.
       srcs: The consuming rule's `srcs` targets (`ctx.attr.srcs`).
-      identity: The consuming rule's own `resolve_package_identity` result.
+      package_name: The consuming rule's package name.
+      metadata: The `DartPackageMetadataInfo` the consuming rule names, or None.
 
     Returns:
       An error message string, or `None` when nothing contradicts.
     """
+    own = metadata.label if metadata != None else None
     for src in srcs:
         if DartPackageMetadataInfo not in src:
             continue
         generated = src[DartPackageMetadataInfo]
-        if generated.package_name != identity.package_name:
-            return (
-                ("%s: generates sources for package \"%s\", but %s collects " +
-                 "them into package \"%s\". A generated file is part of the " +
-                 "package whose sources it was generated from — the two must " +
-                 "name the same one. Point both at a single `dart_package_metadata`, " +
-                 "or correct whichever `package_name` is wrong.") % (
-                    src.label,
-                    generated.package_name,
-                    label,
-                    identity.package_name,
-                )
-            )
-        if not identity.language_version:
+        if generated.label == own and (own != None or generated.package_name == package_name):
             continue
-        if generated.language_version != identity.language_version:
-            return (
-                ("%s: ran its generator under Dart language version %s, but " +
-                 "%s compiles package \"%s\" as %s.\n\nThe generator reads " +
-                 "the package's sources to produce the file, so a generator " +
-                 "held to different semantics than the package can reject " +
-                 "syntax the package legitimately uses, or emit syntax the " +
-                 "package cannot compile. Point both at a single " +
-                 "`dart_package_metadata`, or set the same `language_version` on " +
-                 "each. A rule stating no `language_version` runs at the " +
-                 "SDK's own.") % (
-                    src.label,
-                    generated.language_version,
-                    label,
-                    identity.package_name,
-                    identity.language_version,
-                )
+        return (
+            ("%s: generates sources for %s, but %s collects them into %s. A " +
+             "generated file is part of the package whose sources it was " +
+             "generated from, so both must name the same `dart_package_metadata` " +
+             "with `package`.") % (
+                src.label,
+                _declared_by(generated.label, generated.package_name),
+                label,
+                _declared_by(own, package_name),
             )
+        )
     return None
 
 def package_agreement_error(merged):
@@ -474,6 +509,12 @@ def package_agreement_error(merged):
       An error message string naming every disagreement, or `None` when every
       duplicate agrees.
     """
+
+    # Targets naming different declarations of one package is the cause of
+    # any value they disagree on, so it is reported alone.
+    err = _metadata_agreement_error(merged)
+    if err != None:
+        return err
     blocks = []
     for read, label, remedy in _AGREED_FIELDS:
         # value -> the first record stating it, per package name.
@@ -509,6 +550,46 @@ def package_agreement_error(merged):
         return None
     return "\n".join(blocks)
 
+def _metadata_agreement_error(merged):
+    """Reports records of one package, at one root, that name different declarations.
+
+    Records at one root are one producer's targets of one package, which name
+    its one `dart_package_metadata`. Records at different roots (two pub hubs
+    each supplying a package) are compared by value instead.
+    """
+
+    # (name, root) -> {metadata label or None: first target naming it}
+    stated = {}
+    order = []
+    for pkg in merged:
+        key = (pkg.package_name, pkg.package_root)
+        seen = stated.get(key)
+        if seen == None:
+            seen = {}
+            stated[key] = seen
+            order.append(key)
+        metadata = getattr(pkg, "metadata", None)
+        if metadata not in seen:
+            seen[metadata] = getattr(pkg, "label", None)
+    reported = []
+    for key in order:
+        seen = stated[key]
+        if len(seen) < 2:
+            continue
+        reported.append(
+            "Package \"%s\" rooted at `%s` is built by targets naming different `dart_package_metadata`:\n" % (key[0], key[1] or ".") +
+            "".join([
+                "  - %s, named by %s\n" % (
+                    "none" if m == None else str(m),
+                    seen[m] if seen[m] != None else "a target",
+                )
+                for m in sorted(seen.keys(), key = lambda m: "" if m == None else str(m))
+            ]),
+        )
+    if not reported:
+        return None
+    return "".join(reported) + _METADATA_REMEDY
+
 def _first_stated(records, read, empty):
     for pkg in records:
         value = read(pkg)
@@ -519,38 +600,35 @@ def _first_stated(records, read, empty):
 def merge_package_records(merged):
     """Dedups package records by name, combining what each one states.
 
-    One `package_name` can legitimately appear with several `package_root`s or
-    several records:
+    One `package_name` can legitimately appear with several records:
 
       * a package split across `dart_library` targets — Gazelle's
         per-directory layout, and the case `colocate_packages` exists to
-        serve; and
+        serve — whose records name one `dart_package_metadata` and so state
+        the same facts; and
       * a package supplied independently by two pub hubs, e.g. rules_flutter's
         `flutter.pub()` and rules_dart's `pub.from_lock()` both generating a
-        spoke for `ffi`.
+        spoke for `ffi`, rooted apart.
 
     The merged record is the first record, for source resolution, with every
     package-level fact taken from whichever record states it: `version`,
     `language_version`, `license_file`, `link_hook` and `unreplaced_hook`. A
-    split package states each on one target or on all of them, so a fact
-    stated on any record is the package's; dropping it because a record
-    stating nothing came first would, for `language_version`, compile the
-    package under the current SDK's rules rather than the version it states.
-    Taking the first stated value is order-independent only because the
-    records agree, so this calls `package_agreement_error` first and fails,
-    naming both targets, when two of them state different values of any of
+    producer that states fewer facts (an older one, or a rule set adopting a
+    field on its own schedule) knows less, so a fact stated on any record is
+    the package's. Taking the first stated value is order-independent only
+    because the records agree, so this calls `package_agreement_error` first
+    and fails, naming both targets, when two records at one root name
+    different declarations or two records state different values of any of
     those fields.
 
-    Code assets union instead: dropping a later record's assets would silently
-    lose a native library, and the failure would surface at runtime as an
-    unresolved `@Native` symbol. `resolve_code_assets` fails later if — and
-    only if — two assets genuinely claim one id, which is the case the Dart VM
-    cannot resolve either. Code assets replace a build hook, so the merged
-    package's hook is unreplaced when any record names one and no record
-    supplies code assets. That serves both duplicate cases alike — a split
-    package states its `build_hook` on one target and its `code_assets` on
-    another, and a hub curating `code_assets` replaces the hook another hub
-    still flags.
+    Code assets union instead, each once: dropping a later record's assets
+    would silently lose a native library, and the failure would surface at
+    runtime as an unresolved `@Native` symbol. `resolve_code_assets` fails
+    later if — and only if — two assets genuinely claim one id, which is the
+    case the Dart VM cannot resolve either. Code assets replace a build hook,
+    so the merged package's hook is unreplaced when any record names one and no
+    record supplies code assets: a hub curating `code_assets` replaces the hook
+    another hub still flags.
 
     Split out from `collect_packages` because the dedup and union rules are a
     pure function of the record list, which makes them directly testable
@@ -585,9 +663,12 @@ def _merge_one(records):
     kept = records[0]
     if len(records) == 1:
         return kept
-    code_assets = ()
+    code_assets = []
     for pkg in records:
-        code_assets += package_code_assets(pkg)
+        for asset in package_code_assets(pkg):
+            if asset not in code_assets:
+                code_assets.append(asset)
+    code_assets = tuple(code_assets)
     merged = derived_package_info(
         kept,
         version = _first_stated(records, lambda p: getattr(p, "version", ""), ""),
@@ -604,30 +685,25 @@ def _merge_one(records):
         return kept
     return merged
 
-def merged_package_record(label, package_name, package_root, language_version, records):
+def merged_package_record(label, package_name, package_root, metadata, records):
     """The record of a target that is itself a package, completed from the records at its root.
 
     A target whose own sources are a package's `lib/` — a downstream app or
     test rule — can depend on `dart_library` targets rooted at the same
     directory. They are the same package, and one directory can be only one
     package in a `package_config.json`, so the target contributes one record
-    in place of theirs. That record is this target's statement merged with
-    theirs, by `merge_package_records`: every field their records state is
-    carried through (code assets unioned, the license, the hooks, the
-    version), and a fact both state must agree, or the build fails naming
-    both targets. With no records at the root it is this target's own,
-    exactly what `dart_package_info()` builds.
-
-    `language_version` is this target's statement, and stating none (`""`)
-    leaves the version to whichever library at the root states one; the
-    merged record then carries that.
+    in place of theirs: this target's merged with theirs, by
+    `merge_package_records`. Every record of the package names the same
+    `dart_package_metadata`, this target's included, so their facts agree by
+    construction; a target naming none merges only with records naming none.
+    With no records at the root it is this target's own.
 
     Args:
       label: The target's label, recorded on the result and named in errors.
-      package_name: The package's name.
+      package_name: The package's name: `metadata.package_name`, or, when the
+        target names no declaration, its directory's (`derive_package_name`).
       package_root: The package root, the target's own (`derive_package_root`).
-      language_version: The target's `language_version`, or `""` when it
-        states none. Required, for the reason `dart_package_info()` gives.
+      metadata: The `DartPackageMetadataInfo` the target names, or `None`.
       records: The `DartPackageInfo` records already rooted at
         `package_root`, e.g. those of `collect_packages(deps)` whose
         `package_root` is it. Each must be named `package_name`: a directory
@@ -636,6 +712,10 @@ def merged_package_record(label, package_name, package_root, language_version, r
     Returns:
       A `DartPackageInfo`.
     """
+    if metadata != None and metadata.package_name != package_name:
+        fail(("%s: `merged_package_record` was given package \"%s\" and the " +
+              "declaration %s of package \"%s\". Pass the declaration's " +
+              "`package_name`.") % (label, package_name, metadata.label, metadata.package_name))
     for pkg in records:
         if pkg.package_root != package_root or pkg.package_name != package_name:
             fail(("%s: `merged_package_record` was given package \"%s\" rooted " +
@@ -650,12 +730,15 @@ def merged_package_record(label, package_name, package_root, language_version, r
                 package_name,
                 package_root or ".",
             ))
-    own = dart_package_info(
-        label = label,
-        package_name = package_name,
-        package_root = package_root,
-        language_version = language_version,
-    )
+    if metadata != None:
+        own = package_info_from_metadata(label, metadata, package_root)
+    else:
+        own = dart_package_info(
+            label = label,
+            package_name = package_name,
+            package_root = package_root,
+            language_version = "",
+        )
     return merge_package_records([own] + list(records))[0]
 
 def launcher_executable(ctx, tool):
@@ -1238,8 +1321,8 @@ def native_assets_path_list(label, link_mode, relative_lib_path, system_uri):
 def check_unreplaced_hooks(label, packages):
     """Checks that no package in the closure has an unreplaced build hook.
 
-    A package shipping `hook/build.dart` (a pub package, or a `dart_library`
-    stating its `build_hook`) builds native libraries at `pub get` time. rules_dart cannot run that hook, so without a Bazel
+    A package shipping `hook/build.dart` (a pub package, or a
+    `dart_package_metadata` stating its `build_hook`) builds native libraries at `pub get` time. rules_dart cannot run that hook, so without a Bazel
     replacement the package's `@Native` bindings resolve to nothing — the
     manifest is simply missing an entry, and the failure surfaces at runtime
     as "couldn't resolve native function", with nothing pointing at the cause.
@@ -1273,14 +1356,15 @@ def check_unreplaced_hooks(label, packages):
          "rules_dart does not run:\n%s\n\n" +
          "Their `@Native` bindings will not resolve at runtime. A target's own " +
          "`code_assets` do not replace a package's hook; the package's must.\n" +
-         "  - For your own `dart_library`: build the native code with Bazel and " +
-         "name its `dart_code_asset` in that library's `code_assets`, or remove " +
-         "its `build_hook` if the native code is genuinely unused here.\n" +
+         "  - For your own package: build the native code with Bazel and " +
+         "name its `dart_code_asset` in the `code_assets` of the package's " +
+         "`dart_package_metadata`, or remove its `build_hook` if the native " +
+         "code is genuinely unused here.\n" +
          "  - For a pub package: if its native code is genuinely unused here, list " +
          "it in `pub.from_lock(ignore_hooks = [...])` or set " +
          "`pub.package(ignore_hook = True)`; otherwise map it with " +
          "`pub.from_lock(resolve = {...})` to a `dart_library` of the package " +
-         "that names its `code_assets`.") %
+         "whose `dart_package_metadata` names its `code_assets`.") %
         (label, "\n".join(lines))
     )
 
@@ -1800,8 +1884,8 @@ def asset_path_for(file, package_root):
         ("asset_path_for: file %r (short_path %r) is not under " +
          "package_root %r. Every codegen input / asset_dep must live inside " +
          "the Dart package's package_root — check that the owning " +
-         "`dart_library` target for this file has the correct " +
-         "`package_name`, or pass the file through `deps` instead. For " +
+         "`dart_library` target for this file names the right " +
+         "`dart_package_metadata`, or pass the file through `deps` instead. For " +
          "generated files, declare the producing codegen target in a " +
          "BUILD file at (or below) the Dart package root so its declared " +
          "output path resolves inside the package.") %
@@ -1892,7 +1976,7 @@ def add_shim_contract_args(
 
     Args:
       args: The `ctx.actions.args()` object to append flags to.
-      ctx: The rule context (reads `package_name`, `config`, etc.).
+      ctx: The rule context (reads `package`, `config`, etc.).
       synth_pc: The synthesised `package_config.json` File from
         `synth_package_config`, or `None` for targets without
         `library_deps`.
@@ -1915,9 +1999,6 @@ def add_shim_contract_args(
       their `ctx.actions.run(inputs=...)`.
     """
     identity = resolve_package_identity(ctx)
-    if not identity.package_name:
-        fail(("%s: no `package_name`. Set it on this rule, or set `package` " +
-              "to a `dart_package_metadata` that declares it.") % ctx.label)
 
     extra_inputs = []
     args.add("--package", identity.package_name)

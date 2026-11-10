@@ -78,7 +78,7 @@ def _dart_test_impl(ctx):
         )
     else:
         dill = ctx.actions.declare_file(ctx.label.name + ".dill")
-    native_assets_yaml, runtime_libs = _code_assets(ctx, dill)
+    native_assets_yaml, runtime_libs = _code_assets(ctx, own.record, dill)
     modular = ctx.attr._modular_kernel[BuildSettingInfo].value
 
     # What the program needs beside it: the kernels a kernel list names.
@@ -189,11 +189,12 @@ def _dart_test_impl(ctx):
         )),
     ]
 
-def _code_assets(ctx, dill):
+def _code_assets(ctx, package, dill):
     """The test's code-asset mapping, and the libraries it names.
 
     Args:
       ctx: The rule context.
+      package: The test's own `DartPackageInfo`, or `None`.
       dill: The test's kernel, against which the mapping's paths resolve.
 
     Returns:
@@ -202,7 +203,7 @@ def _code_assets(ctx, dill):
     """
     assets = resolve_code_assets(
         ctx.label,
-        collect_transitive_code_assets(ctx.attr.deps),
+        collect_transitive_code_assets(package, ctx.attr.deps),
         [dep[DartCodeAssetInfo] for dep in ctx.attr.code_assets],
     )
     if not assets:

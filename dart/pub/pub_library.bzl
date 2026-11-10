@@ -22,9 +22,9 @@ planned in the library repository by `dependency_cycle()` (`pub_graph.bzl`),
 which builds a cycle only where one is declared.
 """
 
-load("//dart:providers.bzl", "DartInfo")
-load("//dart/private:dart_info.bzl", "dart_info", "dart_package_info")
-load("//dart/private:dart_library.bzl", "check_files_under_package_root", "check_no_duplicate_srcs", "link_hook_error", "locate_package_root")
+load("//dart:providers.bzl", "DartInfo", "DartPackageMetadataInfo")
+load("//dart/private:dart_info.bzl", "dart_info", "package_info_from_metadata")
+load("//dart/private:dart_library.bzl", "check_files_under_package_root", "check_no_duplicate_srcs")
 load("//dart/private:dart_test_runner.bzl", _pub_test_runner = "pub_test_runner")
 load("//dart/private:runtime.bzl", "runtime_reset")
 
@@ -41,67 +41,35 @@ makes the package record.""",
     },
 )
 
-def dart_package_member_info(
-        label,
-        package_name,
-        language_version,
-        srcs = [],
-        resources = [],
-        code_assets = [],
-        version = "",
-        link_hook = None,
-        unreplaced_hook = "",
-        license_file = None):
-    """Builds the `DartPackageMemberInfo` of a pub package rooted at `label`'s Bazel package.
+def dart_package_member_info(label, metadata, srcs = [], resources = []):
+    """Builds the `DartPackageMemberInfo` of a pub package declared by a `dart_package_metadata`.
 
     For a member rule: rules_dart's `pub_package_member`, or another rule set's
-    that returns this beside providers of its own. Fails when a file is not
-    under the package's `lib/`, two resolve to the same path, or the link hook
-    is not the package's `hook/link.dart`.
+    that returns this beside providers of its own. The package's facts are its
+    declaration's, and its root is the declaration's directory. Fails when a
+    file is not under the package's `lib/` or two resolve to the same path.
 
     Args:
-      label: The member's label. Its Bazel package is the pub package's root.
-      package_name: The package's name.
-      language_version: From the package's `environment.sdk`, as for
-        `dart_package_info()`; "" when it states none.
+      label: The member's label.
+      metadata: The `DartPackageMetadataInfo` of the package's
+        `dart_package_metadata`.
       srcs: The package's `lib/**/*.dart` Files.
       resources: The rest of its `lib/` Files.
-      code_assets: Targets providing `DartCodeAssetInfo` replacing its build
-        hook.
-      version: The version pub resolved, or "".
-      link_hook: Its `hook/link.dart` File, or None.
-      unreplaced_hook: Path of a build hook nothing replaces, or "".
-      license_file: Its license text File, or None: the root `NOTICES` if it
-        has one, else its `LICENSE`, as `find_pub_license_file()` finds them.
 
     Returns:
       A `DartPackageMemberInfo`.
     """
-    root = locate_package_root(label.workspace_root, label.package, srcs + resources)
-    if root.error != None:
-        fail("%s: %s" % (label, root.error))
-    package_root = root.root
+    package_root = metadata.package_root
     for err in [
         check_no_duplicate_srcs(label, srcs),
         check_no_duplicate_srcs(label, resources, "resources"),
         check_files_under_package_root(label, package_root, srcs),
         check_files_under_package_root(label, package_root, resources, "resources"),
-        link_hook_error(label, package_root, link_hook),
     ]:
         if err != None:
             fail(err)
     return DartPackageMemberInfo(
-        package = dart_package_info(
-            label = label,
-            package_name = package_name,
-            package_root = package_root,
-            language_version = language_version,
-            code_assets = code_assets,
-            unreplaced_hook = unreplaced_hook,
-            version = version,
-            link_hook = link_hook,
-            license_file = license_file,
-        ),
+        package = package_info_from_metadata(label, metadata, package_root),
         srcs = srcs,
         resources = resources,
     )
@@ -109,15 +77,9 @@ def dart_package_member_info(
 def _pub_package_member_impl(ctx):
     return [dart_package_member_info(
         label = ctx.label,
-        package_name = ctx.attr.package_name,
-        language_version = ctx.attr.language_version,
+        metadata = ctx.attr.package[DartPackageMetadataInfo],
         srcs = ctx.files.srcs,
         resources = ctx.files.resources,
-        code_assets = ctx.attr.code_assets,
-        version = ctx.attr.version,
-        link_hook = ctx.file.link_hook,
-        unreplaced_hook = ctx.attr.unreplaced_hook,
-        license_file = ctx.file.license_file,
     )]
 
 pub_package_member = rule(
@@ -125,13 +87,11 @@ pub_package_member = rule(
     attrs = {
         "srcs": attr.label_list(allow_files = [".dart"], doc = "The package's `lib/**/*.dart`."),
         "resources": attr.label_list(allow_files = True, doc = "The rest of the package's `lib/`."),
-        "package_name": attr.string(mandatory = True, doc = "The package's name."),
-        "language_version": attr.string(doc = "From the package's `environment.sdk`, as `dart_library`'s."),
-        "version": attr.string(doc = "The version pub resolved, as `dart_library`'s."),
-        "code_assets": attr.label_list(doc = "As `dart_library`'s."),
-        "link_hook": attr.label(allow_single_file = [".dart"], doc = "As `dart_library`'s."),
-        "unreplaced_hook": attr.string(doc = "As `dart_library`'s."),
-        "license_file": attr.label(allow_single_file = True, doc = "As `dart_library`'s."),
+        "package": attr.label(
+            mandatory = True,
+            providers = [DartPackageMetadataInfo],
+            doc = "The package's `dart_package_metadata`, which states its facts.",
+        ),
     },
     doc = "One pub package's files and facts, which a `pub_library` builds; not a library by itself.",
 )

@@ -1,4 +1,4 @@
-load("//dart:defs.bzl", "dart_binary", "dart_js_binary", "dart_library")
+load("//dart:defs.bzl", "dart_binary", "dart_js_binary", "dart_library", "dart_package_metadata")
 load(
     "//dart/tests:analyze_test.bzl",
     "analyzable_provider_test",
@@ -11,10 +11,15 @@ load(
 # shape nine of this repo's e2e workspaces have. Its entrypoint belongs to no
 # package's `lib/`, so the aspect reaches it through `DartAnalyzableInfo`.
 
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "analyzable_dep",
+)
+
 dart_library(
     name = "dep",
-    package_name = "analyzable_dep",
     srcs = ["lib/dep.dart"],
+    package = ":pubspec",
 )
 
 dart_binary(

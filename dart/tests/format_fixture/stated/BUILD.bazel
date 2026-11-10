@@ -20,19 +20,25 @@ dart_package_metadata(
     language_version = "3.6",
 )
 
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "stated",
+    language_version = "3.6",
+)
+
 dart_binary(
     name = "stated_main",
     compile_mode = "kernel",
-    language_version = "3.6",
     main = "bin/stated_main.dart",
+    package = ":pubspec",
     visibility = ["//dart/tests/format_fixture:__pkg__"],
 )
 
 dart_test(
     name = "stated_test",
     size = "small",
-    language_version = "3.6",
     main = "test/stated_test.dart",
+    package = ":pubspec",
     visibility = ["//dart/tests/format_fixture:__pkg__"],
 )
 
@@ -46,8 +52,8 @@ dart_test(
 
 dart_js_binary(
     name = "stated_js",
-    language_version = "3.6",
     main = "web/stated_web.dart",
+    package = ":pubspec",
     visibility = ["//dart/tests/format_fixture:__pkg__"],
 )
 

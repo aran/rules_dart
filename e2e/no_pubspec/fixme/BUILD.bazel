@@ -1,14 +1,19 @@
 load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
-load("@rules_dart//dart:defs.bzl", "dart_library")
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
 load("//:checks.bzl", "fix_changes")
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "fixme",
+    language_version = "3.11",
+)
 
 # A library with a `prefer_final_locals` violation to fix, so it opts out of
 # the analysis the rest of the workspace passes.
 dart_library(
     name = "fixme",
-    package_name = "fixme",
     srcs = ["lib/fixme.dart"],
-    language_version = "3.11",
+    package = ":pubspec",
     tags = ["no-dart-analyze"],
 )
 

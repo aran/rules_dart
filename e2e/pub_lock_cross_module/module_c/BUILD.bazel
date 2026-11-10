@@ -1,11 +1,16 @@
-load("@rules_dart//dart:defs.bzl", "dart_library")
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "module_c",
+)
 
 exports_files(["lock_c.lock"])
 
 dart_library(
     name = "logger",
-    package_name = "module_c",
     srcs = ["lib/logger.dart"],
+    package = ":pubspec",
     visibility = ["//visibility:public"],
     deps = ["@deps_a//:logging"],
 )

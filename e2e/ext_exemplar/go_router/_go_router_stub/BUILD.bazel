@@ -3,14 +3,20 @@
 load(
     "@rules_dart//dart:defs.bzl",
     "dart_library",
+    "dart_package_metadata",
+)
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "go_router",
 )
 
 dart_library(
     name = "go_router_stub",
-    package_name = "go_router",
     srcs = [
         "lib/go_router.dart",
         "lib/src/route_data.dart",
     ],
+    package = ":pubspec",
     visibility = ["//go_router:__pkg__"],
 )
