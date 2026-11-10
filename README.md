@@ -16,7 +16,7 @@ and run the SDK with `bazel run @rules_dart//dart -- ...` and pub with
 Add to your `MODULE.bazel`:
 
 ```starlark
-bazel_dep(name = "rules_dart", version = "<the latest release>")
+bazel_dep(name = "rules_dart", version = "<the latest release>")  # https://github.com/aran/rules_dart/releases
 bazel_dep(name = "rules_dart_gazelle_plugin", version = "<the same version>")  # optional, see Gazelle
 
 dart = use_extension("@rules_dart//dart:extensions.bzl", "dart")
