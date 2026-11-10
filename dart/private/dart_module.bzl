@@ -40,7 +40,7 @@ Flutter SDK and gets its own modules, and everything else here is shared.
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("//dart:providers.bzl", "DartInfo", "DartKernelSdkInfo", "DartModuleInfo")
 load("//dart/private:build_settings.bzl", "module_define_comma_error", "track_creation_locations", "validate_dart_defines")
-load("//dart/private:common.bzl", "KERNEL_FILESYSTEM_SCHEME", "PATH_MAPPING", "add_kernel_roots", "collect_transitive_srcs", "dart_kernel_action", "kernel_root_path", "own_packages")
+load("//dart/private:common.bzl", "KERNEL_FILESYSTEM_SCHEME", "PATH_MAPPING", "VM_SANITIZER_DEFINES", "add_kernel_roots", "bootstrap_kernel_action", "collect_transitive_srcs", "dart_kernel_action", "kernel_root_path", "own_packages")
 load(
     "//dart/private:dart_deps.bzl",
     "direct_dart_deps",
@@ -51,6 +51,7 @@ load(
     "reached_targets",
 )
 load("//dart/private:exec_groups.bzl", "EXEC_TOOLS_TOOLCHAIN", "PORTABLE", "PORTABLE_EXEC_GROUPS")
+load("//dart/private:resources.bzl", "kernel_resources")
 
 _KERNEL_TOOL = Label("//dart/private/tools:kernel_tool")
 
@@ -60,11 +61,22 @@ KERNEL_TOOL_ATTR = {
     "_kernel_tool": attr.label(default = _KERNEL_TOOL, executable = True, cfg = config.exec(PORTABLE)),
 }
 
-def kernel_package_config(packages):
+# What an executable's whole program compiles with: the VM, without the outline
+# tool the modules use, which is itself a `dart_binary`.
+PROGRAM_KERNEL_SDK_ATTR = {
+    "_program_kernel_sdk": attr.label(
+        default = Label("//dart/private:vm_program_kernel_sdk"),
+        providers = [DartKernelSdkInfo],
+        cfg = config.exec(PORTABLE),
+    ),
+}
+
+def kernel_package_config(packages, scheme = KERNEL_FILESYSTEM_SCHEME):
     """`package_config.json` content addressing each package through the kernel roots.
 
     Args:
       packages: `DartPackageInfo` records, one per package name.
+      scheme: The file-system scheme the compile reads its sources through.
 
     Returns:
       The file content.
@@ -77,48 +89,167 @@ def kernel_package_config(packages):
             lv = ', "languageVersion": "%s"' % pkg.language_version
         entries.append('    {"name": "%s", "rootUri": "%s:///%s", "packageUri": "lib/"%s}' % (
             pkg.package_name,
-            KERNEL_FILESYSTEM_SCHEME,
+            scheme,
             root + "/" if root else "",
             lv,
         ))
     return '{\n  "configVersion": 2,\n  "packages": [\n%s\n  ]\n}\n' % ",\n".join(entries)
 
-def whole_program_kernel(ctx, main, packages, output_dill, product, defines = [], flags = [], native_assets_yaml = None, track_creation_locations = False):
-    """Compiles an executable's whole program from source into one kernel.
+def dart_kernel_runtime(platform, defines = [], flags = []):
+    """One kind of runtime a platform's kernels are compiled for: an entry of `DartKernelSdkInfo.runtimes`.
 
-    The program is the rule's `main`, its own `srcs`, and every source its
-    `deps` reach. Each is read where it stands: the front end searches the exec
-    root and each output directory (`dart_kernel_action`), so generated and
-    checked-in files of one directory resolve together.
-
-    The compile runs through the rule's `_kernel_tool`; a rule without one
-    (`dart_tool_binary`, which builds `kernel_tool`) runs the front end directly.
+    Build entries with this rather than by hand, so a field added to them is a
+    change here and in no caller.
 
     Args:
-      ctx: The rule context; the rule has `main`, `srcs` and `deps`.
+      platform: The platform `.dill` File a kernel for this runtime compiles
+        against; the front end finds the SDK in its directory.
+      defines: The environment declarations this runtime fixes, e.g.
+        `dart.vm.product=true`.
+      flags: Further front-end flags every whole-program compile for this
+        runtime takes, e.g. `--delete-tostring-package-uri=dart:ui`.
+
+    Returns:
+      The entry.
+    """
+    return struct(platform = platform, defines = list(defines), flags = list(flags))
+
+def dart_whole_program_kernel_action(
+        ctx,
+        kernel_sdk,
+        runtime,
+        main,
+        srcs,
+        packages,
+        output_dill,
+        entrypoint_uri = None,
+        sources = [],
+        filesystem_scheme = KERNEL_FILESYSTEM_SCHEME,
+        defines = [],
+        flags = [],
+        native_assets = None,
+        track_creation_locations = False,
+        outputs = {},
+        resource_set = kernel_resources):
+    """Compiles a whole program from source into one kernel, for any platform.
+
+    What `dart_binary` and `dart_test` compile with, given the VM's
+    `DartKernelSdkInfo`; a rule set with its own platform (Flutter), or a user
+    with an SDK of their own, passes theirs. Each source is read where it
+    stands: the front end searches the exec root and each output directory,
+    under `filesystem_scheme`, so generated and checked-in files of one
+    directory resolve together and no path of the machine or the sandbox
+    reaches the kernel: two output bases build the same bytes. It prints
+    nothing when the compile succeeds and takes only the files it reads: the
+    sources, the compiler and its runtime, and the one platform dill.
+
+    Because the kernel names no path, `gen_snapshot --resolve-dwarf-paths`
+    cannot be used on what it compiles to (see `dart_kernel_action`).
+
+    The compile runs through the rule's `_kernel_tool` (`KERNEL_TOOL_ATTR`),
+    in the `PORTABLE` execution group (`PORTABLE_EXEC_GROUPS`), and
+    `kernel_sdk` is built for that group's host
+    (`cfg = config.exec(PORTABLE)`).
+
+    Args:
+      ctx: The rule context.
+      kernel_sdk: The platform's `DartKernelSdkInfo`.
+      runtime: The entry of `kernel_sdk.runtimes` the kernel is for: its
+        platform dill, declarations and flags.
+      main: The entrypoint File.
+      srcs: Depset of every source File the program reads besides `main`;
+        `collect_transitive_srcs` gives what `deps` reach.
+      packages: The `DartPackageInfo` records the program compiles against,
+        one per name (`collect_packages`), and any of the caller's own.
+      output_dill: The `.dill` File to produce.
+      entrypoint_uri: The URI to compile as the root library: a `package:`
+        URI, or one under `filesystem_scheme`. By default `main`'s path in the
+        workspace under `filesystem_scheme`.
+      sources: URIs of further libraries compiled into the program beside the
+        entrypoint (`--source`), as `entrypoint_uri`; their files are among
+        `srcs`.
+      filesystem_scheme: The scheme sources are read through. Another
+        compiler that reads the same files under the same scheme (a dev loop's,
+        for hot reload) names their libraries as this kernel does.
+      defines: Environment declarations beyond the runtime's; each becomes a
+        `-D` flag.
+      flags: Further `frontend_server` flags beyond the runtime's (`--aot`,
+        `--tfa`, `--enable-experiment=...`).
+      native_assets: Optional native assets mapping File, embedded in the
+        kernel (`--native-assets`).
+      track_creation_locations: Whether to pass `--track-creation-locations`.
+      outputs: Further files the compiler writes, by the flag that names each
+        (`{"--recorded-uses": file}`).
+      resource_set: What the compile uses, for Bazel's local scheduler: a
+        top-level function `(os, inputs_size) -> dict`, as `ctx.actions.run`
+        takes it. The front end holds the whole program in memory, which grows
+        with the program, so a caller compiling large ones states its own.
+        The default declares one core and 600 MB.
+    """
+    package_config = ctx.actions.declare_file(output_dill.basename + ".package_config.json", sibling = output_dill)
+    ctx.actions.write(package_config, kernel_package_config(packages, filesystem_scheme))
+    dart_kernel_action(
+        ctx = ctx,
+        kernel_sdk = kernel_sdk,
+        runtime = runtime,
+        main = main,
+        srcs = srcs,
+        package_config = package_config,
+        output_dill = output_dill,
+        entrypoint_uri = entrypoint_uri,
+        sources = sources,
+        filesystem_scheme = filesystem_scheme,
+        defines = defines,
+        flags = flags,
+        native_assets = native_assets,
+        track_creation_locations = track_creation_locations,
+        outputs = outputs,
+        kernel_tool = ctx.executable._kernel_tool,
+        resource_set = resource_set,
+    )
+
+def whole_program_kernel(ctx, main, packages, output_dill, product, defines = [], flags = [], native_assets_yaml = None, track_creation_locations = False):
+    """Compiles a VM executable's whole program from source into one kernel.
+
+    The program is the rule's `main`, its own `srcs`, and every source its
+    `deps` reach, compiled for the VM by `dart_whole_program_kernel_action`.
+    A rule without a `_kernel_tool` (`dart_tool_binary`, which builds
+    `kernel_tool`) compiles with `bootstrap_kernel_action`.
+
+    Args:
+      ctx: The rule context; the rule has `main`, `srcs` and `deps`, and
+        merges `PROGRAM_KERNEL_SDK_ATTR` with `KERNEL_TOOL_ATTR`, or neither.
       main: The entrypoint File: `ctx.file.main`, or one generated around it.
       packages: The `DartPackageInfo` records the program compiles against.
       output_dill: The `.dill` File to produce.
-      product: See `dart_kernel_action`.
-      defines: See `dart_kernel_action`.
-      flags: See `dart_kernel_action`.
-      native_assets_yaml: See `dart_kernel_action`.
-      track_creation_locations: See `dart_kernel_action`.
+      product: Whether the kernel is for a product runtime: an AOT snapshot or
+        executable, or a `dart compile kernel` file. False for the JIT VM that
+        builds a `jit-snapshot`.
+      defines: See `dart_whole_program_kernel_action`.
+      flags: See `dart_whole_program_kernel_action`.
+      native_assets_yaml: See `native_assets` of `dart_whole_program_kernel_action`.
+      track_creation_locations: See `dart_whole_program_kernel_action`.
     """
-    package_config = ctx.actions.declare_file(ctx.label.name + ".package_config.json")
-    ctx.actions.write(package_config, kernel_package_config(packages))
-    dart_kernel_action(
-        ctx = ctx,
+    srcs = depset([ctx.file.main] + ctx.files.srcs, transitive = [collect_transitive_srcs(ctx.attr.deps)])
+    if not hasattr(ctx.attr, "_kernel_tool"):
+        if native_assets_yaml != None or track_creation_locations:
+            fail("%s: a tool built without `kernel_tool` takes no code assets and does not track creation locations" % ctx.label)
+        package_config = ctx.actions.declare_file(output_dill.basename + ".package_config.json", sibling = output_dill)
+        ctx.actions.write(package_config, kernel_package_config(packages))
+        bootstrap_kernel_action(ctx, main, srcs, package_config, output_dill, product, defines, flags)
+        return
+    dart_whole_program_kernel_action(
+        ctx,
+        kernel_sdk = ctx.attr._program_kernel_sdk[DartKernelSdkInfo],
+        runtime = "product" if product else "jit",
         main = main,
-        transitive_srcs = depset([ctx.file.main] + ctx.files.srcs, transitive = [collect_transitive_srcs(ctx.attr.deps)]),
-        package_config = package_config,
+        srcs = srcs,
+        packages = packages,
         output_dill = output_dill,
-        product = product,
         defines = defines,
         flags = flags,
-        native_assets_yaml = native_assets_yaml,
+        native_assets = native_assets_yaml,
         track_creation_locations = track_creation_locations,
-        kernel_tool = getattr(ctx.executable, "_kernel_tool", None),
     )
 
 _OUTLINES = ".outlines"
@@ -252,6 +383,8 @@ def _compile_modules(ctx, sdk, kernel_tool, name, srcs, packages, own_packages, 
     Returns:
       `DartModuleInfo` of the new modules and `modules`.
     """
+    if sdk.kernel_worker == None or sdk.libraries_spec == None:
+        fail("%s: the `%s` platform's DartKernelSdkInfo has no `kernel_worker` or `libraries_spec`, so it compiles whole programs only, not modules" % (ctx.label, sdk.target))
     base = "%s.%s" % (name, sdk.target)
     out = ctx.actions.declare_directory(base + ".modules")
     manifest = ctx.actions.declare_file(out.basename + ".json", sibling = out)
@@ -270,7 +403,7 @@ def _compile_modules(ctx, sdk, kernel_tool, name, srcs, packages, own_packages, 
     add_kernel_roots(args, "--multi-root", srcs)
     args.add_all(srcs, before_each = "--src", expand_directories = False)
     _add_deps(args, modules.outlines)
-    args.add_all(sdk.defines + defines, before_each = "--define")
+    args.add_all(module_runtime(sdk).defines + defines, before_each = "--define")
     if track_creation_locations:
         args.add("--track-creation-locations")
     args.add_all([out], before_each = "--output-dir", expand_directories = False)
@@ -293,7 +426,7 @@ def _compile_modules(ctx, sdk, kernel_tool, name, srcs, packages, own_packages, 
         executable = kernel_tool,
         arguments = ["module", _snapshot_args(ctx, sdk.kernel_worker), args],
         inputs = depset(
-            srcs + [package_config, sdk.libraries_spec, sdk.platform, sdk.kernel_worker, sdk.runtime],
+            srcs + [package_config, sdk.libraries_spec, module_runtime(sdk).platform, sdk.kernel_worker, sdk.runtime],
             transitive = [modules.outlines, modules.manifests, sdk.tool_files],
         ),
         # The SDK's compiler is a tool, so that a different one (a new SDK, a
@@ -320,8 +453,26 @@ def _compile_modules(ctx, sdk, kernel_tool, name, srcs, packages, own_packages, 
 
 def _add_sdk_args(args, sdk):
     args.add("--runtime", sdk.runtime)
-    args.add("--platform", sdk.platform)
+    args.add("--platform", module_runtime(sdk).platform)
     args.add("--target", sdk.target)
+
+def module_runtime(sdk):
+    """The runtime of a `DartKernelSdkInfo` modules compile for.
+
+    Args:
+      sdk: The `DartKernelSdkInfo`.
+
+    Returns:
+      Its `runtimes` entry named by `module_runtime`.
+    """
+    runtime = sdk.runtimes.get(sdk.module_runtime)
+    if runtime == None:
+        fail("DartKernelSdkInfo for `%s`: `module_runtime` %r names none of its runtimes (%s)" % (
+            sdk.target,
+            sdk.module_runtime,
+            ", ".join(sorted(sdk.runtimes)),
+        ))
+    return runtime
 
 def dart_module_aspect(
         kernel_sdk,
@@ -589,14 +740,14 @@ def dart_entry_kernel_action(
     args = _new_args(ctx)
     args.add("--label", str(ctx.label))
     _add_sdk_args(args, sdk)
-    args.add_all([sdk.platform], before_each = "--sdk-root", map_each = _dirname)
+    args.add_all([module_runtime(sdk).platform], before_each = "--sdk-root", map_each = _dirname)
     args.add("--package-config", package_config)
     add_kernel_roots(args, "--multi-root", [main])
     _add_deps(args, own.outlines)
-    args.add_all(sdk.defines + defines, before_each = "--define")
+    args.add_all(module_runtime(sdk).defines + defines, before_each = "--define")
     if track_creation_locations:
         args.add("--track-creation-locations")
-    inputs = [main, package_config, sdk.platform, sdk.frontend_server, sdk.runtime]
+    inputs = [main, package_config, module_runtime(sdk).platform, sdk.frontend_server, sdk.runtime]
     if native_assets_yaml != None:
         args.add("--native-assets", native_assets_yaml)
         inputs.append(native_assets_yaml)
@@ -692,12 +843,13 @@ def _vm_kernel_sdk_impl(ctx):
         "runtime": [root + "/bin/dartaotruntime", root + "/bin/dartaotruntime.exe"],
         "kernel_worker": [root + "/bin/snapshots/kernel_worker_aot.dart.snapshot"],
         "frontend_server": [root + "/bin/snapshots/frontend_server_aot.dart.snapshot"],
-        "platform": [root + "/lib/_internal/vm_platform_product.dill"],
+        "jit_platform": [root + "/lib/_internal/vm_platform.dill"],
+        "product_platform": [root + "/lib/_internal/vm_platform_product.dill"],
         "libraries_spec": [root + "/lib/libraries.json"],
     }
     found = {}
 
-    # Once per configuration: a probe for five files in the SDK.
+    # Once per configuration: a probe for six files in the SDK.
     for f in sdk.files.kernel.to_list():
         for key, paths in wanted.items():
             if f.path in paths:
@@ -710,11 +862,17 @@ def _vm_kernel_sdk_impl(ctx):
         runtime = found["runtime"],
         kernel_worker = found["kernel_worker"],
         frontend_server = found["frontend_server"],
-        platform = found["platform"],
+        # The platform `dart compile` chooses for each runtime: the JIT VM
+        # that builds a `jit-snapshot`, and the product runtime of an AOT
+        # snapshot, an executable or a `dart compile kernel` file.
+        runtimes = {
+            "jit": dart_kernel_runtime(found["jit_platform"], defines = ["dart.vm.product=false"] + VM_SANITIZER_DEFINES),
+            "product": dart_kernel_runtime(found["product_platform"], defines = ["dart.vm.product=true"] + VM_SANITIZER_DEFINES),
+        },
+        # What `dart compile kernel` folds in: a product runtime.
+        module_runtime = "product",
         libraries_spec = found["libraries_spec"],
         libraries_target = "vm",
-        # What `dart compile kernel` folds in: a product runtime, no sanitizers.
-        defines = ["dart.vm.product=true", "dart.vm.asan=false", "dart.vm.msan=false", "dart.vm.tsan=false"],
         # The tools read the files named above and nothing else of the SDK.
         tool_files = depset(),
         outline_tool = ctx.attr.outline_tool[DefaultInfo].files_to_run if ctx.attr.outline_tool else None,

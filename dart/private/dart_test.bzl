@@ -33,6 +33,7 @@ load("//dart/private:dart_import_check.bzl", "dart_import_check_aspect", "import
 load(
     "//dart/private:dart_module.bzl",
     "MODULE_EXECUTABLE_ATTRS",
+    "PROGRAM_KERNEL_SDK_ATTR",
     "collect_modules",
     "dart_entry_kernel_action",
     "dart_link_kernel_action",
@@ -467,7 +468,7 @@ entry does not run. A target none of whose cases remain fails. \
             executable = True,
             cfg = "target",
         ),
-    }, **dict(DART_ABI_CONSTRAINT_ATTRS, **dict(KERNEL_LIST_ATTR, **dict(RUNNER_SNAPSHOT_ATTR, **dict(EXTRA_DART_DEFINES_ATTR, **dict(TRACK_CREATION_LOCATIONS_ATTR, **dict(MODULE_EXECUTABLE_ATTRS, **dict(_ENVIRONMENT.attrs, **EXECUTABLE_PACKAGE_ATTRS)))))))),
+    }, **dict(DART_ABI_CONSTRAINT_ATTRS, **dict(KERNEL_LIST_ATTR, **dict(RUNNER_SNAPSHOT_ATTR, **dict(EXTRA_DART_DEFINES_ATTR, **dict(TRACK_CREATION_LOCATIONS_ATTR, **dict(MODULE_EXECUTABLE_ATTRS, **dict(PROGRAM_KERNEL_SDK_ATTR, **dict(_ENVIRONMENT.attrs, **EXECUTABLE_PACKAGE_ATTRS))))))))),
     test = True,
     # The compiles are `portable`. The run is Bazel's own `test` group, which
     # puts it on a host matching the target: everything it runs, the VM and

@@ -18,9 +18,10 @@ load(
 )
 load("//dart/private:dart_compile.bzl", "dart_compile_action", "front_end_flags", "get_compilation_mode_flags", "recorded_uses_kind")
 load("//dart/private:dart_import_check.bzl", "dart_import_check_aspect", "import_check_validation", "without_import_check")
-load("//dart/private:dart_module.bzl", "KERNEL_TOOL_ATTR", "whole_program_kernel")
+load("//dart/private:dart_module.bzl", "KERNEL_TOOL_ATTR", "PROGRAM_KERNEL_SDK_ATTR", "whole_program_kernel")
 load("//dart/private:exec_groups.bzl", "PORTABLE_EXEC_GROUPS")
 load("//dart/private:executable_package.bzl", "EXECUTABLE_PACKAGE_ATTRS", "executable_package")
+load("//dart/private:runtime.bzl", "dart_tool_reset")
 
 def binary_output_basename(name, compile_mode, is_windows):
     """Returns a `dart_binary`'s output filename with the platform exe extension.
@@ -78,6 +79,13 @@ def _dart_binary_impl(ctx):
     # the action ran (see `dart_kernel_action`), and `dart compile` turns it
     # into the requested output. A `kernel` is the first step's output itself.
     defines = merge_dart_defines(ctx)
+    for f in ctx.attr.dart_compile_flags:
+        if "--resolve-dwarf-paths" in f or "--resolve_dwarf_paths" in f:
+            fail(("%s: `--resolve-dwarf-paths` cannot be used: the kernel names each source " +
+                  "`org-dartlang-root:///<path in the workspace>`, never a path on disk, so the " +
+                  "build is the same everywhere, and gen_snapshot converts only `file:` URIs. " +
+                  "Leave it out: DWARF then names each source by that URI, whose path is the " +
+                  "file's in the workspace (`external/<repo>/...` for another repository's).") % ctx.label)
     fe_flags, compile_flags = front_end_flags(ctx.attr.dart_compile_flags)
     code_asset_libs = []
 
@@ -275,7 +283,7 @@ def _dart_binary_rule(check_imports, compile_runner = True, launcher = True):
     return rule(
         implementation = _dart_binary_impl,
         attrs = dict(
-            KERNEL_TOOL_ATTR if check_imports else {},
+            dict(KERNEL_TOOL_ATTR, **PROGRAM_KERNEL_SDK_ATTR) if check_imports else {},
             **dict(_COMPILE_RUNNER_ATTR if compile_runner else {}, **dict(_LAUNCHER_ATTR if launcher else {}, **dict({
                 "main": attr.label(
                     doc = "The Dart entrypoint file containing a top-level `main()` function.",
@@ -337,7 +345,7 @@ def _dart_binary_rule(check_imports, compile_runner = True, launcher = True):
                     values = ["exe", "aot-snapshot", "kernel", "jit-snapshot"],
                 ),
                 "dart_compile_flags": attr.string_list(
-                    doc = "Extra flags passed to `dart compile` after compilation-mode defaults. Flags appear last so they can override defaults (e.g., `--extra-gen-snapshot-options=--optimization_level=3`). Front-end flags (`--enable-experiment`, `-D`/`--define`) go to the front-end step that precedes `dart compile`, and `--verbosity` to both; in the `kernel` mode, which is that step alone, every flag does, and only those `frontend_server` accepts work.",
+                    doc = "Extra flags passed to `dart compile` after compilation-mode defaults. Flags appear last so they can override defaults (e.g., `--extra-gen-snapshot-options=--optimization_level=3`). Front-end flags (`--enable-experiment`, `-D`/`--define`) go to the front-end step that precedes `dart compile`, and `--verbosity` to both; in the `kernel` mode, which is that step alone, every flag does, and only those `frontend_server` accepts work. `--extra-gen-snapshot-options=--resolve-dwarf-paths` is refused: sources are named by workspace-relative `org-dartlang-root:///` URIs, which gen_snapshot cannot turn into paths, and DWARF without it names them by those URIs.",
                 ),
                 "defines": attr.string_list(
                     doc = "Dart environment declarations (`key=value`). Each entry becomes a `-Dkey=value` flag.",
@@ -352,6 +360,10 @@ def _dart_binary_rule(check_imports, compile_runner = True, launcher = True):
             }, **dict(DART_ABI_CONSTRAINT_ATTRS, **dict(EXTRA_DART_DEFINES_ATTR, **dict(TRACK_CREATION_LOCATIONS_ATTR, **EXECUTABLE_PACKAGE_ATTRS))))))
         ),
         executable = True,
+        # rules_dart's own tools are the same program in every build that
+        # reaches them: they drop the settings of the build they are reached
+        # from that `bootstrap_kernel_action` cannot honour.
+        cfg = None if check_imports else dart_tool_reset,
         # The default group compiles machine code for the target, so its SDK
         # matches the target; the kernel before it is `portable`.
         toolchains = ["//dart:toolchain_type"],

@@ -59,8 +59,10 @@ load(
     _KERNEL_TOOL_ATTR = "KERNEL_TOOL_ATTR",
     _collect_modules = "collect_modules",
     _dart_entry_kernel_action = "dart_entry_kernel_action",
+    _dart_kernel_runtime = "dart_kernel_runtime",
     _dart_link_kernel_action = "dart_link_kernel_action",
     _dart_module_aspect = "dart_module_aspect",
+    _dart_whole_program_kernel_action = "dart_whole_program_kernel_action",
     _executable_defines = "executable_defines",
     _executable_defines_config = "executable_defines_config",
     _kernel_package_config = "kernel_package_config",
@@ -243,6 +245,47 @@ parse_data_asset_ids = _parse_data_asset_ids
 # `EXEC_TOOLS_TOOLCHAIN` and any toolchains more. `dart_module_aspect`'s
 # `exec_toolchains` adds those to the aspect's.
 dart_module_aspect = _dart_module_aspect
+
+# A whole program compiled from source into one kernel, for any platform: what
+# `dart_binary` and `dart_test` compile with, given the VM. A rule set with its
+# own platform, or a user with a Dart SDK or engine of their own (a fork, a
+# local build), passes that platform's `DartKernelSdkInfo`, built for the
+# `PORTABLE` host (`cfg = config.exec(PORTABLE)`), and names the runtime the
+# kernel is for:
+#
+#     dart_whole_program_kernel_action(
+#         ctx,
+#         kernel_sdk = ctx.attr._kernel_sdk[DartKernelSdkInfo],
+#         runtime = "release",
+#         main = ctx.file.main,
+#         srcs = collect_transitive_srcs(ctx.attr.deps),
+#         packages = collect_packages(ctx.attr.deps) + [own_package],
+#         output_dill = dill,
+#         entrypoint_uri = "package:app/main.dart",
+#         flags = ["--aot", "--tfa"],
+#         outputs = {"--recorded-uses": recorded_uses},
+#         resource_set = _large_program,  # a top-level (os, inputs_size) -> dict
+#     )
+#
+# The kernel names no path of the machine or the sandbox, so two output bases
+# build the same bytes; the compile prints nothing when it succeeds, reads only
+# the sources, the compiler, its runtime and one platform dill, and runs once
+# for every configuration that builds the same program
+# (`--experimental_output_paths=strip`). The rule merges `KERNEL_TOOL_ATTR`
+# and declares `PORTABLE_EXEC_GROUPS`. Since no source is named by a path,
+# `gen_snapshot --resolve-dwarf-paths` cannot be used on such a kernel.
+#
+# Each entry of `DartKernelSdkInfo.runtimes` is made by `dart_kernel_runtime`:
+#
+#     runtimes = {
+#         "release": dart_kernel_runtime(
+#             product_dill,
+#             defines = ["dart.vm.product=true"],
+#             flags = ["--delete-tostring-package-uri=dart:ui"],
+#         ),
+#     }
+dart_whole_program_kernel_action = _dart_whole_program_kernel_action
+dart_kernel_runtime = _dart_kernel_runtime
 executable_defines_config = _executable_defines_config
 executable_defines = _executable_defines
 collect_modules = _collect_modules

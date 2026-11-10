@@ -204,22 +204,29 @@ merged into the analyzed target's provider.""",
 )
 
 DartKernelSdkInfo = provider(
-    doc = """The tools and platform one kernel target compiles with, for \
-`dart_module_aspect`.
+    doc = """The compiler and platform one kernel target compiles with: for \
+`dart_module_aspect`, and for `dart_whole_program_kernel_action`.
 
-A kernel module is only valid for the platform it was compiled against, so the \
-VM (rules_dart) and Flutter (rules_flutter) each supply one of these and get \
-their own modules. Everything that differs between the two is here; the \
-aspect is otherwise the same code.""",
+A kernel is only valid for the platform it was compiled against, so the VM \
+(rules_dart) and Flutter (rules_flutter) each supply one of these. Everything \
+that differs between the two is here; the compiles are otherwise the same \
+code. A rule set or a user with a Dart SDK or engine of their own (a fork, a \
+local build) fills it from that SDK's files, typically from the toolchain \
+that SDK is registered as, so nothing about which SDK compiles is fixed in \
+rules_dart.
+
+A platform has one platform `.dill` per kind of runtime it runs on: the VM \
+has a JIT and a product runtime, Flutter a debug, a profile and a release \
+one. `runtimes` names each, and a compile asks for one by its name.""",
     fields = {
         "target": "str: The front end's target name (`vm`, `flutter`).",
         "runtime": "File: The `dartaotruntime` that runs the snapshots.",
-        "kernel_worker": "File: `kernel_worker_aot.dart.snapshot`, which compiles modules.",
-        "frontend_server": "File: `frontend_server_aot.dart.snapshot`, which compiles an executable's entrypoint.",
-        "platform": "File: The platform `.dill` modules and entrypoints compile against; the front end finds the SDK in its directory.",
-        "libraries_spec": "File: The `libraries.json` that lists the `dart:` libraries `target` provides.",
+        "kernel_worker": "File or None: `kernel_worker_aot.dart.snapshot`, which compiles modules. None for a platform that compiles whole programs only.",
+        "frontend_server": "File: `frontend_server_aot.dart.snapshot`, which compiles an executable's entrypoint and whole programs.",
+        "runtimes": "dict[str, struct]: The kinds of runtime a kernel can be compiled for, by name (`jit` and `product` for the VM), each made by `dart_kernel_runtime()`: the platform `.dill` a kernel for that runtime compiles against, in whose directory the front end finds the SDK; the environment declarations that runtime fixes, e.g. `dart.vm.product=true`; and the front-end flags a whole-program compile for it takes.",
+        "module_runtime": "str: The entry of `runtimes` that modules, and the entrypoints linked with them, compile for.",
+        "libraries_spec": "File or None: The `libraries.json` that lists the `dart:` libraries `target` provides, which modules are split by. None for a platform that compiles whole programs only.",
         "libraries_target": "str: The entry in `libraries_spec` to read (its `include` entries are followed).",
-        "defines": "list[str]: Environment declarations the platform itself fixes, e.g. `dart.vm.product=true`.",
         "tool_files": "depset[File]: What the tools read at run time beyond the files named above; the actions take nothing else of the SDK. Empty for the VM, whose front end reads only its snapshot, its runtime and the platform.",
         "outline_tool": "FilesToRunProvider or None: Writes the outlines dependents compile against (`outline_tool [--load <dill>]... [--module <dill> --outline <dill>]...`, or the same in an `@paramsfile`, one per line), run by the module action. None, or unset, compiles them against full modules.",
     },

@@ -317,6 +317,13 @@ vm_kernel_sdk(
     visibility = ["//visibility:public"],
 )
 
+# What executables compile their whole program with. The outline tool is the
+# modules' alone, and is itself a `dart_binary`.
+vm_kernel_sdk(
+    name = "vm_program_kernel_sdk",
+    visibility = ["//visibility:public"],
+)
+
 # `--platforms` as it was before the nearest web transition, JSON-encoded; ""
 # outside one. The web transitions set it and `runtime_reset` restores
 # `--platforms` from it and clears it (runtime.bzl). `scope = "target"`

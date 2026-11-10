@@ -176,3 +176,18 @@ target_runtime = rule(
         "_wasm": attr.label(default = "//dart/constraints:wasm"),
     },
 )
+
+_EXTRA_DART_DEFINES = str(Label("//dart:extra_dart_defines"))
+
+def _dart_tool_reset_impl(settings, attr):
+    return _non_dart_transition_impl(settings, attr) | {_EXTRA_DART_DEFINES: []}
+
+# `non_dart_transition` and no command-line declarations: for rules_dart's own
+# tools, which are compiled without `kernel_tool` and so cannot track creation
+# locations or take a declaration `gen_kernel` would split, and which are the
+# same program whatever the build that reaches them compiles.
+dart_tool_reset = transition(
+    implementation = _dart_tool_reset_impl,
+    inputs = WEB_PLATFORM_SETTINGS,
+    outputs = WEB_PLATFORM_SETTINGS + [_TRACK_CREATION_LOCATIONS, _MODULE_DEFINES, _EXTRA_DART_DEFINES],
+)

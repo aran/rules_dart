@@ -63,34 +63,29 @@ staged_defines_test = analysistest.make(
     attrs = {"expected_flags": attr.string_list()},
 )
 
-def _frontend_argv(argv, through_kernel_tool):
+def _frontend_argv(argv):
     """The front end's own command line, snapshot first, or None if not as expected.
 
-    Through `kernel_tool` it follows the `--` of `kernel_tool frontend`;
-    otherwise it follows the runtime.
+    It follows the `--` of `kernel_tool frontend`.
     """
-    if through_kernel_tool:
-        if "--" not in argv or "kernel_tool" not in argv[0] or argv[1:2] != ["frontend"]:
-            return None
-        return argv[argv.index("--") + 1:]
-    if "dartaotruntime" not in argv[0]:
+    if "--" not in argv or "kernel_tool" not in argv[0] or argv[1:2] != ["frontend"]:
         return None
-    return argv[1:]
+    return argv[argv.index("--") + 1:]
 
 def _kernel_command_test_impl(ctx):
     # The front end the kernel step runs, and how: `frontend_server` reading
     # the sources through the exec-root filesystem and writing `--output-dill`,
-    # with each define one argument, a comma in it included. An executable runs
-    # it through `kernel_tool frontend`, which keeps the server's protocol out
-    # of the build log; the tools that build `kernel_tool` run it directly.
+    # with each define one argument, a comma in it included, run through
+    # `kernel_tool frontend`, which keeps the server's protocol out of the
+    # build log.
     env = analysistest.begin(ctx)
     full = _argv_for(env, _KERNEL)
     if full == None:
         asserts.true(env, False, "expected a %s action, saw %s" % (_KERNEL, _mnemonics(env)))
         return analysistest.end(env)
-    argv = _frontend_argv(full, ctx.attr.through_kernel_tool)
+    argv = _frontend_argv(full)
     if argv == None:
-        asserts.true(env, False, "the kernel step runs through kernel_tool: %s, saw %s" % (ctx.attr.through_kernel_tool, full))
+        asserts.true(env, False, "the kernel step runs through kernel_tool, saw %s" % full)
         return analysistest.end(env)
     asserts.true(
         env,
@@ -122,12 +117,11 @@ def _kernel_command_test_impl(ctx):
             "--sdk-root %s and --platform %s must resolve to a platform dill the action reads; its inputs are %s" % (sdk_roots[0], platforms[0], input_paths),
         )
 
-    # The front end's runtime is an input however it is started.
+    # The front end's runtime is an input.
     runtimes = [p for p in input_paths if p.endswith("/dartaotruntime") or p.endswith("/dartaotruntime.exe")]
     asserts.equals(env, 1, len(runtimes), "the runtime must be an input: %s" % input_paths)
-    if ctx.attr.through_kernel_tool:
-        given = [full[i + 1] for i in range(len(full) - 1) if full[i] == "--runtime"]
-        asserts.equals(env, runtimes, given, "--runtime must name the input: %s" % full)
+    given = [full[i + 1] for i in range(len(full) - 1) if full[i] == "--runtime"]
+    asserts.equals(env, runtimes, given, "--runtime must name the input: %s" % full)
     asserts.true(env, "--output-dill" in argv and "-o" not in argv, "the output goes to --output-dill: %s" % argv)
     asserts.true(env, "--no-print-incremental-dependencies" in argv, "the files read would be named in the log: %s" % argv)
     asserts.true(env, "-Ddart.vm.product=true" in argv, "product mode missing: %s" % argv)
@@ -139,9 +133,41 @@ kernel_command_test = analysistest.make(
     _kernel_command_test_impl,
     attrs = {
         "expected_flags": attr.string_list(),
-        "through_kernel_tool": attr.bool(default = True),
     },
 )
+
+def _bootstrap_kernel_command_test_impl(ctx):
+    # `kernel_tool` and the tools built beside it cannot run through it, and
+    # `frontend_server` run directly prints its protocol on success, so they
+    # are compiled by `gen_kernel`, which prints only diagnostics, reading the
+    # sources through the same exec-root filesystem.
+    env = analysistest.begin(ctx)
+    full = _argv_for(env, _KERNEL)
+    if full == None:
+        asserts.true(env, False, "expected a %s action, saw %s" % (_KERNEL, _mnemonics(env)))
+        return analysistest.end(env)
+    asserts.true(env, "dartaotruntime" in full[0], "the runtime runs the compiler: %s" % full)
+    asserts.true(env, full[1].endswith("/gen_kernel_aot.dart.snapshot"), "the compiler is gen_kernel: %s" % full)
+    asserts.equals(env, [], [a for a in full if "frontend_server" in a], "frontend_server in %s" % full)
+    action = [a for a in analysistest.target_actions(env) if a.mnemonic == _KERNEL][0]
+    input_paths = [f.path for f in action.inputs.to_list()]
+    for flag, value in [
+        ("--filesystem-scheme", "org-dartlang-root"),
+        ("--filesystem-root", "."),
+    ]:
+        values = [full[i + 1] for i in range(len(full) - 1) if full[i] == flag]
+        asserts.true(env, value in values, "%s %s missing: %s" % (flag, value, full))
+    platforms = [full[i + 1] for i in range(len(full) - 1) if full[i] == "--platform"]
+    asserts.true(
+        env,
+        len(platforms) == 1 and platforms[0].endswith("/vm_platform_product.dill") and platforms[0] in input_paths,
+        "one --platform naming the product platform the action reads: %s" % full,
+    )
+    asserts.true(env, "--output" in full and "--output-dill" not in full, "the output goes to --output: %s" % full)
+    asserts.true(env, "-Ddart.vm.product=true" in full, "product mode missing: %s" % full)
+    return analysistest.end(env)
+
+bootstrap_kernel_command_test = analysistest.make(_bootstrap_kernel_command_test_impl)
 
 def _comma_refused_test_impl(ctx):
     env = analysistest.begin(ctx)

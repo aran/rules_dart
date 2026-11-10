@@ -1,6 +1,7 @@
 load("//dart:defs.bzl", "dart_binary", "dart_code_asset", "dart_test")
 load(
     "//dart/tests:defines_test.bzl",
+    "bootstrap_kernel_command_test",
     "comma_refused_test",
     "comma_refused_whole_program_test",
     "kernel_command_test",
@@ -123,15 +124,14 @@ kernel_command_test(
     target_under_test = ":comma_kernel",
 )
 
-# `kernel_tool` and the tools it needs to be built are compiled by the front end
-# run directly: they cannot run through the tool they build.
+# `kernel_tool` and the tools it needs to be built cannot run through the tool
+# they build: `gen_kernel` compiles them, silently on success.
 
 [
-    kernel_command_test(
+    bootstrap_kernel_command_test(
         name = "bootstrap_kernel_command_test_" + tool,
         size = "small",
         target_under_test = "//dart/private/tools:" + tool,
-        through_kernel_tool = False,
     )
     for tool in [
         "kernel_tool",

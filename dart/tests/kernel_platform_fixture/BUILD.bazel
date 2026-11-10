@@ -1,0 +1,107 @@
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
+load("//dart:defs.bzl", "dart_binary", "dart_library")
+load(":rules.bzl", "alt_program", "alt_vm", "compiles_with_the_platform_given_test", "names_no_runtime_test", "refuses_resolve_dwarf_paths_test", "tool_ignores_the_build_test")
+
+# The whole-program compile given a platform other than rules_dart's VM: the
+# pinned SDK's files, linked to other paths under other names.
+alt_vm(name = "alt_vm")
+
+dart_library(
+    name = "greet",
+    srcs = [
+        "lib/app.dart",
+        "lib/greet.dart",
+    ],
+)
+
+# The same program compiled by `dart_binary` and for the alternative platform:
+# the kernels are the same bytes, so nothing of the compile is fixed to the
+# toolchain's SDK.
+dart_binary(
+    name = "vm_kernel",
+    compile_mode = "kernel",
+    main = "bin/main.dart",
+    deps = [":greet"],
+)
+
+alt_program(
+    name = "alt_kernel",
+    main = "bin/main.dart",
+    runtime = "alt_product",
+    deps = [":greet"],
+)
+
+diff_test(
+    name = "same_kernel_test",
+    size = "small",
+    file1 = ":vm_kernel",
+    file2 = ":alt_kernel",
+)
+
+# What a bundler asks of the compile: its own file-system scheme, a `package:`
+# entrypoint, a further library, an AOT compile and the uses it records.
+alt_program(
+    name = "custom_program",
+    srcs = ["bin/extra.dart"],
+    entrypoint_uri = "package:kernel_platform_fixture/app.dart",
+    filesystem_scheme = "org-dartlang-app",
+    flags = [
+        "--aot",
+        "--tfa",
+    ],
+    main = "lib/app.dart",
+    record_uses = True,
+    runtime = "alt_stripped",
+    sources = ["org-dartlang-app:///dart/tests/kernel_platform_fixture/bin/extra.dart"],
+    deps = [":greet"],
+)
+
+compiles_with_the_platform_given_test(
+    name = "compiles_with_the_platform_given_test",
+    size = "small",
+    target_under_test = ":custom_program",
+)
+
+build_test(
+    name = "custom_program_builds_test",
+    size = "small",
+    targets = [":custom_program"],
+)
+
+alt_program(
+    name = "unknown_runtime",
+    main = "bin/main.dart",
+    runtime = "product",
+    tags = ["manual"],
+    deps = [":greet"],
+)
+
+names_no_runtime_test(
+    name = "names_no_runtime_test",
+    size = "small",
+    target_under_test = ":unknown_runtime",
+)
+
+# gen_snapshot turns only `file:` URIs into DWARF paths, and the kernel has
+# none: the binary refuses the flag rather than crash in gen_snapshot.
+dart_binary(
+    name = "resolved_dwarf",
+    compile_mode = "aot-snapshot",
+    dart_compile_flags = ["--extra-gen-snapshot-options=--resolve-dwarf-paths"],
+    main = "bin/main.dart",
+    tags = ["manual"],
+    deps = [":greet"],
+)
+
+refuses_resolve_dwarf_paths_test(
+    name = "refuses_resolve_dwarf_paths_test",
+    size = "small",
+    target_under_test = ":resolved_dwarf",
+)
+
+tool_ignores_the_build_test(
+    name = "tool_ignores_the_build_test",
+    size = "small",
+    target_under_test = "//dart/private/tools:launcher",
+)
