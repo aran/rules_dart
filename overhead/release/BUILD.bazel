@@ -4,7 +4,10 @@ load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_test")
 # writes the source archive and prints the release notes. See prep.dart.
 dart_binary(
     name = "prep",
-    srcs = ["notes_range.dart"],
+    srcs = [
+        "modules.dart",
+        "notes_range.dart",
+    ],
     args = [
         "$(rlocationpath @multitool//tools/git-cliff)",
         "$(rlocationpath //:cliff.toml)",
@@ -23,5 +26,13 @@ dart_test(
     size = "small",
     srcs = ["notes_range.dart"],
     main = "test/notes_range_test.dart",
+    deps = ["@overhead_dev_deps//:test"],
+)
+
+dart_test(
+    name = "modules_test",
+    size = "small",
+    srcs = ["modules.dart"],
+    main = "test/modules_test.dart",
     deps = ["@overhead_dev_deps//:test"],
 )

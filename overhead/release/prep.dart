@@ -6,13 +6,15 @@
 //   bazel run @overhead//release:prep -- vX.Y.Z
 //
 // Writes `<module>-<tag>.tar.gz`, the source archive at the tag, in the
-// checkout root, and prints the `bazel_dep` snippet followed by the notes the
+// checkout root, and prints a `bazel_dep` for each module the release
+// publishes (`moduleRoots` in `.bcr/config.yml`) followed by the notes the
 // `Changelog:` trailers since the previous version tag make. A first release,
 // with no previous version tag, has no notes.
 import 'dart:io';
 
 import 'package:runfiles/runfiles.dart';
 
+import 'modules.dart';
 import 'notes_range.dart';
 
 final _version = RegExp(r'^v[0-9]+\.[0-9]+\.[0-9]+$');
@@ -38,6 +40,13 @@ Future<void> main(List<String> args) async {
     stderr.writeln('prep: no module(name = ...) in $repo/MODULE.bazel');
     exit(2);
   }
+  final List<String> released;
+  try {
+    released = releasedModules(repo);
+  } on FormatException catch (e) {
+    stderr.writeln('prep: ${e.message}');
+    exit(2);
+  }
 
   // The prefix GitHub gives its own source archives, so that a user can switch
   // between the two without changing `strip_prefix`. What the archive leaves
@@ -50,14 +59,7 @@ Future<void> main(List<String> args) async {
     tag,
   ]);
 
-  stdout.write('''
-Add to your `MODULE.bazel` file:
-
-```starlark
-bazel_dep(name = "$module", version = "$version")
-```
-
-''');
+  stdout.write(installSnippet(released, version));
 
   // The release job checks out the tag alone, without history or other tags.
   final shallow = await git(repo, ['rev-parse', '--is-shallow-repository']);
@@ -84,9 +86,3 @@ bazel_dep(name = "$module", version = "$version")
   ], mode: ProcessStartMode.inheritStdio);
   exit(await cliff.exitCode);
 }
-
-/// The name in the `module()` call of [moduleBazel], or null.
-String? moduleName(String moduleBazel) => RegExp(
-  r'^module\(\s*name\s*=\s*"([^"]+)"',
-  multiLine: true,
-).firstMatch(moduleBazel)?[1];
