@@ -5,6 +5,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -57,8 +58,9 @@ type packageScan struct {
 	// directory imports from lends: its helpers (the files that are not
 	// tests), and each test another directory imports.
 	lent map[string][]DartFileInfo
-	// executables reports whether the package has a Dart file at its root
-	// or under its bin/, which Gazelle writes a `dart_binary` for.
+	// executables reports whether the package has a Dart file outside its
+	// lib/, test/ and hook/ -- at its root, under its bin/, tool/ or
+	// example/ -- which Gazelle writes a `dart_binary` for.
 	executables bool
 }
 
@@ -92,11 +94,22 @@ func (s *scanState) scanPackage(c *config.Config, root string) *packageScan {
 		lent:      map[string][]DartFileInfo{},
 	}
 
+	// The directories of the package's lib/, of its test/, and the others
+	// that hold Dart files: its root, bin/, tool/, example/ and the like.
+	// Another package's root inside it ends its subtree.
+	inPackage := func(layouts ...string) func(rel string) bool {
+		return func(rel string) bool {
+			if rel != root && hasPackageMetadata(c, rel) {
+				return false
+			}
+			place := placeOf(c, rel)
+			return place.Err == nil && place.Root == root && slices.Contains(layouts, place.Layout)
+		}
+	}
+
 	// lib/: every source, then those Gazelle's codegen targets produce out.
 	var all []DartFileInfo
-	s.walkDartDirs(c, libDirOf(root), func(rel string) bool {
-		return placeDir(rel).Err == nil
-	}, func(rel string, files []DartFileInfo) {
+	s.walkDartDirs(c, libDirOf(root), inPackage("lib"), func(rel string, files []DartFileInfo) {
 		for _, f := range files {
 			file := path.Join(rel, f.Path)
 			all = append(all, DartFileInfo{Path: file, Imports: f.Imports})
@@ -124,22 +137,15 @@ func (s *scanState) scanPackage(c *config.Config, root string) *packageScan {
 	sort.Slice(p.lib, func(i, j int) bool { return p.lib[i].Path < p.lib[j].Path })
 
 	// test/: the sources of each directory, and what each lends the others.
-	s.walkDartDirs(c, path.Join(root, "test"), func(rel string) bool {
-		layout, r := layoutOf(rel)
-		return layout == "test" && r == root
-	}, func(rel string, files []DartFileInfo) {
+	s.walkDartDirs(c, path.Join(root, "test"), inPackage("test"), func(rel string, files []DartFileInfo) {
 		for _, f := range files {
 			p.tests[rel] = append(p.tests[rel], DartFileInfo{Path: path.Join(rel, f.Path), Imports: f.Imports})
 		}
 	})
-	// bin/, and the root's own files.
-	s.walkDartDirs(c, path.Join(root, "bin"), func(rel string) bool {
-		layout, r := layoutOf(rel)
-		return layout == "bin" && r == root
-	}, func(string, []DartFileInfo) { p.executables = true })
-	s.walkDartDirs(c, root, func(rel string) bool { return rel == root },
-		func(string, []DartFileInfo) { p.executables = true })
-
+	// Every other directory, for whether any holds a Dart file.
+	s.walkDirs(c, root, inPackage("", "bin"), func(_ string, names []string) {
+		p.executables = p.executables || HasDartFiles(names)
+	})
 	imported := map[string]bool{}
 	for dir, files := range p.tests {
 		for _, f := range files {
@@ -202,10 +208,22 @@ func producedFiles(file string, anns []string, registry *builderRegistry) []stri
 }
 
 // walkDartDirs calls each with the Dart files of every directory at or under
+// top that keep allows, a directory keep refuses ending its subtree
+// (`walkDirs`).
+func (s *scanState) walkDartDirs(c *config.Config, top string, keep func(rel string) bool, each func(rel string, files []DartFileInfo)) {
+	s.walkDirs(c, top, keep, func(rel string, names []string) {
+		files, _ := ParseDartDir(filepath.Join(c.RepoRoot, filepath.FromSlash(rel)), names)
+		if len(files) > 0 {
+			each(rel, files)
+		}
+	})
+}
+
+// walkDirs calls each with the regular files of every directory at or under
 // top that keep allows, a directory keep refuses ending its subtree. Hidden
 // directories, excluded ones and the ones holding a different Bazel
 // repository are skipped.
-func (s *scanState) walkDartDirs(c *config.Config, top string, keep func(rel string) bool, each func(rel string, files []DartFileInfo)) {
+func (s *scanState) walkDirs(c *config.Config, top string, keep func(rel string) bool, each func(rel string, names []string)) {
 	list := s.list
 	if list == nil {
 		list = gazelleDir
@@ -226,10 +244,7 @@ func (s *scanState) walkDartDirs(c *config.Config, top string, keep func(rel str
 				}
 			}
 		}
-		files, _ := ParseDartDir(filepath.Join(c.RepoRoot, filepath.FromSlash(rel)), names)
-		if len(files) > 0 {
-			each(rel, files)
-		}
+		each(rel, names)
 		for _, d := range dirs {
 			if !strings.HasPrefix(d, ".") {
 				visit(path.Join(rel, d))
@@ -237,6 +252,25 @@ func (s *scanState) walkDartDirs(c *config.Config, top string, keep func(rel str
 		}
 	}
 	visit(top)
+}
+
+// hasPackageMetadata reports whether the BUILD file of directory rel
+// declares a `dart_package_metadata`, which roots a package there.
+func hasPackageMetadata(c *config.Config, rel string) bool {
+	dir := filepath.Join(c.RepoRoot, filepath.FromSlash(rel))
+	for _, name := range c.ValidBuildFileNames {
+		f, err := rule.LoadFile(filepath.Join(dir, name), rel)
+		if err != nil {
+			continue
+		}
+		for _, r := range f.Rules {
+			if r.Kind() == "dart_package_metadata" {
+				return true
+			}
+		}
+		return false
+	}
+	return false
 }
 
 // gazelleDir is a directory's subdirectories and regular files as Gazelle's

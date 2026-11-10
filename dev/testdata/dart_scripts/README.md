@@ -6,3 +6,5 @@ Dart files in a directory that is no package's `lib/`, `bin/` or `test/`
 files beside it that it imports. The `dart_library` earlier Gazelle versions
 wrote for such a directory, which `dart_library` refuses outside `lib/`, is
 deleted.
+Every binary there names the `dart_package_metadata` of the package at the
+root, whose `pubspec.yaml` roots `tool/` too.

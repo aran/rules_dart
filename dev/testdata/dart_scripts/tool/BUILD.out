@@ -3,6 +3,7 @@ load("@rules_dart//dart:defs.bzl", "dart_binary")
 dart_binary(
     name = "check",
     main = "check.dart",
+    package = "//:pubspec",
 )
 
 dart_binary(
@@ -12,5 +13,6 @@ dart_binary(
         "shared.dart",
     ],
     main = "release.dart",
+    package = "//:pubspec",
     deps = ["//:scripts"],
 )

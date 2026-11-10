@@ -68,7 +68,7 @@ type statement struct {
 // marked `# keep` Gazelle leaves as it is, so the build would carry the
 // difference.
 func (d *dartLang) checkAgreement(args language.GenerateArgs) {
-	root, err := packageRootOf(args.Rel)
+	root, err := packageRootOf(args.Config, args.Rel)
 	if err != nil {
 		return
 	}

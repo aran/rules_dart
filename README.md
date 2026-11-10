@@ -789,9 +789,14 @@ bazel run //:gazelle
 ```
 
 Gazelle will scan `lib/`, `bin/`, and `test/` directories, emitting
-`dart_library`, `dart_binary`, and `dart_test` targets respectively. A
-package's root is the directory above its `lib/`, `bin/` and `test/`, as
-`dart_library` derives it, whether or not a `pubspec.yaml` is there. It
+`dart_library`, `dart_binary`, and `dart_test` targets respectively. As
+upstream, a Dart file belongs to the innermost package whose root holds it,
+and a package's root is the directory holding its `pubspec.yaml`, or else a
+`dart_package_metadata`: every directory below it, `tool/`, `example/` and
+`benchmark/` too, is in that package, and each rule Gazelle writes there names
+its metadata, up to an `example/` (or any directory) with a pubspec of its
+own, which is a package of its own. A package with neither has its root above
+its `lib/`, `bin/` and `test/`, as `dart_library` derives it. Gazelle
 resolves `import` statements to determine `deps`, including support for
 `show` and `deferred` import modifiers.
 
@@ -810,7 +815,7 @@ it, holding its helpers (and any test imported from elsewhere), visible to the
 package's `test/` tree, and the test lists that instead.
 
 A package is one `dart_library`, in the BUILD file at the package's root
-(see [Where a package's root is](#where-a-packages-root-is)), named for the
+(see above), named for the
 package and holding every file under its `lib/`, as `pub.from_lock()` builds a
 pub package. Directories under `lib/` mean nothing to Dart, and import cycles
 between them are ordinary Dart, so they need nothing of Bazel. A source
@@ -858,8 +863,9 @@ Add directives as comments in a `BUILD.bazel` file to control generation:
 Gazelle states a package's facts once, on a `dart_package_metadata` named
 `pubspec` in the BUILD file at its root (`pubspec_metadata` for a package
 itself named `pubspec`), and every rule it writes for the package names it with
-`package`: the library and codegen targets, and the binaries and tests of the
-root, `bin/` and `test/` (`package = "//my_app:pubspec"`). It writes there:
+`package`: the library and codegen targets, and the binaries and tests in
+every directory of the package, its root, `bin/`, `test/`, `tool/` and the
+rest (`package = "//my_app:pubspec"`). It writes there:
 
 - `package_name` and `language_version`: from a `pubspec.yaml` at the root
   (`name`, and the lower bound of `environment.sdk`), or the directives

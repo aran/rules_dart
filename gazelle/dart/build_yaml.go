@@ -202,7 +202,7 @@ func normalizeBuilderKey(key string) string {
 // `dart_builder_config` directive that state different options for one
 // builder are an error.
 func (d *dartLang) withBuildYaml(args language.GenerateArgs, registry *builderRegistry) *builderRegistry {
-	root, err := packageRootOf(args.Rel)
+	root, err := packageRootOf(args.Config, args.Rel)
 	if err != nil || registry == nil {
 		return registry
 	}

@@ -1,7 +1,11 @@
 package dart
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
+
+	"github.com/bazelbuild/bazel-gazelle/config"
 )
 
 func TestPlaceDir(t *testing.T) {
@@ -84,18 +88,80 @@ func TestLayoutOf(t *testing.T) {
 	}
 }
 
-func TestPackageRootOf(t *testing.T) {
-	for _, tt := range []struct{ rel, root string }{
-		{"", ""},
-		{"lib", ""},
-		{"bin", ""},
-		{"pkg", "pkg"},
-		{"pkg/lib/src", "pkg"},
-		{"pkg/bin", "pkg"},
-		{"pkg/test/unit", "pkg"},
-	} {
-		if got, err := packageRootOf(tt.rel); err != nil || got != tt.root {
-			t.Errorf("packageRootOf(%q) = %q, %v, want %q", tt.rel, got, err, tt.root)
+// repoWithPubspecs is a repository with a pubspec.yaml in each directory
+// given, and the config of its root.
+func repoWithPubspecs(t *testing.T, dirs ...string) *config.Config {
+	t.Helper()
+	repo := t.TempDir()
+	for _, d := range dirs {
+		dir := filepath.Join(repo, filepath.FromSlash(d))
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
 		}
+		if err := os.WriteFile(filepath.Join(dir, "pubspec.yaml"), []byte("name: x\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	c := config.New()
+	c.RepoRoot = repo
+	return c
+}
+
+func TestPlaceOf(t *testing.T) {
+	c := repoWithPubspecs(t, "pkg", "pkg/example")
+	for _, tt := range []struct{ rel, root, layout string }{
+		// The innermost pubspec.yaml roots every directory below it.
+		{"pkg", "pkg", ""},
+		{"pkg/tool", "pkg", ""},
+		{"pkg/tool/sub/bin", "pkg", ""},
+		{"pkg/benchmark", "pkg", ""},
+		{"pkg/lib/src", "pkg", "lib"},
+		{"pkg/lib/src/lib", "pkg", "lib"},
+		{"pkg/bin", "pkg", "bin"},
+		{"pkg/test/bin", "pkg", "test"},
+		{"pkg/hook", "pkg", "hook"},
+		{"pkg/hook/src", "pkg", ""},
+		{"pkg/example", "pkg/example", ""},
+		{"pkg/example/bin", "pkg/example", "bin"},
+		// With none at or above, the layout places a directory.
+		{"", "", ""},
+		{"greet", "greet", ""},
+		{"greet/tool", "greet/tool", ""},
+		{"greet/lib/src", "greet", "lib"},
+		{"greet/test/unit", "greet", "test"},
+		{"greet/hook", "greet", "hook"},
+	} {
+		if got := placeOf(c, tt.rel); got.Err != nil || got.Root != tt.root || got.Layout != tt.layout {
+			t.Errorf("placeOf(%q) = %+v, want root %q layout %q", tt.rel, got, tt.root, tt.layout)
+		}
+	}
+	if got := placeOf(c, "greet/lib/src/lib"); got.Err == nil {
+		t.Errorf("placeOf(greet/lib/src/lib) = %+v, want an ambiguity error", got)
+	}
+
+	// A `dart_package_metadata` roots a package as a pubspec.yaml does, and
+	// the innermost of the two wins.
+	c.Exts[extKeyPackageDecl] = &packageDecl{Rel: "pkg/vendored", Name: "pubspec"}
+	for _, tt := range []struct{ rel, root string }{
+		{"pkg/vendored", "pkg/vendored"},
+		{"pkg/vendored/tool", "pkg/vendored"},
+		{"greet/tool", "greet/tool"},
+	} {
+		if got := placeOf(c, tt.rel); got.Err != nil || got.Root != tt.root {
+			t.Errorf("with metadata at pkg/vendored, placeOf(%q) = %+v, want root %q", tt.rel, got, tt.root)
+		}
+	}
+
+	// A pubspec.yaml at the repository's root roots the whole repository.
+	c = repoWithPubspecs(t, "")
+	if got := placeOf(c, "tool"); got.Root != "" || got.Layout != "" {
+		t.Errorf("placeOf(tool) = %+v, want the repository root", got)
+	}
+
+	// A package rooted inside another's lib/ is refused, as dart_library
+	// refuses it.
+	c = repoWithPubspecs(t, "pkg", "pkg/lib/inner")
+	if got := placeOf(c, "pkg/lib/inner/lib"); got.Err == nil {
+		t.Errorf("placeOf(pkg/lib/inner/lib) = %+v, want an error", got)
 	}
 }

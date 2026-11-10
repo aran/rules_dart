@@ -58,8 +58,9 @@ func placeDir(rel string) placement {
 // package root is the directory above it, as the package root of a
 // directory inside a `lib/` is the directory above the `lib`: `pkg/bin` and
 // `pkg/test/unit` belong to the package at `pkg`. A directory named `hook`
-// outside those is the hook/ directory of the package above it. No
-// pubspec.yaml is read, so a package without one has the same layout as a
+// outside those is the hook/ directory of the package above it. It places
+// a directory that no pubspec.yaml or `dart_package_metadata` at or above
+// it roots (`placeOf`), so that a package without one has the layout of a
 // package with one.
 func layoutOf(rel string) (dir, root string) {
 	if rel == "" {
@@ -82,14 +83,109 @@ func layoutOf(rel string) (dir, root string) {
 	return "", ""
 }
 
-// packageRootOf is the root of the Dart package a directory belongs to: the
-// root above its bin/, test/ or hook/ (`layoutOf`), or else above its lib/
-// (`placeDir`), or else the directory itself.
-func packageRootOf(rel string) (string, error) {
+// A Dart file belongs to the innermost package whose root holds it, and a
+// package's root is the directory holding its pubspec.yaml, as pub writes
+// the package's `rootUri` into package_config.json: every directory below
+// the root, lib/, bin/, test/, tool/, example/ or any other, is in that
+// package, up to the root of another package inside it. A
+// `dart_package_metadata`, the Bazel stand-in for a pubspec.yaml, marks a
+// package root just as one does. A directory with neither at or above it is
+// placed by the layout `dart_library` applies to a package with no pubspec
+// (`layoutOf`, `placeDir`).
+
+// packagePlace is where a directory sits in its Dart package: the package's
+// root, and the pub layout directory it is in -- "lib", "bin" or "test",
+// for the package's lib/, bin/ or test/ or a directory under one, "hook"
+// for its hook/ directory, or "" for its root or any other directory
+// (tool/, example/).
+type packagePlace struct {
+	Root   string // repo-relative; "" for the repository root
+	Layout string
+	Err    error // set when the directory's package root is ambiguous
+}
+
+// placeOf is where directory rel, configured by c, sits in its package.
+func placeOf(c *config.Config, rel string) packagePlace {
+	if root, ok := declaredRootOf(c, rel); ok {
+		if p := placeDir(root); p.Err != nil || p.Root != root {
+			return packagePlace{Err: fmt.Errorf(
+				"%s states a Dart package rooted inside a `lib/`, which "+
+					"dart_library rejects; move the package out of the `lib/`", root)}
+		}
+		return packagePlace{Root: root, Layout: layoutUnder(root, rel)}
+	}
 	if dir, root := layoutOf(rel); dir != "" {
-		return root, nil
+		return packagePlace{Root: root, Layout: dir}
 	}
 	p := placeDir(rel)
+	if p.Err != nil {
+		return packagePlace{Err: p.Err}
+	}
+	place := packagePlace{Root: p.Root}
+	if rel != p.Root {
+		place.Layout = "lib"
+	}
+	return place
+}
+
+// declaredRootOf is the root of the innermost package that a pubspec.yaml
+// or a `dart_package_metadata` at or above directory rel states, if one
+// does. The metadata is the one Configure recorded for rel
+// (`configurePackageDecl`).
+func declaredRootOf(c *config.Config, rel string) (string, bool) {
+	decl, _ := c.Exts[extKeyPackageDecl].(*packageDecl)
+	if decl != nil && !within(rel, decl.Rel) {
+		decl = nil
+	}
+	for dir := rel; ; dir = parentDir(dir) {
+		if decl != nil && dir == decl.Rel {
+			return dir, true
+		}
+		if hasPubspec(c, dir) {
+			return dir, true
+		}
+		if dir == "" {
+			return "", false
+		}
+	}
+}
+
+// layoutUnder is the pub layout directory (`packagePlace.Layout`) that
+// directory rel is in, in the package rooted at root: the first directory
+// below the root decides.
+func layoutUnder(root, rel string) string {
+	if rel == root {
+		return ""
+	}
+	sub := relTo(root, rel)
+	switch first, _, _ := strings.Cut(sub, "/"); first {
+	case "lib", "bin", "test":
+		return first
+	case "hook":
+		if sub == "hook" {
+			return "hook"
+		}
+	}
+	return ""
+}
+
+// within reports whether directory rel is dir or below it.
+func within(rel, dir string) bool {
+	return dir == "" || rel == dir || strings.HasPrefix(rel, dir+"/")
+}
+
+// parentDir is the directory above rel; "" above a top-level directory.
+func parentDir(rel string) string {
+	if i := strings.LastIndex(rel, "/"); i >= 0 {
+		return rel[:i]
+	}
+	return ""
+}
+
+// packageRootOf is the root of the Dart package directory rel belongs to
+// (`placeOf`).
+func packageRootOf(c *config.Config, rel string) (string, error) {
+	p := placeOf(c, rel)
 	return p.Root, p.Err
 }
 
@@ -118,7 +214,7 @@ func libDirOf(root string) string {
 // packageNameIn is the Dart package a directory's sources belong to: the
 // name of the package rooted at `packageRootOf` (`libraryName`).
 func packageNameIn(c *config.Config, rel string) string {
-	if root, err := packageRootOf(rel); err == nil {
+	if root, err := packageRootOf(c, rel); err == nil {
 		return libraryName(root, c)
 	}
 	return libraryName(rel, c)

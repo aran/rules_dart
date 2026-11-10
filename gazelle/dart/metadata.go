@@ -14,8 +14,8 @@ import (
 // A package's facts are stated once, on the `dart_package_metadata` in the
 // BUILD file at its root, the Bazel stand-in for its pubspec.yaml, and every
 // rule Gazelle writes for the package names it with `package`: its library
-// and codegen targets, and the binaries and tests of its root, bin/ and
-// test/.
+// and codegen targets, and the binaries and tests in any directory of the
+// package -- its root, bin/, test/, tool/, example/ -- (package_root.go).
 //
 // Gazelle writes the metadata from what states the package's facts: its name
 // and language version from the `# gazelle:dart_package_name` and
@@ -115,7 +115,7 @@ func (d *dartLang) metadataRule(c *config.Config, root string, m *packageMetadat
 	if l := d.scan.licenseFile(root); l != "" {
 		r.SetAttr("license_file", l)
 	}
-	// The package's rules name it from its bin/ and test/ too.
+	// The package's rules name it from every directory below its root too.
 	r.SetAttr("visibility", []string{label.New("", root, "__subpackages__").String()})
 	moveCodeAssets(r, root, f)
 	return r
@@ -168,7 +168,7 @@ func statedPackageName(c *config.Config, rel string) string {
 	if f := directiveFact(c, keyPackageName); f != nil {
 		return f.Value
 	}
-	root, err := packageRootOf(rel)
+	root, err := packageRootOf(c, rel)
 	if err != nil {
 		return ""
 	}

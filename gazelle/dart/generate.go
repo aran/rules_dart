@@ -30,11 +30,12 @@ func (d *dartLang) GenerateRules(args language.GenerateArgs) language.GenerateRe
 }
 
 func (d *dartLang) generateDartRules(args language.GenerateArgs) language.GenerateResult {
-	if layout, root := layoutOf(args.Rel); layout == "hook" {
-		return hookRules(args, root)
-	}
-	place := placeDir(args.Rel)
-	if place.Err == nil && (place.Split || args.Rel == libDirOf(place.Root)) {
+	place := placeOf(args.Config, args.Rel)
+	switch {
+	case place.Err != nil:
+	case place.Layout == "hook":
+		return hookRules(args, place.Root)
+	case place.Layout == "lib":
 		// The package's library, at its root, holds what is under lib/.
 		return d.libDirRules(args, place.Root)
 	}
@@ -46,18 +47,16 @@ func (d *dartLang) generateDartRules(args language.GenerateArgs) language.Genera
 		return language.GenerateResult{}
 	}
 
-	// The library of the package rooted here, when it has a lib/.
+	// The library of the package rooted here, when it has a lib/, and the
+	// package's facts.
+	root, layout := place.Root, place.Layout
 	var gen []*rule.Rule
 	var imports []interface{}
-	ownsLib := hasFile(args.Subdirs, "lib") && !hasLibComponent(args.Rel)
 	var staleLibs []*rule.Rule
-	if ownsLib {
-		gen, imports, staleLibs = d.packageLibraryRules(args)
-	}
-	// The package's facts, at its root.
-	layout, root := layoutOf(args.Rel)
-	if layout == "" {
-		root = place.Root
+	if args.Rel == root {
+		if hasFile(args.Subdirs, "lib") {
+			gen, imports, staleLibs = d.packageLibraryRules(args)
+		}
 		if m := d.metadataOf(args.Config, root); m != nil {
 			gen = append([]*rule.Rule{d.metadataRule(args.Config, root, m, args.File)}, gen...)
 			imports = append([]interface{}{nil}, imports...)
@@ -90,7 +89,7 @@ func (d *dartLang) generateDartRules(args language.GenerateArgs) language.Genera
 	// (tool/, example/): scripts, as `dart run tool/x.dart` runs them.
 	var stale []*rule.Rule
 	if len(libFiles) > 0 {
-		scripts, scriptImports, old := d.scriptRules(args, libFiles, gen)
+		scripts, scriptImports, old := d.scriptRules(args, root, libFiles, gen)
 		gen = append(gen, scripts...)
 		imports = append(imports, scriptImports...)
 		stale = old
@@ -214,7 +213,7 @@ func staleSourceLibraries(f *rule.File, root string, scan *packageScan, pkgLib s
 // binary reaches is an error naming it, since nothing could build it. A
 // `dart_library` of the directory's own files, which earlier Gazelle
 // versions wrote and `dart_library` refuses outside lib/, is deleted.
-func (d *dartLang) scriptRules(args language.GenerateArgs, files []DartFileInfo, taken []*rule.Rule) ([]*rule.Rule, []interface{}, []*rule.Rule) {
+func (d *dartLang) scriptRules(args language.GenerateArgs, root string, files []DartFileInfo, taken []*rule.Rule) ([]*rule.Rule, []interface{}, []*rule.Rule) {
 	byPath := map[string]DartFileInfo{}
 	for _, f := range repoFiles(args.Rel, files) {
 		byPath[f.Path] = f
@@ -257,18 +256,27 @@ func (d *dartLang) scriptRules(args language.GenerateArgs, files []DartFileInfo,
 			sort.Strings(srcs)
 			r.SetAttr("srcs", srcs)
 		}
-		d.setPackage(r, args.Config, args.Rel, args.Rel)
+		d.setPackage(r, args.Config, root, args.Rel)
 		gen = append(gen, r)
 		imports = append(imports, collectRepoImports(args, held))
 	}
 	for _, f := range sortedKeys(byPath) {
-		if !reached[f] {
-			d.errs.add(fmt.Sprintf(
-				"dart: %s is in no package's lib/, bin/ or test/, has no top-level "+
-					"`main`, and no script beside it imports it; move it into lib/ or "+
-					"beside the script that uses it, or exclude it with `# gazelle:exclude`",
-				f))
+		if reached[f] {
+			continue
 		}
+		if lib := strayLib(root, args.Rel); lib != "" {
+			d.errs.add(fmt.Sprintf(
+				"dart: %s is under %s, which is no package's lib/: the package "+
+					"rooted at %s has its lib/ at %s; make %s a package of its own "+
+					"with a pubspec.yaml or a `dart_package_metadata`, or move the file",
+				f, lib, dirName(root), libDirOf(root), dirName(path.Dir(lib))))
+			continue
+		}
+		d.errs.add(fmt.Sprintf(
+			"dart: %s is in no package's lib/, bin/ or test/, has no top-level "+
+				"`main`, and no script beside it imports it; move it into lib/ or "+
+				"beside the script that uses it, or exclude it with `# gazelle:exclude`",
+			f))
 	}
 	var stale []*rule.Rule
 	if args.File != nil {
@@ -279,6 +287,22 @@ func (d *dartLang) scriptRules(args language.GenerateArgs, files []DartFileInfo,
 		}
 	}
 	return gen, imports, stale
+}
+
+// strayLib is the directory named `lib` that directory rel, in the package
+// rooted at root, is in or under below the root, when it is in one: a lib/
+// of no package, since the package's own is its root's.
+func strayLib(root, rel string) string {
+	if rel == root {
+		return ""
+	}
+	parts := strings.Split(relTo(root, rel), "/")
+	for i, p := range parts {
+		if p == "lib" {
+			return path.Join(root, strings.Join(parts[:i+1], "/"))
+		}
+	}
+	return ""
 }
 
 func containsFile(files []DartFileInfo, p string) bool {
@@ -305,17 +329,6 @@ func relTo(rel, file string) string {
 	return strings.TrimPrefix(file, rel+"/")
 }
 
-// hasLibComponent reports whether a directory is inside some `lib/`, or is
-// one.
-func hasLibComponent(rel string) bool {
-	for _, p := range strings.Split(rel, "/") {
-		if p == "lib" {
-			return true
-		}
-	}
-	return false
-}
-
 func ruleNamed(rules []*rule.Rule, name string) *rule.Rule {
 	for _, r := range rules {
 		if r.Name() == name {
@@ -332,7 +345,7 @@ func ruleNamed(rules []*rule.Rule, name string) *rule.Rule {
 // every file those hold, the test first, repo-relative. A relative import of
 // a file in another directory that no rule holds is logged.
 func (d *dartLang) testHelpers(args language.GenerateArgs, test DartFileInfo) ([]string, []DartFileInfo) {
-	_, root := layoutOf(args.Rel)
+	root, _ := packageRootOf(args.Config, args.Rel)
 	scan := d.scan.scanOf(args.Config, root)
 	self := packageNameIn(args.Config, args.Rel)
 	main := DartFileInfo{Path: path.Join(args.Rel, test.Path), Imports: test.Imports}
@@ -528,7 +541,7 @@ func repoFiles(rel string, files []DartFileInfo) []DartFileInfo {
 // collectRepoImports is what files, named from the repository root, of the
 // package args.Rel is in import.
 func collectRepoImports(args language.GenerateArgs, files []DartFileInfo) *importSet {
-	root, rootErr := packageRootOf(args.Rel)
+	root, rootErr := packageRootOf(args.Config, args.Rel)
 	self := packageNameIn(args.Config, args.Rel)
 	is := &importSet{
 		packages: make(map[string]bool),

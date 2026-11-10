@@ -31,7 +31,7 @@ func (d *dartLang) importSpecs(c *config.Config, r *rule.Rule, rel string) []res
 	if !indexedKinds[r.Kind()] {
 		return nil
 	}
-	place := placeDir(rel)
+	place := placeOf(c, rel)
 	pkgName := libraryPackageName(c, r, place)
 	specs := []resolve.ImportSpec{{Lang: dartName, Imp: r.Name()}}
 	if pkgName != r.Name() {
@@ -55,7 +55,7 @@ func (d *dartLang) importSpecs(c *config.Config, r *rule.Rule, rel string) []res
 // its `package` declares, which Gazelle writes from the facts stated for its
 // root, or else the name of its root's directory, or, at the repository's
 // root, its own name, as `dart_library` names it.
-func libraryPackageName(c *config.Config, r *rule.Rule, place placement) string {
+func libraryPackageName(c *config.Config, r *rule.Rule, place packagePlace) string {
 	if place.Err == nil && r.AttrString("package") != "" {
 		if name := statedPackageName(c, place.Root); name != "" {
 			return name

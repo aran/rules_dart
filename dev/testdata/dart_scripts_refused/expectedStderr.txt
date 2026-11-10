@@ -1,1 +1,2 @@
 gazelle: dart: example/orphan.dart is in no package's lib/, bin/ or test/, has no top-level `main`, and no script beside it imports it; move it into lib/ or beside the script that uses it, or exclude it with `# gazelle:exclude`
+gazelle: dart: vendor/lib/vendored.dart is under vendor/lib, which is no package's lib/: the package rooted at . has its lib/ at lib; make vendor a package of its own with a pubspec.yaml or a `dart_package_metadata`, or move the file

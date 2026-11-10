@@ -114,9 +114,15 @@ func TestAgreement(t *testing.T) {
 			want:       [][]string{{"language version", `"3.10"`, "gazelle:dart_language_version", `"3.13"`, "pkg/pubspec.yaml"}},
 		},
 		{
-			// The pubspec at the package's root, not one above it.
-			name: "a pubspec above the package root", rel: "pkg/sub/lib", pubspec: pubspec,
+			// The innermost pubspec roots every directory below it, sub/lib/
+			// and tool/ as much as lib/.
+			name: "name: directive and the pubspec above", rel: "pkg/sub/lib", pubspec: pubspec,
 			directives: map[string]string{keyPackageName: "sub"},
+			want:       [][]string{{"package name", `"sub"`, "gazelle:dart_package_name", `"from_pubspec"`, "pkg/pubspec.yaml"}},
+		},
+		{
+			name: "directive agrees with the pubspec above", rel: "pkg/tool", pubspec: pubspec,
+			directives: map[string]string{keyPackageName: "from_pubspec"},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
