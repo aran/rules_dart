@@ -126,15 +126,9 @@ func TestNormalizeBuilderKey(t *testing.T) {
 	}
 }
 
-// Each shipped builder with a config-taking macro has a build.yaml key.
+// Each shipped builder has a build.yaml key: every macro takes a `config`.
 func TestDefaultBuildersHaveKeys(t *testing.T) {
 	for _, b := range defaultBuilders() {
-		if b.Annotation == "DriftDatabase" {
-			if b.Key != "" {
-				t.Errorf("drift_library takes no config, but has key %q", b.Key)
-			}
-			continue
-		}
 		if b.Key == "" {
 			t.Errorf("%s (%s) has no build.yaml key", b.Annotation, b.ShimLabel)
 		}

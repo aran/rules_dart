@@ -229,10 +229,9 @@ func defaultBuilders() []*builderInfo {
 			RuntimeDep: "@pub_deps//:go_router",
 		},
 		{
-			// No Key: `drift_library` takes no `config`, so build.yaml's
-			// `drift_dev` options have nowhere to go.
 			Annotation: "DriftDatabase",
 			ShimLabel:  "@rules_dart//dart/ext/drift:shim_drift",
+			Key:        "drift_dev:drift_dev",
 			Macro:      "@rules_dart//dart/ext/drift:defs.bzl%drift_library",
 			Produces:   []string{".drift.g.part"},
 			Consumes:   []string{".dart"},

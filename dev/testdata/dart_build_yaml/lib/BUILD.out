@@ -1,5 +1,6 @@
 load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library")
 load("@rules_dart//dart/ext/copy_with_extension_gen:defs.bzl", "copy_with_library")
+load("@rules_dart//dart/ext/drift:defs.bzl", "drift_library")
 load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_library")
 
 # gazelle:dart_builder_config CopyWith {"copy_with_null": true}
@@ -61,6 +62,17 @@ copy_with_library(
     language_version = "3.11",
     visibility = ["//visibility:public"],
     deps = ["@copy_with_extension"],
+)
+
+drift_library(
+    name = "store",
+    package_name = "build_yaml_fixture",
+    srcs = ["store.dart"],
+    annotation_dep = "@drift",
+    config = "{\"store_date_time_values_as_text\":true}",
+    language_version = "3.11",
+    visibility = ["//visibility:public"],
+    deps = ["@drift"],
 )
 
 json_serializable_library(

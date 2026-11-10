@@ -9,3 +9,6 @@ targets:
       copy_with_extension_gen|copy_with_extension_gen:
         options:
           copy_with_null: true
+      drift_dev:
+        options:
+          store_date_time_values_as_text: true

@@ -9,6 +9,7 @@ load("@rules_dart//dart/ext/drift:defs.bzl", "drift_library")
 #  - Dart-only tables (Users, Posts) with FK + TypeConverter + default
 #  - @DriftAccessor DAO (PostsDao)
 #  - Multi-table join in a .drift named query (postsByUser)
+#  - drift options (`config`), as build.yaml states them for `drift_dev`
 #
 # drift_library handles the full 4-stage pipeline (prep + discover +
 # analyzer + driftBuilder) plus combining per source.
@@ -20,6 +21,7 @@ drift_library(
         "lib/database.dart",
         "lib/posts_dao.dart",
     ],
+    config = "{\"store_date_time_values_as_text\": true}",
     drift_srcs = ["lib/database.drift"],
     language_version = "3.11",
     visibility = ["//visibility:public"],

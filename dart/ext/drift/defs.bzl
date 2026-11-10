@@ -18,7 +18,8 @@ the rules_dart shim-contract primitives:
      finds the cached discovery/analysis when the driver's
      `findsLocalElementsReliably` is true.
 
-After shim_drift, the combining shim merges the `.g.part` shard into
+Stages 2–4 read drift's options (`config`); the prep stage and the
+combining shim take none. After shim_drift, the combining shim merges the `.g.part` shard into
 `.g.dart`. Pass empty `drift_srcs` for Dart-only setups — stages 1–3 are
 skipped entirely.
 """
@@ -47,6 +48,7 @@ def drift_library(
         drift_srcs = [],
         deps = [],
         annotation_dep = "@pub_deps//:drift",
+        config = "",
         **kwargs):
     """A dart_library augmented by drift_dev's full multi-stage codegen.
 
@@ -63,6 +65,10 @@ def drift_library(
       deps: Additional `dart_library`-shaped targets; `annotation_dep` is
         added unless they list it.
       annotation_dep: Runtime drift library label.
+      config: Optional drift options as a JSON string, the `options` of the
+        `drift_dev` builder in `build.yaml`. Every stage whose builder reads
+        options gets them: discover, analyzer and the part builder, on the
+        `.dart` and the `.drift`/`.moor` sources alike.
       **kwargs: Forwarded to the wrapping `dart_library`.
     """
     effective_deps = with_annotation_dep(deps, annotation_dep)
@@ -103,6 +109,7 @@ def drift_library(
             name = discover_target,
             src = drift_src,
             generator_bin = "@rules_dart//dart/ext/drift:shim_discover",
+            config = config,
             output_suffixes = [".drift.drift_elements.json"],
             package_name = package_name,
             language_version = language_version,
@@ -136,6 +143,7 @@ def drift_library(
             name = dart_discover_target,
             src = src,
             generator_bin = "@rules_dart//dart/ext/drift:shim_discover",
+            config = config,
             output_suffixes = [".dart.drift_elements.json"],
             package_name = package_name,
             language_version = language_version,
@@ -164,6 +172,7 @@ def drift_library(
             name = dart_analyzer_target,
             src = src,
             generator_bin = "@rules_dart//dart/ext/drift:shim_analyzer",
+            config = config,
             output_suffixes = [
                 ".dart.drift_module.json",
                 ".dart.types.temp.dart",
@@ -193,6 +202,7 @@ def drift_library(
             name = analyzer_target,
             src = drift_src,
             generator_bin = "@rules_dart//dart/ext/drift:shim_analyzer",
+            config = config,
             output_suffixes = [
                 ".drift.drift_module.json",
                 ".drift.types.temp.dart",
@@ -234,6 +244,7 @@ def drift_library(
             name = part_target,
             src = src,
             generator_bin = "@rules_dart//dart/ext/drift:shim_drift",
+            config = config,
             output_suffixes = [".drift.g.part"],
             package_name = package_name,
             language_version = language_version,

@@ -704,8 +704,8 @@ json_serializable_library(
 
 The rest of the file has no place in a Bazel build: another target than
 `$default`, a builder's `generate_for`, `enabled` or `dev_options`,
-`global_options`, a builder Gazelle does not write targets for (drift's
-among them: `drift_library` takes no `config`), and a `build.<name>.yaml`,
+`global_options`, a builder Gazelle does not write targets for, and a
+`build.<name>.yaml`,
 which build_runner reads only with `--config <name>`. Gazelle names each such
 part and fails without writing any BUILD file. A codegen macro's `srcs`
 choose the files it runs on. A package that keeps `build.yaml` for

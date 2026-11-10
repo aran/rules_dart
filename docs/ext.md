@@ -111,9 +111,13 @@ the shim verbatim as `--config`:
   string, number), is a hard build error — `ShimArgs.parse` rejects it
   before any Builder runs.
 - The decoded map is passed unmodified as `BuilderOptions(config)` to
-  **every** stage's builder factory in the target's pipeline; multi-stage
-  shims (drift's sub-builders) all
-  see the same options.
+  **every** builder factory the target's shim runs. A macro that writes
+  several targets for one builder passes its `config` to each target whose
+  builder reads options: `drift_library` hands drift's options to its
+  discover, analyzer and part stages, on the `.dart` and `.drift` sources
+  alike, as build_runner hands the `drift_dev` builder's options to the
+  factories it runs on both; its prep stage and the combining shim read
+  none.
 - Keys and values are builder-defined — the same names the builder accepts
   under `options:` in `build.yaml`. rules_dart does not read `build.yaml`
   (see [Dual-build coexistence](#dual-build-coexistence)); `config` is the
@@ -368,15 +372,15 @@ separator:
 | `@CopyWith` | `copy_with_extension_gen` |
 | `@GenerateMocks` | `mockito:mockBuilder` |
 | `@TypedGoRoute` | `go_router_builder` |
+| `@DriftDatabase` | `drift_dev` |
 | `@StackedApp` | `stacked_generator:stackedRouterGenerator`, `…LocatorGenerator`, `…LoggerGenerator`, `…DialogGenerator`, `…BottomsheetGenerator` |
 | `@FormView` | `stacked_generator:stackedFormGenerator` |
 
 Every other part of the file fails generation, named by its path, before any
 BUILD file is written: a target other than `$default`, a target's `sources`,
 a builder's `generate_for`, `enabled`, `dev_options` or `release_options`,
-`global_options`, a builder outside the table (drift's `drift_dev` too, since
-`drift_library` takes no `config`; source_gen's `combining_builder`, whose
-shim takes no options), and a `build.<name>.yaml`. A codegen macro's `srcs`
+`global_options`, a builder outside the table (source_gen's
+`combining_builder` too, whose shim takes no options), and a `build.<name>.yaml`. A codegen macro's `srcs`
 choose the files it runs on. `# gazelle:exclude build.yaml` in the package
 root's BUILD file has Gazelle not read the file, for a package that keeps it
 for build_runner alone.

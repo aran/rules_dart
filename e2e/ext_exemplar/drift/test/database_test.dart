@@ -159,4 +159,10 @@ void main() {
       },
     );
   });
+
+  test('drift options reach the generated database', () {
+    // `config` sets `store_date_time_values_as_text`, which drift writes
+    // into the database's options.
+    expect(db.typeMapping.storeDateTimesAsText, isTrue);
+  });
 }
