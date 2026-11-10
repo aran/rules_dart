@@ -221,6 +221,18 @@ jobs:
           fi
           bazel build //:dynamic_app_assets 2>&1 | grep -q "a Glyph is constructed at run time"
           echo "OK: link hook failure reported"
+      # A link hook runs against its package as Bazel declared it: a file of
+      # the package that no target lists is not there to import, even when the
+      # action runs where it is on disk.
+      - name: link_hook — expect a hook to find only its package's declared files
+        working-directory: e2e/link_hook
+        run: |
+          if bazel build //:undeclared_assets 2>/dev/null; then
+            echo "ERROR: build should have failed: the hook imports an undeclared file"
+            exit 1
+          fi
+          bazel build //:undeclared_assets 2>&1 | grep -q "package:undeclared_hook/extra.dart"
+          echo "OK: undeclared file not found by the hook"
       # A VM program reaching web-only code, which `//...` skips, is refused
       # by name, with the chain to the incompatible library.
       - name: web_compiler — expect a VM program reaching web-only code to be refused

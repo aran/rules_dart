@@ -1,7 +1,7 @@
 """A rule that runs link hooks itself, as a rule compiling its own kernel must."""
 
 load("@rules_dart//dart:providers.bzl", "DartInfo", "DartRecordedUsesInfo")
-load("@rules_dart//dart:utils.bzl", "PORTABLE_EXEC_GROUPS", "dart_link_hook_actions", "link_hook_runner_attr")
+load("@rules_dart//dart:utils.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS", "PORTABLE_EXEC_GROUPS", "dart_link_hook_actions", "link_hook_runner_attr")
 
 def _impl(ctx):
     result = dart_link_hook_actions(
@@ -25,4 +25,5 @@ in_rule_assets = rule(
         "recorded_uses": attr.label(providers = [DartRecordedUsesInfo]),
     } | link_hook_runner_attr(),
     exec_groups = PORTABLE_EXEC_GROUPS,
+    toolchains = COPY_TO_DIRECTORY_TOOLCHAINS,
 )

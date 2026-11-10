@@ -1,0 +1,17 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+# A package whose hook imports `lib/extra.dart`, which is in the package's
+# directory but in no target's `srcs`. Bazel declared nothing for it, so the
+# hook must not find it.
+dart_library(
+    name = "undeclared",
+    package_name = "undeclared_hook",
+    srcs = ["lib/undeclared_hook.dart"],
+    link_hook = "hook/link.dart",
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@pub_deps//:data_assets",
+        "@pub_deps//:hooks",
+    ],
+)

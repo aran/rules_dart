@@ -317,6 +317,50 @@ def _assembled_root(ctx, name, key, files, shared_name):
     )
     return tree.path, tree
 
+def resolve_package_roots_from_outside(ctx, name, dep_files, config_file, relocatable = False, assemble = {}):
+    """Decides where each package record is read from, and what that needs.
+
+    A record whose files have one root the config can name is read where its
+    files are. One that does not (split between the source tree and
+    `bazel-out`, or built in another configuration), a `relocatable` project's,
+    and each one in `assemble`, is assembled into `<name>.pkgs/<package>`, so
+    the package is exactly the files Bazel declared for it.
+
+    Args:
+      ctx: The rule context (must carry `COPY_TO_DIRECTORY_TOOLCHAINS`).
+      name: Prefix for the assembled trees.
+      dep_files: Dict of `(package_name, lib_root)` to the record's Files.
+      config_file: The `package_config.json` File the roots are relative to.
+      relocatable: Whether the config is read somewhere other than the exec
+        root, so every record is assembled.
+      assemble: Dict of the `(package_name, lib_root)` keys to assemble
+        whatever their files' roots.
+
+    Returns:
+      A dict of key to `struct(root_uri, root, tree, files)`: the rootUri
+      relative to the config, the package root's exec path, the assembled tree
+      File (None when read in place) and the Files to add to the consuming
+      action's inputs (the tree, or the record's own files).
+    """
+    names = {}
+    for package_name, _ in dep_files:
+        names[package_name] = names.get(package_name, 0) + 1
+    resolved = {}
+    for key, files in dep_files.items():
+        root = None
+        if not relocatable and key not in assemble:
+            root = in_place_root(files, key[1], config_file.root.path)
+        tree = None
+        if root == None:
+            root, tree = _assembled_root(ctx, name, key, files, names[key[0]] > 1)
+        resolved[key] = struct(
+            root_uri = relative_path(config_file.dirname, root),
+            root = root,
+            tree = tree,
+            files = [tree] if tree != None else files,
+        )
+    return resolved
+
 def stage_dart_project(ctx, layout, relocatable = False, extra_proj_files = {}, name = None, sdk_version = ""):
     """Stages packages and sources into a hermetic Dart project layout.
 
@@ -380,17 +424,15 @@ def stage_dart_project(ctx, layout, relocatable = False, extra_proj_files = {}, 
     root_uris = {}
     for key in layout.home:
         root_uris[key] = "../src/" + key[1] if key[1] else "../src"
-    names = {}
-    for package_name, _ in layout.dep_files:
-        names[package_name] = names.get(package_name, 0) + 1
-    for key, files in layout.dep_files.items():
-        root = None if relocatable else in_place_root(files, key[1], package_config.root.path)
-        if root != None:
-            inputs.extend(files)
-        else:
-            root, tree = _assembled_root(ctx, name, key, files, names[key[0]] > 1)
-            inputs.append(tree)
-        root_uris[key] = relative_path(package_config.dirname, root)
+    for key, resolved in resolve_package_roots_from_outside(
+        ctx,
+        name,
+        layout.dep_files,
+        package_config,
+        relocatable = relocatable,
+    ).items():
+        inputs.extend(resolved.files)
+        root_uris[key] = resolved.root_uri
 
     ctx.actions.write(
         output = package_config,

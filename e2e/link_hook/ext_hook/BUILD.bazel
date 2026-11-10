@@ -1,0 +1,12 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+# A package with a link hook that arrives from another module, as a pub
+# package does: its files are in an external repository. The hook's imports
+# come from the closure of the `dart_link_hook` that runs it.
+dart_library(
+    name = "ext_hook",
+    package_name = "ext_hook",
+    srcs = ["lib/ext_hook.dart"],
+    link_hook = "hook/link.dart",
+    visibility = ["//visibility:public"],
+)

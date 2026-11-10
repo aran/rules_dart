@@ -335,6 +335,13 @@ const _expectedFailureChecks = [
     '//:dynamic_app_assets',
     'a Glyph is constructed at run time',
   ),
+  // A link hook runs against its package as Bazel declared it, so a file of
+  // the package no target lists is not there to import.
+  _ExpectedFailure(
+    'e2e/link_hook',
+    '//:undeclared_assets',
+    'package:undeclared_hook/extra.dart',
+  ),
 ];
 
 /// Checks an expected-failure workspace: the build must FAIL (a successful

@@ -1,0 +1,25 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+# A package whose hook imports a library with a generated part: the part is
+# written to `bazel-out` and the library beside it is in the source tree, so
+# the hook sees both only if its package is assembled into one directory.
+genrule(
+    name = "names",
+    outs = ["lib/parts.g.dart"],
+    cmd = "printf \"part of 'parts.dart';\\n\\n/// The names the generator wrote.\\nconst names = ['alpha', 'beta'];\\n\" > $@",
+)
+
+dart_library(
+    name = "generated",
+    package_name = "generated_hook",
+    srcs = [
+        "lib/parts.dart",
+        ":names",
+    ],
+    link_hook = "hook/link.dart",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@pub_deps//:data_assets",
+        "@pub_deps//:hooks",
+    ],
+)

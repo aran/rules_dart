@@ -19,7 +19,6 @@ load("//dart/private:dart_compile.bzl", "recorded_uses_kind")
 load("//dart/private:dart_library.bzl", "link_hook_error")
 load(
     "//dart/private:dart_link_hook.bzl",
-    "link_hook_package_root",
     "parse_data_asset_ids",
     "recorded_uses_file_error",
 )
@@ -106,20 +105,7 @@ def _recorded_uses_file_test_impl(ctx):
 
 _recorded_uses_file_test = unittest.make(_recorded_uses_file_test_impl)
 
-# --- link_hook_package_root / link_hook_error ---
-
-def _package_root_test_impl(ctx):
-    env = unittest.begin(ctx)
-    asserts.equals(env, "glyphs", link_hook_package_root(struct(path = "glyphs/hook/link.dart")))
-    asserts.equals(
-        env,
-        "external/hub__glyphs",
-        link_hook_package_root(struct(path = "external/hub__glyphs/hook/link.dart")),
-    )
-    asserts.equals(env, ".", link_hook_package_root(struct(path = "hook/link.dart")))
-    return unittest.end(env)
-
-_package_root_test = unittest.make(_package_root_test_impl)
+# --- link_hook_error ---
 
 def _link_hook_location_test_impl(ctx):
     env = unittest.begin(ctx)
@@ -276,7 +262,12 @@ def _link_hook_actions_test_impl(ctx):
     asserts.equals(env, 1, len(runs))
     argv = runs[0].argv
     asserts.true(env, "--package-name" in argv and argv[argv.index("--package-name") + 1] == "link_hook_fixture", str(argv))
-    asserts.true(env, argv[argv.index("--package-root") + 1].endswith("dart/tests/link_hook_fixture"), str(argv))
+
+    # The hook runs from its package assembled into one directory, not from
+    # the package's own source directory, and is found in it.
+    tree = target.label.name + ".pkgs/link_hook_fixture"
+    asserts.true(env, argv[argv.index("--package-root") + 1].endswith(tree), str(argv))
+    asserts.false(env, "--hook" in argv, str(argv))
 
     assets = target[DartDataAssetInfo].assets.to_list()
     asserts.equals(env, ["package:link_hook_fixture/data/index.json"], [a.id for a in assets])
@@ -288,9 +279,17 @@ def _link_hook_actions_test_impl(ctx):
     asserts.equals(env, [assets[0].file], target[DefaultInfo].files.to_list())
 
     recorded = ctx.attr.recorded_uses_basename
-    inputs = [f.basename for f in runs[0].inputs.to_list()]
-    asserts.true(env, recorded in inputs, "%s not among inputs" % recorded)
-    asserts.true(env, "link.dart" in inputs)
+    inputs = runs[0].inputs.to_list()
+    basenames = [f.basename for f in inputs]
+    asserts.true(env, recorded in basenames, "%s not among inputs" % recorded)
+
+    # The package arrives as that tree alone: neither the hook nor any other of
+    # its files is an input of its own, so none is there but through the tree.
+    trees = [f for f in inputs if f.path.endswith(tree)]
+    asserts.equals(env, 1, len(trees), str(inputs))
+    asserts.true(env, trees[0].is_directory)
+    asserts.false(env, "link.dart" in basenames, str(basenames))
+    asserts.false(env, "fixture.dart" in basenames, str(basenames))
     return analysistest.end(env)
 
 link_hook_actions_test = analysistest.make(
@@ -345,7 +344,6 @@ def link_hook_test_suite(name):
         _rejects_malformed_ids_test,
         _rejects_duplicate_ids_test,
         _recorded_uses_file_test,
-        _package_root_test,
         _link_hook_location_test,
         _classify_pub_hooks_test,
         _spoke_states_link_hook_test,

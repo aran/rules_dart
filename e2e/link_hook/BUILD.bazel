@@ -63,6 +63,29 @@ dart_link_hook(
     deps = ["//glyphs"],
 )
 
+# A hook whose package has a part written by a generator: the package is split
+# between the source tree and `bazel-out`, and the hook runs from one assembled
+# directory holding both.
+dart_link_hook(
+    name = "generated_assets",
+    data_assets = ["package:generated_hook/generated_hook/names.json"],
+    recorded_uses = "recorded_uses.json",
+    deps = ["//generated"],
+)
+
+# A hook of a package in an external repository, whose imports come from the
+# rest of this closure.
+dart_link_hook(
+    name = "external_assets",
+    data_assets = ["package:ext_hook/ext_hook/names.json"],
+    recorded_uses = "recorded_uses.json",
+    deps = [
+        "@ext_hook",
+        "@pub_deps//:data_assets",
+        "@pub_deps//:hooks",
+    ],
+)
+
 # The same hooks run from inside another rule's implementation.
 in_rule_assets(
     name = "in_rule_assets",
@@ -85,12 +108,18 @@ dart_test(
         "moon",
         "$(rlocationpath :in_rule_assets)",
         "heart,star",
+        "$(rlocationpath :generated_assets)",
+        "alpha,beta",
+        "$(rlocationpath :external_assets)",
+        "external",
     ],
     data = [
         ":app_aot_assets",
         ":app_assets",
         ":app_kernel_assets",
+        ":external_assets",
         ":file_assets",
+        ":generated_assets",
         ":in_rule_assets",
     ],
     main = "index_test.dart",
@@ -114,6 +143,21 @@ dart_link_hook(
     recorded_uses = ":dynamic_app",
     tags = ["manual"],
     deps = ["//glyphs"],
+)
+
+# Expected to fail: the hook imports a file of its package that no target
+# declares. `no-sandbox` runs it where the file is on disk, so only the
+# package's assembled directory keeps the hook from reading it. Tagged manual
+# so `//...` stays green; CI's expected-failure job builds it.
+dart_link_hook(
+    name = "undeclared_assets",
+    data_assets = ["package:undeclared_hook/undeclared_hook/extra.json"],
+    recorded_uses = "recorded_uses.json",
+    tags = [
+        "manual",
+        "no-sandbox",
+    ],
+    deps = ["//undeclared"],
 )
 
 dart_analysis_options(

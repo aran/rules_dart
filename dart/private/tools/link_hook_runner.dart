@@ -6,7 +6,7 @@
 //
 // Usage:
 //   link_hook_runner --dart <dart> --packages <package_config.json>
-//       --package-name <name> --package-root <dir> --hook <hook/link.dart>
+//       --package-name <name> --package-root <dir>
 //       --recorded-uses <json> --output <link_output.json>
 //       [--data-asset <name>=<path>]...
 import 'dart:convert';
@@ -22,7 +22,6 @@ Future<void> main(List<String> arguments) async {
     ..addOption('packages', mandatory: true)
     ..addOption('package-name', mandatory: true)
     ..addOption('package-root', mandatory: true)
-    ..addOption('hook', mandatory: true)
     ..addOption('recorded-uses', mandatory: true)
     ..addOption('output', mandatory: true)
     ..addMultiOption('data-asset', splitCommas: false);
@@ -49,7 +48,7 @@ Future<void> main(List<String> arguments) async {
 
     final hook = await Process.run(File(args.option('dart')!).absolute.path, [
       '--packages=${File(args.option('packages')!).absolute.path}',
-      File(args.option('hook')!).absolute.path,
+      input.packageRoot.resolve('hook/link.dart').toFilePath(),
       '--config=${inputFile.path}',
     ], workingDirectory: input.packageRoot.toFilePath());
     final hookLog = [

@@ -8,8 +8,11 @@ tree-shaking and decides what to ship.
 
 One action per package with a link hook, each hermetic: the hook runs on the
 exec toolchain's `dart` against a `package_config.json` synthesised from the
-closure, with the recorded uses, the closure's sources and the package's own
-`lib/` files as its only inputs.
+closure, with the recorded uses and the closure's sources and resources as its
+only inputs. A hook's own package is assembled into one directory holding just
+the files Bazel declared for it (generated and source files together, its
+resources, and the hook), and the hook runs from there, so it cannot read a
+file of its package that no target declares.
 
 Bazel declares every output before anything runs, so the data assets a hook
 will emit are named up front in `data_assets`, by asset id. A hook emitting
@@ -26,10 +29,16 @@ load(
     "collect_transitive_resources",
     "collect_transitive_srcs",
     "format_literal",
-    "generate_package_config",
     "package_link_hook",
 )
 load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS", "portable_sdk")
+load(
+    "//dart/private:project_staging.bzl",
+    "project_layout",
+    "resolve_package_roots_from_outside",
+    "staged_package_config_content",
+)
+load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS")
 
 def parse_data_asset_ids(label, ids):
     """Splits declared data asset ids into package and name.
@@ -74,19 +83,6 @@ def recorded_uses_file_error(label, files):
             "`dart_binary` with `record_use = True`) or be a single `.json` " +
             "file; got %s.") % (label, [f.short_path for f in files])
 
-def link_hook_package_root(hook):
-    """The exec path of the package root a `hook/link.dart` belongs to.
-
-    Args:
-      hook: The package's `hook/link.dart` File.
-
-    Returns:
-      The directory containing `hook/`; `.` for a hook at the exec root.
-    """
-    suffix = "hook/link.dart"
-    root = hook.path[:-len(suffix)].rstrip("/")
-    return root if root else "."
-
 def _recorded_uses(ctx):
     target = ctx.attr.recorded_uses
     if DartRecordedUsesInfo in target:
@@ -122,7 +118,8 @@ def dart_link_hook_actions(ctx, runner, recorded_uses, deps, data_asset_ids, nam
     `link_hook_runner_attr()` into its `attrs`.
 
     Args:
-      ctx: The rule context.
+      ctx: The rule context; it declares `COPY_TO_DIRECTORY_TOOLCHAINS` in its
+        `toolchains`, which assembles each hook's package.
       runner: The link-hook runner executable (`ctx.executable._link_hook_runner`).
       recorded_uses: The recorded-uses JSON File.
       deps: Targets providing `DartInfo`; their closure is linked.
@@ -155,15 +152,41 @@ def dart_link_hook_actions(ctx, runner, recorded_uses, deps, data_asset_ids, nam
     srcs = collect_transitive_srcs(deps)
     resources = collect_transitive_resources(deps)
     package_config = ctx.actions.declare_file(name + ".package_config.json")
+
+    # Each hook's package is assembled into one directory of the files Bazel
+    # declared for it, the hook among them, so generated and source files sit
+    # together and nothing else of the package is there. The other packages are
+    # read where their files are, or assembled when those have no one root.
+    layout = project_layout(packages, srcs.to_list() + resources.to_list(), [])
+    dep_files = {key: list(files) for key, files in layout.dep_files.items()}
+    hook_keys = {}
+    for pkg in packages:
+        if pkg.package_name in hooks:
+            key = (pkg.package_name, pkg.lib_root)
+            hook_keys[pkg.package_name] = key
+            dep_files.setdefault(key, []).append(hooks[pkg.package_name])
+    roots = resolve_package_roots_from_outside(
+        ctx,
+        name,
+        dep_files,
+        package_config,
+        assemble = {key: True for key in hook_keys.values()},
+    )
     ctx.actions.write(
         output = package_config,
-        content = generate_package_config(packages, srcs.to_list(), package_config),
+        content = staged_package_config_content(
+            packages,
+            {key: root.root_uri for key, root in roots.items()},
+        ),
     )
+    package_inputs = [package_config] + layout.src_files
+    for root in roots.values():
+        package_inputs.extend(root.files)
 
     asset_infos = []
     link_outputs = []
     for package_name in sorted(hooks.keys()):
-        hook = hooks[package_name]
+        root = roots[hook_keys[package_name]]
         link_output = ctx.actions.declare_file(
             "%s/%s.link_output.json" % (name, package_name),
         )
@@ -172,8 +195,17 @@ def dart_link_hook_actions(ctx, runner, recorded_uses, deps, data_asset_ids, nam
         args.add("--dart", sdk.dart)
         args.add("--packages", package_config)
         args.add("--package-name", package_name)
-        args.add_all([hook], before_each = "--package-root", map_each = link_hook_package_root)
-        args.add("--hook", hook)
+
+        # The assembled tree's path is the mapped one under path mapping, which
+        # a string built from it would not be; only a repository-relative
+        # sub-path (a package that sits in a subdirectory of an external
+        # repository) is appended as text.
+        args.add("--package-root")
+        args.add_all(
+            [root.tree],
+            format_each = "%s" + format_literal(root.root[len(root.tree.path):]),
+            expand_directories = False,
+        )
         args.add("--recorded-uses", recorded_uses)
         args.add("--output", link_output)
         outputs = [link_output]
@@ -195,9 +227,9 @@ def dart_link_hook_actions(ctx, runner, recorded_uses, deps, data_asset_ids, nam
             executable = runner,
             arguments = [args],
             inputs = depset(
-                [hook, package_config, recorded_uses],
+                [recorded_uses] + package_inputs,
                 # The hook is a script, which `dart` runs in the VM.
-                transitive = [srcs, resources, sdk.files.run],
+                transitive = [sdk.files.run],
             ),
             outputs = outputs,
             mnemonic = "DartLinkHook",
@@ -254,5 +286,6 @@ fails if a hook emits an asset not listed, or does not emit one that is. Each la
     } | link_hook_runner_attr(),
     provides = [DartDataAssetInfo],
     exec_groups = PORTABLE_EXEC_GROUPS,
+    toolchains = COPY_TO_DIRECTORY_TOOLCHAINS,
     doc = "Runs the `hook/link.dart` of each package in `deps` over an executable's recorded uses and collects the data assets they emit.",
 )
