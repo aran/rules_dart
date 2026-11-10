@@ -1,6 +1,6 @@
 """Repository rule for downloading a single pub.dev package."""
 
-load("//dart/pub:yaml_parser.bzl", "parse_pubspec_sdk_constraint")
+load("//dart/pub:pubspec.bzl", "read_pubspec")
 load("//dart/pub/private:build_content.bzl", "make_dart_library_build_content")
 load("//dart/pub/private:language_version.bzl", "derive_language_version")
 load("//dart/pub/private:pub_archive.bzl", "fetch_pub_archive")
@@ -17,9 +17,8 @@ def _pub_package_impl(ctx):
     # languageVersion behaviour. This lets the analyzer apply the right
     # language semantics for packages whose SDK floor predates the running
     # Dart SDK (e.g. `state_notifier` with `sdk: ">=2.12.0"`).
-    pubspec_content = ctx.read("pubspec.yaml")
-    sdk_constraint = parse_pubspec_sdk_constraint(pubspec_content)
-    language_version = derive_language_version(sdk_constraint)
+    pubspec = read_pubspec(ctx, ctx.attr.package_name, ctx.attr.version)
+    language_version = derive_language_version(pubspec.sdk_constraint)
 
     # Generate BUILD.bazel with a dart_library target. `deps` here names sibling
     # repositories, whose default target carries the repo's own name.

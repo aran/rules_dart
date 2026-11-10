@@ -1,0 +1,9 @@
+name: x
+resolution: workspace
+workspace:
+- pkgs/a
+- pkgs/b
+dependencies:
+  a: any
+environment:
+  sdk: ^3.6.0

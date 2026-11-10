@@ -262,9 +262,14 @@
     },
     "@@rules_dart+//dart/pub:extensions.bzl%pub": {
       "general": {
-        "bzlTransitiveDigest": "utMtoy/W6KOc58pQc1wi5cyTTFcwkUAk0cz21bt3K6Q=",
+        "bzlTransitiveDigest": "3zGBGUm4DR2kBfJ7S3iPAkN7VHOfIuYYAlVUgj9nBQ0=",
         "usagesDigest": "bx1I733iff+3SQEa9PKpqA/UULnasAJP8qS6FSDT42c=",
         "recordedInputs": [
+          "REPO_MAPPING:rules_dart+,pubspec_reader_linux-arm64 rules_dart++pubspec_reader+pubspec_reader_linux-arm64",
+          "REPO_MAPPING:rules_dart+,pubspec_reader_linux-x64 rules_dart++pubspec_reader+pubspec_reader_linux-x64",
+          "REPO_MAPPING:rules_dart+,pubspec_reader_macos-arm64 rules_dart++pubspec_reader+pubspec_reader_macos-arm64",
+          "REPO_MAPPING:rules_dart+,pubspec_reader_macos-x64 rules_dart++pubspec_reader+pubspec_reader_macos-x64",
+          "REPO_MAPPING:rules_dart+,pubspec_reader_windows-x64 rules_dart++pubspec_reader+pubspec_reader_windows-x64",
           "REPO_MAPPING:rules_dart+,yaml.bzl yaml.bzl+",
           "FILE:@@//lock_a.lock 9ac542f735a2464e7832518796fd06830e0425972257d8dc91ca0cdd0fddd03c",
           "FILE:@@//lock_b.lock a7c08fa860c095b8d5269196461b802c1b8eb8e422273bd6c841ac0cdbc5a271",

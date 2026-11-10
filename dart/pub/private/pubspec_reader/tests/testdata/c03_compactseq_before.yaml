@@ -1,0 +1,11 @@
+name: x
+topics:
+- a
+- b
+false_secrets:
+- /x
+dependencies:
+  a: any
+  b: ^1.0.0
+environment:
+  sdk: ^3.5.0

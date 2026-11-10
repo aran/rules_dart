@@ -34,7 +34,7 @@ def write_pubspec_dependencies(ctx, names):
     Args:
       ctx: The source repository's `repository_ctx`.
       names: The names under the package's pubspec `dependencies:`, as
-        `parse_pubspec_deps` (`yaml_parser.bzl`) reads them.
+        `read_pubspec` (`pubspec.bzl`) reads them.
     """
     ctx.file(_PUBSPEC_DEPENDENCIES, "".join([n + "\n" for n in names]))
 

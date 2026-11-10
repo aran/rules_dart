@@ -1,0 +1,4 @@
+name: x
+dependencies:
+  - a
+  - b

@@ -1,5 +1,8 @@
 * text=auto eol=lf
 
+# Pubspecs read byte for byte by the pubspec reader's test: CRLF and BOM cases.
+dart/pub/private/pubspec_reader/tests/testdata/** -text
+
 #################################
 # Configuration for 'git archive'
 # See https://git-scm.com/docs/git-archive#ATTRIBUTES

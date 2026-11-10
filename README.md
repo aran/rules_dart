@@ -163,6 +163,13 @@ dart_binary(
 > package, say) fails when it is fetched, naming the dependency, rather than
 > building without it.
 
+Each package's `pubspec.yaml` is read with `package:yaml`, as pub reads it, by
+a small reader rules_dart compiles once per host with its Dart SDK. A pubspec
+pub would refuse (a `sdk:` constraint written as a number, say) fails the fetch
+with pub's message, naming the package. Rule sets of your own read pubspecs the
+same way, in a repository rule, with `read_pubspec` from
+`@rules_dart//dart/pub:pubspec.bzl`.
+
 Packages that depend on each other, which pub allows (`dio` and
 `dio_web_adapter`), are built as one library, each keeping its own name and
 language version; `@pub_deps//:dio` and `@pub_deps//:dio_web_adapter` both name

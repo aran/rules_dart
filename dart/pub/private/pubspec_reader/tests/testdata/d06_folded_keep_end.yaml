@@ -1,0 +1,6 @@
+name: x
+dependencies:
+  a: any
+description: >+
+  text
+

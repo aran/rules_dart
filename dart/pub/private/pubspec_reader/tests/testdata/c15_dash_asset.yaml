@@ -1,0 +1,14 @@
+name: x
+flutter:
+  fonts:
+    - family: GalleryIcons
+      fonts:
+        - asset: packages/a/GalleryIcons.ttf
+    - family: Raleway
+      fonts:
+      - asset: a.ttf
+      - asset: b.ttf
+dependencies:
+  a: any
+environment:
+  sdk: ^3.0.0

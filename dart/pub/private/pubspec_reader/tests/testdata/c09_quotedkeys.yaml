@@ -1,0 +1,10 @@
+name: x
+dependencies:
+  "a": any
+  'b': any
+  c:   # comment
+    git:
+      url: https://x/y.git
+      ref: main
+environment:
+  sdk: '>=3.0.0 <4.0.0' # trailing

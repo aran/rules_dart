@@ -5,6 +5,8 @@
 # but we don't want to run the other hooks on commit messages. The manual
 # stage runs every check without .bazel_env, for Windows (see below).
 default_stages: [pre-commit, manual]
+# The pubspec reader's test inputs are read byte for byte, invalid YAML included.
+exclude: ^dart/pub/private/pubspec_reader/tests/testdata/
 # One `prek install` sets up both stages
 default_install_hook_types: [pre-commit, commit-msg]
 # Use a slightly older version of node by default

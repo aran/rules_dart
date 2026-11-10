@@ -1,0 +1,15 @@
+name: x
+dependencies:
+  a: any
+  b:
+    hosted: https://x
+    version: ^1.0.0
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: x
+  assets:
+  - a/
+environment:
+  sdk: ^3.0.0

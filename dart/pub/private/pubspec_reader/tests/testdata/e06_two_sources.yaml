@@ -1,0 +1,5 @@
+name: x
+dependencies:
+  a:
+    git: https://example.com/a.git
+    path: ../a

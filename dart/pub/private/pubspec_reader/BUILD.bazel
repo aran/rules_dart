@@ -1,0 +1,20 @@
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+
+exports_files(["pubspec_reader.dart"])
+
+bzl_library(
+    name = "reader",
+    srcs = ["reader.bzl"],
+    visibility = ["//dart/pub:__subpackages__"],
+    deps = [
+        "//dart/private:toolchains_repo",
+        "//dart/pub/private:pub_archive",
+    ],
+)
+
+bzl_library(
+    name = "extension",
+    srcs = ["extension.bzl"],
+    visibility = ["//visibility:public"],
+    deps = [":reader"],
+)

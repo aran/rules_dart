@@ -1,0 +1,5 @@
+name: x
+dependencies:
+  a:
+    version: 1.0
+    hosted: https://pub.dev

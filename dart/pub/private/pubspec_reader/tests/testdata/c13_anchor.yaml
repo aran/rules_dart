@@ -1,0 +1,6 @@
+name: x
+environment: &env
+  sdk: ^3.0.0
+dependencies:
+  a: any
+x_other: *env

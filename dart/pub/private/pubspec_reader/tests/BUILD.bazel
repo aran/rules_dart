@@ -1,0 +1,32 @@
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("//dart:defs.bzl", "dart_test")
+load(":reader_unit_test.bzl", "reader_unit_test_suite")
+
+bzl_library(
+    name = "cases",
+    srcs = ["cases.bzl"],
+    deps = ["//dart/pub/private/pubspec_reader:reader"],
+)
+
+TESTDATA = glob(["testdata/*.yaml"])
+
+dart_test(
+    name = "reader_test",
+    size = "small",
+    args = ["$(rlocationpath @pubspec_reader_cases//:results.json)"] + [
+        "$(rlocationpath %s)" % f
+        for f in TESTDATA
+    ],
+    data = ["@pubspec_reader_cases//:results.json"] + TESTDATA,
+    main = "reader_test.dart",
+    deps = [
+        "//dart/runfiles",
+        "@ext_pub_deps//:collection",
+        "@ext_pub_deps//:term_glyph",
+        "@ext_pub_deps//:test",
+        "@ext_pub_deps//:yaml",
+    ],
+)
+
+# The host and URI helpers of the reader's tool repository.
+reader_unit_test_suite(name = "reader_unit_test")

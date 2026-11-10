@@ -7,12 +7,19 @@ bzl_library(
 )
 
 bzl_library(
+    name = "pubspec",
+    srcs = ["pubspec.bzl"],
+    visibility = ["//visibility:public"],
+    deps = ["//dart/pub/private/pubspec_reader:reader"],
+)
+
+bzl_library(
     name = "pub_lock_package",
     srcs = ["pub_lock_package.bzl"],
     visibility = ["//visibility:public"],
     deps = [
         ":pub_graph",
-        ":yaml_parser",
+        ":pubspec",
         "//dart/pub/private:build_content",
         "//dart/pub/private:pub_archive",
     ],

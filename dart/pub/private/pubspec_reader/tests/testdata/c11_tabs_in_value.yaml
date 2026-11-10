@@ -1,0 +1,5 @@
+name: x
+dependencies:
+  a:	any
+environment:
+  sdk: ^3.0.0

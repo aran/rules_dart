@@ -1,0 +1,10 @@
+name: x
+screenshots:
+- description: a thing
+  path: a.png
+- description: b
+  path: b.png
+dependencies:
+  a: any
+environment:
+  sdk: ^3.0.0

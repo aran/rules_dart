@@ -1,0 +1,9 @@
+name: x
+description:
+  A pluggable thing
+  for Dart.
+dependencies:
+  a: any
+  b: any
+environment:
+  sdk: ^3.0.0

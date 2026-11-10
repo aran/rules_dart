@@ -1,0 +1,14 @@
+name: x
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+dependencies:
+  a: any
+  b:
+    path: ../b
+  c:
+    git:
+      url: https://example.com/c.git
+  d:
+    hosted: https://example.com
+    version: ^1.0.0
+  e:

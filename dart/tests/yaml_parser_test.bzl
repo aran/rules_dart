@@ -1,7 +1,7 @@
 """Unit tests for yaml_parser.bzl."""
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
-load("//dart/pub:yaml_parser.bzl", "parse_pubspec_deps", "parse_pubspec_lock", "parse_pubspec_sdk_constraint")
+load("//dart/pub:yaml_parser.bzl", "parse_pubspec_lock")
 load(":small_suite.bzl", "small_unittest_suite")
 
 _SAMPLE_LOCK = """\
@@ -60,50 +60,9 @@ def _parse_lock_sdk_test_impl(ctx):
     asserts.equals(env, "0.0.0", flutter["version"])
     return unittest.end(env)
 
-_SAMPLE_PUBSPEC = """\
-name: my_app
-version: 1.0.0
-environment:
-  sdk: ">=3.0.0 <4.0.0"
-dependencies:
-  collection: ^1.18.0
-  path: ^1.9.0
-dev_dependencies:
-  test: ^1.24.0
-"""
-
-def _parse_pubspec_deps_test_impl(ctx):
-    env = unittest.begin(ctx)
-    result = parse_pubspec_deps(_SAMPLE_PUBSPEC)
-    asserts.equals(env, 2, len(result))
-    asserts.true(env, "collection" in result)
-    asserts.true(env, "path" in result)
-
-    # dev_dependencies should NOT be included
-    asserts.true(env, "test" not in result)
-    return unittest.end(env)
-
-def _parse_pubspec_deps_empty_test_impl(ctx):
-    env = unittest.begin(ctx)
-    result = parse_pubspec_deps("name: empty\n")
-    asserts.equals(env, 0, len(result))
-    return unittest.end(env)
-
-def _parse_pubspec_sdk_constraint_test_impl(ctx):
-    env = unittest.begin(ctx)
-    asserts.equals(env, ">=3.0.0 <4.0.0", parse_pubspec_sdk_constraint(_SAMPLE_PUBSPEC))
-    asserts.equals(env, "^3.5.0", parse_pubspec_sdk_constraint("environment:\n  sdk: ^3.5.0\n"))
-    asserts.equals(env, "^3.5.0", parse_pubspec_sdk_constraint("environment:\n  sdk: '^3.5.0'\n"))
-    asserts.equals(env, "", parse_pubspec_sdk_constraint("name: x\n"))
-    asserts.equals(env, "", parse_pubspec_sdk_constraint(""))
-    return unittest.end(env)
-
 _t0_test = unittest.make(_parse_lock_packages_test_impl)
 _t1_test = unittest.make(_parse_lock_hosted_test_impl)
 _t2_test = unittest.make(_parse_lock_sdk_test_impl)
-_t3_test = unittest.make(_parse_pubspec_deps_test_impl)
-_t4_test = unittest.make(_parse_pubspec_deps_empty_test_impl)
-_t5_test = unittest.make(_parse_pubspec_sdk_constraint_test_impl)
 
 def yaml_parser_test_suite(name):
-    small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test, _t4_test, _t5_test)
+    small_unittest_suite(name, _t0_test, _t1_test, _t2_test)

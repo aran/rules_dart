@@ -1,0 +1,8 @@
+name: x
+description: A long
+  description: with colon-space inside
+  continuing.
+environment:
+  sdk: ^3.0.0
+dependencies:
+  a: any

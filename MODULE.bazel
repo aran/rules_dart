@@ -108,9 +108,38 @@ local_path_override(
 
 dart = use_extension("//dart:extensions.bzl", "dart")
 dart.toolchain(dart_version = "3.13.7")
-use_repo(dart, "dart_toolchains")
+use_repo(
+    dart,
+    "dart_toolchains",
+    # Each host's SDK, which compiles that host's pubspec reader.
+    "dart_linux-arm64",
+    "dart_linux-x64",
+    "dart_macos-arm64",
+    "dart_macos-x64",
+    "dart_windows-x64",
+)
 
 register_toolchains("@dart_toolchains//:all")
+
+# rules_dart reads pubspecs with Dart's own package:yaml, compiled once per host
+# (dart/pub/pubspec.bzl). Only the host's reader is fetched.
+pubspec_reader = use_extension("//dart/pub/private/pubspec_reader:extension.bzl", "pubspec_reader")
+use_repo(
+    pubspec_reader,
+    "pubspec_reader_linux-arm64",
+    "pubspec_reader_linux-x64",
+    "pubspec_reader_macos-arm64",
+    "pubspec_reader_macos-x64",
+    "pubspec_reader_windows-x64",
+)
+
+# The reader's results on hand-written pubspecs, for its test.
+pubspec_reader_cases = use_extension(
+    "//dart/pub/private/pubspec_reader/tests:cases.bzl",
+    "pubspec_reader_cases",
+    dev_dependency = True,
+)
+use_repo(pubspec_reader_cases, "pubspec_reader_cases")
 
 # A toolchain supplying a Dart library, for the kernel module aspect's test.
 register_toolchains(

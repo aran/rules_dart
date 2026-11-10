@@ -1,0 +1,7 @@
+name: x
+dependencies:
+    a: any
+    b:
+        path: ../b
+environment:
+    sdk: ^3.0.0

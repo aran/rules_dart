@@ -9,7 +9,7 @@ owner's repository; the other packages of the cycle alias it.
 
 load("@rules_dart//dart/pub:pub_graph.bzl", "dependency_cycle", "dependency_graph", "read_pubspec_dependencies", "write_pubspec_dependencies")
 load("@rules_dart//dart/pub:pub_lock_package.bzl", "derive_language_version")
-load("@rules_dart//dart/pub:yaml_parser.bzl", "parse_pubspec_deps", "parse_pubspec_sdk_constraint")
+load("@rules_dart//dart/pub:pubspec.bzl", "read_pubspec")
 
 def _source(name):
     return "fancy_src__" + name
@@ -30,11 +30,12 @@ _FILES = """\
 def _fancy_source_impl(ctx):
     pubspec = ctx.path(ctx.attr.pubspec)
     ctx.symlink(pubspec.dirname.get_child("lib"), "lib")
-    content = ctx.read(pubspec)
-    write_pubspec_dependencies(ctx, parse_pubspec_deps(content))
+    ctx.symlink(pubspec, "pubspec.yaml")
+    read = read_pubspec(ctx, ctx.attr.package_name)
+    write_pubspec_dependencies(ctx, read.dependencies)
     files = _FILES.format(
         name = ctx.attr.package_name,
-        language_version = derive_language_version(parse_pubspec_sdk_constraint(content)),
+        language_version = derive_language_version(read.sdk_constraint),
     )
     if ctx.attr.greeting:
         build = 'load("{rules}", "fancy_member")\n\nfancy_member(\n    name = "{name}",\n{files}    greeting = "{greeting}",\n    visibility = ["//visibility:public"],\n)\n'.format(

@@ -1,0 +1,16 @@
+name: x
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: com.example
+        pluginClass: X
+  assets:
+    - images/
+  fonts:
+    - family: F
+      fonts:
+        - asset: f.ttf
+          weight: 700
+numbers: [1, 1.5, .inf, -.inf, .nan, 0x10, true, null, ~]
+1: one

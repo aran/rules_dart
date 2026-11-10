@@ -1,0 +1,3 @@
+name: x
+environment:
+  dart: ^3.0.0

@@ -1,0 +1,9 @@
+name: x
+dependencies:
+# a comment at column 0
+  a: any
+
+  # indented comment
+  b: any
+environment:
+  sdk: ^3.0.0

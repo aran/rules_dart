@@ -14,7 +14,7 @@ emits the same `dart_library` shape for non-plugin packages.
 """
 
 load("//dart/pub:pub_graph.bzl", "write_pubspec_dependencies")
-load("//dart/pub:yaml_parser.bzl", "parse_pubspec_deps", "parse_pubspec_sdk_constraint")
+load("//dart/pub:pubspec.bzl", "read_pubspec")
 load("//dart/pub/private:build_content.bzl", _classify_pub_hooks = "classify_pub_hooks", _make_dart_library_build_content = "make_dart_library_build_content", _make_pub_member_build_content = "make_pub_member_build_content")
 load("//dart/pub/private:language_version.bzl", _derive_language_version = "derive_language_version")
 load("//dart/pub/private:pub_archive.bzl", _check_pub_archive_sha256 = "check_pub_archive_sha256", _fetch_pub_archive = "fetch_pub_archive")
@@ -42,13 +42,10 @@ def _pub_lock_package_impl(ctx):
     # reach it: parsed once here, not by each.
     language_version = ""
     pubspec_deps = []
-    pubspec_path = ctx.path("pubspec.yaml")
-    if pubspec_path.exists:
-        pubspec_content = ctx.read(pubspec_path)
-        language_version = _derive_language_version(
-            parse_pubspec_sdk_constraint(pubspec_content),
-        )
-        pubspec_deps = parse_pubspec_deps(pubspec_content)
+    if ctx.path("pubspec.yaml").exists:
+        pubspec = read_pubspec(ctx, ctx.attr.package_name, ctx.attr.version)
+        language_version = _derive_language_version(pubspec.sdk_constraint)
+        pubspec_deps = pubspec.dependencies
     write_pubspec_dependencies(ctx, pubspec_deps)
 
     # A package that builds native code declares a build hook. rules_dart

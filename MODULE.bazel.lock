@@ -294,9 +294,14 @@
   "moduleExtensions": {
     "//dart/pub:extensions.bzl%pub": {
       "general": {
-        "bzlTransitiveDigest": "utMtoy/W6KOc58pQc1wi5cyTTFcwkUAk0cz21bt3K6Q=",
+        "bzlTransitiveDigest": "3zGBGUm4DR2kBfJ7S3iPAkN7VHOfIuYYAlVUgj9nBQ0=",
         "usagesDigest": "0+3c4sSN2vc7x1/y7HdP42yAhA9LS1h/fRTJdUpRt4g=",
         "recordedInputs": [
+          "REPO_MAPPING:,pubspec_reader_linux-arm64 +pubspec_reader+pubspec_reader_linux-arm64",
+          "REPO_MAPPING:,pubspec_reader_linux-x64 +pubspec_reader+pubspec_reader_linux-x64",
+          "REPO_MAPPING:,pubspec_reader_macos-arm64 +pubspec_reader+pubspec_reader_macos-arm64",
+          "REPO_MAPPING:,pubspec_reader_macos-x64 +pubspec_reader+pubspec_reader_macos-x64",
+          "REPO_MAPPING:,pubspec_reader_windows-x64 +pubspec_reader+pubspec_reader_windows-x64",
           "REPO_MAPPING:,yaml.bzl yaml.bzl+",
           "FILE:@@//dart/ext/pubspec.lock ae866f3a1d4ebad9a74f9b9efab33c74dfbf904ae0d69dfe94192029d4955188"
         ],

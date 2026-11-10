@@ -1,0 +1,7 @@
+name: x
+homepage: https://example.com/#anchor
+description: C# bindings: for things
+dependencies:
+  a: any
+environment:
+  sdk: ^3.0.0

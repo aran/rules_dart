@@ -1,0 +1,9 @@
+name: x
+description: |
+  line one: has colon
+  dependencies:
+    fake: any
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+dependencies:
+  real: any
