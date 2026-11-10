@@ -233,12 +233,15 @@ derive_package_name = _derive_package_name
 # The rule merges `COVERAGE_ATTRS` into its `attrs`: the converter, and the
 # `_lcov_merger` Bazel's coverage runner needs of a test rule. It gives its
 # result `coverage_common.instrumented_files_info`, naming the sources to
-# report. `test_coverage(ctx, packages)` is `None` unless the build is for
-# coverage; otherwise it writes the file naming the packages' `lib/`
-# directories, and returns `converter` and `sources` (runfiles paths to
-# `rlocation`) and `runfiles` (to merge into the test's). Nothing is needed in
-# the environment. In the test, over a directory of `package:coverage` JSON
-# (what `collect` returns), run
+# report. `test_coverage(ctx, packages, sources, deps)` is `None` unless the
+# build is for coverage; otherwise it writes the file naming the packages'
+# `lib/` directories and the runfiles path of each source Bazel instruments
+# (the test's own `sources` and what its `deps` instrument), and returns
+# `converter` and `sources` (runfiles paths to `rlocation`) and `runfiles` (to
+# merge into the test's, carrying those sources: the converter leaves out the
+# lines their `// coverage:ignore-*` comments name). Nothing is needed in the
+# environment beyond the runfiles variables a test has. In the test, over a
+# directory of `package:coverage` JSON (what `collect` returns), run
 #
 #     <converter> --hitmaps=<dir> --sources=<sources> --output=$COVERAGE_DIR/<name>.dat
 #

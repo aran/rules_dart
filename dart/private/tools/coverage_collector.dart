@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:coverage/coverage.dart';
+import 'package:runfiles/runfiles.dart';
 import 'package:vm_service/vm_service.dart';
 import 'package:vm_service/vm_service_io.dart';
 
@@ -22,16 +23,21 @@ import 'coverage_lcov.dart';
 ///
 /// A `package:test` test's runner collects its own suites; `coverage_converter`
 /// converts what it wrote. The `--sources` file and `COVERAGE_MANIFEST` are as
-/// that tool reads them, and the tracefile is what it writes.
+/// that tool reads them, and the tracefile is what it writes, without the lines
+/// and files the sources mark `coverage:ignore`, read from the runfiles of the
+/// test this runs in.
 Future<void> main(List<String> args) async {
   final options = _Options.parse(args);
   final manifest = Platform.environment['COVERAGE_MANIFEST'];
   if (manifest == null) {
     _fail('COVERAGE_MANIFEST is not set; run under `bazel coverage`');
   }
+  final names = readSourcesFile(options.sources);
   final sources = CoverageSources(
     instrumented: File(manifest).readAsLinesSync(),
-    packages: readPackages(options.sources),
+    packages: names.packages,
+    files: names.files,
+    locate: Runfiles.create().rlocation,
   );
   exit(
     await _runVm(

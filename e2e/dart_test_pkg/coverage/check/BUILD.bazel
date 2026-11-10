@@ -6,6 +6,7 @@ dart_binary(
     name = "check",
     data = [
         "//coverage:lib/shapes.dart",
+        "//coverage/excluded:lib/excluded.dart",
         "//coverage/units:lib/units.dart",
     ],
     main = "check_report.dart",

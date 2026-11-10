@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:coverage/coverage.dart';
+import 'package:runfiles/runfiles.dart';
 
 import 'coverage_lcov.dart';
 
@@ -21,7 +22,8 @@ import 'coverage_lcov.dart';
 ///   in several files add. A directory that does not exist is an empty report
 ///   (a test run that ran no suite collected none).
 /// * `--sources=<file>`: the file `test_coverage` in `@rules_dart//dart:utils.bzl`
-///   writes, which names where each package's `lib/` directories are.
+///   writes, which names where each package's `lib/` directories are and the
+///   runfiles path of each source Bazel instruments.
 /// * `--output=<file>`: where the tracefile goes, `$COVERAGE_DIR/<name>.dat`:
 ///   the coverage runner merges every `*.dat` in `COVERAGE_DIR`.
 ///
@@ -34,6 +36,14 @@ import 'coverage_lcov.dart';
 /// the package, and `org-dartlang-root:///<path>`, found by its path below the
 /// kernel roots, which is the one Dart kernels `dart_test` and `dart_binary`
 /// compile have.
+///
+/// A line a source marks `// coverage:ignore-line`, the lines from a
+/// `// coverage:ignore-start` to the next `// coverage:ignore-end`, and the
+/// whole file for a `// coverage:ignore-file`, are left out of the tracefile,
+/// as `dart test --coverage-path` leaves them out. The sources are read from
+/// the runfiles of the test this runs in (its `RUNFILES_DIR` or manifest, which
+/// a process the test starts inherits); a source missing there, or an
+/// unbalanced marker, is a failure.
 ///
 /// Exit status 0 is success, 2 a usage error (a missing flag or a missing
 /// `COVERAGE_MANIFEST`), and anything else a failure, with a message on stderr.
@@ -65,16 +75,24 @@ Future<void> main(List<String> args) async {
               .where((f) => f.path.endsWith('.json')),
         )
       : <String, HitMap>{};
-  writeTracefile(
-    output,
-    lcov(
+  final names = readSourcesFile(sources);
+  final String report;
+  try {
+    report = lcov(
       hits,
       CoverageSources(
         instrumented: File(manifest).readAsLinesSync(),
-        packages: readPackages(sources),
+        packages: names.packages,
+        files: names.files,
+        locate: Runfiles.create().rlocation,
       ),
-    ),
-  );
+    );
+  } on FormatException catch (e) {
+    // An unbalanced `coverage:ignore-start`/`-end` in a source.
+    stderr.writeln('coverage_converter: ${e.message}');
+    exit(1);
+  }
+  writeTracefile(output, report);
 }
 
 Never _fail(String message) {

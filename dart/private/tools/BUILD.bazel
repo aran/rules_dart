@@ -430,7 +430,10 @@ dart_binary(
     compile_mode = "exe",
     main = "coverage_converter.dart",
     visibility = ["//dart:__pkg__"],
-    deps = ["@ext_pub_deps//:coverage"],
+    deps = [
+        "//dart/runfiles",
+        "@ext_pub_deps//:coverage",
+    ],
 )
 
 # Collects a plain-`main()` `dart_test`'s coverage under `bazel coverage`;
@@ -442,6 +445,7 @@ dart_binary(
     main = "coverage_collector.dart",
     visibility = ["//dart:__subpackages__"],
     deps = [
+        "//dart/runfiles",
         "@ext_pub_deps//:coverage",
         "@ext_pub_deps//:vm_service",
     ],

@@ -427,7 +427,10 @@ is `bazel-testlogs/<package>/<name>/coverage.dat`. Any LCOV tool reads them.
   its path in the workspace; a generated file is under its `bazel-out/` path.
   A test's own `main` and `srcs` are reported only with
   `--instrument_test_targets`, as for every Bazel language. Lines only: no
-  function or branch counts, and `// coverage:ignore-*` comments are not read.
+  function or branch counts. A line marked `// coverage:ignore-line`, the
+  lines from a `// coverage:ignore-start` to the next `// coverage:ignore-end`,
+  and a file with a `// coverage:ignore-file` are left out, as `dart test
+  --coverage-path` leaves them out; an unbalanced marker fails the test.
 - **Plain-`main()` tests** run with the VM service on, each isolate pausing as
   it exits until its coverage is read. Such a test must return from `main`
   (setting `exitCode` to fail): `exit()` ends the VM before it pauses, and
@@ -435,7 +438,8 @@ is `bazel-testlogs/<package>/<name>/coverage.dat`. Any LCOV tool reads them.
 - **`package:test` tests** have their runner collect each suite.
 - **The build is the same.** The VM counts lines in any kernel, so a coverage
   build compiles the kernels a test build does; only the test's launcher
-  configuration and runfiles differ.
+  configuration and runfiles differ, the latter carrying the reported sources,
+  which the ignore comments are read from.
 - Bazel's own report merger needs a runfiles tree, so `bazel coverage` fails
   with `--noenable_runfiles`, Windows' default.
 
@@ -444,10 +448,11 @@ own (a Flutter test's) reuses the conversion: it merges
 `COVERAGE_ATTRS` from `@rules_dart//dart:utils.bzl` into its `attrs` (the
 converter and the `_lcov_merger` Bazel's coverage runner needs), gives its
 result `coverage_common.instrumented_files_info`, and calls
-`test_coverage(ctx, packages)`, which is `None` unless the build is for
-coverage and otherwise writes the file naming the packages' `lib/` directories
-and returns `converter` and `sources` (runfiles paths) and the `runfiles` to
-merge into the test's. Inside the test, over a directory of `package:coverage`
+`test_coverage(ctx, packages, sources, deps)` with the test's own Dart files
+and its `deps`, which is `None` unless the build is for coverage and otherwise
+writes the file naming the packages' `lib/` directories and the runfiles path of
+each source Bazel instruments, and returns `converter` and `sources` (runfiles
+paths) and the `runfiles` to merge into the test's, which carry those sources. Inside the test, over a directory of `package:coverage`
 JSON (what its `collect` returns, one file per suite), it runs
 `@rules_dart//dart:coverage_converter`:
 
@@ -457,8 +462,10 @@ coverage_converter --hitmaps=<dir> --sources=<sources> --output=$COVERAGE_DIR/<n
 
 `--hitmaps` is searched for `*.json` at any depth, and the counts of a script
 in several files add. `--output` ends in `.dat`, in `COVERAGE_DIR`. Bazel's
-`COVERAGE_MANIFEST` must be set; a script it does not list is not reported. The
-exit status is 0, or 2 for a usage error. These flags are stable.
+`COVERAGE_MANIFEST` must be set, as must the test's runfiles variables, which a
+process the test starts inherits; a script the manifest does not list is not
+reported. The exit status is 0, 2 for a usage error, or another value for a
+failure, with a message on stderr. These flags are stable.
 
 ### Using pub.dev packages
 

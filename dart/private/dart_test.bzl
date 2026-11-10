@@ -131,7 +131,7 @@ def _dart_test_impl(ctx):
                 "vm": "%s-%s-%s" % (dart_sdk_info.version, dart_sdk_info.exec_os, dart_sdk_info.exec_arch),
             }
             runner_files.append(runner.digest)
-    coverage = test_coverage(ctx, packages)
+    coverage = test_coverage(ctx, packages, [ctx.file.main] + ctx.files.srcs, ctx.attr.deps)
     if coverage:
         config["coverage"] = {
             "collector": runfiles_path(ctx.executable._coverage_collector, ctx.workspace_name),
