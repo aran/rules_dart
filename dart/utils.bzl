@@ -24,6 +24,7 @@ load(
     _generate_dev_package_config = "generate_dev_package_config",
     _generate_package_config = "generate_package_config",
     _generate_package_config_content = "generate_package_config_content",
+    _merged_package_record = "merged_package_record",
     _package_code_assets = "package_code_assets",
     _package_license_file = "package_license_file",
     _resolve_code_assets = "resolve_code_assets",
@@ -43,6 +44,7 @@ load(
     _dart_info = "dart_info",
     _dart_info_no_package = "dart_info_no_package",
     _dart_package_info = "dart_package_info",
+    _package_lib_prefix = "package_lib_prefix",
 )
 load(
     "//dart/private:dart_library.bzl",
@@ -148,6 +150,27 @@ dart_analyzable_info_with_packages = _dart_analyzable_info_with_packages
 # it) are merged, each package-level fact taken from whichever record states
 # it, and the build fails naming both targets when two state it differently.
 collect_packages = _collect_packages
+
+# The one record of a target that is itself a package — an app or test rule
+# whose own sources are the package's `lib/` — in place of the records of the
+# libraries rooted at its directory, which `package_config.json` cannot hold
+# beside it. The same merge as [collect_packages]: every field those records
+# state is carried through, code assets unioned, and `language_version` is the
+# target's statement, a library's when the target states none (`""`), an
+# error naming both when they differ.
+#
+#     packages = collect_packages(ctx.attr.deps)
+#     root = derive_package_root(ctx.label.workspace_root, ctx.label.package)
+#     at_root = [p for p in packages if p.package_root == root]
+#     packages = [p for p in packages if p.package_root != root] + [
+#         merged_package_record(ctx.label, ctx.attr.package_name, root, ctx.attr.language_version, at_root),
+#     ]
+merged_package_record = _merged_package_record
+
+# The `short_path` prefix of a package's importable files, `<package_root>/lib/`
+# (`lib/` for the root package): what decides whether a file is in a package
+# and what its `package:` path is.
+package_lib_prefix = _package_lib_prefix
 
 # Returns a depset[File]; pass it to action inputs / runfiles directly and
 # flatten (once) only where per-file paths are inspected.

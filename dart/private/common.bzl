@@ -1,7 +1,7 @@
 """Shared utilities for Dart rules."""
 
 load("//dart:providers.bzl", "CODE_ASSET_LINK_MODES", "DartCodeAssetInfo", "DartInfo", "DartPackageMetadataInfo")
-load("//dart/private:dart_info.bzl", "derived_package_info", "package_lib_prefix")
+load("//dart/private:dart_info.bzl", "dart_package_info", "derived_package_info", "package_lib_prefix")
 load("//dart/private:exec_groups.bzl", "PORTABLE", "portable_sdk")
 load("//dart/private:resources.bzl", "kernel_resources")
 load("//dart/private:source_set.bzl", "needs_source_assembly", "package_for_index", "package_index")
@@ -556,6 +556,8 @@ def merge_package_records(merged):
     pure function of the record list, which makes them directly testable
     without synthesising `DartInfo`-bearing targets. The agreement check keeps
     that property by living in its own function and returning its message.
+    `merged_package_record` is the same merge for a target that is itself a
+    package.
 
     Args:
         merged: List of DartPackageInfo, with duplicates, in dependency order.
@@ -601,6 +603,60 @@ def _merge_one(records):
     if merged == derived_package_info(kept):
         return kept
     return merged
+
+def merged_package_record(label, package_name, package_root, language_version, records):
+    """The record of a target that is itself a package, completed from the records at its root.
+
+    A target whose own sources are a package's `lib/` — a downstream app or
+    test rule — can depend on `dart_library` targets rooted at the same
+    directory. They are the same package, and one directory can be only one
+    package in a `package_config.json`, so the target contributes one record
+    in place of theirs. That record is this target's statement merged with
+    theirs, by `merge_package_records`: every field their records state is
+    carried through (code assets unioned, the license, the hooks, the
+    version), and a fact both state must agree, or the build fails naming
+    both targets. With no records at the root it is this target's own,
+    exactly what `dart_package_info()` builds.
+
+    `language_version` is this target's statement, and stating none (`""`)
+    leaves the version to whichever library at the root states one; the
+    merged record then carries that.
+
+    Args:
+      label: The target's label, recorded on the result and named in errors.
+      package_name: The package's name.
+      package_root: The package root, the target's own (`derive_package_root`).
+      language_version: The target's `language_version`, or `""` when it
+        states none. Required, for the reason `dart_package_info()` gives.
+      records: The `DartPackageInfo` records already rooted at
+        `package_root`, e.g. those of `collect_packages(deps)` whose
+        `package_root` is it. Each must be named `package_name`: a directory
+        is one package.
+
+    Returns:
+      A `DartPackageInfo`.
+    """
+    for pkg in records:
+        if pkg.package_root != package_root or pkg.package_name != package_name:
+            fail(("%s: `merged_package_record` was given package \"%s\" rooted " +
+                  "at `%s`, stated by %s, for package \"%s\" rooted at `%s`. " +
+                  "Pass only the records rooted at the package's own root, " +
+                  "and report a differently named one to the user — one " +
+                  "directory is one package.") % (
+                label,
+                pkg.package_name,
+                pkg.package_root or ".",
+                _stated_by(pkg),
+                package_name,
+                package_root or ".",
+            ))
+    own = dart_package_info(
+        label = label,
+        package_name = package_name,
+        package_root = package_root,
+        language_version = language_version,
+    )
+    return merge_package_records([own] + list(records))[0]
 
 def launcher_executable(ctx, tool):
     """Symlinks a pre-compiled launcher as a rule's executable, `<name>[.exe]`.

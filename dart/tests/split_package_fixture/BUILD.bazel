@@ -5,8 +5,9 @@ The layout Gazelle generates. Every target is a record of the one package
 states, whichever comes first in `deps`.
 """
 
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("//dart:defs.bzl", "dart_binary")
-load("//dart/tests:package_record_test.bzl", "language_version_conflict_test", "package_config_language_version_test")
+load("//dart/tests:package_record_test.bzl", "app_record_conflict_test", "app_record_probe", "language_version_conflict_test", "package_config_language_version_test")
 
 # The record stating nothing comes first.
 dart_binary(
@@ -41,4 +42,38 @@ language_version_conflict_test(
     name = "conflicting_language_versions_test",
     size = "small",
     target_under_test = ":conflicting_app",
+)
+
+# A target that is itself the package, as a downstream app rule is, stating
+# no language version: it takes the one its libraries state.
+app_record_probe(
+    name = "unstated_record",
+    package_name = "split_pkg",
+    expected_language_version = "3.7",
+    package_root = "dart/tests/split_package_fixture",
+    deps = [
+        "//dart/tests/split_package_fixture/lib/plain",
+        "//dart/tests/split_package_fixture/lib/versioned",
+    ],
+)
+
+build_test(
+    name = "app_record_takes_library_version_test",
+    targets = [":unstated_record"],
+)
+
+# Stating one its libraries contradict is an error naming both.
+app_record_probe(
+    name = "conflicting_record",
+    package_name = "split_pkg",
+    language_version = "3.4",
+    package_root = "dart/tests/split_package_fixture",
+    tags = ["manual"],
+    deps = ["//dart/tests/split_package_fixture/lib/versioned"],
+)
+
+app_record_conflict_test(
+    name = "app_record_conflict_test",
+    size = "small",
+    target_under_test = ":conflicting_record",
 )

@@ -4,14 +4,17 @@ A package reaches a target as several `DartPackageInfo` records — one per
 `dart_library` of a package split across directories, one per pub hub
 supplying it — and `merge_package_records` makes them one. Each package-level
 fact is the package's, whichever record states it, and two records stating it
-differently are an error naming both targets.
+differently are an error naming both targets. `merged_package_record` is the
+same merge for a target that is itself a package.
 """
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts", "unittest")
-load("//dart:providers.bzl", "DartCodeAssetInfo", "DartPackageInfo")
+load("//dart:providers.bzl", "DartCodeAssetInfo", "DartInfo", "DartPackageInfo")
 load(
     "//dart/private:common.bzl",
+    "collect_packages",
     "merge_package_records",
+    "merged_package_record",
     "package_agreement_error",
     "package_code_assets",
     "package_license_file",
@@ -166,6 +169,44 @@ def _agreement_falls_back_to_root_without_label_test_impl(ctx):
     asserts.true(env, err != None and "3.7 (first)" in err and "3.4 (second)" in err, str(err))
     return unittest.end(env)
 
+# --- merged_package_record ---
+
+def _merged_record_without_records_is_fresh_test_impl(ctx):
+    env = unittest.begin(ctx)
+    record = merged_package_record("//app", "app", "app", "3.7", [])
+    asserts.equals(env, "//app", record.label)
+    asserts.equals(env, "app", record.package_name)
+    asserts.equals(env, "app", record.package_root)
+    asserts.equals(env, "3.7", record.language_version)
+    asserts.equals(env, (), record.code_assets)
+    asserts.equals(env, None, record.link_hook)
+    return unittest.end(env)
+
+def _merged_record_carries_every_field_test_impl(ctx):
+    env = unittest.begin(ctx)
+    hook = _file("app/hook/link.dart")
+    license = _file("app/LICENSE")
+    record = merged_package_record("//app", "app", "app", "3.7", [
+        _pkg("//app/lib/a", package_name = "app", package_root = "app", code_assets = (_asset("package:app/a.dart"),), license_file = license),
+        _pkg("//app/lib/b", package_name = "app", package_root = "app", code_assets = (_asset("package:app/b.dart"),), link_hook = hook, version = "1.0.0"),
+    ])
+    asserts.equals(env, "//app", record.label)
+    asserts.equals(env, "3.7", record.language_version)
+    asserts.equals(env, "1.0.0", record.version)
+    asserts.equals(env, ["package:app/a.dart", "package:app/b.dart"], [a.asset_id for a in record.code_assets])
+    asserts.equals(env, hook, record.link_hook)
+    asserts.equals(env, license, record.license_file)
+    return unittest.end(env)
+
+def _merged_record_takes_library_version_when_unstated_test_impl(ctx):
+    # The target stating none leaves the version to the library that does.
+    env = unittest.begin(ctx)
+    record = merged_package_record("//app", "app", "app", "", [
+        _pkg("//app/lib/a", package_name = "app", package_root = "app", language_version = "3.4"),
+    ])
+    asserts.equals(env, "3.4", record.language_version)
+    return unittest.end(env)
+
 _merge_takes_stated_language_version_test = unittest.make(_merge_takes_stated_language_version_test_impl)
 _merge_takes_every_stated_fact_test = unittest.make(_merge_takes_every_stated_fact_test_impl)
 _merge_keeps_a_complete_first_record_test = unittest.make(_merge_keeps_a_complete_first_record_test_impl)
@@ -175,6 +216,9 @@ _agreement_rejects_two_link_hooks_test = unittest.make(_agreement_rejects_two_li
 _agreement_accepts_one_link_hook_from_two_hubs_test = unittest.make(_agreement_accepts_one_link_hook_from_two_hubs_test_impl)
 _agreement_rejects_two_build_hooks_test = unittest.make(_agreement_rejects_two_build_hooks_test_impl)
 _agreement_falls_back_to_root_without_label_test = unittest.make(_agreement_falls_back_to_root_without_label_test_impl)
+_merged_record_without_records_is_fresh_test = unittest.make(_merged_record_without_records_is_fresh_test_impl)
+_merged_record_carries_every_field_test = unittest.make(_merged_record_carries_every_field_test_impl)
+_merged_record_takes_library_version_when_unstated_test = unittest.make(_merged_record_takes_library_version_when_unstated_test_impl)
 
 def package_record_test_suite(name):
     """Declares the package-record merge unit tests.
@@ -193,6 +237,9 @@ def package_record_test_suite(name):
         _agreement_accepts_one_link_hook_from_two_hubs_test,
         _agreement_rejects_two_build_hooks_test,
         _agreement_falls_back_to_root_without_label_test,
+        _merged_record_without_records_is_fresh_test,
+        _merged_record_carries_every_field_test,
+        _merged_record_takes_library_version_when_unstated_test,
     )
 
 # --- through real rules: `split_package_fixture` ---
@@ -227,5 +274,42 @@ def _language_version_conflict_test_impl(ctx):
 
 language_version_conflict_test = analysistest.make(
     _language_version_conflict_test_impl,
+    expect_failure = True,
+)
+
+def _app_record_probe_impl(ctx):
+    """Builds the record a target that is itself a package would contribute."""
+    root = ctx.attr.package_root
+    record = merged_package_record(
+        ctx.label,
+        ctx.attr.package_name,
+        root,
+        ctx.attr.language_version,
+        [p for p in collect_packages(ctx.attr.deps) if p.package_root == root],
+    )
+    if record.language_version != ctx.attr.expected_language_version:
+        fail("%s: expected language_version %r, got %r" % (ctx.label, ctx.attr.expected_language_version, record.language_version))
+    return [DefaultInfo()]
+
+app_record_probe = rule(
+    implementation = _app_record_probe_impl,
+    attrs = {
+        "deps": attr.label_list(providers = [DartInfo]),
+        "expected_language_version": attr.string(),
+        "language_version": attr.string(),
+        "package_name": attr.string(mandatory = True),
+        "package_root": attr.string(mandatory = True),
+    },
+    doc = "Calls `merged_package_record` on the records its deps root at `package_root`.",
+)
+
+def _app_record_conflict_test_impl(ctx):
+    env = analysistest.begin(ctx)
+    asserts.expect_failure(env, "split_package_fixture:conflicting_record at dart/tests/split_package_fixture")
+    asserts.expect_failure(env, "split_package_fixture/lib/versioned:versioned at dart/tests/split_package_fixture")
+    return analysistest.end(env)
+
+app_record_conflict_test = analysistest.make(
+    _app_record_conflict_test_impl,
     expect_failure = True,
 )
