@@ -48,10 +48,7 @@ bzl_library(
     name = "pub_runner",
     srcs = ["pub_runner.bzl"],
     visibility = ["//dart/pub:__subpackages__"],
-    deps = [
-        "//dart/private:common",
-        "//dart/private:dart_compile",
-    ],
+    deps = ["//dart:utils"],
 )
 
 bzl_library(

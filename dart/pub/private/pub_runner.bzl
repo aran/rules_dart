@@ -7,8 +7,7 @@ work while that extension refuses a lock. It finds the SDK's `dart` through
 its runfiles and runs `dart pub` at the workspace root.
 """
 
-load("//dart/private:common.bzl", "runfiles_path")
-load("//dart/private:dart_compile.bzl", "dart_compile_action")
+load("//dart:utils.bzl", "dart_compile_action", "runfiles_path")
 
 def _pub_runner_impl(ctx):
     sdk = ctx.toolchains["//dart:toolchain_type"].dart_sdk_info

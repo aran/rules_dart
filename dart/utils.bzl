@@ -1,7 +1,7 @@
 """Public utility functions for Dart rules.
 
 Re-exports commonly needed helpers for package resolution, source collection,
-library root derivation, `package_config.json` generation, and source
+package root derivation, `package_config.json` generation, and source
 co-location. These are used by both rules_dart and rules_flutter.
 """
 
@@ -29,6 +29,7 @@ load(
     _resolve_code_assets = "resolve_code_assets",
     _runfiles_path = "runfiles_path",
 )
+load("//dart/private:dart_compile.bzl", _dart_compile_action = "dart_compile_action")
 load("//dart/private:dart_deps.bzl", _DART_TOOLCHAIN_TYPES_ATTR = "DART_TOOLCHAIN_TYPES_ATTR")
 load(
     "//dart/private:dart_import_check.bzl",
@@ -293,6 +294,13 @@ dart_entry_kernel_action = _dart_entry_kernel_action
 dart_link_kernel_action = _dart_link_kernel_action
 kernel_package_config = _kernel_package_config
 add_kernel_roots = _add_kernel_roots
+
+# `dart compile` over a kernel, or over a script that imports only `dart:`
+# libraries and `sources` beside it, in the toolchain's SDK (a cross
+# toolchain's too): the one action `dart_binary` and the pub runner build
+# their executables with. `sdk` is the `DartSdkInfo` of
+# `@rules_dart//dart:toolchain_type`, and the rule declares that toolchain.
+dart_compile_action = _dart_compile_action
 KERNEL_TOOL_ATTR = _KERNEL_TOOL_ATTR
 KERNEL_LIST_ATTR = _KERNEL_LIST_ATTR
 kernel_list = _kernel_list

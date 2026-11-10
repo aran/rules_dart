@@ -201,6 +201,7 @@ bzl_library(
     deps = [
         "//dart/private:build_settings",
         "//dart/private:common",
+        "//dart/private:dart_compile",
         "//dart/private:dart_info",
         "//dart/private:dart_library",
         "//dart/private:exec_groups",
