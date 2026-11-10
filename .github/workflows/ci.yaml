@@ -78,12 +78,12 @@ jobs:
           "tools"
         ]
   # `dart format` and `dart analyze` find their configuration by walking up from
-  # the file they are given, and that walk does not stop at the project root. It
-  # used to escape: under a sandbox it found nothing (so a repo's configured
-  # page width was silently ignored), and unsandboxed it climbed into the
+  # the file they are given, and that walk does not stop at the project root.
+  # Unbounded, it escapes: under a sandbox it finds nothing (so a repo's
+  # configured page width is silently ignored), and unsandboxed it climbs into the
   # execroot — or, in manifest runfiles mode, ran against the source tree
-  # outright. Which of those happened decided the verdict, so the same code
-  # passed or failed depending on the flags.
+  # outright. Which of those happens decides the verdict, so the same code
+  # passes or fails depending on the flags.
   #
   # The `dart_analyze` aspect's staged project bounds the walk, and
   # `e2e/analysis_failure`'s root analysis_options.yaml — deliberately left out

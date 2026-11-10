@@ -1019,10 +1019,6 @@ def synth_package_config(ctx, library_deps):
     return package_config, package_files
 
 # --- Native code-asset (frontend_server --native-assets) helpers ---
-#
-# SKELETON STUBS: signatures exist so `dart_test`/`dart_binary` load and the
-# unit tests fail on assertions rather than missing symbols. Implemented in a
-# follow-up edit.
 
 def target_dart_abi(ctx):
     """Returns the Dart code-asset ABI string for the target platform.
@@ -1656,11 +1652,10 @@ def asset_path_for(file, lib_root):
     short_path mirrors a source file's and the plain `lib_root` strip
     below stays correct.
 
-    Fails loudly when neither derivation matches. Previously this
-    silently returned the unmatched short_path, which produced
-    `--input-asset` / `--dep` values that couldn't be resolved to any
-    `package:` URI — the builder would then produce no output or emit an
-    unhelpful `AssetNotFoundException`.
+    Fails loudly when neither derivation matches: the unmatched short_path
+    would give `--input-asset` / `--dep` values that resolve to no `package:`
+    URI, and the builder would produce no output or an unhelpful
+    `AssetNotFoundException`.
 
     Args:
       file: The File to compute the asset path for.

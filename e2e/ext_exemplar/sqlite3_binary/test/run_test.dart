@@ -26,9 +26,9 @@ void main() {
     final exeName = Platform.isWindows ? 'app.exe' : 'app';
     final exe = r.rlocation('_main/sqlite3_binary/$exeName');
     final result = Process.runSync(exe, []);
-    // Regression: `defines` used to be passed to the kernel -> exe stage,
-    // where `dart compile` accepts `-D` and ignores it, so this printed
-    // `channel: UNSET` with no build-time diagnostic.
+    // `defines` must reach the front end: `dart compile` on a kernel accepts
+    // `-D` and ignores it, which would print `channel: UNSET` with no
+    // build-time diagnostic.
     expect(result.stdout, contains('channel: bazel-e2e'));
   });
 

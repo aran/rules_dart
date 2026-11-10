@@ -1,8 +1,7 @@
 """Unit tests for the semver helpers in dart/pub/private/version.bzl.
 
 Covers build-metadata (`+N`) parsing, release-version ordering, and the
-previously-problematic stable-vs-prerelease cross comparison (which used
-to type-mismatch at runtime).
+stable-vs-prerelease cross comparison.
 """
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
@@ -23,7 +22,7 @@ def _basic_ordering_test_impl(ctx):
 def _build_metadata_parses_test_impl(ctx):
     env = unittest.begin(ctx)
 
-    # Build-metadata stripping, previously crashed on +N suffix.
+    # Build metadata (`+N`) is stripped.
     asserts.equals(env, parse_semver("2.7.1+4"), parse_semver("2.7.1"), "+4 stripped")
     asserts.equals(env, parse_semver("2.7.1+meta.42"), parse_semver("2.7.1"), "+meta.42 stripped")
     return unittest.end(env)
@@ -38,9 +37,8 @@ def _build_metadata_ordering_test_impl(ctx):
 def _stable_vs_prerelease_test_impl(ctx):
     env = unittest.begin(ctx)
 
-    # Stable wins over any prerelease of the same release number. Previously
-    # this comparison crashed with a type mismatch; the unified 5-tuple
-    # shape makes it work cleanly.
+    # Stable wins over any prerelease of the same release number; both parse
+    # to the same 5-tuple shape, so they compare.
     asserts.true(env, semver_gt("1.0.0", "1.0.0-dev.1"), "stable > prerelease")
     asserts.false(env, semver_gt("1.0.0-dev.1", "1.0.0"), "prerelease < stable")
     asserts.true(env, semver_gt("1.0.0-rc.2", "1.0.0-rc.1"), "rc.2 > rc.1")

@@ -116,9 +116,9 @@ def _lib_root_accepts_external_repo_test_impl(ctx):
     return unittest.end(env)
 
 def _lib_root_rejects_source_outside_lib_test_impl(ctx):
-    # The reported case: a file beside `lib/` rather than inside it. Staging
-    # strips lib_root, so it lands outside `lib/` and no `package:` URI reaches
-    # it — previously surfacing only as a missing path at kernel-compile time.
+    # A file beside `lib/` rather than inside it. Staging strips lib_root, so
+    # it lands outside `lib/` and no `package:` URI reaches it; unchecked, it
+    # would surface only as a missing path at kernel-compile time.
     env = unittest.begin(ctx)
     err = check_files_under_lib_root(
         "//pkg:lib",

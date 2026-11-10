@@ -5,11 +5,9 @@ load("@rules_dart//dart:defs.bzl", "dart_library")
 # ("srcs may be empty: a dart_library with only deps is a valid aggregate
 # façade that re-exports its dependencies").
 #
-# Regression: building a `dart_binary` that depends on this used to fail at
-# analysis with `generate_package_config: no source files found for package
-# "facade"`. The fix in `dart/private/common.bzl` skips the entry rather
-# than failing — no consumer needs a `rootUri` when there are no sources
-# to resolve under it. The aspect analyzes this sourceless library under
+# The package config of a `dart_binary` that depends on this has no entry for
+# it: no consumer needs a `rootUri` when there are no sources to resolve under
+# it. The aspect analyzes this sourceless library under
 # `bazel test`, the same shape `dart analyze` reads through the package config.
 dart_library(
     name = "facade",

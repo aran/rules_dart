@@ -1,7 +1,7 @@
 """Per-library kernel compilation: `dart_module_aspect`, and the entry and link steps.
 
-An executable used to compile its whole program from source, so a library
-shared by many tests was compiled once per test. This is Dart's own modular
+An executable that compiled its whole program from source would compile a
+library shared by many tests once per test. This is Dart's own modular
 build (`build_modules`), in Bazel's terms:
 
   * Each `DartInfo` target's own sources are split as `build_modules`' fine

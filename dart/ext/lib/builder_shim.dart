@@ -576,8 +576,8 @@ Future<void> _runWithStaging(
     execByAsset.putIfAbsent(dep.asset, () => dep.exec);
   }
 
-  // Same-package deps land in the synthetic root; cross-package deps need
-  // a PackageConfig entry (currently unsupported).
+  // Same-package deps land in the synthetic root; other packages resolve
+  // through the package config built below.
   //
   // Staged by content, not `File.copy`: a copy keeps the source's mode, and
   // Bazel outputs are read-only, which on Windows also blocks deleting the
@@ -645,15 +645,14 @@ Future<void> _runWithStaging(
   // libraries lazily, but into the SAME AnalysisContext as the user's
   // code so their element models share one identity space.
   //
-  // Previously we listed every pub-cache package root in `includedPaths`.
-  // That produced one AnalysisContext per root, and a SEPARATE element
-  // model per context. Cross-context `asInstanceOf` calls then silently
-  // returned null — the visible symptom was drift_dev's
-  // `readTypeConverter` reporting `"Not a type converter"` on a
-  // `.map(const MyConverter())` expression whose static type resolved
+  // Listing every pub-cache package root in `includedPaths` would make one
+  // AnalysisContext per root, and a SEPARATE element model per context.
+  // Cross-context `asInstanceOf` calls then silently return null: drift_dev's
+  // `readTypeConverter` reports `"Not a type converter"` on a
+  // `.map(const MyConverter())` expression whose static type resolves
   // (from the staging context) to a `MyConverter` element whose
-  // `TypeConverter` supertype was NOT identical to the `TypeConverter`
-  // element drift loaded via `backend.readDart(drift2Uri)` (from the
+  // `TypeConverter` supertype is NOT identical to the `TypeConverter`
+  // element drift loads via `backend.readDart(drift2Uri)` (from the
   // drift pub-cache context). Forcing one context canonicalises them.
   final contextBuilder = buildAnalysisContext ?? _defaultBuildAnalysisContext;
   final collection = await contextBuilder(

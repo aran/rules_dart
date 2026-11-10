@@ -277,9 +277,8 @@ root is staged instead; the shim fails the action, naming both, when its `name`
 or the language version pub derives from its `environment.sdk` differs from the
 target's. An `analysis_options.yaml` or `stacked.json` passed there is staged
 and read as is; the shim writes an empty `stacked.json` only when none is
-passed. Users no longer hand-list
-`deps = ["lib/api.dart"]`; they add the owning `dart_library` target to
-`deps` instead.
+passed. A sibling source reaches a generator through the `dart_library` that
+owns it, in `deps`, not by naming its file.
 
 A sibling no library can hold yet, because the part generated for it does
 not exist (a macro's other `srcs`, or an earlier stage's output in a

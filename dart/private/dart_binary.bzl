@@ -91,8 +91,8 @@ def _dart_binary_impl(ctx):
 
     # Assets reach a binary two ways: propagated from any package in `deps`
     # that owns one (the upstream semantics — depending on a package gets you
-    # its assets), or named outright. The explicit attr stays valid for
-    # hand-written cases; it is simply no longer the only mechanism. The
+    # its assets), or named outright. The explicit attr is for
+    # hand-written cases. The
     # mapping is embedded in the kernel, its `relative` paths resolved against
     # the final executable at run time: each library is linked into
     # `<name>.native/` beside it, so the path holds wherever the executable and

@@ -482,8 +482,8 @@ def _apf_generated_nested_package_test_impl(ctx):
 
 def _apf_generated_sibling_package_test_impl(ctx):
     # Codegen target in a SIBLING Bazel package of the Dart package root:
-    # the generated short_path is entirely outside lib_root (previously a
-    # hard fail()); the owning package + declared path recover the asset.
+    # the generated short_path is entirely outside lib_root; the owning
+    # package + declared path recover the asset.
     env = unittest.begin(ctx)
     gen = _fake_gen(
         "pkg/gen/pkg/app/lib/a.shard.json",
