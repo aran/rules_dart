@@ -37,6 +37,7 @@ go_test(
         "dag_test.go",
         "generate_test.go",
         "parser_test.go",
+        "resolve_test.go",
         "test_tags_test.go",
     ],
     embed = [":dart"],

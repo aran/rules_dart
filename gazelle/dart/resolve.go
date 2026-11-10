@@ -59,10 +59,17 @@ func (d *dartLang) Resolve(c *config.Config, ix *resolve.RuleIndex, rc *repo.Rem
 		}
 	}
 
+	// A rule doesn't depend on a package it provides itself. Only a
+	// library provides one: a binary or test named like a package (the
+	// `bin/<package>.dart` that `dart create` writes) still depends on it.
+	provided := map[string]bool{}
+	for _, spec := range d.Imports(c, r, nil) {
+		provided[spec.Imp] = true
+	}
+
 	var deps []string
 	for _, pkg := range is.SortedPackages() {
-		// Skip self-references (importing own package)
-		if pkg == r.Name() {
+		if provided[pkg] {
 			continue
 		}
 
@@ -76,7 +83,7 @@ func (d *dartLang) Resolve(c *config.Config, ix *resolve.RuleIndex, rc *repo.Rem
 		// Try to find in the rule index (first-party deps). Skip exact
 		// self-matches (a rule whose package_name is indexed can match its
 		// own import set) but keep legitimate intra-package cross-target
-		// deps — those are filtered above only when pkg == r.Name().
+		// deps — those are filtered above only for a package this rule provides.
 		matches := ix.FindRulesByImportWithConfig(c, spec, dartName)
 		matched := false
 		for _, m := range matches {
