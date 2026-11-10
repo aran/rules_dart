@@ -42,6 +42,7 @@ const _ciFolders = [
   'e2e/pub_lock_upgrade',
   'e2e/pub_hub_surface',
   'e2e/pub_lock_cycle',
+  'e2e/pub_member_kind',
   'e2e/pub_override_root_lock',
   'e2e/pub_package_padded',
   'e2e/ext_exemplar',

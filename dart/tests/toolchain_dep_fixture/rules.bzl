@@ -1,7 +1,7 @@
 """A library rule whose Dart dependency comes from a toolchain, as `dart_proto_library`'s protobuf runtime does."""
 
 load("//dart:providers.bzl", "DartInfo")
-load("//dart:utils.bzl", "DART_TOOLCHAIN_TYPES_ATTR", "dart_info")
+load("//dart:utils.bzl", "DART_TOOLCHAIN_TYPES_ATTR", "dart_info", "dart_package_info")
 
 _TOOLCHAIN_TYPE = "//dart/tests/toolchain_dep_fixture:toolchain_type"
 
@@ -19,9 +19,12 @@ def _library_impl(ctx):
         DefaultInfo(files = depset(ctx.files.srcs)),
         dart_info(
             label = ctx.label,
-            package_name = ctx.attr.package_name,
-            lib_root = ctx.label.package,
-            language_version = "3.11",
+            packages = [dart_package_info(
+                label = ctx.label,
+                package_name = ctx.attr.package_name,
+                lib_root = ctx.label.package,
+                language_version = "3.11",
+            )],
             deps = [runtime],
             srcs = ctx.files.srcs,
             # Its sources import the package the runtime is built on, as

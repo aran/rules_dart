@@ -28,9 +28,10 @@ load("//dart:providers.bzl", "DartAnalyzableInfo", "DartCodeAssetInfo", "DartInf
 load("//dart/private:common.bzl", "package_code_assets")
 load(
     "//dart/private:dart_info.bzl",
-    "dart_analyzable_info_with_package",
+    "dart_analyzable_info_with_packages",
     "dart_info",
     "dart_info_no_package",
+    "dart_package_info",
 )
 
 def _wrapper_library_impl(ctx):
@@ -38,13 +39,16 @@ def _wrapper_library_impl(ctx):
         DefaultInfo(files = depset(ctx.files.srcs + ctx.files.resources)),
         dart_info(
             label = ctx.label,
-            package_name = ctx.attr.package_name,
-            lib_root = ctx.label.package,
+            packages = [dart_package_info(
+                label = ctx.label,
+                package_name = ctx.attr.package_name,
+                lib_root = ctx.label.package,
+                code_assets = ctx.attr.code_assets,
+                language_version = ctx.attr.language_version,
+            )],
             deps = ctx.attr.deps,
             srcs = ctx.files.srcs,
             resources = ctx.files.resources,
-            code_assets = ctx.attr.code_assets,
-            language_version = ctx.attr.language_version,
         ),
     ]
 
@@ -79,16 +83,19 @@ facade_library = rule(
 def _wrapper_executable_impl(ctx):
     return [
         DefaultInfo(files = depset(ctx.files.srcs + ctx.files.package_srcs)),
-        dart_analyzable_info_with_package(
+        dart_analyzable_info_with_packages(
             label = ctx.label,
-            package_name = ctx.attr.package_name,
-            lib_root = ctx.label.package,
+            packages = [dart_package_info(
+                label = ctx.label,
+                package_name = ctx.attr.package_name,
+                lib_root = ctx.label.package,
+                code_assets = ctx.attr.code_assets,
+                language_version = ctx.attr.language_version,
+            )],
             deps = ctx.attr.deps,
             srcs = ctx.files.srcs,
             package_srcs = ctx.files.package_srcs,
             resources = ctx.files.resources,
-            code_assets = ctx.attr.code_assets,
-            language_version = ctx.attr.language_version,
         ),
     ]
 
@@ -104,7 +111,7 @@ wrapper_executable = rule(
         "language_version": attr.string(),
     },
     doc = "An executable that also contributes a package, built through " +
-          "`dart_analyzable_info_with_package()`.",
+          "`dart_analyzable_info_with_packages()`.",
 )
 
 def _short_paths(dep):
@@ -318,8 +325,8 @@ def _no_package_name_test_impl(ctx):
 
 # The redirect that keeps the two constructors from collapsing into one. An
 # empty `package_name` means the caller wanted `dart_analyzable_info()`, and
-# saying so is cheaper than the package record with no name that `dart_info()`
-# would otherwise build.
+# saying so is cheaper than the package record with no name that
+# `dart_package_info()` would otherwise build.
 no_package_name_test = analysistest.make(
     _no_package_name_test_impl,
     expect_failure = True,
@@ -360,7 +367,7 @@ def _language_version_passthrough_test_impl(ctx):
 
     return analysistest.end(env)
 
-# `language_version` is a required parameter of `dart_info()`, which is a claim
+# `language_version` is a required parameter of `dart_package_info()`, which is a claim
 # about the *calling convention* and not about the value: a package that states
 # no language version is still expressible, by answering `""`. These two cases
 # are what says so — the stated value reaches the record, and the empty one

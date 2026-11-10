@@ -6,17 +6,20 @@ It returns `DartAnalyzableInfo` whose `srcs` are empty — nothing outside `lib/
 aspect finds a library's own files.
 """
 
-load("@rules_dart//dart:utils.bzl", "dart_analyzable_info_with_package")
+load("@rules_dart//dart:utils.bzl", "dart_analyzable_info_with_packages", "dart_package_info")
 
 def _package_only_library_impl(ctx):
     return [
         DefaultInfo(files = depset(ctx.files.srcs)),
-        dart_analyzable_info_with_package(
+        dart_analyzable_info_with_packages(
             label = ctx.label,
-            package_name = ctx.attr.package_name,
-            lib_root = ctx.label.package,
+            packages = [dart_package_info(
+                label = ctx.label,
+                package_name = ctx.attr.package_name,
+                lib_root = ctx.label.package,
+                language_version = "",
+            )],
             package_srcs = ctx.files.srcs,
-            language_version = "",
         ),
     ]
 
@@ -35,12 +38,15 @@ def _bundle_shaped_impl(ctx):
     ctx.actions.write(bundle, "built\n")
     return [
         DefaultInfo(files = depset([bundle])),
-        dart_analyzable_info_with_package(
+        dart_analyzable_info_with_packages(
             label = ctx.label,
-            package_name = ctx.attr.package_name,
-            lib_root = ctx.label.package,
+            packages = [dart_package_info(
+                label = ctx.label,
+                package_name = ctx.attr.package_name,
+                lib_root = ctx.label.package,
+                language_version = "",
+            )],
             package_srcs = ctx.files.srcs,
-            language_version = "",
         ),
     ]
 

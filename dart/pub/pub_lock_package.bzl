@@ -13,14 +13,11 @@ exactly as rules_dart's own pub rules do, and `make_dart_library_build_content`
 emits the same `dart_library` shape for non-plugin packages.
 """
 
+load("//dart/pub:pub_graph.bzl", "write_pubspec_dependencies")
 load("//dart/pub:yaml_parser.bzl", "parse_pubspec_deps", "parse_pubspec_sdk_constraint")
 load("//dart/pub/private:build_content.bzl", _classify_pub_hooks = "classify_pub_hooks", _make_dart_library_build_content = "make_dart_library_build_content", _make_pub_member_build_content = "make_pub_member_build_content")
 load("//dart/pub/private:language_version.bzl", _derive_language_version = "derive_language_version")
 load("//dart/pub/private:pub_archive.bzl", _check_pub_archive_sha256 = "check_pub_archive_sha256", _fetch_pub_archive = "fetch_pub_archive")
-
-# The names under the package's pubspec `dependencies:`, one per line, which
-# `pub_lock_library` plans from.
-PUBSPEC_DEPENDENCIES = "pubspec_dependencies.txt"
 
 # Re-export for consumers outside //dart/pub (rules_flutter's
 # flutter_pub_package). Loading the private bzl directly would trip
@@ -42,7 +39,7 @@ def _pub_lock_package_impl(ctx):
     # Read the package's SDK constraint, to mirror pub's per-package
     # languageVersion behaviour, and its dependencies, which it records for
     # its library repository and the library repositories of packages that
-    # reach it (`PUBSPEC_DEPENDENCIES`): parsed once here, not by each.
+    # reach it: parsed once here, not by each.
     language_version = ""
     pubspec_deps = []
     pubspec_path = ctx.path("pubspec.yaml")
@@ -52,7 +49,7 @@ def _pub_lock_package_impl(ctx):
             parse_pubspec_sdk_constraint(pubspec_content),
         )
         pubspec_deps = parse_pubspec_deps(pubspec_content)
-    ctx.file(PUBSPEC_DEPENDENCIES, "".join([d + "\n" for d in pubspec_deps]))
+    write_pubspec_dependencies(ctx, pubspec_deps)
 
     # A package that builds native code declares a build hook. rules_dart
     # cannot run it, so unless a curated `dart_code_asset` replaces it — or the

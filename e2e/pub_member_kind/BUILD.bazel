@@ -1,0 +1,61 @@
+load("@rules_dart//dart:defs.bzl", "dart_test")
+load(":checks.bzl", "member_kind_check")
+
+# Property: a rule set of its own can build pub packages that depend on each
+# other (alpha <-> beta) as one target, over rules_dart's public surface, with
+# its own member kind's data surviving into the library. alpha is a
+# `fancy_member` (with a greeting), beta rules_dart's `pub_package_member`, and
+# gamma, which beta depends on outside the cycle, a `fancy_member` again.
+
+# Either name of the cycle is the same library.
+member_kind_check(
+    name = "cycle_is_one_library",
+    analyzer_only_packages = ["engine"],
+    direct_deps = ["gamma"],
+    greetings = {"alpha": "hello from alpha"},
+    natives = [
+        "alpha_native.native",
+        "gamma_native.native",
+    ],
+    natives_of = [
+        "@fancy__alpha//:alpha_native",
+        "@fancy__beta//:beta_native",
+    ],
+    packages = [
+        "alpha",
+        "beta",
+    ],
+    targets = [
+        "@fancy__alpha//:alpha",
+        "@fancy__beta//:beta",
+    ],
+    transitive_greetings = [
+        "alpha=hello from alpha",
+        "gamma=hello from gamma",
+    ],
+    transitive_packages = [
+        "alpha",
+        "beta",
+        "gamma",
+    ],
+)
+
+member_kind_check(
+    name = "package_in_no_cycle",
+    analyzer_only_packages = ["engine"],
+    greetings = {"gamma": "hello from gamma"},
+    natives = ["gamma_native.native"],
+    natives_of = ["@fancy__gamma//:gamma_native"],
+    packages = ["gamma"],
+    targets = ["@fancy__gamma//:gamma"],
+    transitive_greetings = ["gamma=hello from gamma"],
+    transitive_packages = ["gamma"],
+)
+
+# The cycle compiles and runs: alpha calls beta, which calls alpha and gamma.
+dart_test(
+    name = "cycle_test",
+    size = "small",
+    main = "test/cycle_test.dart",
+    deps = ["@fancy__alpha//:alpha"],
+)

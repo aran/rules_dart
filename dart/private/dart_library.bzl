@@ -3,7 +3,7 @@
 load("//dart:providers.bzl", "DartCodeAssetInfo", "DartInfo")
 load("//dart/private:common.bzl", "PACKAGE_IDENTITY_ATTRS", "codegen_identity_error", "own_packages", "resolve_package_identity")
 load("//dart/private:dart_import_check.bzl", "LIBRARY_IMPORT_CHECKER_ATTRS", "library_import_check")
-load("//dart/private:dart_info.bzl", "dart_info", "package_lib_prefix")
+load("//dart/private:dart_info.bzl", "dart_info", "dart_package_info", "package_lib_prefix")
 load("//dart/private:exec_groups.bzl", "PORTABLE_EXEC_GROUPS")
 load("//dart/private:runtime.bzl", "RUNTIME_INDEPENDENT_ATTR", "runtime_reset_when_independent")
 
@@ -229,16 +229,19 @@ def _dart_library_impl(ctx):
     # action is the check of what its sources import, a validation.
     info = dart_info(
         label = ctx.label,
-        package_name = package_name,
-        lib_root = lib_root,
+        packages = [dart_package_info(
+            label = ctx.label,
+            package_name = package_name,
+            lib_root = lib_root,
+            code_assets = ctx.attr.code_assets,
+            language_version = identity.language_version,
+            has_unreplaced_hook = ctx.attr.has_unreplaced_hook,
+            version = ctx.attr.version,
+            link_hook = ctx.file.link_hook,
+        )],
         deps = ctx.attr.deps,
         srcs = own_srcs,
         resources = own_resources,
-        code_assets = ctx.attr.code_assets,
-        language_version = identity.language_version,
-        has_unreplaced_hook = ctx.attr.has_unreplaced_hook,
-        version = ctx.attr.version,
-        link_hook = ctx.file.link_hook,
     )
     return [
         DefaultInfo(

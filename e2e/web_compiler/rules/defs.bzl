@@ -16,6 +16,7 @@ load(
     "collect_transitive_srcs",
     "colocate_packages",
     "dart_info",
+    "dart_package_info",
     "derive_lib_root",
     "runtime_reset",
     "runtime_reset_when_independent",
@@ -46,9 +47,12 @@ def _module_library_impl(ctx):
     return [
         dart_info(
             label = ctx.label,
-            package_name = ctx.attr.package_name,
-            lib_root = derive_lib_root(ctx.label.workspace_root, ctx.label.package),
-            language_version = "",
+            packages = [dart_package_info(
+                label = ctx.label,
+                package_name = ctx.attr.package_name,
+                lib_root = derive_lib_root(ctx.label.workspace_root, ctx.label.package),
+                language_version = "",
+            )],
             deps = ctx.attr.deps,
             srcs = ctx.files.srcs,
         ),

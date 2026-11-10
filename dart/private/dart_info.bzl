@@ -15,14 +15,15 @@ merge to one function makes that mistake unrepresentable rather than merely
 warned against.
 
 Two constructors cover every `DartInfo` a build produces. `dart_info()` is for a
-target that *contributes a package* — it always records one `DartPackageInfo` of
-its own. `dart_info_no_package()` is for one that deliberately carries none:
-`flutter_material_icons` ships a font and no Dart, and provides `DartInfo` only
-because `flutter_application(deps = ...)` requires one on every dep. A third,
-`dart_info_packages()`, is rules_dart's own, for the one library pub generates
-over packages that depend on each other. None takes a field list, and the
-enumeration they share lives in `_merged_dart_info` below, so a field added to
-`DartInfo` is a change to this file and nowhere else.
+target that *contributes packages* — one for a library, several for a library
+over packages that depend on each other, which pub allows and Bazel does not,
+so they are one target. Each package is a `DartPackageInfo` built by
+`dart_package_info()` from what the rule states. `dart_info_no_package()` is
+for a target that deliberately carries none: `flutter_material_icons` ships a
+font and no Dart, and provides `DartInfo` only because
+`flutter_application(deps = ...)` requires one on every dep. Neither takes a
+field list, and the enumeration they share lives in `_merged_dart_info` below,
+so a field added to `DartInfo` is a change to this file and nowhere else.
 
 The narrow signature is the point for the second one. A target with no package
 can have no `srcs`, no `lib_root`, and no `code_assets` — assets ride
@@ -47,8 +48,8 @@ package's `lib/`, and the tempting alternative — a provider with its own
 above exists to prevent. Its two constructors therefore nest a `DartInfo` some
 constructor above built, instead of restating any part of it:
 `dart_analyzable_info()` nests a `dart_info_no_package()` for an entrypoint that
-contributes nothing, and `dart_analyzable_info_with_package()` nests a
-`dart_info()` for an executable whose sources *are* a package — the shape a
+contributes nothing, and `dart_analyzable_info_with_packages()` nests a
+`dart_info()` for a target whose sources *are* packages — the shape a
 downstream `flutter_test` has, and the one that made hand-building the outer
 provider look like the only option.
 
@@ -59,8 +60,8 @@ and is indexed directly by every consumer. The one deliberate exception is
 still holds; a fixture asserting that older producers keep working cannot be
 written through a constructor that makes them current.
 
-`language_version` is the one parameter these constructors require rather than
-default, which is a deliberate exception to the paragraph above: adding a field
+`language_version` is the one parameter `dart_package_info()` requires rather
+than defaults, which is a deliberate exception to the paragraph above: adding a field
 here is supposed to reach every call site *without* touching them, and this one
 obliges every caller to state it. The reason is that its empty value is not
 inert. An absent `languageVersion` in a generated `package_config.json` does not
@@ -136,16 +137,10 @@ def check_code_asset_ownership(label, package_name, assets):
 
 def dart_info(
         label,
-        package_name,
-        lib_root,
-        language_version,
+        packages,
         deps = [],
         srcs = [],
         resources = [],
-        code_assets = [],
-        has_unreplaced_hook = "",
-        version = "",
-        link_hook = None,
         indirect_deps = []):
     """Builds a `DartInfo` for a library, merging its dependencies' closures.
 
@@ -153,35 +148,27 @@ def dart_info(
     transitive is merged here. Adding a field to `DartInfo` is therefore a
     change to this file and nothing else.
 
+    A library contributes one package, built by `dart_package_info()`, or
+    several: pub allows packages to depend on each other (`dio` and
+    `dio_web_adapter`), Bazel does not allow a dependency cycle, so the
+    packages of such a cycle are one target, compiled together, each keeping
+    its own name and `lib_root`. A target contributing none is what
+    `dart_info_no_package()` is for.
+
     Attribute hygiene stays with the calling rule — whether `srcs` and
     `srcs_dir` are mutually exclusive, whether a file sits under the package's
     `lib/` — because those are statements about that rule's attributes, and a
     rule generating its package as one tree artifact has no such files to check.
-    What belongs here is what is true of any `DartInfo`: the merges, the package
-    record, and code-asset ownership.
+    What belongs here is what is true of any `DartInfo`: the merges.
 
     Args:
       label: The constructing rule's label, for error messages.
-      package_name: The Dart package name this target provides.
-      lib_root: `short_path`-based path to the package root (parent of `lib/`).
-        Empty string for the root package.
+      packages: The `DartPackageInfo` records this target contributes, each
+        from `dart_package_info()`. At least one.
       deps: Targets providing `DartInfo` whose closures are merged in.
-      srcs: This target's own Dart sources (or its source directory).
-      resources: This target's own non-Dart files under `lib/`.
-      code_assets: Targets providing `DartCodeAssetInfo` that this package owns.
-      language_version: Dart language version in `<major>.<minor>` form, or ""
-        when the package states none. Required to pass — not because a package
-        must have one, but because omitting the argument and stating `""` are
-        different intentions that used to produce the same call. An absent
-        `languageVersion` in `package_config.json` is not "no language version",
-        it is *the current SDK's*, so a forgotten argument silently compiles the
-        package under newer semantics than its pubspec allows. `""` remains a
-        legal, meaningful value; only not answering is gone.
-      has_unreplaced_hook: Path of a pub build hook with no Bazel replacement,
-        or "".
-      version: The package's own resolved version, or "" when unknown. Only pub
-        spokes know it; a hand-written `dart_library` leaves it empty.
-      link_hook: The package's `hook/link.dart` File, or None.
+      srcs: This target's own Dart sources (or its source directory), of all
+        its packages.
+      resources: This target's own non-Dart files under its packages' `lib/`.
       indirect_deps: Labels of targets that one of `deps` depends on and this
         target's sources import, for sources whose imports a generator
         chooses: `dart_proto_library`'s code imports the `fixnum` its protobuf
@@ -192,16 +179,9 @@ def dart_info(
     Returns:
       A `DartInfo`.
     """
-    this_pkg = package_record(
-        label = label,
-        package_name = package_name,
-        lib_root = lib_root,
-        language_version = language_version,
-        code_assets = code_assets,
-        has_unreplaced_hook = has_unreplaced_hook,
-        version = version,
-        link_hook = link_hook,
-    )
+    if not packages:
+        fail(("%s: `packages` is empty. A target that contributes no package " +
+              "is what `dart_info_no_package()` is for.") % label)
 
     dep_infos = [dep[DartInfo] for dep in deps]
     if indirect_deps:
@@ -218,10 +198,10 @@ def dart_info(
         indirect_deps = indirect_deps,
         srcs = srcs,
         resources = resources,
-        packages = [this_pkg],
+        packages = packages,
     )
 
-def package_record(
+def dart_package_info(
         label,
         package_name,
         lib_root,
@@ -232,25 +212,36 @@ def package_record(
         link_hook = None):
     """Builds the `DartPackageInfo` a package's own facts make, checking its code assets.
 
-    The one place a record is constructed from what a rule states; `dart_info()`
-    calls it for its single package, and the rule pub generates for packages
-    that depend on each other calls it once per package. Arguments are as for
-    `dart_info()`.
+    The one place a record is constructed from what a rule states; a record
+    copied from another goes through `derived_package_info()`.
 
     Args:
       label: The constructing rule's label, for error messages.
-      package_name: The Dart package name.
+      package_name: The Dart package name. Required: a package has one.
       lib_root: `short_path`-based path to the package root (parent of `lib/`).
-      language_version: Dart language version in `<major>.<minor>` form, or "".
+        Empty string for the root package.
+      language_version: Dart language version in `<major>.<minor>` form, or ""
+        when the package states none. Required to pass — not because a package
+        must have one, but because omitting the argument and stating `""` are
+        different intentions. An absent
+        `languageVersion` in `package_config.json` is not "no language version",
+        it is *the current SDK's*, so a forgotten argument silently compiles the
+        package under newer semantics than its pubspec allows. `""` remains a
+        legal, meaningful value; only not answering is refused.
       code_assets: Targets providing `DartCodeAssetInfo` that this package owns.
       has_unreplaced_hook: Path of a pub build hook with no Bazel replacement,
         or "".
-      version: The package's own resolved version, or "".
+      version: The package's own resolved version, or "" when unknown. Only pub
+        packages know it; a hand-written `dart_library` leaves it empty.
       link_hook: The package's `hook/link.dart` File, or None.
 
     Returns:
       A `DartPackageInfo`.
     """
+    if not package_name:
+        fail(("%s: `package_name` is empty. A target that contributes no " +
+              "package is what `dart_info_no_package()` and " +
+              "`dart_analyzable_info()` are for.") % label)
     own_assets = [dep[DartCodeAssetInfo] for dep in code_assets]
     err = check_code_asset_ownership(label, package_name, own_assets)
     if err != None:
@@ -263,32 +254,6 @@ def package_record(
         code_assets = tuple(own_assets),
         has_unreplaced_hook = has_unreplaced_hook,
         link_hook = link_hook,
-    )
-
-def dart_info_packages(packages, srcs, resources = [], deps = []):
-    """Builds a `DartInfo` for a target that contributes several packages at once.
-
-    Pub allows packages to depend on each other (`dio` and `dio_web_adapter`);
-    Bazel does not allow a dependency cycle, so the packages of such a cycle are
-    one target, compiled together, each keeping its own name and `lib_root`.
-    With one record this is `dart_info()`.
-
-    Args:
-      packages: The `DartPackageInfo` records, from `package_record()`.
-      srcs: The Dart sources of all of them.
-      resources: Their non-Dart files under `lib/`.
-      deps: Targets providing `DartInfo` whose closures are merged in.
-
-    Returns:
-      A `DartInfo`.
-    """
-    return _merged_dart_info(
-        dep_infos = [dep[DartInfo] for dep in deps],
-        dep_packages = _dep_packages(deps),
-        indirect_deps = [],
-        srcs = srcs,
-        resources = resources,
-        packages = packages,
     )
 
 def _dep_packages(deps):
@@ -359,26 +324,25 @@ def dart_analyzable_info(deps = [], srcs = []):
         package_srcs = depset(),
     )
 
-def dart_analyzable_info_with_package(
+def dart_analyzable_info_with_packages(
         label,
-        package_name,
-        lib_root,
-        language_version,
+        packages,
         deps = [],
         srcs = [],
         package_srcs = [],
-        resources = [],
-        code_assets = [],
-        version = ""):
-    """Builds a `DartAnalyzableInfo` for an executable that contributes a package.
+        resources = []):
+    """Builds a `DartAnalyzableInfo` for a target that contributes packages.
 
-    The sibling of `dart_analyzable_info()`, for the one case its narrow
-    signature cannot state: a target that is an executable *and* owns a package.
-    A downstream `flutter_test` is the shape — it names a `package_name` and its
+    The sibling of `dart_analyzable_info()`, for what its narrow signature
+    cannot state: a target whose sources *are* one or more packages. A
+    downstream `flutter_test` is one shape — it names a `package_name` and its
     sources are that package's `lib/` files, which import each other by
-    `package:` URI. Built through `dart_analyzable_info()`, those imports have no
-    package record to resolve against and every one of them reports
-    `uri_does_not_exist`; the analyzer is right, because nothing in a
+    `package:` URI. A library whose analysis closure differs from its compile
+    closure is another: `flutter_library` adds `sky_engine` for the analyzer
+    alone, and a Flutter pub library over a dependency cycle does that for
+    several packages at once. Built through `dart_analyzable_info()`, those
+    imports have no package record to resolve against and every one of them
+    reports `uri_does_not_exist`; the analyzer is right, because nothing in a
     package-less closure names the package they ask for.
 
     So this nests a `dart_info()` where the other nests a
@@ -392,56 +356,35 @@ def dart_analyzable_info_with_package(
     silently rather than loudly: staging places both by `short_path`, so
     analysis resolves either way, and a `lib/` file routed through `srcs` is
     merely invisible to every `DartInfo` consumer downstream. Split them by
-    `package:` reachability — a file under `lib_root`'s `lib/`, reachable as
+    `package:` reachability — a file under a package's `lib/`, reachable as
     `package:<package_name>/…`, belongs in `package_srcs`; a file outside it (a
     `test/` entrypoint, a `bin/` main) belongs in `srcs`, which no
     `DartPackageInfo` can name.
 
     Args:
       label: The constructing rule's label, for error messages.
-      package_name: The Dart package name this target provides. Required: an
-        executable contributing no package is what `dart_analyzable_info()` is
-        for.
-      lib_root: `short_path`-based path to the package root (parent of `lib/`).
-        Empty string for the root package.
+      packages: The `DartPackageInfo` records this target contributes, each
+        from `dart_package_info()`. At least one: an executable contributing no
+        package is what `dart_analyzable_info()` is for.
       deps: Targets providing `DartInfo` whose closures are merged in.
       srcs: The target's own sources belonging to no package's `lib/` — its
         entrypoint. Pass the rule's own `File`s, before any colocation copy:
         consumers stage by `short_path`, and a colocated copy's is the assembled
         directory's.
-      package_srcs: The target's own sources that *are* the package's `lib/`
+      package_srcs: The target's own sources that *are* its packages' `lib/`
         files, reachable as `package:<package_name>/…`.
-      resources: This target's own non-Dart files under `lib/`.
-      code_assets: Targets providing `DartCodeAssetInfo` that this package owns.
-      language_version: Dart language version in `<major>.<minor>` form, or ""
-        when the package states none. Required to pass — not because a package
-        must have one, but because omitting the argument and stating `""` are
-        different intentions that used to produce the same call. An absent
-        `languageVersion` in `package_config.json` is not "no language version",
-        it is *the current SDK's*, so a forgotten argument silently compiles the
-        package under newer semantics than its pubspec allows. `""` remains a
-        legal, meaningful value; only not answering is gone.
-      version: The package's own resolved version, or "" when unknown.
+      resources: This target's own non-Dart files under its packages' `lib/`.
 
     Returns:
-      A `DartAnalyzableInfo` whose nested `DartInfo` records this package.
+      A `DartAnalyzableInfo` whose nested `DartInfo` records these packages.
     """
-    if not package_name:
-        fail(("%s: `package_name` is empty. An executable that contributes no " +
-              "package is what `dart_analyzable_info()` is for; this " +
-              "constructor is for one that does.") % label)
-
     return DartAnalyzableInfo(
         dart_info = dart_info(
             label = label,
-            package_name = package_name,
-            lib_root = lib_root,
+            packages = packages,
             deps = deps,
             srcs = package_srcs,
             resources = resources,
-            code_assets = code_assets,
-            language_version = language_version,
-            version = version,
         ),
         srcs = depset(srcs),
         package_srcs = depset(package_srcs),
@@ -474,7 +417,7 @@ def derived_package_info(pkg, lib_root = None, code_assets = None, link_hook = N
       A `DartPackageInfo`.
     """
 
-    # Paired with the `DartPackageInfo(...)` in `dart_info()` above: one builds
+    # Paired with the `DartPackageInfo(...)` in `dart_package_info()` above: one builds
     # a record from a rule's attributes, this one from an existing record.
     # Those are the only two places the fields are named, and both are here.
     return DartPackageInfo(
@@ -498,7 +441,7 @@ def _merged_dart_info(
         packages):
     """Merges a target's own contributions with its dependencies' closures.
 
-    The single place `DartInfo`'s fields are enumerated. Both public
+    The single place `DartInfo`'s fields are enumerated. Every public
     constructors route through here, so neither has to be touched when a field
     is added — and neither can be the one that forgets to forward it.
 

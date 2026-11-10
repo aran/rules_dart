@@ -1,0 +1,7 @@
+name: beta
+version: 1.0.0
+environment:
+  sdk: ^3.5.0
+dependencies:
+  alpha: ^1.0.0
+  gamma: ^1.0.0

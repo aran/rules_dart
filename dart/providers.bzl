@@ -28,7 +28,7 @@ so a field added here needs no change in the rule sets that produce `DartInfo` \
 enumerating and merging each field by hand, and a field left empty rather than \
 forwarded silently discards every dependency's values.""",
     fields = {
-        "packages": "tuple[DartPackageInfo]: The packages this target contributes itself, also found in `transitive_packages`. One for a library; none for a target built by `dart_info_no_package()`; several for the one library pub generates for packages that depend on each other (pub allows a dependency cycle, Bazel does not), each keeping its own name and `lib_root`.",
+        "packages": "tuple[DartPackageInfo]: The packages this target contributes itself, also found in `transitive_packages`. One for a library; none for a target built by `dart_info_no_package()`; several for a library over packages that depend on each other (pub allows a dependency cycle, Bazel does not), each keeping its own name and `lib_root`.",
         "srcs": "list[File]: This target's own Dart sources (or its source directory), without its dependencies', whichever of its `packages` they belong to. The unit a per-library kernel compile builds.",
         "deps": "dict[Label, tuple[str]]: The targets this one depends on directly, as passed to `dart_info()` from whatever attribute or toolchain they came, each with the names of the packages it contributes (its `packages`). The modules a per-library compile builds against, and the packages it may import.",
         "indirect_deps": "list[Label]: Targets one of `deps` depends on that this target's sources import, which the layering check accepts as direct. See `dart_info()`.",
@@ -107,14 +107,14 @@ Build one with either constructor in `//dart:utils.bzl`, never by hand. \
 `dart_analyzable_info()` builds the nested `DartInfo` through \
 `dart_info_no_package()`, for an entrypoint that contributes no package — under \
 pub it belongs to the root package but sits outside its `lib/`. \
-`dart_analyzable_info_with_package()` builds it through `dart_info()`, for a \
-target whose sources *are* a package: without that record its own \
+`dart_analyzable_info_with_packages()` builds it through `dart_info()`, for a \
+target whose sources *are* packages: without their records its own \
 `package:<self>/…` imports resolve against nothing and every one of them \
 reports `uri_does_not_exist`.""",
     fields = {
-        "dart_info": "DartInfo: the dependency closure, as the `dart_analyzable_info*()` constructors build it — package-less, or carrying this target's own package record.",
+        "dart_info": "DartInfo: the dependency closure, as the `dart_analyzable_info*()` constructors build it — package-less, or carrying this target's own package records.",
         "srcs": "depset[File]: the target's own sources that belong to no package's `lib/` — its `main`, a `test/` entrypoint — and which therefore no `DartPackageInfo` can name. Sources that *are* a package's `lib/` files ride the nested `DartInfo` instead.",
-        "package_srcs": "depset[File]: the target's own sources that *are* its package's `lib/` files — the ones `dart_analyzable_info_with_package()` was given; empty for a package-less target. Named separately because the nested `DartInfo` holds them only inside its transitive closure, beside every dependency's, and a target's `DefaultInfo` (a web bundle, a test executable) need not list its sources at all. Optional: a producer built against a rules_dart without the field omits it.",
+        "package_srcs": "depset[File]: the target's own sources that *are* its packages' `lib/` files — the ones `dart_analyzable_info_with_packages()` was given; empty for a package-less target. Named separately because the nested `DartInfo` holds them only inside its transitive closure, beside every dependency's, and a target's `DefaultInfo` (a web bundle, a test executable) need not list its sources at all. Optional: a producer built against a rules_dart without the field omits it.",
     },
 )
 

@@ -30,9 +30,10 @@ load(
 load(
     "//dart/private:dart_info.bzl",
     _dart_analyzable_info = "dart_analyzable_info",
-    _dart_analyzable_info_with_package = "dart_analyzable_info_with_package",
+    _dart_analyzable_info_with_packages = "dart_analyzable_info_with_packages",
     _dart_info = "dart_info",
     _dart_info_no_package = "dart_info_no_package",
+    _dart_package_info = "dart_package_info",
 )
 load(
     "//dart/private:dart_library.bzl",
@@ -84,7 +85,26 @@ load(
 # the provider is then a change here and nowhere else, and no caller can silence
 # a missing field by declaring it empty and dropping its dependencies' values.
 # Reading stays direct — `DartInfo` is indexed off targets as before.
+#
+#     dart_info(
+#         label = ctx.label,
+#         packages = [dart_package_info(
+#             label = ctx.label,
+#             package_name = "foo",
+#             lib_root = derive_lib_root(ctx.label.workspace_root, ctx.label.package),
+#             language_version = ctx.attr.language_version,
+#         )],
+#         deps = ctx.attr.deps,
+#         srcs = ctx.files.srcs,
+#     )
+#
+# `packages` holds one record for a library, or several for one target built
+# over packages that depend on each other (pub allows it, Bazel does not).
 dart_info = _dart_info
+
+# The `DartPackageInfo` record of a package a target contributes, from what the
+# rule states about it; checks that its code assets are namespaced to it.
+dart_package_info = _dart_package_info
 
 # The other constructor, for a target that ships no Dart package at all and
 # provides `DartInfo` only to satisfy a `deps` attribute that requires one (a
@@ -100,14 +120,15 @@ dart_info_no_package = _dart_info_no_package
 # `deps` to see: `deps` requires `DartInfo`, and a binary is not a dependency.
 dart_analyzable_info = _dart_analyzable_info
 
-# The same wrapper for an executable that *also* contributes a package — a
-# downstream test rule whose `srcs` are its package's `lib/` files plus an
-# entrypoint outside them. Routes the package through [dart_info], so the
-# target's own `package:<self>/…` imports resolve under the `dart_analyze`
-# aspect rather than reporting `uri_does_not_exist`. The source split is the
-# thing to get right: `srcs` stays the package-less entrypoint, `package_srcs`
-# the package's own files.
-dart_analyzable_info_with_package = _dart_analyzable_info_with_package
+# The same wrapper for a target that contributes packages — a downstream test
+# rule whose `srcs` are its package's `lib/` files plus an entrypoint outside
+# them, or a library whose analysis closure adds dependencies its compile does
+# not (`flutter_library`'s `sky_engine`). Routes the packages through
+# [dart_info], so the target's own `package:<self>/…` imports resolve under the
+# `dart_analyze` aspect rather than reporting `uri_does_not_exist`. The source
+# split is the thing to get right: `srcs` stays the package-less entrypoint,
+# `package_srcs` the packages' own files.
+dart_analyzable_info_with_packages = _dart_analyzable_info_with_packages
 
 collect_packages = _collect_packages
 

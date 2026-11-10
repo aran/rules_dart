@@ -167,7 +167,7 @@ dart_library(
         return _LOAD + "\n" + library
     return _LOAD + _TEST_RUNNER_LOAD + "\n" + library + "\n" + _TEST_RUNNER_BLOCK
 
-_PUB_LIBRARY_LOAD = 'load("@rules_dart//dart/pub/private:pub_library.bzl", "{rule}")\n'
+_PUB_LIBRARY_LOAD = 'load("@rules_dart//dart/pub:pub_library.bzl", "{rule}")\n'
 
 def _list_block(attr, items):
     if not items:

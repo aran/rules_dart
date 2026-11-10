@@ -11,6 +11,7 @@ bzl_library(
     srcs = ["pub_lock_package.bzl"],
     visibility = ["//visibility:public"],
     deps = [
+        ":pub_graph",
         ":yaml_parser",
         "//dart/pub/private:build_content",
         "//dart/pub/private:pub_archive",
@@ -22,9 +23,26 @@ bzl_library(
     srcs = ["pub_lock_library.bzl"],
     visibility = ["//visibility:public"],
     deps = [
-        ":pub_lock_package",
+        ":pub_graph",
         "//dart/pub/private:build_content",
-        "//dart/pub/private:pub_graph",
+    ],
+)
+
+bzl_library(
+    name = "pub_graph",
+    srcs = ["pub_graph.bzl"],
+    visibility = ["//visibility:public"],
+)
+
+bzl_library(
+    name = "pub_library",
+    srcs = ["pub_library.bzl"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//dart:providers",
+        "//dart/private:dart_info",
+        "//dart/private:dart_library",
+        "//dart/private:runtime",
     ],
 )
 

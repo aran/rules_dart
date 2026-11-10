@@ -27,21 +27,3 @@ bzl_library(
     srcs = ["version.bzl"],
     visibility = ["//dart/pub:__subpackages__"],
 )
-
-bzl_library(
-    name = "pub_graph",
-    srcs = ["pub_graph.bzl"],
-    visibility = ["//dart/pub:__subpackages__"],
-)
-
-bzl_library(
-    name = "pub_library",
-    srcs = ["pub_library.bzl"],
-    visibility = ["//visibility:public"],
-    deps = [
-        "//dart:providers",
-        "//dart/private:dart_info",
-        "//dart/private:dart_library",
-        "//dart/private:runtime",
-    ],
-)
