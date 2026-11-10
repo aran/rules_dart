@@ -20,18 +20,21 @@ permissions:
   contents: write
 jobs:
   release:
-    uses: bazel-contrib/.github/.github/workflows/release_ruleset.yaml@v7.7.0
+    uses: ./.github/workflows/overhead-release.yaml
     with:
       release_files: rules_dart-*.tar.gz
-      prerelease: false
       tag_name: ${{ inputs.tag_name || github.ref_name }}
   publish:
     needs: release
-    uses: ./.github/workflows/publish.yaml
+    uses: ./.github/workflows/overhead-publish.yaml
     with:
       tag_name: ${{ inputs.tag_name || github.ref_name }}
     secrets:
       publish_token: ${{ secrets.publish_token || secrets.BCR_PUBLISH_TOKEN }}
+    permissions:
+      attestations: write
+      contents: write
+      id-token: write
   pub-publish:
     needs: release
     runs-on: ubuntu-latest

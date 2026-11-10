@@ -88,7 +88,16 @@ go_sdk.download(version = "1.27.3")
 # downstream modules get it; self-registers its copy toolchains.
 bazel_dep(name = "bazel_lib", version = "3.7.2")
 
-bazel_dep(name = "rules_multitool", version = "1.11.1", dev_dependency = True)
+# The development tooling rules_dart shares with the repositories built on it
+# (the commit policy, release notes, tool pins, lock checks): overhead/, a
+# module of its own that REPO.bazel keeps out of this one's packages.
+# `bazel run @overhead//changelog:check`, say.
+bazel_dep(name = "overhead", version = "0.0.0", dev_dependency = True)
+local_path_override(
+    module_name = "overhead",
+    path = "overhead",
+)
+
 bazel_dep(name = "rules_shell", version = "0.8.0", dev_dependency = True)
 bazel_dep(name = "bazel_skylib_gazelle_plugin", version = "1.9.2", dev_dependency = True)
 bazel_dep(name = "bazelrc-preset.bzl", version = "1.9.2", dev_dependency = True)
@@ -104,14 +113,6 @@ register_toolchains(
     "//dart/tests/toolchain_dep_fixture:runtime_toolchain",
     dev_dependency = True,
 )
-
-multitool = use_extension(
-    "@rules_multitool//multitool:extension.bzl",
-    "multitool",
-    dev_dependency = True,
-)
-multitool.hub(lockfile = "//:multitool.lock.json")
-use_repo(multitool, "multitool")
 
 # Pub deps for the //dart/ext/* shim binaries (build_runner replacement).
 # Pinned by //dart/ext:pubspec.lock; resolved into @ext_pub_deps so per-builder

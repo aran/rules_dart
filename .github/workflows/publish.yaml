@@ -1,18 +1,7 @@
-# Publish new releases to Bazel Central Registry.
+# Publishes a release to the Bazel Central Registry again, should the run
+# release.yaml started have failed: dispatch it from the GitHub UI with the tag.
 name: Publish to BCR
 on:
-  # Run the publish workflow after a successful release
-  # Will be triggered from the release.yaml workflow
-  workflow_call:
-    inputs:
-      tag_name:
-        required: true
-        type: string
-    secrets:
-      publish_token:
-        required: true
-  # In case of problems, let release engineers retry by manually dispatching
-  # the workflow from the GitHub UI
   workflow_dispatch:
     inputs:
       tag_name:
@@ -21,18 +10,12 @@ on:
         type: string
 jobs:
   publish:
-    uses: bazel-contrib/publish-to-bcr/.github/workflows/publish.yaml@v1.5.1
+    uses: ./.github/workflows/overhead-publish.yaml
     with:
       tag_name: ${{ inputs.tag_name }}
-      # Opens the PR as a draft; marking it "ready for review" triggers BCR
-      # auto-approval. This is the default, made explicit for visibility.
-      draft: true
-      # GitHub repository which is a fork of the upstream where the Pull Request will be opened.
-      registry_fork: aran/bazel-central-registry
+    secrets:
+      publish_token: ${{ secrets.BCR_PUBLISH_TOKEN }}
     permissions:
       attestations: write
       contents: write
       id-token: write
-    secrets:
-      # Necessary to push to the BCR fork, and to open a pull request against a registry
-      publish_token: ${{ secrets.publish_token || secrets.BCR_PUBLISH_TOKEN }}

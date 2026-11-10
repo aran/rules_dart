@@ -24,10 +24,41 @@ without it prek keeps them and runs them too. The installed hook calls the prek 
 `uv tool upgrade prek` and `bazel clean`. Set `PREK_QUIET=1` in your shell
 profile for hooks that print nothing unless one fails.
 
-To run every hook without installing anything beyond Bazel:
+The commit message, buildifier, yamlfmt, typos and actionlint hooks run overhead's tools from
+`.bazel_env/bin`, without Bazel. Set that up in the main checkout, and again
+after any `bazel clean` or bump of overhead's pin:
 
 ```shell
-bazel run @multitool//tools/prek -- -C "$PWD" run --all-files
+bazel run --noincompatible_auto_exec_groups @overhead//:bazel_env
+```
+
+A hook that fails with "No such file or directory" means it is not set up.
+The flag is there because bazel_env 0.10.0 fails analysis under
+`--incompatible_auto_exec_groups`, which `.bazelrc` sets; it costs the next
+build a re-analysis, not a rebuild.
+
+A worktree made with `git worktree add` needs it too: run the command above in
+the worktree, or link its `.bazel_env` to the main checkout's.
+
+To run every hook over every file, as CI does:
+
+```shell
+prek run --all-files
+```
+
+On Windows, where bazel_env does not run, install the hooks without the six
+that need it:
+
+```shell
+prek install -f --skip commit-message --skip buildifier --skip buildifier-lint --skip yamlfmt --skip typos --skip actionlint
+```
+
+and before you push, run every check with the tools through `bazel run`
+instead. `--enable_runfiles` is needed by the Windows launchers of the pinned
+tools:
+
+```shell
+bazel run --enable_runfiles @overhead//lint:prek -- run --all-files --hook-stage manual
 ```
 
 ## Commit messages

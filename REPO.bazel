@@ -9,4 +9,4 @@ repo(
 # overhead/ is a module of its own: the development tooling rules_dart shares
 # with the repositories built on it. It is not a package of this module, here
 # or in a consumer's copy of it.
-ignore_directories(["overhead"])
+ignore_directories([".bazel_env", "overhead"])

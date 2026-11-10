@@ -464,14 +464,19 @@ jobs:
       - name: dart_test — run tests under -c dbg
         working-directory: e2e/dart_test
         run: bazel test -c dbg --test_output=errors //...
+  # Every hook in .pre-commit-config.yaml, with the prek overhead pins, as a
+  # commit runs them: one build puts overhead's tools in .bazel_env, then the
+  # hooks run them without Bazel.
   pre-commit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: j178/prek-action@v3.0.1
+      - uses: bazel-contrib/setup-bazel@0.19.1
         with:
-          # Keep in step with prek in multitool.lock.json
-          prek-version: 0.5.5
+          bazelisk-cache: true
+          repository-cache: true
+      - run: bazel run --noincompatible_auto_exec_groups @overhead//:bazel_env -- update-symlink
+      - run: bazel run --noincompatible_auto_exec_groups @overhead//lint:prek -- run --all-files --show-diff-on-failure
   # For branch protection settings, this job provides a "stable" name that can be used to gate PR merges
   # on "all matrix jobs were successful".
   conclusion:

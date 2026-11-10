@@ -3,8 +3,8 @@
 ## Changelog
 
 The changelog is built from `Changelog:` trailers on commits. Nobody edits a
-changelog file by hand. `cliff.toml` renders the trailers between version tags
-into the release notes.
+changelog file by hand. overhead's `cliff.toml` renders the trailers between
+version tags into the release notes.
 
 **When.** Add a trailer when a user of this project would notice the change:
 new or removed API, a changed default or behaviour, a bug they could hit, a
@@ -41,16 +41,21 @@ Changelog: Refactored asset bundling so hot restart works                   # ho
 Changelog: Because users hit X, we now Y                                    # why
 ```
 
-**Where.** The trailer goes in the final paragraph of the message with the
-other trailers, with no blank line inside that paragraph. Mark breaking changes
-with `!` in the subject (`feat(ios)!: ...`), not a `BREAKING CHANGE:` footer,
-which git does not treat as a trailer.
+**Where.** The trailer goes near the end of the message with the other
+trailers, each entry on one line of its own. Every line starting `Changelog:` is
+an entry wherever it sits, and anything may follow it, an attribution paragraph
+included. Mark breaking changes with `!` in the subject (`feat(ios)!: ...`), not
+a `BREAKING CHANGE:` footer, which git does not treat as a trailer.
 
-**Checks.** `bazel run //tools/changelog:check` checks the commit subject and
-the trailers. It runs as the `commit-msg` hook, and in CI on every push where
-the repo has CI. To install the hook, `uv tool install prek`, then
+**Checks.** `bazel run @overhead//changelog:check` checks the commit subject
+and the trailers. It runs as the `commit-msg` hook, and in CI on every push
+where the repo has CI. To install the hook, `uv tool install prek`, then
 `prek install -f` (without `-f`, prek keeps an existing hook and runs both).
-`bazel run //tools/changelog` prints the unreleased notes so you can see how
+The hook runs the check from `.bazel_env/bin`. Set that up once in each
+checkout with `bazel run --noincompatible_auto_exec_groups
+@overhead//:bazel_env`; a hook failing with "No such file or directory" means
+it is missing.
+`bazel run @overhead//changelog` prints the unreleased notes so you can see how
 they read.
 
 ## Tooling
@@ -62,3 +67,8 @@ with `args`, say), use it rather than a script that only forwards arguments.
 Shell is acceptable only where an outside interface requires it, such as the
 `release_prep.sh` the bazel-contrib release workflow calls; keep it to the
 lines that interface needs.
+
+Tooling these repositories share lives in overhead, a module in rules_dart's
+`overhead/` that each takes as a dev dependency: the commit policy, release
+notes and release workflows, the tool pins, the lock checks. Change it there,
+not in a copy. What only one repository needs stays in that repository.

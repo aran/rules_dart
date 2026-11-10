@@ -409,29 +409,34 @@ outdated dependencies.
 
 **Files**:
 
-- `multitool.lock.json` — tool versions, URLs, and SHA-256 hashes
+- `overhead/multitool.lock.json` — tool versions, URLs, and SHA-256 hashes,
+  for every repository that uses overhead
 
 **Managed tools**: `git-cliff`, `prek`, `typos`, `yamlfmt`
 
 **Procedure**:
 
-1. For each tool in `multitool.lock.json`, check its GitHub releases for newer versions
+1. For each tool in `overhead/multitool.lock.json`, check its GitHub releases
+   for newer versions. Take prek no newer than the newest that
+   `j178/prek-action` knows a checksum for, for the repositories whose CI
+   installs prek with that action.
 2. Download archives for all platform variants (macOS/Linux, arm64/x86_64)
 3. Compute SHA-256 hashes and update the lockfile entries
-4. Regenerate lock files: `dart run tool/refresh_locks.dart`
-5. Run `bazel run @multitool//tools/yamlfmt -- -lint -gitignore_excludes "$PWD"` and
-   `bazel run @multitool//tools/typos -- "$PWD"` to verify the updated tools work
+4. Regenerate lock files: `bazel run --lockfile_mode=off @overhead//locks -- --refresh`
+5. Run `bazel run @overhead//lint:prek -- run --all-files --hook-stage manual`
+   to verify the updated tools work, `uv tool upgrade prek` so the installed
+   git hooks use a prek at least as new, and
+   `bazel run --noincompatible_auto_exec_groups @overhead//:bazel_env` so the
+   hooks run the new typos and yamlfmt.
 
-**Verification**: Both tools run successfully against the repo.
+**Verification**: The hooks pass.
 
-Also update the matching `rev:` values in `.pre-commit-config.yaml` for yamlfmt
-and typos to keep CI and local hooks in sync. When bumping prek, update
-`prek-version` in `.github/workflows/ci.yaml` to match, and run
-`uv tool upgrade prek` so the installed git hooks use the new version.
+The hooks run yamlfmt and typos through overhead, so there is no second pin to
+keep in step.
 
 **Automation**: `/bump-multitool` slash command. Alternatively, install the
 [multitool CLI](https://github.com/theoremlp/multitool) and run
-`multitool --lockfile ./multitool.lock.json update`.
+`multitool --lockfile ./overhead/multitool.lock.json update`.
 
 ---
 
