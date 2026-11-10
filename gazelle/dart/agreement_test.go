@@ -179,3 +179,14 @@ func TestScopePackageFacts(t *testing.T) {
 		}
 	}
 }
+
+func TestNaturalLess(t *testing.T) {
+	ordered := []string{"a/build.yaml:1: x", "a/build.yaml:9: x", "a/build.yaml:13: x", "a/build.yaml:13: y", "b"}
+	for i := range ordered {
+		for j := range ordered {
+			if got := naturalLess(ordered[i], ordered[j]); got != (i < j) {
+				t.Errorf("naturalLess(%q, %q) = %v", ordered[i], ordered[j], got)
+			}
+		}
+	}
+}

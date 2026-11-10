@@ -1,0 +1,2 @@
+# gazelle:dart_build_yaml_ignore targets.$default.builders.json_serializable.generate_for
+# gazelle:dart_build_yaml_ignore targets.other

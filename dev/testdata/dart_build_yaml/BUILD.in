@@ -1,1 +1,5 @@
 # gazelle:dart_builder_config CopyWith {"copy_with_null": true}
+# A part of build.yaml the build goes without.
+# gazelle:dart_build_yaml_ignore targets.$default.builders.json_serializable.generate_for
+# gazelle:dart_build_yaml_ignore targets.$default.builders.build_web_compilers:entrypoint
+# gazelle:dart_build_yaml_ignore targets.$default.builders.mockito:mockBuilder.options

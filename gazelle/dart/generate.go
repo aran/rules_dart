@@ -18,6 +18,8 @@ import (
 // then the analysis options targets (analysis_options.go).
 func (d *dartLang) GenerateRules(args language.GenerateArgs) language.GenerateResult {
 	res := d.generateDartRules(args)
+	// After any codegen of the directory has read its build.yaml.
+	d.checkIgnores(args.Config, args.Rel)
 	taken := map[string]bool{}
 	for _, r := range res.Gen {
 		taken[r.Name()] = true
@@ -160,7 +162,7 @@ func (d *dartLang) packageLibraryRules(args language.GenerateArgs) ([]*rule.Rule
 	registry, _ := args.Config.Exts[extKeyBuilderRegistry].(*builderRegistry)
 	if len(scan.annotated) > 0 {
 		// The options the package's build.yaml states for the builders.
-		registry = d.withBuildYaml(args, registry)
+		registry = d.withBuildYaml(args, registry, scan)
 	}
 	gen, imports, genSrcs, runtime := d.codegenRules(args, scan, registry)
 

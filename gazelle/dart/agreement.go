@@ -146,11 +146,44 @@ func (d *dartLang) DoneGeneratingRules() {
 	for m := range d.errs.errors {
 		msgs = append(msgs, m)
 	}
-	sort.Strings(msgs)
+	sort.Slice(msgs, func(i, j int) bool { return naturalLess(msgs[i], msgs[j]) })
 	for _, m := range msgs[:len(msgs)-1] {
 		log.Print(m)
 	}
 	log.Fatal(msgs[len(msgs)-1])
+}
+
+// naturalLess orders a before b as text, but a run of digits by its number,
+// so that `build.yaml:9` comes before `build.yaml:13`.
+func naturalLess(a, b string) bool {
+	for a != "" && b != "" {
+		da, db := digitRun(a), digitRun(b)
+		if da > 0 && db > 0 {
+			na, nb := strings.TrimLeft(a[:da], "0"), strings.TrimLeft(b[:db], "0")
+			if len(na) != len(nb) {
+				return len(na) < len(nb)
+			}
+			if na != nb {
+				return na < nb
+			}
+			a, b = a[da:], b[db:]
+			continue
+		}
+		if a[0] != b[0] {
+			return a[0] < b[0]
+		}
+		a, b = a[1:], b[1:]
+	}
+	return len(a) < len(b)
+}
+
+// digitRun is the length of the run of ASCII digits s starts with.
+func digitRun(s string) int {
+	n := 0
+	for n < len(s) && s[n] >= '0' && s[n] <= '9' {
+		n++
+	}
+	return n
 }
 
 func quoted(v string) string {

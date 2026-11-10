@@ -8,7 +8,7 @@ import (
 
 func TestBuilderOptionsCarriesOptions(t *testing.T) {
 	known := map[string]bool{"json_serializable:json_serializable": true, "freezed:freezed": true}
-	cfgs, problems := builderOptions([]byte(`
+	read := builderOptions([]byte(`
 targets:
   $default:
     builders:
@@ -22,8 +22,9 @@ targets:
       freezed|freezed:
         options: {}
 `), known)
-	if len(problems) != 0 {
-		t.Fatalf("problems: %v", problems)
+	cfgs := read.cfgs
+	if len(read.parts) != 0 || len(read.errors) != 0 {
+		t.Fatalf("problems: %v %v", read.parts, read.errors)
 	}
 	want := map[string]string{
 		"json_serializable:json_serializable": `{"any_map":false,"checked":null,"explicit_to_json":true,"field_rename":"snake","max":3}`,
@@ -35,18 +36,17 @@ targets:
 }
 
 func TestBuilderOptionsEmptyFile(t *testing.T) {
-	cfgs, problems := builderOptions([]byte("# nothing\n"), nil)
-	if len(cfgs) != 0 || len(problems) != 0 {
-		t.Errorf("got %v, %v", cfgs, problems)
+	read := builderOptions([]byte("# nothing\n"), nil)
+	if len(read.cfgs) != 0 || len(read.parts) != 0 || len(read.errors) != 0 {
+		t.Errorf("got %+v", read)
 	}
 }
 
-// Every part of build.yaml but a known builder's options is a problem, named
-// by its path.
+// Every part of build.yaml but a known builder's options is a part Gazelle
+// cannot carry, named by its key path and the line of its key.
 func TestBuilderOptionsRefusesTheRest(t *testing.T) {
 	known := map[string]bool{"json_serializable:json_serializable": true}
-	cfgs, problems := builderOptions([]byte(`
-global_options:
+	read := builderOptions([]byte(`global_options:
   json_serializable:
     options: {}
 targets:
@@ -63,52 +63,76 @@ targets:
   other:
     builders: {}
 `), known)
-	want := []string{
-		"`global_options`",
-		"`targets.$default.builders.build_web_compilers:entrypoint` names a builder",
-		"`targets.$default.builders.json_serializable.dev_options`",
-		"`targets.$default.builders.json_serializable.generate_for`",
-		"`targets.$default.sources`",
-		"`targets.other`",
+	want := []struct {
+		path string
+		line int
+	}{
+		{"global_options", 1},
+		{"targets.$default.sources", 6},
+		{"targets.$default.builders.json_serializable.generate_for", 9},
+		{"targets.$default.builders.json_serializable.dev_options", 10},
+		{"targets.$default.builders.build_web_compilers:entrypoint", 13},
+		{"targets.other", 15},
 	}
-	if len(problems) != len(want) {
-		t.Fatalf("got %d problems, want %d: %v", len(problems), len(want), problems)
+	if len(read.errors) != 0 {
+		t.Fatalf("errors: %v", read.errors)
 	}
-	for _, w := range want {
-		found := false
-		for _, p := range problems {
-			if strings.HasPrefix(p, w) {
-				found = true
-			}
+	if len(read.parts) != len(want) {
+		t.Fatalf("got %d parts, want %d: %v", len(read.parts), len(want), read.parts)
+	}
+	for i, w := range want {
+		if got := read.parts[i]; got.path != w.path || got.line != w.line {
+			t.Errorf("part %d = %s:%d, want %s:%d", i, got.path, got.line, w.path, w.line)
 		}
-		if !found {
-			t.Errorf("no problem starts with %s: %v", w, problems)
-		}
+	}
+	if !strings.HasPrefix(read.parts[4].why, "names a builder") {
+		t.Errorf("why = %q", read.parts[4].why)
 	}
 	// What can be carried still is.
-	if got := cfgs["json_serializable:json_serializable"]; got != `{"checked":false}` {
+	if got := read.cfgs["json_serializable:json_serializable"]; got != `{"checked":false}` {
 		t.Errorf("options = %q", got)
+	}
+}
+
+// Options reached through a YAML alias are carried as the node it names.
+func TestBuilderOptionsAlias(t *testing.T) {
+	known := map[string]bool{"json_serializable:json_serializable": true}
+	read := builderOptions([]byte(`
+common: &common {checked: true}
+targets:
+  $default:
+    builders:
+      json_serializable:
+        options: *common
+`), known)
+	if got := read.cfgs["json_serializable:json_serializable"]; got != `{"checked":true}` {
+		t.Errorf("options = %q", got)
+	}
+	if len(read.parts) != 1 || read.parts[0].path != "common" {
+		t.Errorf("parts = %v", read.parts)
 	}
 }
 
 func TestBuilderOptionsTwice(t *testing.T) {
 	known := map[string]bool{"json_serializable:json_serializable": true}
-	_, problems := builderOptions([]byte(`
+	read := builderOptions([]byte(`
 targets:
   $default:
     builders:
       json_serializable: {options: {a: 1}}
       json_serializable:json_serializable: {options: {a: 2}}
 `), known)
-	if len(problems) != 1 || !strings.Contains(problems[0], "a second time") {
-		t.Errorf("problems: %v", problems)
+	if len(read.errors) != 1 || !strings.Contains(read.errors[0], "a second time") || read.unread {
+		t.Errorf("errors: %v", read.errors)
 	}
 }
 
 func TestBuilderOptionsUnreadable(t *testing.T) {
-	_, problems := builderOptions([]byte("targets: [\n"), nil)
-	if len(problems) != 1 || !strings.HasPrefix(problems[0], "cannot be read") {
-		t.Errorf("problems: %v", problems)
+	for _, src := range []string{"targets: [\n", "a: 1\na: 2\n", "- a\n"} {
+		read := builderOptions([]byte(src), nil)
+		if len(read.errors) != 1 || !read.unread {
+			t.Errorf("%q: errors: %v", src, read.errors)
+		}
 	}
 }
 

@@ -4,6 +4,10 @@ load("@rules_dart//dart/ext/drift:defs.bzl", "drift_codegen")
 load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_codegen")
 
 # gazelle:dart_builder_config CopyWith {"copy_with_null": true}
+# A part of build.yaml the build goes without.
+# gazelle:dart_build_yaml_ignore targets.$default.builders.json_serializable.generate_for
+# gazelle:dart_build_yaml_ignore targets.$default.builders.build_web_compilers:entrypoint
+# gazelle:dart_build_yaml_ignore targets.$default.builders.mockito:mockBuilder.options
 
 dart_package_metadata(
     name = "pubspec-metadata",

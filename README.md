@@ -863,6 +863,10 @@ Add directives as comments in a `BUILD.bazel` file to control generation:
   (a directory with its own `pubspec.yaml` or `dart_package_metadata`), which
   states its own, as upstream each package's pubspec does.
 
+- **`# gazelle:dart_build_yaml_ignore targets.$default.builders.json_serializable.generate_for`**
+  — a part of the `build.yaml` beside the BUILD file that the build goes
+  without (see [build.yaml](#buildyaml)).
+
 - **`# gazelle:resolve dart foo //third_party:foo`** — overrides
   automatic dependency resolution for a Dart package (the `foo` of
   `package:foo/...` imports), mapping it to an explicit Bazel target.
@@ -930,15 +934,24 @@ json_serializable_codegen(
 
 The rest of the file has no place in a Bazel build: another target than
 `$default`, a builder's `generate_for`, `enabled` or `dev_options`,
-`global_options`, a builder Gazelle does not write targets for, and a
-`build.<name>.yaml`,
-which build_runner reads only with `--config <name>`. Gazelle names each such
-part and fails without writing any BUILD file. A codegen macro's `srcs`
-choose the files it runs on. A package that keeps `build.yaml` for
-build_runner alone has Gazelle not read it with
-`# gazelle:exclude build.yaml` in its root's BUILD file. Options a
-`# gazelle:dart_builder_config` directive states differently for the same
-builder are a disagreement, as for the package's name.
+`global_options`, a builder Gazelle does not write targets for. A codegen
+macro's `srcs` choose the files it runs on. Gazelle names every such part, by
+its key path and line, and fails without writing any BUILD file:
+
+```
+gazelle: dart: build.yaml:9: `targets.$default.builders.json_serializable.generate_for` is not carried into the build: ...; to build without it, add `# gazelle:dart_build_yaml_ignore targets.$default.builders.json_serializable.generate_for` to the BUILD file in .
+```
+
+`# gazelle:dart_build_yaml_ignore <key path>`, one per part, in the BUILD file
+beside the `build.yaml`, acknowledges that the build goes without that part,
+and Gazelle carries the rest. An ignore that names no such part of that file
+fails the run too, as does one stated twice. A package that keeps
+`build.yaml` for build_runner alone has Gazelle not read it at all with
+`# gazelle:exclude build.yaml` in its root's BUILD file. A `build.<name>.yaml`,
+which build_runner reads only with `--config <name>`, fails the run until it
+is excluded so. Options a `# gazelle:dart_builder_config` directive states
+differently for the same builder are a disagreement, as for the package's
+name.
 
 #### Hooks
 

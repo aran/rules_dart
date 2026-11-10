@@ -2,6 +2,8 @@ targets:
   $default:
     builders:
       json_serializable:
+        generate_for:
+          - lib/user.dart
         options:
           field_rename: pascal
           explicit_to_json: true
@@ -12,3 +14,10 @@ targets:
       drift_dev:
         options:
           store_date_time_values_as_text: true
+      build_web_compilers:entrypoint:
+        options:
+          compiler: dart2wasm
+      # A builder none of the sources needs.
+      mockito:mockBuilder:
+        options:
+          foo: 1

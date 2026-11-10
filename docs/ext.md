@@ -432,15 +432,21 @@ separator:
 | `@StackedApp` | `stacked_generator:stackedRouterGenerator`, `…LocatorGenerator`, `…LoggerGenerator`, `…DialogGenerator`, `…BottomsheetGenerator` |
 | `@FormView` | `stacked_generator:stackedFormGenerator` |
 
-Every other part of the file fails generation, named by its path, before any
-BUILD file is written: a target other than `$default`, a target's `sources`,
-a builder's `generate_for`, `enabled`, `dev_options` or `release_options`,
-`global_options`, a builder outside the table and the `key`s of
-`dart_builder` directives (source_gen's
-`combining_builder` too, whose shim takes no options), and a `build.<name>.yaml`. A codegen macro's `srcs`
-choose the files it runs on. `# gazelle:exclude build.yaml` in the package
-root's BUILD file has Gazelle not read the file, for a package that keeps it
-for build_runner alone.
+Every other part of the file fails generation, each named by its key path
+and line, before any BUILD file is written: a target other than `$default`, a
+target's `sources`, a builder's `generate_for`, `enabled`, `dev_options` or
+`release_options`, `global_options`, the options of a builder none of the
+package's sources needs, a builder outside the table and the
+`key`s of `dart_builder` directives (source_gen's `combining_builder` too,
+whose shim takes no options). A codegen macro's `srcs` choose the files it
+runs on. `# gazelle:dart_build_yaml_ignore <key path>` in the BUILD file beside
+the `build.yaml` acknowledges one such part, which the build goes without, so
+that Gazelle carries the rest; the error names the directive for each part.
+An ignore that names no such part of that file is an error, as is one stated
+twice. A `build.<name>.yaml` fails generation whole.
+`# gazelle:exclude build.yaml` (or `build.<name>.yaml`) in the package root's
+BUILD file has Gazelle not read the file, for a package that keeps it for
+build_runner alone.
 
 ## Generated files in the source tree
 

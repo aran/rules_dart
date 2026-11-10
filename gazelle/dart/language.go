@@ -75,6 +75,9 @@ func (*dartLang) KnownDirectives() []string {
 		keyBuilder,
 		"dart_builder_runtime_dep",
 		"dart_builder_config",
+		// A part of the build.yaml beside it the build goes without
+		// (build_yaml.go).
+		keyBuildYamlIgnore,
 		// The `language_version` of the package, for a package whose
 		// pubspec.yaml does not state it or that has none.
 		keyLanguageVersion,
@@ -107,6 +110,7 @@ func (d *dartLang) Configure(c *config.Config, rel string, f *rule.File) {
 			c.Exts["dart_pub_deps_repo"] = d.Value
 		}
 	}
+	d.buildYaml.configureIgnores(rel, f)
 	if rel != "" {
 		d.refuseNestedBuilders(rel, f)
 	}
