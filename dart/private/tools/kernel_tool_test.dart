@@ -1181,6 +1181,27 @@ import 'package:app/own.dart';
     });
   });
 
+  test('digest writes the SHA-256 of its input in hex', () async {
+    final dir = Directory.systemTemp.createTempSync('kernel_tool_test_');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final input = File('${dir.path}/runner.dill')..writeAsStringSync('abc');
+    final output = '${dir.path}/runner.dill.sha256';
+    expect(
+      await runKernelTool([
+        'digest',
+        '--input',
+        input.path,
+        '--output',
+        output,
+      ]),
+      0,
+    );
+    expect(
+      File(output).readAsStringSync(),
+      'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\n',
+    );
+  });
+
   group('DeclaredView', () {
     test('a root is a file: URI the compiler resolves to that directory', () {
       for (final (path, windows, back) in [

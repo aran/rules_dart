@@ -18,12 +18,16 @@ beside it, and `dart_test` finds the runner on whichever direct dependency is
 """
 
 load("//dart:providers.bzl", "DartInfo")
+load("//dart/private:common.bzl", "PATH_MAPPING")
 load("//dart/private:dart_binary.bzl", "dart_binary")
+load("//dart/private:dart_module.bzl", "KERNEL_TOOL_ATTR")
+load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS")
 
 DartTestRunnerInfo = provider(
     doc = "The `package:test` runner built from a `package:test` library.",
     fields = {
         "runner": "File: the runner, compiled to a kernel (`.dill`).",
+        "digest": "File: the runner's SHA-256 in hex, which names its cached snapshot.",
     },
 )
 
@@ -50,15 +54,32 @@ def _dart_test_package_impl(ctx):
     runner = [f for f in ctx.attr.runner[DefaultInfo].files.to_list() if f.extension == "dill"]
     if len(runner) != 1:
         fail("%s: `runner` must produce exactly one `.dill`, got %s" % (ctx.label, runner))
+
+    # Hashed once here, for every test the runner runs: what names the snapshot
+    # `dart_test` caches of it, so that another runner never starts from it.
+    digest = ctx.actions.declare_file(ctx.label.name + ".runner.sha256")
+    args = ctx.actions.args()
+    args.add("--input", runner[0])
+    args.add("--output", digest)
+    ctx.actions.run(
+        executable = ctx.executable._kernel_tool,
+        arguments = ["digest", args],
+        inputs = runner,
+        outputs = [digest],
+        mnemonic = "DartRunnerDigest",
+        exec_group = PORTABLE,
+        progress_message = "Hashing the package:test runner %{label}",
+        execution_requirements = PATH_MAPPING,
+    )
     return [
         library[DefaultInfo],
         library[DartInfo],
-        DartTestRunnerInfo(runner = runner[0]),
+        DartTestRunnerInfo(runner = runner[0], digest = digest),
     ]
 
 dart_test_package = rule(
     implementation = _dart_test_package_impl,
-    attrs = {
+    attrs = KERNEL_TOOL_ATTR | {
         "library": attr.label(
             doc = "The `package:test` `dart_library`.",
             mandatory = True,
@@ -69,6 +90,7 @@ dart_test_package = rule(
             mandatory = True,
         ),
     },
+    exec_groups = PORTABLE_EXEC_GROUPS,
     doc = "`package:test` as a dependency, carrying the runner built from it.",
 )
 

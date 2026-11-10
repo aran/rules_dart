@@ -5,6 +5,7 @@ import 'package:kernel_list/kernel_list.dart';
 import 'package:runfiles/runfiles.dart';
 
 import 'launcher_config.dart';
+import 'runner_snapshot.dart';
 
 /// Runs a `dart_test`'s pre-compiled kernel with asserts enabled.
 ///
@@ -19,7 +20,9 @@ import 'launcher_config.dart';
 /// 30-second default per case is replaced by Bazel's `TEST_TIMEOUT`, so that
 /// Bazel's `size`/`timeout` is the limit. Any other test runs directly, and
 /// refuses a filter or sharding it cannot honour rather than quietly running
-/// everything.
+/// everything. Unless `--@rules_dart//dart:runner_snapshot` is off, the runner
+/// starts from an app-JIT snapshot cached on the machine, which the first run
+/// to find none trains (`runner_snapshot.dart`).
 ///
 /// The VM writes straight to this process's stdio rather than through it, so a
 /// test that hangs until Bazel kills it still leaves what it printed in
@@ -62,10 +65,18 @@ Future<void> main(List<String> args) async {
   if (runnerKey == null) {
     code = await _runDirectly(dart, dill, args, environment);
   } else {
+    final snapshot = config['runner_snapshot'] as Map<String, dynamic>?;
     code = await _runUnderRunner(
       dart: dart,
       dill: dill,
       runner: r.rlocation(runnerKey),
+      snapshotKey: snapshot == null
+          ? null
+          : () => RunnerSnapshotCache.keyOf(
+              vm: snapshot['vm'] as String,
+              digest: File(r.rlocation(snapshot['digest'] as String))
+                  .readAsStringSync(),
+            ),
       testSource: r.rlocation(config['test_main'] as String),
       testPath: config['test_path'] as String,
       args: args,
@@ -272,6 +283,7 @@ Future<int> _runUnderRunner({
   required String dart,
   required String dill,
   required String runner,
+  required String Function()? snapshotKey,
   required String testSource,
   required String testPath,
   required List<String> args,
@@ -328,43 +340,89 @@ Future<int> _runUnderRunner({
     File(shardStatus).writeAsStringSync('');
   }
 
-  final vm = await Process.start(
-    dart,
-    [
-      '--enable-asserts',
-      runner,
-      '--precompiled=$precompiled',
-      '--reporter=expanded',
-      // Bazel's timeout replaces `package:test`'s 30-second default. Not
-      // `none`: in `package:test` a suite-level `none` also overrides the
-      // timeout a test states on its own case, and that one is the author's.
-      '--timeout=${_suiteTimeout(env)}',
-      '--file-reporter=json:$report',
-      if (filter != null && filter.isNotEmpty) ...['--name', filter],
-      if (totalShards != null && shardIndex != null) ...[
-        '--total-shards',
-        totalShards,
-        '--shard-index',
-        shardIndex,
-      ],
-      testPath,
+  // The runner's own arguments, after the program it starts from.
+  final timeout = '--timeout=${_suiteTimeout(env)}';
+  final runnerArguments = [
+    '--precompiled=$precompiled',
+    '--reporter=expanded',
+    // Bazel's timeout replaces `package:test`'s 30-second default. Not
+    // `none`: in `package:test` a suite-level `none` also overrides the
+    // timeout a test states on its own case, and that one is the author's.
+    timeout,
+    '--file-reporter=json:$report',
+    if (filter != null && filter.isNotEmpty) ...['--name', filter],
+    if (totalShards != null && shardIndex != null) ...[
+      '--total-shards',
+      totalShards,
+      '--shard-index',
+      shardIndex,
     ],
-    workingDirectory: inPlace ? null : tmp.path,
-    environment: {
-      ...environment,
-      // What the generated bootstrap hands the test's `main`.
-      'RULES_DART_TEST_ARGS': jsonEncode(args),
-      // The runner reads a per-user config (`~/.dart_test.yaml`, or
-      // `%LOCALAPPDATA%\DartTest.yaml`) unless this names one. A path that
-      // does not exist means none: a developer's own settings must not change
-      // what a test does under Bazel, and Bazel's Windows test environment has
-      // no LOCALAPPDATA for the runner to read at all.
-      'DART_TEST_CONFIG': _join(tmp.path, 'no_global_config/DartTest.yaml'),
-    },
-    includeParentEnvironment: false,
-    mode: ProcessStartMode.inheritStdio,
-  );
+    testPath,
+  ];
+  final runEnvironment = {
+    ...environment,
+    // What the generated bootstrap hands the test's `main`.
+    'RULES_DART_TEST_ARGS': jsonEncode(args),
+    // The runner reads a per-user config (`~/.dart_test.yaml`, or
+    // `%LOCALAPPDATA%\DartTest.yaml`) unless this names one. A path that
+    // does not exist means none: a developer's own settings must not change
+    // what a test does under Bazel, and Bazel's Windows test environment has
+    // no LOCALAPPDATA for the runner to read at all.
+    'DART_TEST_CONFIG': _join(tmp.path, 'no_global_config/DartTest.yaml'),
+  };
+  final workingDirectory = inPlace ? null : tmp.path;
+
+  // With the cache, the runner starts from its snapshot, or from its kernel
+  // with a snapshot trained after the test (`runner_snapshot.dart`).
+  RunnerSnapshotCache? cache;
+  RunnerSnapshotPlan? plan;
+  if (snapshotKey != null) {
+    try {
+      final String key;
+      try {
+        key = snapshotKey();
+      } on Object catch (e) {
+        // Not in runfiles (a StateError), or unreadable.
+        if (e is! FileSystemException && e is! StateError) rethrow;
+        throw RunnerSnapshotException('cannot read the runner digest: $e');
+      }
+      cache = RunnerSnapshotCache.open(key: key, environment: env);
+      plan = cache.plan();
+    } on RunnerSnapshotException catch (e) {
+      stderr.writeln(e);
+      return 1;
+    } on FileSystemException catch (e) {
+      stderr.writeln(RunnerSnapshotException('the cache failed: $e'));
+      return 1;
+    }
+  }
+
+  final Process vm;
+  try {
+    vm = await Process.start(
+      dart,
+      [
+        '--enable-asserts',
+        if (plan is StartFromSnapshot) plan.snapshot.path else runner,
+        ...runnerArguments,
+      ],
+      workingDirectory: workingDirectory,
+      environment: runEnvironment,
+      includeParentEnvironment: false,
+      mode: ProcessStartMode.inheritStdio,
+    );
+  } on Object {
+    if (plan is TrainSnapshot) plan.abandon();
+    rethrow;
+  }
   var code = await vm.exitCode;
+
+  // The runner writes its report from the start, so a run that failed without
+  // one never started the runner: the VM refused the snapshot.
+  if (plan is StartFromSnapshot && code != 0 && !File(report).existsSync()) {
+    stderr.writeln(cache!.refused(plan.snapshot, code));
+    return 1;
+  }
 
   // A filter that selects nothing here, or a shard that drew no cases, is not
   // a failure: `bazel test //... --test_filter=x` has to pass every target the
@@ -380,6 +438,35 @@ Future<int> _runUnderRunner({
       File(xmlOutput).writeAsStringSync(
         junitXml(reportFile.readAsLinesSync(), suiteName: testPath),
       );
+    }
+  }
+
+  // The test's result is settled; the training is a run of its own on the
+  // same suite with a filter no case matches, so that what the test does
+  // cannot stop the VM writing the snapshot, nor the training change the
+  // result.
+  if (plan is TrainSnapshot) {
+    try {
+      await plan.train(
+        dart: dart,
+        runnerArguments: [
+          runner,
+          '--precompiled=$precompiled',
+          '--reporter=expanded',
+          timeout,
+          '--name',
+          '(?!)',
+          testPath,
+        ],
+        workingDirectory: workingDirectory,
+        environment: runEnvironment,
+      );
+    } on RunnerSnapshotException catch (e) {
+      stderr.writeln(e);
+      if (code == 0) code = 1;
+    } on FileSystemException catch (e) {
+      stderr.writeln(RunnerSnapshotException('training failed: $e'));
+      if (code == 0) code = 1;
     }
   }
   return code;

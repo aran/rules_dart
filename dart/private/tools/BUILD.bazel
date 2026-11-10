@@ -70,13 +70,28 @@ dart_binary(
 
 dart_binary(
     name = "test_runner",
-    srcs = ["launcher_config.dart"],
+    srcs = [
+        "launcher_config.dart",
+        "runner_snapshot.dart",
+    ],
     compile_mode = "exe",
     main = "test_runner.dart",
     visibility = ["//dart:__subpackages__"],
     deps = [
         "//dart/kernel_list",
         "//dart/runfiles",
+        "@ext_pub_deps//:ffi",
+    ],
+)
+
+dart_test(
+    name = "runner_snapshot_test",
+    size = "small",
+    srcs = ["runner_snapshot.dart"],
+    main = "runner_snapshot_test.dart",
+    deps = [
+        "@ext_pub_deps//:ffi",
+        "@ext_pub_deps//:test",
     ],
 )
 
@@ -152,6 +167,7 @@ _KERNEL_TOOL_SRCS = [
     "kernel_tool/commands.dart",
     "kernel_tool/compile.dart",
     "kernel_tool/declared_view.dart",
+    "kernel_tool/digest_command.dart",
     "kernel_tool/directives.dart",
     "kernel_tool/entry_command.dart",
     "kernel_tool/frontend_command.dart",

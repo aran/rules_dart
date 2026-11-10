@@ -26,6 +26,7 @@ const _optionsByCommand = {
     'label', 'package-config', 'package-name', 'lib-root', 'multi-root', 'src',
     'dep-file', 'available-package', 'direct-package', 'output', //
   },
+  'digest': {'input', 'output'},
 };
 
 /// Options that stand alone, without a value.

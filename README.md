@@ -16,6 +16,50 @@ use_repo(dart, "dart_toolchains")
 register_toolchains("@dart_toolchains//:all")
 ```
 
+### Faster tests and builds (optional)
+
+rules_dart's defaults work everywhere Bazel runs. These settings make builds
+and tests faster where your setup allows them, and each asks something of you.
+Put them in your `.bazelrc`.
+
+**Start the test runner from a cached snapshot.** A `package:test` test's
+start-up roughly halves (about 330 → 160 ms on macOS, 1050 → 400 ms on Linux).
+The snapshot lives in a cache outside Bazel on each machine, trained by the
+first test that needs it (see [Tests](#tests)).
+
+```
+test --@rules_dart//dart:runner_snapshot
+```
+
+Turn it on only where tests run on your own machines. The cache needs a
+directory every test can write and that outlives a test: `/tmp` on macOS,
+`/dev/shm` on Linux, local application data on Windows. A remote executor may
+have none, which fails every test, or a fresh one for each action, which makes
+every test train a snapshot it then throws away. If yours keeps a writable
+`/dev/shm` between actions with room for the snapshots (about 50 MB for each
+`package:test` version and Dart SDK), the cache works there too. Otherwise,
+turn it on under a config only local runs use:
+
+```
+test:local --@rules_dart//dart:runner_snapshot
+```
+
+**Share actions between configurations (Linux, macOS, remote execution).** A
+library built in two configurations (for the host and the target, or for a
+platform transition) compiles twice. With path mapping, one result serves
+both:
+
+```
+common --enable_platform_specific_config
+common:linux --experimental_output_paths=strip
+common:macos --experimental_output_paths=strip
+```
+
+Bazel runs a path-mapped action only in a sandbox or remotely, so leave it off
+on Windows, where it fails the build. Rules of your own that pass a
+configuration's output path to an action as a string, rather than a `File`,
+must be fixed first (see [Architecture](docs/ARCHITECTURE.md)).
+
 ## Usage
 
 ### Running the Dart SDK
@@ -75,6 +119,20 @@ own runner, built from that same package, so Bazel's test features work:
 not reached only through a helper library: the runner comes with that target.
 A test whose `main` does not use `package:test` runs directly, and fails if
 given a filter or shards, because it has no cases to select.
+
+With `--@rules_dart//dart:runner_snapshot` (see
+[Faster tests and builds](#faster-tests-and-builds-optional)), the runner
+starts from a snapshot of itself cached on the machine, which roughly halves a
+test's start-up. The first test to find none trains it, once
+per `package:test` runner and Dart SDK: after the test, it loads the test's
+file again with no case selected, while the VM records the runner's compiled
+code. The cache is outside Bazel, because a snapshot's bytes differ from one
+training to the next, and it cannot change a test's result. It lives in
+`/tmp/rules_dart-<uid>/runner` on macOS, `/dev/shm/rules_dart-<uid>/runner`
+on Linux (both cleared at reboot) and `%LOCALAPPDATA%\rules_dart\runner` on Windows,
+and keeps the eight snapshots used most recently. To put it elsewhere, pass
+`--test_env=RULES_DART_RUNNER_SNAPSHOT_DIR=<dir> --sandbox_writable_path=<dir>`.
+Anything that goes wrong with it fails the test, saying so.
 
 Like any Bazel test, a `dart_test` is built for the target platform, native
 `code_assets` and the Dart VM included, and runs on a host matching it. To run
@@ -785,6 +843,7 @@ Every command-line setting rules_dart reads. Set one per invocation or in
 | `--@rules_dart//dart:kernel_list`                  | on      | Runs each test from a kernel list naming the kernels it reaches; off stores one joined kernel per test.                                                       |
 | `--@rules_dart//dart:modular_kernel`               | on      | Compiles each library once into kernel modules that tests link; off compiles each test's whole program from source and stops checking imports against `deps`. |
 | `--@rules_dart//dart:outline_kernel`               | on      | Compiles dependents against outlines of their dependencies' modules; turn off with a Dart SDK whose kernel format differs from the one rules_dart pins.       |
+| `--@rules_dart//dart:runner_snapshot`              | off     | Starts the `package:test` runner from a snapshot cached on the machine (see [Tests](#tests)); off starts it from its kernel and touches no cache.             |
 | `--@rules_dart//dart:track_creation_locations`     | off     | Compiles VM kernels with `--track-creation-locations` (`--track-widget-creation`).                                                                            |
 
 ## Examples

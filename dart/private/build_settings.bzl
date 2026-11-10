@@ -145,6 +145,24 @@ KERNEL_LIST_ATTR = {
     ),
 }
 
+RUNNER_SNAPSHOT_ATTR = {
+    "_runner_snapshot": attr.label(
+        doc = "The //dart:runner_snapshot build setting.",
+        default = Label("//dart:runner_snapshot"),
+    ),
+}
+
+def runner_snapshot(ctx):
+    """Whether this configuration's tests start the runner from a cached snapshot.
+
+    Args:
+      ctx: Rule context carrying `_runner_snapshot`.
+
+    Returns:
+      A bool.
+    """
+    return ctx.attr._runner_snapshot[BuildSettingInfo].value
+
 def kernel_list(ctx):
     """Whether this configuration links a test's program as a kernel list.
 

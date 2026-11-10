@@ -52,6 +52,20 @@ bool_flag(
     visibility = ["//visibility:public"],
 )
 
+# Whether a `dart_test` under `package:test` starts the runner from an app-JIT
+# snapshot cached per machine, which the first test to find none trains. The
+# snapshot is never a Bazel input or output: training is not byte-reproducible,
+# and the cache can change only how fast the runner starts. Off by default: a
+# remote executor may have no writable shared directory, or a fresh one for
+# each action. Off, the runner starts from its kernel and no cache is touched.
+# For local test runs:
+#   common --@rules_dart//dart:runner_snapshot
+bool_flag(
+    name = "runner_snapshot",
+    build_setting_default = False,
+    visibility = ["//visibility:public"],
+)
+
 # Whether, under `modular_kernel`, a library's dependents compile against its
 # modules' outlines (their kernel without function bodies) rather than the full
 # kernel. On (the default), an edit inside a function body recompiles only the

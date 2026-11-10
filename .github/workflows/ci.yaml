@@ -119,6 +119,15 @@ jobs:
       - name: dart_test whole-program — ${{ matrix.folder }}
         working-directory: ${{ matrix.folder }}
         run: bazel test --test_output=errors --@rules_dart//dart:modular_kernel=false //...
+  # The runner snapshot cache off, the default this repository's .bazelrc
+  # overrides: `test_runner_test` checks that the runner then starts from its
+  # kernel and no cache is touched.
+  runner-snapshot-off:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: dart_test without the runner snapshot cache
+        run: bazel test --test_output=errors --@rules_dart//dart:runner_snapshot=false //dart/private/tools:test_runner_test
   # Workspaces that are expected to fail at module resolution.
   # Validates that rules_dart produces the correct error messages.
   expected-failure:

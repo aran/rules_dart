@@ -12,7 +12,7 @@ kernel.
 
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("//dart:providers.bzl", "DartCodeAssetInfo", "DartInfo", "DartKernelSdkInfo")
-load("//dart/private:build_settings.bzl", "EXTRA_DART_DEFINES_ATTR", "KERNEL_LIST_ATTR", "TRACK_CREATION_LOCATIONS_ATTR", "kernel_list", "merge_test_dart_defines", "track_creation_locations")
+load("//dart/private:build_settings.bzl", "EXTRA_DART_DEFINES_ATTR", "KERNEL_LIST_ATTR", "RUNNER_SNAPSHOT_ATTR", "TRACK_CREATION_LOCATIONS_ATTR", "kernel_list", "merge_test_dart_defines", "runner_snapshot", "track_creation_locations")
 load(
     "//dart/private:common.bzl",
     "DART_ABI_CONSTRAINT_ATTRS",
@@ -112,10 +112,19 @@ def _dart_test_impl(ctx):
     if runner:
         # The runner reads the test file for its annotations (`@TestOn`,
         # `@Timeout`, `@Tags`) and names the suite after it.
-        config["runner"] = runfiles_path(runner, workspace_name)
+        config["runner"] = runfiles_path(runner.runner, workspace_name)
         config["test_main"] = runfiles_path(ctx.file.main, workspace_name)
         config["test_path"] = _test_path(ctx)
-        runner_files = [runner, ctx.file.main]
+        runner_files = [runner.runner, ctx.file.main]
+        if runner_snapshot(ctx):
+            # What names the cached snapshot: the runner, by its digest, and
+            # the VM that runs it. A snapshot of another runner, or made by
+            # another VM, is never started from.
+            config["runner_snapshot"] = {
+                "digest": runfiles_path(runner.digest, workspace_name),
+                "vm": "%s-%s-%s" % (dart_sdk_info.version, dart_sdk_info.exec_os, dart_sdk_info.exec_arch),
+            }
+            runner_files.append(runner.digest)
     config_file = ctx.actions.declare_file(ctx.label.name + ".launcher.json")
     ctx.actions.write(output = config_file, content = json.encode(config))
     env = {}
@@ -239,11 +248,11 @@ def _test_runner(ctx, packages):
       packages: The test's `DartPackageInfo` closure.
 
     Returns:
-      The runner `.dill` File, or `None`.
+      The runner's `DartTestRunnerInfo`, or `None`.
     """
     for dep in ctx.attr.deps:
         if DartTestRunnerInfo in dep:
-            return dep[DartTestRunnerInfo].runner
+            return dep[DartTestRunnerInfo]
     for pkg in packages:
         if pkg.package_name == "test":
             fail(("%s: depends on `package:test` without listing it in " +
@@ -410,7 +419,7 @@ told where a runfile is (resolve it with `Runfiles.rlocation()`).""",
             executable = True,
             cfg = "target",
         ),
-    }, **dict(DART_ABI_CONSTRAINT_ATTRS, **dict(KERNEL_LIST_ATTR, **dict(EXTRA_DART_DEFINES_ATTR, **dict(TRACK_CREATION_LOCATIONS_ATTR, **dict(MODULE_EXECUTABLE_ATTRS, **EXECUTABLE_PACKAGE_ATTRS)))))),
+    }, **dict(DART_ABI_CONSTRAINT_ATTRS, **dict(KERNEL_LIST_ATTR, **dict(RUNNER_SNAPSHOT_ATTR, **dict(EXTRA_DART_DEFINES_ATTR, **dict(TRACK_CREATION_LOCATIONS_ATTR, **dict(MODULE_EXECUTABLE_ATTRS, **EXECUTABLE_PACKAGE_ATTRS))))))),
     test = True,
     # The compiles are `portable`. The run is Bazel's own `test` group, which
     # puts it on a host matching the target: everything it runs, the VM and

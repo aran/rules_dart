@@ -32,6 +32,12 @@ test --output_groups=+dart_analyze
 test --output_groups=+dart_format
 common --//dart:analysis_config=//:analysis_config
 
+# This repository's tests run on its own machines and CI, where the runner
+# snapshot cache is safe (README.md, "Faster tests and builds"). Set for
+# `build` so a `bazel run` of `//dart/format` or `//dart/fix`, whose nested
+# build reads this file, keeps the analysis cache a test run made.
+build --//dart:runner_snapshot
+
 # Tests tagged `deep` take minutes, or guard what only a toolchain bump can
 # break, and are left out by default. `--config=deep` runs them too: before a
 # merge, and in every Dart SDK bump (docs/CHORES.md).

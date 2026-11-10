@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'args.dart';
 import 'check_command.dart';
+import 'digest_command.dart';
 import 'entry_command.dart';
 import 'frontend_command.dart';
 import 'link_command.dart';
@@ -21,6 +22,8 @@ import 'worker_command.dart';
 //   frontend  an executable's whole program to a kernel file, with
 //             `frontend_server`, whose protocol output it keeps out of the
 //             build log
+//   digest    a file's SHA-256, which names the cached snapshot of the
+//             `package:test` runner the file is
 //
 // Each takes `@paramsfile`, one argument per line, or the arguments directly.
 // `module` also runs as a Bazel persistent worker (`worker_command.dart`).
@@ -28,7 +31,7 @@ Future<int> runKernelTool(List<String> argv) async {
   if (argv.contains('--persistent_worker')) return runWorker(argv);
   if (argv.isEmpty || !isCommand(argv.first)) {
     stderr.writeln(
-      'usage: kernel_tool <module|check|entry|frontend|link> @paramsfile',
+      'usage: kernel_tool <module|check|entry|frontend|link|digest> @paramsfile',
     );
     return 64;
   }
@@ -44,6 +47,8 @@ Future<int> runKernelTool(List<String> argv) async {
         return await runEntry(args);
       case 'frontend':
         return await runFrontend(args);
+      case 'digest':
+        return await runDigest(args);
       default:
         return await runLink(args);
     }
