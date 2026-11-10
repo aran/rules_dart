@@ -11,6 +11,8 @@
 ///   dart run tools/vm/run_e2e.dart <vm-name>
 library;
 
+import 'dart:io';
+
 import 'gcloud.dart';
 
 const _defaultName = 'rules-dart-linux-test';
@@ -20,6 +22,9 @@ const _imageProject = 'ubuntu-os-cloud';
 
 const _startupScript = r'''#!/bin/bash
 set -ex
+# A failed step leaves its own mark, so the wait below stops at once rather
+# than running out its deadline.
+trap 'echo STARTUP_FAILED > /tmp/startup_complete' ERR
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
@@ -55,20 +60,29 @@ Future<void> main(List<String> args) async {
   print('  Provisioning: SPOT (self-deletes on termination)');
   print('');
 
-  await gcloud([
-    'compute',
-    'instances',
-    'create',
-    vmName,
-    '--machine-type=$_machineType',
-    '--image-family=$_imageFamily',
-    '--image-project=$_imageProject',
-    '--provisioning-model=SPOT',
-    '--instance-termination-action=DELETE',
-    '--boot-disk-size=50GB',
-    '--metadata=startup-script=$_startupScript',
-    '--scopes=default',
-  ]);
+  // From a file: `--metadata` splits its value on commas, and the script
+  // has them.
+  final tmpDir = Directory.systemTemp.createTempSync('linux_vm_');
+  final tmpStartup = File('${tmpDir.path}/startup.sh')
+    ..writeAsStringSync(_startupScript);
+  try {
+    await gcloud([
+      'compute',
+      'instances',
+      'create',
+      vmName,
+      '--machine-type=$_machineType',
+      '--image-family=$_imageFamily',
+      '--image-project=$_imageProject',
+      '--provisioning-model=SPOT',
+      '--instance-termination-action=DELETE',
+      '--boot-disk-size=50GB',
+      '--metadata-from-file=startup-script=${tmpStartup.path}',
+      '--scopes=default',
+    ]);
+  } finally {
+    tmpDir.deleteSync(recursive: true);
+  }
 
   print('');
   print('VM created. Waiting for SSH ...');
@@ -76,9 +90,17 @@ Future<void> main(List<String> args) async {
 
   print('Waiting for startup script (toolchain install) to complete ...');
   final deadline = DateTime.now().add(const Duration(minutes: 8));
-  while (DateTime.now().isBefore(deadline)) {
+  while (true) {
     final r = await sshExec(vmName, 'cat /tmp/startup_complete 2>/dev/null');
-    if (r.stdout.toString().contains('STARTUP_COMPLETE')) break;
+    final mark = r.stdout.toString();
+    if (mark.contains('STARTUP_COMPLETE')) break;
+    if (mark.contains('STARTUP_FAILED') || DateTime.now().isAfter(deadline)) {
+      stderr.writeln(
+        'The startup script did not finish. Its log: gcloud compute ssh '
+        "$vmName --command 'sudo journalctl -u google-startup-scripts'",
+      );
+      exit(1);
+    }
     await Future<void>.delayed(const Duration(seconds: 10));
   }
 
