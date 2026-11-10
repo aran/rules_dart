@@ -17,6 +17,11 @@ concurrency:
   group: concurrency-group::${{ github.workflow }}::${{ github.event.pull_request.number > 0 && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}${{ github.ref_name == 'main' && format('::{0}', github.run_id) || ''}}
   cancel-in-progress: ${{ github.ref_name != 'main' }}
 jobs:
+  # Every job below that runs its own steps has a timeout, one value per kind of
+  # job, at about three times its slowest recent run: 15 minutes for checks
+  # that run one or two commands, 30 for a Bazel build or test of one
+  # workspace, 60 for the whole-program run of the root workspace. A caller of
+  # a reusable workflow (`test`) cannot set one.
   test:
     uses: bazel-contrib/.github/.github/workflows/bazel.yaml@v7.7.0
     with:
@@ -79,6 +84,7 @@ jobs:
   # includes and language versions must agree across all four cells too.
   format-hermeticity:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -112,6 +118,7 @@ jobs:
   # package:test runner, so the path the flag falls back to cannot rot.
   whole-program:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     strategy:
       matrix:
         folder: [".", "e2e/dart_test", "e2e/codegen"]
@@ -125,6 +132,7 @@ jobs:
   # kernel and no cache is touched.
   runner-snapshot-off:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - name: dart_test without the runner snapshot cache
@@ -133,6 +141,7 @@ jobs:
   # Validates that rules_dart produces the correct error messages.
   expected-failure:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - name: pub_lock_conflict — expect version conflict error
@@ -518,6 +527,7 @@ jobs:
   # refer or write outside its package, whichever host `tar` extracts it.
   pub-archive-links:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: dart-lang/setup-dart@v1
@@ -532,6 +542,7 @@ jobs:
   # dart_test exercises the kernel test path end-to-end.
   dbg-mode:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - name: hello_world — build all compile modes under -c dbg
@@ -544,6 +555,7 @@ jobs:
   # in the root module does not reach.
   dev-tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: bazel-contrib/setup-bazel@0.19.1
@@ -558,6 +570,7 @@ jobs:
   # REPO.bazel keeps out of the module's packages.
   consumer-query:
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -576,6 +589,7 @@ jobs:
   # pubspec.lock outside e2e/.
   lockfiles:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: bazel-contrib/setup-bazel@0.19.1
@@ -591,6 +605,7 @@ jobs:
   # hooks run them without Bazel.
   pre-commit:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: bazel-contrib/setup-bazel@0.19.1
@@ -612,6 +627,7 @@ jobs:
       - lockfiles
       - pre-commit
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     if: always()
     steps:
       - name: Fail if any job did not succeed

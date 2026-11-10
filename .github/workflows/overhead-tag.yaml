@@ -49,6 +49,7 @@ jobs:
       contents: write # allow create tag
       actions: read # read the CI result for the commit
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     outputs:
       new-tag: ${{ steps.ccv.outputs.new-tag }}
       new-tag-version: ${{ steps.ccv.outputs.new-tag-version }}
