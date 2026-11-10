@@ -23,6 +23,7 @@ import 'dart:io';
 class Runfiles {
   final String? _directory;
   final Map<String, String>? _manifest;
+  final String? _manifestPath;
 
   /// Bzlmod repo-mapping table. Keyed by `(sourceCanonical, apparent)` →
   /// targetCanonical. Empty-string source canonical means "main module".
@@ -39,10 +40,12 @@ class Runfiles {
   Runfiles.fromState({
     String? directory,
     Map<String, String>? manifest,
+    String? manifestPath,
     Map<(String, String), String>? repoMapping,
     String defaultSourceRepo = '',
   }) : _directory = directory,
        _manifest = manifest,
+       _manifestPath = manifestPath,
        _repoMapping = repoMapping ?? const {},
        _defaultSourceRepo = defaultSourceRepo;
 
@@ -78,13 +81,14 @@ class Runfiles {
     final env = Platform.environment;
     String? directory;
     Map<String, String>? manifest;
+    String? manifestPath;
 
     // 1. RUNFILES_DIR environment variable
     final runfilesDir = env['RUNFILES_DIR'];
     if (runfilesDir != null &&
         runfilesDir.isNotEmpty &&
         Directory(runfilesDir).existsSync()) {
-      directory = runfilesDir;
+      directory = Directory(runfilesDir).absolute.path;
     }
 
     // 2. RUNFILES_MANIFEST_FILE environment variable
@@ -93,6 +97,7 @@ class Runfiles {
         manifestFile.isNotEmpty &&
         File(manifestFile).existsSync()) {
       manifest = _parseManifest(manifestFile);
+      manifestPath = File(manifestFile).absolute.path;
     }
 
     // A manifest inside the runfiles directory is all that remains of the
@@ -125,6 +130,7 @@ class Runfiles {
       ]) {
         if (File(candidate).existsSync()) {
           manifest = _parseManifest(candidate);
+          manifestPath = File(candidate).absolute.path;
           break;
         }
       }
@@ -140,6 +146,7 @@ class Runfiles {
     return Runfiles.fromState(
       directory: directory,
       manifest: manifest,
+      manifestPath: manifestPath,
       repoMapping: _loadRepoMapping(directory: directory, manifest: manifest),
       defaultSourceRepo: sourceRepository,
     );
@@ -156,9 +163,22 @@ class Runfiles {
   Runfiles forRepo(String sourceRepository) => Runfiles.fromState(
     directory: _directory,
     manifest: _manifest,
+    manifestPath: _manifestPath,
     repoMapping: _repoMapping,
     defaultSourceRepo: sourceRepository,
   );
+
+  /// The environment variables that let a program this one starts find the
+  /// same runfiles: `RUNFILES_DIR` and `RUNFILES_MANIFEST_FILE`, whichever
+  /// were found.
+  ///
+  /// A child process cannot find them on its own when its executable is not
+  /// the one the runfiles belong to (a Dart VM running a kernel, say), so pass
+  /// these in its environment, as Bazel's other runfiles libraries do.
+  Map<String, String> get environment => {
+    if (_directory != null) 'RUNFILES_DIR': _directory,
+    if (_manifestPath != null) 'RUNFILES_MANIFEST_FILE': _manifestPath,
+  };
 
   /// Returns the absolute path to a runfile.
   ///

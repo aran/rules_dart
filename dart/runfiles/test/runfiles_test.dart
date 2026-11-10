@@ -169,6 +169,22 @@ void main() {
     });
   });
 
+  group('environment', () {
+    test('names what was found, for a child process to find it too', () {
+      expect(
+        Runfiles.fromState(directory: '/dir', manifestPath: '/m').environment,
+        {'RUNFILES_DIR': '/dir', 'RUNFILES_MANIFEST_FILE': '/m'},
+      );
+      expect(Runfiles.fromState(manifest: const {}).environment, isEmpty);
+    });
+
+    test('is absolute, so it holds after the child changes directory', () {
+      for (final path in Runfiles.create().environment.values) {
+        expect(File(path).isAbsolute, isTrue, reason: path);
+      }
+    });
+  });
+
   group('create() probing next to the executable', () {
     // `./bazel-bin/pkg/tool` reaches the binary through a symlink that the
     // next build in another configuration repoints. A Runfiles created
