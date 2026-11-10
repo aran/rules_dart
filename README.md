@@ -11,6 +11,146 @@ and run the SDK with `bazel run @rules_dart//dart -- ...` and pub with
 `bazel run @rules_dart//dart/pub -- ...` (see
 [Running the Dart SDK](#running-the-dart-sdk)).
 
+## What's New
+
+- **Many breaking API changes.** See detailed changelog notes. In general the
+  reasons are:
+  - More idiomatic Bazel APIs
+  - Improving consistency across rules_dart and rules_flutter
+  - Handling various edge cases
+  - Added features where the new feature's ideal name was already taken
+- **Support for git and path packages from pubspec.**
+- **Deeper Bazel integration.** Integration into RBE, coverage, and some other
+  niche features like automatic execution groups. RBE is big because you can
+  offload Dart and Flutter build and test work to big machines in the cloud.
+  Several changes to improve hermeticity. With standard Bazel exceptions,
+  anything non-hermetic in these rules is a bug.
+- **Faster Dart analysis.** The main improvement is the addition of analysis
+  summaries, which means making a "summary" of each Dart package that analysis
+  can cache and reuse, and avoid reanalysis if they haven't changed. This is a bit risky because it's not
+  supported by core Dart. It gives fast `dart analyze` even on large codebases,
+  at the risk of encountering some Dart SDK bugs. It's on by default; turn it
+  off with `--@rules_dart//dart:analysis_summaries=false`. Other speed
+  improvements include using persistent analysis workers.
+
+### Migrating from 0.8
+
+Each step names the old API and the new one; the commit with that change's
+`Changelog:` line, and the sections below, give the details. Running Gazelle
+after step 1 does steps 6–8 for the BUILD files it writes.
+
+**MODULE.bazel**
+
+1. `@rules_dart//gazelle/dart` → `bazel_dep(name = "rules_dart_gazelle_plugin")`,
+   loaded as `@rules_dart_gazelle_plugin//dart`. `gazelle` and `rules_go` now
+   come with that module, not with rules_dart.
+2. Dart SDK 3.11.x/3.12.x → 3.13.2 or later. The root's `dart.toolchain` pin
+   is now used exactly; `allow_upgrade_by_dependencies = True` restores
+   raising it.
+3. `pub.from_lock(on_version_conflict = ...)` → removed; the highest version
+   any module or lock asks for is built. `ignore_hooks` in a module other
+   than the root → fails; the root states it.
+4. `pub.package(deps = ...)` → removed; dependencies come from the package's
+   pubspec. A `pub.package()` whose `hook/build.dart` nothing replaces now
+   fails: `ignore_hook = True` if its native code is unused.
+5. A lock with `path` packages → list each in `pub.from_lock(resolve = ...)`,
+   `build_from_pubspec = [...]` or `ignored = {...}`. Packages that depend on
+   each other → `pub.cycle()` (the error gives it). A lock with no `sha256`
+   for its hosted packages (written by a pub older than 2.19) → re-resolve it
+   with `bazel run @rules_dart//dart/pub -- get`.
+
+**BUILD files**
+
+6. Package facts on rules (`package_name`, `language_version`, `version`,
+   `link_hook`, `has_unreplaced_hook` and `code_assets` on `dart_library`, and
+   the first two on `dart_binary`, `dart_test`, the web binaries and codegen
+   rules) → one `dart_package_metadata` named `pubspec-metadata` at the
+   package root (stating `version`, `license_file`, `build_hook`, `link_hook`,
+   `code_assets`, `data_assets`), and `package = ":pubspec-metadata"` on each
+   target.
+7. Gazelle now writes one `dart_library` per package, at its root, holding
+   all of `lib/`. Hand-written splits still work: several `dart_library`s at
+   the root or under `lib/`, each naming the same metadata, with an import
+   across them failing unless the importer `deps` on the holder.
+8. `<builder>_library` codegen macros (`json_serializable_library`,
+   `freezed_library`, …) → `<builder>_codegen`, whose outputs go in the
+   `dart_library`'s `srcs`. `go_router_library` → removed (rules_flutter ships
+   it).
+9. `@rules_dart//dart/ext/_shared:defs.bzl` → `@rules_dart//dart/ext:defs.bzl`;
+   the combining shim → `@rules_dart//dart/ext/combining_shim:bin`;
+   `shared_part_library`/`library_builder_library` → `shared_part_codegen`/
+   `library_builder_codegen`.
+10. `dart_format` / `dart_fix` targets → `bazel run @rules_dart//dart/format --
+    <patterns>` / `bazel run @rules_dart//dart/fix -- <patterns>`.
+11. `dart_binary(compile_mode = "jit-snapshot")` → `"kernel"`,
+    `"aot-snapshot"` or `"exe"`. `$(location)` of a `kernel`/`aot-snapshot`
+    binary now names a launcher. `dart_compile_flags = ["--save-debugging-info"]`
+    → `--@rules_dart//dart:split_debug_info`; `--resolve-dwarf-paths` in
+    them → refused.
+12. `dart_binary.code_assets_from_deps` → `code_assets_from_packages`.
+13. `dart_test.yaml` → attributes on the `dart_test` (`include_tags`,
+    `exclude_tags`, `tags`, …). Tests now run in their package's root, as
+    `dart test` does: fix paths that assumed the workspace root. A test
+    running SDK commands adds `@rules_dart//dart` to its `data`.
+14. `dart_link_hook` takes the program's own `package`, which must be the
+    recording `dart_binary`'s; that package's link hook now runs too.
+15. Gazelle: `# gazelle:dart_package_name`/`dart_language_version` stop at a
+    nested `pubspec.yaml`; a package's root is its innermost pubspec;
+    `build.yaml` parts Gazelle cannot carry fail until handled or marked
+    `# gazelle:dart_build_yaml_ignore <key path>`. A package name or language
+    version that `pubspec.yaml`, a directive and the metadata state
+    differently fails the run. Gazelle now writes a `dart_test`'s `tags` from
+    `@Tags` and its `target_compatible_with` from `@TestOn`: mark hand-written
+    ones `# keep`.
+16. A package's own `hook/build.dart` → Gazelle states it as the metadata's
+    `build_hook`, which fails the package's binaries and tests until the
+    metadata's `code_assets` or `data_assets` replace it; an unused hook →
+    `# gazelle:exclude hook/build.dart`.
+17. An import by `file:` URI, with a query or fragment, or by a relative path
+    into `lib/` from outside it (`../lib/a.dart`), and a `part` its
+    `dart_library` does not hold → fail the import check; import by
+    `package:` URI.
+18. `Runfiles.rlocation` (`@rules_dart//dart/runfiles`) of a path with `.` or
+    `..` segments → throws, as Bazel's runfiles libraries do.
+19. `@rules_dart//dart/ext/tools:check_dual_build_collisions` → removed; the
+    build generates the code, and `build_runner` does not run beside it.
+20. Analysis now reads dependencies' analyzer summaries. If a project hits
+    an SDK summary bug, `--@rules_dart//dart:analysis_summaries=false`.
+    `--@rules_dart//dart:analysis_shutdown_workaround` → removed; analysis
+    runs in persistent workers (`analysis_worker=false` for a process each).
+
+**Rule authors** (`@rules_dart//dart:utils.bzl` and providers)
+
+21. `DartPackageInfo.lib_root` → `package_root`; `derive_lib_root` →
+    `derive_package_root`; `has_unreplaced_hook` → `unreplaced_hook`.
+22. `DartInfo.package_name`/`lib_root` → `DartInfo.packages` (from
+    `dart_package_info()`); `DartInfo.deps` values are tuples of package
+    names. Build `DartInfo` with `dart_info(ctx = ctx, ...)` and merge
+    `SUMMARY_ATTRS` into the rule's attributes.
+23. `dart_analyzable_info` → `dart_analyzable_info_no_package` (`srcs` →
+    `entry_srcs`); `dart_analyzable_info_with_package` → `dart_analyzable_info`
+    (takes `packages`); `DartAnalyzableInfo.srcs` → `entry_srcs`,
+    `package_srcs` → `DartInfo.srcs`.
+24. `module_defines_transition` → `executable_defines_config`;
+    `dart_entry_kernel_action` takes no `defines` and needs
+    `MODULAR_KERNEL_ATTR`.
+25. `dart_link_hook_actions` and `collect_transitive_code_assets` take the
+    program's package (see `program_packages()`); rules calling
+    `dart_link_hook_actions` declare `COPY_TO_DIRECTORY_TOOLCHAINS`.
+26. `DartKernelSdkInfo.runtime` → `aot_runtime`; `platform`/`defines` →
+    `runtimes` (from `dart_kernel_runtime`).
+27. `dart_toolchain.sdk_root`, `DartSdkInfo.sdk_root`/`tool_files` →
+    `dart_toolchain.sdk` takes a `dart_sdk_files`; read `DartSdkInfo.files`.
+    A Dart SDK with no release tag also needs a `dart_outline_toolchain` and a
+    `dart_analyzer_toolchain`, or `outline_kernel` and `analysis_summaries`
+    off (see [A Dart SDK of your own](#a-dart-sdk-of-your-own)).
+28. `parse_pubspec_deps`/`parse_pubspec_sdk_constraint`/
+    `derive_language_version` → `read_pubspec` in `//dart/pub:pubspec.bzl`.
+    `dart/pub/pub_lock_hub.bzl` → private.
+29. `colocate_entrypoint` → removed; a binary compiles its sources in place.
+30. Loads of `dart/private/**` or `dart/pub/private/**` from outside rules_dart
+    → fail; load the public `.bzl` files instead.
+
 ## Road to 1.0
 
 This project is getting dangerously close to being good. It's still a beta, but
