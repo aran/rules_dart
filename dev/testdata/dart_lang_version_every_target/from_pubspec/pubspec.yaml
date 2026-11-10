@@ -1,0 +1,3 @@
+name: from_pubspec
+environment:
+  sdk: ^3.11.0

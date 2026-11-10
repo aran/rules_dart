@@ -197,11 +197,7 @@ func (d *dartLang) generateDartRules(args language.GenerateArgs) language.Genera
 		sort.Strings(srcs)
 		r.SetAttr("srcs", srcs)
 		r.SetAttr("visibility", []string{"//visibility:public"})
-		if decl := packageDeclFor(args); decl != "" {
-			r.SetAttr("package", decl)
-		} else {
-			r.SetAttr("package_name", packageNameIn(args.Config, args.Rel))
-		}
+		setPackageIdentity(r, args, packageNameIn(args.Config, args.Rel))
 		gen = append(gen, r)
 		imports = append(imports, collectImports(args, plain))
 	} else if len(plain) > 0 {
@@ -210,11 +206,13 @@ func (d *dartLang) generateDartRules(args language.GenerateArgs) language.Genera
 		sort.Strings(srcs)
 		r.SetAttr("srcs", srcs)
 		r.SetAttr("visibility", []string{"//visibility:public"})
-		if decl := packageDeclFor(args); decl != "" {
-			r.SetAttr("package", decl)
-		} else if statedPackageName(args.Config, args.Rel) != "" {
-			r.SetAttr("package_name", r.Name())
+		// The name is stated only where something states it; unstated,
+		// dart_library derives the same one from the target's name.
+		name := ""
+		if statedPackageName(args.Config, args.Rel) != "" {
+			name = r.Name()
 		}
+		setPackageIdentity(r, args, name)
 		gen = append(gen, r)
 		imports = append(imports, collectImports(args, plain))
 	}
@@ -599,7 +597,10 @@ func lowerSnake(s string) string {
 }
 
 // setPackageIdentity states the Dart package a generated rule belongs to,
-// either by reference to the directory's `dart_package_metadata` or inline.
+// either by reference to the directory's `dart_package_metadata` or inline:
+// pkgName, when not "", and the language version, when one is stated. Every
+// rule Gazelle writes for a package's lib/ states it so, the generated and the
+// plain alike, since a version stated once applies to all of them.
 func setPackageIdentity(r *rule.Rule, args language.GenerateArgs, pkgName string) {
 	if decl := packageDeclFor(args); decl != "" {
 		r.SetAttr("package", decl)

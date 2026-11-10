@@ -110,3 +110,16 @@ json_serializable_library(
     visibility = ["//visibility:public"],
     deps = ["@pub_deps//:json_annotation"],
 )
+
+dart_library(
+    name = "codegen",
+    package_name = "codegen",
+    srcs = ["codegen.dart"],
+    language_version = "3.11",
+    visibility = ["//visibility:public"],
+    deps = [
+        ":event",
+        ":profile",
+        ":user",
+    ],
+)

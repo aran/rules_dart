@@ -4,6 +4,7 @@ dart_library(
     name = "split",
     package_name = "split",
     srcs = ["a.dart"],
+    language_version = "3.11",
     visibility = ["//visibility:public"],
     deps = [
         "//split/lib/src/model",

@@ -539,7 +539,8 @@ Add directives as comments in a `BUILD.bazel` file to control generation:
 
 A `pubspec.yaml` at a package's root states the package's name (`name`) and
 language version (the lower bound of `environment.sdk`), so most projects need
-no directives at all. A package needs no `pubspec.yaml`: without one, its
+no directives at all. A stated language version, wherever it is stated, is on
+every library Gazelle writes for the package, generated and plain alike. A package needs no `pubspec.yaml`: without one, its
 name is its root directory's, unless a directive or `dart_package_metadata`
 states one.
 

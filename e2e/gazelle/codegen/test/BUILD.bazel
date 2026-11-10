@@ -4,7 +4,10 @@ dart_test(
     name = "event_test",
     main = "event_test.dart",
     deps = [
+        "//codegen/lib:codegen",
         "//codegen/lib:event",
+        "//codegen/lib:profile",
+        "//codegen/lib:user",
         "@pub_deps//:test",
     ],
 )
