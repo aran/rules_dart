@@ -1,7 +1,7 @@
 # Maintenance Chores
 
-Central reference for all recurring maintenance tasks. Slash commands read this
-file at runtime — keep file lists current as the repo evolves.
+Central reference for all recurring maintenance tasks. Keep file lists current
+as the repo evolves.
 
 ---
 
@@ -84,8 +84,6 @@ file at runtime — keep file lists current as the repo evolves.
 **Verification**: `bazel test //dart/tests/...` passes; the outline guard
 passes under `--config=deep`; at least one e2e workspace builds.
 
-**Automation**: `/bump-dart-sdk {version}` slash command.
-
 ---
 
 ## Bazel Version Bump
@@ -131,8 +129,6 @@ passes under `--config=deep`; at least one e2e workspace builds.
 
 **Verification**: `bazel test //dart/tests/...` passes.
 
-**Automation**: `/bump-bazel {version}` slash command.
-
 ---
 
 ## Bazel Module Dependency Bumps
@@ -171,8 +167,6 @@ passes under `--config=deep`; at least one e2e workspace builds.
 5. Run `bazel test //dart/tests/...` to verify
 
 **Verification**: `bazel test //dart/tests/...` passes.
-
-**Automation**: `/bump-deps` slash command.
 
 ---
 
@@ -226,8 +220,6 @@ the host's `dart`, with `FLUTTER_ROOT` taken from the environment or the
 `flutter` on PATH: `dart/ext/` needs a Flutter-flavored pub.
 
 **Verification**: All workspaces and packages report success.
-
-**Automation**: `/refresh-locks` slash command.
 
 ---
 
@@ -324,7 +316,7 @@ byte-level architecture check.
 Each in-repo Dart package is publishable to pub.dev. Maintenance includes:
 
 - **SDK constraint**: The `environment.sdk` lower bound in `pubspec.yaml`
-  tracks the project's minimum supported Dart SDK. Updated by `/bump-dart-sdk`.
+  tracks the project's minimum supported Dart SDK.
 - **Dependencies**: Any pub dependencies need periodic bumping. Run
   `dart pub outdated` in the package directory to check, then `dart pub upgrade`
   to take what the current constraints allow.
@@ -361,9 +353,6 @@ Each in-repo Dart package is publishable to pub.dev. Maintenance includes:
 **Verification**: `dart pub get` succeeds; `dart pub outdated` reports no
 critical updates.
 
-**Automation**: `/maintenance-audit` checks SDK constraint consistency and
-outdated dependencies.
-
 ---
 
 ## CI Folder List Sync
@@ -380,8 +369,6 @@ outdated dependencies.
 2. Add/remove entries to match
 
 **Verification**: CI workflow runs all e2e workspaces.
-
-**Automation**: `/maintenance-audit` detects drift.
 
 ---
 
@@ -413,8 +400,6 @@ outdated dependencies.
 **Procedure**: Review hardcoded counts, tables, and version strings against actual state.
 
 **Verification**: Visual inspection.
-
-**Automation**: `/maintenance-audit` checks some of these.
 
 ---
 
@@ -449,8 +434,7 @@ outdated dependencies.
 
 The hooks run overhead's tools, so there is no second pin to keep in step.
 
-**Automation**: `/bump-multitool` slash command. Alternatively, install the
-[multitool CLI](https://github.com/theoremlp/multitool) and run
+With the [multitool CLI](https://github.com/theoremlp/multitool) installed, run
 `multitool --lockfile ./overhead/multitool.lock.json update`.
 
 ---
@@ -501,5 +485,3 @@ pinned to something else in this repo:
 4. Keep `actions/checkout` version consistent across all workflows
 
 **Verification**: CI workflow runs successfully.
-
-**Automation**: `/bump-workflows` slash command. `/maintenance-audit` checks for outdated versions.
