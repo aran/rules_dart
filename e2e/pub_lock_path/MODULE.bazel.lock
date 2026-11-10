@@ -245,7 +245,7 @@
     },
     "@@rules_dart+//dart/pub:extensions.bzl%pub": {
       "general": {
-        "bzlTransitiveDigest": "0THyJ2R7rev8A+DG58Bv1hrC/T7eRh8m0Qf8dYo5ED8=",
+        "bzlTransitiveDigest": "e16AMYhta7pcCTW95qWrKBx4CM04K9ETyzScRlykrLw=",
         "usagesDigest": "4ylteUW4ifsGhHh6MJ7tuiaDHY6zXmJah0xE+cEtMJE=",
         "recordedInputs": [
           "REPO_MAPPING:rules_dart+,bsd_tar_toolchains_darwin_amd64 tar.bzl++toolchains+bsd_tar_toolchains_darwin_amd64",
@@ -262,7 +262,7 @@
           "REPO_MAPPING:rules_dart+,yaml.bzl yaml.bzl+",
           "FILE:@@//pubspec.lock 3848f692042eb90798f2c3b1f344d500ec8aa8bad84b49dd80ce0571370650b6",
           "FILE:@@//refused/pubspec.lock 5f86f006a70916f045d780c83dd3d55f51564572ab7ee868aa1379da850aa8c9",
-          "FILE:@@rules_dart+//dart/ext/pubspec.lock b83b8233789ba04ccba11ac82b65ad02a9cd3832162c14e04d6312f7cafeb370"
+          "FILE:@@rules_dart+//dart/ext/pubspec.lock 5980462be7e90baea67ca519fa3bde946bda471f74cd69069aac97bd44767a8d"
         ],
         "generatedRepoSpecs": {
           "dart_pub_index": {
@@ -2034,7 +2034,7 @@
             "attributes": {
               "package_name": "local_greeting",
               "version": "1.2.3",
-              "directory": "/Users/aran/Projects/rules_dart-wt-gzplugin/e2e/pub_lock_path/local_greeting",
+              "directory": "/Users/aran/Projects/rules_dart/e2e/pub_lock_path/local_greeting",
               "code_assets": [],
               "ignore_hook": false
             }
@@ -2051,7 +2051,7 @@
             "attributes": {
               "package_name": "has_build",
               "version": "0.0.1",
-              "directory": "/Users/aran/Projects/rules_dart-wt-gzplugin/e2e/pub_lock_path/has_build",
+              "directory": "/Users/aran/Projects/rules_dart/e2e/pub_lock_path/has_build",
               "code_assets": [],
               "ignore_hook": false
             }

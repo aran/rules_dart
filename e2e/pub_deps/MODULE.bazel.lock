@@ -245,7 +245,7 @@
     },
     "@@rules_dart+//dart/pub:extensions.bzl%pub": {
       "general": {
-        "bzlTransitiveDigest": "0THyJ2R7rev8A+DG58Bv1hrC/T7eRh8m0Qf8dYo5ED8=",
+        "bzlTransitiveDigest": "e16AMYhta7pcCTW95qWrKBx4CM04K9ETyzScRlykrLw=",
         "usagesDigest": "J5/CHBwHm+ylw0MaptX/AWmHrl7mYR2+U0oyv3aP1m4=",
         "recordedInputs": [
           "REPO_MAPPING:rules_dart+,bsd_tar_toolchains_darwin_amd64 tar.bzl++toolchains+bsd_tar_toolchains_darwin_amd64",
@@ -260,7 +260,7 @@
           "REPO_MAPPING:rules_dart+,pubspec_reader_macos-x64 rules_dart++pubspec_reader+pubspec_reader_macos-x64",
           "REPO_MAPPING:rules_dart+,pubspec_reader_windows-x64 rules_dart++pubspec_reader+pubspec_reader_windows-x64",
           "REPO_MAPPING:rules_dart+,yaml.bzl yaml.bzl+",
-          "FILE:@@rules_dart+//dart/ext/pubspec.lock b83b8233789ba04ccba11ac82b65ad02a9cd3832162c14e04d6312f7cafeb370"
+          "FILE:@@rules_dart+//dart/ext/pubspec.lock 5980462be7e90baea67ca519fa3bde946bda471f74cd69069aac97bd44767a8d"
         ],
         "generatedRepoSpecs": {
           "path": {
@@ -269,7 +269,7 @@
               "package_name": "path",
               "version": "1.9.1",
               "sha256": "75cca69d1490965be98c73ceaea117e8a04dd21217b37b292c9ddbec0d955bc5",
-              "deps": []
+              "spoke_prefix": "dart_pub"
             }
           },
           "very_good_analysis": {
@@ -278,7 +278,7 @@
               "package_name": "very_good_analysis",
               "version": "11.0.0",
               "sha256": "0bd5eb8d6be76aa0d71e70cbdae6cac8f784f761170568e3c2214a6948c7f6d3",
-              "deps": []
+              "spoke_prefix": "dart_pub"
             }
           },
           "dart_pub_index": {
