@@ -1,0 +1,33 @@
+load("//dart:defs.bzl", "dart_library", "dart_test")
+
+# For launchers that run a test's program: read a kernel list through runfiles,
+# write one naming kernels where they are, or join one for a process that takes
+# a single kernel file. See lib/kernel_list.dart.
+dart_library(
+    name = "kernel_list",
+    srcs = ["lib/kernel_list.dart"],
+    visibility = ["//visibility:public"],
+    deps = ["//dart/runfiles"],
+)
+
+# A program of several kernels for kernel_list_test to read and join. Run on
+# its own, it passes.
+dart_test(
+    name = "kernel_list_fixture",
+    size = "small",
+    main = "test/kernel_list_fixture.dart",
+    deps = ["//dart/runfiles"],
+)
+
+dart_test(
+    name = "kernel_list_test",
+    size = "small",
+    args = ["$(rlocationpath :kernel_list_fixture)"],
+    data = [":kernel_list_fixture"],
+    main = "test/kernel_list_test.dart",
+    deps = [
+        ":kernel_list",
+        "//dart/runfiles",
+        "@ext_pub_deps//:test",
+    ],
+)
