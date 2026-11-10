@@ -10,6 +10,10 @@ on:
     secrets:
       publish_token:
         required: true
+      # What a push of a tag reads from the repository's secrets, in place of
+      # publish_token; declared so the expression below type-checks.
+      BCR_PUBLISH_TOKEN:
+        required: false
   # Or, developers can manually push a tag from their clone
   push:
     tags:

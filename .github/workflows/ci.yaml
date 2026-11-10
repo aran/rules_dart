@@ -481,12 +481,12 @@ jobs:
         run: |
           for strategy in "" "--spawn_strategy=standalone"; do
             for group in dart_analyze dart_format; do
-              flags="$strategy --output_groups=-dart_analyze,-dart_format,+$group"
-              if bazel test $flags //undeclared_include 2>/dev/null; then
+              flags=(${strategy:+"$strategy"} "--output_groups=-dart_analyze,-dart_format,+$group")
+              if bazel test "${flags[@]}" //undeclared_include 2>/dev/null; then
                 echo "ERROR: $group [$strategy] should have failed on the undeclared include"
                 exit 1
               fi
-              out=$(bazel test $flags //undeclared_include 2>&1 || true)
+              out=$(bazel test "${flags[@]}" //undeclared_include 2>&1 || true)
               case $group in
                 dart_analyze) echo "$out" | grep -q "The URI 'shared.yaml' included in 'undeclared_include/analysis_options.yaml' can't be found" ;;
                 dart_format) echo "$out" | grep -q "Couldn't read file \"undeclared_include/shared.yaml\"" ;;
