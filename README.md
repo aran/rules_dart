@@ -2,6 +2,15 @@
 
 Bazel rule set for building Dart applications and libraries.
 
+rules_dart is hermetic. Bazel downloads the Dart SDK the toolchain pins and runs
+every tool from it, so a build means the same on every machine. A system-wide
+Dart installation is not supported, and neither is a system-wide install of any
+other Dart-ecosystem tool (`pub`, `build_runner`, `dart_style`). A `dart` on
+your `PATH` plays no part: build, test, analyze, format and fix with the rules,
+and run the SDK with `bazel run @rules_dart//dart -- ...` and pub with
+`bazel run @rules_dart//dart/pub -- ...` (see
+[Running the Dart SDK](#running-the-dart-sdk)).
+
 ## Installation
 
 Add to your `MODULE.bazel`:
@@ -74,8 +83,9 @@ must be fixed first (see [Architecture](docs/ARCHITECTURE.md)).
 
 ### Running the Dart SDK
 
-No separate Dart SDK installation is needed. The toolchain downloads the SDK
-automatically. To run the `dart` CLI directly:
+The toolchain downloads the SDK, and that SDK is the only one rules_dart uses:
+install no Dart, and run no `dart` from a `PATH`. To run the `dart` CLI of the
+pinned SDK:
 
 ```shell
 bazel run @rules_dart//dart -- --version
@@ -105,14 +115,20 @@ runs while `pub.from_lock()` refuses a lock, which is when the errors that
 refusal prints tell you to run it.
 
 > **Tip**: Consider using [`bazel_env`](https://github.com/buildbuddy-io/bazel_env.bzl)
-> to put Bazel-managed tool binaries on your `PATH` for IDE and shell use.
+> to put the Bazel-managed binaries, the pinned `dart` among them, on your `PATH`
+> for IDE and shell use.
 
 ### Command map
 
 Dart's own guidance, and the tools and coding agents that follow it, name
-commands that assume a pub-resolved package on disk. In a rules_dart workspace
-Bazel builds each package, so each command has a Bazel counterpart or none.
-`<dir>` is a package's directory relative to the workspace root.
+commands that assume a system-wide Dart installation and a pub-resolved package
+on disk. rules_dart supports neither (see [Running the Dart SDK](#running-the-dart-sdk)):
+do not run `dart`, `pub`, `build_runner` or any other Dart tool from a system
+install. Bazel builds each package and runs the pinned SDK, so each command in
+the left column has a Bazel counterpart or none. The Dart SDK and pub are run
+as `bazel run @rules_dart//dart -- ...` and `bazel run @rules_dart//dart/pub -- ...`;
+everything else is a rule. `<dir>` is a package's directory relative to the
+workspace root.
 
 | Dart command | In a rules_dart workspace |
 | --- | --- |
@@ -157,6 +173,36 @@ nothing of the packages Bazel builds or of generated files in `bazel-bin`. They
 report unresolved imports and undefined generated members that `bazel test`
 does not. Do not add those packages to `pubspec.yaml`, or hand-write the
 generated files, to quiet them: run `bazel test`, which is the analyzer here.
+
+### Working with coding agents
+
+A coding agent knows Dart from documentation that assumes a system `dart`, a
+pub-resolved package and `build_runner`. Tell it what is true here in the
+repository's `AGENTS.md` (or `CLAUDE.md`), adjusting the target names (`//:gazelle`,
+`//:format`, `//:fix`) to yours:
+
+```markdown
+- This workspace is built by Bazel with a hermetic Dart SDK. Never run `dart`,
+  `pub` or `build_runner` from a system install. Run the pinned SDK as
+  `bazel run @rules_dart//dart -- <args>` and pub as
+  `bazel run @rules_dart//dart/pub -- <args> --directory=<dir>`.
+- `bazel test //<dir>/...` is the analyzer and the format check: it fails on
+  every diagnostic, infos included, and on a file `dart format` would change.
+  `bazel build` checks neither. Run it before finishing. `bazel run //:fix` applies
+  the analyzer's fixes and `bazel run //:format -- <paths>` formats.
+- Never run `build_runner`, and never write or commit generated code. The build
+  generates it; the outputs are under `bazel-bin`, at the source file's path.
+- After adding, removing or renaming a Dart file or an import, run
+  `bazel run //:gazelle`, which rewrites `BUILD.bazel` files. After
+  `bazel run @rules_dart//dart/pub -- add <package> --directory=<dir>`, run it
+  again, so that `package:<package>` imports get their `deps`.
+- The build reads neither `build.yaml` nor `dart_test.yaml`. Gazelle carries
+  a builder's `build.yaml` options into its codegen target's `config`; a
+  test's tags, timeout, retries and shards go on the `dart_test` target.
+- Unresolved imports or missing generated members reported by an editor or
+  `dart mcp-server` are not errors in the build. Do not edit `pubspec.yaml`
+  to quiet them.
+```
 
 ### Rules
 
@@ -793,6 +839,58 @@ target the `analysis_config` flag points at. A run on part of the tree
 and keeps the config's other entries, so `gazelle -mode=diff` over the whole
 repository in CI reports an `analysis_options.yaml` nobody listed.
 
+### Without a pubspec.yaml
+
+A rules_dart workspace needs no `pubspec.yaml` and no `pubspec.lock`. Every fact
+a pubspec gives has a home in Bazel:
+
+| The pubspec states | Bazel states it as |
+| --- | --- |
+| `name` | `package_name` on the `dart_library` (and executables), or a `dart_package_metadata`; `# gazelle:dart_package_name` for Gazelle. Unstated, the package root directory's name. |
+| `environment.sdk`, its lower bound | `language_version` likewise, or `# gazelle:dart_language_version`. Unstated, the SDK's own. |
+| `dependencies`, `dev_dependencies` | The `deps` of the target that imports the package, which Gazelle writes from the imports. |
+| The versions in `pubspec.lock`, `dependency_overrides` | `pub.package()` pins, each with `version` and `sha256` (see [Using pub.dev packages](#using-pubdev-packages)). A pin in the root module decides. |
+| `hook/build.dart`, `hook/link.dart` | `build_hook` and `link_hook` on the `dart_library`. |
+| Native libraries a hook would build | `code_assets` (see [Native code assets](#native-code-assets)). |
+| The license file | `license_file` on the `dart_library`. |
+| `executables:` | A `dart_binary`. |
+
+[`e2e/no_pubspec`](e2e/no_pubspec/) is the worked example, and a test in it
+fails if a `pubspec.yaml` or `pubspec.lock` appears anywhere in the workspace.
+Its `MODULE.bazel` pins `json_annotation` and `meta`; `app/BUILD.bazel` states
+`app`'s name and language version once in a `dart_package_metadata`, which its
+`json_serializable_library` and `dart_library` share, and `greet/BUILD.bazel`
+states `greet`'s inline.
+
+Gazelle works without a pubspec. A package's root is the directory above its
+`lib/`, `bin/` and `test/`, its name is the root directory's unless a
+`dart_package_metadata` or `# gazelle:dart_package_name` states one, and an
+import of `package:foo/...` becomes a dep on `@foo` (the repository
+`pub.package(name = "foo")` creates), or on `@pub_deps//:foo` with
+`# gazelle:dart_pub_deps_repo pub_deps`. Analysis, tests and code generation need
+none either: what reads a pubspec reads one generated from the target's `deps`
+and package record.
+
+The price is pub's resolver. With no `pubspec.yaml` there is nothing for
+`pub get`, `pub add`, `pub upgrade` or `pub outdated` to work on, and no lock, so
+no tool chooses versions for you:
+
+- Every third-party package is a `pub.package()` you write, with its `sha256`
+  (`archive_sha256` in
+  `https://pub.dev/api/packages/<name>/versions/<version>`, see
+  [The sha256 of a `pub.package()`](#the-sha256-of-a-pubpackage)), and you pick its version.
+- A pinned package is built with the dependencies its own pubspec states, and
+  each must be pinned too: the transitive closure is yours to write, and a
+  missing pin fails the fetch naming both packages.
+- Upgrading means editing the version and digest by hand.
+- A package you publish to pub.dev still needs its `pubspec.yaml`.
+
+A workspace may mix both: a package with a pubspec and one without sit side by
+side, and a `pub.package()` pin and a `pub.from_lock()` lock can supply one
+package, the pin winning. Where a pubspec and a directive or
+`dart_package_metadata` state the same fact differently, Gazelle fails and names
+both (see [pubspec.yaml](#pubspecyaml)).
+
 ### Code generation
 
 `dart_codegen` runs a generator on each source file individually.
@@ -908,11 +1006,16 @@ This is not `pub.package()`, which fetches a published package from pub.dev;
 #### Executables in a package
 
 A `dart_binary`, `dart_test`, `dart_js_binary` or `dart_wasm_binary` belongs to
-no package unless it says so, and usually need not: its entrypoint takes the
-language version of the package whose root directory contains it, as Dart does
-for `bin/` and `test/`. A package with no `dart_library` has nothing to state
-that version, so an executable may state it itself, with the same `package`, or
-inline `package_name` / `language_version`, that a library takes:
+no package unless it says so. Its entrypoint then takes the language version of
+the package whose root directory contains it, as Dart does for `bin/` and
+`test/`, but only a package that its `deps` bring: a package is brought by its
+libraries, so an executable that depends on none of them has no record of the
+package it sits in. An entrypoint that no brought package's root contains
+compiles, analyzes and is format-checked at the SDK's version, whatever the
+package around it states. A package with no `dart_library` among the
+executable's `deps` has nothing to state the version, so the executable may
+state it itself, with the same `package`, or inline `package_name` /
+`language_version`, that a library takes:
 
 ```starlark
 dart_binary(
@@ -934,8 +1037,12 @@ own files must sit in its directory and not inside another package's.
 ### Static analysis and formatting
 
 `dart analyze` and the `dart format` check run as an aspect, `dart_analyze`,
-over every Dart target a `bazel test` names. Enable it in `.bazelrc`, and list
-every `analysis_options.yaml` in the repository in one `dart_analysis_config`:
+over every Dart target a `bazel test` names. The analyzer's lints are those the
+`analysis_options.yaml` files enable ([Lints](#lints)), `dart_fix` applies the
+analyzer's fixes, `dart_format` rewrites files to the format check's settings,
+and analysis and fixes run in [persistent workers](#analysis-workers). Enable the
+aspect in `.bazelrc`, and list every `analysis_options.yaml` in the repository in
+one `dart_analysis_config`:
 
 ```
 # .bazelrc
@@ -1008,11 +1115,12 @@ The language version selects the formatting _style_: below `3.7`, `dart format`
 writes the old short style, and from `3.7` on the tall one. The check formats
 each target at its own package's `language_version` (set on the `dart_library`
 or its `dart_package_metadata`; Gazelle copies it from `pubspec.yaml`). An
-executable's entrypoint takes the version of the package whose directory
-contains it, as Dart does for `bin/` and `test/`, or the one the executable
-states for itself (see [Executables in a package](#executables-in-a-package)). With no version stated, the
-check uses the newest the SDK knows, so a package on an older version must
-state it for the check to hold it to the style its own `dart format` produces.
+executable's entrypoint takes the version of the package its `deps` bring whose
+root directory contains it, or the one the executable states for itself (see
+[Executables in a package](#executables-in-a-package)). With no version
+stated, the check uses the newest the SDK knows, so a package on an older
+version must state it for the check to hold it to the style its own
+`dart format` produces.
 
 `dart_format` is the check's `bazel run` counterpart: it rewrites files in your
 workspace with the settings the check applies to them. It reads the same
@@ -1068,6 +1176,43 @@ bazel build //:fix --output_groups=+dart_fix_manifest  # what was fixed, and wha
 bazel build //:fix --output_groups=+dart_fix_fixes     # the fixed files themselves
 ```
 
+#### Lints
+
+Lints are the rules an `analysis_options.yaml` enables, as in any Dart project;
+the analyzer reads that file and the package's `pubspec.yaml` plays no part. A
+ruleset published as a package, such as `package:lints` or
+`package:very_good_analysis`, is included by `package:` URI, and its package goes
+in the `deps` of the `dart_analysis_options` that holds the file:
+
+```yaml
+# analysis_options.yaml
+include: package:lints/recommended.yaml
+analyzer:
+  language:
+    strict-casts: true
+linter:
+  rules:
+    - prefer_final_locals
+```
+
+```starlark
+dart_analysis_options(
+    name = "analysis_options",
+    src = "analysis_options.yaml",
+    deps = ["@pub_deps//:lints"],  # `@lints` for a `pub.package(name = "lints", ...)`
+)
+```
+
+Gazelle writes these `deps` from the `include:` lines (see
+[Analysis options](#analysis-options)). The ruleset is staged to resolve the
+include alone: it is not a dependency of the code it lints, and it is not itself
+analyzed. A lint that reads the pubspec reads one generated for the analysis
+from the target's `deps` and its package's `language_version`, so
+`depend_on_referenced_packages` is satisfied by `deps` and `sdk_version_since`
+judges the code against the version the package compiles at. `// ignore:`
+comments and `analyzer: errors:` settings work as in an IDE; `no-dart-analyze`
+skips a whole target.
+
 #### Analysis workers
 
 Analysis and fixes run in Bazel persistent workers. Each worker keeps one Dart
@@ -1083,10 +1228,10 @@ To run a fresh `dart analyze` and `dart fix` per action instead:
 bazel test //... --@rules_dart//dart:analysis_worker=false
 ```
 
-Bazel's own worker flags apply: `--worker_max_instances=DartAnalyze=N` sets
-how many servers run at once (each holds a few hundred MB), and
-`--strategy=DartAnalyze=sandboxed`, or remote execution, runs each action once
-on its own server. On Windows a worker that is killed, rather than stopped by
+Bazel's own worker flags apply: `--worker_max_instances=DartAnalyze=N` (and
+`DartFix=N` for fixes) sets how many servers run at once (each holds a few
+hundred MB), and `--strategy=DartAnalyze=sandboxed`, or remote execution, runs
+each action once on its own server. On Windows a worker that is killed, rather than stopped by
 Bazel, leaves its server running until Bazel's server shuts down.
 
 #### Checking targets `//...` does not reach
