@@ -10,11 +10,13 @@ load(
     "collect_transitive_code_assets",
     "collect_transitive_resources",
     "generate_native_assets_yaml",
+    "launcher_executable",
     "resolve_code_assets",
+    "runfiles_path",
     "stage_code_assets",
     "target_dart_abi",
 )
-load("//dart/private:dart_compile.bzl", "dart_compile_action", "front_end_flags", "recorded_uses_kind")
+load("//dart/private:dart_compile.bzl", "dart_compile_action", "front_end_flags", "get_compilation_mode_flags", "recorded_uses_kind")
 load("//dart/private:dart_import_check.bzl", "dart_import_check_aspect", "import_check_validation", "without_import_check")
 load("//dart/private:dart_module.bzl", "KERNEL_TOOL_ATTR", "whole_program_kernel")
 load("//dart/private:exec_groups.bzl", "PORTABLE_EXEC_GROUPS")
@@ -158,11 +160,16 @@ def _dart_binary_impl(ctx):
     ).merge_all(
         [dep[DefaultInfo].default_runfiles for dep in ctx.attr.data],
     )
+    executable = output
+    launcher = _launcher(ctx, dart_sdk_info, compile_mode, output)
+    if launcher != None:
+        executable = launcher.executable
+        runfiles = runfiles.merge(launcher.runfiles)
 
     return [
         DefaultInfo(
             files = depset([output] + code_asset_libs),
-            executable = output,
+            executable = executable,
             runfiles = runfiles,
         ),
         DartCompileInfo(
@@ -192,6 +199,41 @@ def _stage_libraries(ctx, assets):
         owners[library.basename] = (library, asset.asset_id)
     return stage_code_assets(ctx, assets, lambda _index: directory)
 
+def _launcher(ctx, sdk, compile_mode, output):
+    """The executable that runs a snapshot or kernel `output` in its VM.
+
+    Returns None where `output` is itself the executable (`exe`), and where
+    this build has no VM for the target: a cross toolchain's SDK runs on the
+    host, so a cross-compiled snapshot is run with the target's runtime there.
+    """
+    if compile_mode == "exe" or not hasattr(ctx.attr, "_launcher") or sdk.target_os:
+        return None
+    dart = runfiles_path(sdk.dart, ctx.workspace_name)
+    if compile_mode == "aot-snapshot":
+        vm = dart.rpartition("/")[0] + "/dartaotruntime" + (".exe" if dart.endswith(".exe") else "")
+    else:
+        vm = dart
+
+    # A kernel keeps its asserts for the VM that runs it to enable, which is
+    # this launcher; the snapshot modes were compiled with them or without.
+    flags = get_compilation_mode_flags(ctx, "kernel") if compile_mode == "kernel" else []
+    launcher = launcher_executable(ctx, ctx.attr._launcher)
+    config = ctx.actions.declare_file(ctx.label.name + ".launcher.json")
+    ctx.actions.write(
+        output = config,
+        content = json.encode({
+            "executable": vm,
+            "arguments": flags + [{"rlocation": runfiles_path(output, ctx.workspace_name)}],
+        }),
+    )
+    return struct(
+        executable = launcher.executable,
+        runfiles = ctx.runfiles(
+            files = [output, config],
+            transitive_files = sdk.tool_files,
+        ).merge(launcher.runfiles),
+    )
+
 def _compile_runner(ctx, compile_mode):
     # Only gen_snapshot's Mach-O output names where it was written.
     if not hasattr(ctx.attr, "_compile_runner") or compile_mode not in ("exe", "aot-snapshot"):
@@ -220,12 +262,20 @@ _COMPILE_RUNNER_ATTR = {
     ),
 }
 
-def _dart_binary_rule(check_imports, compile_runner = True):
+_LAUNCHER_ATTR = {
+    "_launcher": attr.label(
+        default = "//dart/private/tools:launcher",
+        executable = True,
+        cfg = "target",
+    ),
+}
+
+def _dart_binary_rule(check_imports, compile_runner = True, launcher = True):
     return rule(
         implementation = _dart_binary_impl,
         attrs = dict(
             KERNEL_TOOL_ATTR if check_imports else {},
-            **dict(_COMPILE_RUNNER_ATTR if compile_runner else {}, **dict({
+            **dict(_COMPILE_RUNNER_ATTR if compile_runner else {}, **dict(_LAUNCHER_ATTR if launcher else {}, **dict({
                 "main": attr.label(
                     doc = "The Dart entrypoint file containing a top-level `main()` function.",
                     mandatory = True,
@@ -277,6 +327,10 @@ def _dart_binary_rule(check_imports, compile_runner = True):
     - `aot-snapshot`: AOT-compiled snapshot. Requires `dartaotruntime` to execute. Smaller than `exe`.
     - `kernel`: Dart kernel binary (`.dill`). Requires `dart` to execute. Fastest compilation, useful for development.
     - `jit-snapshot`: JIT snapshot with trained profile data. Requires `dart` to execute. Fastest startup after warmup.
+
+    In the last three modes the output is `<name>.aot`, `<name>.dill` or `<name>.jit`, and the target's executable is a \
+    launcher that runs it in the SDK's VM, so the target works with `bazel run` and as another target's `data`. A \
+    cross-compiled output has no VM for its target here and is its own executable.
     """,
                     default = "exe",
                     values = ["exe", "aot-snapshot", "kernel", "jit-snapshot"],
@@ -294,7 +348,7 @@ def _dart_binary_rule(check_imports, compile_runner = True):
     `kernel` and `jit-snapshot` modes do not tree-shake, so nothing is recorded and the file is \
     the empty JSON object `{}` (`kind = "empty"`).""",
                 ),
-            }, **dict(DART_ABI_CONSTRAINT_ATTRS, **dict(EXTRA_DART_DEFINES_ATTR, **EXECUTABLE_PACKAGE_ATTRS))))
+            }, **dict(DART_ABI_CONSTRAINT_ATTRS, **dict(EXTRA_DART_DEFINES_ATTR, **EXECUTABLE_PACKAGE_ATTRS)))))
         ),
         executable = True,
         # The default group compiles machine code for the target, so its SDK
@@ -306,11 +360,14 @@ def _dart_binary_rule(check_imports, compile_runner = True):
 
 dart_binary = _dart_binary_rule(check_imports = True)
 
-# `kernel_tool` itself, which checks everyone else's imports: built without the
-# check, which would depend on it. Only for rules_dart's own tools.
-dart_tool_binary = _dart_binary_rule(check_imports = False)
+# `kernel_tool` itself, which checks everyone else's imports, and the
+# `launcher` of the other modes: built without the check, which would depend on
+# `kernel_tool`, and without a launcher, which would depend on itself. Only for
+# rules_dart's own `exe` tools.
+dart_tool_binary = _dart_binary_rule(check_imports = False, launcher = False)
 
 # `compile_runner`, which every macOS `exe` and `aot-snapshot` compiles
 # through: a `kernel`, which does not, built by a rule that does not depend on
-# it. Goes when `compile_runner` does (see its header).
-dart_bootstrap_binary = _dart_binary_rule(check_imports = False, compile_runner = False)
+# it. Goes when `compile_runner` does (see its header). Its action runs it with
+# the SDK's `dart`, so it needs no launcher.
+dart_bootstrap_binary = _dart_binary_rule(check_imports = False, compile_runner = False, launcher = False)

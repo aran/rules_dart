@@ -11,6 +11,17 @@ dart_bootstrap_binary(
     deps = ["@ext_pub_deps//:crypto"],
 )
 
+# The executable of a `dart_binary` in a mode the VM runs, and of
+# `@rules_dart//dart`. Built by a rule without a launcher of its own.
+dart_tool_binary(
+    name = "launcher",
+    srcs = ["launcher_config.dart"],
+    compile_mode = "exe",
+    main = "launcher.dart",
+    visibility = ["//visibility:public"],
+    deps = ["//dart/runfiles"],
+)
+
 dart_binary(
     name = "noop",
     compile_mode = "exe",

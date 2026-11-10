@@ -13,7 +13,7 @@ diagnostic or a formatting violation fails the build of this test, and the test
 binary itself passes through.
 """
 
-load("//dart/private:common.bzl", "test_executable")
+load("//dart/private:common.bzl", "launcher_executable")
 load("//dart/private:dart_analyze_aspect.bzl", "NO_ANALYZE_TAG", "NO_FORMAT_TAG", "dart_analyze")
 load("//dart/private:runtime.bzl", "web_platforms_transition")
 
@@ -30,7 +30,7 @@ def _dart_analysis_test_impl(ctx):
                   "source of its own, or is tagged both `%s` and `%s`. Drop it " +
                   "from `targets`.") % (ctx.label, target.label, NO_ANALYZE_TAG, NO_FORMAT_TAG))
         stamps.extend(checks)
-    noop = test_executable(ctx, ctx.attr._tool)
+    noop = launcher_executable(ctx, ctx.attr._tool)
     return [DefaultInfo(
         executable = noop.executable,
         runfiles = ctx.runfiles(transitive_files = depset(transitive = stamps)).merge(noop.runfiles),

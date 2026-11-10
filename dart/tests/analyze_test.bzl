@@ -15,7 +15,7 @@ provider carrying it is still not something `deps` will accept.
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts")
 load("//dart:providers.bzl", "DartAnalyzableInfo", "DartInfo")
-load("//dart/private:common.bzl", "test_executable")
+load("//dart/private:common.bzl", "launcher_executable")
 load("//dart/private:dart_analyze_aspect.bzl", "DartFixOutputsInfo", "dart_analyze")
 
 # The fixture's entrypoint and its dependency, by the suffix of their
@@ -29,7 +29,7 @@ def _checked_test_impl(group):
         groups = ctx.attr.target[OutputGroupInfo] if OutputGroupInfo in ctx.attr.target else None
         if groups == None or not hasattr(groups, group):
             fail("%s: the dart_analyze aspect has no %s check for %s" % (ctx.label, group, ctx.attr.target.label))
-        noop = test_executable(ctx, ctx.attr._tool)
+        noop = launcher_executable(ctx, ctx.attr._tool)
         return [DefaultInfo(
             executable = noop.executable,
             runfiles = ctx.runfiles(transitive_files = getattr(groups, group)).merge(noop.runfiles),

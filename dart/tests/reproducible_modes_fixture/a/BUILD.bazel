@@ -1,0 +1,16 @@
+load("//dart:defs.bzl", "dart_binary")
+
+package(default_visibility = ["//dart/tests/reproducible_modes_fixture:__pkg__"])
+
+[
+    dart_binary(
+        name = "hello_" + mode.replace("-", "_"),
+        compile_mode = mode,
+        main = "//dart/tests/reproducible_modes_fixture:work.dart",
+    )
+    for mode in [
+        "exe",
+        "kernel",
+        "aot-snapshot",
+    ]
+]

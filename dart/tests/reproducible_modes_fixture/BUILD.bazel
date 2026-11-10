@@ -1,0 +1,25 @@
+load("//dart:defs.bzl", "dart_test")
+
+exports_files(["work.dart"])
+
+# One entrypoint compiled in each mode, in three packages to outputs of the
+# same name. The third package's path has a different length from the others.
+dart_test(
+    name = "reproducible_modes_test",
+    size = "small",
+    data = [
+        "//dart/tests/reproducible_modes_fixture/%s:hello_%s" % (package, mode)
+        for package in [
+            "a",
+            "b",
+            "a_much_longer_directory_name",
+        ]
+        for mode in [
+            "exe",
+            "kernel",
+            "aot_snapshot",
+        ]
+    ],
+    main = "reproducible_modes_test.dart",
+    deps = ["//dart/runfiles"],
+)

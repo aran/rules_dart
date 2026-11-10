@@ -29,6 +29,10 @@ bazel run @rules_dart//dart -- analyze lib/
 bazel run @rules_dart//dart -- format lib/
 ```
 
+It runs in the directory `bazel run` was invoked from, and, like every build
+action, with Dart's analytics off, so it writes nothing into your home
+directory.
+
 > **Tip**: Consider using [`bazel_env`](https://github.com/buildbuddy-io/bazel_env.bzl)
 > to put Bazel-managed tool binaries on your `PATH` for IDE and shell use.
 
@@ -708,6 +712,9 @@ The [`e2e/`](e2e/) directory contains complete working examples:
 
 > **Note**: Only the `exe` and `aot-snapshot` compile modes cross-compile via
 > `--platforms`. `kernel` and `jit-snapshot` are VM formats that ignore target
-> flags. Linux targets are `linux-x64`, `linux-arm64`, `linux-riscv64` and
+> flags. Built natively, a `kernel`, `jit-snapshot` or `aot-snapshot` target's
+> executable is a launcher that runs the output in the SDK's VM, so it works with
+> `bazel run` and as `data`; cross-compiled, the target's executable is the
+> output itself, for the target's own runtime to run. Linux targets are `linux-x64`, `linux-arm64`, `linux-riscv64` and
 > `linux-arm` (armv7, selected by `@platforms//cpu:armv7`), reachable from every
 > supported host. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for details.

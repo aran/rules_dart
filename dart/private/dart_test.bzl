@@ -20,12 +20,12 @@ load(
     "collect_transitive_resources",
     "generate_native_assets_yaml",
     "kernel_root_path",
+    "launcher_executable",
     "relative_path",
     "resolve_code_assets",
     "runfiles_path",
     "stage_code_assets",
     "target_dart_abi",
-    "test_executable",
 )
 load("//dart/private:dart_import_check.bzl", "dart_import_check_aspect", "import_check_validation")
 load(
@@ -105,7 +105,7 @@ def _dart_test_impl(ctx):
         if key.startswith("RULES_DART_"):
             fail("%s: `env` cannot set %s; rules_dart uses the RULES_DART_ prefix to drive the test" % (ctx.label, key))
         env[key] = ctx.expand_location(value, ctx.attr.data)
-    launcher = test_executable(ctx, ctx.attr._tool)
+    launcher = launcher_executable(ctx, ctx.attr._tool)
     env["RULES_DART_DART"] = runfiles_path(dart_sdk_info.dart, workspace_name)
 
     # A dep's `lib/**` non-Dart files are part of the package at run time under

@@ -6,30 +6,6 @@ load("//dart/private:exec_groups.bzl", "PORTABLE", "portable_sdk")
 load("//dart/private:resources.bzl", "kernel_resources")
 load("//dart/private:source_set.bzl", "needs_source_assembly", "package_for")
 
-# Official Bazel bash runfiles v3 initialization boilerplate.
-# Sources runfiles.bash which provides rlocation() for cross-platform
-# runfile resolution (directory, manifest, and .exe.runfiles).
-# See: https://github.com/bazelbuild/rules_shell/blob/main/shell/runfiles/runfiles.bash
-BASH_RUNFILES_INIT = """\
-# --- begin runfiles.bash initialization v3 ---
-set -uo pipefail; set +e; f=bazel_tools/tools/bash/runfiles/runfiles.bash
-# shellcheck disable=SC1090
-source "${RUNFILES_DIR:-/dev/null}/$f" 2>/dev/null || \
-  source "$(grep -sm1 "^$f " "${RUNFILES_MANIFEST_FILE:-/dev/null}" | cut -f2- -d' ')" 2>/dev/null || \
-  source "$0.runfiles/$f" 2>/dev/null || \
-  source "$(grep -sm1 "^$f " "$0.runfiles_manifest" | cut -f2- -d' ')" 2>/dev/null || \
-  source "$(grep -sm1 "^$f " "$0.exe.runfiles_manifest" | cut -f2- -d' ')" 2>/dev/null || \
-  { echo>&2 "ERROR: cannot find $f"; exit 1; }; f=; set -e
-# --- end runfiles.bash initialization v3 ---"""
-
-# Private attribute that makes the bash runfiles library available in the
-# runfiles tree of rules that generate bash launcher scripts.
-BASH_RUNFILES_ATTR = {
-    "_runfiles_lib": attr.label(
-        default = "@bazel_tools//tools/bash/runfiles",
-    ),
-}
-
 # Private attribute for detecting Windows at analysis time (for .exe extension).
 WINDOWS_CONSTRAINT_ATTR = {
     "_windows_constraint": attr.label(
@@ -480,14 +456,16 @@ def merge_package_records(merged):
             )
     return packages
 
-def test_executable(ctx, tool):
-    """Symlinks a pre-compiled launcher as a test rule's executable.
+def launcher_executable(ctx, tool):
+    """Symlinks a pre-compiled launcher as a rule's executable, `<name>[.exe]`.
 
-    Keeps the launcher's `.exe` extension, which Windows needs to run it. The
-    launcher must be built for the host the test runs on: with `cfg = "target"`
-    where the test is itself built for that host, as `dart_test` is, or with
-    `config.exec("test")` where it must run on the test execution group's host
-    whatever the target, as the analysis tests do.
+    Keeps the launcher's `.exe` extension, which Windows needs to run it. A
+    launcher that reads a configuration finds it beside this executable, at
+    `<name>.launcher.json` (`launcher_config.dart`). The launcher must be built
+    for the host the executable runs on: with `cfg = "target"` where the rule
+    is itself built for that host, as `dart_test` and `dart_binary` are, or with
+    `config.exec("test")` where a test must run on the test execution group's
+    host whatever the target, as the analysis tests do.
 
     Args:
       ctx: The rule context.
