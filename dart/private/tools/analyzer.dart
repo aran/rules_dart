@@ -19,17 +19,17 @@ typedef Output = ({int exitCode, String stdout, String stderr});
 
 /// `dart analyze` and `dart fix --apply`, as a build action runs them.
 abstract interface class Analyzer {
-  /// Analyzes [project] with the SDK of [dart], as `dart analyze
-  /// [--fatal-infos] <project>` does, naming files inside [project] relative
-  /// to it.
+  /// Analyzes [project] with the SDK of [dart], as
+  /// `dart analyze [--fatal-infos] <project>` does, naming files inside
+  /// [project] relative to it.
   Future<Output> analyze(
     String dart,
     String project, {
     required bool fatalInfos,
   });
 
-  /// Fixes the project at [root] in place with the SDK of [dart], as `dart
-  /// fix --apply <root>` does.
+  /// Fixes the project at [root] in place with the SDK of [dart], as
+  /// `dart fix --apply <root>` does.
   Future<Output> fix(String dart, String root);
 }
 
@@ -90,11 +90,12 @@ Future<Never> runAnalysisAction(List<String> args, Action action) async {
 /// Where a worker's servers cache, as `<this>-<n>`: beside the exec root it
 /// started in, where neither the sandbox's cleanup nor another worker reaches.
 ///
-/// Bazel starts a worker in the exec root (`<output base>/execroot/<main
-/// repo>`), or, sandboxed, in `<output base>/bazel-workers/<worker>/<main
-/// repo>`, whose parent it cleans for each request. Two levels up is the
-/// output base, or the `bazel-workers` directory, both Bazel's and neither
-/// cleaned under a running worker; the process id keeps workers apart.
+/// Bazel starts a worker in the exec root
+/// (`<output base>/execroot/<main repo>`), or, sandboxed, in
+/// `<output base>/bazel-workers/<worker>/<main repo>`, whose parent it cleans
+/// for each request. Two levels up is the output base, or the `bazel-workers`
+/// directory, both Bazel's and neither cleaned under a running worker; the
+/// process id keeps workers apart.
 String workerCache(String start) =>
     '${Directory(start).absolute.parent.parent.path}'
     '${Platform.pathSeparator}dart_analysis_worker-$pid';

@@ -188,10 +188,7 @@ Future<String?> _outline(
 ) async {
   final outlineDir = args.one('outline-dir');
   Directory(outlineDir).createSync(recursive: true);
-  final compiled = [
-    for (final m in manifest.modules)
-      if (m.dill case final dill?) dill,
-  ];
+  final compiled = [for (final m in manifest.modules) ?m.dill];
   if (compiled.isEmpty) return null;
   // Every dependency's kernel file is named, more than a Windows command line
   // holds for a package with many, so they go in a params file.

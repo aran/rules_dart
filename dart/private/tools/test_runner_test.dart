@@ -287,8 +287,9 @@ void main(List<String> args) {
       cache = Directory('${tmp.path}/cache');
     });
     tearDown(() {
-      if (!Platform.isWindows)
+      if (!Platform.isWindows) {
         Process.runSync('chmod', ['-R', 'u+w', tmp.path]);
+      }
       tmp.deleteSync(recursive: true);
     });
 
@@ -544,8 +545,9 @@ void main(List<String> args) {
 }
 
 /// Writes the manifest of the runfiles tree at [root] into [into], as Bazel
-/// would where it builds no tree: a line for each file, `<runfiles path> <real
-/// path>`, and one for each linked directory (a tree artifact) whole.
+/// would where it builds no tree: a line for each file,
+/// `<runfiles path> <real path>`, and one for each linked directory (a tree
+/// artifact) whole.
 String _manifestOf(String root, String into) {
   final lines = <String>[];
   void walk(Directory directory, String prefix) {

@@ -21,12 +21,11 @@ class ServerAnalyzer implements Analyzer {
   /// A server is stopped once it has had nothing to do for [idle], and
   /// [note] hears when servers start and stop.
   ServerAnalyzer({
-    required String host,
+    required this._host,
     required String cache,
     this.idle = idleGap,
     void Function(String)? note,
-  }) : _host = host,
-       _cache = Directory(cache).absolute.path,
+  }) : _cache = Directory(cache).absolute.path,
        _note = note ?? ((_) {});
 
   final String _host;
@@ -297,7 +296,7 @@ Future<String?> _applyFixes(
       'inTestMode': false,
       'updatePubspec': updatePubspec,
     });
-    final edits = (result['edits'] as List).cast<Map>();
+    final edits = (result['edits'] as List).cast<Map<String, Object?>>();
     final overlays = <String, Object?>{};
     for (final edit in edits) {
       final file = edit['file'] as String;
@@ -307,7 +306,7 @@ Future<String?> _applyFixes(
       });
       // In the order given, which is end to start, as `dart fix` applies
       // them.
-      for (final e in (edit['edits'] as List).cast<Map>()) {
+      for (final e in (edit['edits'] as List).cast<Map<String, Object?>>()) {
         final offset = e['offset'] as int;
         content = content.replaceRange(
           offset,

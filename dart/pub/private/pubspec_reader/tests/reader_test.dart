@@ -5,6 +5,8 @@
 /// Files pub's field checks refuse are listed below with pub's message.
 ///
 /// Arguments: the runfiles paths of results.json and of every testdata file.
+library;
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -121,7 +123,9 @@ void main(List<String> args) {
       final environment = fields['environment'];
       final expected = {
         'name': fields['name'],
-        'dependencies': dependencies is Map ? dependencies.keys.toList() : [],
+        'dependencies': dependencies is Map
+            ? dependencies.keys.toList()
+            : <Object?>[],
         'sdk_constraint': environment is Map ? environment['sdk'] ?? '' : '',
         'fields': fields,
       };

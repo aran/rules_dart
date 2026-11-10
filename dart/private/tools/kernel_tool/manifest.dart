@@ -75,7 +75,9 @@ class Manifest {
     return Manifest(
       label: m['label'] as String,
       packages: {
-        for (final p in ((m['packages'] as List?) ?? const []).cast<Map>())
+        for (final p
+            in ((m['packages'] as List?) ?? const [])
+                .cast<Map<String, dynamic>>())
           p['name'] as String: p['package_root'] as String,
       },
       dir: dir,

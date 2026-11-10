@@ -5,6 +5,8 @@
 ///
 /// Arguments: the runfiles paths of `kernel_tool` and of the SDK's `kernel`
 /// file set copy.
+library;
+
 import 'dart:convert';
 import 'dart:io';
 

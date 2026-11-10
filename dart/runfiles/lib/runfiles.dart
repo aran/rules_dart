@@ -38,16 +38,12 @@ class Runfiles {
   /// `fromState` exists for tests and for embedders that supply their
   /// own runfiles tree representation.
   Runfiles.fromState({
-    String? directory,
-    Map<String, String>? manifest,
-    String? manifestPath,
+    this._directory,
+    this._manifest,
+    this._manifestPath,
     Map<(String, String), String>? repoMapping,
-    String defaultSourceRepo = '',
-  }) : _directory = directory,
-       _manifest = manifest,
-       _manifestPath = manifestPath,
-       _repoMapping = repoMapping ?? const {},
-       _defaultSourceRepo = defaultSourceRepo;
+    this._defaultSourceRepo = '',
+  }) : _repoMapping = repoMapping ?? const {};
 
   /// Creates a [Runfiles] instance by probing environment variables and
   /// filesystem paths.

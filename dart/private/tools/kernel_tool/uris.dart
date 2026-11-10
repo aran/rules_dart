@@ -54,7 +54,7 @@ class PackageConfig {
     final names = <String>{};
     final libs = <_PackageLib>[];
     final packages = (jsonDecode(json) as Map)['packages'] as List;
-    for (final entry in packages.cast<Map>()) {
+    for (final entry in packages.cast<Map<String, dynamic>>()) {
       final name = entry['name'] as String;
       names.add(name);
       final root = base.resolve(entry['rootUri'] as String);

@@ -14,7 +14,7 @@ void main() {
 
   final content = file.readAsStringSync().trim();
   if (content == 'Hello from runfiles!') {
-    print('PASS: read expected message via rlocation');
+    stdout.writeln('PASS: read expected message via rlocation');
   } else {
     stderr.writeln('FAIL: expected "Hello from runfiles!", got "$content"');
     exit(1);

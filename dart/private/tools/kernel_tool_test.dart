@@ -36,13 +36,17 @@ final _packageConfig = jsonEncode({
 
 final _librariesJson = jsonEncode({
   'vm_common': {
-    'libraries': {'core': {}, 'io': {}, 'ffi': {}},
+    'libraries': {
+      'core': <String, Object?>{},
+      'io': <String, Object?>{},
+      'ffi': <String, Object?>{},
+    },
   },
   'vm': {
     'include': [
       {'target': 'vm_common'},
     ],
-    'libraries': {'cli': {}},
+    'libraries': {'cli': <String, Object?>{}},
   },
 });
 

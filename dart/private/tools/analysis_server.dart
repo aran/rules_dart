@@ -202,12 +202,18 @@ class AnalysisServer {
     }
     if (message is! Map<String, Object?>) return;
     switch (message) {
-      case {'event': 'analysis.errors', 'params': final Map params}:
+      case {
+        'event': 'analysis.errors',
+        'params': final Map<String, Object?> params,
+      }:
         errors[params['file'] as String] = [
           for (final error in params['errors'] as List)
-            Diagnostic((error as Map).cast()),
+            Diagnostic(error as Map<String, Object?>),
         ];
-      case {'event': 'server.status', 'params': {'analysis': final Map status}}:
+      case {
+        'event': 'server.status',
+        'params': {'analysis': final Map<String, Object?> status},
+      }:
         // As `dart analyze` reads it: done is the first idle status after a
         // busy one.
         _busy = status['isAnalyzing'] == true;
@@ -224,7 +230,7 @@ class AnalysisServer {
         }
       case {
         'event': 'server.error' || 'server.pluginError',
-        'params': final Map error,
+        'params': final Map<String, Object?> error,
       }:
         serverError = true;
         log.writeln(
@@ -233,7 +239,7 @@ class AnalysisServer {
         if (error['stackTrace'] case final String trace when trace.isNotEmpty) {
           log.writeln(trace);
         }
-      case {'id': final String id, 'error': final Map error}:
+      case {'id': final String id, 'error': final Map<String, Object?> error}:
         _pending
             .remove(id)
             ?.completeError(

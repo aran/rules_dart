@@ -151,7 +151,8 @@ void main(List<String> args) {
           'app/lib/a.dart',
           '$bin/app/lib/g.dart',
         ], mapped: mapped);
-        final modules = (manifest['modules'] as List).cast<Map>();
+        final modules = (manifest['modules'] as List)
+            .cast<Map<String, Object?>>();
         expect(
           modules.map((m) => m['status']),
           everyElement('ok'),
