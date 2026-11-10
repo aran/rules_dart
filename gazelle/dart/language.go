@@ -119,10 +119,6 @@ func macroLoadInfos() []rule.LoadInfo {
 			Symbols: []string{"mockito_codegen"},
 		},
 		{
-			Name:    "@rules_dart//dart/ext/go_router:defs.bzl",
-			Symbols: []string{"go_router_codegen"},
-		},
-		{
 			Name:    "@rules_dart//dart/ext/copy_with_extension_gen:defs.bzl",
 			Symbols: []string{"copy_with_codegen"},
 		},

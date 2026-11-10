@@ -30,7 +30,6 @@ var macroKinds = []string{
 	"freezed_codegen",
 	"built_value_codegen",
 	"mockito_codegen",
-	"go_router_codegen",
 	"copy_with_codegen",
 	"drift_codegen",
 	"stacked_router_codegen",

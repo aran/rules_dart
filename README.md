@@ -1145,8 +1145,7 @@ speak. The model files a generator reads need nothing special — they belong to
 the `dart_library` targets in `deps`, which are analyzable already.
 
 For first-party builders (`json_serializable`, `freezed`, `built_value`,
-`mockito`, `go_router`, `copy_with_extension_gen`, `stacked`,
-`drift`), each ships a convenience macro (`json_serializable_codegen`,
+`mockito`, `copy_with_extension_gen`, `stacked`, `drift`), each ships a convenience macro (`json_serializable_codegen`,
 `freezed_codegen`, …) under `dart/ext/<builder>/defs.bzl`. It writes the
 builder's codegen targets for its `srcs` and names what they generate, which
 the `dart_library` holding the sources lists in its own `srcs`:

@@ -36,28 +36,20 @@ Future<void> main(List<String> args) async {
             : path.substring(0, path.length - '/pubspec.yaml'.length),
   ]..sort();
 
-  final flutterRoot = _flutterRoot();
   final failed = <String>[];
   for (final package in packages) {
     // The pinned SDK rather than the `dart` on PATH, which can be older than
-    // a package's SDK floor. FLUTTER_ROOT lets that pub satisfy a Flutter
-    // environment constraint (dart/ext's go_router_builder) without
-    // resolving through the Dart that Flutter bundles.
-    final result = await Process.run(
-      'bazel',
-      [
-        'run',
-        '--noshow_progress',
-        '--ui_event_filters=-info',
-        '@rules_dart//dart/pub',
-        '--',
-        'get',
-        '--directory=$package',
-        if (!refresh) '--enforce-lockfile',
-      ],
-      workingDirectory: _repo,
-      environment: {'FLUTTER_ROOT': ?flutterRoot},
-    );
+    // a package's SDK floor.
+    final result = await Process.run('bazel', [
+      'run',
+      '--noshow_progress',
+      '--ui_event_filters=-info',
+      '@rules_dart//dart/pub',
+      '--',
+      'get',
+      '--directory=$package',
+      if (!refresh) '--enforce-lockfile',
+    ], workingDirectory: _repo);
     if (result.exitCode == 0) {
       stdout.writeln('ok     $package');
       continue;
@@ -77,19 +69,4 @@ Future<void> main(List<String> args) async {
     );
   }
   exit(1);
-}
-
-/// The Flutter SDK to report to pub: `FLUTTER_ROOT` if set, else the SDK the
-/// `flutter` on PATH belongs to, else null.
-String? _flutterRoot() {
-  final env = Platform.environment['FLUTTER_ROOT'];
-  if (env != null && env.isNotEmpty) return env;
-  final separator = Platform.isWindows ? ';' : ':';
-  for (final dir in (Platform.environment['PATH'] ?? '').split(separator)) {
-    final flutter = File('$dir/flutter');
-    if (flutter.existsSync()) {
-      return File(flutter.resolveSymbolicLinksSync()).parent.parent.path;
-    }
-  }
-  return null;
 }

@@ -25,7 +25,6 @@ dependencies:
   copy_with_extension_gen: ^18.0.0
   drift_dev: ^2.32.0
   freezed: ^4.0.1
-  go_router_builder: ^4.3.0
   json_serializable: ^6.13.0
   mockito: ^5.6.0
   stacked_generator: ^2.0.0

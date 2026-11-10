@@ -219,16 +219,6 @@ func defaultBuilders() []*builderInfo {
 			RuntimeDep: "@pub_deps//:mockito",
 		},
 		{
-			Annotation: "TypedGoRoute",
-			ShimLabel:  "@rules_dart//dart/ext/go_router:shim",
-			Key:        "go_router_builder:go_router_builder",
-			Macro:      "@rules_dart//dart/ext/go_router:defs.bzl%go_router_codegen",
-			Produces:   []string{".go_router.g.part"},
-			Consumes:   []string{".dart"},
-			SharedPart: true,
-			RuntimeDep: "@pub_deps//:go_router",
-		},
-		{
 			Annotation: "DriftDatabase",
 			ShimLabel:  "@rules_dart//dart/ext/drift:shim_drift",
 			Key:        "drift_dev:drift_dev",

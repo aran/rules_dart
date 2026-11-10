@@ -288,9 +288,7 @@ Each in-repo Dart package is publishable to pub.dev. Maintenance includes:
   `e2e/dart_test_pkg`, and rules_dart_proto's `dart_proto` set floors on
   `analyzer`/`package_config` in their pubspecs to keep their locks no older
   than this one. To bump:
-  `FLUTTER_ROOT=<flutter sdk> bazel run @rules_dart//dart/pub -- upgrade --directory=dart/ext`
-  (it needs a Flutter-flavored pub on the pinned SDK —
-  `go_router_builder` declares a Flutter environment constraint), then
+  `bazel run @rules_dart//dart/pub -- upgrade --directory=dart/ext`, then
   the same `upgrade` with each pinned workspace's `--directory`, refresh the touched
   `MODULE.bazel.lock`s, and verify with `//dart/ext/...`,
   `e2e/codegen`, and a consuming app. A shim needs changing only when a

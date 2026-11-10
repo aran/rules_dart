@@ -297,14 +297,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.2.0"
-  go_router_builder:
-    dependency: "direct main"
-    description:
-      name: go_router_builder
-      sha256: "95a17e1614b808a627eebe9c4e6dbdd25e6afbdd9476baf58ff5e08081af782a"
-      url: "https://pub.dev"
-    source: hosted
-    version: "4.5.3"
   hooks:
     dependency: "direct main"
     description:
@@ -739,4 +731,3 @@ packages:
     version: "2.2.4"
 sdks:
   dart: ">=3.13.0 <4.0.0"
-  flutter: ">=3.47.0"

@@ -3,8 +3,8 @@
 ## Goal
 
 Run the `package:build` `Builder` ecosystem (`json_serializable`,
-`freezed`, `built_value`, `mockito`, `go_router`, `copy_with_extension_gen`,
-`stacked`, `drift`) under Bazel without `build_runner`.
+`freezed`, `built_value`, `mockito`, `copy_with_extension_gen`, `stacked`,
+`drift`) under Bazel without `build_runner`.
 Users write Dart with `@JsonSerializable`, `@freezed`, `@DriftDatabase`,
 `@StackedApp`, etc., and Bazel produces the generated code as regular
 build outputs.
@@ -42,7 +42,6 @@ dart/ext/
 ├── freezed/
 ├── built_value/
 ├── mockito/
-├── go_router/
 ├── copy_with_extension_gen/
 ├── stacked/                   Six independent LibraryBuilders.
 └── drift/                     Four-stage: prep + discover/analyzer/driftBuilder.
@@ -301,9 +300,11 @@ from `@rules_dart//dart/ext/_shared:defs.bzl`:
 - `builder_shim_library(name, pub_hub)` is the shim runner,
   `package:rules_dart_ext/worker_entry.dart`, built against the packages of
   the pub hub `pub_hub` (`@<hub>`). Every library in a shim binary comes
-  from one pub resolution, so the hub that supplies the builder's package
+  from one hub, so the hub that supplies the builder's package
   supplies the runner's `build` and `analyzer` too; it must resolve the
-  runner's packages at versions `dart/ext/pubspec.yaml` allows.
+  runner's packages at versions `dart/ext/pubspec.yaml` allows. A rule set
+  whose builder needs a pub SDK rules_dart's lock does not (a Flutter
+  constraint) ships it this way, from a lock of its own.
 - The shim is a `dart_binary` (`code_assets_from_deps = False`) whose `main`
   calls `shimMain(args, <builder factory>)`, depending on that library and
   the builder's package.
@@ -406,7 +407,6 @@ separator:
 | `@BuiltValue`, `Built<…>`, `@SerializersFor` | `built_value_generator:built_value` |
 | `@CopyWith` | `copy_with_extension_gen` |
 | `@GenerateMocks` | `mockito:mockBuilder` |
-| `@TypedGoRoute` | `go_router_builder` |
 | `@DriftDatabase` | `drift_dev` |
 | `@StackedApp` | `stacked_generator:stackedRouterGenerator`, `…LocatorGenerator`, `…LoggerGenerator`, `…DialogGenerator`, `…BottomsheetGenerator` |
 | `@FormView` | `stacked_generator:stackedFormGenerator` |
@@ -493,7 +493,6 @@ configuration.
 | `freezed` / `freezed_annotation`                 | `e2e/ext_exemplar/freezed/`           | Value class, sealed unions (`when`/`map`/`maybeWhen`), `copyWith`, `@Default`, equality                                                                                |
 | `built_value` / `built_value_generator`          | `e2e/ext_exemplar/built_value/`       | `Built<T,TBuilder>` + `rebuild`, `Serializer<T>`, `@SerializersFor`, `BuiltList`, nullable fields, `StandardJsonPlugin`                                                |
 | `mockito`                                        | `e2e/ext_exemplar/mockito/`           | `@GenerateMocks` (cross-file), `@GenerateNiceMocks`, `MockSpec(as:)`, `OnMissingStub.returnDefault`                                                                    |
-| `go_router_builder`                              | `e2e/ext_exemplar/go_router/`         | `@TypedGoRoute` + nested routes + path params (structural test via local pure-Dart `go_router` stub)                                                                   |
 | `copy_with_extension_gen`                        | `e2e/ext_exemplar/copy_with/`         | `@CopyWith()`, per-field shortcuts, `copyWithNull`, `@CopyWithField(immutable:)`                                                                                       |
 | `drift` / `drift_dev`                            | `e2e/ext_exemplar/drift/`             | `@DriftDatabase(include: {'…drift'})`, Dart-only tables with FK, `@DriftAccessor` DAO, `TypeConverter`, multi-table joins via both Dart DSL and `.drift` named queries |
 | `stacked` / `stacked_generator` (6 sub-builders) | `e2e/ext_exemplar/stacked/`           | `@StackedApp` → locator (behavioral) + router/dialog/bottomsheet/logger (structural); `@FormView` → form (structural)                                                  |
