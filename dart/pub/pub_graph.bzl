@@ -64,7 +64,7 @@ def dependency_graph(package, dependencies, follow):
       dependencies: Function of a package name to the names it depends on.
       follow: The packages whose own dependencies are read when reached, as a
         dict or list. The others are leaves: a package declared on its own,
-        whose dependencies its declaration states.
+        whose own repository plans its dependencies from its pubspec.
 
     Returns:
       Dict of package name to the names it depends on, for `package` and every

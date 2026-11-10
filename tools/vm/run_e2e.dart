@@ -13,7 +13,7 @@
 /// The Linux-only *expected failure* workspaces (`pub_lock_conflict`,
 /// `toolchain_pin_conflict`,
 /// `pub_lock_unpinned`, `pub_lock_git_unpinned`, `pub_lock_git_conflict`,
-/// `pub_lock_git_hosted`, `pub_package_blank_sha`,
+/// `pub_lock_git_hosted`, `pub_package_blank_sha`, `pub_package_missing_dep`,
 /// `pub_lock_digest_conflict`, `analysis_failure`, `link_hook`) must fail to
 /// build with a specific error;
 /// they are checked separately on Linux.
@@ -297,6 +297,11 @@ const _expectedFailureChecks = [
     'e2e/pub_package_blank_sha',
     '@path//:path',
     'No sha256 is pinned for pub package "path"',
+  ),
+  _ExpectedFailure(
+    'e2e/pub_package_missing_dep',
+    '@provider//:provider',
+    'nothing supplies `flutter`',
   ),
   _ExpectedFailure(
     'e2e/pub_lock_digest_conflict',

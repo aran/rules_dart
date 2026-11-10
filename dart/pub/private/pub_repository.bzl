@@ -1,5 +1,6 @@
 """Repository rule for downloading a single pub.dev package."""
 
+load("//dart/pub:pub_lock_library.bzl", "dependency_label", "read_index", "unsupplied_dependency_error")
 load("//dart/pub:pubspec.bzl", "read_pubspec")
 load("//dart/pub/private:build_content.bzl", "find_pub_license_file", "make_dart_library_build_content")
 load("//dart/pub/private:pub_archive.bzl", "fetch_pub_archive")
@@ -19,11 +20,27 @@ def _pub_package_impl(ctx):
     pubspec = read_pubspec(ctx, ctx.attr.package_name, ctx.attr.version)
     language_version = pubspec.language_version
 
-    # Generate BUILD.bazel with a dart_library target. `deps` here names sibling
-    # repositories, whose default target carries the repo's own name.
+    # Its dependencies are the ones its pubspec states, each served by what the
+    # extension made for it. A dependency nothing in the build supplies fails
+    # here, not as an unresolvable import in a compile.
+    index = read_index(ctx)
+    explicit = {p: True for p in index["explicit"]}
+    supplied = index["versions"] | explicit | {p: True for p in index["resolved"]}
+    deps = []
+    for dep in pubspec.dependencies:
+        if dep not in supplied:
+            fail(unsupplied_dependency_error(
+                ctx.attr.package_name,
+                ctx.attr.version,
+                dep,
+                index["unsupplied"].get(dep, "named by no lock and declared by no `pub.package()`"),
+            ))
+        deps.append(dependency_label(ctx.attr.spoke_prefix, dep, explicit))
+
+    # Generate BUILD.bazel with a dart_library target.
     build_content = make_dart_library_build_content(
         name = ctx.attr.package_name,
-        deps = ["@{dep}".format(dep = dep) for dep in ctx.attr.deps],
+        deps = deps,
         language_version = language_version,
         version = ctx.attr.version,
         # A link hook is runnable by `dart_link_hook`, so it is recorded.
@@ -49,9 +66,9 @@ pub_package = repository_rule(
             doc = "SHA256 hash of the package archive, as pubspec.lock records it.",
             mandatory = True,
         ),
-        "deps": attr.string_list(
-            doc = "Repository names of pub packages this package depends on.",
-            default = [],
+        "spoke_prefix": attr.string(
+            doc = "Prefix of the extension's library and index repositories' names.",
+            mandatory = True,
         ),
     },
     doc = "Downloads a pub.dev package and generates a dart_library BUILD target.",

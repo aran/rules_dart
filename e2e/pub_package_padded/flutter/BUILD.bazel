@@ -1,0 +1,9 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+# Stands in for the Flutter SDK package, so `nested`'s dependency on it is
+# supplied.
+dart_library(
+    name = "flutter",
+    srcs = ["lib/flutter.dart"],
+    visibility = ["//visibility:public"],
+)

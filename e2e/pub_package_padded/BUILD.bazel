@@ -1,7 +1,9 @@
+exports_files(["pubspec.lock"])
+
 # Property: an archive `pub.from_lock` can fetch, `pub.package` can fetch too.
 # pub.dev serves nested 1.0.0 with padding after its gzip stream. Building
 # `//:nested_sources` fetches it; its sources are only collected, not compiled,
-# because nested imports Flutter.
+# because nested imports Flutter, which a stand-in serves.
 filegroup(
     name = "nested_sources",
     srcs = ["@nested"],

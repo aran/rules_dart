@@ -245,8 +245,8 @@
     },
     "@@rules_dart+//dart/pub:extensions.bzl%pub": {
       "general": {
-        "bzlTransitiveDigest": "0THyJ2R7rev8A+DG58Bv1hrC/T7eRh8m0Qf8dYo5ED8=",
-        "usagesDigest": "Lv255+wmM/4sDVLtwKtEtvLlTxrK0gCK47XNWyvva1A=",
+        "bzlTransitiveDigest": "e16AMYhta7pcCTW95qWrKBx4CM04K9ETyzScRlykrLw=",
+        "usagesDigest": "nB0mkUI+/GyTOc9w6zC59lZ+K2z7LrofTjwX9dkkz3Y=",
         "recordedInputs": [
           "REPO_MAPPING:rules_dart+,bsd_tar_toolchains_darwin_amd64 tar.bzl++toolchains+bsd_tar_toolchains_darwin_amd64",
           "REPO_MAPPING:rules_dart+,bsd_tar_toolchains_darwin_arm64 tar.bzl++toolchains+bsd_tar_toolchains_darwin_arm64",
@@ -260,6 +260,7 @@
           "REPO_MAPPING:rules_dart+,pubspec_reader_macos-x64 rules_dart++pubspec_reader+pubspec_reader_macos-x64",
           "REPO_MAPPING:rules_dart+,pubspec_reader_windows-x64 rules_dart++pubspec_reader+pubspec_reader_windows-x64",
           "REPO_MAPPING:rules_dart+,yaml.bzl yaml.bzl+",
+          "FILE:@@//pubspec.lock 298674f44c03e2e49e05b8e702070ffcea2333802318779cff05a25cde592dfc",
           "FILE:@@rules_dart+//dart/ext/pubspec.lock b83b8233789ba04ccba11ac82b65ad02a9cd3832162c14e04d6312f7cafeb370"
         ],
         "generatedRepoSpecs": {
@@ -269,7 +270,7 @@
               "package_name": "nested",
               "version": "1.0.0",
               "sha256": "03bac4c528c64c95c722ec99280375a6f2fc708eec17c7b3f07253b626cd2a20",
-              "deps": []
+              "spoke_prefix": "dart_pub"
             }
           },
           "dart_pub_index": {
@@ -372,7 +373,9 @@
               "explicit_packages": [
                 "nested"
               ],
-              "resolved_packages": [],
+              "resolved_packages": [
+                "flutter"
+              ],
               "unsupplied": {}
             }
           },
@@ -2034,6 +2037,21 @@
               "spoke_prefix": "dart_pub"
             }
           },
+          "dart_pub_lib__flutter": {
+            "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_library.bzl%pub_lock_resolved",
+            "attributes": {
+              "package_name": "flutter",
+              "actual": "'@@//flutter:flutter'"
+            }
+          },
+          "sdk": {
+            "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_hub.bzl%pub_lock_hub",
+            "attributes": {
+              "packages": {
+                "flutter": "@dart_pub_lib__flutter//:flutter"
+              }
+            }
+          },
           "ext_pub_deps": {
             "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_hub.bzl%pub_lock_hub",
             "attributes": {
@@ -2136,7 +2154,8 @@
         },
         "moduleExtensionMetadata": {
           "explicitRootModuleDirectDeps": [
-            "nested"
+            "nested",
+            "sdk"
           ],
           "explicitRootModuleDirectDevDeps": [],
           "useAllRepos": "NO",

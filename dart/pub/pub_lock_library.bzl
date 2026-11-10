@@ -34,28 +34,54 @@ def unsupplied_dependency_error(package, version, dep, why):
       package: The package with the dependency.
       version: Its version.
       dep: The package it depends on.
-      why: How the lock lists `dep`, e.g. "a `sdk` package in @//:pubspec.lock".
+      why: How the build knows `dep`, e.g. "a `sdk` package in @//:pubspec.lock",
+        or that it does not.
 
     Returns:
       The message.
     """
     return (
-        "pub.from_lock(): `{package}` {version} depends on `{dep}`, which is {why}. " +
-        "`pub.from_lock()` fetches only hosted and git packages, so nothing supplies `{dep}`, " +
-        "and `{package}` would be built without it. Map it to a target that builds it, " +
+        "Pub package `{package}` {version} depends on `{dep}`, which is {why}, " +
+        "so nothing supplies `{dep}` and `{package}` would be built without it. " +
+        "`pub.from_lock()` fetches only hosted and git packages. Map it to a target that builds it, " +
         "with `resolve = {{\"{dep}\": ...}}` on the `pub.from_lock()` that lists it, or " +
         "declare it with `pub.package(name = \"{dep}\", version = ..., sha256 = ...)`. " +
         "Flutter SDK packages come from rules_flutter's pub extension."
     ).format(package = package, version = version, dep = dep, why = why)
 
-def _read_index(ctx):
+def read_index(ctx):
+    """The index every library repository, and every `pub.package()`, plans against.
+
+    Args:
+      ctx: The `repository_ctx` of a repository the extension made.
+
+    Returns:
+      The index, as `pub_lock_index` wrote it.
+    """
+
     # Through the canonical name, as `read_pubspec_dependencies` reads.
     prefix = ctx.name[:len(ctx.name) - len(ctx.original_name)]
     return json.decode(ctx.read(Label("@@{}{}//:{}".format(prefix, index_repo(ctx.attr.spoke_prefix), _INDEX))))
 
+def dependency_label(prefix, dep, explicit):
+    """The label a package depends on `dep` through.
+
+    Args:
+      prefix: The prefix of the extension's library repositories' names.
+      dep: The package depended on.
+      explicit: The packages declared with `pub.package()`, whose own
+        repositories hold their libraries.
+
+    Returns:
+      The label, as a string.
+    """
+    if dep in explicit:
+        return "@{dep}//:{dep}".format(dep = dep)
+    return "@{repo}//:{dep}".format(repo = library_repo(prefix, dep), dep = dep)
+
 def _pub_lock_library_impl(ctx):
     prefix = ctx.attr.spoke_prefix
-    index = _read_index(ctx)
+    index = read_index(ctx)
     fetched = index["versions"]
     explicit = {p: True for p in index["explicit"]}
     resolved = {p: True for p in index["resolved"]}
@@ -64,7 +90,7 @@ def _pub_lock_library_impl(ctx):
 
     # Every package this one reaches through fetched packages. A package
     # declared with `pub.package()` is its own repository, whose dependencies
-    # the declaration states, and one `resolve` maps is a workspace target,
+    # it reads from its pubspec, and one `resolve` maps is a workspace target,
     # whose dependencies its BUILD file states, so the walk stops at both.
     graph = dependency_graph(
         ctx.attr.package_name,
@@ -84,10 +110,7 @@ def _pub_lock_library_impl(ctx):
         for dep in graph[member]:
             if dep in unsupplied:
                 fail(unsupplied_dependency_error(member, fetched[member], dep, unsupplied[dep]))
-    deps = [
-        "@{dep}//:{dep}".format(dep = dep) if dep in explicit else "@{repo}//:{dep}".format(repo = library_repo(prefix, dep), dep = dep)
-        for dep in cycle.deps
-    ]
+    deps = [dependency_label(prefix, dep, explicit) for dep in cycle.deps]
 
     ctx.file("BUILD.bazel", make_pub_library_build_content(
         name = ctx.attr.package_name,

@@ -302,6 +302,15 @@ jobs:
           fi
           bazel build @path//:path 2>&1 | grep -q "No sha256 is pinned for pub package \"path\""
           echo "OK: blank pub.package sha256 refused"
+      - name: pub_package_missing_dep — expect a pub.package() whose pubspec depends on an unsupplied package to be refused
+        working-directory: e2e/pub_package_missing_dep
+        run: |
+          if bazel build @provider//:provider 2>/dev/null; then
+            echo "ERROR: build should have refused provider's dependency on flutter"
+            exit 1
+          fi
+          bazel build @provider//:provider 2>&1 | grep -q "nothing supplies \`flutter\`"
+          echo "OK: unsupplied pub.package() dependency refused"
       - name: pub_lock_digest_conflict — expect locks disagreeing on a digest to be refused
         working-directory: e2e/pub_lock_digest_conflict
         run: |

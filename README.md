@@ -305,6 +305,10 @@ pub.package(
 use_repo(pub, "path")
 ```
 
+A package is built with the dependencies its own pubspec states. Each must be
+supplied in the build, by another `pub.package()` or a `pub.from_lock()` lock;
+one that is not fails when the package is fetched, naming both.
+
 Then depend on them in your targets:
 
 ```starlark
@@ -1120,6 +1124,7 @@ The [`e2e/`](e2e/) directory contains complete working examples:
 | [`pub_lock_resolve_invalid`](e2e/pub_lock_resolve_invalid/) | Unnamed, twice-named and wrongly named `path` packages and a stale `resolve` key fail    |
 | [`pub_lock_path`](e2e/pub_lock_path/)                       | `path` packages built from their pubspec, ignored, or refused for having a BUILD file    |
 | [`pub_hub_surface`](e2e/pub_hub_surface/)                   | Every locked package in its hub, including one declared with `pub.package()`             |
+| [`pub_package_missing_dep`](e2e/pub_package_missing_dep/)   | A `pub.package()` whose pubspec depends on an unsupplied package fails, naming both      |
 | [`pub_override_root_lock`](e2e/pub_override_root_lock/)     | The root's lock wins over a dependency module's `pub.package()`                          |
 | [`pub_package_conflict`](e2e/pub_package_conflict/)         | Two dependency modules' differing `pub.package()`s fail, naming both                     |
 | [`pub_root_older_package`](e2e/pub_root_older_package/)     | A root `pub.package()` below a dependency's fails, naming both versions                  |

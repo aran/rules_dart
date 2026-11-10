@@ -15,15 +15,14 @@ use_repo(dart, "dart_toolchains")
 register_toolchains("@dart_toolchains//:all")
 
 # Pub packages without a pubspec: each is pinned here, where Bazel pins any
-# other archive, rather than resolved from a pubspec into a lock.
+# other archive, rather than resolved from a pubspec into a lock. Each is built
+# with the dependencies its archive's pubspec states, so `json_annotation` needs
+# no word about `meta` beyond the pin that supplies it.
 pub = use_extension("@rules_dart//dart/pub:extensions.bzl", "pub")
 pub.package(
     name = "json_annotation",
     sha256 = "2a743920d81b7910627f68ee2c9ac1fc0bfee32b9fc3403587d7c6791ca12f80",
     version = "4.12.0",
-    # What its archive's pubspec depends on, restated: `pub.package()` takes a
-    # package's dependencies from `deps` only.
-    deps = ["meta"],
 )
 pub.package(
     name = "meta",

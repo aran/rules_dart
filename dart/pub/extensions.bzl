@@ -49,11 +49,9 @@ _package = tag_class(
             doc = "SHA256 hash of the package archive.",
             mandatory = True,
         ),
-        "deps": attr.string_list(
-            doc = "Repository names of pub packages this package depends on.",
-            default = [],
-        ),
     },
+    doc = "A pub.dev package, built with the dependencies its pubspec states: each " +
+          "must be supplied by another `pub.package()` or a lock, or the fetch fails.",
 )
 
 _from_lock = tag_class(
@@ -583,7 +581,7 @@ def _pub_impl(ctx):
             package_name = name,
             version = pkg.version,
             sha256 = pkg.sha256,
-            deps = pkg.deps,
+            spoke_prefix = _SPOKE_PREFIX,
         )
 
     # Collect all packages from all lock files into a unified registry.
@@ -783,8 +781,7 @@ def _pub_impl(ctx):
                 "     on the from_lock() that reads its lock, to build it against %s anyway.\n" % best.version +
                 "\n" +
                 "  3. Or pin one version for every lock, in the root module:\n" +
-                "       pub.package(name = \"%s\", version = \"%s\", sha256 = \"%s\", deps = [...])\n" % (name, best.version, best.sha256) +
-                "     listing the package's own dependencies in `deps`.",
+                "       pub.package(name = \"%s\", version = \"%s\", sha256 = \"%s\")" % (name, best.version, best.sha256),
             )
 
         resolved[name] = struct(version = best.version, sha256 = best.sha256, url = pkg.url)
