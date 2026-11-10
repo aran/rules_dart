@@ -80,7 +80,7 @@ def _dart_web_compile(ctx, compile_mode):
     all_srcs = ([ctx.file.main] + list(ctx.files.srcs) +
                 collect_transitive_srcs(ctx.attr.deps).to_list() +
                 collect_transitive_resources(ctx.attr.deps).to_list())
-    staged = stage_dart_project(ctx, project_layout(packages, all_srcs, [ctx.file.main] + ctx.files.srcs))
+    staged = stage_dart_project(ctx, project_layout(packages, all_srcs, [ctx.file.main] + ctx.files.srcs), dart_sdk_info)
 
     # `dart compile wasm` writes more than the module: the `.mjs` loader that
     # instantiates it, the `.support.js` feature check a page runs first, and

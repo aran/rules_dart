@@ -61,11 +61,11 @@ cost is amortised across the worker's lifetime.
 load("//dart:providers.bzl", "DartInfo", "DartPackageMetadataInfo")
 load(
     "//dart/private:common.bzl",
-    "DEFAULT_ROOT_LANGUAGE_VERSION",
     "PACKAGE_IDENTITY_ATTRS",
     "PATH_MAPPING",
     "add_shim_contract_args",
     "asset_path_for",
+    "codegen_language_version",
     "dart_lib_root_for_package",
     "resolve_package_identity",
     "same_package_library_dep_files",
@@ -229,14 +229,12 @@ def _dart_codegen_impl(ctx):
 
     return [
         DefaultInfo(files = depset(outputs)),
-        # The *effective* values, built-in default included: a library stating
-        # 3.11 over a generator that silently fell back to 3.0 is exactly the
+        # The *effective* values, the SDK's version included: a library stating
+        # an older one over a generator that states none is exactly the
         # disagreement `codegen_identity_error` exists to name.
         DartPackageMetadataInfo(
             package_name = identity.package_name,
-            language_version = (
-                identity.language_version or DEFAULT_ROOT_LANGUAGE_VERSION
-            ),
+            language_version = codegen_language_version(ctx, identity),
         ),
     ]
 
@@ -298,9 +296,7 @@ dart_codegen = rule(
         "language_version": attr.string(
             doc = "Dart language version of the consuming package, in " +
                   "`<major>.<minor>` form (e.g. `3.11`). When empty, " +
-                  "defers to a built-in safe default — set explicitly " +
-                  "only when pinning to a specific language-version " +
-                  "behaviour.",
+                  "the SDK's own, as for a `dart_library` that states none.",
         ),
         "deps": attr.label_list(
             doc = "`dart_library`-shaped targets (anything exporting " +

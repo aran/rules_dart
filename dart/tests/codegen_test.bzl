@@ -1,6 +1,7 @@
-"""Unit tests for dart_codegen.bzl output filename computation."""
+"""Tests for the codegen rules: output names, action inputs and language version."""
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts", "unittest")
+load("//dart:providers.bzl", "DartPackageMetadataInfo")
 load("//dart/private:dart_codegen.bzl", "compute_codegen_output_name")
 load(":small_suite.bzl", "small_unittest_suite")
 
@@ -54,3 +55,39 @@ def _codegen_inputs_test_impl(ctx):
     return analysistest.end(env)
 
 codegen_inputs_test = analysistest.make(_codegen_inputs_test_impl)
+
+# --- the language version of a target that states none ---
+
+def _codegen_language_version_test_impl(ctx):
+    # A codegen target stating no `language_version` runs its generator at the
+    # SDK's own, which is what the package compiles at and what the analyzer
+    # and the format check assume for it (`default_language_version`): never a
+    # value of its own.
+    env = analysistest.begin(ctx)
+    major, minor = ctx.attr._toolchain[platform_common.ToolchainInfo].dart_sdk_info.version.split(".")[:2]
+    expected = "%s.%s" % (major, minor)
+    actions = analysistest.target_actions(env)
+    runs = [a for a in actions if a.mnemonic in ["DartCodegen", "DartAggregateCodegen", "DartSqlCodegen"]]
+    asserts.true(env, runs, "no codegen action")
+    for action in runs:
+        argv = action.argv
+        asserts.true(env, "--root-language-version" in argv, "no --root-language-version in %s" % argv)
+        asserts.equals(env, expected, argv[argv.index("--root-language-version") + 1])
+    pubspecs = [a for a in actions if a.mnemonic == "FileWrite" and a.outputs.to_list()[0].basename == "pubspec.yaml"]
+    asserts.equals(env, 1, len(pubspecs), "one written pubspec")
+    asserts.true(
+        env,
+        'sdk: "^%s.0"' % expected in pubspecs[0].content,
+        "pubspec states another SDK: %s" % pubspecs[0].content,
+    )
+    asserts.equals(
+        env,
+        expected,
+        analysistest.target_under_test(env)[DartPackageMetadataInfo].language_version,
+    )
+    return analysistest.end(env)
+
+codegen_language_version_test = analysistest.make(
+    _codegen_language_version_test_impl,
+    attrs = {"_toolchain": attr.label(default = "//dart:resolved_toolchain")},
+)

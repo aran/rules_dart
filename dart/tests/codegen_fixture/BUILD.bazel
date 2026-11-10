@@ -1,7 +1,7 @@
 """Fixtures for `//dart/tests:codegen_test.bzl`'s input-set tests. Nothing is built."""
 
 load("//dart:defs.bzl", "dart_aggregate_codegen", "dart_binary", "dart_codegen", "dart_library", "dart_sqlcodegen")
-load("//dart/tests:codegen_test.bzl", "codegen_inputs_test")
+load("//dart/tests:codegen_test.bzl", "codegen_inputs_test", "codegen_language_version_test")
 
 dart_library(
     name = "lib",
@@ -81,3 +81,18 @@ codegen_inputs_test(
     size = "small",
     target_under_test = ":sql",
 )
+
+# None of the generators above states a language version.
+[
+    codegen_language_version_test(
+        name = target + "_language_version_test",
+        size = "small",
+        target_under_test = ":" + target,
+    )
+    for target in [
+        "per_file",
+        "per_file_bin",
+        "aggregate",
+        "sql",
+    ]
+]

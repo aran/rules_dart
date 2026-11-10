@@ -42,7 +42,7 @@ on Dart 3.12.2), so options still come from the nearest `analysis_options.yaml`
 above each file, never from a pubspec's position.
 """
 
-load("//dart/private:common.bzl", "derived_pubspec", "package_root_of", "relative_path")
+load("//dart/private:common.bzl", "default_language_version", "derived_pubspec", "package_root_of", "relative_path")
 load("//dart/private:source_set.bzl", "assemble_source_dir", "package_record_for_index", "package_record_index")
 
 def mangle_package_dir(name):
@@ -106,7 +106,7 @@ def staged_package_config_content(packages, root_uris):
         packages = ",\n".join(entries),
     )
 
-def pubspec_stub(packages, name = "analyze_stub", sdk_version = ""):
+def pubspec_stub(packages, dart_sdk_info, name = "analyze_stub"):
     """Builds a `pubspec.yaml` for the staged project or a package within it.
 
     The analyzer resolves imports through `package_config.json`, never through
@@ -126,10 +126,8 @@ def pubspec_stub(packages, name = "analyze_stub", sdk_version = ""):
     The SDK constraint is `^<language_version>.0` for the package named
     `name` when it states a `language_version` (which is itself derived from
     the package's real constraint), so `sdk_version_since` judges the code
-    against what the package declares. Otherwise it is `^<major>.<minor>.0` of
-    the toolchain SDK (`sdk_version`), so "no version stated" means the newest,
-    as it does for the format style; without `sdk_version` it is
-    `>=3.0.0 <4.0.0`.
+    against what the package declares. Otherwise it is that of
+    `default_language_version`, the version the package compiles at.
 
     Pubspec-reading lints fire on the harness unless this is a valid pubspec,
     so the `dart_analyze` aspect stages one for both its analyze and its fix
@@ -141,16 +139,13 @@ def pubspec_stub(packages, name = "analyze_stub", sdk_version = ""):
       name: The pubspec's `name:` field. The default names the harness-level
         stub at the project root; per-package stubs pass the real package name
         so the analyzer attributes each staged file to its true package.
-      sdk_version: The toolchain SDK's version (e.g. `3.13.7`); the constraint
-        for a package that states no `language_version`. Empty for none.
+      dart_sdk_info: The toolchain's `DartSdkInfo`, whose version is that of a
+        package that states no `language_version`.
 
     Returns:
       The pubspec file's contents, as a string.
     """
-    sdk = ">=3.0.0 <4.0.0"
-    parts = sdk_version.split(".")
-    if len(parts) >= 2:
-        sdk = "^%s.%s.0" % (parts[0], parts[1])
+    sdk = "^%s.0" % default_language_version(dart_sdk_info)
     for p in packages:
         if p.package_name == name and getattr(p, "language_version", ""):
             sdk = "^%s.0" % p.language_version
@@ -350,12 +345,13 @@ def resolve_package_roots_from_outside(ctx, name, dep_files, config_file, reloca
         )
     return resolved
 
-def stage_dart_project(ctx, layout, relocatable = False, extra_proj_files = {}, name = None, sdk_version = ""):
+def stage_dart_project(ctx, layout, dart_sdk_info, relocatable = False, extra_proj_files = {}, name = None):
     """Stages packages and sources into a hermetic Dart project layout.
 
     Args:
       ctx: The rule context (must carry `COPY_TO_DIRECTORY_TOOLCHAINS`).
       layout: The `project_layout` struct.
+      dart_sdk_info: The toolchain's `DartSdkInfo` (see `pubspec_stub`).
       relocatable: Whether the project is read somewhere other than the exec
         root (through runfiles), so every dependency is assembled beside it
         rather than referenced where it sits.
@@ -364,8 +360,6 @@ def stage_dart_project(ctx, layout, relocatable = False, extra_proj_files = {}, 
         stub for `dart analyze`).
       name: Prefix for the staged paths; defaults to the target's name. An
         aspect passes its own, so it cannot collide with the target's outputs.
-      sdk_version: The toolchain SDK's version, the staged SDK constraint of a
-        package that states no `language_version`. Empty for the old default.
 
     Returns:
       struct(
@@ -391,7 +385,7 @@ def stage_dart_project(ctx, layout, relocatable = False, extra_proj_files = {}, 
             name,
             mangle_package_dir(lib_root) if lib_root else "_root",
         ))
-        ctx.actions.write(stub, pubspec_stub(packages, name = package_name, sdk_version = sdk_version))
+        ctx.actions.write(stub, pubspec_stub(packages, dart_sdk_info, name = package_name))
 
         # Key on the stub's workspace-relative directory: with `root_paths=[]`
         # that is exactly the path prefix it would keep inside the tree.

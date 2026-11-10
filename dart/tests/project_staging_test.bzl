@@ -15,25 +15,26 @@ def _file(short_path):
 def _paths(files):
     return sorted([f.short_path for f in files])
 
+_SDK = struct(version = "3.11.2")
+
 def _sdk_from_language_version_test_impl(ctx):
     env = unittest.begin(ctx)
     pkgs = [_pkg("app", "3.5"), _pkg("other")]
-    asserts.true(env, 'sdk: "^3.5.0"' in pubspec_stub(pkgs, name = "app"))
+    asserts.true(env, 'sdk: "^3.5.0"' in pubspec_stub(pkgs, _SDK, name = "app"))
     return unittest.end(env)
 
-def _sdk_default_test_impl(ctx):
+def _sdk_prerelease_test_impl(ctx):
     env = unittest.begin(ctx)
-    pkgs = [_pkg("app", "3.5"), _pkg("other")]
-    asserts.true(env, 'sdk: ">=3.0.0 <4.0.0"' in pubspec_stub(pkgs, name = "other"))
-    asserts.true(env, 'sdk: ">=3.0.0 <4.0.0"' in pubspec_stub(pkgs))
+    pkgs = [_pkg("other")]
+    asserts.true(env, 'sdk: "^3.13.0"' in pubspec_stub(pkgs, struct(version = "3.13.0-12.0.dev"), name = "other"))
     return unittest.end(env)
 
 def _sdk_toolchain_version_test_impl(ctx):
     env = unittest.begin(ctx)
     pkgs = [_pkg("app", "3.5"), _pkg("other")]
-    asserts.true(env, 'sdk: "^3.11.0"' in pubspec_stub(pkgs, name = "other", sdk_version = "3.11.2"))
-    asserts.true(env, 'sdk: "^3.11.0"' in pubspec_stub(pkgs, sdk_version = "3.11.2"))
-    asserts.true(env, 'sdk: "^3.5.0"' in pubspec_stub(pkgs, name = "app", sdk_version = "3.11.2"))
+    asserts.true(env, 'sdk: "^3.11.0"' in pubspec_stub(pkgs, _SDK, name = "other"))
+    asserts.true(env, 'sdk: "^3.11.0"' in pubspec_stub(pkgs, _SDK))
+    asserts.true(env, 'sdk: "^3.5.0"' in pubspec_stub(pkgs, _SDK, name = "app"))
     return unittest.end(env)
 
 def _layout_home_test_impl(ctx):
@@ -123,12 +124,12 @@ def _dependencies_test_impl(ctx):
     asserts.equals(
         env,
         'name: app\nenvironment:\n  sdk: "^3.5.0"\ndependencies:\n  json_annotation: 4.12.0\n  util: any\n',
-        pubspec_stub(pkgs, name = "app"),
+        pubspec_stub(pkgs, _SDK, name = "app"),
     )
     return unittest.end(env)
 
 _t0_test = unittest.make(_sdk_from_language_version_test_impl)
-_t1_test = unittest.make(_sdk_default_test_impl)
+_t1_test = unittest.make(_sdk_prerelease_test_impl)
 _t2_test = unittest.make(_sdk_toolchain_version_test_impl)
 _t3_test = unittest.make(_layout_home_test_impl)
 _t4_test = unittest.make(_layout_deepest_root_test_impl)

@@ -233,15 +233,35 @@ nearest `pubspec.yaml`'s `environment.sdk` constraint and writes the same value
 on each.
 """
 
-# The language version a code generator's root package is assumed to have when
-# nothing states one. Deliberately old: a generator running under a *lower*
-# language version than the sources it reads is the safe direction, since the
-# analyzer then refuses syntax the real package would accept rather than
-# accepting syntax it would not. Prefer stating the real value — `dart_package_metadata`
-# exists so it only has to be stated once — and note that
-# `codegen_identity_error` reports this default when it contradicts a library
-# that does state one.
-DEFAULT_ROOT_LANGUAGE_VERSION = "3.0"
+def default_language_version(dart_sdk_info):
+    """The language version of a package that states none: the SDK's own.
+
+    A `package_config.json` entry without `languageVersion` is compiled at the
+    SDK's current version, so that is the version such a package has. Every
+    rule that must name it — a code generator's root package, the SDK
+    constraint staged for the analyzer, the format check's style — takes it
+    from here, so none can hold the package to another.
+
+    Args:
+      dart_sdk_info: The `DartSdkInfo` of the toolchain the action runs.
+
+    Returns:
+      The SDK version's `<major>.<minor>`, e.g. `3.12` for `3.12.2`.
+    """
+    major, minor = dart_sdk_info.version.split(".")[:2]
+    return "%s.%s" % (major, minor)
+
+def codegen_language_version(ctx, identity):
+    """The language version a code generator runs its root package at.
+
+    Args:
+      ctx: The codegen rule's context (declares `PORTABLE_EXEC_GROUPS`).
+      identity: The rule's `resolve_package_identity` result.
+
+    Returns:
+      The stated `language_version`, else `default_language_version`'s.
+    """
+    return identity.language_version or default_language_version(portable_sdk(ctx))
 
 # The attribute every rule that builds part of a Dart package gains, pointing at
 # the one `dart_package_metadata` that declares the package's name and language version.
@@ -314,10 +334,10 @@ def codegen_identity_error(label, srcs, identity):
     are routinely written in different BUILD files. `srcs` is where they meet.
 
     The language version compared here is the generator's *effective* one, so a
-    `dart_codegen` that states none — and therefore ran under
-    `DEFAULT_ROOT_LANGUAGE_VERSION` — is reported against a library that states
-    3.11, instead of the mismatch surfacing later as a generated file the
-    analyzer rejects. A library that states none of its own asks for nothing and
+    `dart_codegen` that states none — and therefore ran under the SDK's own
+    (`default_language_version`) — is reported against a library that states
+    an older one, instead of the mismatch surfacing later as a generated file
+    the analyzer rejects. A library that states none of its own asks for nothing and
     is not second-guessed: `e2e/fix/clean` is that shape, both sides silent, and
     it is not this function's business to invent an opinion for it.
 
@@ -351,21 +371,19 @@ def codegen_identity_error(label, srcs, identity):
         if generated.language_version != identity.language_version:
             return (
                 ("%s: ran its generator under Dart language version %s, but " +
-                 "%s compiles package \"%s\" as %s.%s\n\nThe generator reads " +
+                 "%s compiles package \"%s\" as %s.\n\nThe generator reads " +
                  "the package's sources to produce the file, so a generator " +
                  "held to different semantics than the package can reject " +
                  "syntax the package legitimately uses, or emit syntax the " +
                  "package cannot compile. Point both at a single " +
                  "`dart_package_metadata`, or set the same `language_version` on " +
-                 "each.") % (
+                 "each. A rule stating no `language_version` runs at the " +
+                 "SDK's own.") % (
                     src.label,
                     generated.language_version,
                     label,
                     identity.package_name,
                     identity.language_version,
-                    (
-                        " %s states no `language_version`, so it fell back to the built-in default." % src.label
-                    ) if generated.language_version == DEFAULT_ROOT_LANGUAGE_VERSION else "",
                 )
             )
     return None
@@ -1790,14 +1808,8 @@ def add_shim_contract_args(
     extra_inputs = []
     args.add("--package", identity.package_name)
 
-    # When `language_version` is empty the rule defers to a built-in default
-    # so users / Gazelle don't have to specify the SDK's `<major>.<minor>` on
-    # every macro invocation. Override only when pinning to a specific value —
-    # via `package` for a package built by more than one rule.
-    args.add(
-        "--root-language-version",
-        identity.language_version or DEFAULT_ROOT_LANGUAGE_VERSION,
-    )
+    language_version = codegen_language_version(ctx, identity)
+    args.add("--root-language-version", language_version)
     seen = {}
     for src in auto_stage_srcs:
         if src.path in seen:
@@ -1820,7 +1832,7 @@ def add_shim_contract_args(
         pubspec = ctx.actions.declare_file(ctx.label.name + ".codegen/pubspec.yaml")
         ctx.actions.write(pubspec, derived_pubspec(
             identity.package_name,
-            "^%s.0" % (identity.language_version or DEFAULT_ROOT_LANGUAGE_VERSION),
+            "^%s.0" % language_version,
             collect_packages(ctx.attr.deps),
         ))
         args.add("--dep", pubspec, format = "%s|pubspec.yaml")

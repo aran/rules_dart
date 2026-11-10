@@ -53,7 +53,7 @@ different projects.
 
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("//dart:providers.bzl", "DartAnalysisOptionsInfo", "DartAnalyzableInfo", "DartInfo")
-load("//dart/private:common.bzl", "PATH_MAPPING", "SDK_ENV", "merge_package_records", "own_packages")
+load("//dart/private:common.bzl", "PATH_MAPPING", "SDK_ENV", "default_language_version", "merge_package_records", "own_packages")
 load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS", "portable_sdk")
 load("//dart/private:project_staging.bzl", "project_layout", "pubspec_stub", "stage_dart_project", "staged_pubspec_paths")
 load("//dart/private:resources.bzl", "analysis_resources")
@@ -173,7 +173,7 @@ def _wrapper_options(excluded):
             lines.append('    - "%s"' % path)
     return "\n".join(lines) + "\n"
 
-def stage_config_project(ctx, config, packages, files, own, name, sdk_version, relocatable = False):
+def stage_config_project(ctx, config, packages, files, own, name, dart_sdk_info, relocatable = False):
     """Stages a project holding every options file `config` lists.
 
     The one place a project is laid out for options to be found in: the
@@ -193,8 +193,7 @@ def stage_config_project(ctx, config, packages, files, own, name, sdk_version, r
       own: The Files being checked; everything else staged is excluded from
         analysis, but for the options files above one of them.
       name: Prefix for the staged paths.
-      sdk_version: The toolchain SDK's version, the staged SDK constraint of a
-        package that states no `language_version`.
+      dart_sdk_info: The toolchain's `DartSdkInfo` (see `pubspec_stub`).
       relocatable: Whether the project is read through runfiles (see
         `stage_dart_project`).
 
@@ -225,13 +224,13 @@ def stage_config_project(ctx, config, packages, files, own, name, sdk_version, r
     return stage_dart_project(
         ctx,
         layout,
+        dart_sdk_info,
         relocatable = relocatable,
         extra_proj_files = {
-            "pubspec.yaml": pubspec_stub(packages, sdk_version = sdk_version),
+            "pubspec.yaml": pubspec_stub(packages, dart_sdk_info),
             _OPTIONS_BASENAME: _wrapper_options(excluded),
         },
         name = name,
-        sdk_version = sdk_version,
     )
 
 def _project_dir(src_tree):
@@ -297,7 +296,7 @@ def _analyze(ctx, name, staged, sdk_inputs):
     )
     return stamp
 
-def _format_language_versions(info, own_paths):
+def _format_language_versions(info, own_paths, default):
     """Groups a target's own files by the language version to format them at.
 
     The version is the one Dart itself would use: the version of the package
@@ -312,14 +311,15 @@ def _format_language_versions(info, own_paths):
     Args:
       info: The target's `DartInfo` closure.
       own_paths: `short_path`s of the target's own files.
+      default: The version of a package that states none
+        (`default_language_version`).
 
     Returns:
-      Dict of language version ("" when none is stated) to the paths to format
-      at it.
+      Dict of language version to the paths to format at it.
     """
     own = own_packages(info)
     if len(own) == 1:
-        return {getattr(own[0], "language_version", ""): own_paths}
+        return {getattr(own[0], "language_version", "") or default: own_paths}
 
     # Several own packages are told apart by root like an entrypoint's.
     roots = own or [
@@ -334,7 +334,7 @@ def _format_language_versions(info, own_paths):
             if p.lib_root == "" or path.startswith(p.lib_root + "/"):
                 if best == None or len(p.lib_root) > len(best.lib_root):
                     best = p
-        version = getattr(best, "language_version", "") if best else ""
+        version = (getattr(best, "language_version", "") if best else "") or default
         groups.setdefault(version, []).append(path)
     return groups
 
@@ -365,9 +365,8 @@ def _format(ctx, name, staged, sdk_inputs, own_paths, language_version):
     args.add("--manifest", manifest)
     args.add("--stamp", stamp)
 
-    # Always explicit — `latest` is what the formatter would have inferred with
-    # nothing to go on, said out loud so no staged config can answer instead.
-    args.add("--language-version", language_version or "latest")
+    # Always explicit, so no staged config can answer instead.
+    args.add("--language-version", language_version)
     ctx.actions.run(
         executable = ctx.executable._format_tool,
         arguments = [args],
@@ -423,7 +422,7 @@ def _dart_analyze_aspect_impl(target, ctx):
         info.transitive_srcs.to_list() + info.transitive_resources.to_list() + entry + own.values(),
         own.values(),
         name,
-        portable_sdk(ctx).version,
+        portable_sdk(ctx),
     )
 
     dart_sdk_info = portable_sdk(ctx)
@@ -434,12 +433,12 @@ def _dart_analyze_aspect_impl(target, ctx):
     if NO_ANALYZE_TAG not in tags:
         groups["dart_analyze"] = depset([_analyze(ctx, name, staged, sdk_inputs)])
     if NO_FORMAT_TAG not in tags:
-        by_version = _format_language_versions(info, own_paths)
-        format_staged = stage_config_project(ctx, config, [], own.values(), own.values(), name + ".format", portable_sdk(ctx).version)
+        by_version = _format_language_versions(info, own_paths, default_language_version(dart_sdk_info))
+        format_staged = stage_config_project(ctx, config, [], own.values(), own.values(), name + ".format", dart_sdk_info)
         groups["dart_format"] = depset([
             _format(
                 ctx,
-                name if len(by_version) == 1 else "%s.%s" % (name, version or "latest"),
+                name if len(by_version) == 1 else "%s.%s" % (name, version),
                 format_staged,
                 dart_sdk_info.files.format,
                 paths,

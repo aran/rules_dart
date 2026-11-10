@@ -701,6 +701,10 @@ macro, the rules referencing it can sit in different BUILD files, which is the
 case nothing else covers. The builder macros (`json_serializable_library` and
 friends) accept `package` too and forward it to every rule they emit.
 
+A package that states no `language_version` has the SDK's own: it compiles at
+that version, and code generators, the analyzer and the format check all
+assume it too.
+
 This is not `pub.package()`, which fetches a published package from pub.dev;
 `dart_package_metadata` states facts about a package you are building yourself.
 
