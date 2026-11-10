@@ -1,0 +1,9 @@
+# build_runner's builder options, which Gazelle writes into the `config` of
+# json_serializable's targets: the macro of user.dart and the stages of
+# event.dart and profile.dart.
+targets:
+  $default:
+    builders:
+      json_serializable:
+        options:
+          field_rename: pascal

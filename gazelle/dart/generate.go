@@ -117,6 +117,11 @@ func (d *dartLang) generateDartRules(args language.GenerateArgs) language.Genera
 		}
 	}
 
+	// The options the package's build.yaml states for the builders.
+	if len(annotatedFiles) > 0 {
+		registry = d.withBuildYaml(args, registry)
+	}
+
 	var gen []*rule.Rule
 	var imports []interface{}
 

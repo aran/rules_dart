@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "agreement.go",
         "analysis_options.go",
+        "build_yaml.go",
         "builder_registry.go",
         "dag.go",
         "generate.go",
@@ -28,6 +29,7 @@ go_library(
         "@bazel_gazelle//resolve:go_default_library",
         "@bazel_gazelle//rule:go_default_library",
         "@bazel_gazelle//walk:go_default_library",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
 
@@ -39,6 +41,7 @@ go_test(
     srcs = [
         "agreement_test.go",
         "analysis_options_test.go",
+        "build_yaml_test.go",
         "builder_registry_test.go",
         "dag_test.go",
         "generate_test.go",

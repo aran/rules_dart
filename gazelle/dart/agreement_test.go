@@ -36,7 +36,7 @@ func agreementErrors(t *testing.T, rel, pubspec string, decl *packageDecl, direc
 	d := &dartLang{}
 	d.checkAgreement(language.GenerateArgs{Config: c, Rel: rel})
 	var errs []string
-	for e := range d.agreement.errors {
+	for e := range d.errs.errors {
 		errs = append(errs, e)
 	}
 	sort.Strings(errs)

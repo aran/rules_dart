@@ -52,9 +52,15 @@ type builderInfo struct {
 	// `dart_library.deps` (set via `dart_builder_runtime_dep` directive).
 	RuntimeDep string
 
-	// Config is a JSON string of builder options (set via
-	// `dart_builder_config` directive).
+	// Config is a JSON string of builder options, set by the
+	// `dart_builder_config` directive or by the package's build.yaml
+	// (build_yaml.go).
 	Config string
+
+	// Key is the builder's key in build_runner's `build.yaml`
+	// (`<package>:<builder>`), whose `options` there become Config. Empty
+	// for a builder whose options Gazelle cannot carry into its targets.
+	Key string
 }
 
 // clone returns a shallow copy of this builderInfo. Slice fields are
@@ -103,16 +109,7 @@ func builderRegistryOf(c *config.Config) *builderRegistry {
 		c.Exts = map[string]interface{}{}
 	}
 	if existing, ok := c.Exts[extKeyBuilderRegistry].(*builderRegistry); ok {
-		clone := &builderRegistry{
-			byAnnotation: make(map[string][]*builderInfo, len(existing.byAnnotation)),
-		}
-		for ann, infos := range existing.byAnnotation {
-			cloned := make([]*builderInfo, 0, len(infos))
-			for _, info := range infos {
-				cloned = append(cloned, info.clone())
-			}
-			clone.byAnnotation[ann] = cloned
-		}
+		clone := existing.clone()
 		c.Exts[extKeyBuilderRegistry] = clone
 		return clone
 	}
@@ -127,6 +124,22 @@ func builderRegistryOf(c *config.Config) *builderRegistry {
 	return r
 }
 
+// clone returns a deep copy of the registry, whose builderInfos can be
+// changed without changing this one's.
+func (r *builderRegistry) clone() *builderRegistry {
+	out := &builderRegistry{
+		byAnnotation: make(map[string][]*builderInfo, len(r.byAnnotation)),
+	}
+	for ann, infos := range r.byAnnotation {
+		cloned := make([]*builderInfo, 0, len(infos))
+		for _, info := range infos {
+			cloned = append(cloned, info.clone())
+		}
+		out.byAnnotation[ann] = cloned
+	}
+	return out
+}
+
 // defaultBuilders returns the rules_dart-shipped registrations for the
 // bundled `dart/ext/<builder>` shims. Most annotations register exactly
 // one builderInfo; `@StackedApp` registers five (one per stacked
@@ -138,6 +151,7 @@ func defaultBuilders() []*builderInfo {
 		{
 			Annotation: "JsonSerializable",
 			ShimLabel:  "@rules_dart//dart/ext/json_serializable:shim",
+			Key:        "json_serializable:json_serializable",
 			Macro:      "@rules_dart//dart/ext/json_serializable:defs.bzl%json_serializable_library",
 			Produces:   []string{".json_serializable.g.part"},
 			Consumes:   []string{".dart"},
@@ -151,6 +165,7 @@ func defaultBuilders() []*builderInfo {
 			// annotation maps here too.
 			Annotation: "BuiltValue",
 			ShimLabel:  "@rules_dart//dart/ext/built_value:shim",
+			Key:        "built_value_generator:built_value",
 			Macro:      "@rules_dart//dart/ext/built_value:defs.bzl%built_value_library",
 			Produces:   []string{".built_value.g.part"},
 			Consumes:   []string{".dart"},
@@ -163,6 +178,7 @@ func defaultBuilders() []*builderInfo {
 			// serializers.dart); same builder as BuiltValue.
 			Annotation: "SerializersFor",
 			ShimLabel:  "@rules_dart//dart/ext/built_value:shim",
+			Key:        "built_value_generator:built_value",
 			Macro:      "@rules_dart//dart/ext/built_value:defs.bzl%built_value_library",
 			Produces:   []string{".built_value.g.part"},
 			Consumes:   []string{".dart"},
@@ -176,6 +192,7 @@ func defaultBuilders() []*builderInfo {
 			// registry lookup (see canonicalAnnotationName).
 			Annotation: "Freezed",
 			ShimLabel:  "@rules_dart//dart/ext/freezed:shim",
+			Key:        "freezed:freezed",
 			Macro:      "@rules_dart//dart/ext/freezed:defs.bzl%freezed_library",
 			Produces:   []string{".freezed.dart"},
 			Consumes:   []string{".dart"},
@@ -185,6 +202,7 @@ func defaultBuilders() []*builderInfo {
 		{
 			Annotation: "CopyWith",
 			ShimLabel:  "@rules_dart//dart/ext/copy_with_extension_gen:shim",
+			Key:        "copy_with_extension_gen:copy_with_extension_gen",
 			Macro:      "@rules_dart//dart/ext/copy_with_extension_gen:defs.bzl%copy_with_library",
 			Produces:   []string{".copy_with_extension_gen.g.part"},
 			Consumes:   []string{".dart"},
@@ -194,6 +212,7 @@ func defaultBuilders() []*builderInfo {
 		{
 			Annotation: "GenerateMocks",
 			ShimLabel:  "@rules_dart//dart/ext/mockito:shim",
+			Key:        "mockito:mockBuilder",
 			Macro:      "@rules_dart//dart/ext/mockito:defs.bzl%mockito_library",
 			Produces:   []string{".mocks.dart"},
 			Consumes:   []string{".dart"},
@@ -202,6 +221,7 @@ func defaultBuilders() []*builderInfo {
 		{
 			Annotation: "TypedGoRoute",
 			ShimLabel:  "@rules_dart//dart/ext/go_router:shim",
+			Key:        "go_router_builder:go_router_builder",
 			Macro:      "@rules_dart//dart/ext/go_router:defs.bzl%go_router_library",
 			Produces:   []string{".go_router.g.part"},
 			Consumes:   []string{".dart"},
@@ -209,6 +229,8 @@ func defaultBuilders() []*builderInfo {
 			RuntimeDep: "@pub_deps//:go_router",
 		},
 		{
+			// No Key: `drift_library` takes no `config`, so build.yaml's
+			// `drift_dev` options have nowhere to go.
 			Annotation: "DriftDatabase",
 			ShimLabel:  "@rules_dart//dart/ext/drift:shim_drift",
 			Macro:      "@rules_dart//dart/ext/drift:defs.bzl%drift_library",
@@ -224,6 +246,7 @@ func defaultBuilders() []*builderInfo {
 		{
 			Annotation: "StackedApp",
 			ShimLabel:  "@rules_dart//dart/ext/stacked:shim_router",
+			Key:        "stacked_generator:stackedRouterGenerator",
 			Macro:      "@rules_dart//dart/ext/stacked:defs.bzl%stacked_router_library",
 			Produces:   []string{".router.dart"},
 			Consumes:   []string{".dart"},
@@ -232,6 +255,7 @@ func defaultBuilders() []*builderInfo {
 		{
 			Annotation: "StackedApp",
 			ShimLabel:  "@rules_dart//dart/ext/stacked:shim_locator",
+			Key:        "stacked_generator:stackedLocatorGenerator",
 			Macro:      "@rules_dart//dart/ext/stacked:defs.bzl%stacked_locator_library",
 			Produces:   []string{".locator.dart"},
 			Consumes:   []string{".dart"},
@@ -240,6 +264,7 @@ func defaultBuilders() []*builderInfo {
 		{
 			Annotation: "StackedApp",
 			ShimLabel:  "@rules_dart//dart/ext/stacked:shim_logger",
+			Key:        "stacked_generator:stackedLoggerGenerator",
 			Macro:      "@rules_dart//dart/ext/stacked:defs.bzl%stacked_logger_library",
 			Produces:   []string{".logger.dart"},
 			Consumes:   []string{".dart"},
@@ -248,6 +273,7 @@ func defaultBuilders() []*builderInfo {
 		{
 			Annotation: "StackedApp",
 			ShimLabel:  "@rules_dart//dart/ext/stacked:shim_dialog",
+			Key:        "stacked_generator:stackedDialogGenerator",
 			Macro:      "@rules_dart//dart/ext/stacked:defs.bzl%stacked_dialog_library",
 			Produces:   []string{".dialogs.dart"},
 			Consumes:   []string{".dart"},
@@ -256,6 +282,7 @@ func defaultBuilders() []*builderInfo {
 		{
 			Annotation: "StackedApp",
 			ShimLabel:  "@rules_dart//dart/ext/stacked:shim_bottomsheet",
+			Key:        "stacked_generator:stackedBottomsheetGenerator",
 			Macro:      "@rules_dart//dart/ext/stacked:defs.bzl%stacked_bottomsheet_library",
 			Produces:   []string{".bottomsheets.dart"},
 			Consumes:   []string{".dart"},
@@ -264,6 +291,7 @@ func defaultBuilders() []*builderInfo {
 		{
 			Annotation: "FormView",
 			ShimLabel:  "@rules_dart//dart/ext/stacked:shim_form",
+			Key:        "stacked_generator:stackedFormGenerator",
 			Macro:      "@rules_dart//dart/ext/stacked:defs.bzl%stacked_form_library",
 			Produces:   []string{".form.dart"},
 			Consumes:   []string{".dart"},

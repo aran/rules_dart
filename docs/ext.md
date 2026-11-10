@@ -117,9 +117,10 @@ the shim verbatim as `--config`:
 - Keys and values are builder-defined — the same names the builder accepts
   under `options:` in `build.yaml`. rules_dart does not read `build.yaml`
   (see [Dual-build coexistence](#dual-build-coexistence)); `config` is the
-  per-target replacement, and the
+  per-target replacement. Gazelle writes it from the package's `build.yaml`
+  (see [build.yaml](#buildyaml)), or from the
   `# gazelle:dart_builder_config <Annotation> <json-string>` directive (see
-  [Directives](#directives)) is the per-directory one.
+  [Directives](#directives)) for a package without one.
 
 ## Execution modes
 
@@ -335,7 +336,9 @@ tune _registered_ builders:
   as `annotation_dep` where that is not the macro's default.
 - `# gazelle:dart_builder_config <Annotation> <json-string>` sets the
   builder's `BuilderOptions`. Equivalent to build.yaml's `options:`
-  block. Applies to every sub-builder of a fanned-out annotation.
+  block. Applies to every sub-builder of a fanned-out annotation. Where the
+  package's `build.yaml` states other options for the same builder, Gazelle
+  fails naming both.
 - `# gazelle:dart_language_version <major>.<minor>` states the
   `language_version` attr for a package whose `pubspec.yaml` does not.
   When unset, Gazelle derives it from the lower bound of the
@@ -346,6 +349,37 @@ Every macro also accepts `package`, a `dart_package_metadata` label
 declaring the package's `package_name` and `language_version` once. It is
 forwarded to every rule the macro emits, and is mutually exclusive with
 passing those two inline.
+
+### build.yaml
+
+For a package it writes codegen for, Gazelle reads `build.yaml` at the
+package's root and carries the one part of it a Bazel build has a place for:
+`targets.$default.builders.<builder>.options` of a builder it writes targets
+for becomes their `config`, the JSON object build_runner would hand the
+builder. A builder is named as build_runner names it, `<package>:<builder>`,
+a bare `<package>` meaning the builder of that name and `|` the older
+separator:
+
+| Annotation | build.yaml builder |
+|---|---|
+| `@JsonSerializable` | `json_serializable` |
+| `@freezed` / `@Freezed` | `freezed` |
+| `@BuiltValue`, `Built<…>`, `@SerializersFor` | `built_value_generator:built_value` |
+| `@CopyWith` | `copy_with_extension_gen` |
+| `@GenerateMocks` | `mockito:mockBuilder` |
+| `@TypedGoRoute` | `go_router_builder` |
+| `@StackedApp` | `stacked_generator:stackedRouterGenerator`, `…LocatorGenerator`, `…LoggerGenerator`, `…DialogGenerator`, `…BottomsheetGenerator` |
+| `@FormView` | `stacked_generator:stackedFormGenerator` |
+
+Every other part of the file fails generation, named by its path, before any
+BUILD file is written: a target other than `$default`, a target's `sources`,
+a builder's `generate_for`, `enabled`, `dev_options` or `release_options`,
+`global_options`, a builder outside the table (drift's `drift_dev` too, since
+`drift_library` takes no `config`; source_gen's `combining_builder`, whose
+shim takes no options), and a `build.<name>.yaml`. A codegen macro's `srcs`
+choose the files it runs on. `# gazelle:exclude build.yaml` in the package
+root's BUILD file has Gazelle not read the file, for a package that keeps it
+for build_runner alone.
 
 ## Dual-build coexistence
 
@@ -416,8 +450,9 @@ so needs the network.
 
 - **`build.yaml`** is not read by rules_dart. Builder options set there
   apply only under `build_runner`. Pass equivalent options via the
-  macro's `config = "{...}"` argument (per-target) or the
-  `# gazelle:dart_builder_config` directive (per-directory).
+  macro's `config = "{...}"` argument (per-target), the
+  `# gazelle:dart_builder_config` directive (per-directory), or let Gazelle
+  write them from `build.yaml` (see [build.yaml](#buildyaml)).
 
 ### Out of scope
 

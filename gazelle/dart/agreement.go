@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"sort"
+	"sync"
 
 	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/language"
@@ -33,11 +34,23 @@ func directiveFact(c *config.Config, key string) *directiveValue {
 	return nil
 }
 
-// agreementState collects the disagreements found while generating, so that
-// the run reports every one of them and then fails, before it writes any
-// BUILD file.
-type agreementState struct {
+// generationErrors collects the problems found while generating -- facts
+// stated differently in two places, a build.yaml Gazelle cannot carry into
+// the build -- so that the run reports every one of them and then fails,
+// before it writes any BUILD file.
+type generationErrors struct {
+	mu     sync.Mutex
 	errors map[string]bool
+}
+
+// add records an error; the same one recorded twice is reported once.
+func (s *generationErrors) add(msg string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.errors == nil {
+		s.errors = map[string]bool{}
+	}
+	s.errors[msg] = true
 }
 
 // statement is one place a package fact is stated: its value and where.
@@ -85,36 +98,33 @@ func (d *dartLang) checkAgreement(args language.GenerateArgs) {
 	if pubVersion != "" {
 		version = append(version, statement{pubVersion, pubspec})
 	}
-	d.agreement.check(args.Rel, "package name", name)
-	d.agreement.check(args.Rel, "language version", version)
+	d.errs.check(args.Rel, "package name", name)
+	d.errs.check(args.Rel, "language version", version)
 }
 
 // check records an error when any statement differs from the first.
-func (s *agreementState) check(rel, fact string, stated []statement) {
+func (s *generationErrors) check(rel, fact string, stated []statement) {
 	for _, other := range stated[min(1, len(stated)):] {
 		first := stated[0]
 		if other.value == first.value {
 			continue
 		}
-		if s.errors == nil {
-			s.errors = map[string]bool{}
-		}
-		s.errors[fmt.Sprintf(
+		s.add(fmt.Sprintf(
 			"dart: %s: the %s is stated twice, differently: %s by %s, "+
 				"%s by %s; state it once, or make the two agree",
 			dirName(rel), fact, quoted(first.value), first.where, quoted(other.value), other.where,
-		)] = true
+		))
 	}
 }
 
-// DoneGeneratingRules fails the run when any fact disagrees, before
-// Gazelle resolves or writes anything.
+// DoneGeneratingRules fails the run when generating found any problem,
+// before Gazelle resolves or writes anything.
 func (d *dartLang) DoneGeneratingRules() {
-	if len(d.agreement.errors) == 0 {
+	if len(d.errs.errors) == 0 {
 		return
 	}
 	var msgs []string
-	for m := range d.agreement.errors {
+	for m := range d.errs.errors {
 		msgs = append(msgs, m)
 	}
 	sort.Strings(msgs)

@@ -4,9 +4,9 @@ import 'package:test/test.dart';
 import 'fixtures.dart';
 
 void main() {
-  test('json_serializable roundtrips through JSON', () {
+  test('json_serializable roundtrips through JSON with build.yaml options', () {
     final json = user.toJson();
-    expect(json, {'id': 7, 'name': 'Ada'});
+    expect(json, {'Id': 7, 'Name': 'Ada'});
     final back = User.fromJson(json);
     expect((back.id, back.name), (7, 'Ada'));
   });

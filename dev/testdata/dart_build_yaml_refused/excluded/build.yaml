@@ -1,0 +1,15 @@
+global_options:
+  json_serializable:
+    options:
+      checked: true
+targets:
+  $default:
+    builders:
+      json_serializable:
+        generate_for:
+          - lib/models/**
+        options:
+          checked: true
+      build_web_compilers:entrypoint:
+        options:
+          compiler: dart2wasm

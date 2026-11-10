@@ -20,8 +20,9 @@ const dartName = "dart"
 // dartLang implements language.Language for Dart.
 type dartLang struct {
 	analysis  analysisState
-	agreement agreementState
+	errs      generationErrors
 	scan      scanState
+	buildYaml buildYamlState
 }
 
 // NewLanguage creates a new Dart language extension for Gazelle.

@@ -1,0 +1,3 @@
+name: build_yaml_fixture
+environment:
+  sdk: ^3.11.0

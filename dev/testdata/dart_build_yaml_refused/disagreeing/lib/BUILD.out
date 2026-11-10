@@ -1,0 +1,1 @@
+# gazelle:dart_builder_config JsonSerializable {"field_rename": "kebab"}

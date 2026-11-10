@@ -7,7 +7,7 @@ import 'fixtures.dart';
 void main() {
   test('freezed then json_serializable roundtrips through JSON', () {
     final json = event.toJson();
-    expect(json, {'type': 'click', 'sequence': 42});
+    expect(json, {'Type': 'click', 'Sequence': 42});
     expect(Event.fromJson(json), event);
   });
 

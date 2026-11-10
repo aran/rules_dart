@@ -146,7 +146,9 @@ runner's warning that a tag is "not specified in dart_test.yaml" is harmless;
 creating the file does not silence it and changes nothing. `build.yaml` is not
 read either: a builder's options go in its macro's `config` (or
 `# gazelle:dart_builder_config`), and the macro's `srcs` choose the files it
-runs on (see [`docs/ext.md`](./docs/ext.md)).
+runs on (see [`docs/ext.md`](./docs/ext.md)). Gazelle writes a builder's
+`options` from `build.yaml` into `config` for you, and fails on the rest of the
+file (see [build.yaml](#buildyaml)).
 
 Tools that follow Dart's guidance directly, an editor's analysis server and
 `dart mcp-server`'s `analyze_files` and `run_tests` among them, read
@@ -673,6 +675,44 @@ Each fact is stated once. Where a `dart_package_metadata`, a directive and a
 `pubspec.yaml` state a package's name or language version differently, Gazelle
 reports each disagreement, naming both values and where each is stated, and
 fails without writing any BUILD file.
+
+#### build.yaml
+
+For a package it writes codegen for, Gazelle reads the `build.yaml` at the
+package's root, where build_runner finds its builder options, and writes each
+bundled builder's `targets.$default.builders.<builder>.options` into the
+`config` of the targets it writes for that builder, as the JSON object
+build_runner would hand the builder:
+
+```yaml
+targets:
+  $default:
+    builders:
+      json_serializable:
+        options:
+          field_rename: snake
+```
+
+```starlark
+json_serializable_library(
+    name = "user",
+    srcs = ["user.dart"],
+    config = "{\"field_rename\":\"snake\"}",
+    ...
+)
+```
+
+The rest of the file has no place in a Bazel build: another target than
+`$default`, a builder's `generate_for`, `enabled` or `dev_options`,
+`global_options`, a builder Gazelle does not write targets for (drift's
+among them: `drift_library` takes no `config`), and a `build.<name>.yaml`,
+which build_runner reads only with `--config <name>`. Gazelle names each such
+part and fails without writing any BUILD file. A codegen macro's `srcs`
+choose the files it runs on. A package that keeps `build.yaml` for
+build_runner alone has Gazelle not read it with
+`# gazelle:exclude build.yaml` in its root's BUILD file. Options a
+`# gazelle:dart_builder_config` directive states differently for the same
+builder are a disagreement, as for the package's name.
 
 #### Build hooks
 
