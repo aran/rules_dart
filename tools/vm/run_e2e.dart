@@ -14,7 +14,7 @@
 /// `toolchain_pin_conflict`,
 /// `pub_lock_unpinned`, `pub_lock_git_unpinned`, `pub_lock_git_conflict`,
 /// `pub_lock_git_hosted`, `pub_package_blank_sha`, `pub_package_missing_dep`,
-/// `pub_lock_digest_conflict`, `kernel_source_refused`, `analysis_failure`, `link_hook`) must fail to
+/// `pub_lock_digest_conflict`, `pub_cycle_refused`, `kernel_source_refused`, `analysis_failure`, `link_hook`) must fail to
 /// build with a specific error;
 /// they are checked separately on Linux.
 library;
@@ -45,6 +45,7 @@ const _ciFolders = [
   'e2e/pub_lock_upgrade',
   'e2e/pub_hub_surface',
   'e2e/pub_lock_cycle',
+  'e2e/pub_package_cycle',
   'e2e/pub_lock_git',
   'e2e/pub_lock_resolve',
   'e2e/pub_lock_path',
@@ -301,6 +302,22 @@ const _expectedFailureChecks = [
     'e2e/pub_package_missing_dep',
     '@provider//:provider',
     'nothing supplies `flutter`',
+  ),
+  // A dependency cycle builds only as the root module declares it.
+  _ExpectedFailure(
+    'e2e/pub_cycle_refused',
+    '@deps//:left',
+    'pub.cycle(packages = ["left", "right"])',
+  ),
+  _ExpectedFailure(
+    'e2e/pub_cycle_refused',
+    '@deps//:old_a',
+    '`old_a` is in no cycle',
+  ),
+  _ExpectedFailure(
+    'e2e/pub_cycle_refused',
+    '@deps//:tri_a',
+    'pub.cycle(packages = ["tri_a", "tri_b", "tri_c"])',
   ),
   _ExpectedFailure(
     'e2e/pub_lock_digest_conflict',

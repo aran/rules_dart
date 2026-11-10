@@ -6,7 +6,8 @@ exports_files(["pubspec.lock"])
 # Property: a lock pub itself resolves loads and builds, including packages
 # that depend on each other (`dio` <-> `dio_web_adapter`); pub allows cycles.
 # Bazel does not, so the two are one library: either name reaches both
-# packages, each at its locked version.
+# packages, each at its locked version. That cycle builds with no declaration
+# here, because rules_dart's curated cycles declare it.
 
 pub_graph_check(
     name = "mutually_dependent_packages_load",
@@ -44,4 +45,31 @@ dart_js_binary(
         "@cyc//:dio",
         "@cyc//:dio_web_adapter",
     ],
+)
+
+# Property: a cycle the root module declares (`pub.cycle()` in MODULE.bazel)
+# builds as one library, from either side.
+pub_graph_check(
+    name = "declared_cycle_loads",
+    target = "@cyc//:ping",
+    versions = {
+        "ping": "1.0.0",
+        "pong": "1.0.0",
+    },
+)
+
+pub_graph_check(
+    name = "declared_cycle_loads_other_side",
+    target = "@cyc//:pong",
+    versions = {
+        "ping": "1.0.0",
+        "pong": "1.0.0",
+    },
+)
+
+dart_test(
+    name = "ping_pong_test",
+    size = "small",
+    main = "ping_pong_test.dart",
+    deps = ["@cyc//:ping"],
 )

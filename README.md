@@ -548,10 +548,40 @@ with pub's message, naming the package. Rule sets of your own read pubspecs the
 same way, in a repository rule, with `read_pubspec` from
 `@rules_dart//dart/pub:pubspec.bzl`.
 
-Packages that depend on each other, which pub allows (`dio` and
-`dio_web_adapter`), are built as one library, each keeping its own name and
-language version; `@pub_deps//:dio` and `@pub_deps//:dio_web_adapter` both name
-it.
+#### Packages that depend on each other
+
+Pub allows packages to depend on each other in a cycle (`dio` and
+`dio_web_adapter` import each other); Bazel does not. Such packages are built
+as one library, each keeping its own name and language version, so
+`@pub_deps//:dio` and `@pub_deps//:dio_web_adapter` both name it. A cycle is
+built that way only where it is declared, whether its packages come from a lock
+or from `pub.package()`:
+
+```starlark
+pub.cycle(packages = ["ping", "pong"])
+```
+
+An undeclared cycle fails when something first builds one of its packages,
+naming every package in it and the `pub.cycle()` to add. A declaration must
+name exactly one cycle at the versions the build fetches: one naming packages
+that are no cycle (a new release dropped the edge, say) or only part of one
+fails the same way, so a declaration cannot outlive its cycle.
+
+Cycles are build-wide, as versions are, and the root module decides. Its
+declarations are checked as above. Those of a module the root depends on apply
+where they name exactly a cycle and are otherwise inert, since that module
+cannot fix what the root's versions made of them, and the root can. rules_dart
+declares the cycles of well-known packages itself, so a build using them needs
+no declaration; those apply the same way, and are inert where the packages are
+not that cycle. Two declarations naming the same packages agree; declarations
+that share only some packages cannot both name exactly a cycle, and the root's
+is checked, so at most one applies. The curated cycles are listed by
+`curated_cycles()` in
+[`dart/ext/registry.bzl`](dart/ext/registry.bzl); today they are:
+
+| Packages                 | Why                                                           |
+| ------------------------ | ------------------------------------------------------------- |
+| `dio`, `dio_web_adapter` | `dio` exports the web adapter on the web, which imports `dio` |
 
 rules_dart builds one version of each package, and the root module decides it,
 as Bazel's root module decides everything else: a `pub.package()` in the root
@@ -1563,7 +1593,9 @@ The [`e2e/`](e2e/) directory contains complete working examples:
 | [`pub_lock_upgrade`](e2e/pub_lock_upgrade/)                 | Version conflict resolution with `on_version_conflict = "upgrade"`                              |
 | [`pub_lock_conflict`](e2e/pub_lock_conflict/)               | Version conflict detection across lock files                                                    |
 | [`pub_lock_cross_module`](e2e/pub_lock_cross_module/)       | `pub.from_lock()` across Bazel module boundaries                                                |
-| [`pub_lock_cycle`](e2e/pub_lock_cycle/)                     | Packages that depend on each other (`dio`, `dio_web_adapter`), on the VM and the web            |
+| [`pub_lock_cycle`](e2e/pub_lock_cycle/)                     | Packages that depend on each other: a curated cycle (`dio`), and one the root declares          |
+| [`pub_package_cycle`](e2e/pub_package_cycle/)               | `pub.package()` packages that depend on each other, built as one library                        |
+| [`pub_cycle_refused`](e2e/pub_cycle_refused/)               | An undeclared cycle, a stale declaration and part of a cycle fail, naming the declaration       |
 | [`pub_member_kind`](e2e/pub_member_kind/)                   | Another rule set's own pub package kind, in a cycle, over the public pub surface                |
 | [`toolchain_pin_conflict`](e2e/toolchain_pin_conflict/)     | A root `dart.toolchain` pin below a dependency's request fails, naming the dependency           |
 | [`pub_lock_unsupplied`](e2e/pub_lock_unsupplied/)           | A hosted package depending on an unsupplied sdk package fails, naming it                        |

@@ -1,0 +1,35 @@
+load("@rules_dart//dart:defs.bzl", "dart_test")
+load(":checks.bzl", "pub_graph_check")
+
+exports_files(["pubspec.lock"])
+
+# Property: packages declared with `pub.package()` that depend on each other
+# build as one library, planned as locked packages are: either name reaches
+# both, each at its declared version.
+
+pub_graph_check(
+    name = "mutually_dependent_packages_load",
+    direct_deps = ["web"],
+    target = "@dio",
+    versions = {
+        "dio": "5.11.1",
+        "dio_web_adapter": "2.2.2",
+    },
+)
+
+pub_graph_check(
+    name = "mutually_dependent_packages_load_other_side",
+    direct_deps = ["web"],
+    target = "@dio_web_adapter",
+    versions = {
+        "dio": "5.11.1",
+        "dio_web_adapter": "2.2.2",
+    },
+)
+
+dart_test(
+    name = "dio_vm_test",
+    size = "small",
+    main = "dio_vm_test.dart",
+    deps = ["@dio"],
+)

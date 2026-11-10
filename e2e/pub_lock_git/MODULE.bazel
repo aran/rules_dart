@@ -23,4 +23,10 @@ pub.from_lock(
     name = "deps",
     lock = "@git_fixture//:pubspec.lock",
 )
+
+# `git_cyc_a` and `git_cyc_b` depend on each other.
+pub.cycle(packages = [
+    "git_cyc_a",
+    "git_cyc_b",
+])
 use_repo(pub, "deps")

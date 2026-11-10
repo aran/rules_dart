@@ -1,0 +1,4 @@
+# This workspace fails on purpose; `bazel run @overhead//locks:check` passes a
+# step that fails printing each line below.
+# Every case's error gives the declaration to write or remove.
+pub.cycle(packages = [

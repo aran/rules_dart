@@ -36,4 +36,8 @@ fancy.package(
     greeting = "hello from gamma",
     pubspec = "//pkgs/gamma:pubspec.yaml",
 )
+fancy.cycle(packages = [
+    "alpha",
+    "beta",
+])
 use_repo(fancy, "fancy__alpha", "fancy__beta", "fancy__gamma")

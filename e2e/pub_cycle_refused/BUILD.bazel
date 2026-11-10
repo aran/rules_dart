@@ -1,0 +1,25 @@
+load(":checks.bzl", "pub_graph_check")
+
+exports_files(["pubspec.lock"])
+
+# Property: a dependency cycle builds only as the root module declares it.
+# THIS WORKSPACE MUST FAIL TO BUILD; CI builds each target and expects its
+# error, which names every package of the cycle and the declaration to write.
+
+# An undeclared cycle: `@deps//:left`.
+pub_graph_check(
+    name = "undeclared_cycle_refused",
+    target = "@deps//:left",
+)
+
+# A declaration of packages that are no cycle: `@deps//:old_a`.
+pub_graph_check(
+    name = "stale_declaration_refused",
+    target = "@deps//:old_a",
+)
+
+# A declaration of part of a cycle: `@deps//:tri_a`.
+pub_graph_check(
+    name = "partial_declaration_refused",
+    target = "@deps//:tri_a",
+)

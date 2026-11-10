@@ -11,15 +11,27 @@ with and what they depend on:
     def _my_library_repo_impl(ctx):
         graph = dependency_graph(
             ctx.attr.package_name,
-            lambda p: [d for d in read_pubspec_dependencies(ctx, "my_src__" + p) if d in known],
+            lambda p: read_pubspec_dependencies(ctx, "my_src__" + p),
             follow = known,
         )
-        cycle = dependency_cycle(graph, ctx.attr.package_name)
+        cycle = dependency_cycle(
+            graph,
+            ctx.attr.package_name,
+            declared = root_declarations,
+            advisory = other_declarations + curated_cycles(),
+            declare = "my_pub.cycle",
+        )
         if cycle.owner != ctx.attr.package_name:
             ...  # alias the library in `my_lib__<owner>`
         else:
             ...  # a library over `@my_src__<m>//:<m>` for m in cycle.packages,
                  # depending on `@my_lib__<d>//:<d>` for d in cycle.deps
+
+Packages in a cycle are built as one library only where a declaration says
+so; an undeclared cycle fails, naming the declaration to write
+(`cycle_declaration()`). The declarations are known before any package is
+fetched, so the extension checks their form (`cycle_declarations_error()`);
+whether they are cycles is known only here.
 
 The source repositories read nothing of each other, so the planning never asks
 a repository to wait on itself, and the library repository fetches only the
@@ -102,19 +114,158 @@ def _reach(graph, start):
         queue = next_queue
     return seen
 
-def dependency_cycle(graph, package):
+def _strongly_connected(graph, package):
+    """The sorted names of the packages that depend on `package` and on which it depends."""
+    forward = _reach(graph, package)
+    reverse = {}
+    for node in forward:
+        for dep in graph.get(node, []):
+            if dep in forward:
+                reverse.setdefault(dep, []).append(node)
+    backward = _reach(reverse, package)
+    return sorted([node for node in forward if node in backward])
+
+def _cycle_path(graph, package, members):
+    """A shortest way from `package` back to itself through `members`, as `a -> b -> a`."""
+    inside = {m: True for m in members}
+    came_from = {}
+    queue = [package]
+    for _ in range(len(members) + 1):
+        if not queue or package in came_from:
+            break
+        next_queue = []
+        for node in queue:
+            for dep in graph.get(node, []):
+                if dep in inside and dep not in came_from:
+                    came_from[dep] = node
+                    next_queue.append(dep)
+        queue = next_queue
+    path = [package]
+    node = came_from[package]
+    for _ in range(len(members)):
+        if node == package:
+            break
+        path.append(node)
+        node = came_from[node]
+    path.append(package)
+    return " -> ".join(reversed(path))
+
+def _names(packages):
+    quoted = ["`%s`" % p for p in packages]
+    if len(quoted) < 3:
+        return " and ".join(quoted)
+    return ", ".join(quoted[:-1]) + " and " + quoted[-1]
+
+def cycle_declaration(packages, declare = "pub.cycle"):
+    """The declaration that builds `packages` as one library, as a user writes it.
+
+    Args:
+      packages: The packages of the cycle.
+      declare: The tag that declares a cycle, as `<extension>.<tag>`.
+
+    Returns:
+      The declaration, e.g. `pub.cycle(packages = ["dio", "dio_web_adapter"])`.
+    """
+    return "%s(packages = [%s])" % (declare, ", ".join(['"%s"' % p for p in sorted(packages)]))
+
+def cycle_declarations_error(groups, where, declare = "pub.cycle"):
+    """What is wrong with one module's cycle declarations, before any package is fetched.
+
+    A declaration names at least two packages, each once, and no package is in
+    two of one module's declarations. Whether the packages are a cycle is
+    checked when one of them is planned (`dependency_cycle()`).
+
+    Args:
+      groups: The module's declarations, each the list of packages it names.
+      where: Who declared them, for the message, e.g. "the root module".
+      declare: The tag that declares a cycle, as `<extension>.<tag>`.
+
+    Returns:
+      The message, or None when there is nothing wrong.
+    """
+    problems = []
+    first = {}
+    for group in groups:
+        stated = cycle_declaration(group, declare)
+        distinct = {p: True for p in group}
+        if len(distinct) != len(group):
+            problems.append("  - %s names a package more than once." % stated)
+        if len(distinct) < 2:
+            problems.append("  - %s names fewer than two packages; a cycle is of several." % stated)
+        for p in sorted(distinct):
+            if p in first and first[p] != stated:
+                problems.append("  - `%s` is in both %s and %s; a package is in one cycle, so declare it as one, with every package in it." % (p, first[p], stated))
+            first.setdefault(p, stated)
+    if not problems:
+        return None
+    return "The dependency cycles declared by %s are not well formed:\n%s" % (where, "\n".join(problems))
+
+def cycle_error(graph, package, declared = [], advisory = [], declare = "pub.cycle"):
+    """What is wrong with how `package`'s dependency cycle is declared, if anything.
+
+    `dependency_cycle()` fails with this message; it is separate so that it can
+    be tested, and so that a caller can see the outcome without failing.
+
+    Args:
+      graph: As for `dependency_cycle()`.
+      package: As for `dependency_cycle()`.
+      declared: As for `dependency_cycle()`.
+      advisory: As for `dependency_cycle()`.
+      declare: As for `dependency_cycle()`.
+
+    Returns:
+      The message, or None when the cycle may be planned.
+    """
+    cycle = _strongly_connected(graph, package)
+    for group in declared:
+        if package not in group:
+            continue
+        group = sorted(group)
+        if group == cycle:
+            return None
+        if len(cycle) == 1:
+            found = "`%s` is in no cycle" % package
+            remedy = "Remove it from the declaration, or remove the declaration."
+        else:
+            found = "`%s` is in the cycle of %s (%s)" % (package, _names(cycle), _cycle_path(graph, package, cycle))
+            remedy = "Declare that cycle instead, with every package in it:\n\n    %s\n" % cycle_declaration(cycle, declare)
+        return ("%s, in the root module, is not a dependency cycle at the versions this " +
+                "build fetches: %s. %s") % (cycle_declaration(group, declare), found, remedy)
+    if len(cycle) == 1 or cycle in [sorted(g) for g in advisory]:
+        return None
+    return ("Pub packages %s depend on each other: %s. Bazel builds no dependency cycle, so " +
+            "packages in one are built as one library, and only where the root module " +
+            "declares them, in its MODULE.bazel:\n\n    %s\n") % (
+        _names(cycle),
+        _cycle_path(graph, package, cycle),
+        cycle_declaration(cycle, declare),
+    )
+
+def dependency_cycle(graph, package, declared = [], advisory = [], declare = "pub.cycle"):
     """The dependency cycle `package` is built in, and what the cycle depends on.
 
     Pub allows a cycle (`dio` and `dio_web_adapter` each depend on the other);
     Bazel does not, so the packages of one are built as one library, in the
     library repository of its `owner`, which every other package of it
-    aliases.
+    aliases, but only when the cycle is declared. A cycle is declared by the
+    root module (`declared`), which must state it exactly, or by a module the
+    root depends on or by rules_dart's curated set (`advisory`), whose
+    declarations apply where they state it exactly and are inert where they do
+    not: a dependency cannot fix what the root's versions made of its
+    declaration, and the root can. Fails, naming the packages and the
+    declaration to write, when `package` is in an undeclared cycle or in a
+    root declaration that is not exactly its cycle (see `cycle_error()`).
 
     Args:
       graph: Dict of package name to the names it depends on, as
         `dependency_graph()` returns. Must hold every package reachable from
         `package`; edges to names absent from it are leaves.
       package: The package whose cycle is wanted.
+      declared: The root module's cycle declarations, each a list of packages.
+      advisory: Every other declaration that may apply: other modules' and
+        the curated ones (`curated_cycles()`, `@rules_dart//dart/ext:registry.bzl`).
+      declare: The tag that declares a cycle, as `<extension>.<tag>`, for the
+        message.
 
     Returns:
       `struct(packages, owner, deps)`: `packages`, the sorted names of the
@@ -123,14 +274,10 @@ def dependency_cycle(graph, package):
       repository builds the cycle; and `deps`, the sorted names the packages
       depend on outside the cycle.
     """
-    forward = _reach(graph, package)
-    reverse = {}
-    for node in forward:
-        for dep in graph.get(node, []):
-            if dep in forward:
-                reverse.setdefault(dep, []).append(node)
-    backward = _reach(reverse, package)
-    packages = sorted([node for node in forward if node in backward])
+    error = cycle_error(graph, package, declared, advisory, declare)
+    if error:
+        fail(error)
+    packages = _strongly_connected(graph, package)
     in_cycle = {p: True for p in packages}
     deps = {dep: True for p in packages for dep in graph.get(p, []) if dep not in in_cycle}
     return struct(

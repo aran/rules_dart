@@ -15,8 +15,20 @@ use_repo(dart, "dart_toolchains")
 register_toolchains("@dart_toolchains//:all")
 
 pub = use_extension("@rules_dart//dart/pub:extensions.bzl", "pub")
+
+# `dio` and `dio_web_adapter` depend on each other; rules_dart's curated cycles
+# declare that one, so nothing here does. `ping` and `pong`, packages of this
+# workspace, depend on each other too, which the root declares.
 pub.from_lock(
     name = "cyc",
+    build_from_pubspec = [
+        "ping",
+        "pong",
+    ],
     lock = "//:pubspec.lock",
 )
+pub.cycle(packages = [
+    "ping",
+    "pong",
+])
 use_repo(pub, "cyc")

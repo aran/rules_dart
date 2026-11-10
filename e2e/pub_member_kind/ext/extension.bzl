@@ -4,10 +4,12 @@ Each package is a source repository (`fancy_src__<name>`), holding its member
 and the names its pubspec depends on, and a library repository
 (`fancy__<name>`), which reads those names for every package it reaches and
 builds the package's dependency cycle as one `fancy_library` in the cycle
-owner's repository; the other packages of the cycle alias it.
+owner's repository; the other packages of the cycle alias it. A cycle is
+declared with `fancy.cycle()`, as `pub.cycle()` declares one.
 """
 
-load("@rules_dart//dart/pub:pub_graph.bzl", "dependency_cycle", "dependency_graph", "read_pubspec_dependencies", "write_pubspec_dependencies")
+load("@rules_dart//dart/ext:registry.bzl", "curated_cycles")
+load("@rules_dart//dart/pub:pub_graph.bzl", "cycle_declarations_error", "dependency_cycle", "dependency_graph", "read_pubspec_dependencies", "write_pubspec_dependencies")
 load("@rules_dart//dart/pub:pubspec.bzl", "read_pubspec")
 
 def _source(name):
@@ -71,7 +73,13 @@ def _fancy_library_repo_impl(ctx):
         lambda p: [d for d in read_pubspec_dependencies(ctx, _source(p)) if d in known],
         follow = known,
     )
-    cycle = dependency_cycle(graph, name)
+    cycle = dependency_cycle(
+        graph,
+        name,
+        declared = [c.split(" ") for c in ctx.attr.cycles],
+        advisory = [c.split(" ") for c in ctx.attr.advisory_cycles],
+        declare = "fancy.cycle",
+    )
     if cycle.owner != name:
         ctx.file("BUILD.bazel", """\
 alias(name = "{name}", actual = "@{owner_repo}//:{owner}", visibility = ["//visibility:public"])
@@ -109,6 +117,8 @@ _fancy_library_repo = repository_rule(
     attrs = {
         "package_name": attr.string(mandatory = True),
         "packages": attr.string_list(doc = "Every package the extension makes."),
+        "cycles": attr.string_list(doc = "The root module's cycles, each its packages joined by spaces."),
+        "advisory_cycles": attr.string_list(doc = "Other modules' and the curated cycles, each its packages joined by spaces."),
     },
 )
 
@@ -118,15 +128,33 @@ _package = tag_class(attrs = {
     "greeting": attr.string(doc = "Makes the package a `fancy_member`; without one it is rules_dart's `pub_package_member`."),
 })
 
+_cycle = tag_class(attrs = {
+    "packages": attr.string_list(mandatory = True),
+})
+
 def _fancy_impl(mctx):
     tags = [t for mod in mctx.modules for t in mod.tags.package]
     names = [t.name for t in tags]
+    declared = []
+    advisory = [" ".join(c) for c in curated_cycles()]
+    for mod in mctx.modules:
+        groups = [sorted(t.packages) for t in mod.tags.cycle]
+        error = cycle_declarations_error(groups, "the root module" if mod.is_root else "module `%s`" % mod.name, "fancy.cycle")
+        if error:
+            fail(error)
+        (declared if mod.is_root else advisory).extend([" ".join(g) for g in groups])
     for t in tags:
         _fancy_source(name = _source(t.name), package_name = t.name, pubspec = t.pubspec, greeting = t.greeting)
-        _fancy_library_repo(name = _library(t.name), package_name = t.name, packages = names)
+        _fancy_library_repo(
+            name = _library(t.name),
+            package_name = t.name,
+            packages = names,
+            cycles = declared,
+            advisory_cycles = advisory,
+        )
     return mctx.extension_metadata(reproducible = True)
 
 fancy = module_extension(
     implementation = _fancy_impl,
-    tag_classes = {"package": _package},
+    tag_classes = {"cycle": _cycle, "package": _package},
 )

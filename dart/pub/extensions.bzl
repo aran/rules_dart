@@ -1,13 +1,13 @@
 """Module extension for declaring pub.dev package dependencies."""
 
-load("//dart/ext:registry.bzl", "curated_code_assets")
+load("//dart/ext:registry.bzl", "curated_code_assets", "curated_cycles")
+load("//dart/pub:pub_graph.bzl", "cycle_declaration", "cycle_declarations_error")
 load("//dart/pub:pub_lock_package.bzl", "pub_lock_git_package", "pub_lock_package", "pub_lock_path_package")
 load("//dart/pub:yaml_parser.bzl", "parse_pubspec_lock")
 load("//dart/pub/private:pub_archive.bzl", "check_pub_archive_sha256")
 load("//dart/pub/private:pub_git.bzl", "check_pub_git_resolved_ref", "is_relative_git_url")
 load("//dart/pub/private:pub_lock_hub.bzl", "pub_lock_hub")
 load("//dart/pub/private:pub_lock_library.bzl", "index_repo", "library_repo", "pub_lock_ignored", "pub_lock_index", "pub_lock_library", "pub_lock_resolved", "source_repo")
-load("//dart/pub/private:pub_repository.bzl", "pub_package")
 load("//dart/pub/private:version.bzl", "semver_gt")
 
 _SPOKE_PREFIX = "dart_pub"
@@ -59,6 +59,28 @@ _package = tag_class(
     },
     doc = "A pub.dev package, built with the dependencies its pubspec states: each " +
           "must be supplied by another `pub.package()` or a lock, or the fetch fails.",
+)
+
+_cycle = tag_class(
+    attrs = {
+        "packages": attr.string_list(
+            doc = "Every package of the cycle. Each must be one this extension fetches " +
+                  "(from a lock or a `pub.package()`), and none may be in another " +
+                  "`pub.cycle()` of the module.",
+            mandatory = True,
+        ),
+    },
+    doc = "Pub packages that depend on each other in a cycle, built as one library. " +
+          "Pub allows a cycle and Bazel does not, so a cycle builds only where it is " +
+          "declared; an undeclared one fails when it is planned, giving the declaration " +
+          "to write. Like versions, cycles are build-wide, and the root module decides: " +
+          "its declarations must each be exactly a cycle at the versions the build " +
+          "fetches, or the build fails (so a declaration cannot outlive its cycle). " +
+          "Another module's declarations, and rules_dart's curated ones " +
+          "(`curated_cycles()` in `@rules_dart//dart/ext:registry.bzl`), apply where " +
+          "they are exactly a cycle and are inert where they are not. Declarations that " +
+          "name the same packages agree; ones that share only some of them cannot both " +
+          "be exactly a cycle, and the root's is checked, so at most one applies.",
 )
 
 _from_lock = tag_class(
@@ -457,6 +479,66 @@ def _explicit_packages(ctx, root_locks, allow_older):
         explicit[name] = decls[0].tag
     return struct(explicit = explicit, overridden = overridden)
 
+def _cycles(ctx, fetched, resolved_targets, ignored):
+    """Collects the `pub.cycle()` declarations every library repository plans against.
+
+    Fails where a module's declarations are malformed, or where the root's
+    name a package this extension does not fetch: neither can be a cycle,
+    whatever the versions.
+
+    Args:
+      ctx: The module extension context.
+      fetched: Every package with a source repository, with its version.
+      resolved_targets: The packages `resolve` maps to a workspace target.
+      ignored: The `path` packages `ignored` names.
+
+    Returns:
+      `struct(declared, advisory)`: the root module's declarations, each sorted,
+      and every other one (other modules', and rules_dart's curated ones) whose
+      packages are all fetched, each sorted and stated once.
+    """
+    declared = []
+    advisory = {}
+    for mod in ctx.modules:
+        groups = [sorted(tag.packages) for tag in mod.tags.cycle]
+        where = "the root module" if mod.is_root else "module `%s`" % mod.name
+        error = cycle_declarations_error(groups, where, "pub.cycle")
+        if error:
+            fail(error)
+        if not mod.is_root:
+            for group in groups:
+                advisory[" ".join(group)] = group
+            continue
+        for group in groups:
+            problems = []
+            for name in group:
+                if name in fetched:
+                    continue
+                if name in resolved_targets:
+                    why = "maps to %s with `resolve`, so a target of yours builds it" % resolved_targets[name].target
+                elif name in ignored:
+                    why = "names in `ignored`"
+                else:
+                    why = "neither lists in a lock as a package it fetches nor declares with `pub.package()`"
+                problems.append("  - `%s`, which the build %s" % (name, why))
+            if problems:
+                fail(("%s, in the root module, names packages this build does not fetch, so " +
+                      "they are in no cycle it builds:\n%s\nRemove each from the declaration, or remove the declaration.") % (
+                    cycle_declaration(group, "pub.cycle"),
+                    "\n".join(problems),
+                ))
+            declared.append(group)
+    for group in curated_cycles():
+        advisory[" ".join(group)] = group
+    return struct(
+        declared = declared,
+        advisory = [
+            advisory[key]
+            for key in sorted(advisory)
+            if all([name in fetched for name in advisory[key]])
+        ],
+    )
+
 def _add_git_package(git_registry, name, info, lock_tag):
     """Records a lock's `source: git` entry, failing where it pins nothing or disagrees.
 
@@ -581,15 +663,22 @@ def _pub_impl(ctx):
                   "named by `build_from_pubspec` or `ignored` in another. rules_dart builds one " +
                   "copy of each package; choose one.") % (name, resolved_targets[name].lock_label))
 
+    # A package declared with `pub.package()` is a source and a library
+    # repository, as a locked one is, so it is planned with the others and
+    # can be in a cycle with them. Its library repository is named for it.
     for name, pkg in explicit.items():
         check_pub_archive_sha256(name, pkg.version, pkg.sha256, "pub.package()")
-        pub_package(
-            name = name,
+        pub_lock_package(
+            name = source_repo(_SPOKE_PREFIX, name),
             package_name = name,
             version = pkg.version,
             sha256 = pkg.sha256,
             code_assets = curated_code_assets(name, pkg.version),
             ignore_hook = pkg.ignore_hook,
+        )
+        pub_lock_library(
+            name = name,
+            package_name = name,
             spoke_prefix = _SPOKE_PREFIX,
         )
 
@@ -800,6 +889,8 @@ def _pub_impl(ctx):
     fetched = {name: pkg.version for name, pkg in resolved.items()}
     fetched.update({name: pkg.version for name, pkg in git_registry.items()})
     fetched.update({name: pkg.version for name, pkg in path_packages.built.items()})
+    fetched.update({name: pkg.version for name, pkg in explicit.items()})
+    cycles = _cycles(ctx, fetched, resolved_targets, path_packages.ignored)
     unsupplied = {
         name: why
         for name, why in non_hosted.items()
@@ -813,6 +904,8 @@ def _pub_impl(ctx):
         # look, as for a mapped one.
         resolved_packages = sorted(resolved_targets.keys() + path_packages.ignored.keys()),
         unsupplied = unsupplied,
+        cycles = [" ".join(c) for c in cycles.declared],
+        advisory_cycles = [" ".join(c) for c in cycles.advisory],
     )
     for name, pkg in git_registry.items():
         pub_lock_git_package(
@@ -919,6 +1012,7 @@ pub = module_extension(
     tag_classes = {
         "package": _package,
         "from_lock": _from_lock,
+        "cycle": _cycle,
         "settings": _settings,
     },
     doc = "Declares pub.dev package dependencies for download and use as dart_library targets.",

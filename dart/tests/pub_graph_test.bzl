@@ -1,7 +1,7 @@
-"""Unit tests for `dependency_graph` and `dependency_cycle` in dart/pub/pub_graph.bzl."""
+"""Unit tests for dart/pub/pub_graph.bzl: the graph walk, cycle planning and its declarations."""
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
-load("//dart/pub:pub_graph.bzl", "dependency_cycle", "dependency_graph")
+load("//dart/pub:pub_graph.bzl", "cycle_declaration", "cycle_declarations_error", "cycle_error", "dependency_cycle", "dependency_graph")
 load(":small_suite.bzl", "small_unittest_suite")
 
 def _acyclic_test_impl(ctx):
@@ -21,17 +21,19 @@ def _two_cycle_test_impl(ctx):
         "meta": [],
         "http": ["dio"],
     }
-    asserts.equals(env, ["dio", "dio_web_adapter"], dependency_cycle(graph, "dio").packages)
-    asserts.equals(env, ["dio", "dio_web_adapter"], dependency_cycle(graph, "dio_web_adapter").packages)
-    asserts.equals(env, ["http"], dependency_cycle(graph, "http").packages)
-    asserts.equals(env, ["meta"], dependency_cycle(graph, "meta").packages)
+    declared = [["dio_web_adapter", "dio"]]
+    asserts.equals(env, ["dio", "dio_web_adapter"], dependency_cycle(graph, "dio", declared).packages)
+    asserts.equals(env, ["dio", "dio_web_adapter"], dependency_cycle(graph, "dio_web_adapter", declared).packages)
+    asserts.equals(env, ["http"], dependency_cycle(graph, "http", declared).packages)
+    asserts.equals(env, ["meta"], dependency_cycle(graph, "meta", declared).packages)
     return unittest.end(env)
 
 def _long_cycle_with_tail_test_impl(ctx):
     env = unittest.begin(ctx)
     graph = {"a": ["b"], "b": ["c"], "c": ["a", "d"], "d": ["e"], "e": ["d"]}
-    asserts.equals(env, ["a", "b", "c"], dependency_cycle(graph, "b").packages)
-    asserts.equals(env, ["d", "e"], dependency_cycle(graph, "e").packages)
+    declared = [["a", "b", "c"], ["d", "e"]]
+    asserts.equals(env, ["a", "b", "c"], dependency_cycle(graph, "b", declared).packages)
+    asserts.equals(env, ["d", "e"], dependency_cycle(graph, "e", declared).packages)
     return unittest.end(env)
 
 def _self_and_unknown_edges_test_impl(ctx):
@@ -57,7 +59,7 @@ def _owner_and_deps_test_impl(ctx):
         "meta": [],
         "web": [],
     }
-    cycle = dependency_cycle(graph, "dio_web_adapter")
+    cycle = dependency_cycle(graph, "dio_web_adapter", advisory = [["dio", "dio_web_adapter"]])
     asserts.equals(env, "dio", cycle.owner)
     asserts.equals(env, ["elsewhere", "meta", "web"], cycle.deps)
     asserts.equals(env, [], dependency_cycle(graph, "meta").deps)
@@ -85,12 +87,97 @@ def _graph_walk_test_impl(ctx):
     asserts.equals(env, ["a", "b", "c"], sorted(asked))
     return unittest.end(env)
 
+_DIO = {
+    "dio": ["dio_web_adapter", "meta"],
+    "dio_web_adapter": ["dio", "meta"],
+    "meta": [],
+}
+
+def _undeclared_cycle_test_impl(ctx):
+    env = unittest.begin(ctx)
+
+    # An undeclared cycle names every package in it, a path through them, and the
+    # declaration that builds it, in the caller's own tag.
+    error = cycle_error(_DIO, "dio_web_adapter", declare = "flutter_pub.cycle")
+    asserts.true(env, "Pub packages `dio` and `dio_web_adapter` depend on each other" in error, error)
+    asserts.true(env, "dio_web_adapter -> dio -> dio_web_adapter" in error, error)
+    asserts.true(env, 'flutter_pub.cycle(packages = ["dio", "dio_web_adapter"])' in error, error)
+
+    # Three packages, in a list a reader can follow.
+    graph = {"a": ["b"], "b": ["c"], "c": ["a"]}
+    error = cycle_error(graph, "a")
+    asserts.true(env, "`a`, `b` and `c` depend on each other: a -> b -> c -> a" in error, error)
+    asserts.true(env, 'pub.cycle(packages = ["a", "b", "c"])' in error, error)
+
+    # A package in no cycle needs no declaration.
+    asserts.equals(env, None, cycle_error(_DIO, "meta"))
+    return unittest.end(env)
+
+def _root_declaration_test_impl(ctx):
+    env = unittest.begin(ctx)
+
+    # Exactly the cycle, in any order: planned.
+    asserts.equals(env, None, cycle_error(_DIO, "dio", declared = [["dio_web_adapter", "dio"]]))
+
+    # Packages that are no cycle (the edge back went in a newer release): a
+    # stale declaration fails rather than lingering.
+    acyclic = {"dio": ["dio_web_adapter"], "dio_web_adapter": []}
+    error = cycle_error(acyclic, "dio", declared = [["dio", "dio_web_adapter"]])
+    asserts.true(env, "`dio` is in no cycle. Remove it from the declaration, or remove the declaration." in error, error)
+    asserts.true(env, 'pub.cycle(packages = ["dio", "dio_web_adapter"]), in the root module' in error, error)
+
+    # Part of a cycle fails, giving the whole cycle to declare.
+    graph = {"a": ["b"], "b": ["c"], "c": ["a"]}
+    error = cycle_error(graph, "b", declared = [["a", "b"]])
+    asserts.true(env, "`b` is in the cycle of `a`, `b` and `c` (b -> c -> a -> b)" in error, error)
+    asserts.true(env, 'pub.cycle(packages = ["a", "b", "c"])' in error, error)
+
+    # The root's declaration is checked even where an advisory one matches.
+    error = cycle_error(_DIO, "dio", declared = [["dio", "dio_web_adapter", "meta"]], advisory = [["dio", "dio_web_adapter"]])
+    asserts.true(env, "`dio` is in the cycle of `dio` and `dio_web_adapter`" in error, error)
+    return unittest.end(env)
+
+def _advisory_declaration_test_impl(ctx):
+    env = unittest.begin(ctx)
+
+    # An advisory declaration (another module's, or curated) builds the cycle
+    # it states exactly...
+    asserts.equals(env, None, cycle_error(_DIO, "dio", advisory = [["dio", "dio_web_adapter"]]))
+
+    # ...and is inert where it is no cycle, or not all of one.
+    acyclic = {"dio": ["dio_web_adapter"], "dio_web_adapter": []}
+    asserts.equals(env, None, cycle_error(acyclic, "dio", advisory = [["dio", "dio_web_adapter"]]))
+    graph = {"a": ["b"], "b": ["c"], "c": ["a"]}
+    error = cycle_error(graph, "a", advisory = [["a", "b"]])
+    asserts.true(env, 'pub.cycle(packages = ["a", "b", "c"])' in error, error)
+    return unittest.end(env)
+
+def _declarations_form_test_impl(ctx):
+    env = unittest.begin(ctx)
+    asserts.equals(env, 'pub.cycle(packages = ["a", "b"])', cycle_declaration(["b", "a"]))
+    asserts.equals(env, None, cycle_declarations_error([["a", "b"], ["c", "d"]], "the root module"))
+
+    error = cycle_declarations_error([["a"]], "the root module")
+    asserts.true(env, 'pub.cycle(packages = ["a"]) names fewer than two packages' in error, error)
+    error = cycle_declarations_error([["a", "a"]], "module `m`")
+    asserts.true(env, "declared by module `m`" in error, error)
+    asserts.true(env, "names a package more than once" in error, error)
+
+    # A package in two declarations of one module: one cycle, declared once.
+    error = cycle_declarations_error([["a", "b"], ["b", "c"]], "the root module", "flutter_pub.cycle")
+    asserts.true(env, '`b` is in both flutter_pub.cycle(packages = ["a", "b"]) and flutter_pub.cycle(packages = ["b", "c"])' in error, error)
+    return unittest.end(env)
+
 _t0_test = unittest.make(_acyclic_test_impl)
 _t1_test = unittest.make(_two_cycle_test_impl)
 _t2_test = unittest.make(_long_cycle_with_tail_test_impl)
 _t3_test = unittest.make(_self_and_unknown_edges_test_impl)
 _t4_test = unittest.make(_owner_and_deps_test_impl)
 _t5_test = unittest.make(_graph_walk_test_impl)
+_t6_test = unittest.make(_undeclared_cycle_test_impl)
+_t7_test = unittest.make(_root_declaration_test_impl)
+_t8_test = unittest.make(_advisory_declaration_test_impl)
+_t9_test = unittest.make(_declarations_form_test_impl)
 
 def pub_graph_test_suite(name):
-    small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test, _t4_test, _t5_test)
+    small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test, _t4_test, _t5_test, _t6_test, _t7_test, _t8_test, _t9_test)

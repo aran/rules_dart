@@ -1,13 +1,15 @@
-"""Repository rule for a `pub.from_lock()` package's library.
+"""Repository rule for a pub package's library, from `pub.from_lock()` or `pub.package()`.
 
-A locked package's files are in its source repository (`pub_lock_package`);
+A package's files are in its source repository (`pub_lock_package`);
 this one decides what it is built with. It reads the pubspec dependencies of
 every package the package reaches, as their source repositories record them,
 which fetches only what building the package fetches anyway, and finds its
 dependency cycle (`pub_graph.bzl`):
 pub allows packages to depend on each other (`dio` and `dio_web_adapter`), and
-Bazel does not. The cycle is one `pub_library` in the library repository of its
-first package by name, and every other package of it aliases that.
+Bazel does not. A declared cycle (`pub.cycle()`, or rules_dart's curated
+ones) is one `pub_library` in the library repository of its first package by
+name, and every other package of it aliases that; an undeclared one fails,
+naming the declaration to write.
 
 The source repositories read nothing of each other, so planning a cycle never
 asks a repository to wait on itself.
@@ -64,13 +66,13 @@ def read_index(ctx):
     return json.decode(ctx.read(Label("@@{}{}//:{}".format(prefix, index_repo(ctx.attr.spoke_prefix), _INDEX))))
 
 def dependency_label(prefix, dep, explicit):
-    """The label a package depends on `dep` through.
+    """The label of `dep`'s library.
 
     Args:
       prefix: The prefix of the extension's library repositories' names.
-      dep: The package depended on.
-      explicit: The packages declared with `pub.package()`, whose own
-        repositories hold their libraries.
+      dep: The package.
+      explicit: The packages declared with `pub.package()`, whose library
+        repositories are named for them.
 
     Returns:
       The label, as a string.
@@ -86,30 +88,39 @@ def _pub_lock_library_impl(ctx):
     explicit = {p: True for p in index["explicit"]}
     resolved = {p: True for p in index["resolved"]}
     unsupplied = index["unsupplied"]
-    known = fetched | explicit | resolved | unsupplied
 
-    # Every package this one reaches through fetched packages. A package
-    # declared with `pub.package()` is its own repository, whose dependencies
-    # it reads from its pubspec, and one `resolve` maps is a workspace target,
-    # whose dependencies its BUILD file states, so the walk stops at both.
+    # Every package this one reaches through fetched packages. A package one
+    # `resolve` maps is a workspace target, whose dependencies its BUILD file
+    # states, so the walk stops there.
     graph = dependency_graph(
         ctx.attr.package_name,
-        lambda p: [d for d in read_pubspec_dependencies(ctx, source_repo(prefix, p)) if d in known],
+        lambda p: read_pubspec_dependencies(ctx, source_repo(prefix, p)),
         follow = fetched,
     )
 
-    cycle = dependency_cycle(graph, ctx.attr.package_name)
+    cycle = dependency_cycle(
+        graph,
+        ctx.attr.package_name,
+        declared = index["cycles"],
+        advisory = index["advisory_cycles"],
+        declare = "pub.cycle",
+    )
     if cycle.owner != ctx.attr.package_name:
         ctx.file("BUILD.bazel", make_pub_library_build_content(
             name = ctx.attr.package_name,
-            owner = "@{repo}//:{name}".format(repo = library_repo(prefix, cycle.owner), name = cycle.owner),
+            owner = dependency_label(prefix, cycle.owner, explicit),
         ))
         return ctx.repo_metadata(reproducible = True)
 
     for member in cycle.packages:
         for dep in graph[member]:
-            if dep in unsupplied:
-                fail(unsupplied_dependency_error(member, fetched[member], dep, unsupplied[dep]))
+            if dep not in fetched and dep not in resolved:
+                fail(unsupplied_dependency_error(
+                    member,
+                    fetched[member],
+                    dep,
+                    unsupplied.get(dep, "named by no lock and declared by no `pub.package()`"),
+                ))
     deps = [dependency_label(prefix, dep, explicit) for dep in cycle.deps]
 
     ctx.file("BUILD.bazel", make_pub_library_build_content(
@@ -125,7 +136,7 @@ pub_lock_library = repository_rule(
         "package_name": attr.string(mandatory = True, doc = "The package."),
         "spoke_prefix": attr.string(mandatory = True, doc = "Prefix of the source, library and index repositories' names."),
     },
-    doc = "Plans a `pub.from_lock()` package's library: its dependency cycle, built as one target.",
+    doc = "Plans a pub package's library: its dependency cycle, built as one target where it is declared.",
 )
 
 def _pub_lock_index_impl(ctx):
@@ -135,6 +146,8 @@ def _pub_lock_index_impl(ctx):
         "explicit": ctx.attr.explicit_packages,
         "resolved": ctx.attr.resolved_packages,
         "unsupplied": ctx.attr.unsupplied,
+        "cycles": [c.split(" ") for c in ctx.attr.cycles],
+        "advisory_cycles": [c.split(" ") for c in ctx.attr.advisory_cycles],
     }))
     return ctx.repo_metadata(reproducible = True)
 
@@ -149,6 +162,8 @@ pub_lock_index = repository_rule(
         "explicit_packages": attr.string_list(doc = "Packages declared with `pub.package()`: a dependency on one is on its own repository."),
         "resolved_packages": attr.string_list(doc = "Packages `resolve` maps to a workspace target: a dependency on one is on its library repository, which passes the target on."),
         "unsupplied": attr.string_dict(doc = "Packages a lock lists that nothing fetches, each with how the lock lists it. Depending on one is an error."),
+        "cycles": attr.string_list(doc = "The root module's `pub.cycle()` declarations, each its packages joined by spaces: each must be exactly a cycle."),
+        "advisory_cycles": attr.string_list(doc = "Other modules' and the curated cycle declarations whose packages are all fetched, each its packages joined by spaces: each applies where it is exactly a cycle."),
     },
     doc = "The packages every `pub_lock_library` of one extension plans against.",
 )

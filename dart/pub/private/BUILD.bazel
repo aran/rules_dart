@@ -6,18 +6,6 @@ exports_files(
 )
 
 bzl_library(
-    name = "pub_repository",
-    srcs = ["pub_repository.bzl"],
-    visibility = ["//dart/pub:__subpackages__"],
-    deps = [
-        ":build_content",
-        ":pub_archive",
-        ":pub_lock_library",
-        "//dart/pub:pubspec",
-    ],
-)
-
-bzl_library(
     name = "pub_lock_library",
     srcs = ["pub_lock_library.bzl"],
     visibility = ["//dart/pub:__subpackages__"],

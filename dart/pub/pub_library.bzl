@@ -18,7 +18,8 @@ its own library rule, which reads both off its `members` and builds its
 `DartInfo` with `dart_info()`. Such a library rule may accept rules_dart's
 members too, since they carry the same provider, so one cycle can mix packages
 of both kinds. Which members form a cycle, and what the cycle depends on, is
-planned in the library repository by `dependency_cycle()` (`pub_graph.bzl`).
+planned in the library repository by `dependency_cycle()` (`pub_graph.bzl`),
+which builds a cycle only where one is declared.
 """
 
 load("//dart:providers.bzl", "DartInfo")

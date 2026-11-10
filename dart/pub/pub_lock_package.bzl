@@ -1,4 +1,4 @@
-"""Repository rules that fetch a single package from a pubspec.lock.
+"""Repository rules that fetch a single pub package: a locked one, or a `pub.package()`.
 
 Each hosted, git or built-from-pubspec path package gets its own source
 repository (spoke), holding its files and the facts it states about itself as
@@ -148,7 +148,7 @@ pub_lock_package = repository_rule(
             default = "https://pub.dev",
         ),
     },
-    doc = "Downloads a single hosted package from a pubspec.lock and generates a BUILD file.",
+    doc = "Downloads a single hosted package, from a pubspec.lock or a `pub.package()`, and generates a BUILD file.",
 )
 
 pub_lock_git_package = repository_rule(
