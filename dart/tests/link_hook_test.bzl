@@ -149,6 +149,12 @@ def _spoke_states_link_hook_test_impl(ctx):
     asserts.true(env, '    link_hook = "hook/link.dart",\n' in with_hook, with_hook)
     without = make_dart_library_build_content("glyphs", [], "3.13")
     asserts.true(env, "link_hook" not in without, without)
+
+    # A `pub.package()` spoke states its build hook, which its code assets
+    # (curated ones) replace.
+    built = make_dart_library_build_content("glyphs", [], "3.13", code_assets = ["//a:asset"], build_hook = "hook/build.dart")
+    asserts.true(env, '    build_hook = "hook/build.dart",\n' in built, built)
+    asserts.true(env, "build_hook" not in without, without)
     return unittest.end(env)
 
 _spoke_states_link_hook_test = unittest.make(_spoke_states_link_hook_test_impl)

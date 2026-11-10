@@ -245,7 +245,7 @@
     },
     "@@rules_dart+//dart/pub:extensions.bzl%pub": {
       "general": {
-        "bzlTransitiveDigest": "e16AMYhta7pcCTW95qWrKBx4CM04K9ETyzScRlykrLw=",
+        "bzlTransitiveDigest": "Qod5HbQ//gcsRZGShPKYcHSidOVeaO5hV9+FqQ/EhUk=",
         "usagesDigest": "Ae88OsBNY1p07xSMZ0b8pv/oWhm8STeVjxAtlY9AHdE=",
         "recordedInputs": [
           "REPO_MAPPING:rules_dart+,bsd_tar_toolchains_darwin_amd64 tar.bzl++toolchains+bsd_tar_toolchains_darwin_amd64",
@@ -260,7 +260,12 @@
           "REPO_MAPPING:rules_dart+,pubspec_reader_macos-x64 rules_dart++pubspec_reader+pubspec_reader_macos-x64",
           "REPO_MAPPING:rules_dart+,pubspec_reader_windows-x64 rules_dart++pubspec_reader+pubspec_reader_windows-x64",
           "REPO_MAPPING:rules_dart+,yaml.bzl yaml.bzl+",
-          "FILE:@@rules_dart+//dart/ext/pubspec.lock 5980462be7e90baea67ca519fa3bde946bda471f74cd69069aac97bd44767a8d"
+          "FILE:@@rules_dart+//dart/ext/pubspec.lock 5980462be7e90baea67ca519fa3bde946bda471f74cd69069aac97bd44767a8d",
+          "FILE:@@rules_dart+//dart/pub/private/pubspec_reader/pubspec_reader.dart e0a26675a0b753fdd1126a6a493b9e2ead1c04192ff44c6be4cabf97376701a1",
+          "FILE:@@rules_dart+//dart/pub/private/pubspec_reader/lock_check.dart b2a9d0821d37e6529d8e0424a4d9cc2d963907ca71be6b63b38fbee0e44bfb4c",
+          "ENV:PUB_HOSTED_URL \\0",
+          "FILE:@@rules_dart+//dart/ext/pubspec.yaml d404e0bca59f130d17dad333542de9e056a055bc38d3388585b8a159230e77b3",
+          "FILE:@@rules_dart+//dart/ext/pubspec_overrides.yaml ENOENT"
         ],
         "generatedRepoSpecs": {
           "provider": {
@@ -269,6 +274,8 @@
               "package_name": "provider",
               "version": "6.1.5",
               "sha256": "4abbd070a04e9ddc287673bf5a030c7ca8b685ff70218720abab8b092f53dd84",
+              "code_assets": [],
+              "ignore_hook": false,
               "spoke_prefix": "dart_pub"
             }
           },

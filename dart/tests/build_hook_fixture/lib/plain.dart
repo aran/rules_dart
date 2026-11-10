@@ -1,0 +1,1 @@
+const plain = 1;

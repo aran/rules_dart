@@ -245,7 +245,7 @@
     },
     "@@rules_dart+//dart/pub:extensions.bzl%pub": {
       "general": {
-        "bzlTransitiveDigest": "e16AMYhta7pcCTW95qWrKBx4CM04K9ETyzScRlykrLw=",
+        "bzlTransitiveDigest": "Qod5HbQ//gcsRZGShPKYcHSidOVeaO5hV9+FqQ/EhUk=",
         "usagesDigest": "V/u2/qfdjsJNAo1ZD6ojmAwHdJC3gFxYhQYOU3fNeQo=",
         "recordedInputs": [
           "REPO_MAPPING:,git_fixture +git_fixture+git_fixture",
@@ -262,7 +262,13 @@
           "REPO_MAPPING:rules_dart+,pubspec_reader_windows-x64 rules_dart++pubspec_reader+pubspec_reader_windows-x64",
           "REPO_MAPPING:rules_dart+,yaml.bzl yaml.bzl+",
           "FILE:@@+git_fixture+git_fixture//pubspec.lock 9c2427435a0da540ad98e2f3e90d1f83d212addc7dde73f3fe69b65932aaa94b",
-          "FILE:@@rules_dart+//dart/ext/pubspec.lock 5980462be7e90baea67ca519fa3bde946bda471f74cd69069aac97bd44767a8d"
+          "FILE:@@rules_dart+//dart/pub/private/pubspec_reader/pubspec_reader.dart e0a26675a0b753fdd1126a6a493b9e2ead1c04192ff44c6be4cabf97376701a1",
+          "FILE:@@rules_dart+//dart/pub/private/pubspec_reader/lock_check.dart b2a9d0821d37e6529d8e0424a4d9cc2d963907ca71be6b63b38fbee0e44bfb4c",
+          "ENV:PUB_HOSTED_URL \\0",
+          "FILE:@@+git_fixture+git_fixture//pubspec.yaml ENOENT",
+          "FILE:@@rules_dart+//dart/ext/pubspec.lock 5980462be7e90baea67ca519fa3bde946bda471f74cd69069aac97bd44767a8d",
+          "FILE:@@rules_dart+//dart/ext/pubspec.yaml d404e0bca59f130d17dad333542de9e056a055bc38d3388585b8a159230e77b3",
+          "FILE:@@rules_dart+//dart/ext/pubspec_overrides.yaml ENOENT"
         ],
         "generatedRepoSpecs": {
           "dart_pub_index": {

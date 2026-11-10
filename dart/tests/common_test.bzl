@@ -441,6 +441,8 @@ def _hooks_offender_test_impl(ctx):
     asserts.true(env, "hook/build.dart" in err)
     asserts.true(env, "code_assets" in err)
     asserts.true(env, "ignore_hooks" in err)
+    asserts.true(env, "ignore_hook = True" in err)
+    asserts.true(env, "build_hook" in err)
     asserts.true(env, "fine" not in err)
     return unittest.end(env)
 

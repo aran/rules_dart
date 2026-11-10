@@ -1,0 +1,148 @@
+"""Fixtures for the `analysistest`s in `//dart/tests:build_hook_test.bzl`.
+
+A first-party package stating its `hook/build.dart` with `build_hook`: nothing
+here is built, every target an assertion reads is tagged `manual`.
+"""
+
+load("//dart:defs.bzl", "dart_binary", "dart_code_asset", "dart_library", "dart_test")
+load(
+    "//dart/tests:build_hook_test.bzl",
+    "analyzes_test",
+    "misplaced_build_hook_test",
+    "records_build_hook_test",
+    "unreplaced_build_hook_test",
+)
+
+dart_library(
+    name = "hooked",
+    package_name = "build_hook_fixture",
+    srcs = ["lib/native.dart"],
+    build_hook = "hook/build.dart",
+    tags = ["manual"],
+)
+
+records_build_hook_test(
+    name = "records_build_hook_test",
+    size = "small",
+    expected = "hook/build.dart",
+    target_under_test = ":hooked",
+)
+
+dart_binary(
+    name = "hooked_bin",
+    main = "main.dart",
+    tags = ["manual"],
+    deps = [":hooked"],
+)
+
+unreplaced_build_hook_test(
+    name = "binary_refuses_unreplaced_hook_test",
+    size = "small",
+    target_under_test = ":hooked_bin",
+)
+
+dart_test(
+    name = "hooked_test",
+    main = "main.dart",
+    tags = ["manual"],
+    deps = [":hooked"],
+)
+
+unreplaced_build_hook_test(
+    name = "test_refuses_unreplaced_hook_test",
+    size = "small",
+    target_under_test = ":hooked_test",
+)
+
+# The package's own code asset replaces what its hook would build.
+dart_code_asset(
+    name = "answer",
+    asset_id = "package:build_hook_fixture/native.dart",
+    link_mode = "dynamic_loading_process",
+    tags = ["manual"],
+)
+
+dart_library(
+    name = "replaced",
+    package_name = "build_hook_fixture",
+    srcs = ["lib/native.dart"],
+    build_hook = "hook/build.dart",
+    code_assets = [":answer"],
+    tags = ["manual"],
+)
+
+records_build_hook_test(
+    name = "replaced_build_hook_test",
+    size = "small",
+    expected = "",
+    target_under_test = ":replaced",
+)
+
+dart_library(
+    name = "misplaced",
+    package_name = "build_hook_fixture",
+    srcs = ["lib/native.dart"],
+    build_hook = "misplaced/build.dart",
+    tags = ["manual"],
+)
+
+misplaced_build_hook_test(
+    name = "misplaced_build_hook_test",
+    size = "small",
+    target_under_test = ":misplaced",
+)
+
+# The package split across targets, as Gazelle's per-directory and
+# import-cycle layouts write it: the target stating the hook depends on a
+# hookless one, whose record comes first in dependency order.
+dart_library(
+    name = "plain",
+    package_name = "build_hook_fixture",
+    srcs = ["lib/plain.dart"],
+    tags = ["manual"],
+)
+
+dart_library(
+    name = "split",
+    package_name = "build_hook_fixture",
+    srcs = ["lib/native.dart"],
+    build_hook = "hook/build.dart",
+    tags = ["manual"],
+    deps = [":plain"],
+)
+
+dart_binary(
+    name = "split_bin",
+    main = "main.dart",
+    tags = ["manual"],
+    deps = [":split"],
+)
+
+unreplaced_build_hook_test(
+    name = "split_package_refuses_unreplaced_hook_test",
+    size = "small",
+    target_under_test = ":split_bin",
+)
+
+# Another target of the package names the code asset that replaces the hook.
+dart_library(
+    name = "split_replaced",
+    package_name = "build_hook_fixture",
+    srcs = ["lib/plain.dart"],
+    code_assets = [":answer"],
+    tags = ["manual"],
+    deps = [":hooked"],
+)
+
+dart_binary(
+    name = "split_replaced_bin",
+    main = "main.dart",
+    tags = ["manual"],
+    deps = [":split_replaced"],
+)
+
+analyzes_test(
+    name = "split_package_replaced_hook_test",
+    size = "small",
+    target_under_test = ":split_replaced_bin",
+)

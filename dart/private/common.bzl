@@ -488,11 +488,14 @@ def merge_package_records(merged):
 
     First-record-wins is only safe once the records are known to agree, so this
     calls `package_agreement_error` first and fails when two of them state
-    different `version`s, `language_version`s or `license_file`s. `has_unreplaced_hook` stays
-    order-decided and deliberately unchecked: unlike the other two it is derived
-    at repo generation rather than stated by a developer, and two hubs can
-    legitimately disagree — one curating `code_assets` so the hook counts as
-    replaced while the other still flags it.
+    different `version`s, `language_version`s or `license_file`s.
+
+    `has_unreplaced_hook` is not order-decided either: code assets belong to
+    the package, not to one record of it, so the merged package's hook is
+    unreplaced when any record names one and no record supplies code assets.
+    That serves both duplicate cases alike — a split package states its
+    `build_hook` on one target and its `code_assets` on another, and a hub
+    curating `code_assets` replaces the hook another hub still flags.
 
     Split out from `collect_packages` because the dedup and union rules are a
     pure function of the record list, which makes them directly testable
@@ -520,24 +523,25 @@ def merge_package_records(merged):
             kept = packages[index]
             adopt_hook = package_link_hook(pkg) != None and package_link_hook(kept) == None
             adopt_license = package_license_file(pkg) != None and package_license_file(kept) == None
-            if not package_code_assets(pkg) and not adopt_hook and not adopt_license:
+            adopt_build_hook = getattr(pkg, "has_unreplaced_hook", "") and not getattr(kept, "has_unreplaced_hook", "")
+            if not package_code_assets(pkg) and not adopt_hook and not adopt_license and not adopt_build_hook:
                 continue
 
-            # Only the assets, a missing link hook and a missing license merge
-            # (the license only once the agreement check has passed, so it can
-            # differ only by being absent); every other field
-            # stays the kept record's. The link hook is adopted for the same
-            # reason the assets are: a package split across targets may carry
-            # its `hook/link.dart` on any one of them, and dropping it would
-            # silently skip the hook. `has_unreplaced_hook` is not merged, so
-            # two hubs supplying one package can disagree about whether the
-            # hook was replaced and dependency order decides which answer
-            # survives. Recorded rather than quietly changed: picking the other
-            # one is a semantic call about what a replaced hook means for a
-            # package reached twice.
+            # Only the assets, the build and link hooks and a missing license
+            # merge (the license only once the agreement check has passed, so
+            # it can differ only by being absent); every other field stays the
+            # kept record's. The hooks are adopted for the same reason the
+            # assets are: a package split across targets may carry its
+            # `hook/link.dart` or `hook/build.dart` on any one of them, and
+            # dropping it would silently skip the hook. Any record's assets
+            # replace any record's build hook, so the result does not depend
+            # on which record came first.
+            code_assets = package_code_assets(kept) + package_code_assets(pkg)
+            build_hook = getattr(kept, "has_unreplaced_hook", "") or getattr(pkg, "has_unreplaced_hook", "")
             packages[index] = derived_package_info(
                 kept,
-                code_assets = package_code_assets(kept) + package_code_assets(pkg),
+                code_assets = code_assets,
+                has_unreplaced_hook = "" if code_assets else build_hook,
                 link_hook = package_link_hook(pkg) if adopt_hook else None,
                 license_file = package_license_file(pkg) if adopt_license else None,
             )
@@ -1124,8 +1128,8 @@ def native_assets_path_list(label, link_mode, relative_lib_path, system_uri):
 def check_unreplaced_hooks(label, packages):
     """Checks that no package in the closure has an unreplaced build hook.
 
-    A pub package shipping `hook/build.dart` builds native libraries at
-    `pub get` time. rules_dart cannot run that hook, so without a Bazel
+    A package shipping `hook/build.dart` (a pub package, or a `dart_library`
+    stating its `build_hook`) builds native libraries at `pub get` time. rules_dart cannot run that hook, so without a Bazel
     replacement the package's `@Native` bindings resolve to nothing — the
     manifest is simply missing an entry, and the failure surfaces at runtime
     as "couldn't resolve native function", with nothing pointing at the cause.
@@ -1155,12 +1159,18 @@ def check_unreplaced_hooks(label, packages):
         for pkg in offenders
     ]
     return (
-        ("%s depends on pub package(s) that build native code with a hook " +
-         "rules_dart cannot run:\n%s\n\n" +
-         "Their `@Native` bindings will not resolve at runtime. Either:\n" +
-         "  - name a `dart_code_asset` in this target's `code_assets`, or\n" +
-         "  - list the package in `pub.from_lock(ignore_hooks = [...])` if " +
-         "its native code is genuinely unused here.") %
+        ("%s depends on package(s) that build native code with a hook " +
+         "rules_dart does not run:\n%s\n\n" +
+         "Their `@Native` bindings will not resolve at runtime. A target's own " +
+         "`code_assets` do not replace a package's hook; the package's must.\n" +
+         "  - For your own `dart_library`: build the native code with Bazel and " +
+         "name its `dart_code_asset` in that library's `code_assets`, or remove " +
+         "its `build_hook` if the native code is genuinely unused here.\n" +
+         "  - For a pub package: if its native code is genuinely unused here, list " +
+         "it in `pub.from_lock(ignore_hooks = [...])` or set " +
+         "`pub.package(ignore_hook = True)`; otherwise map it with " +
+         "`pub.from_lock(resolve = {...})` to a `dart_library` of the package " +
+         "that names its `code_assets`.") %
         (label, "\n".join(lines))
     )
 

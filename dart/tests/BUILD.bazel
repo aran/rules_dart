@@ -1,5 +1,6 @@
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load(":build_hook_test.bzl", "build_hook_test_suite")
 load(":code_asset_test.bzl", "code_asset_test_suite")
 load(":codegen_test.bzl", "codegen_test_suite")
 load(":common_test.bzl", "common_test_suite")
@@ -59,6 +60,8 @@ source_set_test_suite(name = "source_set_test")
 library_test_suite(name = "library_test")
 
 link_hook_test_suite(name = "link_hook_test")
+
+build_hook_test_suite(name = "build_hook_test")
 
 license_file_test_suite(name = "license_file_test")
 

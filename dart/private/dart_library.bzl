@@ -128,6 +128,42 @@ def link_hook_error(label, lib_root, link_hook):
                 "run against.") % (label, expected, link_hook.short_path)
     return None
 
+def build_hook_error(label, lib_root, build_hook):
+    """Checks that a `build_hook` is the package's `hook/build.dart`.
+
+    Args:
+        label: The library's label, for the message.
+        lib_root: The package root's `short_path`; empty for the root package.
+        build_hook: The `build_hook` File, or None.
+
+    Returns:
+        An error string, or None.
+    """
+    if build_hook == None:
+        return None
+    expected = (lib_root + "/" if lib_root else "") + "hook/build.dart"
+    if build_hook.short_path != expected:
+        return ("%s: `build_hook` must be the package's `hook/build.dart` (`%s`), " +
+                "got `%s`.") % (label, expected, build_hook.short_path)
+    return None
+
+def unreplaced_build_hook(build_hook, code_assets):
+    """The package-relative path of a build hook nothing replaces, or "".
+
+    rules_dart does not run a build hook. Code assets the package owns replace
+    what it would build, as curated ones replace a pub package's.
+
+    Args:
+        build_hook: The `build_hook` File, or None.
+        code_assets: The package's own `code_assets`.
+
+    Returns:
+        `hook/build.dart`, or "" when there is no hook or it is replaced.
+    """
+    if build_hook == None or code_assets:
+        return ""
+    return "hook/build.dart"
+
 def package_root(workspace_root, label_package, files = []):
     """The package root of a target, from the directory of its BUILD file.
 
@@ -277,6 +313,8 @@ def _dart_library_impl(ctx):
             fail(err)
 
     err = link_hook_error(ctx.label, lib_root, ctx.file.link_hook)
+    if err == None:
+        err = build_hook_error(ctx.label, lib_root, ctx.file.build_hook)
     if err != None:
         fail(err)
 
@@ -294,7 +332,7 @@ def _dart_library_impl(ctx):
             lib_root = lib_root,
             code_assets = ctx.attr.code_assets,
             language_version = identity.language_version,
-            has_unreplaced_hook = ctx.attr.has_unreplaced_hook,
+            has_unreplaced_hook = unreplaced_build_hook(ctx.file.build_hook, ctx.attr.code_assets),
             version = ctx.attr.version,
             link_hook = ctx.file.link_hook,
             license_file = ctx.file.license_file,
@@ -362,12 +400,14 @@ package's root `NOTICES`, or `LICENSE` when it has none. Every target contributi
 package must name the same file or none.""",
             allow_single_file = True,
         ),
-        "has_unreplaced_hook": attr.string(
-            doc = """Path of a pub build hook (`hook/build.dart`) this \
-package ships that rules_dart has no replacement for. Set by `pub.from_lock()`; hand-written \
-`dart_library` targets leave it empty. A `dart_binary`/`dart_test` reaching such a package fails \
-with an explanation, rather than producing a binary whose `@Native` bindings silently fail to \
-resolve at runtime.""",
+        "build_hook": attr.label(
+            doc = """The package's `hook/build.dart`, if it has one. rules_dart never runs a \
+build hook: the native code it would build comes from `code_assets` instead. A package with a \
+`build_hook` and no `code_assets` fails every `dart_binary`/`dart_test` that reaches it, rather \
+than building a program whose `@Native` bindings fail to resolve at run time. Must be the file at \
+`hook/build.dart` under the package root. Set by `pub.package()` for pub packages that ship one; \
+leave it unset for a hook whose native code nothing here uses.""",
+            allow_single_file = [".dart"],
         ),
         "package_name": attr.string(
             doc = "The Dart package name used in `package:` imports. If omitted, defaults to the name of the package root's directory (the Bazel package's, or for a BUILD file in or under `lib/` the one above that `lib`). Set this or `package`, not both.",

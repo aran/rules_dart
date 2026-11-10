@@ -43,6 +43,10 @@ def _pub_package_impl(ctx):
         deps = deps,
         language_version = language_version,
         version = ctx.attr.version,
+        code_assets = ctx.attr.code_assets,
+        # rules_dart cannot run a build hook; unless declared irrelevant, it is
+        # recorded, and replaced by `code_assets` or refused by a consumer.
+        build_hook = "hook/build.dart" if ctx.path("hook/build.dart").exists and not ctx.attr.ignore_hook else "",
         # A link hook is runnable by `dart_link_hook`, so it is recorded.
         link_hook = "hook/link.dart" if ctx.path("hook/link.dart").exists else "",
         license_file = find_pub_license_file(ctx),
@@ -65,6 +69,16 @@ pub_package = repository_rule(
         "sha256": attr.string(
             doc = "SHA256 hash of the package archive, as pubspec.lock records it.",
             mandatory = True,
+        ),
+        "code_assets": attr.string_list(
+            doc = "Labels of `dart_code_asset` targets replacing the package's " +
+                  "`hook/build.dart` output, from rules_dart's curated registry.",
+            default = [],
+        ),
+        "ignore_hook": attr.bool(
+            doc = "Record no build hook for this package. Set by " +
+                  "`pub.package(ignore_hook = True)`; never a default.",
+            default = False,
         ),
         "spoke_prefix": attr.string(
             doc = "Prefix of the extension's library and index repositories' names.",

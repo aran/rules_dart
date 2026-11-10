@@ -1240,10 +1240,23 @@ names. Every `code_assets` entry provides `DartCodeAssetInfo`, which
   ships with the program. `dynamic_loading_system` (with `system_uri`),
   `dynamic_loading_executable` and `dynamic_loading_process` look the symbols up
   in the executable or the running process. `static` is refused.
-- A pub package whose `hook/build.dart` has no Bazel replacement fails any
-  `dart_binary` or `dart_test` that reaches it, naming the package. Supply a
-  `dart_code_asset`, or list the package in `pub.from_lock(ignore_hooks = [...])`
-  if its native code is not used.
+- A package whose `hook/build.dart` has no Bazel replacement fails any
+  `dart_binary` or `dart_test` that reaches it, naming the package. For a pub
+  package, rules_dart sees the hook; supply a replacement with
+  `pub.from_lock(resolve = ...)`, or, if its native code is not used, list it in
+  `pub.from_lock(ignore_hooks = [...])` or set `pub.package(ignore_hook = True)`.
+  Your own package states its hook with `build_hook`, since a rule cannot look
+  for files, and replaces it with its `dart_library`'s `code_assets`; a
+  binary's or test's own `code_assets` do not replace a package's hook:
+
+  ```starlark
+  dart_library(
+      name = "bindings",
+      srcs = glob(["lib/**/*.dart"]),
+      build_hook = "hook/build.dart",
+      code_assets = [":counter_asset"],
+  )
+  ```
 - A build tool that never loads native code sets `code_assets_from_deps = False`
   on its `dart_binary`, so it neither builds the libraries in its dependency
   closure nor hits that error.

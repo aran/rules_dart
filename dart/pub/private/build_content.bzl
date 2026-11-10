@@ -91,7 +91,7 @@ def find_pub_license_file(rctx):
         if not p.is_dir
     ])
 
-def make_dart_library_build_content(name, deps, language_version, code_assets = [], has_unreplaced_hook = "", version = "", link_hook = "", license_file = ""):
+def make_dart_library_build_content(name, deps, language_version, code_assets = [], build_hook = "", version = "", link_hook = "", license_file = ""):
     """Generate the BUILD.bazel content for a single `dart_library` spoke.
 
     The shape — `srcs = glob(["lib/**/*.dart"], allow_empty = True)`, the
@@ -119,9 +119,11 @@ def make_dart_library_build_content(name, deps, language_version, code_assets = 
             package's `hook/build.dart` output. Attaching them here rather
             than at the consuming binary is what makes them propagate: they
             become part of the package's own metadata.
-        has_unreplaced_hook: Path of a build hook this package ships that has
-            no replacement, or empty. Recorded so a consuming binary can fail
-            with an explanation instead of at runtime.
+        build_hook: Package-relative path of the package's build hook
+            (`hook/build.dart`) when it must be accounted for, or empty when
+            it has none or it is declared irrelevant. Without `code_assets`
+            replacing it, a consuming binary fails with an explanation
+            instead of at runtime.
         version: The resolved package version this spoke was fetched at, or
             empty. A trailing keyword with a default because this helper is
             re-exported for rule sets outside //dart/pub — notably
@@ -148,9 +150,7 @@ def make_dart_library_build_content(name, deps, language_version, code_assets = 
         asset_lines = ['        "{}",'.format(a) for a in code_assets]
         assets_block = "    code_assets = [\n{}\n    ],\n".format("\n".join(asset_lines))
 
-    hook_block = ""
-    if has_unreplaced_hook:
-        hook_block = '    has_unreplaced_hook = "{}",\n'.format(has_unreplaced_hook)
+    hook_block = _string_block("build_hook", build_hook)
 
     link_hook_block = ""
     if link_hook:
@@ -166,7 +166,7 @@ def make_dart_library_build_content(name, deps, language_version, code_assets = 
 dart_library(
     name = "{target}",
     srcs = glob(["lib/**/*.dart"], allow_empty = True),
-{assets}{deps}{hook}{license}{link_hook}{version}    package_name = "{name}",
+{assets}{hook}{deps}{license}{link_hook}{version}    package_name = "{name}",
     resources = glob(
         ["lib/**"],
         exclude = ["lib/**/*.dart"],

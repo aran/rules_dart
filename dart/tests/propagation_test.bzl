@@ -155,9 +155,7 @@ def _collect_unions_same_root_assets_test_impl(ctx):
 def _union_keeps_other_fields_test_impl(ctx):
     # The union branch rebuilds the kept record. Everything it was carrying
     # besides the assets has to survive that rebuild — `language_version`
-    # wrong means a package compiles under the wrong Dart semantics, and a
-    # lost `has_unreplaced_hook` means the build stops warning about a native
-    # library that will not be there at runtime.
+    # wrong means a package compiles under the wrong Dart semantics.
     env = unittest.begin(ctx)
     kept = DartPackageInfo(
         package_name = "dual",
@@ -165,7 +163,6 @@ def _union_keeps_other_fields_test_impl(ctx):
         version = "1.2.3",
         language_version = "3.4",
         code_assets = (_asset("package:dual/a.g.dart"),),
-        has_unreplaced_hook = "hook/build.dart",
     )
     packages = merge_package_records([
         kept,
@@ -175,7 +172,6 @@ def _union_keeps_other_fields_test_impl(ctx):
     asserts.equals(env, "first/dual", packages[0].lib_root)
     asserts.equals(env, "1.2.3", packages[0].version)
     asserts.equals(env, "3.4", packages[0].language_version)
-    asserts.equals(env, "hook/build.dart", packages[0].has_unreplaced_hook)
     asserts.equals(
         env,
         ["package:dual/a.g.dart", "package:dual/b.g.dart"],

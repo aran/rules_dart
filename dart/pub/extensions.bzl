@@ -49,6 +49,13 @@ _package = tag_class(
             doc = "SHA256 hash of the package archive.",
             mandatory = True,
         ),
+        "ignore_hook": attr.bool(
+            doc = "The package's `hook/build.dart` is knowingly irrelevant to this build " +
+                  "(its native code is never reached): suppresses the unreplaced-hook error " +
+                  "for it, as `pub.from_lock(ignore_hooks = [...])` does for a lock's " +
+                  "packages. A declaration you make deliberately; never a default.",
+            default = False,
+        ),
     },
     doc = "A pub.dev package, built with the dependencies its pubspec states: each " +
           "must be supplied by another `pub.package()` or a lock, or the fetch fails.",
@@ -581,6 +588,8 @@ def _pub_impl(ctx):
             package_name = name,
             version = pkg.version,
             sha256 = pkg.sha256,
+            code_assets = curated_code_assets(name, pkg.version),
+            ignore_hook = pkg.ignore_hook,
             spoke_prefix = _SPOKE_PREFIX,
         )
 
