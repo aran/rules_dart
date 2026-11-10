@@ -63,6 +63,21 @@ toolchain(
     toolchain_type = "//dart:outline_toolchain_type",
 )
 
+# The same through `fetch_dart_kernel_source` with a prefix, from a repository
+# that has a root package of its own. Run the guard with
+# `--extra_toolchains=//dart/tests/outline_toolchain_fixture:prefixed_toolchain`.
+dart_outline_toolchain(
+    name = "prefixed",
+    tool = "@kernel_prefixed_source//kernel_source:outline_tool",
+    version = "3.13.7",
+)
+
+toolchain(
+    name = "prefixed_toolchain",
+    toolchain = ":prefixed",
+    toolchain_type = "//dart:outline_toolchain_type",
+)
+
 bzl_library(
     name = "rules",
     srcs = ["rules.bzl"],

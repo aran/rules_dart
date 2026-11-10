@@ -244,9 +244,11 @@ the compiler, which each Dart toolchain registers beside it. With a Dart SDK of
 your own (a fork, a local build), register a `dart_outline_toolchain` whose tool
 is the `:outline_tool` of a `dart_kernel_source(path = "<checkout>")`, built
 on the `pkg/kernel` of that SDK's source checkout (`third_party/dart` in a
-Flutter engine checkout), or turn outlines off with
-`--@rules_dart//dart:outline_kernel=false`, and dependents compile against full
-kernels.
+Flutter engine checkout). A repository rule that already reads the checkout
+calls `fetch_dart_kernel_source(rctx, path, prefix)` (`@rules_dart//dart:repositories.bzl`)
+to put the same packages and stripper in a directory of its own repository.
+Or turn outlines off with `--@rules_dart//dart:outline_kernel=false`, and
+dependents compile against full kernels.
 
 A test's program is a kernel list: a small text file naming the kernels it
 reaches, its entrypoint's first, which the Dart VM loads as one program. Each

@@ -362,22 +362,31 @@ exports_files(
     visibility = ["//visibility:public"],
 )
 
-# The pinned release's stripper, and the one built on a checkout of the same
-# release (`dart_kernel_source(path = ...)`, `//dart/tests:kernel_checkout.bzl`).
+# The pinned release's stripper, and the ones built on a checkout of the same
+# release: `dart_kernel_source(path = ...)`, and `fetch_dart_kernel_source` with
+# a prefix, from a repository with a root package of its own
+# (`//dart/tests:kernel_checkout.bzl`).
 [
     dart_test(
         name = name,
         size = "small",
-        args = ["$(rlocationpath %s//:outline_tool)" % repo],
-        data = ["%s//:outline_tool" % repo],
+        args = ["$(rlocationpath %s)" % tool],
+        data = [tool] + extra,
         main = "kernel_outline_test.dart",
         deps = [
             "//dart/runfiles",
             "@ext_pub_deps//:test",
         ],
     )
-    for name, repo in {
-        "kernel_outline_test": "@dart_kernel_source",
-        "kernel_outline_checkout_test": "@kernel_checkout_source",
-    }.items()
+    # `extra` is the root package the prefixed repository was written beside:
+    # a target there exists only if the helper left its `BUILD.bazel` alone.
+    for name, tool, extra in [
+        ("kernel_outline_test", "@dart_kernel_source//:outline_tool", []),
+        ("kernel_outline_checkout_test", "@kernel_checkout_source//:outline_tool", []),
+        (
+            "kernel_outline_prefixed_test",
+            "@kernel_prefixed_source//kernel_source:outline_tool",
+            ["@kernel_prefixed_source//:root_marker"],
+        ),
+    ]
 ]
