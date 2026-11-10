@@ -1,0 +1,21 @@
+load("@rules_dart//dart:defs.bzl", "dart_test")
+
+dart_test(
+    name = "greeter_test",
+    srcs = [
+        "fixtures.dart",
+        "names.dart",
+    ],
+    main = "greeter_test.dart",
+    deps = [
+        "//lib:helpers_fixture",
+        "@meta",
+        "@test",
+    ],
+)
+
+dart_test(
+    name = "plain_test",
+    main = "plain_test.dart",
+    deps = ["@test"],
+)

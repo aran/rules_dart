@@ -505,6 +505,12 @@ package's root is the directory above its `lib/`, `bin/` and `test/`, as
 resolves `import` statements to determine `deps`, including support for
 `show` and `deferred` import modifiers.
 
+As package:test does, Gazelle makes a test of each `_test.dart` file. Any other
+file in `test/` is a helper: it goes in the `srcs` of every test in its
+directory that imports it, directly or through another helper, and what it
+imports in that test's `deps`. A helper in another directory than the test
+importing it is logged, for you to list by hand and mark `# keep`.
+
 Each directory under `lib/` gets its own `dart_library`, named for the
 directory, in the package rooted above `lib/` (see
 [Where a package's root is](#where-a-packages-root-is)). An imported file,

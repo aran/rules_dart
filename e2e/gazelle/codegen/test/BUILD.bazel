@@ -2,6 +2,7 @@ load("@rules_dart//dart:defs.bzl", "dart_test")
 
 dart_test(
     name = "event_test",
+    srcs = ["fixtures.dart"],
     main = "event_test.dart",
     deps = [
         "//codegen/lib:codegen",
@@ -14,17 +15,23 @@ dart_test(
 
 dart_test(
     name = "profile_test",
+    srcs = ["fixtures.dart"],
     main = "profile_test.dart",
     deps = [
+        "//codegen/lib:event",
         "//codegen/lib:profile",
+        "//codegen/lib:user",
         "@pub_deps//:test",
     ],
 )
 
 dart_test(
     name = "user_test",
+    srcs = ["fixtures.dart"],
     main = "user_test.dart",
     deps = [
+        "//codegen/lib:event",
+        "//codegen/lib:profile",
         "//codegen/lib:user",
         "@pub_deps//:test",
     ],

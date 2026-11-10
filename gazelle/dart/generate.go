@@ -67,10 +67,15 @@ func (d *dartLang) generateDartRules(args language.GenerateArgs) language.Genera
 	// Classify files by the conventional directory of their package.
 	layout, _ := layoutOf(args.Rel)
 	var libFiles, binFiles, testFiles []DartFileInfo
+	helpers := map[string]DartFileInfo{}
 	for _, f := range dartFiles {
 		switch {
-		case layout == "test" || strings.HasSuffix(f.Path, "_test.dart"):
+		case strings.HasSuffix(f.Path, "_test.dart"):
 			testFiles = append(testFiles, f)
+		case layout == "test":
+			// package:test runs only `_test.dart` files; the others in
+			// test/ are helpers, part of each test that imports them.
+			helpers[f.Path] = f
 		case layout == "bin":
 			binFiles = append(binFiles, f)
 		default:
@@ -229,19 +234,82 @@ func (d *dartLang) generateDartRules(args language.GenerateArgs) language.Genera
 		name := strings.TrimSuffix(f.Path, ".dart")
 		r := rule.NewRule("dart_test", name)
 		r.SetAttr("main", f.Path)
+		own := testHelpers(args, f, helpers)
+		if len(own) > 0 {
+			r.SetAttr("srcs", fileNames(own))
+		}
 		tags := testTags(args, f)
 		if len(tags) > 0 {
 			r.SetAttr("tags", tags)
 		}
 		gen = append(gen, r)
-		imports = append(imports, collectImports(args, []DartFileInfo{f}))
+		imports = append(imports, collectImports(args, append([]DartFileInfo{f}, own...)))
 	}
 
 	return language.GenerateResult{
 		Gen:     gen,
 		Imports: imports,
-		Empty:   staleCodegenRules(args.File, gen),
+		Empty:   append(staleCodegenRules(args.File, gen), helperTests(args.File, helpers)...),
 	}
+}
+
+// testHelpers is every helper of the directory a test reaches through
+// relative imports, its own or a helper's, sorted by path. A relative import
+// of a file outside the directory that is no library's file is logged:
+// `srcs` here can only hold the directory's own files.
+func testHelpers(args language.GenerateArgs, test DartFileInfo, helpers map[string]DartFileInfo) []DartFileInfo {
+	root, rootErr := packageRootOf(args.Rel)
+	self := packageNameIn(args.Config, args.Rel)
+	seen := map[string]bool{}
+	var out []DartFileInfo
+	var visit func(f DartFileInfo)
+	visit = func(f DartFileInfo) {
+		for _, imp := range f.Imports {
+			if !imp.IsRelative || strings.Contains(imp.URI, ":") {
+				continue
+			}
+			target := path.Clean(path.Join(path.Dir(f.Path), imp.URI))
+			if h, ok := helpers[target]; ok {
+				if !seen[target] {
+					seen[target] = true
+					out = append(out, h)
+					visit(h)
+				}
+				continue
+			}
+			if rootErr == nil && importedURI(self, root, path.Join(args.Rel, f.Path), imp) != "" {
+				continue
+			}
+			if strings.Contains(target, "/") {
+				log.Printf("dart: %s imports %s, which is outside its "+
+					"directory; add it to the srcs of %q by hand and mark "+
+					"them `# keep`", path.Join(args.Rel, f.Path), imp.URI,
+					strings.TrimSuffix(test.Path, ".dart"))
+			}
+		}
+	}
+	visit(test)
+	sort.Slice(out, func(i, j int) bool { return out[i].Path < out[j].Path })
+	return out
+}
+
+// helperTests returns empty-rule markers for each existing dart_test whose
+// main is a helper: a file package:test never runs, made a test by earlier
+// Gazelle versions. `# keep` keeps one written by hand.
+func helperTests(f *rule.File, helpers map[string]DartFileInfo) []*rule.Rule {
+	if f == nil {
+		return nil
+	}
+	var empty []*rule.Rule
+	for _, r := range f.Rules {
+		if r.Kind() != "dart_test" {
+			continue
+		}
+		if _, ok := helpers[r.AttrString("main")]; ok {
+			empty = append(empty, rule.NewRule("dart_test", r.Name()))
+		}
+	}
+	return empty
 }
 
 // testTags returns the Bazel tags for a test file's dart_test: the file's

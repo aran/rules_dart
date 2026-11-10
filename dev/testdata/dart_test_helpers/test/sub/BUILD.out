@@ -1,0 +1,7 @@
+load("@rules_dart//dart:defs.bzl", "dart_test")
+
+dart_test(
+    name = "nested_test",
+    main = "nested_test.dart",
+    deps = ["@test"],
+)
