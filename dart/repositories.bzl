@@ -14,7 +14,7 @@ load("//dart/pub:pubspec.bzl", "read_pubspec")
 _DOC = "Fetch the Dart SDK for a given version and platform"
 _ATTRS = {
     "dart_version": attr.string(
-        doc = "The Dart SDK version to download (e.g. `3.11.0`). Must be a version listed in `versions.bzl`.",
+        doc = "The Dart SDK version to download (e.g. `3.13.7`). Must be a version listed in `versions.bzl`.",
         mandatory = True,
         values = TOOL_VERSIONS.keys(),
     ),

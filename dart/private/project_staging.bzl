@@ -141,7 +141,7 @@ def pubspec_stub(packages, name = "analyze_stub", sdk_version = ""):
       name: The pubspec's `name:` field. The default names the harness-level
         stub at the project root; per-package stubs pass the real package name
         so the analyzer attributes each staged file to its true package.
-      sdk_version: The toolchain SDK's version (e.g. `3.11.0`); the constraint
+      sdk_version: The toolchain SDK's version (e.g. `3.13.7`); the constraint
         for a package that states no `language_version`. Empty for none.
 
     Returns:
