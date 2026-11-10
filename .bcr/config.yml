@@ -1,0 +1,4 @@
+# rules_dart and its Gazelle plugin, released together from one tag and one
+# source archive. Each module root has its templates under .bcr at the same
+# relative path.
+moduleRoots: [".", "gazelle"]

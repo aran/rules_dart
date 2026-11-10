@@ -387,8 +387,9 @@ real `dart pub get`; enable in CI with `--test_tag_filters=+manual`).
 - **`bazel run @rules_dart//dart/ext/tools:check_dual_build_collisions
 -- path/to/repo`** flags every source-tree file matching a generator's
   produced extension. Non-zero exit on findings; useful as a pre-commit
-  hook. Reads the same `baseline_generated_extensions.txt` that
-  Gazelle's `filterOutGeneratedFiles` consumes, so the two stay in sync.
+  hook. Reads the extensions `baseline_generated_extensions.txt` lists,
+  which Gazelle's `filterOutGeneratedFiles` also filters from a copy in the
+  plugin's module; a test keeps the two copies the same.
 
 - **`build.yaml`** is not read by rules_dart. Builder options set there
   apply only under `build_runner`. Pass equivalent options via the

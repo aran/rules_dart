@@ -3,6 +3,14 @@
 
 load("//dart:defs.bzl", "dart_binary", "dart_library", "dart_test")
 
+# The generated-file extensions the checker flags. The Gazelle plugin filters
+# the same list, from a copy of its own; rules_dart_dev's
+# generated_extensions_agree_test keeps the two the same.
+exports_files(
+    ["baseline_generated_extensions.txt"],
+    visibility = ["//visibility:public"],
+)
+
 dart_library(
     name = "check_dual_build_collisions_lib",
     package_name = "rules_dart_check_dual_build_collisions",
@@ -17,9 +25,9 @@ dart_library(
 dart_binary(
     name = "check_dual_build_collisions",
     srcs = ["bin/main.dart"],
-    args = ["$(rlocationpath //gazelle/dart:baseline_generated_extensions.txt)"],
+    args = ["$(rlocationpath :baseline_generated_extensions.txt)"],
     code_assets_from_deps = False,
-    data = ["//gazelle/dart:baseline_generated_extensions.txt"],
+    data = [":baseline_generated_extensions.txt"],
     main = "bin/main.dart",
     visibility = ["//visibility:public"],
     deps = [":check_dual_build_collisions_lib"],
@@ -28,8 +36,8 @@ dart_binary(
 dart_test(
     name = "check_dual_build_collisions_test",
     size = "small",
-    args = ["$(rlocationpath //gazelle/dart:baseline_generated_extensions.txt)"],
-    data = ["//gazelle/dart:baseline_generated_extensions.txt"],
+    args = ["$(rlocationpath :baseline_generated_extensions.txt)"],
+    data = [":baseline_generated_extensions.txt"],
     main = "check_dual_build_collisions_test.dart",
     deps = [
         ":check_dual_build_collisions_lib",

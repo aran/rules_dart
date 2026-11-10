@@ -1,4 +1,5 @@
 load("@bazel_gazelle//:def.bzl", "gazelle", "gazelle_binary", "gazelle_generation_test")
+load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
 
 # gazelle:map_kind bzl_library bzl_library @bazel_skylib//:bzl_library.bzl
@@ -6,7 +7,7 @@ gazelle_binary(
     name = "gazelle_bin",
     languages = [
         "@bazel_skylib_gazelle_plugin//bzl",
-        "@rules_dart//gazelle/dart",
+        "@rules_dart_gazelle_plugin//dart",
     ],
 )
 
@@ -34,4 +35,14 @@ gazelle_generation_test(
     size = "small",
     gazelle_binary = ":gazelle_bin",
     test_data = [":testdata"],
+)
+
+# The plugin's filter and rules_dart's `check_dual_build_collisions` know the
+# same generated-file extensions. Each module ships its own copy, since
+# neither depends on the other.
+diff_test(
+    name = "generated_extensions_agree_test",
+    size = "small",
+    file1 = "@rules_dart//dart/ext/tools:baseline_generated_extensions.txt",
+    file2 = "@rules_dart_gazelle_plugin//dart:baseline_generated_extensions.txt",
 )

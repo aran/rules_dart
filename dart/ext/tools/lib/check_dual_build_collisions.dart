@@ -2,11 +2,9 @@
 /// committed to the source tree and would collide with `rules_dart`'s
 /// codegen outputs.
 ///
-/// Keeps the extension list in sync with Gazelle's filter — both load
-/// `baseline_generated_extensions.txt` from
-/// `@rules_dart//gazelle/dart`. The Gazelle filter uses it as baseline
-/// additions to `allRegisteredProducedExtensions()`; this tool uses it as
-/// the full catalog of generated-file suffixes to flag.
+/// Flags every file ending in an extension `baseline_generated_extensions.txt`
+/// lists. The Gazelle plugin filters the same extensions out of the sources
+/// it generates rules for, from a copy of the list of its own.
 ///
 /// Usage: `bazel run @rules_dart//dart/ext/tools:check_dual_build_collisions -- path/to/repo`
 

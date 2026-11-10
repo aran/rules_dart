@@ -8,8 +8,8 @@ repo(
 
 # Not packages of this module, here or in a consumer's copy of it (where
 # `.bazelignore` would not apply): the end-to-end workspaces; overhead and
-# tools, workspaces of their own; dev, a module the root depends on for
-# development; and the checkout's own state.
+# tools, workspaces of their own; gazelle, the Gazelle plugin's module; dev, a
+# module the root depends on for development; and the checkout's own state.
 ignore_directories([
     "bazel-*",
     ".bazel_env",
@@ -19,6 +19,7 @@ ignore_directories([
     "dev",
     "docs",
     "e2e",
+    "gazelle",
     "overhead",
     "references",
     "tools",

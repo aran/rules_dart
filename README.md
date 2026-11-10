@@ -454,13 +454,16 @@ module.
 
 ### BUILD file generation with Gazelle
 
-rules_dart includes a [Gazelle](https://github.com/bazelbuild/bazel-gazelle)
-plugin that generates `BUILD.bazel` files from your Dart source tree.
+rules_dart's [Gazelle](https://github.com/bazelbuild/bazel-gazelle) plugin
+generates `BUILD.bazel` files from your Dart source tree. It is a module of its
+own, `rules_dart_gazelle_plugin`, released with rules_dart at the same version,
+so that rules_dart itself brings no Go dependency.
 
-Add `gazelle` to your `MODULE.bazel`:
+Add it and `gazelle` to your `MODULE.bazel`:
 
 ```starlark
-bazel_dep(name = "gazelle", version = "0.50.0")
+bazel_dep(name = "gazelle", version = "0.54.0")
+bazel_dep(name = "rules_dart_gazelle_plugin", version = "<the rules_dart version>")
 ```
 
 Then create a root `BUILD.bazel` with the Gazelle targets:
@@ -471,7 +474,7 @@ load("@gazelle//:def.bzl", "gazelle", "gazelle_binary")
 gazelle_binary(
     name = "gazelle_bin",
     languages = [
-        "@rules_dart//gazelle/dart",
+        "@rules_dart_gazelle_plugin//dart",
     ],
 )
 

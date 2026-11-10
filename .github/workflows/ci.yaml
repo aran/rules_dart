@@ -612,8 +612,8 @@ jobs:
       - name: dart_test — run tests under -c dbg
         working-directory: e2e/dart_test
         run: bazel test -c dbg --test_output=errors //...
-  # The Gazelle plugin's tests live in the nested `dev/` module, which `//...`
-  # in the root module does not reach.
+  # The Gazelle plugin is a module of its own, and its golden-file tests live in
+  # the nested `dev/` module; `//...` in the root module reaches neither.
   dev-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -625,7 +625,7 @@ jobs:
           bazelisk-cache: true
           disk-cache: ${{ github.job }}
           repository-cache: true
-      - run: bazel test --test_output=errors @rules_dart_dev//...
+      - run: bazel test --test_output=errors @rules_dart_gazelle_plugin//... @rules_dart_dev//...
   # A consuming module must be able to load every package of the published
   # module: tools and IDE plugins enumerate `@rules_dart//...`. Development
   # tooling loads repos a consumer never sees, so it lives in directories

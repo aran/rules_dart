@@ -75,8 +75,10 @@ the commit-msg hook that `prek install` sets up checks each commit before that.
 bazel test //...
 ```
 
-The Gazelle plugin's generation tests are in `dev/`, a module of its own:
-`bazel test @rules_dart_dev//...`.
+The Gazelle plugin is the `rules_dart_gazelle_plugin` module in `gazelle/`,
+which `//...` does not reach. Its tests run from the root workspace,
+`bazel test @rules_dart_gazelle_plugin//... @rules_dart_dev//...`, and its
+generation tests are also in the `e2e/gazelle` workspace.
 
 ### End-to-end tests (separate Bazel workspaces)
 

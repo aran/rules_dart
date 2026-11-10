@@ -12,7 +12,7 @@ load("@rules_dart//dart:defs.bzl", "dart_analysis_config", "dart_analysis_option
 
 gazelle_binary(
     name = "gazelle_bin",
-    languages = ["@rules_dart//gazelle/dart"],
+    languages = ["@rules_dart_gazelle_plugin//dart"],
 )
 
 gazelle(
