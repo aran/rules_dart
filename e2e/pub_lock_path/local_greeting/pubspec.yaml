@@ -1,0 +1,6 @@
+name: local_greeting
+version: 1.2.3
+environment:
+  sdk: ^3.9.0
+dependencies:
+  meta: ^1.19.0

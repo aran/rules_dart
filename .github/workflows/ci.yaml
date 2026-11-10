@@ -61,6 +61,7 @@ jobs:
           "e2e/pub_lock_cycle",
           "e2e/pub_lock_git",
           "e2e/pub_lock_resolve",
+          "e2e/pub_lock_path",
           "e2e/pub_member_kind",
           "e2e/pub_override_root_lock",
           "e2e/pub_root_older_allowed",
@@ -229,16 +230,30 @@ jobs:
           fi
           echo "$out" | grep -q "nothing supplies \`petitparser\`"
           echo "OK: expected unsupplied dependency detected"
-      - name: pub_lock_resolve_invalid — expect unmapped path packages and a stale mapping to fail, naming each
+      - name: pub_lock_resolve_invalid — expect unnamed, twice-named and wrongly named packages, and path packages no lock can hold, to fail, naming each
         working-directory: e2e/pub_lock_resolve_invalid
         run: |
           if out=$(bazel build @pub//:path 2>&1); then
-            echo "ERROR: build should have failed: path packages unmapped, and http mapped but not locked"
+            echo "ERROR: build should have failed: models named nowhere, utils twice, http not locked, path not a path package, far absolute, outside outside the workspace"
             exit 1
           fi
-          echo "$out" | grep -q "it lists \`models\`, \`utils\` as \`path\` packages"
-          echo "$out" | grep -q "\`resolve\` maps \`http\`, which the lock does not list"
+          echo "$out" | grep -qF "it lists \`models\` as a \`path\` package"
+          echo "$out" | grep -qF "build_from_pubspec = [\"models\"]"
+          echo "$out" | grep -qF "\`resolve\` maps \`http\`, which the lock does not list"
+          echo "$out" | grep -qF "\`build_from_pubspec\` names \`path\`, which the lock does not list as \`path\`"
+          echo "$out" | grep -qF "\`utils\` is named in \`build_from_pubspec\` and \`ignored\`"
+          echo "$out" | grep -qF "\`build_from_pubspec\` names \`far\` (/opt/far), whose directory the lock gives by an absolute path"
+          echo "$out" | grep -qF "\`build_from_pubspec\` names \`outside\` (../outside), whose directory is outside the repository"
           echo "OK: expected resolve errors detected"
+      - name: pub_lock_path — expect a path package with a BUILD file of its own to be refused
+        working-directory: e2e/pub_lock_path
+        run: |
+          if out=$(bazel build @refused//:has_build 2>&1); then
+            echo "ERROR: build should have refused has_build, which has a BUILD file"
+            exit 1
+          fi
+          echo "$out" | grep -qF 'has a Bazel build of its own (lib/BUILD.bazel)'
+          echo "OK: path package with a Bazel build refused"
       # Every pub archive is checked against a pinned digest: a lock entry or a
       # `pub.package()` without one, or two locks disagreeing on one, fails.
       - name: pub_lock_unpinned — expect a lock entry without sha256 to be refused

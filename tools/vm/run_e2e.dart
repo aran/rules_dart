@@ -47,6 +47,7 @@ const _ciFolders = [
   'e2e/pub_lock_cycle',
   'e2e/pub_lock_git',
   'e2e/pub_lock_resolve',
+  'e2e/pub_lock_path',
   'e2e/pub_member_kind',
   'e2e/pub_override_root_lock',
   'e2e/pub_root_older_allowed',
@@ -261,9 +262,14 @@ const _expectedFailureChecks = [
     'nothing supplies `petitparser`',
   ),
   _ExpectedFailure(
+    'e2e/pub_lock_path',
+    '@refused//:has_build',
+    'has a Bazel build of its own (lib/BUILD.bazel)',
+  ),
+  _ExpectedFailure(
     'e2e/pub_lock_resolve_invalid',
     '@pub//:path',
-    'it lists `models`, `utils` as `path` packages',
+    'it lists `models` as a `path` package',
   ),
   // Every pub archive is checked against a pinned digest.
   _ExpectedFailure(

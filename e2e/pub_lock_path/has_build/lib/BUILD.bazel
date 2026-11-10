@@ -1,0 +1,2 @@
+# This package has its own Bazel build, so pub.from_lock must not build it
+# from its pubspec (see //:MODULE.bazel).

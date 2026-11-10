@@ -362,9 +362,9 @@ dart_binary(
 > dependency, rather than building without it.
 
 `resolve` serves a locked package from a target of yours instead of what the
-lock describes. Every `path` package in the lock must be mapped, since only
-your workspace can build it; a hosted, git or sdk package may be, to build a
-fork, say:
+lock describes. Every `path` package in the lock must be named in exactly one
+of `resolve`, `build_from_pubspec` or `ignored` (below); a hosted, git or sdk
+package may be mapped too, to build a fork, say:
 
 ```starlark
 pub.from_lock(
@@ -388,6 +388,36 @@ a package to different targets fail too, as does mapping a package also
 declared with `pub.package()`. Gazelle resolves `package:http`
 imports to `@pub_deps//:http`, which now leads to the mapped target, so it
 needs no `# gazelle:resolve` for that package.
+
+A `path` package with no Bazel build of its own is built from its directory
+with `build_from_pubspec`, the way a hosted package is built from its archive:
+the lock's path, resolved against the lock's directory, holds it, and its
+`pubspec.yaml`, `lib/`, `hook/` and license file are served from there (other
+files, such as `.dart_tool/` and `build/`, are not, so pub and IDE output
+changes nothing). An edit under those reaches the next build. A package with a
+`BUILD` file anywhere under them is refused: map it with `resolve`. A `path`
+package nothing in the build uses, such as one only an editor or a pub-side
+tool reads, is named in `ignored` with the reason; its hub label exists, and
+anything that depends on it fails at analysis with that reason:
+
+```starlark
+pub.from_lock(
+    name = "pub_deps",
+    lock = "//:pubspec.lock",
+    build_from_pubspec = ["local_greeting"],
+    ignored = {"editor_only": "only the editor reads it"},
+)
+```
+
+The lock must name the directory by a relative path, as `dart pub get` writes
+it for a relative `path:` in the pubspec, and it must be inside the repository
+that holds the lock: an absolute path, or one leading out of the repository,
+holds only on one machine and fails when the lock is read. Map such a package
+with `resolve` instead.
+
+Two locks building one package must name the same directory, and a package
+built from its pubspec in one lock and fetched or ignored in another fails,
+naming both.
 
 Each package's `pubspec.yaml` is read with `package:yaml`, as pub reads it, by
 a small reader rules_dart compiles once per host with its Dart SDK. A pubspec
@@ -1081,7 +1111,8 @@ The [`e2e/`](e2e/) directory contains complete working examples:
 | [`toolchain_pin_conflict`](e2e/toolchain_pin_conflict/)     | A root `dart.toolchain` pin below a dependency's request fails, naming the dependency    |
 | [`pub_lock_unsupplied`](e2e/pub_lock_unsupplied/)           | A hosted package depending on an unsupplied sdk package fails, naming it                 |
 | [`pub_lock_resolve`](e2e/pub_lock_resolve/)                 | `resolve` serving a `path` package and replacing a hosted one for the whole graph        |
-| [`pub_lock_resolve_invalid`](e2e/pub_lock_resolve_invalid/) | An unmapped `path` package and a stale `resolve` key fail, naming each                   |
+| [`pub_lock_resolve_invalid`](e2e/pub_lock_resolve_invalid/) | Unnamed, twice-named and wrongly named `path` packages and a stale `resolve` key fail    |
+| [`pub_lock_path`](e2e/pub_lock_path/)                       | `path` packages built from their pubspec, ignored, or refused for having a BUILD file    |
 | [`pub_hub_surface`](e2e/pub_hub_surface/)                   | Every locked package in its hub, including one declared with `pub.package()`             |
 | [`pub_override_root_lock`](e2e/pub_override_root_lock/)     | The root's lock wins over a dependency module's `pub.package()`                          |
 | [`pub_package_conflict`](e2e/pub_package_conflict/)         | Two dependency modules' differing `pub.package()`s fail, naming both                     |

@@ -37,6 +37,7 @@ bzl_library(
         "//dart/pub/private:build_content",
         "//dart/pub/private:pub_archive",
         "//dart/pub/private:pub_git",
+        "//dart/pub/private:pub_path",
     ],
 )
 

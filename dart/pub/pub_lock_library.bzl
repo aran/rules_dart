@@ -153,3 +153,33 @@ pub_lock_resolved = repository_rule(
     },
     doc = "A `pub.from_lock()` package's library, served by the workspace target `resolve` maps it to.",
 )
+
+def _pub_lock_ignored_impl(ctx):
+    ctx.file("BUILD.bazel", """\
+load("@rules_dart//dart/pub/private:pub_ignored_package.bzl", "pub_ignored_package")
+
+pub_ignored_package(
+    name = {name},
+    package_name = {name},
+    lock = {lock},
+    reason = {reason},
+    visibility = ["//visibility:public"],
+)
+""".format(
+        name = json.encode(ctx.attr.package_name),
+        lock = json.encode(ctx.attr.lock),
+        reason = json.encode(ctx.attr.reason),
+    ))
+    return ctx.repo_metadata(reproducible = True)
+
+# The library repository of a `path` package `ignored` names, where every
+# library repository depending on the package already looks for it.
+pub_lock_ignored = repository_rule(
+    implementation = _pub_lock_ignored_impl,
+    attrs = {
+        "package_name": attr.string(mandatory = True, doc = "The package."),
+        "lock": attr.string(mandatory = True, doc = "The lock that names it ignored."),
+        "reason": attr.string(mandatory = True, doc = "Why, as the user wrote it."),
+    },
+    doc = "A `pub.from_lock()` package's library that fails analysis, giving why it is ignored.",
+)

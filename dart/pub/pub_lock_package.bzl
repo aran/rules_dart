@@ -1,8 +1,9 @@
 """Repository rules that fetch a single package from a pubspec.lock.
 
-Each hosted or git package gets its own source repository (spoke), holding its
-files and the facts it states about itself as a `pub_package_member`:
-`pub_lock_package` for a hosted package, `pub_lock_git_package` for a git one.
+Each hosted, git or built-from-pubspec path package gets its own source
+repository (spoke), holding its files and the facts it states about itself as
+a `pub_package_member`: `pub_lock_package` for a hosted package,
+`pub_lock_git_package` for a git one, `pub_lock_path_package` for a path one.
 Which packages it is built with — its dependency cycle, if pub resolved one —
 is decided by its library repository (`pub_lock_library`), which the hub's
 `@hub//:pkg` aliases point at.
@@ -10,8 +11,9 @@ is decided by its library repository (`pub_lock_library`), which the hub's
 Also re-exports public Starlark helpers for other Bazel rule sets (notably
 rules_flutter's `flutter_pub_package`, the `flutter pub get` analog):
 `fetch_pub_archive` (with `check_pub_archive_sha256`) fetches a hosted package
-and `fetch_pub_git` (with `check_pub_git_resolved_ref`) a git package exactly
-as rules_dart's own pub rules do, `is_relative_git_url` says whether a lock's
+`fetch_pub_git` (with `check_pub_git_resolved_ref`) a git package and
+`fetch_pub_path` a path package's directory exactly as rules_dart's own pub
+rules do, `is_relative_git_url` says whether a lock's
 git `url` is relative to the lock (only then does the package depend on it),
 `find_pub_license_file` finds a package's
 license file as `flutter build` does, and `make_dart_library_build_content` emits the
@@ -23,6 +25,7 @@ load("//dart/pub:pubspec.bzl", "read_pubspec")
 load("//dart/pub/private:build_content.bzl", _classify_pub_hooks = "classify_pub_hooks", _find_pub_license_file = "find_pub_license_file", _make_dart_library_build_content = "make_dart_library_build_content", _make_pub_member_build_content = "make_pub_member_build_content")
 load("//dart/pub/private:pub_archive.bzl", _check_pub_archive_sha256 = "check_pub_archive_sha256", _fetch_pub_archive = "fetch_pub_archive")
 load("//dart/pub/private:pub_git.bzl", _check_pub_git_resolved_ref = "check_pub_git_resolved_ref", _fetch_pub_git = "fetch_pub_git", _is_relative_git_url = "is_relative_git_url")
+load("//dart/pub/private:pub_path.bzl", _fetch_pub_path = "fetch_pub_path")
 
 # Re-export for consumers outside //dart/pub (rules_flutter's
 # flutter_pub_package). Loading the private bzl directly would trip
@@ -34,8 +37,12 @@ check_pub_archive_sha256 = _check_pub_archive_sha256
 fetch_pub_git = _fetch_pub_git
 check_pub_git_resolved_ref = _check_pub_git_resolved_ref
 is_relative_git_url = _is_relative_git_url
+fetch_pub_path = _fetch_pub_path
 
-def _write_member(ctx):
+# What a Dart package's build reads from its directory.
+_PATH_PACKAGE_ENTRIES = ["pubspec.yaml", "lib", "hook", "LICENSE", "NOTICES"]
+
+def _write_member(ctx, reproducible = True):
     # Read the package's SDK constraint, to mirror pub's per-package
     # languageVersion behaviour, and its dependencies, which it records for
     # its library repository and the library repositories of packages that
@@ -69,7 +76,7 @@ def _write_member(ctx):
         link_hook = hooks.link_hook,
         license_file = _find_pub_license_file(ctx),
     ))
-    return ctx.repo_metadata(reproducible = True)
+    return ctx.repo_metadata(reproducible = reproducible)
 
 def _pub_lock_package_impl(ctx):
     fetch_pub_archive(
@@ -92,6 +99,19 @@ def _pub_lock_git_package_impl(ctx):
         lock = ctx.attr.lock,
     )
     return _write_member(ctx)
+
+def _pub_lock_path_package_impl(ctx):
+    # As pub does, the path is resolved lexically against the lock's directory.
+    directory = ctx.path(ctx.attr.lock).dirname
+    for part in ctx.attr.path.split("/"):
+        if part == "..":
+            directory = directory.dirname
+        elif part not in ("", "."):
+            directory = directory.get_child(part)
+    fetch_pub_path(ctx, directory, _PATH_PACKAGE_ENTRIES)
+
+    # Its files are the user's, outside Bazel's control.
+    return _write_member(ctx, reproducible = False)
 
 _MEMBER_ATTRS = {
     "package_name": attr.string(
@@ -153,4 +173,21 @@ pub_lock_git_package = repository_rule(
         ),
     },
     doc = "Fetches a single git package from a pubspec.lock at its locked commit and generates a BUILD file.",
+)
+
+pub_lock_path_package = repository_rule(
+    implementation = _pub_lock_path_package_impl,
+    attrs = _MEMBER_ATTRS | {
+        "lock": attr.label(
+            doc = "The lock, against whose directory `path` is resolved.",
+            allow_single_file = True,
+            mandatory = True,
+        ),
+        "path": attr.string(
+            doc = "The package's directory relative to the lock's: the lock's " +
+                  "`description.path`, `/`-separated. It stays inside the lock's repository.",
+            mandatory = True,
+        ),
+    },
+    doc = "Serves a `source: path` package from its directory, built from its pubspec, and generates a BUILD file.",
 )

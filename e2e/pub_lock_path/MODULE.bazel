@@ -1,0 +1,39 @@
+module(name = "pub_lock_path_e2e")
+
+bazel_dep(name = "rules_dart", version = "0.0.0")
+bazel_dep(name = "bazel_skylib", version = "1.9.2")
+
+local_path_override(
+    module_name = "rules_dart",
+    path = "../..",
+)
+
+dart = use_extension("@rules_dart//dart:extensions.bzl", "dart")
+dart.toolchain(dart_version = "3.13.7")
+use_repo(dart, "dart_toolchains")
+
+register_toolchains("@dart_toolchains//:all")
+
+pub = use_extension("@rules_dart//dart/pub:extensions.bzl", "pub")
+
+# The lock lists three `path` packages, as `dart pub get` writes them. No
+# Bazel target builds `local_greeting`, so it is built from its directory as a
+# hosted package is from its archive, `meta` from the lock among its deps.
+# `editor_only` is for the editor alone: its hub label exists, and depending
+# on it fails analysis with the reason (`//:ignored_package_refused`).
+pub.from_lock(
+    name = "pub",
+    build_from_pubspec = ["local_greeting"],
+    ignored = {"editor_only": "only the editor reads it"},
+    lock = "//:pubspec.lock",
+)
+
+# `has_build` has a BUILD file of its own, so building it from its pubspec is
+# refused when its repository is fetched; CI builds `@refused//:has_build` and
+# expects the error.
+pub.from_lock(
+    name = "refused",
+    build_from_pubspec = ["has_build"],
+    lock = "//refused:pubspec.lock",
+)
+use_repo(pub, "pub", "refused")
