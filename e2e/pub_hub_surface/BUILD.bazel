@@ -3,8 +3,8 @@ load(":checks.bzl", "pub_graph_check")
 exports_files(["pubspec.lock"])
 
 # Property: every package a hub's lock names is reachable as `@hub//:<name>`,
-# however it was declared; `pub.package()` wins on version; and a package that
-# depends on one declared that way depends on the declared repository.
+# however it was declared; a `pub.package()` above the lock wins; and a package
+# that depends on one declared that way depends on the declared repository.
 
 pub_graph_check(
     name = "lock_only_package_is_exposed",
@@ -23,7 +23,7 @@ pub_graph_check(
     name = "locked_and_declared_package_is_exposed_at_declared_version",
     license_files = {"collection": "LICENSE"},
     target = "@surface//:collection",
-    versions = {"collection": "1.19.0"},
+    versions = {"collection": "1.19.1"},
 )
 
 pub_graph_check(
@@ -33,5 +33,5 @@ pub_graph_check(
         "meta",
     ],
     target = "@surface//:async",
-    versions = {"collection": "1.19.0"},
+    versions = {"collection": "1.19.1"},
 )

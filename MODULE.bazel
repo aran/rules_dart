@@ -188,9 +188,6 @@ pub = use_extension("//dart/pub:extensions.bzl", "pub")
 pub.from_lock(
     name = "ext_pub_deps",
     lock = "//dart/ext:pubspec.lock",
-    # A consumer's lock may be newer than ours for a package both name; ours
-    # yields rather than failing their build.
-    on_version_conflict = "upgrade",
 )
 use_repo(pub, "ext_pub_deps")
 

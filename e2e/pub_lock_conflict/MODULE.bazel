@@ -12,12 +12,13 @@ use_repo(dart, "dart_toolchains")
 
 register_toolchains("@dart_toolchains//:all")
 
-# a's lock has path 1.9.1, b's has path 1.9.0, and neither sets
-# on_version_conflict = "upgrade", so the extension fails on the conflict.
-# Both are pub packages, so the command the error gives for b runs in that
-# state:
+# a's lock has path 1.9.1 and b's has path 1.9.0. The highest request wins,
+# so b's, a request of the root's own, is raised, and the root makes that an
+# error. Both are pub packages, so the command the error gives for b runs in
+# that state:
 #   bazel run @rules_dart//dart/pub -- upgrade --directory=b path
 pub = use_extension("@rules_dart//dart/pub:extensions.bzl", "pub")
+pub.settings(check_direct_dependencies = "error")
 pub.from_lock(
     name = "deps_a",
     lock = "//a:pubspec.lock",

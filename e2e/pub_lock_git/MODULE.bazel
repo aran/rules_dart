@@ -30,3 +30,11 @@ pub.cycle(packages = [
     "git_cyc_b",
 ])
 use_repo(pub, "deps")
+
+# A dependency module whose own lock lists `git_root` from pub.dev and
+# `git_sub` at another commit.
+bazel_dep(name = "dep_mod", version = "0.0.0")
+local_path_override(
+    module_name = "dep_mod",
+    path = "dep_mod",
+)

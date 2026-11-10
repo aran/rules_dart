@@ -2,9 +2,11 @@ module(name = "mod_b")
 
 bazel_dep(name = "rules_dart", version = "0.0.0")
 
+# Asks for `path` 1.9.0 as the least it accepts; mod_c's lock raises it.
 pub = use_extension("@rules_dart//dart/pub:extensions.bzl", "pub")
 pub.package(
     name = "path",
     sha256 = "087ce49c3f0dc39180befefc60fdb4acd8f8620e5682fe2476afd0b3688bb4af",
     version = "1.9.0",
 )
+use_repo(pub, "path")

@@ -19,14 +19,16 @@ pub.from_lock(
     name = "deps_a",
     lock = "//:lock_a.lock",
 )
+
+# Older than lock_a for `path`: the highest request wins, and the build prints
+# a warning that this lock's request was raised.
 pub.from_lock(
     name = "deps_b",
     lock = "//:lock_b.lock",
-    on_version_conflict = "upgrade",
 )
 
-# Newer than rules_dart's own tool lock for a shared package (get_it), with the
-# default `on_version_conflict`: rules_dart's lock must be the one that yields.
+# Newer than rules_dart's own tool lock for a shared package (get_it): rules_dart's
+# request is raised, which says nothing.
 pub.from_lock(
     name = "deps_newer",
     lock = "//:lock_newer.lock",

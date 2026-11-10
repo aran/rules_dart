@@ -1,0 +1,6 @@
+# The module's own name for the package it declared.
+alias(
+    name = "path",
+    actual = "@path",
+    visibility = ["//visibility:public"],
+)

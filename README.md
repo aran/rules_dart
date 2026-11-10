@@ -643,24 +643,43 @@ is checked, so at most one applies. The curated cycles are listed by
 | ------------------------ | ------------------------------------------------------------- |
 | `dio`, `dio_web_adapter` | `dio` exports the web adapter on the web, which imports `dio` |
 
-rules_dart builds one version of each package, and the root module decides it,
-as Bazel's root module decides everything else: a `pub.package()` in the root
-wins over the root's locks, and either wins over a `pub.package()` in a module
-the root depends on, whose `@name` repository then supplies the root's version.
-If two such modules declare different versions and the root states none, the
-build fails naming both; pin the package in the root with `pub.package()` or
-its lock. Between locks, the highest version a lock records is built, and a
-lock that records a lower one fails the build unless its `from_lock()` sets
-`on_version_conflict = "upgrade"`; the error gives the
-`bazel run @rules_dart//dart/pub -- upgrade` command that brings it forward.
+rules_dart builds one version of each package for the whole build. Every
+statement of a hosted package's version is a request: a `pub.package()` in any
+module, and every lock that lists it. The highest request is built, as Bazel's
+minimal version selection picks the highest version any module asks for, and a
+`pub.package()` whose request loses keeps its `@name` repository, naming the
+version built. Two requests of one version must pin one sha256.
 
-A dependency's `pub.package()` version is a minimum, as a dependency's Dart SDK
-request is: the root wins only at the same or a newer version, and a newer one prints a
-warning naming the module it raised, as Bazel does for a `bazel_dep`. A root `pub.package()` or lock
-older than one a dependency declared fails the build, naming the package, both
-versions and the module; raise the root's version, or hold the older one on
-purpose with `pub.settings(allow_older_than_dependencies = True)` in the root
-module.
+A request is a minimum, so when a module the root depends on asks for more than
+the root does, the build takes it, and reports that the root's request was
+raised, as Bazel's `--check_direct_dependencies` does for a `bazel_dep`:
+
+```text
+Package "tuple" is built at 2.0.2, newer than the root module asks for:
+  - 2.0.1, from the lock `//:pubspec.lock`
+Raised by:
+  - 2.0.2, from `pub.package()` in module `dep_mod`
+Each request is a minimum and the highest wins. Raise the root's to 2.0.2:
+  bazel run @rules_dart//dart/pub -- upgrade tuple
+or set `pub.settings(check_direct_dependencies = "off")` in the root module to stop this check.
+```
+
+The root module sets how this is reported, once:
+
+```starlark
+pub.settings(check_direct_dependencies = "error")  # "off", "warning" (the default) or "error"
+```
+
+Only the root's own requests are checked: raising a dependency's request, by
+the root or by another dependency, says nothing, as in Bazel. A package the
+root's lock lists as `git`, `sdk` or `path` is what that lock says for the whole
+build, over another module's `pub.package()` or lock entry for it, as a root
+`git_override` is over a `bazel_dep`, since there is no version order to
+compare. Only the root module may use `pub.settings`, `ignore_hooks` or
+`ignore_hook`.
+
+The Dart SDK is not a request: the root's `dart.toolchain` pin is exact, and a
+module asking for a newer SDK fails the build, naming the fix.
 
 #### Adding a dependency
 
@@ -1639,8 +1658,8 @@ The [`e2e/`](e2e/) directory contains complete working examples:
 | [`cross_compile`](e2e/cross_compile/)                       | Cross-compilation to other platforms via `platform_data` transition                             |
 | [`dart_test_pkg`](e2e/dart_test_pkg/)                       | `dart_test` with pub dependencies via `pub.from_lock()`                                         |
 | [`pub_lock_dedup`](e2e/pub_lock_dedup/)                     | Cross-lock-file package deduplication                                                           |
-| [`pub_lock_upgrade`](e2e/pub_lock_upgrade/)                 | Version conflict resolution with `on_version_conflict = "upgrade"`                              |
-| [`pub_lock_conflict`](e2e/pub_lock_conflict/)               | Version conflict detection across lock files                                                    |
+| [`pub_lock_upgrade`](e2e/pub_lock_upgrade/)                 | Locks that disagree build the highest version, rules_dart's own lock included                   |
+| [`pub_lock_conflict`](e2e/pub_lock_conflict/)               | `check_direct_dependencies = "error"` fails a raised root lock, giving the command to raise it  |
 | [`pub_lock_cross_module`](e2e/pub_lock_cross_module/)       | `pub.from_lock()` across Bazel module boundaries                                                |
 | [`pub_lock_cycle`](e2e/pub_lock_cycle/)                     | Packages that depend on each other: a curated cycle (`dio`), and one the root declares          |
 | [`pub_package_cycle`](e2e/pub_package_cycle/)               | `pub.package()` packages that depend on each other, built as one library                        |
@@ -1655,11 +1674,9 @@ The [`e2e/`](e2e/) directory contains complete working examples:
 | [`pub_package_missing_dep`](e2e/pub_package_missing_dep/)   | A `pub.package()` whose pubspec depends on an unsupplied package fails, naming both             |
 | [`kernel_source_refused`](e2e/kernel_source_refused/)       | A `dart_kernel_source` with both or neither of `dart_version` and `path`, or no checkout, fails |
 | [`pub_override_root_lock`](e2e/pub_override_root_lock/)     | The root's lock wins over a dependency module's `pub.package()`                                 |
-| [`pub_package_conflict`](e2e/pub_package_conflict/)         | Two dependency modules' differing `pub.package()`s fail, naming both                            |
-| [`pub_root_older_package`](e2e/pub_root_older_package/)     | A root `pub.package()` below a dependency's fails, naming both versions                         |
-| [`pub_root_older_lock`](e2e/pub_root_older_lock/)           | A root lock below a dependency's `pub.package()` fails, naming both versions                    |
-| [`pub_root_older_allowed`](e2e/pub_root_older_allowed/)     | `pub.settings(allow_older_than_dependencies = True)` lets the root hold the older one           |
-| [`pub_root_newer`](e2e/pub_root_newer/)                     | A root lock above a dependency's `pub.package()` wins, warning that it raised it                |
+| [`pub_highest_wins`](e2e/pub_highest_wins/)                 | The highest request builds, over root and dependency `pub.package()`s, warning for the root's   |
+| [`pub_root_older_lock`](e2e/pub_root_older_lock/)           | Under `check_direct_dependencies = "error"`, a dependency raising the root's lock fails         |
+| [`pub_root_newer`](e2e/pub_root_newer/)                     | A root lock above a dependency's `pub.package()` wins, silently                                 |
 | [`codegen`](e2e/codegen/)                                   | `dart_codegen`/`dart_aggregate_codegen` over parts, re-exports and source sets                  |
 | [`ext_exemplar`](e2e/ext_exemplar/)                         | One package per bundled `dart/ext` builder, plus native `code_assets`, sqlite3/webcrypto        |
 | [`link_hook`](e2e/link_hook/)                               | `record_use` and a package's `hook/link.dart` emitting a data asset via `dart_link_hook`        |

@@ -54,12 +54,14 @@ bzl_library(
     deps = [
         ":pub_graph",
         ":pub_lock_package",
+        ":pub_versions",
         ":yaml_parser",
         "//dart/ext:registry",
         "//dart/pub/private:pub_archive",
         "//dart/pub/private:pub_git",
         "//dart/pub/private:pub_lock_hub",
         "//dart/pub/private:pub_lock_library",
+        "//dart/pub/private:pub_settings",
         "//dart/pub/private:version",
     ],
 )
@@ -76,6 +78,13 @@ bzl_library(
     srcs = ["yaml_parser.bzl"],
     visibility = ["//visibility:public"],
     deps = ["@yaml.bzl//:yaml"],
+)
+
+bzl_library(
+    name = "pub_versions",
+    srcs = ["pub_versions.bzl"],
+    visibility = ["//visibility:public"],
+    deps = ["//dart/pub/private:version"],
 )
 
 bzl_library(

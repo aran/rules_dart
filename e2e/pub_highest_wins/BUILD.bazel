@@ -1,0 +1,29 @@
+load(":checks.bzl", "pub_graph_check")
+
+exports_files(["pubspec.lock"])
+
+# Property: every statement of a package's version is a request, and the
+# highest is built for the whole build, whoever states it.
+
+# The root's `pub.package()` asks for `tuple` 2.0.1 and mod_c's lock for 2.0.2:
+# 2.0.2 is built, and the build warns that the root's request was raised (CI
+# checks the warning).
+pub_graph_check(
+    name = "root_declaration_is_raised_by_dependency_lock",
+    target = "@tuple",
+    versions = {"tuple": "2.0.2"},
+)
+
+# mod_b's `pub.package()` asks for `path` 1.9.0 and mod_c's lock for 1.9.1:
+# both modules' names for it build 1.9.1, and nothing is printed.
+pub_graph_check(
+    name = "dependency_declaration_is_raised_by_dependency_lock",
+    target = "@mod_b//:path",
+    versions = {"path": "1.9.1"},
+)
+
+pub_graph_check(
+    name = "dependency_lock_wins",
+    target = "@mod_c//:path",
+    versions = {"path": "1.9.1"},
+)

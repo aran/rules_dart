@@ -1,7 +1,7 @@
 # This workspace fails on purpose; `bazel run @overhead//locks:check` passes a
 # step that fails printing each line below.
-# Two lock files pin different versions of one package; the pub extension
-# refuses them, giving the command that re-resolves the lagging one, as the
-# expected-failure CI job asserts.
-conflicting versions across lock files
+# Two of the root's lock files pin different versions of one package and the
+# root makes a raised request an error; the pub extension gives the command
+# that re-resolves the lagging one, as the expected-failure CI job asserts.
+newer than the root module asks for
 bazel run @rules_dart//dart/pub -- upgrade --directory=b path

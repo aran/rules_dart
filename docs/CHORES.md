@@ -140,7 +140,7 @@ a module the root's own `local_path_override` names without a `.bazelversion`
 of its own, which resolves as part of the root.
 
 A workspace that fails on purpose holds a `lock_expected_failure.txt` naming
-what its failure prints (`e2e/pub_lock_conflict`, `e2e/pub_package_conflict`,
+what its failure prints (`e2e/pub_lock_conflict`, `e2e/pub_root_older_lock`,
 `e2e/pub_lock_unsupplied`, `e2e/pub_package_missing_dep`, `e2e/kernel_source_refused`, `e2e/pub_lock_resolve_invalid`, `e2e/toolchain_pin_conflict`,
 the sha256 refusals, and `e2e/pub_archive_links`, whose pub lock only exists
 while its `check.dart` runs). The tool passes a step that fails with that text
@@ -279,10 +279,9 @@ Each in-repo Dart package is publishable to pub.dev. Maintenance includes:
 
   `dart/ext/` moves as a deliberate chore, not with the routine sweep. Its
   lock is `ext_pub_deps`, shared with every workspace that runs codegen, and
-  there is one version per package across all locks. `ext_pub_deps` sets
-  `on_version_conflict = "upgrade"`, so a consumer's newer version wins over
-  ours, but a consumer lock _older_ than ours for a shared package still
-  fails the build unless that consumer sets it too. The graph rides the
+  there is one version per package across all locks, the highest any of them
+  asks for. A consumer's newer version wins over ours silently; ours raising a
+  consumer's lock warns them, naming `ext_pub_deps`. The graph rides the
   newest analyzer line every builder accepts: today that is analyzer 14.x,
   while `build` stays on 4.x because every generator except `source_gen`
   caps it below 5. `e2e/codegen`,

@@ -20,11 +20,12 @@ pub.from_lock(
     lock = "//:pubspec.lock",
 )
 
-# `collection` is in the lock AND declared here, at an older version: the
-# declaration wins, and the hub must still expose `@surface//:collection`.
+# `collection` is in the lock AND declared here, at a newer version: the
+# declaration's request is the highest, so its repository is the package, and
+# the hub must still expose `@surface//:collection`.
 pub.package(
     name = "collection",
-    sha256 = "a1ace0a119f20aabc852d165077c036cd864315bd99b7eaa10a60100341941bf",
-    version = "1.19.0",
+    sha256 = "2f5709ae4d3d59dd8f7cd309b4e023046b57d8a6c82130785d2b0e5868084e76",
+    version = "1.19.1",
 )
 use_repo(pub, "collection", "surface")

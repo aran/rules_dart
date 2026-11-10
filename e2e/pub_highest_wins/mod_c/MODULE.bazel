@@ -1,0 +1,12 @@
+module(name = "mod_c")
+
+bazel_dep(name = "rules_dart", version = "0.0.0")
+
+# Its lock pins `path` 1.9.1 and `tuple` 2.0.2, above mod_b's and the root's
+# requests.
+pub = use_extension("@rules_dart//dart/pub:extensions.bzl", "pub")
+pub.from_lock(
+    name = "mod_c_deps",
+    lock = "//:pubspec.lock",
+)
+use_repo(pub, "mod_c_deps")

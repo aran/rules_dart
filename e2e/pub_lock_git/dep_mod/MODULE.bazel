@@ -1,0 +1,12 @@
+module(name = "dep_mod")
+
+bazel_dep(name = "rules_dart", version = "0.0.0")
+
+# Its lock lists `git_root` from pub.dev and `git_sub` at another commit; the
+# root's lock lists both from git.
+pub = use_extension("@rules_dart//dart/pub:extensions.bzl", "pub")
+pub.from_lock(
+    name = "dep_mod_deps",
+    lock = "//:pubspec.lock",
+)
+use_repo(pub, "dep_mod_deps")

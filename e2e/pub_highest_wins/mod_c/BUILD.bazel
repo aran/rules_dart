@@ -1,0 +1,8 @@
+exports_files(["pubspec.lock"])
+
+# The module's own name for a package its lock pins.
+alias(
+    name = "path",
+    actual = "@mod_c_deps//:path",
+    visibility = ["//visibility:public"],
+)

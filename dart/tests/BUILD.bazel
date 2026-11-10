@@ -18,6 +18,7 @@ load(":provider_shape_test.bzl", "provider_shape_probe")
 load(":pub_archive_test.bzl", "pub_archive_test_suite")
 load(":pub_git_test.bzl", "pub_git_test_suite")
 load(":pub_graph_test.bzl", "pub_graph_test_suite")
+load(":pub_versions_test.bzl", "pub_versions_test_suite")
 load(":registry_test.bzl", "registry_test_suite")
 load(":repositories_reproducible_test.bzl", "repositories_reproducible_test_suite")
 load(":semver_test.bzl", "semver_test_suite")
@@ -75,6 +76,8 @@ pub_git_test_suite(name = "pub_git_test")
 semver_test_suite(name = "semver_test")
 
 pub_graph_test_suite(name = "pub_graph_test")
+
+pub_versions_test_suite(name = "pub_versions_test")
 
 web_compiler_test_suite(name = "web_compiler_test")
 

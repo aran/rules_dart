@@ -3,12 +3,13 @@
 load("//dart/ext:registry.bzl", "curated_code_assets", "curated_cycles")
 load("//dart/pub:pub_graph.bzl", "cycle_declaration", "cycle_declarations_error")
 load("//dart/pub:pub_lock_package.bzl", "pub_lock_git_package", "pub_lock_package", "pub_lock_path_package")
+load("//dart/pub:pub_versions.bzl", "CHECK_LEVELS", "pub_version_request", "select_pub_version")
 load("//dart/pub:yaml_parser.bzl", "parse_pubspec_lock")
 load("//dart/pub/private:pub_archive.bzl", "check_pub_archive_sha256")
 load("//dart/pub/private:pub_git.bzl", "check_pub_git_resolved_ref", "is_relative_git_url")
 load("//dart/pub/private:pub_lock_hub.bzl", "pub_lock_hub")
 load("//dart/pub/private:pub_lock_library.bzl", "index_repo", "library_repo", "pub_lock_ignored", "pub_lock_index", "pub_lock_library", "pub_lock_resolved", "source_repo")
-load("//dart/pub/private:version.bzl", "semver_gt")
+load("//dart/pub/private:pub_settings.bzl", "root_only_settings")
 
 _SPOKE_PREFIX = "dart_pub"
 
@@ -42,7 +43,9 @@ _package = tag_class(
             mandatory = True,
         ),
         "version": attr.string(
-            doc = "The package version to download.",
+            doc = "The least version this module accepts. Every `pub.package()` and every " +
+                  "lock entry of the package in the build is a request, and the highest " +
+                  "is built (see `pub.settings`).",
             mandatory = True,
         ),
         "sha256": attr.string(
@@ -53,7 +56,9 @@ _package = tag_class(
             doc = "The package's `hook/build.dart` is knowingly irrelevant to this build " +
                   "(its native code is never reached): suppresses the unreplaced-hook error " +
                   "for it, as `pub.from_lock(ignore_hooks = [...])` does for a lock's " +
-                  "packages. A declaration you make deliberately; never a default.",
+                  "packages. A declaration you make deliberately; never a default. Only the " +
+                  "root module may set it: whether a hook matters depends on the programs " +
+                  "the build makes, which are the root's.",
             default = False,
         ),
     },
@@ -94,8 +99,8 @@ _from_lock = tag_class(
                   "third depends on both. It also means a module can reach a package only " +
                   "another module's lock names, which resolves today and breaks the day that " +
                   "module leaves the build, so state in your own lock everything you import. " +
-                  "Package versions are reconciled across the union — see " +
-                  "`on_version_conflict`.",
+                  "Versions are chosen build-wide, the highest request winning — see " +
+                  "`pub.settings`.",
             mandatory = True,
         ),
         "lock": attr.label(
@@ -107,14 +112,9 @@ _from_lock = tag_class(
             doc = "Pub package names whose `hook/build.dart` is knowingly irrelevant to this " +
                   "build (its native code is never reached). Suppresses the unreplaced-hook " +
                   "error for them. This is a declaration you make deliberately; it is never a " +
-                  "default.",
+                  "default. Only the root module may set it: whether a hook matters depends on " +
+                  "the programs the build makes, which are the root's.",
             default = [],
-        ),
-        "on_version_conflict": attr.string(
-            doc = "What to do when another lock file provides a higher version of a package. " +
-                  "'error' (default) fails the build. 'upgrade' accepts the higher version.",
-            default = "error",
-            values = ["error", "upgrade"],
         ),
         "resolve": attr.string_keyed_label_dict(
             doc = "Locked packages served by a target of yours instead of what the lock " +
@@ -150,19 +150,26 @@ _from_lock = tag_class(
 
 _settings = tag_class(
     attrs = {
-        "allow_older_than_dependencies": attr.bool(
-            doc = "Lets the root module hold a package at an older version than a " +
-                  "dependency module's `pub.package()` asked for. By default a " +
-                  "dependency's version is a minimum: the root's `pub.package()` or lock " +
-                  "wins over it only when its version is the same or newer (a newer one " +
-                  "prints a warning naming the module), and an older " +
-                  "one fails the build. Only the root module may set it.",
-            default = False,
+        "check_direct_dependencies": attr.string(
+            doc = "What to do when one of the root module's own requests (a " +
+                  "`pub.package()` or a hosted lock entry) is raised by a higher request " +
+                  "elsewhere in the build: `warning` (the default) prints the package, both " +
+                  "versions, who raised it and how to raise the root's, `error` fails the " +
+                  "build with that message, and `off` says nothing. Raising another module's " +
+                  "request is what a minimum means and is never reported. Bazel's " +
+                  "`--check_direct_dependencies` does the same for `bazel_dep`.",
+            default = "warning",
+            values = CHECK_LEVELS,
         ),
     },
+    doc = "How the extension reports the build's version choices. Every statement of a " +
+          "hosted package's version, each module's `pub.package()` and each lock entry " +
+          "alike, is a request, and the highest is built, as Bazel's minimal version " +
+          "selection does for modules. Two requests of one version must pin one digest. " +
+          "Only the root module may use this tag, at most once.",
 )
 
-def _resolved_packages(locks, explicit):
+def _resolved_packages(locks, declared):
     """Decides which locked packages a workspace target serves, from `resolve`.
 
     Fails, naming each problem of a `from_lock` call, where it maps a name its
@@ -173,7 +180,7 @@ def _resolved_packages(locks, explicit):
 
     Args:
       locks: Every lock, as `_pub_impl` parses them.
-      explicit: The winning `pub.package()` declaration per name.
+      declared: The packages a `pub.package()` requests.
 
     Returns:
       Package name -> `struct(target, lock_label)`.
@@ -238,7 +245,7 @@ def _resolved_packages(locks, explicit):
             fail("pub.from_lock(name = \"%s\", lock = \"%s\"):\n%s" % (tag.name, tag.lock, "\n".join(problems)))
 
         for name, target in tag.resolve.items():
-            if name in explicit:
+            if name in declared:
                 fail(
                     ("Package \"%s\" is declared with `pub.package()` and mapped to %s by " +
                      "the `resolve` of the `pub.from_lock()` for %s. Each package is one " +
@@ -316,12 +323,12 @@ def _unbuildable_paths(lock):
         )
     return problems
 
-def _path_packages(locks, explicit):
+def _path_packages(locks, declared):
     """Collects the `path` packages each lock builds from its pubspec or ignores.
 
     Args:
       locks: Every lock, as `_pub_impl` parses them.
-      explicit: The winning `pub.package()` declaration per name.
+      declared: The packages a `pub.package()` requests.
 
     Returns:
       `struct(built, ignored)`: package name -> `struct(directory, path,
@@ -334,7 +341,7 @@ def _path_packages(locks, explicit):
     for lock in locks:
         tag = lock.tag
         for name in tag.build_from_pubspec + tag.ignored.keys():
-            if name in explicit:
+            if name in declared:
                 fail(("Package \"%s\" is declared with `pub.package()` and named by the " +
                       "`pub.from_lock()` for %s. Each package is one repository; keep one of the " +
                       "two.") % (name, tag.lock))
@@ -370,114 +377,117 @@ def _path_packages(locks, explicit):
                   "build it or ignore it everywhere.") % (name, built[name].lock_label, ignored[name].lock_label))
     return struct(built = built, ignored = ignored)
 
-def _explicit_packages(ctx, root_locks, allow_older):
-    """Decides which `pub.package()` declaration supplies each package it names.
+def _where_lock(module, lock):
+    where = "the lock `//%s:%s`" % (lock.package, lock.name)
+    if not module.is_root:
+        where += " in module `%s`" % module.name
+    return where
 
-    Bazel's convention: the root module decides. A root declaration wins; so
-    does the root's lock over another module's declaration. Two other modules
-    that disagree, with the root silent, fail: rules_dart builds one version of
-    each package, and which of theirs would be picking for the root.
+def _where_declaration(module):
+    if module.is_root:
+        return "`pub.package()` in the root module"
+    return "`pub.package()` in module `%s`" % module.name
 
-    A dependency's version is a minimum. The root wins only at the same or a
-    newer version, with a warning naming the module it raised; an older one
-    fails unless `allow_older` is set.
+def _root_unversioned(locks):
+    """The packages the root's locks list from a source with no version order.
+
+    Such a package (git, sdk, path) is what the root's lock says for the whole
+    build, over every other module's statement of it, lock entry or
+    `pub.package()`, as a root `git_override` is over a `bazel_dep`: there is
+    no order to pick the highest by.
+
+    Args:
+      locks: Every lock, as `_pub_impl` parses them.
+
+    Returns:
+      Package name -> its `source` in the root's lock.
+    """
+    root_unversioned = {}
+    for lock in locks:
+        if lock.module.is_root:
+            for name, info in lock.packages.items():
+                if info.get("source") != "hosted":
+                    root_unversioned[name] = info.get("source")
+    return root_unversioned
+
+def _declarations(ctx, root_unversioned):
+    """Collects every module's `pub.package()` declarations that request a version.
+
+    A package the root's lock lists from a source with no version order, and
+    the root does not declare, is what that lock says: another module's
+    declaration of it then names the root's choice.
 
     Args:
       ctx: The module extension context.
-      root_locks: Package name -> `struct(version, lock_label)` for each package
-        the root module's locks list, whatever their source.
-      allow_older: Whether the root may hold a package older than a dependency
-        module declared it.
+      root_unversioned: `_root_unversioned`'s result.
 
     Returns:
-      `struct(explicit, overridden)`: the winning declaration per name, and the
-      names other modules declared that the root's lock supplies instead, each
-      with the declaring modules.
+      `struct(declared, overridden)`: package name -> the declarations that
+      request it, each `struct(module, tag)`, in module order; and package
+      name -> the modules whose declarations the root's lock supplies instead.
     """
-    root = {}
-    others = {}
+    declarations = {}
     for mod in ctx.modules:
         for pkg in mod.tags.package:
-            if mod.is_root:
-                root.setdefault(pkg.name, pkg)
-            else:
-                others.setdefault(pkg.name, []).append(struct(module = mod.name, tag = pkg))
-
-    explicit = dict(root)
+            declarations.setdefault(pkg.name, []).append(struct(module = mod, tag = pkg))
+    declared = {}
     overridden = {}
-    for name, decls in others.items():
-        if name in root or name in root_locks:
-            if name in root:
-                root_version = root[name].version
-                root_source = "`pub.package()` in the root module"
-            else:
-                root_version = root_locks[name].version
-                root_source = "the lock `%s`" % root_locks[name].lock_label.removeprefix("@@")
-            older = [d for d in decls if semver_gt(d.tag.version, root_version)]
-            if older and not allow_older:
-                highest = older[0].tag.version
-                for d in older:
-                    if semver_gt(d.tag.version, highest):
-                        highest = d.tag.version
-                fail(
-                    ("Package \"%s\" is at %s in the root module (from %s), older than " +
-                     "a module it depends on asked for:\n%s\n" +
-                     "A dependency's `pub.package()` version is a minimum. Raise the root's " +
-                     "version of `%s` to at least %s, or hold the older one on purpose with " +
-                     "`pub.settings(allow_older_than_dependencies = True)` in the root " +
-                     "module.") % (
-                        name,
-                        root_version,
-                        root_source,
-                        "".join([
-                            "  - %s, from module `%s`\n" % (d.tag.version, d.module)
-                            for d in older
-                        ]).rstrip("\n"),
-                        name,
-                        highest,
-                    ),
-                )
-            raised = [d for d in decls if semver_gt(root_version, d.tag.version)]
-            if raised:
-                # Bazel warns the same way when the root's graph resolves a
-                # module dependency above the version a MODULE.bazel asked for.
-                # buildifier: disable=print
-                print(
-                    ("Package \"%s\" is at %s in the root module (from %s), newer than " +
-                     "a module it depends on asked for:\n%s\n" +
-                     "Those modules are built against %s.") % (
-                        name,
-                        root_version,
-                        root_source,
-                        "".join([
-                            "  - %s, from module `%s`\n" % (d.tag.version, d.module)
-                            for d in raised
-                        ]).rstrip("\n"),
-                        root_version,
-                    ),
-                )
-            if name not in root:
-                overridden[name] = [d.module for d in decls]
-            continue
-        versions = {(d.tag.version, d.tag.sha256): True for d in decls}
-        if len(versions) > 1:
-            fail(
-                ("Package \"%s\" is declared at different versions by modules the root " +
-                 "depends on, and the root module states none:\n%s\n" +
-                 "rules_dart builds one version of each package. Pin it in the root " +
-                 "module, with `pub.package(name = \"%s\", version = ..., sha256 = ...)` " +
-                 "or in a lock the root passes to `pub.from_lock()`; the root's choice " +
-                 "wins over every other module's.") % (
-                    name,
-                    "".join([
-                        "  - %s (sha256 %s), from module `%s`\n" % (d.tag.version, d.tag.sha256, d.module)
-                        for d in decls
-                    ]),
-                    name,
-                ),
-            )
-        explicit[name] = decls[0].tag
-    return struct(explicit = explicit, overridden = overridden)
+    for name, decls in declarations.items():
+        if name in root_unversioned and not any([d.module.is_root for d in decls]):
+            overridden[name] = [d.module.name for d in decls]
+        else:
+            declared[name] = decls
+    return struct(declared = declared, overridden = overridden)
+
+def _select_versions(name, decls, entries, url, check):
+    """Picks a hosted package's version from its declarations and lock entries.
+
+    Args:
+      name: The package.
+      decls: Its `pub.package()` declarations, as `_declarations` gives them.
+      entries: Its hosted lock entries.
+      url: The registry its lock entries name, or pub.dev.
+      check: The root's `check_direct_dependencies`.
+
+    Returns:
+      `struct(version, sha256, url, declared, warnings, error)`: the winner,
+      whether a declaration states it (its repository is then named for the
+      package), and the messages.
+    """
+    requests = [
+        pub_version_request(
+            version = d.tag.version,
+            sha256 = d.tag.sha256,
+            url = "https://pub.dev",
+            is_root = d.module.is_root,
+            where = _where_declaration(d.module),
+        )
+        for d in decls
+    ] + [
+        pub_version_request(
+            version = e.version,
+            sha256 = e.sha256,
+            url = url,
+            is_root = e.is_root,
+            where = e.where,
+            upgrade = _pub_command("upgrade", e.lock_file, [name]),
+            refresh = _pub_command("get", e.lock_file),
+        )
+        for e in entries
+    ]
+    selection = select_pub_version(name, requests, check)
+    if selection.error:
+        return struct(error = selection.error, warnings = [])
+    winner = selection.request
+    warnings = [selection.warning] if selection.warning else []
+    return struct(
+        version = winner.version,
+        sha256 = winner.sha256,
+        url = winner.url,
+        declared = any([d.tag.version == winner.version for d in decls]),
+        warnings = warnings,
+        error = None,
+    )
 
 def _cycles(ctx, fetched, resolved_targets, ignored):
     """Collects the `pub.cycle()` declarations every library repository plans against.
@@ -606,14 +616,13 @@ def _add_git_package(git_registry, name, info, lock_tag):
         )
 
 def _pub_impl(ctx):
-    # Packages the user has declared hook-irrelevant, unioned across every
-    # from_lock call — a package is one repo regardless of how many locks
-    # mention it, so the flag cannot be per-lock.
-    ignore_hooks = {}
-    for mod in ctx.modules:
-        for lock_tag in mod.tags.from_lock:
-            for pkg_name in lock_tag.ignore_hooks:
-                ignore_hooks[pkg_name] = True
+    # The root's settings, and the packages whose hooks it declared
+    # irrelevant: a package is one repository however many tags name it, so
+    # the flag is per package, never per tag.
+    settings = root_only_settings(ctx.modules)
+    if settings.error:
+        fail(settings.error)
+    ignore_hooks = settings.ignore_hooks
 
     # Repos the root module names, mapped to whether every naming is a
     # `dev_dependency = True` usage: Bazel checks the root's `use_repo` calls
@@ -622,32 +631,19 @@ def _pub_impl(ctx):
 
     # Every lock, parsed once, in module order.
     locks = []
-    root_locks = {}
-    allow_older = False
-    for mod in ctx.modules:
-        for settings in mod.tags.settings:
-            if not mod.is_root:
-                fail(
-                    ("Only the root module may set allow_older_than_dependencies on " +
-                     "pub.settings, but module `%s` sets it. A dependency cannot decide " +
-                     "that the root may hold packages older than the ones it asked for; " +
-                     "set it in the root module.") % mod.name,
-                )
-            allow_older = allow_older or settings.allow_older_than_dependencies
     for mod in ctx.modules:
         for lock_tag in mod.tags.from_lock:
             lock_pkgs = parse_pubspec_lock(ctx.read(lock_tag.lock), lock_tag.lock)
             locks.append(struct(module = mod, tag = lock_tag, packages = lock_pkgs))
-            if mod.is_root:
-                for name, info in lock_pkgs.items():
-                    seen = root_locks.get(name)
-                    if seen == None or semver_gt(info["version"], seen.version):
-                        root_locks[name] = struct(version = info["version"], lock_label = str(lock_tag.lock))
 
-    # Individual package declarations take priority over the locks, and the
-    # root module's statements over every other module's.
-    explicit_packages = _explicit_packages(ctx, root_locks, allow_older)
-    explicit = explicit_packages.explicit
+    # Every module's `pub.package()` requests, and the ones the root's lock
+    # supplies instead.
+    root_unversioned = _root_unversioned(locks)
+    declarations = _declarations(ctx, root_unversioned)
+    declared = declarations.declared
+    for decls in declared.values():
+        for d in decls:
+            check_pub_archive_sha256(d.tag.name, d.tag.version, d.tag.sha256, "pub.package()")
     for mod in ctx.modules:
         if mod.is_root:
             for pkg in mod.tags.package:
@@ -655,35 +651,15 @@ def _pub_impl(ctx):
 
     # Packages a workspace target serves, by `resolve`, and the `path`
     # packages built from their pubspec or ignored.
-    resolved_targets = _resolved_packages(locks, explicit)
-    path_packages = _path_packages(locks, explicit)
+    resolved_targets = _resolved_packages(locks, declared)
+    path_packages = _path_packages(locks, declared)
     for name in path_packages.built.keys() + path_packages.ignored.keys():
         if name in resolved_targets:
             fail(("Package \"%s\" is mapped by `resolve` in the `pub.from_lock()` for %s and " +
                   "named by `build_from_pubspec` or `ignored` in another. rules_dart builds one " +
                   "copy of each package; choose one.") % (name, resolved_targets[name].lock_label))
 
-    # A package declared with `pub.package()` is a source and a library
-    # repository, as a locked one is, so it is planned with the others and
-    # can be in a cycle with them. Its library repository is named for it.
-    for name, pkg in explicit.items():
-        check_pub_archive_sha256(name, pkg.version, pkg.sha256, "pub.package()")
-        pub_lock_package(
-            name = source_repo(_SPOKE_PREFIX, name),
-            package_name = name,
-            version = pkg.version,
-            sha256 = pkg.sha256,
-            code_assets = curated_code_assets(name, pkg.version),
-            ignore_hook = pkg.ignore_hook,
-        )
-        pub_lock_library(
-            name = name,
-            package_name = name,
-            spoke_prefix = _SPOKE_PREFIX,
-        )
-
-    # Collect all packages from all lock files into a unified registry.
-    # registry[pkg_name] = {url, entries: [{version, sha256, hub_name, lock_label, on_version_conflict}]}
+    # Every hosted lock entry, per package: each is a version request.
     registry = {}
 
     # Which packages belong to each hub, as a set per hub (for per-hub alias
@@ -719,13 +695,26 @@ def _pub_impl(ctx):
         skipped_by_source = {}
 
         for name, info in lock.packages.items():
-            # A package declared with `pub.package()` is that repository, and
-            # one `resolve` maps is that target, however the lock lists it.
-            if name in explicit or name in resolved_targets or name in path_packages.built or name in path_packages.ignored:
+            # One `resolve` maps is that target, however the lock lists it.
+            if name in resolved_targets or name in path_packages.built or name in path_packages.ignored:
                 hub_packages[hub_name][name] = True
                 continue
 
+            # A `pub.package()` supplies a package the lock lists from a source
+            # with no version to compare (git, sdk); a hosted entry is one more
+            # request for it.
             source = info.get("source", "unknown")
+            if name in declared and source != "hosted":
+                hub_packages[hub_name][name] = True
+                continue
+
+            # Another module's entry for a package the root's lock lists from
+            # a source with no version order is the root's entry: a git
+            # package is the root's commit, and an sdk one is not fetched.
+            if not mod.is_root and name in root_unversioned and name not in declared:
+                if root_unversioned[name] == "git":
+                    hub_packages[hub_name][name] = True
+                continue
             if source == "git":
                 hub_packages[hub_name][name] = True
                 _add_git_package(git_registry, name, info, lock_tag)
@@ -748,26 +737,15 @@ def _pub_impl(ctx):
                 str(lock_tag.lock),
                 rewrite = _pub_command("get", lock_tag.lock),
             )
-            entry = struct(
+            registry.setdefault(name, []).append(struct(
                 version = version,
                 sha256 = sha256,
-                hub_name = hub_name,
+                url = url,
+                is_root = mod.is_root,
+                where = _where_lock(mod, lock_tag.lock),
                 lock_label = str(lock_tag.lock),
                 lock_file = lock_tag.lock,
-                on_version_conflict = lock_tag.on_version_conflict,
-            )
-
-            if name not in registry:
-                registry[name] = struct(url = url, entries = [entry])
-            else:
-                existing = registry[name]
-                if existing.url != url:
-                    fail(
-                        "Package \"%s\" has conflicting registry URLs:\n" % name +
-                        "  - %s (from \"%s\")\n" % (existing.url, existing.entries[0].hub_name) +
-                        "  - %s (from \"%s\")\n" % (url, hub_name),
-                    )
-                registry[name] = struct(url = existing.url, entries = existing.entries + [entry])
+            ))
 
         if skipped_by_source:
             details = []
@@ -814,75 +792,57 @@ def _pub_impl(ctx):
                  "or declare it with `pub.package()` in the root module.") % (
                     name,
                     git_pkg.lock_label,
-                    registry[name].entries[0].lock_label,
+                    registry[name][0].lock_label,
                 ),
             )
 
-    # Resolve each package to a single version
-    resolved = {}  # pkg_name -> {version, sha256, url}
-    for name, pkg in registry.items():
-        # One archive per version: locks that pin it to different digests
-        # cannot all describe what is fetched, whichever is listed first.
-        digests = {}
-        for e in pkg.entries:
-            first = digests.setdefault(e.version, e)
-            if first.sha256 != e.sha256:
-                fail(
-                    "Package \"%s\" %s has conflicting sha256 digests across lock files:\n" % (name, e.version) +
-                    "  - %s (from \"%s\", %s)\n" % (first.sha256, first.hub_name, first.lock_label) +
-                    "  - %s (from \"%s\", %s)\n" % (e.sha256, e.hub_name, e.lock_label) +
-                    "\nAt most one of them describes the archive the registry serves. " +
-                    "Re-resolving a lock checks its digests against the registry and reports " +
-                    "a wrong one. Run each from the root of the workspace that holds that lock:\n" +
-                    "  %s\n" % _pub_command("get", first.lock_file) +
-                    "  %s" % _pub_command("get", e.lock_file),
-                )
-
-        if len(pkg.entries) == 1:
-            e = pkg.entries[0]
-            resolved[name] = struct(version = e.version, sha256 = e.sha256, url = pkg.url)
+    # One version per hosted package: the highest request, a `pub.package()`
+    # in any module or a lock entry, wins.
+    explicit = {}  # name -> the winning declaration's version and digest
+    resolved = {}  # name -> the winning lock entry's version, digest and registry
+    errors = []
+    for name in sorted(declared.keys() + [n for n in registry if n not in declared]):
+        entries = registry.get(name, [])
+        selection = _select_versions(
+            name,
+            declared.get(name, []),
+            entries,
+            entries[0].url if entries else "https://pub.dev",
+            settings.check,
+        )
+        if selection.error:
+            errors.append(selection.error)
             continue
+        for warning in selection.warnings:
+            # buildifier: disable=print
+            print(warning)
+        pkg = struct(version = selection.version, sha256 = selection.sha256, url = selection.url)
+        if selection.declared:
+            explicit[name] = pkg
+        else:
+            resolved[name] = pkg
+    if errors:
+        fail("\n\n".join(errors))
 
-        # Find the highest version
-        best = pkg.entries[0]
-        for e in pkg.entries[1:]:
-            if semver_gt(e.version, best.version):
-                best = e
-
-        # Every lock below the highest version must allow the upgrade.
-        lagging = [
-            e
-            for e in pkg.entries
-            if e.version != best.version and e.on_version_conflict == "error"
-        ]
-        if lagging:
-            fail(
-                "Package \"%s\" has conflicting versions across lock files:\n" % name +
-                "".join([
-                    "  - %s (from \"%s\", %s)\n" % (entry.version, entry.hub_name, entry.lock_label)
-                    for entry in pkg.entries
-                ]) +
-                "\nrules_dart builds one version of each package, the highest a lock records:\n" +
-                "%s here. A lock that records a lower one fails the build unless its from_lock()\n" % best.version +
-                "accepts the upgrade. pub keeps the versions a lock already records on `get`,\n" +
-                "so only an `upgrade` brings the locks together. To resolve:\n" +
-                "\n" +
-                "  1. (Preferred) Re-resolve each lock below %s with the pinned Dart SDK,\n" % best.version +
-                "     from the root of the workspace that holds it:\n" +
-                "".join([
-                    "       %s\n" % _pub_command("upgrade", e.lock_file, [name])
-                    for e in lagging
-                ]) +
-                "     pub moves \"%s\" forward as far as that package's constraints allow.\n" % name +
-                "\n" +
-                "  2. If a package's constraints forbid %s, set on_version_conflict = \"upgrade\"\n" % best.version +
-                "     on the from_lock() that reads its lock, to build it against %s anyway.\n" % best.version +
-                "\n" +
-                "  3. Or pin one version for every lock, in the root module:\n" +
-                "       pub.package(name = \"%s\", version = \"%s\", sha256 = \"%s\")" % (name, best.version, best.sha256),
-            )
-
-        resolved[name] = struct(version = best.version, sha256 = best.sha256, url = pkg.url)
+    # A package declared with `pub.package()` whose winning request is a
+    # declaration is a source and a library repository, as a locked one is,
+    # so it is planned with the others and can be in a cycle with them. Its
+    # library repository is named for it.
+    for name, pkg in explicit.items():
+        pub_lock_package(
+            name = source_repo(_SPOKE_PREFIX, name),
+            package_name = name,
+            version = pkg.version,
+            sha256 = pkg.sha256,
+            base_url = pkg.url,
+            code_assets = curated_code_assets(name, pkg.version),
+            ignore_hook = name in ignore_hooks,
+        )
+        pub_lock_library(
+            name = name,
+            package_name = name,
+            spoke_prefix = _SPOKE_PREFIX,
+        )
 
     # Create a source repository and a library repository per package.
     explicit_names = sorted(explicit.keys())
@@ -976,9 +936,9 @@ def _pub_impl(ctx):
             return "@{name}//:{name}".format(name = name)
         return "@{repo}//:{name}".format(repo = library_repo(_SPOKE_PREFIX, name), name = name)
 
-    # A package another module declared, which the root's lock supplies
-    # instead, keeps its repository name for that module's `use_repo`.
-    for name, modules in explicit_packages.overridden.items():
+    # A package the root's lock supplies over another module's declaration
+    # keeps its repository name for that module's `use_repo`.
+    for name, modules in declarations.overridden.items():
         if name not in fetched and name not in resolved_targets:
             fail(
                 ("Package \"%s\" is declared with `pub.package()` by %s, and the root " +
@@ -994,6 +954,14 @@ def _pub_impl(ctx):
             name = name,
             packages = {name: library_label(name)},
         )
+
+    # So does a declared package whose winning request is a lock entry.
+    for name in declared:
+        if name not in explicit:
+            pub_lock_hub(
+                name = name,
+                packages = {name: library_label(name)},
+            )
 
     # Create per-from_lock hub repos
     for hub_name, packages in hub_packages.items():

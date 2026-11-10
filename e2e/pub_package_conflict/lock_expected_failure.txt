@@ -1,5 +1,0 @@
-# This workspace fails on purpose; `bazel run @overhead//locks:check` passes a
-# step that fails printing each line below.
-# Two dependency modules declare different versions of one package and the
-# root states none.
-declared at different versions by modules the root depends on

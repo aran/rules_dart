@@ -14,7 +14,10 @@ use_repo(dart, "dart_toolchains")
 
 register_toolchains("@dart_toolchains//:all")
 
+# The root's lock pins `tuple` 2.0.1, which dep_mod's 2.0.2 raises; the root
+# makes a raised request of its own an error.
 pub = use_extension("@rules_dart//dart/pub:extensions.bzl", "pub")
+pub.settings(check_direct_dependencies = "error")
 
 bazel_dep(name = "dep_mod", version = "0.0.0")
 local_path_override(

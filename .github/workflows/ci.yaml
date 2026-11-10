@@ -65,7 +65,7 @@ jobs:
           "e2e/pub_lock_path",
           "e2e/pub_member_kind",
           "e2e/pub_override_root_lock",
-          "e2e/pub_root_older_allowed",
+          "e2e/pub_highest_wins",
           "e2e/pub_root_newer",
           "e2e/pub_package_padded",
           "e2e/ext_exemplar",
@@ -172,14 +172,15 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - name: pub_lock_conflict — expect version conflict error, and its command to resolve it
+      - name: pub_lock_conflict — expect a raised root lock to fail under check_direct_dependencies = "error", and its command to resolve it
         working-directory: e2e/pub_lock_conflict
         run: |
           if out=$(bazel build //:app 2>&1); then
-            echo "ERROR: build should have failed with a version conflict"
+            echo "ERROR: build should have failed: b's lock is raised and the root makes that an error"
             exit 1
           fi
-          echo "$out" | grep -q "conflicting versions across lock files"
+          echo "$out" | grep -q "newer than the root module asks for"
+          echo "$out" | grep -qF "1.9.0, from the lock \`//b:pubspec.lock\`"
           echo "$out" | grep -qF "bazel run @rules_dart//dart/pub -- upgrade --directory=b path"
           # The command the error gives runs while the pub extension refuses
           # the locks, and once it has, the build succeeds. Without a
@@ -189,46 +190,42 @@ jobs:
           bazel build //:app
           git checkout -- b/pubspec.lock
           echo "OK: expected conflict error detected; its command resolves it"
-      - name: pub_package_conflict — expect two modules' declarations to fail, naming both
-        working-directory: e2e/pub_package_conflict
-        run: |
-          if out=$(bazel build @pub//:path 2>&1); then
-            echo "ERROR: build should have failed: mod_b and mod_c declare different versions of path"
-            exit 1
-          fi
-          echo "$out" | grep -q "declared at different versions by modules the root depends on"
-          echo "$out" | grep -q "from module \`mod_b\`"
-          echo "$out" | grep -q "from module \`mod_c\`"
-          echo "OK: expected declaration conflict detected"
-      - name: pub_root_older_package — expect a root pub.package() below a dependency's to fail, naming both
-        working-directory: e2e/pub_root_older_package
-        run: |
-          if out=$(bazel build //... 2>&1); then
-            echo "ERROR: build should have failed: dep_mod asks for tuple 2.0.2 and the root states 2.0.1"
-            exit 1
-          fi
-          echo "$out" | grep -q "older than a module it depends on asked for"
-          echo "$out" | grep -q "from module \`dep_mod\`"
-          echo "$out" | grep -q "allow_older_than_dependencies = True"
-          echo "OK: expected downgrade refusal detected"
-      - name: pub_root_newer — expect a root lock above a dependency's pub.package() to build, warning
-        working-directory: e2e/pub_root_newer
+      - name: pub_highest_wins — expect the highest request to build, warning that the root's was raised
+        working-directory: e2e/pub_highest_wins
         run: |
           # The lock would replay the extension without running it, and the
           # warning with it.
           out=$(bazel build --lockfile_mode=off //... 2>&1) || { echo "$out"; exit 1; }
-          echo "$out" | grep -q "newer than a module it depends on asked for"
-          echo "$out" | grep -q "2.0.1, from module \`dep_mod\`"
-          echo "OK: expected upgrade warning printed"
-      - name: pub_root_older_lock — expect a root lock below a dependency's pub.package() to fail, naming both
+          echo "$out" | grep -q "Package \"tuple\" is built at 2.0.2, newer than the root module asks for"
+          echo "$out" | grep -qF "2.0.1, from \`pub.package()\` in the root module"
+          echo "$out" | grep -qF "2.0.2, from the lock \`//:pubspec.lock\` in module \`mod_c\`"
+          # Raising a dependency's request says nothing.
+          if echo "$out" | grep -q "Package \"path\""; then
+            echo "ERROR: raising mod_b's request of path printed a message"
+            exit 1
+          fi
+          echo "OK: highest request built, the root's raised request reported"
+      - name: pub_root_newer — expect a root lock above a dependency's pub.package() to build silently
+        working-directory: e2e/pub_root_newer
+        run: |
+          # The lock would replay the extension without running it.
+          out=$(bazel build --lockfile_mode=off //... 2>&1) || { echo "$out"; exit 1; }
+          # Raising a dependency's request says nothing, as in Bazel.
+          if echo "$out" | grep -q "Package \"tuple\""; then
+            echo "ERROR: raising dep_mod's request of tuple printed a message"
+            exit 1
+          fi
+          echo "OK: root lock built, nothing printed"
+      - name: pub_root_older_lock — expect a root lock below a dependency's pub.package() to fail under check_direct_dependencies = "error", naming both
         working-directory: e2e/pub_root_older_lock
         run: |
           if out=$(bazel build //... 2>&1); then
-            echo "ERROR: build should have failed: dep_mod asks for tuple 2.0.2 and the root lock pins 2.0.1"
+            echo "ERROR: build should have failed: dep_mod asks for tuple 2.0.2, the root lock pins 2.0.1, and the root makes that an error"
             exit 1
           fi
-          echo "$out" | grep -q "from the lock \`//:pubspec.lock\`"
-          echo "$out" | grep -q "from module \`dep_mod\`"
+          echo "$out" | grep -qF "2.0.1, from the lock \`//:pubspec.lock\`"
+          echo "$out" | grep -qF "2.0.2, from \`pub.package()\` in module \`dep_mod\`"
+          echo "$out" | grep -qF "bazel run @rules_dart//dart/pub -- upgrade tuple"
           echo "OK: expected downgrade refusal detected"
       - name: toolchain_pin_conflict — expect a root pin below a dependency's request to fail, naming it
         working-directory: e2e/toolchain_pin_conflict
@@ -364,7 +361,7 @@ jobs:
             echo "ERROR: build should have refused the conflicting sha256 digests"
             exit 1
           fi
-          bazel build @deps_a//:path 2>&1 | grep -q "conflicting sha256 digests across lock files"
+          bazel build @deps_a//:path 2>&1 | grep -q "has conflicting sha256 digests"
           echo "OK: digest conflict refused"
       # A link hook that refuses the program's recorded uses fails the build,
       # and its own message reaches the user.

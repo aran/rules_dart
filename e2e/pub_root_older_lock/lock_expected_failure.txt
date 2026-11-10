@@ -1,4 +1,5 @@
 # This workspace fails on purpose; `bazel run @overhead//locks:check` passes a
 # step that fails printing each line below.
-# The root's lock pins a package older than a dependency module asked for.
-older than a module it depends on asked for
+# The root's lock pins a package older than a dependency module asked for, and
+# the root makes a raised request an error.
+newer than the root module asks for

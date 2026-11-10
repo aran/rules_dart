@@ -1,0 +1,22 @@
+# Hand-written: neither entry can be fetched, so the build passes only if the
+# root's lock decides both packages.
+packages:
+  git_root:
+    dependency: "direct main"
+    description:
+      name: git_root
+      sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.0.0"
+  git_sub:
+    dependency: "direct main"
+    description:
+      path: "."
+      ref: main
+      resolved-ref: "0123456789abcdef0123456789abcdef01234567"
+      url: "https://example.invalid/git_sub.git"
+    source: git
+    version: "1.0.0"
+sdks:
+  dart: ">=3.0.0 <4.0.0"

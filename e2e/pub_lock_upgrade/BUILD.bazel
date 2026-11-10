@@ -6,8 +6,7 @@ exports_files([
     "lock_newer.lock",
 ])
 
-# lock_b has path 1.9.0 with on_version_conflict = "upgrade", so it
-# accepts lock_a's higher version (1.9.1). Both hubs should work.
+# lock_b has path 1.9.0 and lock_a 1.9.1; the higher is built for both hubs.
 dart_binary(
     name = "app",
     main = "main.dart",

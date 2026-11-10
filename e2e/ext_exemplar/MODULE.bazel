@@ -32,9 +32,6 @@ pub = use_extension("@rules_dart//dart/pub:extensions.bzl", "pub")
 pub.from_lock(
     name = "pub_deps",
     lock = "//:pubspec.lock",
-    # This lock shares packages with rules_dart's own tool lock, which can be
-    # newer for some of them; there is one version per package, so take its.
-    on_version_conflict = "upgrade",
 )
 
 # Lint ruleset for the analyze aspect. Declared as its own spoke rather than

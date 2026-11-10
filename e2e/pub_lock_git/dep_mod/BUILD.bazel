@@ -1,0 +1,13 @@
+# The module's own names for the packages its lock lists, which the root's lock
+# decides.
+alias(
+    name = "git_root",
+    actual = "@dep_mod_deps//:git_root",
+    visibility = ["//visibility:public"],
+)
+
+alias(
+    name = "git_sub",
+    actual = "@dep_mod_deps//:git_sub",
+    visibility = ["//visibility:public"],
+)

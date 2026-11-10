@@ -4,8 +4,7 @@ exports_files(["pubspec.lock"])
 
 # Property: a dependency module's `pub.package()` version is a minimum, so a
 # root lock pinning `tuple` at 2.0.2 over dep_mod's 2.0.1 builds, the whole
-# build at 2.0.2, and the extension warns that dep_mod's request was raised
-# (CI checks the warning).
+# build at 2.0.2, and saying nothing about it, as in Bazel (CI checks that).
 
 pub_graph_check(
     name = "root_lock_version_is_used",
