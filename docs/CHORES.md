@@ -58,6 +58,11 @@ file at runtime — keep file lists current as the repo evolves.
    `//dart/tests/sdk_files` means the SDK moved or added a file one of its
    uses reads: update that use's entry in `SDK_FILE_SETS`
    (`dart/toolchain.bzl`) and its pin in `sdk_files_test.bzl`
+   Check in particular that the SDK still ships the JIT
+   `bin/snapshots/analysis_server.dart.snapshot`: the analysis worker
+   launches it (`dart/private/tools/analysis_server.dart`,
+   `dart/private/tools/server_analyzer.dart`) and breaks if it is gone, as
+   dart-lang/sdk#63978 proposes by replacing app-JIT snapshots with AOT ones
 8. Re-pin the outline stripper's `pkg/kernel`: download
    `https://github.com/dart-lang/sdk/archive/refs/tags/{version}.tar.gz` twice
    and check the two SHA-256s agree before writing it into `MODULE.bazel`.
