@@ -110,26 +110,14 @@ def drift_library(
         )
         discover_targets.append(":" + discover_target)
 
-    # Cross-source visibility for the DriftBuilder stage. When a project
-    # splits @DriftDatabase and @DriftAccessor across multiple .dart files
-    # (the common DAO-in-its-own-file pattern), drift_dev running on any
-    # one file needs the other files visible through the Resolver to
-    # resolve cross-file type references like `DatabaseAccessor<AppDatabase>`.
-    # Wrap the user's Dart srcs in a source-only `dart_library` so each
-    # per-src codegen sees the siblings via `same_package_library_dep_files`
-    # auto-staging.
-    siblings_lib = "_{}_siblings".format(name)
-    dart_library(
-        name = siblings_lib,
-        srcs = srcs,
-        package_name = package_name,
-        language_version = language_version,
-        # Plumbing, not a library: its files import parts and packages it does
-        # not carry. They are analyzed as the `name` library's own files.
-        tags = ["no-dart-analyze"],
-        visibility = ["//visibility:private"],
-    )
-
+    # Cross-source visibility for the Dart stages. When a project splits
+    # @DriftDatabase and @DriftAccessor across multiple .dart files (the common
+    # DAO-in-its-own-file pattern), drift_dev running on any one file needs the
+    # other files visible through the Resolver to resolve cross-file type
+    # references like `DatabaseAccessor<AppDatabase>`. They are staged as
+    # plain files: no library can hold them before their generated parts
+    # exist, and the `name` library, which holds them with their parts, is
+    # the only one.
     # Discover per `.dart`. `@DriftDatabase(include: {'foo.drift'})` combined
     # with the reverse — a `.drift` file's `import 'bar.dart';` referencing
     # Dart-defined tables — requires each side's discover results to be
@@ -150,8 +138,8 @@ def drift_library(
             output_suffixes = [".dart.drift_elements.json"],
             package_name = package_name,
             language_version = language_version,
-            deps = effective_deps + [":" + siblings_lib],
-            asset_deps = drift_srcs + prep_targets + discover_targets,
+            deps = effective_deps,
+            asset_deps = drift_srcs + prep_targets + discover_targets + [s for s in srcs if s != src],
         )
         dart_discover_targets.append(":" + dart_discover_target)
 
@@ -181,10 +169,10 @@ def drift_library(
             ],
             package_name = package_name,
             language_version = language_version,
-            deps = effective_deps + [":" + siblings_lib],
+            deps = effective_deps,
             asset_deps = (
                 drift_srcs + prep_targets + discover_targets +
-                dart_discover_targets
+                dart_discover_targets + [s for s in srcs if s != src]
             ),
         )
         dart_analyzer_targets.append(":" + dart_analyzer_target)
@@ -248,8 +236,8 @@ def drift_library(
             output_suffixes = [".drift.g.part"],
             package_name = package_name,
             language_version = language_version,
-            deps = effective_deps + [":" + siblings_lib],
-            asset_deps = drift_side_outputs,
+            deps = effective_deps,
+            asset_deps = drift_side_outputs + [s for s in srcs if s != src],
         )
 
         # Stage 5: combining shim → `.g.dart`.

@@ -7,12 +7,27 @@ off, as rules_cc's `layering_check` — a package only if a *direct* dependency
 provides it: one reached only through a dependency's dependency stops being
 there when that dependency drops it.
 
-The checks read import directives and nothing compiled, so each runs as a
-small validation action per library: `dart_import_check_aspect` walks an
-executable's dependencies, and the executable puts the results in its
-`_validation` output group, so building a `dart_test` or a `dart_binary` runs
-every check its libraries need. Conditional imports are checked on every
-branch, so the result is the same on every platform.
+Beyond the dependencies, a file may name only what the compiler can reach
+through declared inputs, judged as the compiler spells it: a `dart:` library,
+a `package:` URI that stays inside its package and that a dependency provides,
+or a file the target holds (a part) or the target or its dependencies hold (an
+import). A `file:` URI, another scheme, a relative path into a package's `lib/`
+from outside it (a second copy of the library) or out of the workspace is
+refused, with the spelling to use instead.
+
+The checks read directives and nothing compiled, so each runs as a small
+validation action per library. A `dart_library` checks itself, in its own
+`_validation` output group, as rules_cc ties `layering_check` to the target:
+any build of the library runs it, an analysis included. An executable checks
+its own files, and `dart_import_check_aspect` reaches the libraries of other
+rules (a `dart_proto_library`, say) that cannot check themselves, so building a
+`dart_test` or a `dart_binary` runs every check its libraries need.
+Conditional imports are checked on every branch, so the result is the same on
+every platform.
+
+`kernel_tool`, which runs the check, is itself built from libraries: the rules
+that build it (`dart_tool_binary`) reach their dependencies through
+`without_import_check`, under which a library has no checker to depend on.
 
 Another repository's targets are not checked: their dependencies are their
 own (a pub package's are generated from its pubspec), and a file of one that
@@ -34,6 +49,50 @@ load("//dart/private:dart_module.bzl", "KERNEL_TOOL_ATTR", "kernel_package_confi
 load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS")
 
 LAYERING_CHECK_FEATURE = "dart_layering_check"
+
+_IMPORT_CHECK = str(Label("//dart/private:import_check"))
+
+def _without_import_check_impl(_settings, _attr):
+    return {_IMPORT_CHECK: False}
+
+without_import_check = transition(
+    implementation = _without_import_check_impl,
+    inputs = [],
+    outputs = [_IMPORT_CHECK],
+)
+
+# What a `dart_library` checks its imports with: `kernel_tool`, or nothing
+# under `without_import_check`, where `kernel_tool` is what is being built.
+LIBRARY_IMPORT_CHECKER_ATTRS = {
+    "_import_checker": attr.label(
+        default = Label("//dart/private:import_checker"),
+        cfg = config.exec(PORTABLE),
+    ),
+}
+
+def library_import_check(ctx, own_package):
+    """A `dart_library`'s `_validation` output group: the check of its own files.
+
+    Args:
+      ctx: The library's rule context, with `LIBRARY_IMPORT_CHECKER_ATTRS` and
+        `PORTABLE_EXEC_GROUPS`.
+      own_package: The library's `DartPackageInfo`.
+
+    Returns:
+      A list holding the `OutputGroupInfo`, or empty when nothing is checked.
+    """
+    checker = ctx.attr._import_checker[DefaultInfo].files_to_run
+    if checker.executable == None:
+        return []
+    result = dart_import_check_action(
+        ctx,
+        kernel_tool = checker,
+        name = ctx.label.name,
+        srcs = ctx.files.srcs + ctx.files.srcs_dir,
+        own_package = own_package,
+        deps = ctx.attr.deps,
+    )
+    return [OutputGroupInfo(_validation = depset([result]))] if result else []
 
 def _package_name(pkg):
     return pkg.package_name
@@ -70,7 +129,7 @@ def dart_import_check_action(ctx, kernel_tool, name, srcs, own_package, deps, in
 
     Args:
       ctx: The rule or aspect context.
-      kernel_tool: The `kernel_tool` executable.
+      kernel_tool: The `kernel_tool` executable, a File or its `FilesToRunProvider`.
       name: Basename for the result, unique in the package.
       srcs: The target's own Dart sources (or source directories).
       own_package: The `DartPackageInfo` they belong to, or `None`.
@@ -109,8 +168,10 @@ def dart_import_check_action(ctx, kernel_tool, name, srcs, own_package, deps, in
         args.add("--package-name", own_package.package_name)
         args.add("--lib-root", own_package.lib_root)
 
-    # The result is in the output directory a generated dependency is read from.
-    add_kernel_roots(args, "--multi-root", srcs + [result])
+    # Every directory a file is read from, the result's included: a
+    # dependency built in another configuration (a test's `defines`) has its
+    # generated files in another output directory.
+    add_kernel_roots(args, "--multi-root", depset(srcs + [result], transitive = [dep_srcs]))
     args.add_all(srcs, before_each = "--src", expand_directories = False)
     args.add_all(dep_srcs, before_each = "--dep-file", map_each = _path, expand_directories = False)
     args.add_all(packages, before_each = "--available-package", map_each = _package_name, uniquify = True)
@@ -139,17 +200,23 @@ def _import_check_aspect_impl(target, ctx):
     if forwarded != None:
         return [forwarded[DartImportCheckInfo]]
     direct = direct_dart_deps(ctx, info, reached, DartImportCheckInfo)
-    result = dart_import_check_action(
-        ctx,
-        kernel_tool = ctx.executable._kernel_tool,
-        name = ctx.label.name,
-        srcs = getattr(info, "srcs", []),
-        own_package = own_package_record(info),
-        deps = direct,
-        indirect_deps = getattr(info, "indirect_deps", []),
-    )
+    if ctx.rule.kind == "dart_library":
+        # It checks itself: its `_validation` group holds the result.
+        groups = target[OutputGroupInfo] if OutputGroupInfo in target else None
+        own = [groups._validation] if hasattr(groups, "_validation") else []
+    else:
+        result = dart_import_check_action(
+            ctx,
+            kernel_tool = ctx.executable._kernel_tool,
+            name = ctx.label.name,
+            srcs = getattr(info, "srcs", []),
+            own_package = own_package_record(info),
+            deps = direct,
+            indirect_deps = getattr(info, "indirect_deps", []),
+        )
+        own = [depset([result])] if result else []
     return [DartImportCheckInfo(
-        stamps = depset([result] if result else [], transitive = [dep[DartImportCheckInfo].stamps for dep in direct]),
+        stamps = depset(transitive = own + [dep[DartImportCheckInfo].stamps for dep in direct]),
         exported = {},
     )]
 

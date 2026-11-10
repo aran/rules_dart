@@ -1,0 +1,34 @@
+load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_library", "dart_test")
+
+# Expected red: each target names a file by a spelling its declared inputs do
+# not provide, so the import check must refuse it, saying what to write instead.
+
+dart_library(
+    name = "x",
+    package_name = "import_check_spellings",
+    srcs = ["lib/x.dart"],
+    language_version = "3.11",
+)
+
+# `../lib/x.dart` is a different library to the compiler from the
+# `package:import_check_spellings/x.dart` its dependency `:x` compiled.
+dart_test(
+    name = "relative_lib_test",
+    main = "test/rel_test.dart",
+    deps = [":x"],
+)
+
+# A `file:` URI is read off the host, declared or not.
+dart_binary(
+    name = "file_uri_bin",
+    compile_mode = "kernel",
+    main = "bin/file_uri.dart",
+)
+
+# A library nothing executable reaches checks itself: a build of it alone fails.
+dart_library(
+    name = "unheld_part",
+    package_name = "import_check_spellings",
+    srcs = ["lib/unheld_part.dart"],
+    language_version = "3.11",
+)

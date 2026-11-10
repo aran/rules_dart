@@ -1,8 +1,10 @@
 """Implementation of the dart_library rule."""
 
 load("//dart:providers.bzl", "DartCodeAssetInfo", "DartInfo")
-load("//dart/private:common.bzl", "PACKAGE_IDENTITY_ATTRS", "codegen_identity_error", "resolve_package_identity")
+load("//dart/private:common.bzl", "PACKAGE_IDENTITY_ATTRS", "codegen_identity_error", "own_package_record", "resolve_package_identity")
+load("//dart/private:dart_import_check.bzl", "LIBRARY_IMPORT_CHECKER_ATTRS", "library_import_check")
 load("//dart/private:dart_info.bzl", "dart_info", "package_lib_prefix")
+load("//dart/private:exec_groups.bzl", "PORTABLE_EXEC_GROUPS")
 load("//dart/private:runtime.bzl", "RUNTIME_INDEPENDENT_ATTR", "runtime_reset_when_independent")
 
 def derive_package_name(package_name_attr, label_package, label_name):
@@ -223,26 +225,28 @@ def _dart_library_impl(ctx):
     # and/or generated) and package metadata unchanged. Co-location of a
     # package's split-across-targets / source+generated files into one real
     # directory happens in the *consumer* (`dart_binary`/`dart_test`), which is
-    # the only place that sees the package's complete file set.
+    # the only place that sees the package's complete file set. Its one
+    # action is the check of what its sources import, a validation.
+    info = dart_info(
+        label = ctx.label,
+        package_name = package_name,
+        lib_root = lib_root,
+        deps = ctx.attr.deps,
+        srcs = own_srcs,
+        resources = own_resources,
+        code_assets = ctx.attr.code_assets,
+        language_version = identity.language_version,
+        has_unreplaced_hook = ctx.attr.has_unreplaced_hook,
+        version = ctx.attr.version,
+        link_hook = ctx.file.link_hook,
+    )
     return [
         DefaultInfo(
             files = depset(own_srcs + own_resources),
             runfiles = ctx.runfiles(files = own_srcs + own_resources),
         ),
-        dart_info(
-            label = ctx.label,
-            package_name = package_name,
-            lib_root = lib_root,
-            deps = ctx.attr.deps,
-            srcs = own_srcs,
-            resources = own_resources,
-            code_assets = ctx.attr.code_assets,
-            language_version = identity.language_version,
-            has_unreplaced_hook = ctx.attr.has_unreplaced_hook,
-            version = ctx.attr.version,
-            link_hook = ctx.file.link_hook,
-        ),
-    ]
+        info,
+    ] + library_import_check(ctx, own_package_record(info))
 
 dart_library = rule(
     implementation = _dart_library_impl,
@@ -304,6 +308,7 @@ resolve at runtime.""",
         "version": attr.string(
             doc = "The package's own version, as resolved by pub (e.g. `2.2.0`). Set automatically by `pub.package()` / `pub.from_lock()`; leave it empty on hand-written targets, which have no resolved version to state. Its only use is agreement checking: when one package name arrives twice — two pub hubs each supplying `ffi`, say — a build whose two records name different versions would otherwise compile against whichever came first in dependency order, silently ignoring the other. Two *known*, differing versions fail the build; an empty one never conflicts.",
         ),
-    } | PACKAGE_IDENTITY_ATTRS | RUNTIME_INDEPENDENT_ATTR,
-    doc = "Collects Dart sources and propagates dependency information via `DartInfo`. Does not compile or assemble; consumers co-locate generated sources.",
+    } | PACKAGE_IDENTITY_ATTRS | RUNTIME_INDEPENDENT_ATTR | LIBRARY_IMPORT_CHECKER_ATTRS,
+    exec_groups = PORTABLE_EXEC_GROUPS,
+    doc = "Collects Dart sources and propagates dependency information via `DartInfo`. Does not compile or assemble; consumers co-locate generated sources. Its `_validation` output group checks what its sources import, export and include as parts against its `deps` (see `dart_import_check.bzl`), so any build of the library runs the check.",
 )

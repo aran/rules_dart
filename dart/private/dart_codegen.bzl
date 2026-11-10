@@ -333,8 +333,11 @@ dart_codegen = rule(
                   "must see (e.g. `.drift` schemas, `.drift_prep.json` " +
                   "sidecars, `.yaml` configs read via `BuildStep`). Each " +
                   "file is staged as an action input and passed as " +
-                  "`--dep <exec>|<asset>` using `asset_path_for`. For " +
-                  "Dart libraries, use `deps`. For files that only need " +
+                  "`--dep <exec>|<asset>` using `asset_path_for`. Dart " +
+                  "sources of the package that no library can hold yet " +
+                  "go here too: a macro's other sources, or an earlier " +
+                  "stage's output, before the parts generated for them " +
+                  "exist. For Dart libraries, use `deps`. For files that only need " +
                   "to exist on disk for a subprocess / runfile (not read " +
                   "through `package:build`), use `data`.",
             allow_files = True,

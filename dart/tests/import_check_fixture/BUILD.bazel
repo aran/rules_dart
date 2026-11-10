@@ -1,0 +1,8 @@
+load("//dart:defs.bzl", "dart_library")
+
+dart_library(
+    name = "lone_lib",
+    package_name = "import_check_fixture",
+    srcs = ["lib/x.dart"],
+    visibility = ["//dart/tests:__pkg__"],
+)

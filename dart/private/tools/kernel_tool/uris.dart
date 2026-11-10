@@ -108,6 +108,15 @@ class PackageConfig {
     return rootUri(relative);
   }
 
+  /// The root-relative directory `package:<name>/` names, ending in `/`, or
+  /// null when the package is not addressed through the kernel roots.
+  String? libDirOf(String name) {
+    for (final lib in _libs) {
+      if (lib.name == name) return lib.prefix;
+    }
+    return null;
+  }
+
   /// [uri] spelled the way [uriFor] spells it. A relative import from outside
   /// lib/ into it names the file by its root URI, while its module knows it by
   /// its package URI.

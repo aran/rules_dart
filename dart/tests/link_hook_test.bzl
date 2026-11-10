@@ -305,8 +305,12 @@ def _validation_runs_assetless_hook_test_impl(ctx):
     target = analysistest.target_under_test(env)
     runs = _actions(env, "DartLinkHook")
     asserts.equals(env, 1, len(runs))
+
+    # Beside it, Bazel carries its libraries' own validations (their import
+    # checks) into the group.
     validation = target[OutputGroupInfo]._validation.to_list()
-    asserts.equals(env, runs[0].outputs.to_list(), validation)
+    for output in runs[0].outputs.to_list():
+        asserts.true(env, output in validation, "%s is not a validation output" % output.short_path)
     asserts.equals(env, [], target[DefaultInfo].files.to_list())
     return analysistest.end(env)
 

@@ -10,8 +10,10 @@ import 'uris.dart';
 /// on. It needs no compiler and no platform, so it runs for every library, test
 /// and binary, including a library no program or test compiles.
 ///
-/// Every branch of a conditional import counts: a library has to declare what
-/// each of them needs, whichever the platform takes. The package config covers
+/// Each `import`, `export` and `part` is judged as written, the way the
+/// compiler will resolve it (see `checkPolicy`). Every branch of a conditional
+/// import counts: a library has to declare what each of them needs, whichever
+/// the platform takes. The package config covers
 /// the target's own package and every package it reaches, so the files of its
 /// dependencies (`--dep-file`, a tree artifact's directory expanded) map to the
 /// URIs importers use. Writes the empty `--output` stamp when nothing is wrong;
@@ -27,25 +29,19 @@ Future<int> runCheck(Args args, {required StringSink err}) async {
 
   String uriOf(String path) => config.uriFor(rootRelative(path, roots));
 
-  final libraries = <String, ImportingFile>{};
-  final partFiles = <String>{};
-  for (final file in readSources(args.all('src'))) {
-    final uri = uriOf(file.path);
-    final directives = readDirectives(file.path, file.text);
-    if (directives.isPart) {
-      partFiles.add(uri);
-      continue;
-    }
-    libraries[uri] = ImportingFile(file.path, [
-      for (final d in directives.directives)
-        ...resolveImport(d, uri, null, config).candidates,
-    ]);
-  }
+  final files = [
+    for (final file in readSources(args.all('src')))
+      CheckedFile(
+        path: file.path,
+        rootPath: rootRelative(file.path, roots),
+        uri: uriOf(file.path),
+        directives: readDirectives(file.path, file.text),
+      ),
+  ];
 
   final violations = checkPolicy(
     label: label,
-    libraries: libraries,
-    partFiles: partFiles,
+    files: files,
     config: config,
     availablePackages: args.all('available-package').toSet(),
     dependencyFiles: {

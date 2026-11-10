@@ -15,7 +15,7 @@ load(
     "target_dart_abi",
 )
 load("//dart/private:dart_compile.bzl", "dart_compile_action", "front_end_flags", "recorded_uses_kind")
-load("//dart/private:dart_import_check.bzl", "dart_import_check_aspect", "import_check_validation")
+load("//dart/private:dart_import_check.bzl", "dart_import_check_aspect", "import_check_validation", "without_import_check")
 load("//dart/private:dart_module.bzl", "KERNEL_TOOL_ATTR", "whole_program_kernel")
 load("//dart/private:exec_groups.bzl", "PORTABLE_EXEC_GROUPS")
 load("//dart/private:executable_package.bzl", "EXECUTABLE_PACKAGE_ATTRS", "executable_package")
@@ -239,6 +239,9 @@ def _dart_binary_rule(check_imports, compile_runner = True):
                     doc = "`dart_library` targets this binary depends on.",
                     providers = [DartInfo],
                     aspects = [dart_import_check_aspect] if check_imports else [],
+                    # A tool built without the check is one the check runs on,
+                    # `kernel_tool`: its libraries cannot depend on it.
+                    cfg = "target" if check_imports else without_import_check,
                 ),
                 "data": attr.label_list(
                     doc = "Additional files needed at runtime. These are added to runfiles so they can be found via the runfiles tree when using `bazel run`.",

@@ -154,3 +154,11 @@ dart_test(
     main = "kernel_tool_test.dart",
     deps = _KERNEL_TOOL_DEPS + ["@ext_pub_deps//:test"],
 )
+
+dart_test(
+    name = "import_policy_test",
+    size = "small",
+    srcs = _KERNEL_TOOL_SRCS,
+    main = "import_policy_test.dart",
+    deps = _KERNEL_TOOL_DEPS + ["@ext_pub_deps//:test"],
+)

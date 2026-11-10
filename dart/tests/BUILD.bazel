@@ -4,6 +4,7 @@ load(":codegen_test.bzl", "codegen_test_suite")
 load(":common_test.bzl", "common_test_suite")
 load(":dart_binary_test.bzl", "dart_binary_test_suite")
 load(":defines_test.bzl", "defines_test_suite")
+load(":import_check_test.bzl", "import_check_test_suite")
 load(":language_version_test.bzl", "language_version_test_suite")
 load(":library_test.bzl", "library_test_suite")
 load(":link_hook_test.bzl", "link_hook_test_suite")
@@ -70,3 +71,5 @@ build_test(
     name = "provider_shape_test",
     targets = [":provider_shape_probe_target"],
 )
+
+import_check_test_suite(name = "import_check_test")

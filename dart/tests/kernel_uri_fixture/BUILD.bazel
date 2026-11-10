@@ -4,10 +4,15 @@ load("//dart:defs.bzl", "dart_binary", "dart_code_asset", "dart_library", "dart_
 # Exes from one entrypoint, differing in what reaches the kernel step. Run by
 # the test below.
 
+dart_library(
+    name = "where",
+    srcs = ["lib/where.dart"],
+)
+
 dart_binary(
     name = "probe",
-    srcs = ["lib/where.dart"],
     main = "bin/probe.dart",
+    deps = [":where"],
 )
 
 dart_code_asset(
@@ -18,23 +23,17 @@ dart_code_asset(
 
 dart_binary(
     name = "probe_with_asset",
-    srcs = ["lib/where.dart"],
     code_assets = [":asset"],
     main = "bin/probe.dart",
+    deps = [":where"],
 )
 
-# A generated file among the binary's own `srcs`, beside the entrypoint, while
-# the file its relative import names comes from `deps`: the entrypoint keeps its
-# URI, and the import still resolves where the file stands.
+# A generated file among the binary's own `srcs`, beside the entrypoint: the
+# entrypoint keeps its URI.
 write_file(
     name = "generated",
     out = "bin/generated.dart",
     content = ["const generated = true;"],
-)
-
-dart_library(
-    name = "where",
-    srcs = ["lib/where.dart"],
 )
 
 dart_binary(

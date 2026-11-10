@@ -1,7 +1,7 @@
 # Cascade: freezed → json_serializable → combining. The second builder
-# reads the first's generated `.freezed.dart` via the resolver; the
-# generated file is wrapped in a tiny `dart_library` so it flows through
-# `deps` like any other Dart source.
+# reads the first's generated `.freezed.dart` via the resolver, staged as a
+# plain file (`asset_deps`): no library can hold `event.dart` before its
+# `.g.dart` part exists.
 
 load(
     "@rules_dart//dart:defs.bzl",
@@ -25,30 +25,15 @@ dart_codegen(
     deps = _ANN_DEPS,
 )
 
-# Wrapping the freezed output in a dart_library exposes it as a normal
-# same-package source for the next stage's resolver via auto-staging.
-dart_library(
-    name = "_event_freezed_lib",
-    package_name = "cascade_two_stage",
-    srcs = [
-        "lib/event.dart",
-        ":_event_freezed",
-    ],
-    language_version = "3.11",
-    # Only the freezed stage's output is present here; event.dart also needs
-    # the json part from the next stage, so `:cascade_two_stage` analyzes it.
-    tags = ["no-dart-analyze"],
-    deps = _ANN_DEPS,
-)
-
 dart_codegen(
     name = "_event_json_part",
     package_name = "cascade_two_stage",
     src = "lib/event.dart",
+    asset_deps = [":_event_freezed"],
     generator_bin = "@rules_dart//dart/ext/json_serializable:shim",
     language_version = "3.11",
     output_suffixes = [".json_serializable.g.part"],
-    deps = _ANN_DEPS + [":_event_freezed_lib"],
+    deps = _ANN_DEPS,
 )
 
 dart_codegen(

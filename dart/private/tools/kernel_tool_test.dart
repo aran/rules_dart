@@ -522,24 +522,18 @@ import 'stub.dart' if (dart.library.io) 'src/io.dart' if (dart.library.html) 'sr
       Set<String> depFiles = const {},
       String? own,
     }) {
-      final libraries = <String, ImportingFile>{};
-      final parts = <String>{};
-      for (final e in files.entries) {
-        final uri = _config.uriFor(rootRelative(e.key, _roots));
-        final d = readDirectives(e.key, e.value);
-        if (d.isPart) {
-          parts.add(uri);
-          continue;
-        }
-        libraries[uri] = ImportingFile(e.key, [
-          for (final directive in d.directives)
-            ...resolveImport(directive, uri, null, _config).candidates,
-        ]);
-      }
+      final checked = [
+        for (final e in files.entries)
+          CheckedFile(
+            path: e.key,
+            rootPath: rootRelative(e.key, _roots),
+            uri: _config.uriFor(rootRelative(e.key, _roots)),
+            directives: readDirectives(e.key, e.value),
+          ),
+      ];
       return checkPolicy(
         label: '//app:lib',
-        libraries: libraries,
-        partFiles: parts,
+        files: checked,
         config: _config,
         availablePackages: available,
         dependencyFiles: depFiles,
@@ -550,15 +544,18 @@ import 'stub.dart' if (dart.library.io) 'src/io.dart' if (dart.library.html) 'sr
     }
 
     test('reports every import of a package no dependency provides', () {
-      final v = check({
-        'app/lib/a.dart': '''
+      final v = check(
+        {
+          'app/lib/a.dart': '''
 import 'package:missing/m.dart';
 import 'package:missing/n.dart';
 import 'package:missing/m.dart';
 import 'package:app/a.dart';
 import 'package:rel/ok.dart';
 ''',
-      });
+        },
+        depFiles: {'package:rel/ok.dart'},
+      );
       expect(v.map((v) => v.message), [
         '//app:lib: app/lib/a.dart imports package:missing/m.dart, but no '
             'dependency of //app:lib provides package "missing". Add the target '
@@ -690,23 +687,25 @@ import 'package:app/own.dart';
 ]}''', 'app/pc.json');
 
     test('layering still reports a package only a dependency provides', () {
-      final uri = everything.uriFor(rootRelative('app/lib/a.dart', _roots));
-      final d = readDirectives(
-        'app/lib/a.dart',
-        "import 'package:direct/d.dart';\nimport 'package:indirect/i.dart';",
-      );
       final v = checkPolicy(
         label: '//app:lib',
-        libraries: {
-          uri: ImportingFile('app/lib/a.dart', [
-            for (final directive in d.directives)
-              ...resolveImport(directive, uri, null, everything).candidates,
-          ]),
-        },
-        partFiles: const {},
+        files: [
+          CheckedFile(
+            path: 'app/lib/a.dart',
+            rootPath: 'app/lib/a.dart',
+            uri: everything.uriFor('app/lib/a.dart'),
+            directives: readDirectives(
+              'app/lib/a.dart',
+              "import 'package:direct/d.dart';\nimport 'package:indirect/i.dart';",
+            ),
+          ),
+        ],
         config: everything,
         availablePackages: const {'app', 'direct', 'indirect'},
-        dependencyFiles: const {},
+        dependencyFiles: const {
+          'package:direct/d.dart',
+          'package:indirect/i.dart',
+        },
         checkLayering: true,
         directPackages: const {'direct'},
         ownPackage: 'app',

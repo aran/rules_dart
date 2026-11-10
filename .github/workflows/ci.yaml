@@ -189,6 +189,25 @@ jobs:
           fi
           bazel build //import_check/user:layering_bin 2>&1 | grep -q 'package "import_check_leaf" is not a direct dependency'
           echo "OK: layering violation reported"
+      # Every import, export and part must be a `dart:` library, a `package:`
+      # URI a dependency provides, or a file the target holds. Each target
+      # below names a file another way, and the import check refuses it with
+      # the spelling to use; the last is a library nothing executable reaches,
+      # which checks itself.
+      - name: analysis_failure — expect the import check to refuse undeclared spellings
+        working-directory: e2e/analysis_failure
+        run: |
+          check() {
+            if bazel build "$1" 2>/dev/null; then
+              echo "ERROR: $1 should have failed the import check"
+              exit 1
+            fi
+            bazel build "$1" 2>&1 | grep -qF -- "$2"
+          }
+          check //import_check/spellings:relative_lib_test "Use 'package:import_check_spellings/x.dart' instead"
+          check //import_check/spellings:file_uri_bin "imports 'file:///tmp/undeclared.dart', a file: URI"
+          check //import_check/spellings:unheld_part "has the part 'unheld_part.g.dart'"
+          echo "OK: undeclared spellings refused"
       # Each target in e2e/analysis_failure is expected red under the
       # `dart_analyze` aspect, which its `.bazelrc` applies under `bazel test`.
       # `check` builds one, expects the build to fail, and greps its output

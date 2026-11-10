@@ -276,6 +276,23 @@ const _expectedFailureChecks = [
     '//vga:undocumented_lib',
     'public_member_api_docs',
   ),
+  // The import check refuses a spelling that reaches a file no declared input
+  // provides, naming what to write instead; a library checks itself.
+  _ExpectedFailure(
+    'e2e/analysis_failure',
+    '//import_check/spellings:relative_lib_test',
+    "Use 'package:import_check_spellings/x.dart' instead",
+  ),
+  _ExpectedFailure(
+    'e2e/analysis_failure',
+    '//import_check/spellings:file_uri_bin',
+    "imports 'file:///tmp/undeclared.dart', a file: URI",
+  ),
+  _ExpectedFailure(
+    'e2e/analysis_failure',
+    '//import_check/spellings:unheld_part',
+    "has the part 'unheld_part.g.dart'",
+  ),
   // A link hook refusing the program's recorded uses fails the build with its
   // own message.
   _ExpectedFailure(

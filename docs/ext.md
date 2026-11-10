@@ -258,6 +258,12 @@ writes a stub `pubspec.yaml` and `stacked.json` only when none is passed. Users 
 `deps = ["lib/api.dart"]`; they add the owning `dart_library` target to
 `deps` instead.
 
+A sibling no library can hold yet, because the part generated for it does
+not exist (a macro's other `srcs`, or an earlier stage's output in a
+cascade), is staged through `asset_deps` instead, which passes the same
+`--dep`. A library has to hold every part it names, so a source-only
+library of such files would fail its import check.
+
 Implementation: `same_package_library_dep_files` + `asset_path_for` in
 `dart/private/common.bzl`. The helper returns both the sibling files and
 the Dart package's `lib_root`, so asset paths are computed by stripping
