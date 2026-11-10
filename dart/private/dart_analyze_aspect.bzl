@@ -311,8 +311,15 @@ def _format(ctx, name, staged, sdk_inputs, own_paths, language_version):
     """Declares the `dart format` check; returns the stamp it writes on success.
 
     Files are named individually rather than by handing the formatter the
-    project: the staged tree also holds dependencies and rulesets, none of
-    which are this target's to format.
+    project: the staged tree also holds the rulesets the options include,
+    none of which are this target's to format.
+
+    `staged` is a project of its own, holding the target's files and the
+    options alone, as `dart_format` stages for `bazel run`. The formatter reads
+    nothing else: its options come from the walk up from each file, and its
+    language version from the command line. Staging the dependencies too, as
+    the analyzer needs, would make an edit to any of them re-run this check on
+    every target above it, with nothing it reads changed.
     """
     dart_sdk_info = portable_sdk(ctx)
     manifest = ctx.actions.declare_file(name + ".format_manifest")
@@ -377,9 +384,10 @@ def _dart_analyze_aspect_impl(target, ctx):
     own_paths = sorted([f.short_path for f in own.values()])
 
     name = ctx.label.name + ".dart_analyze"
+    config = ctx.attr._config[DartAnalysisConfigInfo]
     staged = stage_config_project(
         ctx,
-        ctx.attr._config[DartAnalysisConfigInfo],
+        config,
         info.transitive_packages.to_list(),
         info.transitive_srcs.to_list() + info.transitive_resources.to_list() + entry + own.values(),
         own.values(),
@@ -396,11 +404,12 @@ def _dart_analyze_aspect_impl(target, ctx):
         groups["dart_analyze"] = depset([_analyze(ctx, name, staged, sdk_inputs)])
     if NO_FORMAT_TAG not in tags:
         by_version = _format_language_versions(info, own_paths)
+        format_staged = stage_config_project(ctx, config, [], own.values(), own.values(), name + ".format", portable_sdk(ctx).version)
         groups["dart_format"] = depset([
             _format(
                 ctx,
                 name if len(by_version) == 1 else "%s.%s" % (name, version or "latest"),
-                staged,
+                format_staged,
                 sdk_inputs,
                 paths,
                 version,

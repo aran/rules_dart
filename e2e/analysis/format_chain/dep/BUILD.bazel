@@ -1,0 +1,8 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+# The dependency whose edits must not re-run the format check of `top`.
+dart_library(
+    name = "dep",
+    srcs = ["lib/dep.dart"],
+    visibility = ["//visibility:public"],
+)

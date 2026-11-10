@@ -88,6 +88,12 @@ jobs:
         # Exit code 4: the workspace has no test targets, only the aspect's
         # checks, which `bazel test` builds.
         run: bazel test ${{ matrix.flags }} --test_output=errors //... || [ $? -eq 4 ]
+      # The format check must take only what `dart format` reads, so editing a
+      # dependency cannot re-run it above. Read from the action graph, which a
+      # test cannot see.
+      - name: analysis — format check inputs, ${{ matrix.name }}
+        working-directory: e2e/analysis
+        run: bazel run ${{ matrix.flags }} //format_inputs
       - name: analysis_failure canary — ${{ matrix.name }}
         working-directory: e2e/analysis_failure
         run: bazel test ${{ matrix.flags }} //:clean_lib || [ $? -eq 4 ]
