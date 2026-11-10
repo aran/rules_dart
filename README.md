@@ -11,6 +11,47 @@ and run the SDK with `bazel run @rules_dart//dart -- ...` and pub with
 `bazel run @rules_dart//dart/pub -- ...` (see
 [Running the Dart SDK](#running-the-dart-sdk)).
 
+## Road to 1.0
+
+This project is getting dangerously close to being good. It's still a beta, but
+we're approaching parity with the native tools, getting good performance, and
+successfully using it to build Flutter apps across several platforms. There have
+been several PRs and forks. Of course, the process of using AI to build software
+like this is more like sculpting than careful assembly. Here, the form is taking
+shape. In the latest round of changes, we made as many breaking changes as we
+could, in the hopes of reducing how many breaking changes will need to be made
+going forward. I'm still not committed to avoiding breaking changes, but I think
+it's fair to discuss what it'll take to ship a 1.0 where there will be an
+expectation that APIs will remain stable for quite some time.
+
+As context, there are varying degrees of success possible for this project, and
+I don't know where it will land. One possibility is that it remains small, used
+by myself and a couple of others for small-scale, largely non-professional
+projects. In this world, I'll label it 1.0 as a retroactive, descriptive
+process. That is, when a few months go by where development has been happening
+but the APIs have remained stable, we'll assume that they can probably be kept
+stable for some time going forward, and we'll label it 1.0. This is probably the
+most likely outcome.
+
+Somewhere else in the range of possibilities, this project could get picked up
+for professional use by others. It could even attract attention, and we could
+end up with actual collaboration with teams within Google and others in the
+Flutter and Bazel ecosystem. In an optimistic case, two or three profitable
+companies start using it in production, and Google is potentially even tacitly
+supportive of it, or at least not hostile to it. In this scenario, the road to
+1.0 will be a little more formal and aligned with the interests and
+contributions of those companies. In that scenario, we'll probably see a formal,
+published release cycle, likely tied closely to Dart, Flutter and Bazel release
+cycles. 1.0 will be tagged with a consensus of the early production users.
+
+Now, of course, everything can change quickly in this world. Google could change
+the way it supports Flutter or Bazel. Dart 4 is on its way and may engender
+changes to projects like these. Everyone's expectations should be set
+accordingly. I welcome discussions of this direction by email or in
+[GitHub issues](https://github.com/aran/rules_dart/issues), and of course, if
+you are using or considering using this project professionally, please contact
+me so we can collaborate.
+
 ## Installation
 
 Add to your `MODULE.bazel`:
