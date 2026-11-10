@@ -1,8 +1,9 @@
 /// Runs the rules_dart e2e suites on a remote VM over SSH.
 ///
 /// Usage:
-///   dart run tools/vm/run_e2e.dart <vm-name> [--windows] \
-///       [--folders=e2e/ext_exemplar,e2e/dart_test] [--keep-going]
+///
+///     dart run tools/vm/run_e2e.dart <vm-name> [--windows] \
+///         [--folders=e2e/ext_exemplar,e2e/dart_test] [--keep-going]
 ///
 /// Transfers the committed working tree (`git archive HEAD`) to the VM,
 /// extracts it, then runs `bazel test //...` in each CI folder, mirroring
@@ -101,7 +102,7 @@ Future<void> main(List<String> args) async {
 
   // 1. Package the committed tree.
   final tgz = '${Directory.systemTemp.path}/rules_dart_src.tgz';
-  print('Packaging committed HEAD -> $tgz');
+  stdout.writeln('Packaging committed HEAD -> $tgz');
   _run('git', [
     '-C',
     repoRoot,
@@ -115,7 +116,7 @@ Future<void> main(List<String> args) async {
 
   // 2. Wait for the toolchain, then transfer + extract.
   await _waitForToolchain(vmName, isWindows: isWindows);
-  print('Transferring source tree to $vmName ...');
+  stdout.writeln('Transferring source tree to $vmName ...');
   if (isWindows) {
     await scpToVm(vmName, tgz, 'C:/rd_src.tgz', compress: true);
     // Separate, simple commands. A single compound `cmd /c "... & ... & ..."`
@@ -349,21 +350,13 @@ const _expectedFailureChecks = [
   ),
   // The entrypoint half: a `dart_binary`'s `main` reaches the analyzer through
   // `DartAnalyzableInfo`, and a diagnostic in it must fail the build too.
-  _ExpectedFailure(
-    'e2e/analysis_failure',
-    '//:bad_bin',
-    'unused_import',
-  ),
+  _ExpectedFailure('e2e/analysis_failure', '//:bad_bin', 'unused_import'),
   _ExpectedFailure(
     'e2e/analysis_failure',
     '//flutter_shaped',
     'unused_element',
   ),
-  _ExpectedFailure(
-    'e2e/analysis_failure',
-    '//nested',
-    'avoid_print',
-  ),
+  _ExpectedFailure('e2e/analysis_failure', '//nested', 'avoid_print'),
   _ExpectedFailure(
     'e2e/analysis_failure',
     '//unresolved_ruleset:clean_lib',
@@ -451,7 +444,7 @@ Future<_FolderResult> _runExpectedFailure(
 
 /// Waits until the VM's toolchain (bazel + C compiler) is installed.
 Future<void> _waitForToolchain(String vmName, {required bool isWindows}) async {
-  print('Verifying toolchain on $vmName ...');
+  stdout.writeln('Verifying toolchain on $vmName ...');
   // Generous: a fresh Windows VM may need ~15 min before SSH, then ~15 min
   // to finish installing MSVC + bazelisk via the startup script.
   final deadline = DateTime.now().add(const Duration(minutes: 40));

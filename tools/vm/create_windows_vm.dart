@@ -9,7 +9,7 @@
 ///
 /// The startup script installs the toolchain (~15 min). `run_e2e.dart` waits
 /// for completion automatically. After creation:
-///   dart run tools/vm/run_e2e.dart <vm-name> --windows
+///   `dart run tools/vm/run_e2e.dart <vm-name> --windows`
 library;
 
 import 'dart:io';
@@ -73,13 +73,13 @@ Future<void> main(List<String> args) async {
   final project = await getProject();
   final zone = await getZone();
 
-  print('Creating Windows VM: $vmName');
-  print('  Project: $project');
-  print('  Zone: $zone');
-  print('  Machine type: $_machineType');
-  print('  Image: $_imageFamily ($_imageProject)');
-  print('  Provisioning: SPOT (self-deletes on termination)');
-  print('');
+  stdout.writeln('Creating Windows VM: $vmName');
+  stdout.writeln('  Project: $project');
+  stdout.writeln('  Zone: $zone');
+  stdout.writeln('  Machine type: $_machineType');
+  stdout.writeln('  Image: $_imageFamily ($_imageProject)');
+  stdout.writeln('  Provisioning: SPOT (self-deletes on termination)');
+  stdout.writeln('');
 
   final tmpDir = Directory.systemTemp.createTempSync('rd_win_vm_');
   final tmpSpecialize = File('${tmpDir.path}/specialize.ps1')
@@ -108,19 +108,25 @@ Future<void> main(List<String> args) async {
     tmpDir.deleteSync(recursive: true);
   }
 
-  print('');
-  print('VM created. Waiting for SSH ...');
+  stdout.writeln('');
+  stdout.writeln('VM created. Waiting for SSH ...');
   // Windows sysprep + reboot + agent bring-up can take a while before SSH
   // (installed via the specialize googet) accepts connections.
   await waitForSsh(vmName, timeout: const Duration(minutes: 25));
 
-  print('');
-  print('Windows VM created: $vmName');
-  print('');
-  print('The startup script is installing the toolchain (Git, Bazel, MSVC).');
-  print('This takes ~15 min; run_e2e.dart waits for it automatically.');
-  print('');
-  print('Next:');
-  print('  dart run tools/vm/run_e2e.dart $vmName --windows');
-  print('  gcloud compute instances delete $vmName --quiet   # when done');
+  stdout.writeln('');
+  stdout.writeln('Windows VM created: $vmName');
+  stdout.writeln('');
+  stdout.writeln(
+    'The startup script is installing the toolchain (Git, Bazel, MSVC).',
+  );
+  stdout.writeln(
+    'This takes ~15 min; run_e2e.dart waits for it automatically.',
+  );
+  stdout.writeln('');
+  stdout.writeln('Next:');
+  stdout.writeln('  dart run tools/vm/run_e2e.dart $vmName --windows');
+  stdout.writeln(
+    '  gcloud compute instances delete $vmName --quiet   # when done',
+  );
 }

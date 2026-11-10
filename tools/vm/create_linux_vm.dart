@@ -8,7 +8,7 @@
 /// fetches it hermetically.
 ///
 /// After creation, run the suites with:
-///   dart run tools/vm/run_e2e.dart <vm-name>
+///   `dart run tools/vm/run_e2e.dart <vm-name>`
 library;
 
 import 'dart:io';
@@ -52,13 +52,13 @@ Future<void> main(List<String> args) async {
   final project = await getProject();
   final zone = await getZone();
 
-  print('Creating Linux VM: $vmName');
-  print('  Project: $project');
-  print('  Zone: $zone');
-  print('  Machine type: $_machineType');
-  print('  Image: $_imageFamily ($_imageProject)');
-  print('  Provisioning: SPOT (self-deletes on termination)');
-  print('');
+  stdout.writeln('Creating Linux VM: $vmName');
+  stdout.writeln('  Project: $project');
+  stdout.writeln('  Zone: $zone');
+  stdout.writeln('  Machine type: $_machineType');
+  stdout.writeln('  Image: $_imageFamily ($_imageProject)');
+  stdout.writeln('  Provisioning: SPOT (self-deletes on termination)');
+  stdout.writeln('');
 
   // From a file: `--metadata` splits its value on commas, and the script
   // has them.
@@ -84,11 +84,13 @@ Future<void> main(List<String> args) async {
     tmpDir.deleteSync(recursive: true);
   }
 
-  print('');
-  print('VM created. Waiting for SSH ...');
+  stdout.writeln('');
+  stdout.writeln('VM created. Waiting for SSH ...');
   await waitForSsh(vmName);
 
-  print('Waiting for startup script (toolchain install) to complete ...');
+  stdout.writeln(
+    'Waiting for startup script (toolchain install) to complete ...',
+  );
   final deadline = DateTime.now().add(const Duration(minutes: 8));
   while (true) {
     final r = await sshExec(vmName, 'cat /tmp/startup_complete 2>/dev/null');
@@ -104,10 +106,12 @@ Future<void> main(List<String> args) async {
     await Future<void>.delayed(const Duration(seconds: 10));
   }
 
-  print('');
-  print('Linux VM ready: $vmName');
-  print('');
-  print('Next:');
-  print('  dart run tools/vm/run_e2e.dart $vmName');
-  print('  gcloud compute instances delete $vmName --quiet   # when done');
+  stdout.writeln('');
+  stdout.writeln('Linux VM ready: $vmName');
+  stdout.writeln('');
+  stdout.writeln('Next:');
+  stdout.writeln('  dart run tools/vm/run_e2e.dart $vmName');
+  stdout.writeln(
+    '  gcloud compute instances delete $vmName --quiet   # when done',
+  );
 }

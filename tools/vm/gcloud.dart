@@ -26,17 +26,16 @@ Future<String> gcloud(List<String> args, {bool quiet = false}) async {
 }
 
 /// The active gcloud project.
-Future<String> getProject() => gcloud(
-  ['config', 'get-value', 'project'],
-  quiet: true,
-);
+Future<String> getProject() =>
+    gcloud(['config', 'get-value', 'project'], quiet: true);
 
 /// The active gcloud compute zone. Throws if unset.
 Future<String> getZone() async {
-  final zone = await gcloud(
-    ['config', 'get-value', 'compute/zone'],
-    quiet: true,
-  );
+  final zone = await gcloud([
+    'config',
+    'get-value',
+    'compute/zone',
+  ], quiet: true);
   if (zone.isEmpty || zone == '(unset)') {
     throw Exception(
       'No default compute zone set. Run: gcloud config set compute/zone <zone>',
