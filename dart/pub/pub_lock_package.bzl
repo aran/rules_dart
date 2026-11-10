@@ -21,14 +21,12 @@ same `dart_library` shape for non-plugin packages.
 load("//dart/pub:pub_graph.bzl", "write_pubspec_dependencies")
 load("//dart/pub:pubspec.bzl", "read_pubspec")
 load("//dart/pub/private:build_content.bzl", _classify_pub_hooks = "classify_pub_hooks", _find_pub_license_file = "find_pub_license_file", _make_dart_library_build_content = "make_dart_library_build_content", _make_pub_member_build_content = "make_pub_member_build_content")
-load("//dart/pub/private:language_version.bzl", _derive_language_version = "derive_language_version")
 load("//dart/pub/private:pub_archive.bzl", _check_pub_archive_sha256 = "check_pub_archive_sha256", _fetch_pub_archive = "fetch_pub_archive")
 load("//dart/pub/private:pub_git.bzl", _check_pub_git_resolved_ref = "check_pub_git_resolved_ref", _fetch_pub_git = "fetch_pub_git", _is_relative_git_url = "is_relative_git_url")
 
 # Re-export for consumers outside //dart/pub (rules_flutter's
 # flutter_pub_package). Loading the private bzl directly would trip
 # buildifier's bzl-visibility check, so we expose it via this public file.
-derive_language_version = _derive_language_version
 make_dart_library_build_content = _make_dart_library_build_content
 find_pub_license_file = _find_pub_license_file
 fetch_pub_archive = _fetch_pub_archive
@@ -46,7 +44,7 @@ def _write_member(ctx):
     pubspec_deps = []
     if ctx.path("pubspec.yaml").exists:
         pubspec = read_pubspec(ctx, ctx.attr.package_name, ctx.attr.version)
-        language_version = _derive_language_version(pubspec.sdk_constraint)
+        language_version = pubspec.language_version
         pubspec_deps = pubspec.dependencies
     write_pubspec_dependencies(ctx, pubspec_deps)
 

@@ -22,6 +22,7 @@ load("//dart/pub/private:pub_archive.bzl", "fetch_pub_archive")
 READER_PACKAGES = {
     "collection": ("1.19.1", "2f5709ae4d3d59dd8f7cd309b4e023046b57d8a6c82130785d2b0e5868084e76", "3.4"),
     "path": ("1.9.1", "75cca69d1490965be98c73ceaea117e8a04dd21217b37b292c9ddbec0d955bc5", "3.4"),
+    "pub_semver": ("2.2.1", "261236774e8b1d69cfc6b9eabbc96c40f25e7a2d6b171f3385d4f65d5734fb24", "3.4"),
     "source_span": ("1.10.2", "56a02f1f4cd1a2d96303c0144c93bd6d909eea6bee6bf5a0e0b685edbd4c47ab", "3.1"),
     "string_scanner": ("1.4.1", "921cd31725b72fe181906c6a94d987c78e3b98c2e205b397ea399d4054872b43", "3.1"),
     "term_glyph": ("1.2.2", "7f554798625ea768a7518313e58f83891c7f5024f88e46e7182a4558850a4b8e", "3.1"),
@@ -229,7 +230,7 @@ def run_pubspec_reader(rctx, pubspec, expected_name = None):
 
     Returns:
         `struct(error, pubspec)`: pub's message for a pubspec it refuses, or
-        None and `struct(name, dependencies, sdk_constraint, fields)`.
+        None and `struct(name, dependencies, sdk_constraint, language_version, fields)`.
     """
     rctx.watch(_SOURCE)
     tool = rctx.path(_TOOLS[host_platform(rctx.os)])
@@ -248,5 +249,6 @@ def run_pubspec_reader(rctx, pubspec, expected_name = None):
         name = ok["name"],
         dependencies = ok["dependencies"],
         sdk_constraint = ok["sdk"] or "",
+        language_version = ok["language_version"],
         fields = ok["fields"],
     ))

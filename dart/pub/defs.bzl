@@ -19,5 +19,5 @@ load("//dart/pub/private:version.bzl", _parse_semver = "parse_semver")
 # Re-exported for consumers outside //dart/pub — `//dart/ext/registry.bzl`
 # version-bounds its curated code-asset entries. Loading the private bzl
 # directly would trip buildifier's bzl-visibility check, so it is exposed
-# here, the same way `pub_lock_package.bzl` exposes `derive_language_version`.
+# here, the same way `pub_lock_package.bzl` exposes `fetch_pub_archive`.
 parse_semver = _parse_semver

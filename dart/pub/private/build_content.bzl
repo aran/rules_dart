@@ -114,8 +114,7 @@ def make_dart_library_build_content(name, deps, language_version, code_assets = 
         deps: List of fully-qualified Bazel label strings for sibling spokes
             (e.g. `"@hub__dep//:dep"`). Pass an empty list for no deps.
         language_version: Dart language version string (e.g. `"3.0"`),
-            usually derived from the package's pubspec SDK constraint via
-            `derive_language_version`.
+            usually the `language_version` that `read_pubspec` returns.
         code_assets: List of `dart_code_asset` label strings replacing this
             package's `hook/build.dart` output. Attaching them here rather
             than at the consuming binary is what makes them propagate: they

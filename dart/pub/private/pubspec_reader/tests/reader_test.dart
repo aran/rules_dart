@@ -41,6 +41,35 @@ const refusedByPub = {
       'A mapping key is a collection, which rules_dart cannot read.',
 };
 
+/// The language version pub gives each file, by pub's rule: the lower bound of
+/// `environment.sdk`, "2.7" where there is none. Every other file's is checked
+/// for its shape only.
+const languageVersions = {
+  'l01_two_lower_bounds.yaml': '3.0',
+  'l02_leading_zeros.yaml': '3.4',
+  'l03_empty_range.yaml': '2.7',
+  'l04_empty_exclusive.yaml': '2.7',
+  'l05_any.yaml': '2.7',
+  'l06_caret.yaml': '3.5',
+  'l07_caret_prerelease.yaml': '3.0',
+  'l08_range.yaml': '2.12',
+  'l09_exclusive_lower.yaml': '2.12',
+  'l10_space_after_operator.yaml': '2.12',
+  'l11_upper_only.yaml': '2.7',
+  'l12_bare_version.yaml': '2.12',
+  'l13_upper_before_lower.yaml': '3.1',
+  'l14_big_components.yaml': '12.34',
+  'l17_no_environment.yaml': '2.7',
+};
+
+/// `environment.sdk` values pub_semver does not parse, with its message. It has
+/// no `||`: pub refuses a union written that way.
+const unparsableSdk = {
+  'l15_union_syntax.yaml':
+      'Could not parse the SDK constraint "^2.0.0 || ^3.0.0"',
+  'l16_garbage.yaml': 'Could not parse the SDK constraint "garbage"',
+};
+
 /// The document as JSON holds it, converted independently of the reader.
 Object? toJson(Object? value) => switch (value) {
   Map() => {for (final e in value.entries) '${e.key}': toJson(e.value)},
@@ -80,6 +109,13 @@ void main(List<String> args) {
         expect(result['error'], contains('of $name: $pubMessage'));
         return;
       }
+      final unparsable = unparsableSdk[name];
+      if (unparsable != null) {
+        expect(result.keys, ['error']);
+        expect(result['error'], contains('of $name: '));
+        expect(result['error'], contains(unparsable));
+        return;
+      }
       final fields = toJson(document.value) as Map<String, Object?>;
       final dependencies = fields['dependencies'];
       final environment = fields['environment'];
@@ -90,7 +126,14 @@ void main(List<String> args) {
         'fields': fields,
       };
       expect(result.keys, ['ok']);
-      final ok = result['ok'];
+      final ok = Map<String, Object?>.of(result['ok'] as Map<String, Object?>);
+      final languageVersion = ok.remove('language_version');
+      final expectedLanguageVersion = languageVersions[name];
+      if (expectedLanguageVersion != null) {
+        expect(languageVersion, expectedLanguageVersion);
+      } else {
+        expect(languageVersion, matches(r'^\d+\.\d+$'));
+      }
       expect(
         const DeepCollectionEquality().equals(ok, expected),
         isTrue,

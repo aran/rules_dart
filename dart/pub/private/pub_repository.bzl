@@ -2,7 +2,6 @@
 
 load("//dart/pub:pubspec.bzl", "read_pubspec")
 load("//dart/pub/private:build_content.bzl", "find_pub_license_file", "make_dart_library_build_content")
-load("//dart/pub/private:language_version.bzl", "derive_language_version")
 load("//dart/pub/private:pub_archive.bzl", "fetch_pub_archive")
 
 def _pub_package_impl(ctx):
@@ -18,7 +17,7 @@ def _pub_package_impl(ctx):
     # language semantics for packages whose SDK floor predates the running
     # Dart SDK (e.g. `state_notifier` with `sdk: ">=2.12.0"`).
     pubspec = read_pubspec(ctx, ctx.attr.package_name, ctx.attr.version)
-    language_version = derive_language_version(pubspec.sdk_constraint)
+    language_version = pubspec.language_version
 
     # Generate BUILD.bazel with a dart_library target. `deps` here names sibling
     # repositories, whose default target carries the repo's own name.

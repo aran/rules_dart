@@ -2,6 +2,7 @@
 // checks to the fields rules_dart reads, and prints one line of JSON:
 //
 //   {"ok": {"name": ..., "dependencies": [...], "sdk": ... or null,
+//           "language_version": "<major>.<minor>",
 //           "fields": <the whole document>}}
 //   {"error": "<the message pub would give, with its line and column>"}
 //
@@ -13,6 +14,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:pub_semver/pub_semver.dart';
 import 'package:source_span/source_span.dart';
 import 'package:term_glyph/term_glyph.dart' as glyph;
 import 'package:yaml/yaml.dart';
@@ -184,6 +186,28 @@ List<String> _dependencies(YamlMap fields, String field, String name) {
   return names;
 }
 
+/// pub's `defaultLanguageVersion`, for a package whose SDK constraint has no
+/// lower bound.
+const _defaultLanguageVersion = '2.7';
+
+/// pub's `LanguageVersion.fromSdkConstraint`: the lower bound of the SDK
+/// constraint, as `<major>.<minor>`.
+String _languageVersion(VersionConstraint? constraint) {
+  Version? min;
+  if (constraint == null || constraint.isEmpty) {
+    min = null;
+  } else if (constraint is Version) {
+    min = constraint;
+  } else if (constraint is VersionRange) {
+    min = constraint.min;
+  } else if (constraint is VersionUnion) {
+    min = constraint.ranges.first.min;
+  } else {
+    throw ArgumentError('Unknown VersionConstraint type $constraint.');
+  }
+  return min == null ? _defaultLanguageVersion : '${min.major}.${min.minor}';
+}
+
 /// pub's `_parseEnvironment`: the Dart SDK constraint, or null for none.
 String? _sdk(YamlMap fields) {
   final node = fields.nodes['environment'];
@@ -202,6 +226,20 @@ String? _sdk(YamlMap fields) {
     if (sdk != 'sdk') _versionConstraint(value);
   }
   return node['sdk'] as String?;
+}
+
+/// The language version pub gives a package with this `environment.sdk`.
+String _sdkLanguageVersion(YamlMap fields, String? sdk) {
+  if (sdk == null) return _defaultLanguageVersion;
+  try {
+    return _languageVersion(VersionConstraint.parse(sdk));
+  } on FormatException catch (e) {
+    final node = (fields.nodes['environment'] as YamlMap).nodes['sdk']!;
+    _error(
+      'Could not parse the SDK constraint "$sdk": ${e.message}',
+      node.span,
+    );
+  }
 }
 
 Map<String, Object?> read(String path, String? expectedName) {
@@ -224,11 +262,14 @@ Map<String, Object?> read(String path, String? expectedName) {
     _error('The pubspec must be a YAML mapping.', document.span);
   }
   final name = _name(fields, expectedName);
+  final dependencies = _dependencies(fields, 'dependencies', name);
+  final sdk = _sdk(fields);
   return {
     'ok': {
       'name': name,
-      'dependencies': _dependencies(fields, 'dependencies', name),
-      'sdk': _sdk(fields),
+      'dependencies': dependencies,
+      'sdk': sdk,
+      'language_version': _sdkLanguageVersion(fields, sdk),
       'fields': _plain(fields),
     },
   };

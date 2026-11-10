@@ -29,6 +29,9 @@ def read_pubspec(rctx, package_name, version = "", pubspec = "pubspec.yaml"):
         - `name`: the `name` field.
         - `dependencies`: the names under `dependencies:`, in order.
         - `sdk_constraint`: `environment.sdk`, or "" for none.
+        - `language_version`: the `<major>.<minor>` language version pub gives
+          the package: the lower bound of `environment.sdk`, or "2.7" where
+          there is none, as pub's `LanguageVersion.fromSdkConstraint` has it.
         - `fields`: the whole document as JSON values (dicts, lists, strings,
           numbers, booleans, None), for fields pub's checks do not cover, such
           as Flutter's `flutter:` block.
