@@ -446,23 +446,16 @@ and typos to keep CI and local hooks in sync. When bumping prek, update
 **Procedure**: Run `prek autoupdate`, then reconcile the revs that are
 pinned to something else in this repo:
 
-- `keith/pre-commit-buildifier` should track `buildifier_prebuilt` in
-  `MODULE.bazel`, so the hook and CI format identically. Match on the buildifier
-  version — the first three components — not the fourth, which is the ruleset's
-  own packaging revision: `buildifier_prebuilt` 8.5.1.3 and 8.5.1.4 ship the
-  same buildifier 8.5.1, and the mirror repo tags only some of those revisions
-  (it has no 8.5.1.4). A fourth-component gap is not drift.
-- `google/yamlfmt` and `crate-ci/typos` should track `multitool.lock.json`
-  (see § "Multitool Version Bumps").
+- buildifier is pinned in `overhead/multitool.lock.json` (from
+  `bazelbuild/buildtools` releases), not by a hook rev; bump it with the other
+  multitool tools.
 - `pre-commit/mirrors-prettier` is archived upstream; `v3.1.0` is the last
   stable tag and is expected to stay pinned. Do not "upgrade" it to the
   `v4.0.0-alpha` tags.
 
 **Verification**: `prek run --all-files` passes.
 
-**Automation**: Manual. These were previously assumed to be handled by
-Renovate, but no Renovate config has ever existed in this repo, and the
-buildifier and commitizen revs silently drifted as a result.
+**Automation**: Manual.
 
 ---
 
