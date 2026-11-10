@@ -16,31 +16,16 @@ _LOAD = 'load("@rules_dart//dart:defs.bzl", "dart_library")\n'
 _TEST_LIBRARY = "test_library"
 
 _TEST_RUNNER_LOAD = """\
-load("@rules_dart//dart:defs.bzl", "dart_binary")
-load(
-    "@rules_dart//dart/private:dart_test_runner.bzl",
-    "dart_test_package",
-    "dart_test_runner_main",
-)
+load("@rules_dart//dart/pub:pub_library.bzl", "pub_test_runner")
 """
 
 # `package:test`'s spoke also builds the runner `dart_test` runs tests through,
 # from this same package, so the two can never be different versions. Built
 # once here and shared by every test that depends on `package:test`.
 _TEST_RUNNER_BLOCK = """\
-dart_test_runner_main(name = "test_runner_main")
-
-dart_binary(
-    name = "test_runner",
-    compile_mode = "kernel",
-    main = ":test_runner_main",
-    deps = [":{library}"],
-)
-
-dart_test_package(
+pub_test_runner(
     name = "test",
     library = ":{library}",
-    runner = ":test_runner",
     visibility = ["//visibility:public"],
 )
 """.format(library = _TEST_LIBRARY)

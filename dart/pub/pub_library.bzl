@@ -24,6 +24,7 @@ planned in the library repository by `dependency_cycle()` (`pub_graph.bzl`).
 load("//dart:providers.bzl", "DartInfo")
 load("//dart/private:dart_info.bzl", "dart_info", "dart_package_info")
 load("//dart/private:dart_library.bzl", "check_files_under_lib_root", "check_no_duplicate_srcs", "derive_lib_root", "link_hook_error")
+load("//dart/private:dart_test_runner.bzl", _pub_test_runner = "pub_test_runner")
 load("//dart/private:runtime.bzl", "runtime_reset")
 
 DartPackageMemberInfo = provider(
@@ -160,3 +161,7 @@ pub_library = rule(
     },
     doc = "A pub package as a library: its dependency cycle's packages, compiled as one target.",
 )
+
+# A library repository that provides `package:test` declares its runner with
+# this, so generators outside rules_dart need not load a private file.
+pub_test_runner = _pub_test_runner

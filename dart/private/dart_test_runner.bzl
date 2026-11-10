@@ -18,6 +18,7 @@ beside it, and `dart_test` finds the runner on whichever direct dependency is
 """
 
 load("//dart:providers.bzl", "DartInfo")
+load("//dart/private:dart_binary.bzl", "dart_binary")
 
 DartTestRunnerInfo = provider(
     doc = "The `package:test` runner built from a `package:test` library.",
@@ -70,3 +71,31 @@ dart_test_package = rule(
     },
     doc = "`package:test` as a dependency, carrying the runner built from it.",
 )
+
+def pub_test_runner(name, library, visibility = None):
+    """Declares `package:test` as a dependency that carries its own runner.
+
+    A pub library repository that provides `package:test` calls this once, so
+    `dart_test` runs every test through a runner built from that same
+    `package:test`. It declares `<name>_runner_main` (the entrypoint),
+    `<name>_runner` (the runner, a kernel) and `<name>`, the target tests
+    depend on: `library` forwarded unchanged, with the runner beside it.
+
+    Args:
+        name: The target tests depend on, conventionally `test`.
+        library: The `package:test` library target.
+        visibility: The visibility of `name`.
+    """
+    dart_test_runner_main(name = name + "_runner_main")
+    dart_binary(
+        name = name + "_runner",
+        compile_mode = "kernel",
+        main = ":" + name + "_runner_main",
+        deps = [library],
+    )
+    dart_test_package(
+        name = name,
+        library = library,
+        runner = ":" + name + "_runner",
+        visibility = visibility,
+    )
