@@ -4,10 +4,16 @@
 # pub.dev builder (json_serializable, freezed, …). See docs/ext.md.
 
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
-load("//dart:defs.bzl", "dart_library", "dart_package_metadata", "dart_test")
+load("//dart:defs.bzl", "dart_package_metadata", "dart_test")
+load("//dart/ext/_shared:defs.bzl", "builder_shim_library")
 
 exports_files(
-    ["pubspec.lock"],
+    [
+        "lib/builder_shim.dart",
+        "lib/src/declared_file_system.dart",
+        "lib/worker_entry.dart",
+        "pubspec.lock",
+    ],
     visibility = ["//visibility:public"],
 )
 
@@ -26,32 +32,15 @@ dart_package_metadata(
     name = "pubspec",
     package_name = "rules_dart_ext",
     language_version = "3.12",
-    visibility = ["//dart/ext:__subpackages__"],
+    visibility = ["//visibility:public"],
 )
 
-# Shim-runner library — used by every per-builder shim binary in dart/ext/<*>/.
-dart_library(
+# The shim runner every per-builder shim binary in dart/ext/<*>/ links. Other
+# rule sets build it against their own pub hub (`builder_shim_library`).
+builder_shim_library(
     name = "builder_shim",
-    srcs = [
-        "lib/builder_shim.dart",
-        "lib/src/declared_file_system.dart",
-        "lib/worker_entry.dart",
-    ],
-    package = ":pubspec",
+    pub_hub = "@ext_pub_deps",
     visibility = ["//dart/ext:__subpackages__"],
-    deps = [
-        "@ext_pub_deps//:analyzer",
-        "@ext_pub_deps//:args",
-        "@ext_pub_deps//:bazel_worker",
-        "@ext_pub_deps//:build",
-        "@ext_pub_deps//:crypto",
-        "@ext_pub_deps//:glob",
-        "@ext_pub_deps//:logging",
-        "@ext_pub_deps//:package_config",
-        "@ext_pub_deps//:path",
-        "@ext_pub_deps//:pub_semver",
-        "@ext_pub_deps//:yaml",
-    ],
 )
 
 dart_test(

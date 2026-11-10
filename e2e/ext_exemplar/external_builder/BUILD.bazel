@@ -1,0 +1,37 @@
+# A builder from outside rules_dart (`builder/`), built against its own pub
+# resolution through rules_dart's public builder API, run on a consumer's
+# source as rules_dart's own builders are.
+
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata", "dart_test")
+load("//external_builder/builder:defs.bzl", "greeting_codegen")
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "external_builder",
+)
+
+greeting_codegen(
+    name = "person_greeting",
+    srcs = ["lib/person.dart"],
+    package = ":pubspec",
+)
+
+dart_library(
+    name = "external_builder",
+    srcs = [
+        "lib/person.dart",
+        ":person_greeting",
+    ],
+    package = ":pubspec",
+    deps = ["//external_builder/annotation:greeting"],
+)
+
+dart_test(
+    name = "person_test",
+    size = "small",
+    main = "test/person_test.dart",
+    deps = [
+        ":external_builder",
+        "@pub_deps//:test",
+    ],
+)

@@ -293,6 +293,28 @@ path). This survives configurations where the codegen rule lives at a
 deeper Bazel-package path than the Dart package root
 (`//myapp/lib:codegen` for Dart package `myapp`).
 
+## Builders from other rule sets
+
+A rule set outside rules_dart ships a builder as rules_dart ships its own,
+from `@rules_dart//dart/ext/_shared:defs.bzl`:
+
+- `builder_shim_library(name, pub_hub)` is the shim runner,
+  `package:rules_dart_ext/worker_entry.dart`, built against the packages of
+  the pub hub `pub_hub` (`@<hub>`). Every library in a shim binary comes
+  from one pub resolution, so the hub that supplies the builder's package
+  supplies the runner's `build` and `analyzer` too; it must resolve the
+  runner's packages at versions `dart/ext/pubspec.yaml` allows.
+- The shim is a `dart_binary` (`code_assets_from_deps = False`) whose `main`
+  calls `shimMain(args, <builder factory>)`, depending on that library and
+  the builder's package.
+- The builder's macro calls `shared_part_codegen` (a SharedPartBuilder,
+  merged into `<src>.g.dart` by rules_dart's combining shim) or
+  `library_builder_codegen` (a builder writing its own files) with that
+  shim, its output extension and its runtime library.
+
+`e2e/ext_exemplar/external_builder/` is such a builder, its shim resolved
+from a lock of its own.
+
 ## Gazelle synthesis
 
 The Gazelle plugin (`gazelle/dart/`) scans `.dart` sources for
@@ -484,3 +506,4 @@ Cross-cutting scenarios that aren't tied to a single builder:
 | `e2e/ext_exemplar/multi_shard_combining/` | Multiple SharedPart builders on one source (json + copy_with) merged into one `.g.dart`                       |
 | `e2e/ext_exemplar/source_tree_generated/` | A `.g.dart` checked into the source tree doesn't leak into Bazel runfiles                                    |
 | `e2e/ext_exemplar/unique_extension/`      | Custom `output_suffixes` on `dart_codegen` — the rules-layer customisation path                               |
+| `e2e/ext_exemplar/external_builder/`      | A builder from outside rules_dart: its shim built against its own pub resolution, its macro over `shared_part_codegen` |

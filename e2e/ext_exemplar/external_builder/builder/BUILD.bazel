@@ -1,0 +1,42 @@
+# A builder defined outside rules_dart, as another rule set defines one: its
+# shim links rules_dart's shim runner built against this package's own pub
+# resolution (`@builder_pub_deps`), and its macro is rules_dart's
+# `shared_part_codegen` with this shim.
+
+load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_library", "dart_package_metadata")
+load("@rules_dart//dart/ext/_shared:defs.bzl", "builder_shim_library")
+
+exports_files(["pubspec.lock"])
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "greeting_builder",
+)
+
+builder_shim_library(
+    name = "builder_shim",
+    pub_hub = "@builder_pub_deps",
+)
+
+dart_library(
+    name = "greeting_builder",
+    srcs = ["lib/greeting_builder.dart"],
+    package = ":pubspec",
+    deps = [
+        "@builder_pub_deps//:analyzer",
+        "@builder_pub_deps//:build",
+        "@builder_pub_deps//:source_gen",
+    ],
+)
+
+dart_binary(
+    name = "shim",
+    srcs = ["shim.dart"],
+    code_assets_from_deps = False,
+    main = "shim.dart",
+    visibility = ["//visibility:public"],
+    deps = [
+        ":builder_shim",
+        ":greeting_builder",
+    ],
+)

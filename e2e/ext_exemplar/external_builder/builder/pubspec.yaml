@@ -1,0 +1,21 @@
+name: greeting_builder
+publish_to: none
+description: >
+  The pub resolution of the external-builder fixture's shim: its own build,
+  source_gen and analyzer, apart from the exemplar's `pub_deps`, as a rule set
+  outside rules_dart has.
+environment:
+  sdk: ^3.12.0
+dependencies:
+  analyzer: ^14.5.0
+  args: ^2.5.0
+  bazel_worker: ^1.1.0
+  build: ^4.0.0
+  crypto: ^3.0.0
+  glob: ^2.1.0
+  logging: ^1.3.0
+  package_config: ^3.0.0
+  path: ^1.9.0
+  pub_semver: ^2.2.0
+  source_gen: ^4.0.0
+  yaml: ^3.1.0

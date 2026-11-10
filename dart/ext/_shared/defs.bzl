@@ -12,9 +12,61 @@ it into `<src>.g.dart`.
 
 `library_builder_codegen` wires a direct-output builder (LibraryBuilder)
 that emits `<src>.<ext>.dart` itself (no combining).
+
+`builder_shim_library` is the shim runner a builder's shim binary links,
+built against the caller's pub hub, so that a rule set outside rules_dart
+writes a builder's shim and macro as rules_dart writes its own.
 """
 
-load("@rules_dart//dart:defs.bzl", "dart_codegen")
+load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library")
+
+# The pub packages the shim runner (`//dart/ext:lib`) imports.
+_SHIM_PUB_PACKAGES = [
+    "analyzer",
+    "args",
+    "bazel_worker",
+    "build",
+    "crypto",
+    "glob",
+    "logging",
+    "package_config",
+    "path",
+    "pub_semver",
+    "yaml",
+]
+
+_SHIM_SRCS = [
+    Label("//dart/ext:lib/builder_shim.dart"),
+    Label("//dart/ext:lib/src/declared_file_system.dart"),
+    Label("//dart/ext:lib/worker_entry.dart"),
+]
+
+def builder_shim_library(name, pub_hub, **kwargs):
+    """The shim runner, `package:rules_dart_ext`, over `pub_hub`'s packages.
+
+    A builder's shim binary is a `dart_binary` whose `main` calls
+    `shimMain(args, <builder factory>)` from
+    `package:rules_dart_ext/worker_entry.dart`, and whose `deps` are this
+    library and the builder's package. Every library in a binary comes from
+    one pub resolution: the hub that supplies the builder supplies the
+    runner's `build` and `analyzer` too.
+
+    Args:
+      name: The library.
+      pub_hub: The pub hub repository, as `@<name>`, whose packages the
+        runner is built against. It must resolve `analyzer`, `args`,
+        `bazel_worker`, `build`, `crypto`, `glob`, `logging`,
+        `package_config`, `path`, `pub_semver` and `yaml` at versions
+        `dart/ext/pubspec.yaml` allows.
+      **kwargs: `visibility`, `tags` and `testonly` of the library.
+    """
+    dart_library(
+        name = name,
+        srcs = _SHIM_SRCS,
+        package = Label("//dart/ext:pubspec"),
+        deps = ["{}//:{}".format(pub_hub, p) for p in _SHIM_PUB_PACKAGES],
+        **kwargs
+    )
 
 def _src_token(src_label):
     """Reduce a Bazel label / filename to a valid target-name token.
@@ -151,7 +203,7 @@ def shared_part_codegen(
         dart_codegen(
             name = combined_target,
             src = src,
-            generator_bin = "@rules_dart//dart/ext/_shared/combining_shim:bin",
+            generator_bin = Label("//dart/ext/_shared/combining_shim:bin"),
             output_suffixes = [".g.dart"],
             parts = [":" + part_target],
             package = package,

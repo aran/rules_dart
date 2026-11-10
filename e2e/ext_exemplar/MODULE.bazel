@@ -42,7 +42,14 @@ pub.package(
     sha256 = "0bd5eb8d6be76aa0d71e70cbdae6cac8f784f761170568e3c2214a6948c7f6d3",
     version = "11.0.0",
 )
-use_repo(pub, "pub_deps", "very_good_analysis")
+
+# The external-builder fixture's shim resolves its build, source_gen and
+# analyzer apart from `pub_deps`, as a builder from another rule set does.
+pub.from_lock(
+    name = "builder_pub_deps",
+    lock = "//external_builder/builder:pubspec.lock",
+)
+use_repo(pub, "builder_pub_deps", "pub_deps", "very_good_analysis")
 
 # A C++ toolchain for Linux arm64 execution platforms, so a C++ library built
 # for the host that runs a test (or for a code generator) compiles on a Linux

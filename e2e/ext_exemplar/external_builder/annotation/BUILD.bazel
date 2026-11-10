@@ -1,0 +1,14 @@
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "pubspec",
+    package_name = "greeting",
+)
+
+# The builder's runtime library: the annotation the consumer's sources carry.
+dart_library(
+    name = "greeting",
+    srcs = ["lib/greeting.dart"],
+    package = ":pubspec",
+    visibility = ["//external_builder:__subpackages__"],
+)
