@@ -258,27 +258,58 @@ void main(List<String> args) {
     await run(paths['analyzer_errors']!, [sdk('codegen'), 'bin/main.dart']);
   });
 
-  test('dart2js compiles to JavaScript', () async {
-    final js = '${work.path}/main.js';
-    await run(tool('dart2js', 'dart'), [
-      'compile',
-      'js',
-      '-o',
-      js,
-      'web/main.dart',
-    ]);
-    expect(File(js).existsSync(), isTrue);
+  // Every flag combination `dart_js_binary` and `dart_wasm_binary` pass: the
+  // compilation-mode defaults (`-c dbg` and `-c opt`) and the flags a target
+  // commonly adds through `dart_compile_flags`. A flag can read a file the
+  // default compile does not (`--server-mode` its own platform, `--dump-info`
+  // and `-O4` their own passes), so each runs against the subset.
+  const dart2jsFlags = {
+    'default': <String>[],
+    'dbg': ['--enable-asserts', '-O0'],
+    'opt': ['-O2'],
+    'O4': ['-O4'],
+    'server-mode': ['--server-mode'],
+    'dump-info': ['--dump-info'],
+  };
+  const dart2wasmFlags = {
+    'default': <String>[],
+    'dbg': ['--enable-asserts'],
+    'O0': ['-O0'],
+    'O4 without source maps': ['-O4', '--no-source-maps'],
+    'no-strip-wasm': ['--no-strip-wasm'],
+  };
+
+  group('dart2js compiles to JavaScript', () {
+    for (final MapEntry(key: name, value: flags) in dart2jsFlags.entries) {
+      test(name, () async {
+        final js = '${work.path}/main.js';
+        await run(tool('dart2js', 'dart'), [
+          'compile',
+          'js',
+          ...flags,
+          '-o',
+          js,
+          'web/main.dart',
+        ]);
+        expect(File(js).existsSync(), isTrue);
+      });
+    }
   });
 
-  test('dart2wasm compiles to WebAssembly', () async {
-    final wasm = '${work.path}/main.wasm';
-    await run(tool('dart2wasm', 'dart'), [
-      'compile',
-      'wasm',
-      '-o',
-      wasm,
-      'web/main.dart',
-    ]);
-    expect(File(wasm).existsSync(), isTrue);
+  group('dart2wasm compiles to WebAssembly', () {
+    for (final MapEntry(key: name, value: flags) in dart2wasmFlags.entries) {
+      test(name, () async {
+        final wasm = '${work.path}/main.wasm';
+        await run(tool('dart2wasm', 'dart'), [
+          'compile',
+          'wasm',
+          ...flags,
+          '-o',
+          wasm,
+          'web/main.dart',
+        ]);
+        expect(File(wasm).existsSync(), isTrue);
+      });
+    }
   });
 }
