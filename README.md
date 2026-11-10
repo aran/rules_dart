@@ -121,8 +121,9 @@ use_repo(pub, "pub_deps")
 Each hosted package is downloaded into its own external repository for better
 caching and parallelism, and only when something builds it. Each archive is
 verified against the `sha256` the lock records; a lock written by a pub older
-than 2.19 has none and is refused, so run `dart pub get` to rewrite it. Packages
-are available as `@pub_deps//:package_name`:
+than 2.19 has none and is refused, so run `dart pub get` to rewrite it. Every
+package the lock names is available as `@pub_deps//:package_name`, including one
+you also declare with `pub.package()`, which then supplies it:
 
 ```starlark
 dart_binary(
@@ -712,6 +713,7 @@ The [`e2e/`](e2e/) directory contains complete working examples:
 | [`pub_lock_conflict`](e2e/pub_lock_conflict/)         | Version conflict detection across lock files                                             |
 | [`pub_lock_cross_module`](e2e/pub_lock_cross_module/) | `pub.from_lock()` across Bazel module boundaries                                         |
 | [`pub_lock_cycle`](e2e/pub_lock_cycle/)               | Packages that depend on each other (`dio`, `dio_web_adapter`), on the VM and the web     |
+| [`pub_hub_surface`](e2e/pub_hub_surface/)             | Every locked package in its hub, including one declared with `pub.package()`             |
 | [`codegen`](e2e/codegen/)                             | `dart_codegen`/`dart_aggregate_codegen` over parts, re-exports and source sets           |
 | [`ext_exemplar`](e2e/ext_exemplar/)                   | One package per bundled `dart/ext` builder, plus native `code_assets`, sqlite3/webcrypto |
 | [`dual_build`](e2e/dual_build/)                       | Collision detection between Bazel-generated and `build_runner`-generated sources         |

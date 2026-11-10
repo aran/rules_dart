@@ -1,0 +1,30 @@
+module(name = "pub_hub_surface_e2e")
+
+bazel_dep(name = "rules_dart", version = "0.0.0")
+bazel_dep(name = "platforms", version = "1.1.0")
+
+local_path_override(
+    module_name = "rules_dart",
+    path = "../..",
+)
+
+dart = use_extension("@rules_dart//dart:extensions.bzl", "dart")
+dart.toolchain(dart_version = "3.13.7")
+use_repo(dart, "dart_toolchains")
+
+register_toolchains("@dart_toolchains//:all")
+
+pub = use_extension("@rules_dart//dart/pub:extensions.bzl", "pub")
+pub.from_lock(
+    name = "surface",
+    lock = "//:pubspec.lock",
+)
+
+# `collection` is in the lock AND declared here, at an older version: the
+# declaration wins, and the hub must still expose `@surface//:collection`.
+pub.package(
+    name = "collection",
+    sha256 = "a1ace0a119f20aabc852d165077c036cd864315bd99b7eaa10a60100341941bf",
+    version = "1.19.0",
+)
+use_repo(pub, "collection", "surface")

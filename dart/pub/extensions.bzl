@@ -133,13 +133,16 @@ def _pub_impl(ctx):
             skipped_by_source = {}
 
             for name, info in lock_pkgs.items():
+                # A package declared with `pub.package()` is that repository,
+                # however the lock lists it.
+                if name in explicit:
+                    hub_packages[hub_name][name] = True
+                    continue
+
                 source = info.get("source", "unknown")
                 if source != "hosted":
                     skipped_by_source.setdefault(source, []).append(name)
                     continue
-
-                if name in explicit:
-                    continue  # pub.package() wins
 
                 hub_packages[hub_name][name] = True
 
@@ -274,6 +277,8 @@ def _pub_impl(ctx):
         )
 
     def library_label(name):
+        if name in explicit:
+            return "@{name}//:{name}".format(name = name)
         return "@{repo}//:{name}".format(repo = library_repo(_SPOKE_PREFIX, name), name = name)
 
     # Create per-from_lock hub repos

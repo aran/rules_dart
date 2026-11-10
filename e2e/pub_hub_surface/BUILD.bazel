@@ -1,0 +1,35 @@
+load(":checks.bzl", "pub_graph_check")
+
+exports_files(["pubspec.lock"])
+
+# Property: every package a hub's lock names is reachable as `@hub//:<name>`,
+# however it was declared; `pub.package()` wins on version; and a package that
+# depends on one declared that way depends on the declared repository.
+
+pub_graph_check(
+    name = "lock_only_package_is_exposed",
+    target = "@surface//:async",
+    versions = {"async": "2.13.1"},
+)
+
+pub_graph_check(
+    name = "lock_only_transitive_is_exposed",
+    target = "@surface//:meta",
+    versions = {"meta": "1.19.0"},
+)
+
+pub_graph_check(
+    name = "locked_and_declared_package_is_exposed_at_declared_version",
+    target = "@surface//:collection",
+    versions = {"collection": "1.19.0"},
+)
+
+pub_graph_check(
+    name = "dependent_uses_declared_package_not_lock_entry",
+    direct_deps = [
+        "collection",
+        "meta",
+    ],
+    target = "@surface//:async",
+    versions = {"collection": "1.19.0"},
+)

@@ -262,7 +262,7 @@
     },
     "@@rules_dart+//dart/pub:extensions.bzl%pub": {
       "general": {
-        "bzlTransitiveDigest": "Fd48ZYyMSXr2wjjpm3ClIBNBsT7O7kb15KjN8IK/Bnw=",
+        "bzlTransitiveDigest": "85tQZW+xqCNsqAnLtBkzvOFSjRNSNPCsc6gR6dAXTUU=",
         "usagesDigest": "J5/CHBwHm+ylw0MaptX/AWmHrl7mYR2+U0oyv3aP1m4=",
         "recordedInputs": [
           "REPO_MAPPING:rules_dart+,yaml.bzl yaml.bzl+",
@@ -2086,6 +2086,7 @@
                 "native_toolchain_c": "@dart_pub_lib__native_toolchain_c//:native_toolchain_c",
                 "node_preamble": "@dart_pub_lib__node_preamble//:node_preamble",
                 "package_config": "@dart_pub_lib__package_config//:package_config",
+                "path": "@path//:path",
                 "platform": "@dart_pub_lib__platform//:platform",
                 "pool": "@dart_pub_lib__pool//:pool",
                 "process": "@dart_pub_lib__process//:process",
