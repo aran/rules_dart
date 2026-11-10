@@ -115,7 +115,7 @@ def _dart_web_compile(ctx, compile_mode):
         arguments = [args],
         inputs = depset(
             direct = staged.inputs,
-            transitive = [dart_sdk_info.tool_files],
+            transitive = [dart_sdk_info.files.dart2js if compile_mode == "js" else dart_sdk_info.files.dart2wasm],
         ),
         outputs = outputs,
         mnemonic = "DartCompileWeb",

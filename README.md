@@ -82,6 +82,21 @@ tests on another host, a remote Linux executor say, build them for that host's
 platform: with `--platforms`, or per test with a platform transition such as
 `platform_transition_test` from `aspect_bazel_lib`.
 
+A test carries only the part of the Dart SDK that runs its compiled code: the
+`dart` launcher and the VM. A test that runs SDK commands itself, such as
+`dart compile` or `dart analyze`, adds `@rules_dart//dart` to its `data`, which
+brings the whole SDK, and runs that target's launcher (found with
+`$(rlocationpath @rules_dart//dart)`) as it would `dart`:
+
+```starlark
+dart_test(
+    name = "cli_test",
+    args = ["$(rlocationpath @rules_dart//dart)"],
+    data = ["@rules_dart//dart"],
+    main = "test/cli_test.dart",
+)
+```
+
 ### Using pub.dev packages
 
 Declare individual packages with `pub.package()`:

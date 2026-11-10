@@ -977,7 +977,7 @@ def find_sdk_kernel_tools(dart_sdk_info):
     `gen_kernel_aot.dart.snapshot`, and the two VM platform dills `dart
     compile` chooses between (`vm_platform_product.dill` for a product
     runtime, `vm_platform.dill` for the JIT VM), found by exact path under the
-    SDK root within `dart_sdk_info.tool_files`.
+    SDK root within the SDK's `kernel` set.
 
     Args:
       dart_sdk_info: The `DartSdkInfo` from the toolchain.
@@ -999,7 +999,7 @@ def find_sdk_kernel_tools(dart_sdk_info):
     found = {}
 
     # Analysis-time path probe for 4 files; a legitimate one-time flatten.
-    for f in dart_sdk_info.tool_files.to_list():
+    for f in dart_sdk_info.files.kernel.to_list():
         for key, paths in wanted.items():
             if f.path in paths:
                 found[key] = f
@@ -1412,12 +1412,15 @@ def dart_kernel_action(
     args.add("-o", output_dill)
     args.add(KERNEL_FILESYSTEM_SCHEME + ":///" + kernel_root_path(main.short_path))
 
-    direct = [main]
+    # The front end reads only the files it is named: its snapshot, the
+    # runtime and the platform.
+    platform = tools.platform_product_dill if product else tools.platform_dill
+    direct = [main, tools.dartaotruntime, tools.gen_kernel_snapshot, platform]
     if package_config != None:
         direct.append(package_config)
     if native_assets_yaml != None:
         direct.append(native_assets_yaml)
-    transitive = [dart_sdk_info.tool_files]
+    transitive = []
     if transitive_srcs != None:
         transitive.append(transitive_srcs)
 

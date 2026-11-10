@@ -499,7 +499,7 @@ def _vm_kernel_sdk_impl(ctx):
     found = {}
 
     # Once per configuration: a probe for five files in the SDK.
-    for f in sdk.tool_files.to_list():
+    for f in sdk.files.kernel.to_list():
         for key, paths in wanted.items():
             if f.path in paths:
                 found[key] = f
@@ -516,7 +516,8 @@ def _vm_kernel_sdk_impl(ctx):
         libraries_target = "vm",
         # What `dart compile kernel` folds in: a product runtime, no sanitizers.
         defines = ["dart.vm.product=true", "dart.vm.asan=false", "dart.vm.msan=false", "dart.vm.tsan=false"],
-        tool_files = sdk.tool_files,
+        # The tools read the files named above and nothing else of the SDK.
+        tool_files = depset(),
     )]
 
 vm_kernel_sdk = rule(

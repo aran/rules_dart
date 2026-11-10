@@ -64,7 +64,7 @@ def _dart_format_impl(ctx):
 
     runfiles = ctx.runfiles(
         files = list(staged.inputs) + config.options_files + [run_config, dart_sdk_info.dart],
-        transitive_files = dart_sdk_info.tool_files,
+        transitive_files = dart_sdk_info.files.format,
     )
     runfiles = runfiles.merge(launcher.runfiles)
 

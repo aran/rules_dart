@@ -1,0 +1,59 @@
+load("@bazel_skylib//lib:partial.bzl", "partial")
+load("@bazel_skylib//lib:unittest.bzl", "unittest")
+load("//dart:defs.bzl", "dart_binary", "dart_test")
+load("//dart:toolchain.bzl", "SDK_FILE_SETS")
+load(":sdk_files_test.bzl", "sdk_file_set_copy", "sdk_file_sets_test")
+
+unittest.suite(
+    "sdk_file_sets",
+    partial.make(
+        sdk_file_sets_test,
+        size = "small",
+    ),
+)
+
+dart_binary(
+    name = "copy_files",
+    compile_mode = "exe",
+    main = "copy_files.dart",
+)
+
+dart_binary(
+    name = "analyzer_errors",
+    compile_mode = "exe",
+    main = "analyzer_errors.dart",
+    deps = ["@ext_pub_deps//:analyzer"],
+)
+
+[
+    sdk_file_set_copy(
+        name = "copy_" + set,
+        set = set,
+    )
+    for set in SDK_FILE_SETS
+]
+
+dart_test(
+    name = "sdk_files_test",
+    size = "small",
+    args = [
+        "%s=$(rlocationpath :copy_%s)" % (set, set)
+        for set in SDK_FILE_SETS
+    ] + ["analyzer_errors=$(rlocationpath :analyzer_errors)"],
+    data = [":analyzer_errors"] + [":copy_" + set for set in SDK_FILE_SETS],
+    main = "sdk_files_test.dart",
+    deps = [
+        "//dart/runfiles",
+        "@ext_pub_deps//:test",
+    ],
+)
+
+# The way README gives a test that runs SDK commands itself the whole SDK.
+dart_test(
+    name = "sdk_command_test",
+    size = "small",
+    args = ["$(rlocationpath //dart)"],
+    data = ["//dart"],
+    main = "sdk_command_test.dart",
+    deps = ["//dart/runfiles"],
+)

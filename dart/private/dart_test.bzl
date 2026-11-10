@@ -120,7 +120,9 @@ def _dart_test_impl(ctx):
     runfiles = ctx.runfiles(
         files = [dill, config_file] + runtime_libs + runner_files + ctx.files.data,
         transitive_files = depset(
-            transitive = [dart_sdk_info.tool_files, collect_transitive_resources(ctx.attr.deps)],
+            # The VM that runs the kernel, and no more of the SDK: a test that
+            # runs SDK commands itself takes `@rules_dart//dart` in `data`.
+            transitive = [dart_sdk_info.files.run, collect_transitive_resources(ctx.attr.deps)],
         ),
     )
     runfiles = runfiles.merge(launcher.runfiles)

@@ -196,7 +196,8 @@ def dart_link_hook_actions(ctx, runner, recorded_uses, deps, data_asset_ids, nam
             arguments = [args],
             inputs = depset(
                 [hook, package_config, recorded_uses],
-                transitive = [srcs, resources, sdk.tool_files],
+                # The hook is a script, which `dart` runs in the VM.
+                transitive = [srcs, resources, sdk.files.run],
             ),
             outputs = outputs,
             mnemonic = "DartLinkHook",

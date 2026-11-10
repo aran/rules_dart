@@ -398,7 +398,7 @@ def _dart_analyze_aspect_impl(target, ctx):
     )
 
     dart_sdk_info = portable_sdk(ctx)
-    sdk_inputs = depset(direct = [dart_sdk_info.dart], transitive = [dart_sdk_info.tool_files])
+    sdk_inputs = dart_sdk_info.files.analyze
 
     tags = getattr(ctx.rule.attr, "tags", [])
     groups = {}
@@ -412,7 +412,7 @@ def _dart_analyze_aspect_impl(target, ctx):
                 ctx,
                 name if len(by_version) == 1 else "%s.%s" % (name, version or "latest"),
                 format_staged,
-                sdk_inputs,
+                dart_sdk_info.files.format,
                 paths,
                 version,
             )

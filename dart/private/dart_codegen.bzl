@@ -96,7 +96,9 @@ def _dart_codegen_impl(ctx):
     identity = resolve_package_identity(ctx)
     sdk = portable_sdk(ctx)
     dart = sdk.dart
-    sdk_files = sdk.tool_files
+
+    # What a generator's analyzer reads of the SDK at `--sdk-path`.
+    sdk_files = sdk.files.codegen
 
     if ctx.file.generator and ctx.executable.generator_bin:
         fail("%s: only one of `generator` or `generator_bin` may be set." %
@@ -209,7 +211,8 @@ def _dart_codegen_impl(ctx):
             arguments = [args],
             inputs = depset(
                 direct = direct_inputs,
-                transitive = _transitive(package_files) + [sdk_files],
+                # A script runs in the VM besides.
+                transitive = _transitive(package_files) + [sdk_files, sdk.files.run],
             ),
             outputs = outputs,
             mnemonic = "DartCodegen",

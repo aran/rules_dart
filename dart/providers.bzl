@@ -218,7 +218,7 @@ aspect is otherwise the same code.""",
         "libraries_spec": "File: The `libraries.json` that lists the `dart:` libraries `target` provides.",
         "libraries_target": "str: The entry in `libraries_spec` to read (its `include` entries are followed).",
         "defines": "list[str]: Environment declarations the platform itself fixes, e.g. `dart.vm.product=true`.",
-        "tool_files": "depset[File]: Everything the tools need at run time.",
+        "tool_files": "depset[File]: What the tools read at run time beyond the files named above; the actions take nothing else of the SDK. Empty for the VM, whose front end reads only its snapshot, its runtime and the platform.",
     },
 )
 

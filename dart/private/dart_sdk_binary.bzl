@@ -27,7 +27,7 @@ def _dart_sdk_binary_impl(ctx):
 
     runfiles = ctx.runfiles(
         files = [config],
-        transitive_files = dart_sdk_info.tool_files,
+        transitive_files = dart_sdk_info.files.all,
     ).merge(launcher.runfiles)
 
     return [DefaultInfo(

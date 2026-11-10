@@ -14,7 +14,7 @@
 
 | Provider                  | Level        | Purpose                                                                                                                            |
 | ------------------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `DartSdkInfo`             | Toolchain    | SDK binaries (`dart`, `dartaotruntime`), SDK root, version, tool_files                                                             |
+| `DartSdkInfo`             | Toolchain    | The `dart` binary, version, the SDK's files, whole (`files.all`) and by use (`files`, a `DartSdkFilesInfo`)               |
 | `DartInfo`                | Library      | Its own packages, srcs and deps, transitive_srcs, transitive_resources, transitive_packages, transitive_code_asset_files           |
 | `DartPackageInfo`         | Metadata     | One package's name, lib_root, version, language version, code assets, unreplaced build-hook path, link hook (in DartInfo depsets)  |
 | `DartPackageMetadataInfo` | Declaration  | The name and language version a `dart_package_metadata` states, read back through an attribute by every rule building that package |
@@ -147,6 +147,14 @@ bazel build //:my_binary --platforms=//:linux_x64
 - `dart_js_binary` and `dart_wasm_binary` output is platform-independent — no cross-compilation needed.
 - `dart_test` is built for the target and runs where Bazel runs any test, as `cc_test` does; running it on another host is a platform choice (`--platforms`, or a platform transition on the test).
 - Native **code assets** on linux-riscv64 and linux-arm work only if you supply a cc toolchain for that CPU; rules_dart ships none. The ABI mapping is in place (`linux_riscv64`, `linux_arm`), so rules_dart itself will not block you — an unresolvable cc toolchain surfaces as Bazel's own error.
+
+## SDK File Sets
+
+The SDK is ~1,050 files and 620 MB, and an action or a test reads a few of them: running a kernel reads `bin/dart` and `bin/dartvm`, `dart compile exe` five files, `dart analyze` the server and the `dart:` sources. Every input is linked into a sandbox and, under remote execution, listed, hashed and materialised, so each use takes only its own files. `SDK_FILE_SETS` in `dart/toolchain.bzl` lists them by use as glob patterns under the SDK root: `run` (a kernel, an app-JIT snapshot or a script, in the VM), `aot_run`, `aot_compile` (`exe`/`aot-snapshot`), `jit_compile`, `kernel` (the front end run directly; such an action takes only the files it names), `format`, `analyze` (also `dart fix`), `codegen` (what `package:analyzer` reads of the SDK it is given), `dart2js` and `dart2wasm`. `dart_sdk_files` declares one filegroup per set over an SDK in a package and collects them, with the whole SDK, into a `DartSdkFilesInfo`, which the toolchain hands on as `DartSdkInfo.files`. Being a macro over any directory laid out as the SDK archive is, it serves another copy of the SDK as well, such as the one Flutter bundles.
+
+The sets were found by running each use against a copy holding only its set and taking away one file at a time. A copy, not links: the `dart` launcher looks for the VM and the snapshots beside its resolved path, so through links, as in a local sandbox or a symlinked runfiles tree, it finds the whole SDK, and a short set shows only on a remote executor. `//dart/tests/sdk_files` keeps both facts: `sdk_file_sets` pins each set's files on the pinned SDK, and `sdk_files_test` runs each use against a copy of its set.
+
+A `dart_test`'s runfiles carry the `run` set and no more. A test that runs SDK commands itself (`dart compile`, `dart analyze`, `dart format`) adds `@rules_dart//dart` to `data`, which carries the whole SDK; `@rules_dart//dart` (`dart_sdk_binary`) and the toolchain's own `DefaultInfo` are the only places that do.
 
 ## Toolchain Types
 

@@ -50,7 +50,10 @@ file at runtime — keep file lists current as the repo evolves.
 4. Update version references in `README.md`
 5. Update `dart/tests/versions_test.bzl` (asserted version key)
 6. Regenerate lock files: `bazel run --lockfile_mode=off @overhead//locks -- --refresh`
-7. Run `bazel test //dart/tests/...` to verify unit tests pass
+7. Run `bazel test //dart/tests/...` to verify unit tests pass. A failure in
+   `//dart/tests/sdk_files` means the SDK moved or added a file one of its
+   uses reads: update that use's entry in `SDK_FILE_SETS`
+   (`dart/toolchain.bzl`) and its pin in `sdk_files_test.bzl`
 8. Pick one e2e workspace and run `bazel build //...` to smoke-test
 9. If the new SDK contains dart-lang/sdk e2c6325 (Mach-O `--strip` fix), retire
    `dart/private/tools/compile_runner.dart`: pass `--strip` to gen_snapshot

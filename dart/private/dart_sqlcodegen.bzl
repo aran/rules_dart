@@ -41,7 +41,9 @@ load("//dart/private:runtime.bzl", "runtime_reset")
 def _dart_sqlcodegen_impl(ctx):
     identity = resolve_package_identity(ctx)
     sdk = portable_sdk(ctx)
-    sdk_files = sdk.tool_files
+
+    # What the generator's analyzer reads of the SDK at `--sdk-path`.
+    sdk_files = sdk.files.codegen
 
     if not ctx.attr.output_suffixes:
         fail("%s: `output_suffixes` must contain at least one suffix." %

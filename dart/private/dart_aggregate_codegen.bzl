@@ -119,7 +119,9 @@ def _dart_aggregate_codegen_impl(ctx):
 
     direct_inputs = list(ctx.files.srcs) + extra_inputs
     transitive = [package_files] if package_files != None else []
-    transitive.append(dart_sdk_info.tool_files)
+
+    # What the generator's analyzer reads of the SDK at `--sdk-path`.
+    transitive.append(dart_sdk_info.files.codegen)
 
     if ctx.executable.generator_bin:
         ctx.actions.run(
@@ -142,7 +144,8 @@ def _dart_aggregate_codegen_impl(ctx):
             arguments = [ctx.actions.args().add(ctx.file.generator_script), args],
             inputs = depset(
                 direct = [ctx.file.generator_script] + direct_inputs,
-                transitive = transitive,
+                # A script runs in the VM besides.
+                transitive = transitive + [dart_sdk_info.files.run],
             ),
             outputs = outputs,
             mnemonic = "DartAggregateCodegen",

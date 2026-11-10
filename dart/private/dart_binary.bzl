@@ -230,7 +230,7 @@ def _launcher(ctx, sdk, compile_mode, output):
         executable = launcher.executable,
         runfiles = ctx.runfiles(
             files = [output, config],
-            transitive_files = sdk.tool_files,
+            transitive_files = sdk.files.aot_run if compile_mode == "aot-snapshot" else sdk.files.run,
         ).merge(launcher.runfiles),
     )
 

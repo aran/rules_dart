@@ -179,7 +179,10 @@ def dart_compile_action(
         direct = [kernel]
 
     env = dict(SDK_ENV)
-    transitive = [sdk.tool_files]
+    transitive = [sdk.files.jit_compile if compile_mode == "jit-snapshot" else sdk.files.aot_compile]
+    if runner != None:
+        # The runner is a kernel, which `dart` runs in the VM.
+        transitive.append(sdk.files.run)
     if sdk.cross_tools != None and compile_mode in RECORDING_COMPILE_MODES:
         # The modes that take the target flags. dartdev reads only this cache
         # from the home it is given, so a read-only one serves.
