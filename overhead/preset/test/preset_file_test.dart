@@ -15,7 +15,7 @@ void main() {
           '\n'
           '# A flag.\n'
           'common --foo\n';
-      expect(presetFile(generated), '${header}\n# A flag.\ncommon --foo\n');
+      expect(presetFile(generated), '$header\n# A flag.\ncommon --foo\n');
     });
 
     test('refuses output that does not start with the generator header', () {

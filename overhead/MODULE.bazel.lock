@@ -395,7 +395,7 @@
     "@@rules_dart+//dart/pub:extensions.bzl%pub": {
       "general": {
         "bzlTransitiveDigest": "ezZZipZrYqnXp3XD9WLTyQgz42uFH0RvX0EmqlsU93o=",
-        "usagesDigest": "aSI6zrNHaNxORyza/uvSGZeFBRGmqefEIV8jxroItE0=",
+        "usagesDigest": "jlAtZEo7Q9Hkva0AgjyI1c2G7v+9F1VtQZPsUyc/5FA=",
         "recordedInputs": [
           "REPO_MAPPING:rules_dart+,bsd_tar_toolchains_darwin_amd64 tar.bzl++toolchains+bsd_tar_toolchains_darwin_amd64",
           "REPO_MAPPING:rules_dart+,bsd_tar_toolchains_darwin_arm64 tar.bzl++toolchains+bsd_tar_toolchains_darwin_arm64",
@@ -413,6 +413,23 @@
           "FILE:@@rules_dart+//dart/ext/pubspec.lock 289be37155535d8aa66f5ad1abd09a7fff4224e262d79c15e0d2cedd2a313fcb"
         ],
         "generatedRepoSpecs": {
+          "dart_pub__lints": {
+            "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
+            "attributes": {
+              "package_name": "lints",
+              "version": "6.1.0",
+              "sha256": "12f842a479589fea194fe5c5a3095abc7be0c1f2ddfa9a0e76aed1dbd26a87df",
+              "code_assets": [],
+              "ignore_hook": false
+            }
+          },
+          "lints": {
+            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
+            "attributes": {
+              "package_name": "lints",
+              "spoke_prefix": "dart_pub"
+            }
+          },
           "dart_pub_index": {
             "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_index",
             "attributes": {
@@ -508,9 +525,12 @@
                 "stacked_generator": "2.0.4",
                 "stacked_shared": "1.4.2",
                 "stream_transform": "2.1.2",
-                "yaml_edit": "2.2.4"
+                "yaml_edit": "2.2.4",
+                "lints": "6.1.0"
               },
-              "explicit_packages": [],
+              "explicit_packages": [
+                "lints"
+              ],
               "resolved_packages": [],
               "unsupplied": {},
               "cycles": [],
@@ -2334,6 +2354,7 @@
         "moduleExtensionMetadata": {
           "explicitRootModuleDirectDeps": [],
           "explicitRootModuleDirectDevDeps": [
+            "lints",
             "overhead_dev_deps"
           ],
           "useAllRepos": "NO",

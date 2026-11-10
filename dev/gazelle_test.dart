@@ -77,9 +77,9 @@ void main() {
 
   void checkFile(String file) {
     if (File(_at(work, file)).existsSync()) {
-      print('PASS: $file generated');
+      stdout.writeln('PASS: $file generated');
     } else {
-      print('FAIL: $file was not generated');
+      stdout.writeln('FAIL: $file was not generated');
       failed = true;
     }
   }
@@ -87,24 +87,26 @@ void main() {
   void checkContains(String file, String text, String description) {
     final f = File(_at(work, file));
     if (!f.existsSync()) {
-      print('FAIL: $file does not contain $description (no such file)');
+      stdout.writeln(
+        'FAIL: $file does not contain $description (no such file)',
+      );
       failed = true;
       return;
     }
     final content = f.readAsStringSync();
     if (content.contains(text)) {
-      print('PASS: $file contains $description');
+      stdout.writeln('PASS: $file contains $description');
     } else {
-      print('FAIL: $file does not contain $description');
-      print('  Contents:');
+      stdout.writeln('FAIL: $file does not contain $description');
+      stdout.writeln('  Contents:');
       for (final line in content.split('\n')) {
-        print('    $line');
+        stdout.writeln('    $line');
       }
       failed = true;
     }
   }
 
-  print('=== Checking generated BUILD files ===');
+  stdout.writeln('=== Checking generated BUILD files ===');
 
   // lib/ has a dart_library with both source files.
   checkFile('lib/BUILD.bazel');
@@ -137,8 +139,8 @@ void main() {
     'dep on //lib from package:lib import',
   );
 
-  print('');
-  print('=== Generated BUILD files ===');
+  stdout.writeln();
+  stdout.writeln('=== Generated BUILD files ===');
   for (final file in [
     'lib/BUILD.bazel',
     'bin/BUILD.bazel',
@@ -146,14 +148,14 @@ void main() {
   ]) {
     final f = File(_at(work, file));
     if (f.existsSync()) {
-      print('--- $file ---');
-      print(f.readAsStringSync());
+      stdout.writeln('--- $file ---');
+      stdout.writeln(f.readAsStringSync());
     }
   }
 
   if (failed) {
-    print('=== SOME TESTS FAILED ===');
+    stdout.writeln('=== SOME TESTS FAILED ===');
     exit(1);
   }
-  print('=== All Gazelle tests passed ===');
+  stdout.writeln('=== All Gazelle tests passed ===');
 }

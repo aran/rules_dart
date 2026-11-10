@@ -297,7 +297,7 @@
     "//dart/pub:extensions.bzl%pub": {
       "general": {
         "bzlTransitiveDigest": "ezZZipZrYqnXp3XD9WLTyQgz42uFH0RvX0EmqlsU93o=",
-        "usagesDigest": "0+3c4sSN2vc7x1/y7HdP42yAhA9LS1h/fRTJdUpRt4g=",
+        "usagesDigest": "cgAHMdwo+441oPVJrrX60ZsXECa0X7VRGNfOzMcLysY=",
         "recordedInputs": [
           "REPO_MAPPING:,bsd_tar_toolchains_darwin_amd64 tar.bzl++toolchains+bsd_tar_toolchains_darwin_amd64",
           "REPO_MAPPING:,bsd_tar_toolchains_darwin_arm64 tar.bzl++toolchains+bsd_tar_toolchains_darwin_arm64",
@@ -314,6 +314,23 @@
           "FILE:@@//dart/ext/pubspec.lock 289be37155535d8aa66f5ad1abd09a7fff4224e262d79c15e0d2cedd2a313fcb"
         ],
         "generatedRepoSpecs": {
+          "dart_pub__lints": {
+            "repoRuleId": "@@//dart/pub:pub_lock_package.bzl%pub_lock_package",
+            "attributes": {
+              "package_name": "lints",
+              "version": "6.1.0",
+              "sha256": "12f842a479589fea194fe5c5a3095abc7be0c1f2ddfa9a0e76aed1dbd26a87df",
+              "code_assets": [],
+              "ignore_hook": false
+            }
+          },
+          "lints": {
+            "repoRuleId": "@@//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
+            "attributes": {
+              "package_name": "lints",
+              "spoke_prefix": "dart_pub"
+            }
+          },
           "dart_pub_index": {
             "repoRuleId": "@@//dart/pub/private:pub_lock_library.bzl%pub_lock_index",
             "attributes": {
@@ -409,9 +426,12 @@
                 "web_socket_channel": "3.0.3",
                 "webkit_inspection_protocol": "1.2.1",
                 "yaml": "3.1.4",
-                "yaml_edit": "2.2.4"
+                "yaml_edit": "2.2.4",
+                "lints": "6.1.0"
               },
-              "explicit_packages": [],
+              "explicit_packages": [
+                "lints"
+              ],
               "resolved_packages": [],
               "unsupplied": {},
               "cycles": [],
@@ -2180,7 +2200,9 @@
           "explicitRootModuleDirectDeps": [
             "ext_pub_deps"
           ],
-          "explicitRootModuleDirectDevDeps": [],
+          "explicitRootModuleDirectDevDeps": [
+            "lints"
+          ],
           "useAllRepos": "NO",
           "reproducible": false
         }

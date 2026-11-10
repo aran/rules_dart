@@ -1,6 +1,6 @@
 /// Fetches SHA-256 checksums for a Dart SDK release from Google's CDN.
 ///
-/// Usage: dart run tool/fetch_sdk_hashes.dart <version>
+/// Usage: `dart run tool/fetch_sdk_hashes.dart <version>`
 ///
 /// Prints the version's `versions.bzl` entries ready to paste: one for
 /// `TOOL_VERSIONS`, one for `CROSS_TOOL_VERSIONS`, then one for

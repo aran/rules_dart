@@ -86,8 +86,9 @@ List<String> pinProblems(OverheadPin? pin, List<Uses> uses) {
       return const [];
     case GitPin(:final remote, :final commit):
       final repo = pin.gitHubRepo;
-      if (repo == null)
+      if (repo == null) {
         return ['overhead\'s remote "$remote" is not on GitHub'];
+      }
       if (!RegExp(r'^[0-9a-f]{40}$').hasMatch(commit)) {
         return ['overhead\'s git_override commit "$commit" is not a full sha'];
       }
