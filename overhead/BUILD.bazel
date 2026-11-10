@@ -1,0 +1,27 @@
+load("@bazel_env.bzl", "bazel_env")
+load("@multitool//:tools.bzl", "TOOLS")
+
+# How `Changelog:` trailers render as release notes, for every consumer.
+exports_files(
+    ["cliff.toml"],
+    visibility = ["//visibility:public"],
+)
+
+# The tools the commit hooks run, at the versions this module pins, as
+# `.bazel_env/bin/<name>` in the consumer's checkout root, so a hook runs
+# without Bazel. Set up, and brought up to date after a pin bump, with
+#   bazel run --noincompatible_auto_exec_groups @overhead//:bazel_env
+# The flag: bazel_env 0.10.0 fails analysis under
+# --incompatible_auto_exec_groups, which the consumers set.
+#
+# It must stay in this root package: `bazel run` puts the `.bazel_env`
+# symlink in the target's package directory, which for this package is the
+# consumer's root.
+bazel_env(
+    name = "bazel_env",
+    tools = {
+        "check-commit-messages": "//changelog:check",
+        "typos": TOOLS["typos"],
+        "yamlfmt": TOOLS["yamlfmt"],
+    },
+)

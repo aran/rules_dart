@@ -1,0 +1,8 @@
+# Only for overhead's own tests; the tools use nothing beyond dart:io and
+# rules_dart's runfiles library.
+name: overhead
+publish_to: none
+environment:
+  sdk: ^3.11.0
+dev_dependencies:
+  test: ^1.26.0

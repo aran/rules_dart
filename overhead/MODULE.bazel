@@ -1,0 +1,62 @@
+"""Development tooling shared by rules_dart, rules_dart_proto, rules_flutter
+and frustrate: the commit policy, release notes, tool pins and lock checks.
+Its reusable workflows are in rules_dart's .github/workflows. Not published
+to the Bazel Central Registry; REPO.bazel keeps it out of rules_dart's
+packages.
+
+A repository takes it as a dev dependency, pinned to a rules_dart commit (see
+README.md), and runs it from its checkout root:
+`bazel run @overhead//changelog:check`.
+"""
+
+module(name = "overhead")
+
+# Every tool here is a dart_binary. In a consumer's graph the root module's
+# rules_dart wins, rules_dart's own checkout included.
+bazel_dep(name = "rules_dart", version = "0.8.1")
+bazel_dep(name = "rules_multitool", version = "1.11.1")
+
+# The commit hooks' tools, built into the consumer's `.bazel_env/bin` so the
+# hooks run without Bazel: //:bazel_env.
+bazel_dep(name = "bazel_env.bzl", version = "0.10.0")
+
+# Building overhead on its own (`bazel test //...` in this directory) uses the
+# rules_dart around it. An override in a dependency is ignored, so consumers
+# are unaffected.
+local_path_override(
+    module_name = "rules_dart",
+    path = "..",
+)
+
+# The tool pins every consumer shares: git-cliff, prek, typos, yamlfmt.
+# rules_multitool merges the hubs of every module that declares one; the root
+# module's lock file is read last, so a consumer that pins a tool itself wins.
+multitool = use_extension("@rules_multitool//multitool:extension.bzl", "multitool")
+multitool.hub(lockfile = "//:multitool.lock.json")
+use_repo(multitool, "multitool")
+
+# Only for developing overhead itself: a Dart SDK and package:test for its
+# tests. A consumer brings its own SDK and never sees these.
+dart = use_extension(
+    "@rules_dart//dart:extensions.bzl",
+    "dart",
+    dev_dependency = True,
+)
+dart.toolchain(dart_version = "3.13.7")
+use_repo(dart, "dart_toolchains")
+
+register_toolchains(
+    "@dart_toolchains//:all",
+    dev_dependency = True,
+)
+
+pub = use_extension(
+    "@rules_dart//dart/pub:extensions.bzl",
+    "pub",
+    dev_dependency = True,
+)
+pub.from_lock(
+    name = "overhead_dev_deps",
+    lock = "//:pubspec.lock",
+)
+use_repo(pub, "overhead_dev_deps")

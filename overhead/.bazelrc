@@ -1,0 +1,5 @@
+# The lock file must be complete and committed.
+common --lockfile_mode=error
+
+# Settings specific to the current user; .bazelrc.user is not committed.
+try-import %workspace%/.bazelrc.user

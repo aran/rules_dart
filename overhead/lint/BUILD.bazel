@@ -1,0 +1,28 @@
+# The tools the pre-commit hooks run, at the versions in //:multitool.lock.json,
+# run in the checkout root so that the paths prek passes resolve:
+#   bazel run @overhead//lint:typos -- <file>...
+alias(
+    name = "typos",
+    actual = "@multitool//tools/typos:workspace_root",
+    visibility = ["//visibility:public"],
+)
+
+alias(
+    name = "yamlfmt",
+    actual = "@multitool//tools/yamlfmt:workspace_root",
+    visibility = ["//visibility:public"],
+)
+
+# buildifier for the Starlark files, run with the flags the hooks pass:
+#   bazel run @overhead//lint:buildifier -- -mode=fix -lint=fix <file>...
+alias(
+    name = "buildifier",
+    actual = "@multitool//tools/buildifier:workspace_root",
+    visibility = ["//visibility:public"],
+)
+
+alias(
+    name = "prek",
+    actual = "@multitool//tools/prek:workspace_root",
+    visibility = ["//visibility:public"],
+)

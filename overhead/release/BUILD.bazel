@@ -1,0 +1,27 @@
+load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_test")
+
+# Called from each repository's `.github/workflows/release_prep.sh <tag>`:
+# writes the source archive and prints the release notes. See prep.dart.
+dart_binary(
+    name = "prep",
+    srcs = ["notes_range.dart"],
+    args = [
+        "$(rlocationpath @multitool//tools/git-cliff)",
+        "$(rlocationpath //:cliff.toml)",
+    ],
+    data = [
+        "//:cliff.toml",
+        "@multitool//tools/git-cliff",
+    ],
+    main = "prep.dart",
+    visibility = ["//visibility:public"],
+    deps = ["@rules_dart//dart/runfiles"],
+)
+
+dart_test(
+    name = "notes_range_test",
+    size = "small",
+    srcs = ["notes_range.dart"],
+    main = "test/notes_range_test.dart",
+    deps = ["@overhead_dev_deps//:test"],
+)

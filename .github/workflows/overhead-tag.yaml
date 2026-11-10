@@ -1,0 +1,96 @@
+# Reusable: tags the next version from the conventional-commit subjects since
+# the last tag, using
+# https://github.com/marketplace/actions/conventional-commits-versioner-action.
+# The caller decides when it runs and chains its own release:
+#
+#   on:
+#     workflow_dispatch:
+#     schedule:
+#       - cron: "0 15 * * *"
+#   jobs:
+#     tag:
+#       uses: aran/rules_dart/.github/workflows/overhead-tag.yaml@<sha>
+#       permissions:
+#         contents: write
+#         actions: read
+#     release:
+#       needs: tag
+#       if: needs.tag.outputs.new-tag == 'true' && needs.tag.outputs.new-tag-version-type != 'major'
+#       uses: ./.github/workflows/release.yaml
+#       with:
+#         tag_name: ${{ needs.tag.outputs.new-tag-version }}
+#       ...
+#
+# A scheduled run tags at most once per two weeks; a dispatched one always
+# tags if there is something to release. Neither tags a commit unless the
+# caller's CI workflow (`ci_workflow`, default ci.yaml) completed successfully
+# on exactly that commit: otherwise the job fails and says why.
+name: Tag a Release
+on:
+  workflow_call:
+    inputs:
+      ci_workflow:
+        description: The CI workflow file that must have passed on the commit being tagged
+        type: string
+        default: ci.yaml
+    outputs:
+      new-tag:
+        description: "'true' if a tag was pushed"
+        value: ${{ jobs.tag.outputs.new-tag }}
+      new-tag-version:
+        description: The tag pushed, as vX.Y.Z
+        value: ${{ jobs.tag.outputs.new-tag-version }}
+      new-tag-version-type:
+        description: major, minor or patch
+        value: ${{ jobs.tag.outputs.new-tag-version-type }}
+jobs:
+  tag:
+    permissions:
+      contents: write # allow create tag
+      actions: read # read the CI result for the commit
+    runs-on: ubuntu-latest
+    outputs:
+      new-tag: ${{ steps.ccv.outputs.new-tag }}
+      new-tag-version: ${{ steps.ccv.outputs.new-tag-version }}
+      new-tag-version-type: ${{ steps.ccv.outputs.new-tag-version-type }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Need enough history to find the prior release tag
+          fetch-depth: 0
+      - name: Check if there is a recent tag
+        id: recent-tag
+        # Only skip on cron trigger, not manual trigger
+        if: github.event_name == 'schedule'
+        run: |
+          # This is a trade-off between making too many releases,
+          # which overwhelms BCR maintainers and over-notifies users,
+          # and releasing too infrequently which delays delivery of bugfixes and features.
+          MAX_AGE=1209600  # 2 weeks
+          TAG=$(git describe --tags --match 'v[0-9]*.[0-9]*.[0-9]*' --abbrev=0 2>/dev/null) || {
+            echo "No matching tag — continue workflow."
+            exit 0
+          }
+          TAG_TIME=$(git log -1 --format=%ct "$TAG")
+          NOW=$(date +%s)
+          AGE=$((NOW - TAG_TIME))
+          echo "Latest tag: $TAG ($AGE seconds ago)"
+          if [ "$AGE" -lt "$MAX_AGE" ]; then
+            echo "recently-tagged=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Require CI to have passed on this commit
+        if: github.event_name != 'schedule' || steps.recent-tag.outputs.recently-tagged != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CI_WORKFLOW: ${{ inputs.ci_workflow }}
+        run: |
+          CONCLUSIONS=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow "$CI_WORKFLOW" \
+            --commit "$GITHUB_SHA" --status completed --json conclusion --jq '.[].conclusion')
+          if ! grep -qx success <<<"$CONCLUSIONS"; then
+            echo "::error::$CI_WORKFLOW has no successful run on $GITHUB_SHA; not tagging."
+            exit 1
+          fi
+      - name: Bump tag if necessary
+        id: ccv
+        if: github.event_name != 'schedule' || steps.recent-tag.outputs.recently-tagged != 'true'
+        uses: smlx/ccv@v0.10.0

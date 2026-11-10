@@ -54,7 +54,8 @@ jobs:
           "e2e/dual_build",
           "e2e/fix",
           "e2e/analyze_composition",
-          "e2e/link_hook"
+          "e2e/link_hook",
+          "overhead"
         ]
   # `dart format` and `dart analyze` find their configuration by walking up from
   # the file they are given, and that walk does not stop at the project root. It

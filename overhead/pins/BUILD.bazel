@@ -1,0 +1,18 @@
+load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_test")
+
+# Refuses MODULE.bazel and .github/workflows pinning different revisions of
+# overhead. See check_pins.dart.
+dart_binary(
+    name = "check",
+    srcs = ["pins.dart"],
+    main = "check_pins.dart",
+    visibility = ["//visibility:public"],
+)
+
+dart_test(
+    name = "pins_test",
+    size = "small",
+    srcs = ["pins.dart"],
+    main = "test/pins_test.dart",
+    deps = ["@overhead_dev_deps//:test"],
+)

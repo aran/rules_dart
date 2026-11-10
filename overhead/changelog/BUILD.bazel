@@ -1,0 +1,56 @@
+load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_test")
+
+# `bazel run @overhead//changelog` prints the unreleased release notes of the
+# checkout it runs in; `-- --tag vX.Y.Z` previews them under that version.
+dart_binary(
+    name = "changelog",
+    args = [
+        "$(rlocationpath @multitool//tools/git-cliff)",
+        "$(rlocationpath //:cliff.toml)",
+    ],
+    data = [
+        "//:cliff.toml",
+        "@multitool//tools/git-cliff",
+    ],
+    main = "preview.dart",
+    visibility = ["//visibility:public"],
+    deps = ["@rules_dart//dart/runfiles"],
+)
+
+# Checks commit messages against the commit policy in AGENTS.md:
+# `-- <message-file>` from the commit-msg hook, `-- --push <before> <after>`
+# in CI.
+dart_binary(
+    name = "check",
+    srcs = ["commit_policy.dart"],
+    main = "check_commit_messages.dart",
+    visibility = ["//visibility:public"],
+)
+
+dart_test(
+    name = "commit_policy_test",
+    size = "small",
+    srcs = ["commit_policy.dart"],
+    main = "test/commit_policy_test.dart",
+    deps = ["@overhead_dev_deps//:test"],
+)
+
+# The notes `cliff.toml` renders and the entries the commit policy sees agree.
+dart_test(
+    name = "notes_match_policy_test",
+    size = "small",
+    srcs = ["commit_policy.dart"],
+    args = [
+        "$(rlocationpath @multitool//tools/git-cliff)",
+        "$(rlocationpath //:cliff.toml)",
+    ],
+    data = [
+        "//:cliff.toml",
+        "@multitool//tools/git-cliff",
+    ],
+    main = "test/notes_match_policy_test.dart",
+    deps = [
+        "@overhead_dev_deps//:test",
+        "@rules_dart//dart/runfiles",
+    ],
+)

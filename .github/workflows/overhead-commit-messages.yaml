@@ -1,0 +1,40 @@
+# Reusable: checks every commit of a push against the commit policy in
+# AGENTS.md (a conventional-commit subject, which the tag workflow derives the
+# next version from, and the `Changelog:` trailer rules), and that the
+# repository pins one revision of overhead throughout. Call it on push:
+#
+#   on:
+#     push:
+#       branches: [main]
+#   jobs:
+#     check:
+#       uses: aran/rules_dart/.github/workflows/overhead-commit-messages.yaml@<sha>
+#
+# with <sha> the commit MODULE.bazel's git_override pins overhead at.
+name: Commit messages
+on:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  check:
+    name: Commit messages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: bazel-contrib/setup-bazel@0.19.1
+        with:
+          bazelisk-cache: true
+          disk-cache: ${{ github.workflow }}
+          repository-cache: true
+      # A push that creates the branch, or a force push, has no "before" this
+      # clone holds; the check then looks at the pushed commit alone.
+      - name: Check the pushed commits
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: bazel run @overhead//changelog:check -- --push "$BEFORE" "$AFTER"
+      - name: Check that MODULE.bazel and the workflows pin one overhead
+        run: bazel run @overhead//pins:check

@@ -1,0 +1,53 @@
+# Changelog = the `Changelog:` lines on commits between version tags. Every
+# line starting `Changelog:` is an entry, as in changelog/commit_policy.dart;
+# cliff's own footers would run an entry into any paragraph after it.
+# Commits without one are not user-visible and do not appear.
+# Shared by every repository that uses overhead; see the Changelog policy in
+# each one's AGENTS.md.
+
+[changelog]
+header = "# Changelog\n"
+body = """
+{%- if version %}## {{ version | trim_start_matches(pat="v") }}{% else %}## Unreleased{% endif %}
+{% set_global total = 0 -%}
+{%- for heading in ["Breaking", "Added", "Changed", "Fixed"] -%}
+  {%- set_global items = [] -%}
+  {%- for commit in commits -%}
+    {%- if commit.breaking %}{% set g = "Breaking" %}{% else %}{% set g = commit.group %}{% endif -%}
+    {%- if g == heading and commit.conventional -%}
+      {%- for line in commit.raw_message | split(pat="\n") -%}
+        {%- if line is starting_with("Changelog:") -%}
+          {%- set entry = line | trim_start_matches(pat="Changelog:") | trim -%}
+          {%- if entry != "skip" -%}
+            {%- set_global items = items | concat(with=entry) -%}
+          {%- endif -%}
+        {%- endif -%}
+      {%- endfor -%}
+    {%- endif -%}
+  {%- endfor -%}
+  {%- if items | length > 0 %}
+### {{ heading }}
+{% for item in items %}
+- {{ item }}
+{%- endfor %}
+{% set n = items | length %}{% set_global total = total + n -%}
+  {%- endif -%}
+{%- endfor -%}
+{%- if total == 0 %}
+No user-facing changes.
+{% endif %}
+"""
+footer = ""
+trim = false
+
+[git]
+conventional_commits = true
+filter_unconventional = false
+protect_breaking_commits = true
+tag_pattern = "^v[0-9]+\\.[0-9]+\\.[0-9]+$"
+sort_commits = "oldest"
+commit_parsers = [
+  { message = "^feat", group = "Added" },
+  { message = "^fix", group = "Fixed" },
+  { message = ".*", group = "Changed" },
+]
