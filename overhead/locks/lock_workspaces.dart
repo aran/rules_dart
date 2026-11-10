@@ -120,6 +120,65 @@ final _unfetchablePin = RegExp(
   r"while working with @+([^:\s]+):\s*fatal: Could not parse object '([0-9a-f]+)'",
 );
 
+/// A line of a lock that holds a path on the machine that wrote it.
+class HostPath {
+  const HostPath(this.line, this.path, this.root);
+
+  /// The line, counting from 1.
+  final int line;
+
+  /// The path as the lock holds it, up to the next quote or space.
+  final String path;
+
+  /// What the path is under: the description of a root given to [hostPaths].
+  final String root;
+}
+
+/// The lines of [lock] (a MODULE.bazel.lock's text) that hold a path under
+/// one of [roots], each a description (`the checkout`) and an absolute
+/// directory, the first that matches naming the line: so give the most
+/// specific first. A lock records every repository's attributes and is
+/// shared, so one that holds such a path holds only on that machine.
+///
+/// A root matches a whole path component, plain or as a `file://` URL, with
+/// `/` or `\` (written `\\` in the lock's JSON) between components. A root
+/// that is empty or the filesystem root matches nothing.
+List<HostPath> hostPaths(String lock, List<(String, String)> roots) {
+  final patterns = [
+    for (final (root, directory) in roots)
+      if (_rootPattern(directory) case final pattern?) (root, pattern),
+  ];
+  final found = <HostPath>[];
+  final lines = lock.split('\n');
+  for (var i = 0; i < lines.length; i++) {
+    for (final (root, pattern) in patterns) {
+      if (pattern.firstMatch(lines[i]) case final match?) {
+        found.add(HostPath(i + 1, match[1]!, root));
+        break;
+      }
+    }
+  }
+  return found;
+}
+
+RegExp? _rootPattern(String root) {
+  final parts = root
+      .split(RegExp(r'[/\\]'))
+      .where((p) => p.isNotEmpty)
+      .toList();
+  if (parts.isEmpty) return null;
+  // `C:` begins a Windows path; anything else begins at a separator.
+  final drive = RegExp(r'^[A-Za-z]:$').hasMatch(parts.first);
+  const separator = r'(?:/|\\{1,2})';
+  final body = parts.map(RegExp.escape).join(separator);
+  final start = drive ? '' : separator;
+  return RegExp(
+    '(?:^|(?<=file://)|(?<![A-Za-z0-9._~%/\\\\-]))'
+    '($start$body(?:$separator[^"\'\\s]*)?)'
+    '(?![A-Za-z0-9._~%-])',
+  );
+}
+
 /// The workspace `.bazelrc` without the line that imports the developer's
 /// gitignored `.bazelrc.user`, which can override modules, inject
 /// repositories and turn the lock check off: what a lock must not record.

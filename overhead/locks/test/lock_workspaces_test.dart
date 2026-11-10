@@ -158,6 +158,68 @@ git_override(module_name = "d", remote = "x", commit = "y")
     });
   });
 
+  group('hostPaths', () {
+    const roots = [
+      ('the checkout', '/Users/me/src/repo'),
+      ("Bazel's output root", '/Users/me/Library/Caches/bazel/_bazel_me'),
+      ('the home directory', '/Users/me'),
+    ];
+
+    test('names each line holding a path under a root, with the most '
+        'specific root', () {
+      const lock =
+          '{\n'
+          '  "directory": "/Users/me/src/repo/e2e/pkg",\n'
+          '  "sha256": "abc",\n'
+          '  "tool": "/Users/me/Library/Caches/bazel/_bazel_me/install/x",\n'
+          '  "rc": "/Users/me/.netrc"\n'
+          '}\n';
+      final found = hostPaths(lock, roots);
+      expect(
+        [for (final f in found) (f.line, f.path, f.root)],
+        [
+          (2, '/Users/me/src/repo/e2e/pkg', 'the checkout'),
+          (
+            4,
+            '/Users/me/Library/Caches/bazel/_bazel_me/install/x',
+            "Bazel's output root",
+          ),
+          (5, '/Users/me/.netrc', 'the home directory'),
+        ],
+      );
+    });
+
+    test('a root itself and a file:// URL match', () {
+      expect(hostPaths('"/Users/me/src/repo"', roots).single.line, 1);
+      expect(
+        hostPaths('"url": "file:///Users/me/src/repo/a"', roots).single.path,
+        '/Users/me/src/repo/a',
+      );
+    });
+
+    test('a path only sharing a prefix, or under another directory, does '
+        'not match', () {
+      const lock =
+          '"/Users/meg/x"\n'
+          '"/Users/me2"\n'
+          '"https://example.com/Users/me/x"\n'
+          '"/opt/Users/me/x"\n'
+          '"relative/Users/me"\n';
+      expect(hostPaths(lock, roots), isEmpty);
+    });
+
+    test('Windows paths match with either separator, as JSON escapes them', () {
+      const windows = [('the checkout', r'C:\Users\me\repo')];
+      expect(hostPaths(r'"C:\\Users\\me\\repo\\pkg"', windows).single.line, 1);
+      expect(hostPaths('"C:/Users/me/repo/pkg"', windows).single.line, 1);
+      expect(hostPaths(r'"D:\\Users\\me\\repo"', windows), isEmpty);
+    });
+
+    test('an empty root or the filesystem root matches nothing', () {
+      expect(hostPaths('"/x"\n', [('home', ''), ('home', '/')]), isEmpty);
+    });
+  });
+
   group('withoutUserRc', () {
     test('drops every import of .bazelrc.user, and only that', () {
       const rc =

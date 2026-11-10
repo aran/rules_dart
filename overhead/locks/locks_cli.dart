@@ -124,7 +124,8 @@ Future<bool> _run(
   }
 
   try {
-    return await _runSteps(workspace, dir, steps, rcFile, expected);
+    return await _runSteps(workspace, dir, steps, rcFile, expected) &&
+        await _holdsNoHostPath(workspace, lock, rcFile);
   } finally {
     // Each workspace starts its own Bazel server; walking every workspace of
     // a repository would otherwise leave dozens of idle servers holding memory.
@@ -176,6 +177,52 @@ Future<bool> _runSteps(
     return false;
   }
   return true;
+}
+
+/// Whether [lock] holds no path of this machine: the checkout, Bazel's output
+/// root or the home directory. Prints each line that does.
+Future<bool> _holdsNoHostPath(
+  String workspace,
+  File lock,
+  String? rcFile,
+) async {
+  if (!lock.existsSync()) return true;
+  final info = await Process.run('bazel', [
+    ...rcArgs(rcFile),
+    'info',
+    '--lockfile_mode=off',
+    'output_base',
+  ], workingDirectory: lock.parent.path);
+  if (info.exitCode != 0) {
+    stderr.writeln(
+      'FAILED $workspace: bazel info output_base exited ${info.exitCode}',
+    );
+    stderr.writeln(_tail('${info.stdout}\n${info.stderr}'));
+    return false;
+  }
+  final home =
+      Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
+  final checkout = Directory(_repo);
+  final roots = [
+    ('the checkout', checkout.path),
+    ('the checkout', checkout.resolveSymbolicLinksSync()),
+    ("Bazel's output root", File((info.stdout as String).trim()).parent.path),
+    if (home != null) ('the home directory', home),
+  ];
+  final found = hostPaths(lock.readAsStringSync(), roots);
+  if (found.isEmpty) return true;
+  final name = workspace == '.'
+      ? 'MODULE.bazel.lock'
+      : '$workspace/MODULE.bazel.lock';
+  stderr.writeln(
+    'FAILED $workspace: the lock holds paths of this machine, so it holds '
+    'only here; a repository attribute must name a file by a label, not a '
+    'path:',
+  );
+  for (final at in found) {
+    stderr.writeln('    $name:${at.line}: ${at.path} (under ${at.root})');
+  }
+  return false;
 }
 
 /// A copy of the workspace's `.bazelrc` without its `.bazelrc.user`, or null
