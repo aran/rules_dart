@@ -16,7 +16,7 @@ same assembly as a standalone, package-agnostic primitive (consumed via
 """
 
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory_bin_action")
-load("//dart/private:dart_info.bzl", "derived_package_info", "package_lib_prefix")
+load("//dart/private:dart_info.bzl", "derived_package_info")
 
 # A `Label`, so a rule in another module that declares these toolchains finds
 # rules_dart's `bazel_lib` whether or not it depends on `bazel_lib` itself.
@@ -77,6 +77,10 @@ def assemble_source_dir(ctx, name, srcs, root_paths = ["."], replace_prefixes = 
 def package_for(short_path, packages):
     """Returns the package_name owning `short_path` (see `package_record_for`).
 
+    Callers matching many files against one package list build the index once
+    (`package_record_index`) and call `package_record_for_index`: this wrapper
+    rebuilds it on every call.
+
     Args:
       short_path: A File's `short_path`.
       packages: List of `DartPackageInfo` (read for `package_name` and `lib_root`).
@@ -114,25 +118,81 @@ def package_record_for(short_path, packages):
       split across several `lib_root`s has a record per root, and the one
       whose root holds the file is returned.
     """
-    best = None
-    best_len = -1
-    for p in packages:
-        lr = p.lib_root
-        prefix = package_lib_prefix(lr)
+    return package_record_for_index(short_path, package_record_index(packages))
 
-        # `<lib_root>/lib` — the library directory itself, not a file under it.
-        lib_dir = prefix[:-1]
-        under_lib = short_path == lib_dir or short_path.startswith(prefix)
-        if not lr:
-            # Root package: owns `lib/...` files. Lowest precedence.
-            if under_lib and best_len < 0:
-                best = p
-                best_len = 0
-        elif under_lib or short_path == lr:
-            if len(lr) > best_len:
-                best = p
-                best_len = len(lr)
-    return best
+def package_record_index(packages):
+    """Indexes package records by `lib_root`, for `package_record_for_index`.
+
+    Where several records share a `lib_root`, the first keeps it, as the scan
+    in list order always decided.
+
+    Args:
+      packages: List of `DartPackageInfo` (read for `lib_root`).
+
+    Returns:
+      Dict of `lib_root` to the first record with it.
+    """
+    index = {}
+    for p in packages:
+        if p.lib_root not in index:
+            index[p.lib_root] = p
+    return index
+
+def package_index(packages):
+    """Indexes packages by `lib_root`, for `package_for_index`.
+
+    Args:
+      packages: List of `DartPackageInfo` (read for `package_name` and `lib_root`).
+
+    Returns:
+      Dict of `lib_root` to the first record with it.
+    """
+    return package_record_index(packages)
+
+def package_for_index(short_path, index):
+    """`package_for` against an index from `package_index`.
+
+    Args:
+      short_path: A File's `short_path`.
+      index: Dict from `package_index`.
+
+    Returns:
+      The matching `package_name`, or `None` if no package owns the path.
+    """
+    record = package_record_for_index(short_path, index)
+    return record.package_name if record != None else None
+
+def package_record_for_index(short_path, index):
+    """`package_record_for` against an index from `package_record_index`.
+
+    The only `lib_root`s that can own a path are the path itself (an opaque
+    package directory) and each prefix that ends just before a `lib` component
+    of it. Trying those longest first and taking the first that names a record
+    is the longest-match rule in time proportional to the path's depth, not to
+    the number of packages: a target matches every file of its closure, so the
+    scan cost files x packages.
+
+    Args:
+      short_path: A File's `short_path`.
+      index: Dict of `lib_root` to record, from `package_record_index`.
+
+    Returns:
+      The matching record, or `None` if no package owns the path.
+    """
+
+    # The path itself is longer than any prefix of it. The root package's
+    # empty `lib_root` owns only its `lib/`, never a path by equality.
+    if short_path:
+        record = index.get(short_path)
+        if record != None:
+            return record
+    parts = short_path.split("/")
+    for i in range(len(parts) - 1, -1, -1):
+        if parts[i] == "lib":
+            record = index.get("/".join(parts[:i]))
+            if record != None:
+                return record
+    return None
 
 def colocate_packages(ctx, packages, all_srcs, members = {}):
     """Co-locates each package's split source/generated files into one directory.
@@ -162,8 +222,9 @@ def colocate_packages(ctx, packages, all_srcs, members = {}):
     """
     by_pkg = {}
     loose = []
+    index = package_index(packages)
     for f in all_srcs:
-        name = package_for(f.short_path, packages)
+        name = package_for_index(f.short_path, index)
         if name == None:
             loose.append(f)
         elif name in by_pkg:

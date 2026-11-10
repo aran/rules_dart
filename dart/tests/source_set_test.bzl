@@ -9,8 +9,8 @@ just the field the caller overrode.
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
 load("//dart:providers.bzl", "DartInfo", "DartPackageInfo")
 load("//dart/private:common.bzl", "collect_packages", "collect_transitive_srcs", "package_code_assets")
-load("//dart/private:dart_info.bzl", "derived_package_info")
-load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS", "colocate_packages", "needs_source_assembly", "package_for")
+load("//dart/private:dart_info.bzl", "derived_package_info", "package_lib_prefix")
+load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS", "colocate_packages", "needs_source_assembly", "package_for", "package_record_for", "package_record_for_index", "package_record_index")
 
 def _fake_file(is_source):
     # needs_source_assembly only inspects File.is_source.
@@ -96,6 +96,95 @@ def _package_for_external_and_nomatch_test_impl(ctx):
     pkgs = [_fake_pkg("foo", "../pub/foo")]
     asserts.equals(env, "foo", package_for("../pub/foo/lib/x.dart", pkgs))
     asserts.equals(env, None, package_for("other/lib/x.dart", pkgs))
+    return unittest.end(env)
+
+def _scan_oracle(short_path, packages):
+    # The linear scan the index replaced, kept as the reference behaviour.
+    best = None
+    best_len = -1
+    for p in packages:
+        lr = p.lib_root
+        prefix = package_lib_prefix(lr)
+        under_lib = short_path == prefix[:-1] or short_path.startswith(prefix)
+        if not lr:
+            if under_lib and best_len < 0:
+                best = p
+                best_len = 0
+        elif under_lib or short_path == lr:
+            if len(lr) > best_len:
+                best = p
+                best_len = len(lr)
+    return best
+
+def _index_nested_roots_test_impl(ctx):
+    # The deepest root wins, and a `lib` inside a root is part of the root.
+    env = unittest.begin(ctx)
+    pkgs = [_fake_pkg("root", ""), _fake_pkg("outer", "a"), _fake_pkg("inner", "a/lib/b"), _fake_pkg("deep", "a/lib/b/c")]
+    index = package_record_index(pkgs)
+    for path, want in {
+        "lib/r.dart": "root",
+        "a/lib/x.dart": "outer",
+        "a/lib/b/x.dart": "outer",
+        "a/lib/b/lib/x.dart": "inner",
+        "a/lib/b/c/lib/x.dart": "deep",
+        "a/lib/b/c/lib": "deep",
+        "a/lib/b/c": "deep",
+    }.items():
+        asserts.equals(env, want, package_record_for_index(path, index).package_name, path)
+    return unittest.end(env)
+
+def _index_split_roots_test_impl(ctx):
+    # One package at two roots (source tree and bazel-out): each file resolves
+    # the record whose root holds it. A shared root keeps its first record.
+    env = unittest.begin(ctx)
+    src = _fake_pkg("split", "pkgs/split")
+    gen = _fake_pkg("split", "bazel-out/k8-fastbuild/bin/pkgs/split")
+    dup = _fake_pkg("other", "pkgs/split")
+    index = package_record_index([src, gen, dup])
+    asserts.true(env, package_record_for_index("pkgs/split/lib/a.dart", index) == src)
+    asserts.true(env, package_record_for_index("bazel-out/k8-fastbuild/bin/pkgs/split/lib/a.g.dart", index) == gen)
+    return unittest.end(env)
+
+def _index_outside_packages_test_impl(ctx):
+    # Files outside every package's `lib/`, and an empty path, own no record.
+    env = unittest.begin(ctx)
+    index = package_record_index([_fake_pkg("a", "pkgs/a"), _fake_pkg("ext", "../pub/ext")])
+    for path in ["pkgs/a/test/t.dart", "pkgs/a/pubspec.yaml", "pkgs/b/lib/x.dart", "other/lib/x.dart", "lib/x.dart", "", "../pub/ext/test/t.dart"]:
+        asserts.equals(env, None, package_record_for_index(path, index), path)
+    return unittest.end(env)
+
+def _index_matches_scan_test_impl(ctx):
+    # The index agrees with the scan on every path of a tangled layout.
+    env = unittest.begin(ctx)
+    pkgs = [
+        _fake_pkg("root", ""),
+        _fake_pkg("a", "a"),
+        _fake_pkg("a2", "a"),
+        _fake_pkg("inner", "a/lib/b"),
+        _fake_pkg("gen", "bazel-out/k/bin/a"),
+        _fake_pkg("ext", "../x/ext"),
+    ]
+    index = package_record_index(pkgs)
+    for path in [
+        "lib",
+        "lib/x.dart",
+        "lib/a/lib/x.dart",
+        "a",
+        "a/lib",
+        "a/lib/x.dart",
+        "a/lib/b",
+        "a/lib/b/x.dart",
+        "a/lib/b/lib/x.dart",
+        "a/test/x.dart",
+        "bazel-out/k/bin/a/lib/g.dart",
+        "bazel-out/k/bin/a/test/g.dart",
+        "../x/ext",
+        "../x/ext/lib/e.dart",
+        "../x/other/lib/e.dart",
+        "zzz/lib/lib/lib.dart",
+    ]:
+        asserts.true(env, _scan_oracle(path, pkgs) == package_record_for_index(path, index), path)
+        asserts.true(env, _scan_oracle(path, pkgs) == package_record_for(path, pkgs), path)
     return unittest.end(env)
 
 def _colocate_loose_passthrough_test_impl(ctx):
@@ -229,6 +318,10 @@ _longest_prefix_test = unittest.make(_package_for_longest_prefix_test_impl)
 _exact_dir_test = unittest.make(_package_for_exact_dir_test_impl)
 _non_root_lib_only_test = unittest.make(_package_for_non_root_only_claims_lib_test_impl)
 _external_nomatch_test = unittest.make(_package_for_external_and_nomatch_test_impl)
+_index_nested_test = unittest.make(_index_nested_roots_test_impl)
+_index_split_test = unittest.make(_index_split_roots_test_impl)
+_index_outside_test = unittest.make(_index_outside_packages_test_impl)
+_index_matches_scan_test = unittest.make(_index_matches_scan_test_impl)
 _colocate_loose_test = unittest.make(_colocate_loose_passthrough_test_impl)
 
 def source_set_test_suite(name):
@@ -245,6 +338,10 @@ def source_set_test_suite(name):
     _exact_dir_test(name = "source_set_package_for_exact_dir_test", size = "small")
     _non_root_lib_only_test(name = "source_set_package_for_non_root_lib_only_test", size = "small")
     _external_nomatch_test(name = "source_set_package_for_external_test", size = "small")
+    _index_nested_test(name = "source_set_index_nested_test", size = "small")
+    _index_split_test(name = "source_set_index_split_test", size = "small")
+    _index_outside_test(name = "source_set_index_outside_test", size = "small")
+    _index_matches_scan_test(name = "source_set_index_matches_scan_test", size = "small")
     _colocate_loose_test(name = "source_set_colocate_loose_test", size = "small")
     _derive_carries_test(name = "source_set_derive_carries_test", size = "small")
     _derive_defaults_test(name = "source_set_derive_defaults_test", size = "small")
@@ -260,6 +357,10 @@ def source_set_test_suite(name):
             ":source_set_package_for_exact_dir_test",
             ":source_set_package_for_non_root_lib_only_test",
             ":source_set_package_for_external_test",
+            ":source_set_index_nested_test",
+            ":source_set_index_split_test",
+            ":source_set_index_outside_test",
+            ":source_set_index_matches_scan_test",
             ":source_set_colocate_loose_test",
             ":source_set_derive_carries_test",
             ":source_set_derive_defaults_test",

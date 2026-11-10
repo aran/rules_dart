@@ -43,7 +43,7 @@ above each file, never from a pubspec's position.
 """
 
 load("//dart/private:common.bzl", "package_root_of", "relative_path")
-load("//dart/private:source_set.bzl", "assemble_source_dir", "package_record_for")
+load("//dart/private:source_set.bzl", "assemble_source_dir", "package_record_for_index", "package_record_index")
 
 def mangle_package_dir(name):
     """Returns `name` with path-hostile characters replaced for use as a dir name.
@@ -168,8 +168,17 @@ def pubspec_stub(packages, name = "analyze_stub", sdk_version = ""):
             lines.append("  %s: any" % dep)
     return "\n".join(lines) + "\n"
 
-def _root_contains(root, short_path):
-    return not root or short_path == root or short_path.startswith(root + "/")
+def _deepest_root_record(short_path, index):
+    """The record whose `lib_root` is the deepest directory holding `short_path`.
+
+    Tries the path itself, then each ancestor directory, then the empty root.
+    """
+    parts = short_path.split("/")
+    for i in range(len(parts), 0, -1):
+        record = index.get("/".join(parts[:i]))
+        if record != None:
+            return record
+    return index.get("")
 
 def project_layout(packages, files, home_files):
     """Decides which files a staged project holds and which it points out to.
@@ -194,19 +203,18 @@ def project_layout(packages, files, home_files):
       )
     """
     main = [p for p in packages if p.package_name and not p.lib_root.startswith("../")]
+    main_index = package_record_index(main)
+    index = package_record_index(packages)
     home = {}
     for f in home_files:
-        best = None
-        for p in main:
-            if _root_contains(p.lib_root, f.short_path) and (best == None or len(p.lib_root) > len(best.lib_root)):
-                best = p
+        best = _deepest_root_record(f.short_path, main_index)
         if best != None:
             home[(best.package_name, best.lib_root)] = True
 
     src_files = []
     dep_files = {}
     for f in files:
-        owner = package_record_for(f.short_path, packages)
+        owner = package_record_for_index(f.short_path, index)
         if owner != None and (owner.package_name, owner.lib_root) not in home:
             dep_files.setdefault((owner.package_name, owner.lib_root), []).append(f)
         elif not f.short_path.startswith("../"):
