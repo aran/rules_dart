@@ -241,6 +241,9 @@ func (d *packageDecl) label() string {
 // configurePackageDecl records a directory's `dart_package_metadata`, so
 // the directories of its package below it find it too.
 func configurePackageDecl(c *config.Config, rel string, f *rule.File) {
+	if f == nil {
+		return
+	}
 	for _, r := range f.Rules {
 		if r.Kind() == "dart_package_metadata" {
 			if c.Exts == nil {

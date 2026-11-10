@@ -140,3 +140,27 @@ func TestAgreement(t *testing.T) {
 		})
 	}
 }
+
+func TestScopePackageFacts(t *testing.T) {
+	for _, tt := range []struct {
+		rel  string
+		kept bool
+	}{
+		// Within the package that states it, a directive holds.
+		{"pkg/tool", true},
+		{"pkg/lib/src", true},
+		// A package rooted below, by a pubspec or by the layout, has its own.
+		{"pkg/example", false},
+		{"greet", false},
+	} {
+		c := repoWithPubspecs(t, "pkg", "pkg/example")
+		c.Exts[keyPackageName] = &directiveValue{Value: "app", File: "pkg/BUILD.bazel"}
+		c.Exts[keyLanguageVersion] = &directiveValue{Value: "3.12", File: "pkg/BUILD.bazel"}
+		scopePackageFacts(c, tt.rel)
+		for _, key := range []string{keyPackageName, keyLanguageVersion} {
+			if got := directiveFact(c, key) != nil; got != tt.kept {
+				t.Errorf("at %s, %s kept = %v, want %v", tt.rel, key, got, tt.kept)
+			}
+		}
+	}
+}

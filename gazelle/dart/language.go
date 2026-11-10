@@ -87,6 +87,8 @@ func (d *dartLang) Configure(c *config.Config, rel string, f *rule.File) {
 		// it uses too.
 		builderRegistryOf(c)
 	}
+	configurePackageDecl(c, rel, f)
+	scopePackageFacts(c, rel)
 	if f == nil {
 		return
 	}
@@ -112,7 +114,6 @@ func (d *dartLang) Configure(c *config.Config, rel string, f *rule.File) {
 	// separately so dart_builder configuration is decoupled from the
 	// existing single-line directives above.
 	configureBuilderDirectives(c, f)
-	configurePackageDecl(c, rel, f)
 }
 
 func (d *dartLang) Kinds() map[string]rule.KindInfo {

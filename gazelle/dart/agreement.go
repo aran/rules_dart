@@ -23,6 +23,19 @@ type directiveValue struct {
 	Value, File string
 }
 
+// scopePackageFacts keeps the package-fact directives of a package out of a
+// package rooted inside it at rel (`placeOf`), as upstream each package's
+// own pubspec.yaml states its facts: a directive applies to the directory
+// whose BUILD file states it and those below it, within its package.
+func scopePackageFacts(c *config.Config, rel string) {
+	if p := placeOf(c, rel); p.Err != nil || p.Root != rel {
+		return
+	}
+	for _, key := range []string{keyPackageName, keyLanguageVersion} {
+		delete(c.Exts, key)
+	}
+}
+
 // directiveFact is the directive value in force for key, or nil.
 func directiveFact(c *config.Config, key string) *directiveValue {
 	if c.Exts == nil {

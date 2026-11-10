@@ -245,8 +245,8 @@
     },
     "@@rules_dart+//dart/pub:extensions.bzl%pub": {
       "general": {
-        "bzlTransitiveDigest": "ezZZipZrYqnXp3XD9WLTyQgz42uFH0RvX0EmqlsU93o=",
-        "usagesDigest": "/ydaIg7aT/b1SSkUhLmrcsv2bEJxM9ptf7Ra8Tf/aGQ=",
+        "bzlTransitiveDigest": "mzh8lHdHFVgoqukcjdMO7iE44pcHm4JDYGydX7nOM3I=",
+        "usagesDigest": "aG2NUgDQVD20gXdohHAnBVJ8Wvbg4wK47RjRGhlHAso=",
         "recordedInputs": [
           "REPO_MAPPING:rules_dart+,bsd_tar_toolchains_darwin_amd64 tar.bzl++toolchains+bsd_tar_toolchains_darwin_amd64",
           "REPO_MAPPING:rules_dart+,bsd_tar_toolchains_darwin_arm64 tar.bzl++toolchains+bsd_tar_toolchains_darwin_arm64",
@@ -261,14 +261,13 @@
           "REPO_MAPPING:rules_dart+,pubspec_reader_windows-x64 rules_dart++pubspec_reader+pubspec_reader_windows-x64",
           "REPO_MAPPING:rules_dart+,yaml.bzl yaml.bzl+",
           "FILE:@@//pubspec.lock 123698c9d9e54e5f5eee3c31a48c725495d72ede0e41bebad34a06e45992c364",
-          "FILE:@@rules_dart+//dart/ext/pubspec.lock 289be37155535d8aa66f5ad1abd09a7fff4224e262d79c15e0d2cedd2a313fcb"
+          "FILE:@@rules_dart+//dart/ext/pubspec.lock 4ad36fe01485490bb51d876e65dd77572c2f034f955677d268b64a5abd8bd702"
         ],
         "generatedRepoSpecs": {
           "dart_pub_index": {
             "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_index",
             "attributes": {
               "versions": {
-                "tuple": "2.0.2",
                 "_fe_analyzer_shared": "111.0.0",
                 "analyzer": "14.7.0",
                 "analyzer_buffer": "0.3.4",
@@ -306,7 +305,6 @@
                 "frontend_server_client": "4.2.0",
                 "get_it": "8.3.0",
                 "glob": "2.2.0",
-                "go_router_builder": "4.5.3",
                 "hooks": "2.2.0",
                 "http_multi_server": "3.2.3",
                 "http_parser": "4.1.2",
@@ -352,6 +350,7 @@
                 "test": "1.33.0",
                 "test_api": "0.7.15",
                 "test_core": "0.6.21",
+                "tuple": "2.0.2",
                 "typed_data": "1.4.0",
                 "vm_service": "15.4.0",
                 "watcher": "1.2.1",
@@ -367,24 +366,6 @@
               "unsupplied": {},
               "cycles": [],
               "advisory_cycles": []
-            }
-          },
-          "dart_pub__tuple": {
-            "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
-            "attributes": {
-              "package_name": "tuple",
-              "version": "2.0.2",
-              "sha256": "a97ce2013f240b2f3807bcbaf218765b6f301c3eff91092bcfa23a039e7dd151",
-              "base_url": "https://pub.dev",
-              "code_assets": [],
-              "ignore_hook": false
-            }
-          },
-          "dart_pub_lib__tuple": {
-            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
-            "attributes": {
-              "package_name": "tuple",
-              "spoke_prefix": "dart_pub"
             }
           },
           "dart_pub___fe_analyzer_shared": {
@@ -1050,24 +1031,6 @@
             "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
             "attributes": {
               "package_name": "glob",
-              "spoke_prefix": "dart_pub"
-            }
-          },
-          "dart_pub__go_router_builder": {
-            "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
-            "attributes": {
-              "package_name": "go_router_builder",
-              "version": "4.5.3",
-              "sha256": "95a17e1614b808a627eebe9c4e6dbdd25e6afbdd9476baf58ff5e08081af782a",
-              "base_url": "https://pub.dev",
-              "code_assets": [],
-              "ignore_hook": false
-            }
-          },
-          "dart_pub_lib__go_router_builder": {
-            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
-            "attributes": {
-              "package_name": "go_router_builder",
               "spoke_prefix": "dart_pub"
             }
           },
@@ -1883,6 +1846,24 @@
               "spoke_prefix": "dart_pub"
             }
           },
+          "dart_pub__tuple": {
+            "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
+            "attributes": {
+              "package_name": "tuple",
+              "version": "2.0.2",
+              "sha256": "a97ce2013f240b2f3807bcbaf218765b6f301c3eff91092bcfa23a039e7dd151",
+              "base_url": "https://pub.dev",
+              "code_assets": [],
+              "ignore_hook": false
+            }
+          },
+          "dart_pub_lib__tuple": {
+            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
+            "attributes": {
+              "package_name": "tuple",
+              "spoke_prefix": "dart_pub"
+            }
+          },
           "dart_pub__typed_data": {
             "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
             "attributes": {
@@ -2102,7 +2083,6 @@
                 "frontend_server_client": "@dart_pub_lib__frontend_server_client//:frontend_server_client",
                 "get_it": "@dart_pub_lib__get_it//:get_it",
                 "glob": "@dart_pub_lib__glob//:glob",
-                "go_router_builder": "@dart_pub_lib__go_router_builder//:go_router_builder",
                 "hooks": "@dart_pub_lib__hooks//:hooks",
                 "http_multi_server": "@dart_pub_lib__http_multi_server//:http_multi_server",
                 "http_parser": "@dart_pub_lib__http_parser//:http_parser",

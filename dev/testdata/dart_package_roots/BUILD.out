@@ -1,8 +1,11 @@
 load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
 
+# gazelle:dart_language_version 3.12
+
 dart_package_metadata(
     name = "pubspec",
     package_name = "app",
+    language_version = "3.12",
     visibility = ["//:__subpackages__"],
 )
 

@@ -854,6 +854,11 @@ Add directives as comments in a `BUILD.bazel` file to control generation:
 - **`# gazelle:dart_language_version 3.13`** — the package's language
   version, likewise, as the metadata's `language_version`.
 
+  Each of these two states a fact of the package of the BUILD file stating it,
+  and holds in that directory and below it up to the root of another package
+  (a directory with its own `pubspec.yaml` or `dart_package_metadata`), which
+  states its own, as upstream each package's pubspec does.
+
 - **`# gazelle:resolve dart foo //third_party:foo`** — overrides
   automatic dependency resolution for a Dart package (the `foo` of
   `package:foo/...` imports), mapping it to an explicit Bazel target.

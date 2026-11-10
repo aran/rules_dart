@@ -245,8 +245,8 @@
     },
     "@@rules_dart+//dart/pub:extensions.bzl%pub": {
       "general": {
-        "bzlTransitiveDigest": "ezZZipZrYqnXp3XD9WLTyQgz42uFH0RvX0EmqlsU93o=",
-        "usagesDigest": "r7va9nES5y80f2YVHgbuLMVKsQtpp+vAk1JC/D7RjcY=",
+        "bzlTransitiveDigest": "mzh8lHdHFVgoqukcjdMO7iE44pcHm4JDYGydX7nOM3I=",
+        "usagesDigest": "OHyZKBi4X/sTgYJQBM2U1g92xOBM0LVIPj+Hj7GDCgU=",
         "recordedInputs": [
           "REPO_MAPPING:rules_dart+,bsd_tar_toolchains_darwin_amd64 tar.bzl++toolchains+bsd_tar_toolchains_darwin_amd64",
           "REPO_MAPPING:rules_dart+,bsd_tar_toolchains_darwin_arm64 tar.bzl++toolchains+bsd_tar_toolchains_darwin_arm64",
@@ -261,7 +261,7 @@
           "REPO_MAPPING:rules_dart+,pubspec_reader_windows-x64 rules_dart++pubspec_reader+pubspec_reader_windows-x64",
           "REPO_MAPPING:rules_dart+,yaml.bzl yaml.bzl+",
           "FILE:@@//pubspec.lock 150f89b9798bf53485b535ea96eab4985ec09691690fd41b05d942087d41fc1b",
-          "FILE:@@rules_dart+//dart/ext/pubspec.lock 289be37155535d8aa66f5ad1abd09a7fff4224e262d79c15e0d2cedd2a313fcb"
+          "FILE:@@rules_dart+//dart/ext/pubspec.lock 4ad36fe01485490bb51d876e65dd77572c2f034f955677d268b64a5abd8bd702"
         ],
         "generatedRepoSpecs": {
           "dart_pub__very_good_analysis": {
@@ -270,6 +270,7 @@
               "package_name": "very_good_analysis",
               "version": "11.0.0",
               "sha256": "0bd5eb8d6be76aa0d71e70cbdae6cac8f784f761170568e3c2214a6948c7f6d3",
+              "base_url": "https://pub.dev",
               "code_assets": [],
               "ignore_hook": false
             }
@@ -285,19 +286,6 @@
             "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_index",
             "attributes": {
               "versions": {
-                "collection": "1.19.1",
-                "crypto": "3.0.8",
-                "data_assets": "0.20.0",
-                "hooks": "2.2.0",
-                "logging": "1.3.0",
-                "meta": "1.19.0",
-                "path": "1.9.1",
-                "pub_semver": "2.2.1",
-                "record_use": "1.1.1",
-                "source_span": "1.10.2",
-                "string_scanner": "1.4.1",
-                "term_glyph": "1.2.2",
-                "yaml": "3.1.4",
                 "_fe_analyzer_shared": "111.0.0",
                 "analyzer": "14.7.0",
                 "analyzer_buffer": "0.3.4",
@@ -317,11 +305,14 @@
                 "clock": "1.1.3",
                 "code_assets": "2.2.0",
                 "code_builder": "4.13.0",
+                "collection": "1.19.1",
                 "convert": "3.1.2",
                 "copy_with_extension": "18.0.0",
                 "copy_with_extension_gen": "18.0.0",
                 "coverage": "1.16.0",
+                "crypto": "3.0.8",
                 "dart_style": "3.1.14",
+                "data_assets": "0.20.0",
                 "drift": "2.35.3",
                 "drift_dev": "2.35.2",
                 "ffi": "2.2.0",
@@ -332,25 +323,30 @@
                 "frontend_server_client": "4.2.0",
                 "get_it": "8.3.0",
                 "glob": "2.2.0",
-                "go_router_builder": "4.5.3",
+                "hooks": "2.2.0",
                 "http_multi_server": "3.2.3",
                 "http_parser": "4.1.2",
                 "io": "1.1.0",
                 "json_annotation": "4.12.0",
                 "json_serializable": "6.15.2",
                 "logger": "2.8.0",
+                "logging": "1.3.0",
                 "matcher": "0.12.20",
+                "meta": "1.19.0",
                 "mime": "2.1.0",
                 "mockito": "5.8.1",
                 "native_toolchain_c": "0.19.6",
                 "node_preamble": "2.0.2",
                 "package_config": "3.0.0",
+                "path": "1.9.1",
                 "platform": "3.2.0",
                 "pool": "1.5.3",
                 "process": "5.0.6",
                 "protobuf": "6.1.0",
+                "pub_semver": "2.2.1",
                 "pubspec_parse": "1.7.0",
                 "recase": "4.1.0",
+                "record_use": "1.1.1",
                 "shelf": "1.4.3",
                 "shelf_packages_handler": "3.0.2",
                 "shelf_static": "1.2.0",
@@ -359,6 +355,7 @@
                 "source_helper": "1.4.0",
                 "source_map_stack_trace": "2.1.2",
                 "source_maps": "0.10.14",
+                "source_span": "1.10.2",
                 "sqlite3": "3.9.0",
                 "sqlparser": "0.45.1",
                 "stack_trace": "1.12.2",
@@ -366,6 +363,8 @@
                 "stacked_shared": "1.4.2",
                 "stream_channel": "2.1.4",
                 "stream_transform": "2.1.2",
+                "string_scanner": "1.4.1",
+                "term_glyph": "1.2.2",
                 "test": "1.33.0",
                 "test_api": "0.7.15",
                 "test_core": "0.6.21",
@@ -376,6 +375,7 @@
                 "web_socket": "1.0.1",
                 "web_socket_channel": "3.0.3",
                 "webkit_inspection_protocol": "1.2.1",
+                "yaml": "3.1.4",
                 "yaml_edit": "2.2.4",
                 "very_good_analysis": "11.0.0"
               },
@@ -386,240 +386,6 @@
               "unsupplied": {},
               "cycles": [],
               "advisory_cycles": []
-            }
-          },
-          "dart_pub__collection": {
-            "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
-            "attributes": {
-              "package_name": "collection",
-              "version": "1.19.1",
-              "sha256": "2f5709ae4d3d59dd8f7cd309b4e023046b57d8a6c82130785d2b0e5868084e76",
-              "base_url": "https://pub.dev",
-              "code_assets": [],
-              "ignore_hook": false
-            }
-          },
-          "dart_pub_lib__collection": {
-            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
-            "attributes": {
-              "package_name": "collection",
-              "spoke_prefix": "dart_pub"
-            }
-          },
-          "dart_pub__crypto": {
-            "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
-            "attributes": {
-              "package_name": "crypto",
-              "version": "3.0.8",
-              "sha256": "e3626ae6270383c9e3a549f34c9e4cd26c09ae6a9adaab2bf4737a00340efdc4",
-              "base_url": "https://pub.dev",
-              "code_assets": [],
-              "ignore_hook": false
-            }
-          },
-          "dart_pub_lib__crypto": {
-            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
-            "attributes": {
-              "package_name": "crypto",
-              "spoke_prefix": "dart_pub"
-            }
-          },
-          "dart_pub__data_assets": {
-            "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
-            "attributes": {
-              "package_name": "data_assets",
-              "version": "0.20.0",
-              "sha256": "8bfdbf25ec8a0f4b5a3c993042c4ab9996ba354f0b03d40f4e360f3730d71cae",
-              "base_url": "https://pub.dev",
-              "code_assets": [],
-              "ignore_hook": false
-            }
-          },
-          "dart_pub_lib__data_assets": {
-            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
-            "attributes": {
-              "package_name": "data_assets",
-              "spoke_prefix": "dart_pub"
-            }
-          },
-          "dart_pub__hooks": {
-            "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
-            "attributes": {
-              "package_name": "hooks",
-              "version": "2.2.0",
-              "sha256": "eaac480a35ec0814146c2c48d96aaa829e0e44a7662c88ae84c9edf4bc35651f",
-              "base_url": "https://pub.dev",
-              "code_assets": [],
-              "ignore_hook": false
-            }
-          },
-          "dart_pub_lib__hooks": {
-            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
-            "attributes": {
-              "package_name": "hooks",
-              "spoke_prefix": "dart_pub"
-            }
-          },
-          "dart_pub__logging": {
-            "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
-            "attributes": {
-              "package_name": "logging",
-              "version": "1.3.0",
-              "sha256": "c8245ada5f1717ed44271ed1c26b8ce85ca3228fd2ffdb75468ab01979309d61",
-              "base_url": "https://pub.dev",
-              "code_assets": [],
-              "ignore_hook": false
-            }
-          },
-          "dart_pub_lib__logging": {
-            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
-            "attributes": {
-              "package_name": "logging",
-              "spoke_prefix": "dart_pub"
-            }
-          },
-          "dart_pub__meta": {
-            "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
-            "attributes": {
-              "package_name": "meta",
-              "version": "1.19.0",
-              "sha256": "307249ce4ff29d58a18e97f6345f539382eb9c9c29ecda628900f31de0443dd9",
-              "base_url": "https://pub.dev",
-              "code_assets": [],
-              "ignore_hook": false
-            }
-          },
-          "dart_pub_lib__meta": {
-            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
-            "attributes": {
-              "package_name": "meta",
-              "spoke_prefix": "dart_pub"
-            }
-          },
-          "dart_pub__path": {
-            "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
-            "attributes": {
-              "package_name": "path",
-              "version": "1.9.1",
-              "sha256": "75cca69d1490965be98c73ceaea117e8a04dd21217b37b292c9ddbec0d955bc5",
-              "base_url": "https://pub.dev",
-              "code_assets": [],
-              "ignore_hook": false
-            }
-          },
-          "dart_pub_lib__path": {
-            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
-            "attributes": {
-              "package_name": "path",
-              "spoke_prefix": "dart_pub"
-            }
-          },
-          "dart_pub__pub_semver": {
-            "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
-            "attributes": {
-              "package_name": "pub_semver",
-              "version": "2.2.1",
-              "sha256": "261236774e8b1d69cfc6b9eabbc96c40f25e7a2d6b171f3385d4f65d5734fb24",
-              "base_url": "https://pub.dev",
-              "code_assets": [],
-              "ignore_hook": false
-            }
-          },
-          "dart_pub_lib__pub_semver": {
-            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
-            "attributes": {
-              "package_name": "pub_semver",
-              "spoke_prefix": "dart_pub"
-            }
-          },
-          "dart_pub__record_use": {
-            "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
-            "attributes": {
-              "package_name": "record_use",
-              "version": "1.1.1",
-              "sha256": "1cb8564af8d43b464294411db9217f5ec04891c6f22ee2c32d73ae05e88a6bd2",
-              "base_url": "https://pub.dev",
-              "code_assets": [],
-              "ignore_hook": false
-            }
-          },
-          "dart_pub_lib__record_use": {
-            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
-            "attributes": {
-              "package_name": "record_use",
-              "spoke_prefix": "dart_pub"
-            }
-          },
-          "dart_pub__source_span": {
-            "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
-            "attributes": {
-              "package_name": "source_span",
-              "version": "1.10.2",
-              "sha256": "56a02f1f4cd1a2d96303c0144c93bd6d909eea6bee6bf5a0e0b685edbd4c47ab",
-              "base_url": "https://pub.dev",
-              "code_assets": [],
-              "ignore_hook": false
-            }
-          },
-          "dart_pub_lib__source_span": {
-            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
-            "attributes": {
-              "package_name": "source_span",
-              "spoke_prefix": "dart_pub"
-            }
-          },
-          "dart_pub__string_scanner": {
-            "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
-            "attributes": {
-              "package_name": "string_scanner",
-              "version": "1.4.1",
-              "sha256": "921cd31725b72fe181906c6a94d987c78e3b98c2e205b397ea399d4054872b43",
-              "base_url": "https://pub.dev",
-              "code_assets": [],
-              "ignore_hook": false
-            }
-          },
-          "dart_pub_lib__string_scanner": {
-            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
-            "attributes": {
-              "package_name": "string_scanner",
-              "spoke_prefix": "dart_pub"
-            }
-          },
-          "dart_pub__term_glyph": {
-            "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
-            "attributes": {
-              "package_name": "term_glyph",
-              "version": "1.2.2",
-              "sha256": "7f554798625ea768a7518313e58f83891c7f5024f88e46e7182a4558850a4b8e",
-              "base_url": "https://pub.dev",
-              "code_assets": [],
-              "ignore_hook": false
-            }
-          },
-          "dart_pub_lib__term_glyph": {
-            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
-            "attributes": {
-              "package_name": "term_glyph",
-              "spoke_prefix": "dart_pub"
-            }
-          },
-          "dart_pub__yaml": {
-            "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
-            "attributes": {
-              "package_name": "yaml",
-              "version": "3.1.4",
-              "sha256": "f67cdd8e07d3c6329146aaef1ba043542b3134c12489f553ca9a7435d1068aea",
-              "base_url": "https://pub.dev",
-              "code_assets": [],
-              "ignore_hook": false
-            }
-          },
-          "dart_pub_lib__yaml": {
-            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
-            "attributes": {
-              "package_name": "yaml",
-              "spoke_prefix": "dart_pub"
             }
           },
           "dart_pub___fe_analyzer_shared": {
@@ -964,6 +730,24 @@
               "spoke_prefix": "dart_pub"
             }
           },
+          "dart_pub__collection": {
+            "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
+            "attributes": {
+              "package_name": "collection",
+              "version": "1.19.1",
+              "sha256": "2f5709ae4d3d59dd8f7cd309b4e023046b57d8a6c82130785d2b0e5868084e76",
+              "base_url": "https://pub.dev",
+              "code_assets": [],
+              "ignore_hook": false
+            }
+          },
+          "dart_pub_lib__collection": {
+            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
+            "attributes": {
+              "package_name": "collection",
+              "spoke_prefix": "dart_pub"
+            }
+          },
           "dart_pub__convert": {
             "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
             "attributes": {
@@ -1036,6 +820,24 @@
               "spoke_prefix": "dart_pub"
             }
           },
+          "dart_pub__crypto": {
+            "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
+            "attributes": {
+              "package_name": "crypto",
+              "version": "3.0.8",
+              "sha256": "e3626ae6270383c9e3a549f34c9e4cd26c09ae6a9adaab2bf4737a00340efdc4",
+              "base_url": "https://pub.dev",
+              "code_assets": [],
+              "ignore_hook": false
+            }
+          },
+          "dart_pub_lib__crypto": {
+            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
+            "attributes": {
+              "package_name": "crypto",
+              "spoke_prefix": "dart_pub"
+            }
+          },
           "dart_pub__dart_style": {
             "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
             "attributes": {
@@ -1051,6 +853,24 @@
             "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
             "attributes": {
               "package_name": "dart_style",
+              "spoke_prefix": "dart_pub"
+            }
+          },
+          "dart_pub__data_assets": {
+            "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
+            "attributes": {
+              "package_name": "data_assets",
+              "version": "0.20.0",
+              "sha256": "8bfdbf25ec8a0f4b5a3c993042c4ab9996ba354f0b03d40f4e360f3730d71cae",
+              "base_url": "https://pub.dev",
+              "code_assets": [],
+              "ignore_hook": false
+            }
+          },
+          "dart_pub_lib__data_assets": {
+            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
+            "attributes": {
+              "package_name": "data_assets",
               "spoke_prefix": "dart_pub"
             }
           },
@@ -1234,21 +1054,21 @@
               "spoke_prefix": "dart_pub"
             }
           },
-          "dart_pub__go_router_builder": {
+          "dart_pub__hooks": {
             "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
             "attributes": {
-              "package_name": "go_router_builder",
-              "version": "4.5.3",
-              "sha256": "95a17e1614b808a627eebe9c4e6dbdd25e6afbdd9476baf58ff5e08081af782a",
+              "package_name": "hooks",
+              "version": "2.2.0",
+              "sha256": "eaac480a35ec0814146c2c48d96aaa829e0e44a7662c88ae84c9edf4bc35651f",
               "base_url": "https://pub.dev",
               "code_assets": [],
               "ignore_hook": false
             }
           },
-          "dart_pub_lib__go_router_builder": {
+          "dart_pub_lib__hooks": {
             "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
             "attributes": {
-              "package_name": "go_router_builder",
+              "package_name": "hooks",
               "spoke_prefix": "dart_pub"
             }
           },
@@ -1360,6 +1180,24 @@
               "spoke_prefix": "dart_pub"
             }
           },
+          "dart_pub__logging": {
+            "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
+            "attributes": {
+              "package_name": "logging",
+              "version": "1.3.0",
+              "sha256": "c8245ada5f1717ed44271ed1c26b8ce85ca3228fd2ffdb75468ab01979309d61",
+              "base_url": "https://pub.dev",
+              "code_assets": [],
+              "ignore_hook": false
+            }
+          },
+          "dart_pub_lib__logging": {
+            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
+            "attributes": {
+              "package_name": "logging",
+              "spoke_prefix": "dart_pub"
+            }
+          },
           "dart_pub__matcher": {
             "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
             "attributes": {
@@ -1375,6 +1213,24 @@
             "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
             "attributes": {
               "package_name": "matcher",
+              "spoke_prefix": "dart_pub"
+            }
+          },
+          "dart_pub__meta": {
+            "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
+            "attributes": {
+              "package_name": "meta",
+              "version": "1.19.0",
+              "sha256": "307249ce4ff29d58a18e97f6345f539382eb9c9c29ecda628900f31de0443dd9",
+              "base_url": "https://pub.dev",
+              "code_assets": [],
+              "ignore_hook": false
+            }
+          },
+          "dart_pub_lib__meta": {
+            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
+            "attributes": {
+              "package_name": "meta",
               "spoke_prefix": "dart_pub"
             }
           },
@@ -1468,6 +1324,24 @@
               "spoke_prefix": "dart_pub"
             }
           },
+          "dart_pub__path": {
+            "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
+            "attributes": {
+              "package_name": "path",
+              "version": "1.9.1",
+              "sha256": "75cca69d1490965be98c73ceaea117e8a04dd21217b37b292c9ddbec0d955bc5",
+              "base_url": "https://pub.dev",
+              "code_assets": [],
+              "ignore_hook": false
+            }
+          },
+          "dart_pub_lib__path": {
+            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
+            "attributes": {
+              "package_name": "path",
+              "spoke_prefix": "dart_pub"
+            }
+          },
           "dart_pub__platform": {
             "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
             "attributes": {
@@ -1540,6 +1414,24 @@
               "spoke_prefix": "dart_pub"
             }
           },
+          "dart_pub__pub_semver": {
+            "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
+            "attributes": {
+              "package_name": "pub_semver",
+              "version": "2.2.1",
+              "sha256": "261236774e8b1d69cfc6b9eabbc96c40f25e7a2d6b171f3385d4f65d5734fb24",
+              "base_url": "https://pub.dev",
+              "code_assets": [],
+              "ignore_hook": false
+            }
+          },
+          "dart_pub_lib__pub_semver": {
+            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
+            "attributes": {
+              "package_name": "pub_semver",
+              "spoke_prefix": "dart_pub"
+            }
+          },
           "dart_pub__pubspec_parse": {
             "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
             "attributes": {
@@ -1573,6 +1465,24 @@
             "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
             "attributes": {
               "package_name": "recase",
+              "spoke_prefix": "dart_pub"
+            }
+          },
+          "dart_pub__record_use": {
+            "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
+            "attributes": {
+              "package_name": "record_use",
+              "version": "1.1.1",
+              "sha256": "1cb8564af8d43b464294411db9217f5ec04891c6f22ee2c32d73ae05e88a6bd2",
+              "base_url": "https://pub.dev",
+              "code_assets": [],
+              "ignore_hook": false
+            }
+          },
+          "dart_pub_lib__record_use": {
+            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
+            "attributes": {
+              "package_name": "record_use",
               "spoke_prefix": "dart_pub"
             }
           },
@@ -1720,6 +1630,24 @@
               "spoke_prefix": "dart_pub"
             }
           },
+          "dart_pub__source_span": {
+            "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
+            "attributes": {
+              "package_name": "source_span",
+              "version": "1.10.2",
+              "sha256": "56a02f1f4cd1a2d96303c0144c93bd6d909eea6bee6bf5a0e0b685edbd4c47ab",
+              "base_url": "https://pub.dev",
+              "code_assets": [],
+              "ignore_hook": false
+            }
+          },
+          "dart_pub_lib__source_span": {
+            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
+            "attributes": {
+              "package_name": "source_span",
+              "spoke_prefix": "dart_pub"
+            }
+          },
           "dart_pub__sqlite3": {
             "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
             "attributes": {
@@ -1845,6 +1773,42 @@
             "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
             "attributes": {
               "package_name": "stream_transform",
+              "spoke_prefix": "dart_pub"
+            }
+          },
+          "dart_pub__string_scanner": {
+            "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
+            "attributes": {
+              "package_name": "string_scanner",
+              "version": "1.4.1",
+              "sha256": "921cd31725b72fe181906c6a94d987c78e3b98c2e205b397ea399d4054872b43",
+              "base_url": "https://pub.dev",
+              "code_assets": [],
+              "ignore_hook": false
+            }
+          },
+          "dart_pub_lib__string_scanner": {
+            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
+            "attributes": {
+              "package_name": "string_scanner",
+              "spoke_prefix": "dart_pub"
+            }
+          },
+          "dart_pub__term_glyph": {
+            "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
+            "attributes": {
+              "package_name": "term_glyph",
+              "version": "1.2.2",
+              "sha256": "7f554798625ea768a7518313e58f83891c7f5024f88e46e7182a4558850a4b8e",
+              "base_url": "https://pub.dev",
+              "code_assets": [],
+              "ignore_hook": false
+            }
+          },
+          "dart_pub_lib__term_glyph": {
+            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
+            "attributes": {
+              "package_name": "term_glyph",
               "spoke_prefix": "dart_pub"
             }
           },
@@ -2028,6 +1992,24 @@
               "spoke_prefix": "dart_pub"
             }
           },
+          "dart_pub__yaml": {
+            "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
+            "attributes": {
+              "package_name": "yaml",
+              "version": "3.1.4",
+              "sha256": "f67cdd8e07d3c6329146aaef1ba043542b3134c12489f553ca9a7435d1068aea",
+              "base_url": "https://pub.dev",
+              "code_assets": [],
+              "ignore_hook": false
+            }
+          },
+          "dart_pub_lib__yaml": {
+            "repoRuleId": "@@rules_dart+//dart/pub/private:pub_lock_library.bzl%pub_lock_library",
+            "attributes": {
+              "package_name": "yaml",
+              "spoke_prefix": "dart_pub"
+            }
+          },
           "dart_pub__yaml_edit": {
             "repoRuleId": "@@rules_dart+//dart/pub:pub_lock_package.bzl%pub_lock_package",
             "attributes": {
@@ -2107,7 +2089,6 @@
                 "frontend_server_client": "@dart_pub_lib__frontend_server_client//:frontend_server_client",
                 "get_it": "@dart_pub_lib__get_it//:get_it",
                 "glob": "@dart_pub_lib__glob//:glob",
-                "go_router_builder": "@dart_pub_lib__go_router_builder//:go_router_builder",
                 "hooks": "@dart_pub_lib__hooks//:hooks",
                 "http_multi_server": "@dart_pub_lib__http_multi_server//:http_multi_server",
                 "http_parser": "@dart_pub_lib__http_parser//:http_parser",

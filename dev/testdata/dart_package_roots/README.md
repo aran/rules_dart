@@ -8,3 +8,8 @@ their scripts name its `dart_package_metadata`; the relative import of
 a pubspec of its own, is a package of its own, with its own metadata, which its
 `bin/` and `tool/` name. `vendored/`, with no pubspec, is a package because a
 `dart_package_metadata` at its root states it, as a pubspec would.
+
+A `# gazelle:dart_language_version` at the root states the version of the
+root's package only: its metadata states it, which `tool/`'s scripts name, and `example/` and `vendored/`, packages
+of their own, do not, as upstream each package's own pubspec states its
+version.
