@@ -103,6 +103,49 @@ def front_end_flags(flags):
             pending = dests
     return front_end, rest
 
+def compile_kernel_file(ctx):
+    """Declares the kernel a target's `dart_compile_action` compiles.
+
+    It sits in a directory of the target's own, where the action puts the
+    empty package config that stops `dart compile`'s search for one.
+
+    Args:
+        ctx: The rule context.
+
+    Returns:
+        The declared `.dill` File.
+    """
+    return ctx.actions.declare_file("%s.compile/%s.app.dill" % (ctx.label.name, ctx.label.name))
+
+def _stage_script(ctx, main, sources):
+    # The script and the files it imports, linked into the target's own
+    # directory with their layout kept, so relative imports still resolve and
+    # the package config staged there is the one above them.
+    staged_main = None
+    staged = []
+    for f in sources.to_list():
+        path = "external/" + f.short_path[3:] if f.short_path.startswith("../") else f.short_path
+        link = ctx.actions.declare_file("%s.compile/%s" % (ctx.label.name, path))
+        ctx.actions.symlink(output = link, target_file = f)
+        staged.append(link)
+        if f == main:
+            staged_main = link
+    return staged_main, staged
+
+def _package_search_stop(ctx):
+    # `dart compile exe|aot-snapshot` walks up from its input to the nearest
+    # `.dart_tool/package_config.json`, and where it finds none but a
+    # `pubspec.yaml` runs `pub get` there and then that package's build
+    # hooks. An action without a sandbox would reach the workspace's own
+    # pubspec through the execroot. This empty config, in the directory of
+    # the target's own that holds the input, stops the walk; no package owns
+    # the input, so no hook runs.
+    config = ctx.actions.declare_file("%s.compile/.dart_tool/package_config.json" % ctx.label.name)
+    graph = ctx.actions.declare_file("%s.compile/.dart_tool/package_graph.json" % ctx.label.name)
+    ctx.actions.write(config, json.encode({"configVersion": 2, "packages": []}))
+    ctx.actions.write(graph, json.encode({"configVersion": 1, "packages": [], "roots": []}))
+    return [config, graph]
+
 def dart_compile_action(
         ctx,
         sdk,
@@ -125,7 +168,8 @@ def dart_compile_action(
         ctx: The rule context.
         sdk: The target toolchain's `DartSdkInfo`. A cross toolchain's
             `target_os`/`target_arch` and `cross_tools` make it a cross compile.
-        kernel: The `.dill` File to compile, or the entry point of `sources`.
+        kernel: The `.dill` File to compile, declared by `compile_kernel_file`,
+            or the entry point of `sources`.
         output: The output File to produce.
         compile_mode: The compilation mode ("exe", "aot-snapshot", "jit-snapshot").
         extra_flags: Additional compiler flags (from dart_compile_flags attribute).
@@ -139,6 +183,11 @@ def dart_compile_action(
         sources: Optional depset of the Dart files `kernel` is the entry
             point of, when it is a script rather than a kernel.
     """
+    if sources != None:
+        kernel, staged = _stage_script(ctx, kernel, sources)
+        sources = depset(staged)
+    stop = _package_search_stop(ctx)
+
     args = ctx.actions.args()
     args.add("compile")
     args.add(compile_mode)
@@ -178,10 +227,10 @@ def dart_compile_action(
         runner_args.add("--")
         runner_args.add(sdk.dart)
         arguments = [runner_args, args]
-        direct = [kernel, runner]
+        direct = [kernel, runner] + stop
     else:
         arguments = [args]
-        direct = [kernel]
+        direct = [kernel] + stop
 
     env = dict(SDK_ENV)
     transitive = [sdk.files.jit_compile if compile_mode == "jit-snapshot" else sdk.files.aot_compile]

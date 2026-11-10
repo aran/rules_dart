@@ -1,4 +1,5 @@
 load("//dart:defs.bzl", "dart_binary", "dart_test")
+load("//dart/tests:compile_package_search_test.bzl", "compile_package_search_test")
 
 # The same program in every way rules_dart can package it. `launched_test`
 # starts each as an executable, the way `bazel run` or a `data` consumer would.
@@ -43,3 +44,17 @@ dart_test(
     main = "launched_test.dart",
     deps = ["//dart/runfiles"],
 )
+
+# `dart compile` finds the empty package config staged above its input, for a
+# binary's kernel and for a script compiled from source.
+[
+    compile_package_search_test(
+        name = "compile_package_search_%s_test" % name,
+        size = "small",
+        target_under_test = target,
+    )
+    for name, target in [
+        ("kernel", ":bin_exe"),
+        ("script", "//dart/pub"),
+    ]
+]
