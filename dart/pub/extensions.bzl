@@ -81,6 +81,20 @@ _from_lock = tag_class(
     },
 )
 
+_settings = tag_class(
+    attrs = {
+        "allow_older_than_dependencies": attr.bool(
+            doc = "Lets the root module hold a package at an older version than a " +
+                  "dependency module's `pub.package()` asked for. By default a " +
+                  "dependency's version is a minimum: the root's `pub.package()` or lock " +
+                  "wins over it only when its version is the same or newer (a newer one " +
+                  "prints a warning naming the module), and an older " +
+                  "one fails the build. Only the root module may set it.",
+            default = False,
+        ),
+    },
+)
+
 def _resolved_packages(locks, explicit):
     """Decides which locked packages a workspace target serves, from `resolve`.
 
@@ -149,7 +163,7 @@ def _resolved_packages(locks, explicit):
                 )
     return resolved
 
-def _explicit_packages(ctx, root_lock_names):
+def _explicit_packages(ctx, root_locks, allow_older):
     """Decides which `pub.package()` declaration supplies each package it names.
 
     Bazel's convention: the root module decides. A root declaration wins; so
@@ -157,9 +171,16 @@ def _explicit_packages(ctx, root_lock_names):
     that disagree, with the root silent, fail: rules_dart builds one version of
     each package, and which of theirs would be picking for the root.
 
+    A dependency's version is a minimum. The root wins only at the same or a
+    newer version, with a warning naming the module it raised; an older one
+    fails unless `allow_older` is set.
+
     Args:
       ctx: The module extension context.
-      root_lock_names: Names the root module's locks list, whatever their source.
+      root_locks: Package name -> `struct(version, lock_label)` for each package
+        the root module's locks list, whatever their source.
+      allow_older: Whether the root may hold a package older than a dependency
+        module declared it.
 
     Returns:
       `struct(explicit, overridden)`: the winning declaration per name, and the
@@ -178,10 +199,58 @@ def _explicit_packages(ctx, root_lock_names):
     explicit = dict(root)
     overridden = {}
     for name, decls in others.items():
-        if name in root:
-            continue
-        if name in root_lock_names:
-            overridden[name] = [d.module for d in decls]
+        if name in root or name in root_locks:
+            if name in root:
+                root_version = root[name].version
+                root_source = "`pub.package()` in the root module"
+            else:
+                root_version = root_locks[name].version
+                root_source = "the lock `%s`" % root_locks[name].lock_label.removeprefix("@@")
+            older = [d for d in decls if semver_gt(d.tag.version, root_version)]
+            if older and not allow_older:
+                highest = older[0].tag.version
+                for d in older:
+                    if semver_gt(d.tag.version, highest):
+                        highest = d.tag.version
+                fail(
+                    ("Package \"%s\" is at %s in the root module (from %s), older than " +
+                     "a module it depends on asked for:\n%s\n" +
+                     "A dependency's `pub.package()` version is a minimum. Raise the root's " +
+                     "version of `%s` to at least %s, or hold the older one on purpose with " +
+                     "`pub.settings(allow_older_than_dependencies = True)` in the root " +
+                     "module.") % (
+                        name,
+                        root_version,
+                        root_source,
+                        "".join([
+                            "  - %s, from module `%s`\n" % (d.tag.version, d.module)
+                            for d in older
+                        ]).rstrip("\n"),
+                        name,
+                        highest,
+                    ),
+                )
+            raised = [d for d in decls if semver_gt(root_version, d.tag.version)]
+            if raised:
+                # Bazel warns the same way when the root's graph resolves a
+                # module dependency above the version a MODULE.bazel asked for.
+                # buildifier: disable=print
+                print(
+                    ("Package \"%s\" is at %s in the root module (from %s), newer than " +
+                     "a module it depends on asked for:\n%s\n" +
+                     "Those modules are built against %s.") % (
+                        name,
+                        root_version,
+                        root_source,
+                        "".join([
+                            "  - %s, from module `%s`\n" % (d.tag.version, d.module)
+                            for d in raised
+                        ]).rstrip("\n"),
+                        root_version,
+                    ),
+                )
+            if name not in root:
+                overridden[name] = [d.module for d in decls]
             continue
         versions = {(d.tag.version, d.tag.sha256): True for d in decls}
         if len(versions) > 1:
@@ -270,18 +339,31 @@ def _pub_impl(ctx):
 
     # Every lock, parsed once, in module order.
     locks = []
-    root_lock_names = {}
+    root_locks = {}
+    allow_older = False
+    for mod in ctx.modules:
+        for settings in mod.tags.settings:
+            if not mod.is_root:
+                fail(
+                    ("Only the root module may set allow_older_than_dependencies on " +
+                     "pub.settings, but module `%s` sets it. A dependency cannot decide " +
+                     "that the root may hold packages older than the ones it asked for; " +
+                     "set it in the root module.") % mod.name,
+                )
+            allow_older = allow_older or settings.allow_older_than_dependencies
     for mod in ctx.modules:
         for lock_tag in mod.tags.from_lock:
             lock_pkgs = parse_pubspec_lock(ctx.read(lock_tag.lock), lock_tag.lock)
             locks.append(struct(module = mod, tag = lock_tag, packages = lock_pkgs))
             if mod.is_root:
-                for name in lock_pkgs:
-                    root_lock_names[name] = True
+                for name, info in lock_pkgs.items():
+                    seen = root_locks.get(name)
+                    if seen == None or semver_gt(info["version"], seen.version):
+                        root_locks[name] = struct(version = info["version"], lock_label = str(lock_tag.lock))
 
     # Individual package declarations take priority over the locks, and the
     # root module's statements over every other module's.
-    explicit_packages = _explicit_packages(ctx, root_lock_names)
+    explicit_packages = _explicit_packages(ctx, root_locks, allow_older)
     explicit = explicit_packages.explicit
     for mod in ctx.modules:
         if mod.is_root:
@@ -572,6 +654,7 @@ pub = module_extension(
     tag_classes = {
         "package": _package,
         "from_lock": _from_lock,
+        "settings": _settings,
     },
     doc = "Declares pub.dev package dependencies for download and use as dart_library targets.",
 )

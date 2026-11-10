@@ -396,6 +396,14 @@ If two such modules declare different versions and the root states none, the
 build fails naming both; pin the package in the root with `pub.package()` or
 its lock.
 
+A dependency's `pub.package()` version is a minimum, as a dependency's Dart SDK
+request is: the root wins only at the same or a newer version, and a newer one prints a
+warning naming the module it raised, as Bazel does for a `bazel_dep`. A root `pub.package()` or lock
+older than one a dependency declared fails the build, naming the package, both
+versions and the module; raise the root's version, or hold the older one on
+purpose with `pub.settings(allow_older_than_dependencies = True)` in the root
+module.
+
 ### BUILD file generation with Gazelle
 
 rules_dart includes a [Gazelle](https://github.com/bazelbuild/bazel-gazelle)
@@ -1061,6 +1069,10 @@ The [`e2e/`](e2e/) directory contains complete working examples:
 | [`pub_hub_surface`](e2e/pub_hub_surface/)                   | Every locked package in its hub, including one declared with `pub.package()`             |
 | [`pub_override_root_lock`](e2e/pub_override_root_lock/)     | The root's lock wins over a dependency module's `pub.package()`                          |
 | [`pub_package_conflict`](e2e/pub_package_conflict/)         | Two dependency modules' differing `pub.package()`s fail, naming both                     |
+| [`pub_root_older_package`](e2e/pub_root_older_package/)     | A root `pub.package()` below a dependency's fails, naming both versions                  |
+| [`pub_root_older_lock`](e2e/pub_root_older_lock/)           | A root lock below a dependency's `pub.package()` fails, naming both versions             |
+| [`pub_root_older_allowed`](e2e/pub_root_older_allowed/)     | `pub.settings(allow_older_than_dependencies = True)` lets the root hold the older one    |
+| [`pub_root_newer`](e2e/pub_root_newer/)                     | A root lock above a dependency's `pub.package()` wins, warning that it raised it         |
 | [`codegen`](e2e/codegen/)                                   | `dart_codegen`/`dart_aggregate_codegen` over parts, re-exports and source sets           |
 | [`ext_exemplar`](e2e/ext_exemplar/)                         | One package per bundled `dart/ext` builder, plus native `code_assets`, sqlite3/webcrypto |
 | [`dual_build`](e2e/dual_build/)                             | Collision detection between Bazel-generated and `build_runner`-generated sources         |

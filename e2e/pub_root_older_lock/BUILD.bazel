@@ -1,0 +1,12 @@
+load(":checks.bzl", "pub_graph_check")
+
+exports_files(["pubspec.lock"])
+
+# Property: a dependency module's `pub.package()` version is a minimum. THIS
+# WORKSPACE MUST FAIL TO BUILD: the root's lock pins `tuple` 2.0.1 while dep_mod
+# asks for 2.0.2, and the error names the package, both versions, dep_mod and
+# the lock (CI's expected-failure job checks it).
+pub_graph_check(
+    name = "root_lock_older_than_dependency_is_refused",
+    target = "@rootlock//:tuple",
+)

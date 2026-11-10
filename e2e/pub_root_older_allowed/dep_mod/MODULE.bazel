@@ -1,0 +1,12 @@
+module(name = "dep_mod")
+
+bazel_dep(name = "rules_dart", version = "0.0.0")
+
+# Asks for `tuple` 2.0.2 as the least it accepts.
+pub = use_extension("@rules_dart//dart/pub:extensions.bzl", "pub")
+pub.package(
+    name = "tuple",
+    sha256 = "a97ce2013f240b2f3807bcbaf218765b6f301c3eff91092bcfa23a039e7dd151",
+    version = "2.0.2",
+)
+use_repo(pub, "tuple")

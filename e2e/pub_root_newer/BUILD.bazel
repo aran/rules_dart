@@ -1,0 +1,20 @@
+load(":checks.bzl", "pub_graph_check")
+
+exports_files(["pubspec.lock"])
+
+# Property: a dependency module's `pub.package()` version is a minimum, so a
+# root lock pinning `tuple` at 2.0.2 over dep_mod's 2.0.1 builds, the whole
+# build at 2.0.2, and the extension warns that dep_mod's request was raised
+# (CI checks the warning).
+
+pub_graph_check(
+    name = "root_lock_version_is_used",
+    target = "@rootlock//:tuple",
+    versions = {"tuple": "2.0.2"},
+)
+
+pub_graph_check(
+    name = "dependency_declaration_names_root_version",
+    target = "@dep_mod//:tuple",
+    versions = {"tuple": "2.0.2"},
+)

@@ -49,6 +49,8 @@ const _ciFolders = [
   'e2e/pub_lock_resolve',
   'e2e/pub_member_kind',
   'e2e/pub_override_root_lock',
+  'e2e/pub_root_older_allowed',
+  'e2e/pub_root_newer',
   'e2e/pub_package_padded',
   'e2e/ext_exemplar',
   'e2e/dual_build',
@@ -237,6 +239,16 @@ const _expectedFailureChecks = [
     'e2e/pub_package_conflict',
     '//...',
     'declared at different versions by modules the root depends on',
+  ),
+  _ExpectedFailure(
+    'e2e/pub_root_older_package',
+    '//...',
+    'older than a module it depends on asked for',
+  ),
+  _ExpectedFailure(
+    'e2e/pub_root_older_lock',
+    '//...',
+    'older than a module it depends on asked for',
   ),
   _ExpectedFailure(
     'e2e/toolchain_pin_conflict',

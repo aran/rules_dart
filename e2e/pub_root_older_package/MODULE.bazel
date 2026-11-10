@@ -1,0 +1,34 @@
+module(name = "pub_root_older_package_e2e")
+
+bazel_dep(name = "rules_dart", version = "0.0.0")
+bazel_dep(name = "platforms", version = "1.1.0")
+
+local_path_override(
+    module_name = "rules_dart",
+    path = "../..",
+)
+
+dart = use_extension("@rules_dart//dart:extensions.bzl", "dart")
+dart.toolchain(dart_version = "3.13.7")
+use_repo(dart, "dart_toolchains")
+
+register_toolchains("@dart_toolchains//:all")
+
+pub = use_extension("@rules_dart//dart/pub:extensions.bzl", "pub")
+
+bazel_dep(name = "dep_mod", version = "0.0.0")
+local_path_override(
+    module_name = "dep_mod",
+    path = "dep_mod",
+)
+
+pub.package(
+    name = "tuple",
+    sha256 = "0ea99cd2f9352b2586583ab2ce6489d1f95a5f6de6fb9492faaf97ae2060f0aa",
+    version = "2.0.1",
+)
+pub.from_lock(
+    name = "rootlock",
+    lock = "//:pubspec.lock",
+)
+use_repo(pub, "rootlock", "tuple")

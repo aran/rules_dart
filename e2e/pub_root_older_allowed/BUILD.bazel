@@ -1,0 +1,19 @@
+load(":checks.bzl", "pub_graph_check")
+
+exports_files(["pubspec.lock"])
+
+# Property: `pub.settings(allow_older_than_dependencies = True)` lets the root
+# hold `tuple` at 2.0.1 although dep_mod asks for 2.0.2; the whole build,
+# dep_mod's own repository name included, resolves the root's 2.0.1.
+
+pub_graph_check(
+    name = "root_lock_version_is_used",
+    target = "@rootlock//:tuple",
+    versions = {"tuple": "2.0.1"},
+)
+
+pub_graph_check(
+    name = "dependency_declaration_names_root_version",
+    target = "@dep_mod//:tuple",
+    versions = {"tuple": "2.0.1"},
+)

@@ -63,6 +63,8 @@ jobs:
           "e2e/pub_lock_resolve",
           "e2e/pub_member_kind",
           "e2e/pub_override_root_lock",
+          "e2e/pub_root_older_allowed",
+          "e2e/pub_root_newer",
           "e2e/pub_package_padded",
           "e2e/ext_exemplar",
           "e2e/dual_build",
@@ -170,6 +172,36 @@ jobs:
           echo "$out" | grep -q "from module \`mod_b\`"
           echo "$out" | grep -q "from module \`mod_c\`"
           echo "OK: expected declaration conflict detected"
+      - name: pub_root_older_package — expect a root pub.package() below a dependency's to fail, naming both
+        working-directory: e2e/pub_root_older_package
+        run: |
+          if out=$(bazel build //... 2>&1); then
+            echo "ERROR: build should have failed: dep_mod asks for tuple 2.0.2 and the root states 2.0.1"
+            exit 1
+          fi
+          echo "$out" | grep -q "older than a module it depends on asked for"
+          echo "$out" | grep -q "from module \`dep_mod\`"
+          echo "$out" | grep -q "allow_older_than_dependencies = True"
+          echo "OK: expected downgrade refusal detected"
+      - name: pub_root_newer — expect a root lock above a dependency's pub.package() to build, warning
+        working-directory: e2e/pub_root_newer
+        run: |
+          # The lock would replay the extension without running it, and the
+          # warning with it.
+          out=$(bazel build --lockfile_mode=off //... 2>&1) || { echo "$out"; exit 1; }
+          echo "$out" | grep -q "newer than a module it depends on asked for"
+          echo "$out" | grep -q "2.0.1, from module \`dep_mod\`"
+          echo "OK: expected upgrade warning printed"
+      - name: pub_root_older_lock — expect a root lock below a dependency's pub.package() to fail, naming both
+        working-directory: e2e/pub_root_older_lock
+        run: |
+          if out=$(bazel build //... 2>&1); then
+            echo "ERROR: build should have failed: dep_mod asks for tuple 2.0.2 and the root lock pins 2.0.1"
+            exit 1
+          fi
+          echo "$out" | grep -q "from the lock \`//:pubspec.lock\`"
+          echo "$out" | grep -q "from module \`dep_mod\`"
+          echo "OK: expected downgrade refusal detected"
       - name: toolchain_pin_conflict — expect a root pin below a dependency's request to fail, naming it
         working-directory: e2e/toolchain_pin_conflict
         run: |
