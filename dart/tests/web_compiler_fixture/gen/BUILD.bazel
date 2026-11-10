@@ -6,9 +6,9 @@ dart_codegen(
     name = "model_g",
     package_name = "gen",
     src = "lib/model.dart",
-    generator = "//dart/tests/package_fixture:gen.dart",
+    generator = "part_generator.dart",
     output_suffixes = [".g.dart"],
-    # The stand-in generator writes nothing: analysis only.
+    # The stand-in generator writes an empty part: analysis only.
     tags = ["manual"],
 )
 

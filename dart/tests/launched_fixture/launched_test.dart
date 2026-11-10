@@ -19,7 +19,7 @@ int _failures = 0;
 
 void _check(bool ok, String what) {
   if (ok) {
-    print('ok: $what');
+    stdout.writeln('ok: $what');
   } else {
     _failures++;
     stderr.writeln('FAIL: $what');

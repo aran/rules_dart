@@ -1,3 +1,5 @@
+import 'dart:io';
+
 void main() {
-  print('no-lv binary ok');
+  stdout.writeln('no-lv binary ok');
 }

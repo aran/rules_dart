@@ -1,5 +1,7 @@
 /// `copy_files <out dir> (<relative path> <source>)...`: copies each source to
 /// its path under the output directory, keeping its mode.
+library;
+
 import 'dart:io';
 
 void main(List<String> args) {

@@ -2,6 +2,8 @@
 /// README tells a test that runs SDK commands itself to.
 ///
 /// The argument is the runfiles path of `@rules_dart//dart`.
+library;
+
 import 'dart:io';
 
 import 'package:runfiles/runfiles.dart';

@@ -43,5 +43,5 @@ void main() {
   if (run.exitCode != 0 || (run.stdout as String).trim() != 'hello') {
     throw StateError('$exe exited ${run.exitCode}: ${run.stdout}${run.stderr}');
   }
-  print('compiled outputs are reproducible');
+  stdout.writeln('compiled outputs are reproducible');
 }

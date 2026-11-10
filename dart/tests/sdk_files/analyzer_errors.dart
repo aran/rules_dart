@@ -1,6 +1,8 @@
 /// `analyzer_errors <sdk> <file>`: resolves the file with `package:analyzer`
 /// against the SDK at the given path, as a code generator does, and prints
 /// its diagnostics. Exits non-zero when there are any, or none could be had.
+library;
+
 import 'dart:io';
 
 import 'package:analyzer/dart/analysis/analysis_context_collection.dart';

@@ -8,6 +8,8 @@
 /// Arguments: `<set>=<runfiles path of its copy>` per set, and the runfiles
 /// paths of `analyzer_errors`, `analyze_runner` and `analysis_host` as
 /// `<name>=<path>`.
+library;
+
 import 'dart:convert';
 import 'dart:io';
 

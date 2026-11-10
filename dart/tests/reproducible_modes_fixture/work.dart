@@ -16,5 +16,7 @@ void main() {
     final match = pattern.firstMatch('${decoded['n']}-${decoded['k']}');
     total += match!.group(1)!.length + (decoded['l'] as List).length;
   }
+  // No `dart:io`: the compiled outputs are compared byte for byte.
+  // ignore: avoid_print
   print(total);
 }

@@ -43,7 +43,7 @@ void main() {
         );
       }
     }
-    print('checked $name');
+    stdout.writeln('checked $name');
   }
   exit(failures == 0 ? 0 : 1);
 }

@@ -62,5 +62,5 @@ void main() {
   )) {
     throw StateError('dart_test named its entrypoint by a build path: $frame');
   }
-  print('entrypoint URIs are build-location independent');
+  stdout.writeln('entrypoint URIs are build-location independent');
 }

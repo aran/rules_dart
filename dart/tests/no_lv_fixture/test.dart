@@ -1,4 +1,6 @@
+import 'dart:io';
+
 void main() {
   assert(1 + 1 == 2);
-  print('no-lv test ok');
+  stdout.writeln('no-lv test ok');
 }

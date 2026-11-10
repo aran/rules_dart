@@ -1,1 +1,3 @@
-void main() => print('child ran');
+import 'dart:io';
+
+void main() => stdout.writeln('child ran');
