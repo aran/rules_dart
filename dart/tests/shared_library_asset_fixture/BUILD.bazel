@@ -18,6 +18,8 @@ cc_shared_library(
         "@platforms//os:windows": ["windows_export_all_symbols"],
         "//conditions:default": [],
     }),
+    # Also a prebuilt library's stand-in.
+    visibility = ["//dart/tests/prebuilt_library_fixture:__pkg__"],
     deps = [":counter"],
 )
 

@@ -7,9 +7,11 @@ case here asserting both that it fires and what it says.
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts")
 load("//dart:defs.bzl", "dart_code_asset")
+load("//dart:providers.bzl", "DartCodeAssetInfo")
 
 _ASSET_ID = "package:fixture/src/ffi/fixture.g.dart"
 _SHARED_LIB = "//dart/tests/cc_fixture:empty_shared"
+_PREBUILT = "//dart/tests/prebuilt_library_fixture:"
 
 def _expect(msg):
     def _impl(ctx):
@@ -20,12 +22,40 @@ def _expect(msg):
     return analysistest.make(_impl, expect_failure = True)
 
 _static_rejected_test = _expect("dart-lang/sdk/issues/49418")
-_bundle_needs_library_test = _expect("requires `shared_library =")
+_bundle_needs_library_test = _expect("requires `shared_library`, a `cc_shared_library` or a prebuilt library file")
 _bundle_rejects_system_uri_test = _expect("`system_uri` is only valid with")
 _system_needs_uri_test = _expect("requires `system_uri =")
 _system_rejects_library_test = _expect("`shared_library` is only valid with")
 _process_rejects_library_test = _expect("`shared_library` is only valid with")
 _executable_rejects_system_uri_test = _expect("`system_uri` is only valid with")
+_prebuilt_wrong_platform_test = _expect("is not a dynamic library for the target platform")
+_prebuilt_not_a_library_test = _expect("is not a dynamic library for the target platform")
+_prebuilt_two_files_test = _expect("nor a single prebuilt library file; it has 2 files")
+_system_rejects_prebuilt_test = _expect("`shared_library` is only valid with")
+
+def _prebuilt_carried_impl(ctx):
+    env = analysistest.begin(ctx)
+    info = analysistest.target_under_test(env)[DartCodeAssetInfo]
+    asserts.equals(env, "dynamic_loading_bundle", info.link_mode)
+    asserts.true(env, info.dynamic_library != None, "no dynamic_library")
+    asserts.equals(env, ctx.attr.basename, info.dynamic_library.basename)
+    return analysistest.end(env)
+
+_prebuilt_carried_test = analysistest.make(
+    _prebuilt_carried_impl,
+    attrs = {"basename": attr.string()},
+)
+
+# A library of the target platform, and one of another.
+_RIGHT_PLATFORM = select({
+    "@platforms//os:windows": _PREBUILT + "libwrong.dll",
+    "@platforms//os:macos": _PREBUILT + "libwrong.dylib",
+    "//conditions:default": _PREBUILT + "libwrong.so",
+})
+_WRONG_PLATFORM = select({
+    "@platforms//os:windows": _PREBUILT + "libwrong.so",
+    "//conditions:default": _PREBUILT + "libwrong.dll",
+})
 
 def code_asset_test_suite(name):
     """Declares the `dart_code_asset` validation fixtures and their tests.
@@ -125,9 +155,81 @@ def code_asset_test_suite(name):
         target_under_test = ":ca_executable_with_system_uri",
     )
 
+    dart_code_asset(
+        name = "ca_prebuilt_wrong_platform",
+        asset_id = _ASSET_ID,
+        shared_library = _WRONG_PLATFORM,
+        tags = ["manual"],
+    )
+    _prebuilt_wrong_platform_test(
+        name = "prebuilt_wrong_platform_test",
+        size = "small",
+        target_under_test = ":ca_prebuilt_wrong_platform",
+    )
+
+    dart_code_asset(
+        name = "ca_prebuilt_not_a_library",
+        asset_id = _ASSET_ID,
+        shared_library = _PREBUILT + "libwrong.txt",
+        tags = ["manual"],
+    )
+    _prebuilt_not_a_library_test(
+        name = "prebuilt_not_a_library_test",
+        size = "small",
+        target_under_test = ":ca_prebuilt_not_a_library",
+    )
+
+    dart_code_asset(
+        name = "ca_prebuilt_two_files",
+        asset_id = _ASSET_ID,
+        shared_library = _PREBUILT + "two_files",
+        tags = ["manual"],
+    )
+    _prebuilt_two_files_test(
+        name = "prebuilt_two_files_test",
+        size = "small",
+        target_under_test = ":ca_prebuilt_two_files",
+    )
+
+    dart_code_asset(
+        name = "ca_system_with_prebuilt",
+        asset_id = _ASSET_ID,
+        link_mode = "dynamic_loading_system",
+        shared_library = _RIGHT_PLATFORM,
+        system_uri = "libfixture.so.0",
+        tags = ["manual"],
+    )
+    _system_rejects_prebuilt_test(
+        name = "system_rejects_prebuilt_test",
+        size = "small",
+        target_under_test = ":ca_system_with_prebuilt",
+    )
+
+    dart_code_asset(
+        name = "ca_prebuilt",
+        asset_id = _ASSET_ID,
+        shared_library = _RIGHT_PLATFORM,
+        tags = ["manual"],
+    )
+    _prebuilt_carried_test(
+        name = "prebuilt_carried_test",
+        size = "small",
+        basename = select({
+            "@platforms//os:windows": "libwrong.dll",
+            "@platforms//os:macos": "libwrong.dylib",
+            "//conditions:default": "libwrong.so",
+        }),
+        target_under_test = ":ca_prebuilt",
+    )
+
     native.test_suite(
         name = name,
         tests = [
+            ":prebuilt_wrong_platform_test",
+            ":prebuilt_not_a_library_test",
+            ":prebuilt_two_files_test",
+            ":system_rejects_prebuilt_test",
+            ":prebuilt_carried_test",
             ":static_rejected_test",
             ":bundle_needs_library_test",
             ":bundle_rejects_system_uri_test",

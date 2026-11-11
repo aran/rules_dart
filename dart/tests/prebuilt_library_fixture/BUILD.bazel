@@ -1,0 +1,44 @@
+load("//dart:defs.bzl", "dart_code_asset", "dart_test")
+
+# A prebuilt library, as a vendored `.so`/`.dylib`/`.dll` or an `http_file` is:
+# a plain file, with no `CcSharedLibraryInfo`. Taken from a `cc_shared_library`
+# so the test runs on every platform without a checked-in binary.
+filegroup(
+    name = "prebuilt",
+    srcs = ["//dart/tests/shared_library_asset_fixture:counter_shared"],
+    output_group = "main_shared_library_output",
+)
+
+dart_code_asset(
+    name = "prebuilt_asset",
+    asset_id = "package:c/c.dart",
+    shared_library = ":prebuilt",
+)
+
+dart_test(
+    name = "prebuilt_library_test",
+    size = "small",
+    code_assets = [":prebuilt_asset"],
+    main = "prebuilt_library_test.dart",
+)
+
+# Empty stand-ins for `dart_code_asset`'s validation tests: a library for each
+# platform, and a file that is no library.
+exports_files(
+    [
+        "libwrong.dll",
+        "libwrong.dylib",
+        "libwrong.so",
+        "libwrong.txt",
+    ],
+    visibility = ["//dart/tests:__pkg__"],
+)
+
+filegroup(
+    name = "two_files",
+    srcs = [
+        "libwrong.dll",
+        "libwrong.so",
+    ],
+    visibility = ["//dart/tests:__pkg__"],
+)

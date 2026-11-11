@@ -1871,8 +1871,12 @@ names. Every `code_assets` entry provides `DartCodeAssetInfo`, which
   that its `deps` bring, so a test can load a differently built library under
   the id a package declares. Two different assets for one id from `deps` fail,
   naming both.
-- `link_mode` is `dynamic_loading_bundle` by default, a library Bazel builds and
-  ships with the program. `dynamic_loading_system` (with `system_uri`),
+- `shared_library` may instead be one prebuilt library file (a checked-in or
+  `http_file` `.so`, `.dylib` or `.dll`), as `cc_import` takes one. Its
+  extension must be the target platform's, so `select()` on the platform for a
+  multi-platform build.
+- `link_mode` is `dynamic_loading_bundle` by default, a library Bazel builds (or
+  you supply) and ships with the program. `dynamic_loading_system` (with `system_uri`),
   `dynamic_loading_executable` and `dynamic_loading_process` look the symbols up
   in the executable or the running process. `static` is refused.
 - A package whose `hook/build.dart` has no Bazel replacement fails any
