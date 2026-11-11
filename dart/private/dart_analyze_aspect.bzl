@@ -62,7 +62,7 @@ load("//dart/private:common.bzl", "PATH_MAPPING", "SDK_ENV", "default_language_v
 load("//dart/private:dart_summary.bzl", "DartSummaryAnalyzerInfo", "SUMMARIES_FLAG", "summary_analyzer_action")
 load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS", "portable_sdk")
 load("//dart/private:project_staging.bzl", "project_layout", "pubspec_stub", "stage_dart_project", "staged_pubspec_paths")
-load("//dart/private:resources.bzl", "analysis_resources")
+load("//dart/private:resources.bzl", "source_analysis_resources")
 load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS")
 
 # Analysis and formatting run on the build machine and produce nothing for the
@@ -268,7 +268,7 @@ def _analyzer(ctx):
         },
     )
 
-def _analyze(ctx, name, staged, sdk_inputs):
+def _analyze(ctx, name, staged, sdk_inputs, resource_set):
     """Declares the `dart analyze` action; returns the stamp it writes on success."""
     dart_sdk_info = portable_sdk(ctx)
     stamp = ctx.actions.declare_file(name + ".analyzed")
@@ -286,7 +286,7 @@ def _analyze(ctx, name, staged, sdk_inputs):
         outputs = [stamp],
         mnemonic = "DartAnalyze",
         exec_group = PORTABLE,
-        resource_set = analysis_resources,
+        resource_set = resource_set,
         progress_message = "Analyzing Dart sources of %{label}",
         env = SDK_ENV,
         execution_requirements = analyzer.execution_requirements,
@@ -493,11 +493,20 @@ def _dart_analyze_aspect_impl(target, ctx):
 
     name = ctx.label.name + ".dart_analyze"
     config = ctx.attr._config[DartAnalysisConfigInfo]
+    srcs = info.transitive_srcs.to_list()
+
+    # What analyzing the whole program reserves (resources.bzl), by how many
+    # Dart files it can see.
+    resource_set = source_analysis_resources(len({
+        f.path: None
+        for f in srcs + entry + own.values()
+        if f.extension == "dart"
+    }))
     staged = stage_config_project(
         ctx,
         config,
         info.transitive_packages.to_list(),
-        info.transitive_srcs.to_list() + info.transitive_resources.to_list() + entry + own.values(),
+        srcs + info.transitive_resources.to_list() + entry + own.values(),
         own.values(),
         name,
         portable_sdk(ctx),
@@ -513,7 +522,7 @@ def _dart_analyze_aspect_impl(target, ctx):
         if analyzer.enabled:
             stamp = _analyze_against_summaries(ctx, name, config, info, entry, own.values(), analyzer, _summaries(ctx, analyzer, info))
         else:
-            stamp = _analyze(ctx, name, staged, sdk_inputs)
+            stamp = _analyze(ctx, name, staged, sdk_inputs, resource_set)
         groups["dart_analyze"] = depset([stamp])
     if NO_FORMAT_TAG not in tags:
         by_version = _format_language_versions(info, own_paths, default_language_version(dart_sdk_info))
@@ -559,7 +568,7 @@ def _dart_analyze_aspect_impl(target, ctx):
         outputs = [fix_changes, scratch],
         mnemonic = "DartFix",
         exec_group = PORTABLE,
-        resource_set = analysis_resources,
+        resource_set = resource_set,
         progress_message = "Computing Dart fixes for %{label}",
         env = SDK_ENV,
         execution_requirements = fix_analyzer.execution_requirements,
