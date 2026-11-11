@@ -32,12 +32,15 @@ jobs:
     uses: bazel-contrib/.github/.github/workflows/bazel.yaml@1d798ff015ed0696433e01e2c3ccbb2abefadad7 # v7.7.0
     with:
       bazel_versions: '["9.3.0"]'
-      # Exit code 4 means "build succeeded but no test targets found", which is
-      # expected for build-only e2e folders like web_app and pub_deps.
+      # Exit code 4 means "build succeeded but no test targets found". It
+      # passes only in the folders listed here, which build but hold no test;
+      # anywhere else it fails, so a folder whose tests vanish goes red. A
+      # folder that gains a test leaves the list.
       # Wrapped in bash -c because the reusable workflow uses the runner's
-      # default shell (PowerShell on Windows) where [ $? -eq 4 ] is invalid.
-      # Inner single quotes prevent the outer shell from expanding $?.
-      bazel_test_command: "bash -c 'bazel test --test_output=errors //... || [ $? -eq 4 ]'"
+      # default shell (PowerShell on Windows), where this is invalid. Inner
+      # single quotes keep the outer shell from expanding it; `case $PWD`
+      # needs no quotes, which PowerShell would mangle.
+      bazel_test_command: "bash -c 'bazel test --test_output=errors //...; s=$?; [ $s -eq 4 ] && case $PWD in */e2e/analysis|*/e2e/hello_world|*/e2e/pub_deps|*/e2e/pub_lock|*/e2e/pub_lock_cross_module|*/e2e/pub_lock_dedup|*/e2e/pub_lock_upgrade|*/e2e/pub_hub_surface|*/e2e/pub_override_root_lock|*/e2e/pub_highest_wins|*/e2e/pub_root_newer|*/e2e/pub_package_padded) exit 0;; esac; exit $s'"
       folders: |
         [
           ".",
@@ -165,7 +168,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: analysis from source — ${{ matrix.folder }}
         working-directory: ${{ matrix.folder }}
-        run: bazel test --test_output=errors --@rules_dart//dart:analysis_summaries=false //... || [ $? -eq 4 ]
+        # Exit code 4 (no test targets) passes only for e2e/analysis, which has
+        # none.
+        run: bazel test --test_output=errors --@rules_dart//dart:analysis_summaries=false //... || { [ $? -eq 4 ] && [ "${{ matrix.folder }}" = e2e/analysis ]; }
   # The runner snapshot cache off, the default this repository's .bazelrc
   # overrides: `test_runner_test` checks that the runner then starts from its
   # kernel and no cache is touched.
