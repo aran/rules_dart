@@ -1913,6 +1913,82 @@ void main() {
       }
     });
   });
+
+  // As build_runner's resolver: a library with a syntax error is refused
+  // unless the builder allows it, so no generator runs over a parse the
+  // analyzer recovered from by guessing.
+  group('a source with a syntax error', () {
+    late Directory tmp;
+
+    setUp(() async {
+      tmp = await Directory.systemTemp.createTemp('shim_syntax_');
+    });
+
+    tearDown(() async {
+      await tmp.delete(recursive: true);
+    });
+
+    Future<({bool ok, String diagnostics})> resolve(
+      Future<void> Function(BuildStep step) read,
+    ) async {
+      final input = File(p.join(tmp.path, 'input.dart'))
+        ..writeAsStringSync('class Main {\n  void f( {}\n');
+      final root = await Directory(p.join(tmp.path, 'root')).create();
+      final diagnostics = <String>[];
+      exitCode = 0;
+      await runShim(
+        [
+          '--input',
+          input.path,
+          '--input-asset',
+          'lib/main.dart',
+          '--output',
+          p.join(tmp.path, 'main.g.dart'),
+          '--package',
+          'fixture',
+          '--root-language-version',
+          '3.11',
+        ],
+        (_) => _CapturingBuilder((step) async {
+          await read(step);
+          await step.writeAsString(
+            step.inputId.changeExtension('.g.dart'),
+            '// generated\n',
+          );
+        }),
+        stagingRoot: root,
+        writeDiagnostic: diagnostics.add,
+      );
+      final ok = exitCode == 0;
+      exitCode = 0;
+      return (ok: ok, diagnostics: diagnostics.join('\n'));
+    }
+
+    test('is refused by libraryFor', () async {
+      final r = await resolve((step) => step.resolver.libraryFor(step.inputId));
+      expect(r.ok, isFalse);
+      expect(r.diagnostics, contains('Expected an identifier'));
+    });
+
+    test('is refused by compilationUnitFor', () async {
+      final r = await resolve(
+        (step) => step.resolver.compilationUnitFor(step.inputId),
+      );
+      expect(r.ok, isFalse);
+      expect(r.diagnostics, contains('Expected an identifier'));
+    });
+
+    test('is read when the builder allows syntax errors', () async {
+      final r = await resolve((step) async {
+        await step.resolver.libraryFor(step.inputId, allowSyntaxErrors: true);
+        await step.resolver.compilationUnitFor(
+          step.inputId,
+          allowSyntaxErrors: true,
+        );
+      });
+      expect(r.ok, isTrue, reason: r.diagnostics);
+    });
+  });
 }
 
 /// A Builder declared to produce `.g.dart` outputs but that emits nothing.

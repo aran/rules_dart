@@ -23,6 +23,7 @@ import 'package:analyzer/dart/analysis/session.dart';
 import 'package:analyzer/dart/analysis/utilities.dart';
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/element/element.dart';
+import 'package:analyzer/error/error.dart' show DiagnosticType;
 import 'package:analyzer/file_system/file_system.dart' as fs;
 import 'package:analyzer/file_system/physical_file_system.dart';
 import 'package:args/args.dart';
@@ -1328,6 +1329,12 @@ class _ShimAnalyzerResolver implements Resolver {
     if (parsed is! ParsedUnitResult || parsed.isPart) {
       throw NonLibraryAssetException(id);
     }
+    if (!allowSyntaxErrors) {
+      final library = session.getParsedLibrary(path);
+      if (library is ParsedLibraryResult) {
+        _refuseSyntaxErrors(id, library.units);
+      }
+    }
     // For files under `lib/`, resolve by the canonical package: URI so the
     // returned LibraryElement is the same instance the analyzer hands to
     // import chains. File-path resolution produces a separate element model
@@ -1367,7 +1374,24 @@ class _ShimAnalyzerResolver implements Resolver {
     if (result is! ParsedUnitResult) {
       throw NonLibraryAssetException(id);
     }
+    if (!allowSyntaxErrors) _refuseSyntaxErrors(id, [result]);
     return result.unit;
+  }
+
+  /// Throws, as build_runner's resolver does, when any of [units] has a
+  /// syntax error: a builder reading it would run over a parse the analyzer
+  /// recovered from by guessing.
+  static void _refuseSyntaxErrors(AssetId id, List<ParsedUnitResult> units) {
+    final withErrors = [
+      for (final unit in units)
+        if (unit.diagnostics.any(
+          (d) => d.diagnosticCode.type == DiagnosticType.SYNTACTIC_ERROR,
+        ))
+          unit,
+    ];
+    if (withErrors.isNotEmpty) {
+      throw SyntaxErrorInAssetException(id, withErrors);
+    }
   }
 
   @override
