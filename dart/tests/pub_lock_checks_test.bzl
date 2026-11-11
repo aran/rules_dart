@@ -17,6 +17,7 @@ load(
     "path_packages",
     "pub_command",
     "resolved_packages",
+    "resolved_pubspecs",
     "source_disagreement_errors",
 )
 load(":small_suite.bzl", "small_unittest_suite")
@@ -218,6 +219,32 @@ def _source_disagreement_test_impl(ctx):
     asserts.equals(env, [], source_disagreement_errors({}, {"bar": git["bar"]}, {"baz": hosted["baz"]}))
     return unittest.end(env)
 
+def _resolved_pubspecs_test_impl(ctx):
+    env = unittest.begin(ctx)
+
+    # A mapped package's pubspec is read where its lock lists it by a relative
+    # path inside the lock's repository, from the first such lock.
+    one = _lock(
+        {
+            "mine": _path("../mine/"),
+            "abs": _path("/elsewhere/abs", relative = "false"),
+            "outside": _path("../../outside"),
+            "fork": _hosted(),
+        },
+        lock = "//app:pubspec.lock",
+        resolve = {"mine": "//mine", "abs": "//abs", "outside": "//outside", "fork": "//fork"},
+    )
+    two = _lock({"mine": _path("../../elsewhere")}, lock = "//app/sub:pubspec.lock", resolve = {"mine": "//mine"})
+    mapped = resolved_packages([one, two], {})
+    asserts.equals(env, [], mapped.errors)
+    found = resolved_pubspecs([one, two], mapped.targets)
+    asserts.equals(env, ["mine"], found.keys())
+    asserts.equals(env, "//mine", found["mine"].target)
+    asserts.equals(env, "../mine", found["mine"].path)
+    asserts.equals(env, Label("//app:pubspec.lock"), found["mine"].lock)
+    asserts.equals(env, "0.1.0", found["mine"].version)
+    return unittest.end(env)
+
 _t0_test = unittest.make(_pub_command_test_impl)
 _t1_test = unittest.make(_mapping_accepts_every_path_package_named_once_test_impl)
 _t2_test = unittest.make(_mapping_names_each_problem_test_impl)
@@ -227,6 +254,7 @@ _t5_test = unittest.make(_git_entry_pinned_test_impl)
 _t6_test = unittest.make(_git_entry_unpinned_test_impl)
 _t7_test = unittest.make(_git_disagreement_test_impl)
 _t8_test = unittest.make(_source_disagreement_test_impl)
+_t9_test = unittest.make(_resolved_pubspecs_test_impl)
 
 def pub_lock_checks_test_suite(name):
-    small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test, _t4_test, _t5_test, _t6_test, _t7_test, _t8_test)
+    small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test, _t4_test, _t5_test, _t6_test, _t7_test, _t8_test, _t9_test)

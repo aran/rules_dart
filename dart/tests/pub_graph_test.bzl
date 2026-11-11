@@ -168,6 +168,46 @@ def _declarations_form_test_impl(ctx):
     asserts.true(env, '`b` is in both flutter_pub.cycle(packages = ["a", "b"]) and flutter_pub.cycle(packages = ["b", "c"])' in error, error)
     return unittest.end(env)
 
+def _served_cycle_test_impl(ctx):
+    env = unittest.begin(ctx)
+
+    # A cycle through a package a target of the user's builds is refused
+    # whatever is declared, naming that package and the move that builds it.
+    graph = {"theirs": ["mine", "meta"], "mine": ["theirs"], "meta": []}
+    served = {"mine": "@@//mine:mine"}
+    for declared, advisory in [([], []), ([["mine", "theirs"]], []), ([], [["mine", "theirs"]])]:
+        error = cycle_error(graph, "theirs", declared = declared, advisory = advisory, served = served)
+        asserts.true(env, error != None, "a cycle through a served package must be refused")
+        _mentions(env, error, [
+            "Packages `mine` and `theirs` depend on each other: theirs -> mine -> theirs.",
+            "`mine` is built by @@//mine:mine, a target of yours that `resolve` maps it to.",
+            "move it from `resolve` to `build_from_pubspec`",
+            'pub.cycle(packages = ["mine", "theirs"])',
+            "A `BUILD` file under its `lib/` or `hook/` has to go",
+        ])
+
+    # Two served packages are both named.
+    ring = {"a": ["b"], "b": ["c"], "c": ["a"]}
+    error = cycle_error(ring, "a", served = {"b": "@@//b:b", "c": "@@//c:c"})
+    _mentions(env, error, [
+        "`b` and `c` are built by targets of yours that `resolve` maps them to (@@//b:b, @@//c:c).",
+        "move them from `resolve`",
+        "under their `lib/`",
+    ])
+
+    # A served package in no cycle, or one beside the cycle, plans as before.
+    asserts.equals(env, None, cycle_error(graph, "meta", served = served))
+    asserts.equals(env, None, cycle_error({"a": ["mine"], "mine": []}, "a", served = served))
+    error = cycle_error({"a": ["b", "mine"], "b": ["a"], "mine": []}, "a", served = served)
+    asserts.true(env, "Pub packages `a` and `b` depend on each other" in error, error)
+    cycle = dependency_cycle({"a": ["b", "mine"], "b": ["a"], "mine": []}, "a", declared = [["a", "b"]], served = served)
+    asserts.equals(env, ["mine"], cycle.deps)
+    return unittest.end(env)
+
+def _mentions(env, text, fragments):
+    for fragment in fragments:
+        asserts.true(env, fragment in text, "expected {} in:\n{}".format(repr(fragment), text))
+
 _t0_test = unittest.make(_acyclic_test_impl)
 _t1_test = unittest.make(_two_cycle_test_impl)
 _t2_test = unittest.make(_long_cycle_with_tail_test_impl)
@@ -178,6 +218,7 @@ _t6_test = unittest.make(_undeclared_cycle_test_impl)
 _t7_test = unittest.make(_root_declaration_test_impl)
 _t8_test = unittest.make(_advisory_declaration_test_impl)
 _t9_test = unittest.make(_declarations_form_test_impl)
+_t10_test = unittest.make(_served_cycle_test_impl)
 
 def pub_graph_test_suite(name):
-    small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test, _t4_test, _t5_test, _t6_test, _t7_test, _t8_test, _t9_test)
+    small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test, _t4_test, _t5_test, _t6_test, _t7_test, _t8_test, _t9_test, _t10_test)

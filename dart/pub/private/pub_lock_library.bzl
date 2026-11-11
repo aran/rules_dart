@@ -91,13 +91,15 @@ def _pub_lock_library_impl(ctx):
     resolved = {p: True for p in index["resolved"]}
     unsupplied = index["unsupplied"]
 
-    # Every package this one reaches through fetched packages. A package one
-    # `resolve` maps is a workspace target, whose dependencies its BUILD file
-    # states, so the walk stops there.
+    # Every package this one reaches through fetched packages, and through
+    # the packages `resolve` maps whose pubspec says what they depend on: a
+    # cycle through one of those is refused, naming the fix. Any other mapped
+    # package is a leaf.
+    served = index["served"]
     graph = dependency_graph(
         ctx.attr.package_name,
         lambda p: read_pubspec_dependencies(ctx, source_repo(prefix, p)),
-        follow = fetched,
+        follow = fetched | served,
     )
 
     cycle = dependency_cycle(
@@ -106,6 +108,7 @@ def _pub_lock_library_impl(ctx):
         declared = index["cycles"],
         advisory = index["advisory_cycles"],
         declare = "pub.cycle",
+        served = served,
     )
     if cycle.owner != ctx.attr.package_name:
         ctx.file("BUILD.bazel", make_pub_library_build_content(
@@ -150,6 +153,7 @@ def _pub_lock_index_impl(ctx):
         "unsupplied": ctx.attr.unsupplied,
         "cycles": [c.split(" ") for c in ctx.attr.cycles],
         "advisory_cycles": [c.split(" ") for c in ctx.attr.advisory_cycles],
+        "served": ctx.attr.served,
     }))
     return ctx.repo_metadata(reproducible = True)
 
@@ -166,6 +170,7 @@ pub_lock_index = repository_rule(
         "unsupplied": attr.string_dict(doc = "Packages a lock lists that nothing fetches, each with how the lock lists it. Depending on one is an error."),
         "cycles": attr.string_list(doc = "The root module's `pub.cycle()` declarations, each its packages joined by spaces: each must be exactly a cycle."),
         "advisory_cycles": attr.string_list(doc = "Other modules' and the curated cycle declarations whose packages are all fetched, each its packages joined by spaces: each applies where it is exactly a cycle."),
+        "served": attr.string_dict(doc = "Packages `resolve` maps whose source repository records their pubspec's dependencies, each with the target that builds it: a cycle through one is refused."),
     },
     doc = "The packages every `pub_lock_library` of one extension plans against.",
 )

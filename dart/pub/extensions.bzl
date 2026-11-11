@@ -2,11 +2,11 @@
 
 load("//dart/ext:registry.bzl", "curated_code_assets", "curated_cycles")
 load("//dart/pub:pub_graph.bzl", "cycle_declaration", "cycle_declarations_error")
-load("//dart/pub:pub_lock_package.bzl", "pub_lock_git_package", "pub_lock_package", "pub_lock_path_package")
+load("//dart/pub:pub_lock_package.bzl", "pub_lock_git_package", "pub_lock_package", "pub_lock_path_package", "pub_lock_resolved_pubspec")
 load("//dart/pub:pub_versions.bzl", "CHECK_LEVELS", "pub_version_request", "select_pub_version")
 load("//dart/pub:yaml_parser.bzl", "parse_pubspec_lock")
 load("//dart/pub/private:pub_archive.bzl", "pub_archive_sha256_error")
-load("//dart/pub/private:pub_lock_checks.bzl", "git_disagreement_error", "git_lock_package", "lock_mapping_error", "path_packages", "pub_command", "resolved_packages", "source_disagreement_errors")
+load("//dart/pub/private:pub_lock_checks.bzl", "git_disagreement_error", "git_lock_package", "lock_mapping_error", "path_packages", "pub_command", "resolved_packages", "resolved_pubspecs", "source_disagreement_errors")
 load("//dart/pub/private:pub_lock_hub.bzl", "pub_lock_hub")
 load("//dart/pub/private:pub_lock_library.bzl", "index_repo", "library_repo", "pub_lock_ignored", "pub_lock_index", "pub_lock_library", "pub_lock_resolved", "source_repo")
 load("//dart/pub/private:pub_settings.bzl", "root_only_settings")
@@ -381,6 +381,10 @@ def _pub_impl(ctx):
     mapped = resolved_packages(locks, declared)
     resolved_targets = mapped.targets
     paths = path_packages(locks, declared, resolved_targets)
+
+    # The mapped packages whose pubspec planning reads, to find a cycle
+    # between one and pub packages, which no declaration can build.
+    readable = resolved_pubspecs(locks, resolved_targets)
     errors.extend(mapped.errors + paths.errors)
 
     # Every hosted lock entry, per package: each is a version request.
@@ -567,6 +571,7 @@ def _pub_impl(ctx):
         unsupplied = unsupplied,
         cycles = [" ".join(c) for c in cycles.declared],
         advisory_cycles = [" ".join(c) for c in cycles.advisory],
+        served = {name: str(pkg.target) for name, pkg in readable.items()},
     )
     for name, pkg in git_registry.items():
         pub_lock_git_package(
@@ -625,6 +630,14 @@ def _pub_impl(ctx):
             reason = pkg.reason,
         )
 
+    for name, pkg in readable.items():
+        pub_lock_resolved_pubspec(
+            name = source_repo(_SPOKE_PREFIX, name),
+            package_name = name,
+            version = pkg.version,
+            lock = pkg.lock,
+            path = pkg.path,
+        )
     for name, resolved in resolved_targets.items():
         pub_lock_resolved(
             name = library_repo(_SPOKE_PREFIX, name),

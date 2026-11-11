@@ -204,6 +204,45 @@ def resolved_packages(locks, declared):
                 )
     return struct(targets = targets, errors = errors)
 
+def resolved_pubspecs(locks, resolved_targets):
+    """The `resolve`-mapped packages whose pubspec the build can read.
+
+    A mapped package is a target of the user's, whose dependencies its BUILD
+    file states. Its pubspec states what pub sees it depend on, which is what
+    finds a dependency cycle between it and pub packages, which no target can
+    be built in. The pubspec is read where a lock lists the package by a
+    relative `path` inside the lock's repository, which every checkout holds
+    alike, as for `build_from_pubspec`. Call it once every lock's
+    `lock_mapping_error` is None.
+
+    Args:
+        locks: Every lock, as the extension parses them.
+        resolved_targets: `resolved_packages`'s targets.
+
+    Returns:
+        Package name -> `struct(target, path, version, lock)`: the target that
+        builds it, and the first such lock's normalized `path` to it, version
+        and label.
+    """
+    found = {}
+    for lock in locks:
+        tag = lock.tag
+        for name in tag.resolve:
+            info = lock.packages.get(name, {})
+            desc = info.get("description", {})
+            if name in found or info.get("source") != "path" or desc.get("relative", "").lower() != "true":
+                continue
+            in_repo = _path_in_repo(tag.lock, desc.get("path", ""))
+            if in_repo == ".." or in_repo.startswith("../"):
+                continue
+            found[name] = struct(
+                target = resolved_targets[name].target,
+                path = _normalize(desc.get("path", "")),
+                version = info.get("version", ""),
+                lock = tag.lock,
+            )
+    return found
+
 def path_packages(locks, declared, resolved_targets):
     """Collects the `path` packages each lock builds from its pubspec or ignores.
 

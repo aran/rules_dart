@@ -1,0 +1,7 @@
+name: mine
+version: 1.0.0
+environment:
+  sdk: ^3.5.0
+dependencies:
+  theirs:
+    path: ../theirs

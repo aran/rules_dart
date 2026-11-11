@@ -6,7 +6,9 @@ a `pub_package_member`: `pub_lock_package` for a hosted package,
 `pub_lock_git_package` for a git one, `pub_lock_path_package` for a path one.
 Which packages it is built with — its dependency cycle, if pub resolved one —
 is decided by its library repository (`pub_lock_library`), which the hub's
-`@hub//:pkg` aliases point at.
+`@hub//:pkg` aliases point at. A `path` package `resolve` maps to a target of
+the user's gets `pub_lock_resolved_pubspec` instead, which holds only the
+dependencies its pubspec states, so that planning finds a cycle through it.
 
 Also re-exports public Starlark helpers for other Bazel rule sets (notably
 rules_flutter's `flutter_pub_package`, the `flutter pub get` analog):
@@ -124,7 +126,7 @@ def _pub_lock_git_package_impl(ctx):
         ctx.attr.path,
     ))
 
-def _pub_lock_path_package_impl(ctx):
+def _lock_path_directory(ctx):
     # As pub does, the path is resolved lexically against the lock's directory.
     directory = ctx.path(ctx.attr.lock).dirname
     for part in ctx.attr.path.split("/"):
@@ -132,7 +134,10 @@ def _pub_lock_path_package_impl(ctx):
             directory = directory.dirname
         elif part not in ("", "."):
             directory = directory.get_child(part)
-    fetch_pub_path(ctx, directory, _PATH_PACKAGE_ENTRIES)
+    return directory
+
+def _pub_lock_path_package_impl(ctx):
+    fetch_pub_path(ctx, _lock_path_directory(ctx), _PATH_PACKAGE_ENTRIES)
 
     # Its files are the user's, outside Bazel's control.
     return _write_member(ctx, reproducible = False)
@@ -215,4 +220,38 @@ pub_lock_path_package = repository_rule(
         ),
     },
     doc = "Serves a `source: path` package from its directory, built from its pubspec, and generates a BUILD file.",
+)
+
+def _pub_lock_resolved_pubspec_impl(ctx):
+    pubspec = _lock_path_directory(ctx).get_child("pubspec.yaml")
+    ctx.watch(pubspec)
+    if not pubspec.exists:
+        fail(("pub.from_lock(): %s lists package `%s` at `%s`, and %s does not exist. " +
+              "Check out the package there, or run `dart pub get` so the lock says where " +
+              "it is.") % (ctx.attr.lock, ctx.attr.package_name, ctx.attr.path, pubspec))
+    ctx.symlink(pubspec, "pubspec.yaml")
+    write_pubspec_dependencies(ctx, read_pubspec(ctx, ctx.attr.package_name, ctx.attr.version).dependencies)
+    ctx.file("BUILD.bazel", "")
+
+    # Its pubspec is the user's, outside Bazel's control.
+    return ctx.repo_metadata(reproducible = False)
+
+pub_lock_resolved_pubspec = repository_rule(
+    implementation = _pub_lock_resolved_pubspec_impl,
+    attrs = {
+        "package_name": attr.string(mandatory = True, doc = "The pub package name."),
+        "version": attr.string(doc = "The package version, as pubspec.lock records it, for messages."),
+        "lock": attr.label(
+            doc = "The lock, against whose directory `path` is resolved.",
+            allow_single_file = True,
+            mandatory = True,
+        ),
+        "path": attr.string(
+            doc = "The package's directory relative to the lock's: the lock's " +
+                  "`description.path`, `/`-separated. It stays inside the lock's repository.",
+            mandatory = True,
+        ),
+    },
+    doc = "Records the pubspec dependencies of a `path` package `resolve` maps to a target of " +
+          "the user's, so the library repositories of pub packages can find a cycle through it.",
 )

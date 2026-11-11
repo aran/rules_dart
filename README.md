@@ -494,12 +494,20 @@ no longer imports `ping`. The build then fails and says what to change. It
 also fails when the cycle leaves out a package that is part of it, and names
 that package.
 
-What if your package and a pub package import each other? Then your package has
-to join the pub build. List it in `build_from_pubspec` of `pub.from_lock()`
-(see [Using pub.dev packages](#using-pubdev-packages)), and it builds as a pub
-package does. Declare the cycle with `pub.cycle()`, as
+What if your package and a pub package import each other? Your target can't be
+in a cycle with a pub package, so your package has to join the pub build. List
+it in `build_from_pubspec` of `pub.from_lock()` instead of `resolve` (see
+[Using pub.dev packages](#using-pubdev-packages)), and it builds as a pub
+package does. Then declare the cycle with `pub.cycle()`, as
 [Packages that depend on each other](#packages-that-depend-on-each-other)
 shows.
+
+You don't have to spot such a cycle yourself. When a lock lists a `resolve`
+package by a `path` inside its repository, the build reads that package's
+`pubspec.yaml` to learn what it depends on. A cycle between it and pub packages
+then fails when a pub package in it is first built. The error names every
+package in the cycle, the one to move to `build_from_pubspec`, and the
+`pub.cycle()` to add.
 
 Gazelle can write these targets for you. Add a `dart_cycle` directive (see
 [Directives](#directives)).
@@ -3200,7 +3208,7 @@ The [`e2e/`](e2e/) directory contains complete working examples:
 | [`pub_lock_cross_module`](e2e/pub_lock_cross_module/)       | `pub.from_lock()` across Bazel module boundaries                                                         |
 | [`pub_lock_cycle`](e2e/pub_lock_cycle/)                     | Packages that depend on each other: a curated cycle (`dio`), and one the root declares                   |
 | [`pub_package_cycle`](e2e/pub_package_cycle/)               | `pub.package()` packages that depend on each other, built as one library                                 |
-| [`pub_cycle_refused`](e2e/pub_cycle_refused/)               | An undeclared cycle, a stale declaration and part of a cycle fail, naming the declaration                |
+| [`pub_cycle_refused`](e2e/pub_cycle_refused/)               | An undeclared cycle, a stale declaration, part of a cycle and a cycle through a `resolve` target fail    |
 | [`pub_member_kind`](e2e/pub_member_kind/)                   | Another rule set's own pub package kind, in a cycle, over the public pub surface                         |
 | [`toolchain_pin_conflict`](e2e/toolchain_pin_conflict/)     | A root `dart.toolchain` pin below a dependency's request fails, naming the dependency                    |
 | [`pub_lock_unsupplied`](e2e/pub_lock_unsupplied/)           | A hosted package depending on an unsupplied sdk package fails, naming it                                 |

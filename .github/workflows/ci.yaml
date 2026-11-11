@@ -386,10 +386,10 @@ jobs:
           fi
           bazel build @provider//:provider 2>&1 | grep -q "nothing supplies \`flutter\`"
           echo "OK: unsupplied pub.package() dependency refused"
-      - name: pub_cycle_refused — expect an undeclared cycle, a stale declaration and part of a cycle to be refused
+      - name: pub_cycle_refused — expect an undeclared cycle, a stale declaration, part of a cycle and a cycle through a resolve target to be refused
         working-directory: e2e/pub_cycle_refused
         run: |
-          for target in left old_a tri_a; do
+          for target in left old_a tri_a theirs; do
             if bazel build @deps//:$target 2>/dev/null; then
               echo "ERROR: build should have refused $target's cycle"
               exit 1
@@ -398,6 +398,8 @@ jobs:
           bazel build @deps//:left 2>&1 | grep -qF 'pub.cycle(packages = ["left", "right"])'
           bazel build @deps//:old_a 2>&1 | grep -qF "\`old_a\` is in no cycle"
           bazel build @deps//:tri_a 2>&1 | grep -qF 'pub.cycle(packages = ["tri_a", "tri_b", "tri_c"])'
+          bazel build @deps//:theirs 2>&1 | grep -qF "move it from \`resolve\` to \`build_from_pubspec\`"
+          bazel build //mine 2>&1 | grep -qF 'pub.cycle(packages = ["mine", "theirs"])'
           echo "OK: undeclared and misdeclared cycles refused"
       - name: kernel_source_refused — expect a dart_kernel_source naming both or neither of dart_version and path, or a path that is no checkout, to be refused
         working-directory: e2e/kernel_source_refused

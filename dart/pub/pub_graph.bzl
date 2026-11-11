@@ -200,7 +200,39 @@ def cycle_declarations_error(groups, where, declare = "pub.cycle"):
         return None
     return "The dependency cycles declared by %s are not well formed:\n%s" % (where, "\n".join(problems))
 
-def cycle_error(graph, package, declared = [], advisory = [], declare = "pub.cycle"):
+def _served_cycle_error(graph, package, cycle, served, declare):
+    # A package a target of the user's builds is that target, whose deps its
+    # BUILD file states. Bazel builds no cycle, and no library holds both that
+    # target and pub packages, so no declaration builds a cycle through it.
+    mine = [p for p in cycle if p in served]
+    if len(mine) == 1:
+        built = "%s is built by %s, a target of yours that `resolve` maps it to." % (_names(mine), served[mine[0]])
+        it, its = "it", "its"
+    else:
+        built = "%s are built by targets of yours that `resolve` maps them to (%s)." % (
+            _names(mine),
+            ", ".join([str(served[p]) for p in mine]),
+        )
+        it, its = "them", "their"
+    return ("Packages %s depend on each other: %s. %s Bazel builds no dependency cycle, " +
+            "and a target of yours can't join one with pub packages. To build the cycle, build " +
+            "%s as pub packages are built: move %s from `resolve` to `build_from_pubspec` on " +
+            "the `pub.from_lock()` that lists %s, depend on %s through that lock's hub, and " +
+            "declare the cycle in the root module's MODULE.bazel:\n\n    %s\n\n" +
+            "A `BUILD` file under %s `lib/` or `hook/` has to go, since the pub build " +
+            "serves those directories.\n") % (
+        _names(cycle),
+        _cycle_path(graph, package, cycle),
+        built,
+        _names(mine),
+        it,
+        it,
+        it,
+        cycle_declaration(cycle, declare),
+        its,
+    )
+
+def cycle_error(graph, package, declared = [], advisory = [], declare = "pub.cycle", served = {}):
     """What is wrong with how `package`'s dependency cycle is declared, if anything.
 
     `dependency_cycle()` fails with this message; it is separate so that it can
@@ -212,11 +244,14 @@ def cycle_error(graph, package, declared = [], advisory = [], declare = "pub.cyc
       declared: As for `dependency_cycle()`.
       advisory: As for `dependency_cycle()`.
       declare: As for `dependency_cycle()`.
+      served: As for `dependency_cycle()`.
 
     Returns:
       The message, or None when the cycle may be planned.
     """
     cycle = _strongly_connected(graph, package)
+    if len(cycle) > 1 and [p for p in cycle if p in served]:
+        return _served_cycle_error(graph, package, cycle, served, declare)
     for group in declared:
         if package not in group:
             continue
@@ -241,7 +276,7 @@ def cycle_error(graph, package, declared = [], advisory = [], declare = "pub.cyc
         cycle_declaration(cycle, declare),
     )
 
-def dependency_cycle(graph, package, declared = [], advisory = [], declare = "pub.cycle"):
+def dependency_cycle(graph, package, declared = [], advisory = [], declare = "pub.cycle", served = {}):
     """The dependency cycle `package` is built in, and what the cycle depends on.
 
     Pub allows a cycle (`dio` and `dio_web_adapter` each depend on the other);
@@ -254,7 +289,9 @@ def dependency_cycle(graph, package, declared = [], advisory = [], declare = "pu
     not: a dependency cannot fix what the root's versions made of its
     declaration, and the root can. Fails, naming the packages and the
     declaration to write, when `package` is in an undeclared cycle or in a
-    root declaration that is not exactly its cycle (see `cycle_error()`).
+    root declaration that is not exactly its cycle, and naming the package to
+    build from its pubspec when the cycle passes through one of `served`
+    (see `cycle_error()`).
 
     Args:
       graph: Dict of package name to the names it depends on, as
@@ -266,6 +303,10 @@ def dependency_cycle(graph, package, declared = [], advisory = [], declare = "pu
         the curated ones (`curated_cycles()`, `@rules_dart//dart/ext:registry.bzl`).
       declare: The tag that declares a cycle, as `<extension>.<tag>`, for the
         message.
+      served: Dict of package name to the target of the user's that builds
+        it in place of a library (`pub.from_lock(resolve = ...)`), for the
+        packages whose dependencies `graph` holds. No declaration builds a
+        cycle through one.
 
     Returns:
       `struct(packages, owner, deps)`: `packages`, the sorted names of the
@@ -274,7 +315,7 @@ def dependency_cycle(graph, package, declared = [], advisory = [], declare = "pu
       repository builds the cycle; and `deps`, the sorted names the packages
       depend on outside the cycle.
     """
-    error = cycle_error(graph, package, declared, advisory, declare)
+    error = cycle_error(graph, package, declared, advisory, declare, served)
     if error:
         fail(error)
     packages = _strongly_connected(graph, package)

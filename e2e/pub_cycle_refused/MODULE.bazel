@@ -22,14 +22,19 @@ pub.from_lock(
         "old_a",
         "old_b",
         "right",
+        "theirs",
         "tri_a",
         "tri_b",
         "tri_c",
     ],
     lock = "//:pubspec.lock",
+    resolve = {"mine": "//mine"},
 )
 
 # `left` and `right` depend on each other, and nothing declares it.
+
+# `mine`, which a target of this workspace builds, and `theirs`, built from
+# its pubspec, depend on each other: no declaration can build that.
 
 # `old_a` depends on `old_b`, but not the other way round: a stale declaration.
 pub.cycle(packages = [

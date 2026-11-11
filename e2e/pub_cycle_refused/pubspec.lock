@@ -8,6 +8,13 @@ packages:
       relative: true
     source: path
     version: "1.0.0"
+  mine:
+    dependency: "direct main"
+    description:
+      path: mine
+      relative: true
+    source: path
+    version: "1.0.0"
   old_a:
     dependency: "direct main"
     description:
@@ -26,6 +33,13 @@ packages:
     dependency: "direct main"
     description:
       path: right
+      relative: true
+    source: path
+    version: "1.0.0"
+  theirs:
+    dependency: "direct main"
+    description:
+      path: theirs
       relative: true
     source: path
     version: "1.0.0"

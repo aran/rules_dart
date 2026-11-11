@@ -23,3 +23,11 @@ pub_graph_check(
     name = "partial_declaration_refused",
     target = "@deps//:tri_a",
 )
+
+# A cycle through a package a target of yours builds (`//mine`, by `resolve`):
+# `@deps//:theirs`. No declaration builds it; the error names the move to
+# `build_from_pubspec` and the declaration to add.
+pub_graph_check(
+    name = "served_cycle_refused",
+    target = "@deps//:theirs",
+)
