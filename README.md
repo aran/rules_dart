@@ -2,15 +2,6 @@
 
 Bazel rule set for building Dart applications and libraries.
 
-rules_dart is hermetic. Bazel downloads the Dart SDK the toolchain pins and runs
-every tool from it, so a build means the same on every machine. A system-wide
-Dart installation is not supported, and neither is a system-wide install of any
-other Dart-ecosystem tool (`pub`, `build_runner`, `dart_style`). A `dart` on
-your `PATH` plays no part: build, test, analyze, format and fix with the rules,
-and run the SDK with `bazel run @rules_dart//dart -- ...` and pub with
-`bazel run @rules_dart//dart/pub -- ...` (see
-[Running the Dart SDK](#running-the-dart-sdk)).
-
 ## What's New
 
 - **Many breaking API changes.** See detailed changelog notes. In general the
@@ -35,8 +26,7 @@ and run the SDK with `bazel run @rules_dart//dart -- ...` and pub with
 
 ### Migrating from 0.8
 
-Each step names the old API and the new one; the commit with that change's
-`Changelog:` line, and the sections below, give the details. Running Gazelle
+Summary of what to do, with details below. Running Gazelle
 after step 1 does steps 6–8 and 23 for the BUILD files it writes.
 
 **MODULE.bazel**
@@ -49,7 +39,7 @@ after step 1 does steps 6–8 and 23 for the BUILD files it writes.
    raising it.
 3. `pub.from_lock(on_version_conflict = ...)` → removed; the highest version
    any module or lock asks for is built. `ignore_hooks` in a module other
-   than the root → fails; the root states it.
+   than the root → fails.
 4. `pub.package(deps = ...)` → removed; dependencies come from the package's
    pubspec. A `pub.package()` whose `hook/build.dart` nothing replaces now
    fails: `ignore_hook = True` if its native code is unused.
