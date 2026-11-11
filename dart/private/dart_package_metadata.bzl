@@ -205,8 +205,8 @@ dart_library(
 
 Its name is free. It declares the package rooted at its own directory, or, in
 a BUILD file under `lib/`, at the directory above that `lib`. A package has
-one, as it has one `pubspec.yaml`: a program, test or analysis that reaches
-targets naming two declarations for one root fails, naming both. Facts that differ
+one, as it has one `pubspec.yaml`: a program, test, library or analysis that
+reaches targets naming two declarations for one root fails, naming both. Facts that differ
 between libraries of the package are not package facts: native assets that
 differ between programs are the `code_assets` of the executable. A library
 naming it must have its sources under that root's `lib/`; an executable naming

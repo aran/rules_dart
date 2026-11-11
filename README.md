@@ -208,7 +208,7 @@ me so we can collaborate.
 
 ## Installation
 
-rules_dart needs Bazel 9.0.0 or newer. Add to your `MODULE.bazel`:
+rules_dart needs Bazel 9.0.0 or newer. Add this to your `MODULE.bazel`:
 
 ```starlark
 bazel_dep(name = "rules_dart", version = "<the latest release>")  # https://github.com/aran/rules_dart/releases
@@ -221,23 +221,26 @@ use_repo(dart, "dart_toolchains")
 register_toolchains("@dart_toolchains//:all")
 ```
 
-The version is the newest release in the
-[Bazel Central Registry](https://registry.bazel.build/modules/rules_dart). Each
-[GitHub release](https://github.com/aran/rules_dart/releases)'s notes open with
-the exact `bazel_dep` lines for both modules. `rules_dart_gazelle_plugin` is
-released with rules_dart, from the same tag, so both take the same version; it
-is a module of its own so that rules_dart brings no Go dependency, and a
-workspace that does not generate its BUILD files with
-[Gazelle](#build-file-generation-with-gazelle) leaves it out.
+Use the newest release, which you can find in the
+[Bazel Central Registry](https://registry.bazel.build/modules/rules_dart). The
+notes of each [GitHub release](https://github.com/aran/rules_dart/releases)
+start with the exact `bazel_dep` lines. The two modules are released together,
+from the same tag, so they always have the same version.
+
+`dart_version` is the Dart SDK the build downloads and uses, exactly.
+
+`rules_dart_gazelle_plugin` is optional. It is a separate module so that
+rules_dart itself brings no Go dependency. Leave it out if you don't generate
+BUILD files with [Gazelle](#build-file-generation-with-gazelle).
 
 ## Getting started
 
 ### Rules
 
-A package's BUILD file sits at its root, the directory holding its `lib/`,
-`bin/` and `test/`, and holds its library, binaries and tests (Gazelle can
-write it for you, see
-[BUILD file generation with Gazelle](#build-file-generation-with-gazelle)):
+A package's BUILD file goes at the package's root, the directory that holds
+its `lib/`, `bin/` and `test/`. It declares the package's library, binaries and
+tests. Gazelle can write it for you (see
+[BUILD file generation with Gazelle](#build-file-generation-with-gazelle)).
 
 ```starlark
 # greeter/BUILD.bazel
@@ -267,64 +270,150 @@ bazel run //greeter:app         # run the binary
 bazel test //greeter/...        # run the tests
 ```
 
-A test that uses `package:test` also needs it in `deps` (see
-[Using pub.dev packages](#using-pubdev-packages) and [Tests](#tests)).
+A test that imports `package:test` also needs it in `deps`. See
+[Using pub.dev packages](#using-pubdev-packages) and [Tests](#tests).
 
-#### A package's facts, and where its root is
+#### Package metadata
 
-A package's root is the directory that holds its `lib/`. What `pubspec.yaml`
-says about a package (its name, its language version, its hooks, its license)
-is stated once, on a `dart_package_metadata`, and every target of the package
-names it with `package`. Its name is yours to choose. It declares the package
-rooted at its BUILD file's directory, or, in a BUILD file under `lib/`, at the
-directory above that `lib`. A package has one, as it has one `pubspec.yaml`:
-a program, test, library or analysis that reaches targets naming two
-declarations for one root fails, naming both.
+The BUILD file above is enough to build and run `greeter`, but the build rules
+don't read `pubspec.yaml`. Without more information, rules_dart names the
+package after its directory and compiles it at the language version of the SDK
+you're using. That may be newer than the one your pubspec asks for. (The
+pubspecs of packages you download from pub.dev are read for you. See
+[Using pub.dev packages](#using-pubdev-packages).)
 
-The usual layout, and the one Gazelle writes from `pubspec.yaml` (see
-[BUILD file generation with Gazelle](#build-file-generation-with-gazelle)), is
-one `dart_library` for the package, at its root, holding every file under its
-`lib/`:
+To tell the build what your pubspec says, declare a `dart_package_metadata` and
+point each of the package's targets at it with `package`. Take a package laid
+out like this:
+
+```
+greeter/
+├── pubspec.yaml
+├── LICENSE
+├── hook/
+│   └── build.dart
+├── lib/
+│   └── greeter.dart
+└── test/
+    └── greeter_test.dart
+```
+
+```yaml
+# greeter/pubspec.yaml
+name: greeter
+version: 1.2.0
+environment:
+  sdk: ^3.11.0
+dependencies:
+  path: ^1.9.0
+dev_dependencies:
+  test: ^1.25.0
+```
+
+Its BUILD file states the same facts:
 
 ```starlark
 # greeter/BUILD.bazel
 dart_package_metadata(
     name = "pubspec-metadata",
-    package_name = "greeter",
-    language_version = "3.11",
-    license_file = "LICENSE",
+    package_name = "greeter",          # pubspec `name`
+    language_version = "3.11",         # optional: lower bound of `environment.sdk`
+    license_file = "LICENSE",          # optional
+    build_hook = "hook/build.dart",    # optional
+    code_assets = [":greeter_native"], # optional: the native code the hook would build
+)
+
+dart_code_asset(
+    name = "greeter_native",
+    asset_id = "package:greeter/greeter.dart",  # the id the `@Native` bindings use
+    file = ":greeter_shared",                   # a cc_shared_library
 )
 
 dart_library(
     name = "greeter",
     srcs = glob(["lib/**/*.dart"]),
     package = ":pubspec-metadata",
+    deps = ["@pub_deps//:path"],       # pubspec `dependencies`
+)
+
+dart_test(
+    name = "greeter_test",
+    main = "test/greeter_test.dart",
+    package = ":pubspec-metadata",
+    deps = [
+        ":greeter",
+        "@pub_deps//:test",            # pubspec `dev_dependencies`
+    ],
 )
 ```
 
-Directories under `lib/` mean nothing to Dart, and import cycles between them
-are ordinary Dart, so they need nothing of Bazel. A package with no
-`dart_package_metadata` is named for its root directory and states nothing
-else: its sources compile at the SDK's own language version. Two targets of
-one package naming different `dart_package_metadata`, or one naming it and one
-not, fail the build, naming both.
+The pubspec's `version` has no counterpart. rules_dart records a version only
+for packages pub resolved. Dependencies go on the targets that import them, not
+on the metadata.
 
-The rules also accept a package split by hand over several BUILD files. A
-`dart_library` whose BUILD file is in `lib/`, or in any directory under
-`lib/`, belongs to the package rooted above that `lib`, and holds the files
-beside it:
+**rules_dart never runs a build hook.** A package with one must list in
+`code_assets` or `data_assets` what the hook would have built. Without either,
+every program that uses the package fails to build. See
+[Native code assets](#native-code-assets) and [Data assets](#data-assets).
+
+The test names the metadata too, because Dart applies the package's language
+version to every file under the pubspec's directory, `test/` included.
+
+Only `package_name` is required. The smallest declaration is:
 
 ```starlark
-# greeter/BUILD.bazel, with the metadata above given
-# `visibility = [":__subpackages__"]`
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "greeter",
+)
+```
+
+That gives the package its name, and nothing else. Its files compile at the
+SDK's language version.
+
+If you use Gazelle, it writes most of this for you. It generates the
+metadata from `pubspec.yaml`, `hook/` and the license file, and names it
+`pubspec-metadata`. You can give the target any name you like. If the root's
+BUILD file already has a `dart_package_metadata`, Gazelle updates that one,
+whatever it's called. It never writes `code_assets` or `data_assets`, so you
+write those, and Gazelle keeps them. See [BUILD file generation with Gazelle](#build-file-generation-with-gazelle).
+
+A package should have one `dart_package_metadata`. Suppose two targets of the
+same package name different ones, or one names it and the other names none.
+Then any program, test, library or analysis that reaches both fails to build,
+and the error names both targets.
+
+If you're used to other languages in Bazel, you might expect one library per
+directory. Dart doesn't need that. Directories under `lib/` have no meaning to
+the compiler, and files in one package may import each other in a cycle. So one
+`dart_library` holding all of `lib/` is the usual layout, and it's the one
+Gazelle writes.
+
+You can still split a package over several BUILD files by hand. Put a BUILD
+file in `lib/`, or in any directory under it. Its `dart_library` holds the files
+next to it, and belongs to the package whose root is the directory above that
+`lib/`. It names the same `dart_package_metadata` as the rest of the package,
+so the metadata has to be visible to it:
+
+```starlark
+# greeter/BUILD.bazel
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "greeter",
+    visibility = [":__subpackages__"],
+)
+
 dart_library(
     name = "greeter",
     srcs = ["lib/greeter.dart"],
     package = ":pubspec-metadata",
     deps = ["//greeter/lib/src/model"],
 )
+```
 
-# greeter/lib/src/model/BUILD.bazel: package:greeter/src/model/model.dart
+```starlark
+# greeter/lib/src/model/BUILD.bazel
+# Holds package:greeter/src/model/model.dart.
 dart_library(
     name = "model",
     srcs = ["model.dart"],
@@ -332,46 +421,55 @@ dart_library(
 )
 ```
 
-Each part depends on the parts its files import, relative imports included,
-so the parts' imports may form no cycle, and a consumer depends on the parts it
-imports. Every record of the package then carries every fact, whichever of its
-targets a program reaches. Gazelle does not write this layout, and refuses a
-BUILD file under `lib/` (see [One library per package](#one-library-per-package)).
-A directory named `lib` inside a `lib/` (`lib/src/lib/`, or a package rooted
-under some other `lib/`) leaves the root ambiguous and is an error; rename the
-inner directory.
+Because every part names the one metadata, a program gets all of the package's
+facts whichever part it reaches.
+
+The parts are separate Bazel targets, with the limits that brings. Each part
+depends on the parts its files import, relative imports included. So the parts
+can't import each other in a cycle. A target outside the package depends on the
+parts it imports.
+
+Gazelle doesn't write this layout, and won't keep it. It removes the rules it
+wrote from a BUILD file under `lib/`, and in fix mode deletes the file. If the
+file holds anything Gazelle didn't write, Gazelle fails and names the file. See
+[One library per package](#one-library-per-package).
+
+rules_dart finds a package's root from the `lib` in its path. So a directory
+named `lib` inside another `lib/` is an error, because the root is ambiguous.
+`lib/src/lib/` is one example. A package whose root is somewhere under another
+`lib/` is another. Rename the inner directory.
 
 ### Running the Dart SDK
 
-The toolchain downloads the SDK, and that SDK is the only one rules_dart uses.
-To run the `dart` CLI of the pinned SDK:
+To run the `dart` command of the SDK the toolchain pins:
 
 ```shell
 bazel run @rules_dart//dart -- --version
 ```
 
-It runs in the directory `bazel run` was invoked from, and, like every build
-action, with Dart's analytics off, so it writes nothing into your home
-directory.
+It runs in the directory you ran `bazel run` from, so relative paths work as
+usual. Like every build action, it runs with Dart's analytics turned off, so it
+writes no analytics files to your home directory.
 
-Use it for commands that need no package resolution. It is not the way to
-analyze, format or test: the packages Bazel builds have no
-`.dart_tool/package_config.json`, and the files code generation writes exist
-only under `bazel-bin`, so `dart analyze` reports their imports and generated
-members as unresolved, errors the build does not have. Those jobs have Bazel
-commands, which the [command map](#command-map) lists.
+Use it for commands that don't need package resolution. **Don't use it to
+analyze, format or test.** `dart analyze` would report errors that the build
+doesn't have. Bazel builds packages without writing a
+`.dart_tool/package_config.json`, and generated files exist only under
+`bazel-bin`. So `dart analyze` can't resolve their imports or find the members
+that generated code adds. Bazel has its own commands for those jobs, listed in
+the [command map](#command-map).
 
-To write or re-resolve a `pubspec.lock` with the same SDK, run pub:
+To write or update a `pubspec.lock` with the same SDK, run pub through Bazel:
 
 ```shell
 bazel run @rules_dart//dart/pub -- get
 bazel run @rules_dart//dart/pub -- upgrade --directory=app path
 ```
 
-It runs at the root of the workspace, so `--directory` is relative to that
-root, and any pub subcommand works. It needs only the Dart toolchain, so it
-runs while `pub.from_lock()` refuses a lock, which is when the errors that
-refusal prints tell you to run it.
+This one runs at the workspace root, so `--directory` is relative to the
+workspace root. Any pub subcommand works. It needs only the Dart toolchain, so
+it still works when `pub.from_lock()` refuses your lock. That is when the
+refusal's error message tells you to run it.
 
 > **Tip**: Consider using [`bazel_env`](https://github.com/buildbuddy-io/bazel_env.bzl)
 > to put the Bazel-managed binaries, the pinned `dart` among them, on your `PATH`
@@ -379,91 +477,134 @@ refusal prints tell you to run it.
 
 ### Command map
 
-Dart's own guidance, and the tools and coding agents that follow it, name
-commands that assume a system-wide Dart installation and a pub-resolved package
-on disk, neither of which rules_dart uses (see
-[Running the Dart SDK](#running-the-dart-sdk)). Each command in the left column
-has a Bazel counterpart or none. `<dir>` is a package's directory relative to
-the workspace root.
+Dart's documentation, and the tools and coding agents that follow it, assume a
+system-wide Dart install and a package that `pub get` has resolved on disk. A
+rules_dart workspace has neither (see
+[Running the Dart SDK](#running-the-dart-sdk)). This table gives the Bazel
+command to run instead, where there is one. `<dir>` is a package's directory
+relative to the workspace root.
 
 | Dart command | In a rules_dart workspace |
 | --- | --- |
-| `dart pub add foo`, `remove`, `get`, `upgrade`, `outdated`, `deps` | `bazel run @rules_dart//dart/pub -- add foo --directory=<dir>` (any pub subcommand), which runs the pinned SDK at the workspace root. The build reads `pubspec.lock` alone, so a `pubspec.yaml` edit changes nothing until pub re-resolves. After `add`, run Gazelle. See [Adding a dependency](#adding-a-dependency). |
-| `dart analyze` (`--fatal-infos`) | `bazel test //<dir>/...`, with the `dart_analyze` aspect lines in `.bazelrc`. Every diagnostic, infos included, fails the build. `bazel build` does not analyze. See [Static analysis and formatting](#static-analysis-and-formatting). |
-| `dart format` | The check is part of the same `bazel test` (the `dart_format` output group). To rewrite files: `bazel run @rules_dart//dart/format -- //<dir>/...`, which takes `bazel build`'s flags and target patterns. |
+| `dart pub add foo`, `remove`, `get`, `upgrade`, `outdated`, `deps` | `bazel run @rules_dart//dart/pub -- add foo --directory=<dir>`. Any pub subcommand works. It runs the pinned SDK at the workspace root. The build takes its packages and versions from `pubspec.lock`, so an edit to `pubspec.yaml` changes nothing until pub re-resolves. After `add`, run Gazelle. See [Adding a dependency](#adding-a-dependency). |
+| `dart analyze` (`--fatal-infos`) | `bazel test //<dir>/...`, once the `dart_analyze` aspect lines are in `.bazelrc`. Every diagnostic fails it, infos included. `bazel build` does not analyze. See [Static analysis and formatting](#static-analysis-and-formatting). |
+| `dart format` | The same `bazel test` checks formatting, as the `dart_format` output group. To rewrite files, run `bazel run @rules_dart//dart/format -- //<dir>/...`. It takes the same flags and target patterns as `bazel build`. |
 | `dart fix --dry-run` / `--apply` | `bazel run @rules_dart//dart/fix -- --dry-run //<dir>/...` / `bazel run @rules_dart//dart/fix -- //<dir>/...`. See [Formatting and fixing](#formatting-and-fixing). |
-| `dart test` | `bazel test //<dir>:<name>`, or `//<dir>/...`. See below for its flags. |
-| `dart run build_runner build` / `watch` | None: do not run `build_runner`. The build generates the code, and the outputs are under `bazel-bin`, at the source file's path. See [Code generation](#code-generation). |
+| `dart test` | `bazel test //<dir>:<name>`, or `//<dir>/...`. Its flags are in the next table. |
+| `dart run build_runner build` / `watch` | None. Don't run `build_runner`. The build generates the code itself, under `bazel-bin` at the source file's path. See [Code generation](#code-generation). |
 | `dart run bin/app.dart` | `bazel run //<dir>:app`, a `dart_binary`. |
-| `dart compile exe` / `aot-snapshot` / `kernel` | `dart_binary(compile_mode = ...)`, default `exe`. |
+| `dart compile exe` / `aot-snapshot` / `kernel` | `dart_binary(compile_mode = ...)`. The default is `exe`. |
 | `dart compile js` / `wasm` | `dart_js_binary` / `dart_wasm_binary`. See [Web compilation](#web-compilation). |
 | `dart doc` | None. |
-| `dart run coverage:test_with_coverage`, `dart test --coverage` | `bazel coverage --combined_report=lcov //<dir>/...`, which writes one LCOV report for every test it runs. See [Coverage](#coverage). |
+| `dart run coverage:test_with_coverage`, `dart test --coverage` | `bazel coverage --combined_report=lcov //<dir>/...`. It writes one LCOV report for all the tests it runs. See [Coverage](#coverage). |
 
-`dart test`'s options map as follows.
+`dart test`'s options have these counterparts:
 
 | `dart test` | `bazel test` |
 | --- | --- |
-| `--name`, `-n` | `--test_filter=<regex>`, which the runner passes on as `--name`, so it is a regular expression. It selects within the targets named, so `bazel test //<dir>:<name> --test_filter=...` runs one case. |
-| `--plain-name`, `-N` | None; escape the regex metacharacters in `--test_filter`. |
-| `--tags`, `-t`, `--exclude-tags`, `-x` | The target's `include_tags` / `exclude_tags`, or `--test_env=DART_TEST_TAGS=<selector>` / `DART_TEST_EXCLUDE_TAGS` for one run. A file's `@Tags` also select whole targets through `--test_tag_filters`. See [Tests](#tests). |
-| `--test-randomize-ordering-seed` | `--test_env=DART_TEST_ORDERING_SEED=<seed>`, an unsigned 32-bit integer or `random`. See [Tests](#tests). |
+| `--name`, `-n` | `--test_filter=<regex>`. The runner passes it on as `--name`, so it is a regular expression. It selects cases within the targets you name, so `bazel test //<dir>:<name> --test_filter=...` runs one case. |
+| `--plain-name`, `-N` | None. Escape the regex metacharacters in `--test_filter`. |
+| `--tags`, `-t`, `--exclude-tags`, `-x` | The target's `include_tags` / `exclude_tags`. For one run, `--test_env=DART_TEST_TAGS=<selector>` / `DART_TEST_EXCLUDE_TAGS`. A file's `@Tags` also select whole targets through `--test_tag_filters`. See [Tests](#tests). |
+| `--test-randomize-ordering-seed` | `--test_env=DART_TEST_ORDERING_SEED=<seed>`, where the seed is an unsigned 32-bit integer or `random`. See [Tests](#tests). |
 | `--shard-index`, `--total-shards` | `shard_count`. |
 | `--timeout` | The target's `size` or `timeout`. |
-| `--concurrency`, `-j` | Bazel runs targets in parallel (`--local_test_jobs`); a target's cases run in one runner. |
-| `--reporter`, `--file-reporter`, other runner flags | No pass-through. Cases appear in Bazel's report (`test.xml`); `--test_output=errors` or `all` shows the runner's output. |
+| `--concurrency`, `-j` | Bazel runs targets in parallel (`--local_test_jobs`). A target's cases run in one runner. |
+| `--reporter`, `--file-reporter`, other runner flags | No pass-through. Cases appear in Bazel's report (`test.xml`). `--test_output=errors` or `all` shows the runner's output. |
 
-`dart_test.yaml` is not read: each of its settings has a place on the target
-or in Bazel (see [Tests](#tests)). The build reads no `build.yaml` either: a
-builder's options go in its macro's `config` (or
-`# gazelle:dart_builder_config`, see [Directives](#directives)), and the
-macro's `srcs` choose the files it runs on (see [`docs/ext.md`](./docs/ext.md)).
-Gazelle writes a builder's `options` from `build.yaml` into `config` for you,
-and fails on the rest of the file (see [build.yaml](#buildyaml)).
+The build doesn't read `dart_test.yaml`. Each of its settings has a place on the
+`dart_test` target or in Bazel (see [Tests](#tests)).
 
-Tools that follow Dart's guidance directly, an editor's analysis server and
-`dart mcp-server`'s `analyze_files` and `run_tests` among them, read
-`.dart_tool/package_config.json`, which only `pub get` writes and which knows
-nothing of the packages Bazel builds or of generated files in `bazel-bin`. They
-report unresolved imports and undefined generated members that `bazel test`
-does not. Do not add those packages to `pubspec.yaml`, or hand-write the
-generated files, to quiet them: run `bazel test`, which is the analyzer here.
+It doesn't read `build.yaml` either. A builder's options go in its macro's
+`config`, or in a `# gazelle:dart_builder_config` directive (see
+[Directives](#directives)). The macro's `srcs` choose the files the builder runs
+on (see [`docs/ext.md`](./docs/ext.md)). Gazelle copies a builder's `options`
+from `build.yaml` into `config` for you, and fails on anything else in the file
+(see [build.yaml](#buildyaml)).
+
+Your editor's analysis server reads `.dart_tool/package_config.json`, and so do
+`dart mcp-server`'s `analyze_files` and `run_tests`. Only `pub get` writes that
+file. It knows nothing of the packages Bazel builds or the files generated in
+`bazel-bin`. So these tools report unresolved imports and undefined generated
+members that `bazel test` doesn't. Don't quiet them by adding those packages to
+`pubspec.yaml` or by writing the generated files by hand. Run `bazel test`,
+which is the analyzer that counts here.
 
 ### Working with coding agents
 
-A coding agent knows Dart from documentation that assumes a system `dart`, a
-pub-resolved package and `build_runner`. Tell it what is true here in the
-repository's `AGENTS.md` (or `CLAUDE.md`), adjusting the Gazelle target
-(`//:gazelle`) to yours:
+A coding agent learned Dart from documentation that assumes a system `dart`, a
+package resolved by `pub get`, and `build_runner`. Tell it what's different here
+in the repository's `AGENTS.md` (or `CLAUDE.md`). Change the Gazelle target
+(`//:gazelle`) if yours has another name.
 
 ```markdown
 - This workspace is built by Bazel with a hermetic Dart SDK. Never run `dart`,
   `pub` or `build_runner` from a system install. Run the pinned SDK as
   `bazel run @rules_dart//dart -- <args>` and pub as
   `bazel run @rules_dart//dart/pub -- <args> --directory=<dir>`.
-- `bazel test //<dir>/...` is the analyzer and the format check: it fails on
-  every diagnostic, infos included, and on a file `dart format` would change.
-  `bazel build` checks neither. Run it before finishing.
-- `bazel run @rules_dart//dart/fix -- //<dir>/...` applies the analyzer's fixes
+- `bazel test //<dir>/...` is the analyzer and the format check. It fails on
+  every diagnostic, infos included, and on any file `dart format` would change.
+  `bazel build` checks neither. Run `bazel test` before finishing.
+- `bazel run @rules_dart//dart/fix -- //<dir>/...` applies the analyzer's fixes,
   and `bazel run @rules_dart//dart/format -- //<dir>/...` formats. Both take
   `bazel build` target patterns, not file paths.
 - Never run `build_runner`, and never write or commit generated code. The build
-  generates it; the outputs are under `bazel-bin`, at the source file's path.
+  generates it, under `bazel-bin` at the source file's path.
 - After adding, removing or renaming a Dart file or an import, run
-  `bazel run //:gazelle`, which rewrites `BUILD.bazel` files. After
-  `bazel run @rules_dart//dart/pub -- add <package> --directory=<dir>`, run it
-  again, so that `package:<package>` imports get their `deps`.
-- The build reads neither `build.yaml` nor `dart_test.yaml`. Gazelle carries
-  a builder's `build.yaml` options into its codegen target's `config`; a
-  test's tags, timeout, retries and shards go on the `dart_test` target.
-- Unresolved imports or missing generated members reported by an editor or
-  `dart mcp-server` are not errors in the build. Do not edit `pubspec.yaml`
-  to quiet them.
+  `bazel run //:gazelle`, which rewrites `BUILD.bazel` files. Run it again after
+  `bazel run @rules_dart//dart/pub -- add <package> --directory=<dir>`, so that
+  `package:<package>` imports get their `deps`.
+- The build reads neither `build.yaml` nor `dart_test.yaml`. Gazelle copies a
+  builder's `build.yaml` options into its codegen target's `config`. A test's
+  tags, timeout, retries and shards go on its `dart_test` target.
+- An editor or `dart mcp-server` may report unresolved imports or missing
+  generated members. These are not errors in the build. Do not edit
+  `pubspec.yaml` to quiet them.
 ```
 
 ## Using pub.dev packages
 
-Declare individual packages with `pub.package()`:
+rules_dart brings in packages from pub in two ways. `pub.from_lock()` imports
+every package a `pubspec.lock` names, which suits most projects with a
+`pubspec.yaml`. `pub.package()` declares one package at a time.
+
+To use a lock:
+
+```starlark
+pub = use_extension("@rules_dart//dart/pub:extensions.bzl", "pub")
+pub.from_lock(
+    name = "pub_deps",
+    lock = "//:pubspec.lock",
+)
+use_repo(pub, "pub_deps")
+```
+
+This makes a hub repository, `pub_deps`, with a target for every package the
+lock names. Depend on them by package name:
+
+```starlark
+dart_binary(
+    name = "app",
+    main = "bin/main.dart",
+    deps = [
+        "@pub_deps//:path",
+        "@pub_deps//:collection",
+    ],
+)
+```
+
+Each package is downloaded into its own repository, and only when something
+builds it. That makes caching finer and lets downloads run in parallel. Bazel
+checks each archive against the `sha256` the lock records. A lock written by a
+pub older than 2.19 has no `sha256` and is refused. Re-resolve it with
+`bazel run @rules_dart//dart/pub -- get --directory=<its directory>`.
+
+**The hub's name is shared across the whole build.** It isn't scoped to your
+module. If two modules both call `pub.from_lock(name = "pub_deps", ...)`, they
+get one hub holding the packages of both locks. That lets you import a package
+that only another module's lock names. It works until that module leaves the
+build, so list everything you import in your own lock.
+
+To declare a single package instead:
 
 ```starlark
 pub = use_extension("@rules_dart//dart/pub:extensions.bzl", "pub")
@@ -475,115 +616,122 @@ pub.package(
 use_repo(pub, "path")
 ```
 
-A package is built with the dependencies its own pubspec states. Each must be
-supplied in the build, by another `pub.package()` or a `pub.from_lock()` lock;
-one that is not fails when the package is fetched, naming both.
-
-Then depend on them in your targets:
+Its target is named after the package:
 
 ```starlark
 dart_binary(
     name = "app",
-    main = "main.dart",
+    main = "bin/main.dart",
     deps = ["@path//:path"],
 )
 ```
 
-For projects with many dependencies, use `pub.from_lock()` to import all
-packages from a `pubspec.lock` file at once:
+`version` is the lowest version you accept, and the build may choose a newer
+one. `sha256` is the digest of the package's archive (see
+[The sha256 of a `pub.package()`](#the-sha256-of-a-pubpackage)). You can use
+both tags in one build. A package you declare with `pub.package()` is still in
+the hub of any lock that lists it. Either label builds the one version the
+whole build chooses (see [Versions](#versions)).
 
-```starlark
-pub = use_extension("@rules_dart//dart/pub:extensions.bzl", "pub")
-pub.from_lock(
-    name = "pub_deps",
-    lock = "//:pubspec.lock",
-)
-use_repo(pub, "pub_deps")
-```
+A package is built against the dependencies its own pubspec names. Each one has
+to come from another `pub.package()` or from a lock. If one is missing, the
+fetch fails and the error names both packages.
 
-Each hosted package is downloaded into its own external repository for better
-caching and parallelism, and only when something builds it. Each archive is
-verified against the `sha256` the lock records; a lock written by a pub older
-than 2.19 has none and is refused, so re-resolve it
-(`bazel run @rules_dart//dart/pub -- get --directory=<its directory>`). Every
-package the lock names is available as `@pub_deps//:package_name`, from the
-lock's hub repository (`pub_deps` here), including one you also declare with
-`pub.package()`; the label builds the one version the build chooses (see
-[Versions](#versions)):
+rules_dart reads each package's `pubspec.yaml` the way pub does, with Dart's
+`package:yaml`. The reader is a small program that rules_dart compiles once per
+host, with your Dart SDK. If pub would refuse a pubspec, for example one with an
+`sdk:` constraint written as a number, the fetch fails with pub's message and
+names the package. Your own repository rules can read pubspecs the same way
+(see [Reading a pubspec](#reading-a-pubspec)).
 
-```starlark
-dart_binary(
-    name = "app",
-    main = "main.dart",
-    deps = [
-        "@pub_deps//:path",
-        "@pub_deps//:collection",
-    ],
-)
-```
+### Git and SDK packages
 
-> **Note**: `pub.from_lock()` resolves **hosted** packages (from a pub
-> registry such as pub.dev) and **git** packages. A git package is fetched at
-> the commit the lock records as `resolved-ref`, which must be a full 40-digit
-> commit id, and is served from the lock's `path` within the repository. The
-> fetch uses the host's `git` (2.14 or newer, as `dart pub get` needs) with the
-> host's configuration and the variables that carry configuration
-> (`GIT_SSH_COMMAND`, `GIT_ASKPASS`, `GIT_TERMINAL_PROMPT`, `GIT_CONFIG_COUNT`
-> with its keys and values, `GIT_CONFIG_PARAMETERS`), so credentials and
-> `insteadOf` mirrors work; the client's `GIT_*` variables that locate a
-> repository are unset. The files are written with none of the host's
-> configuration and none of its `GIT_*` variables (no line-ending conversion,
-> filters or hooks of the host's), while the repository's own
-> `.gitattributes` apply, as they do for pub, so every machine gets the same
-> bytes. A server that will not fetch a commit by its id is asked for every ref
-> it advertises instead, as pub does. Two locks pinning one git package at
-> different commits fail, as does a package that is git in one lock and hosted
-> in another. Packages with `sdk` sources
-> (e.g. Flutter's) are skipped: they come from the SDK itself, not pub, and no
-> repository is created for them, so `package:` imports of those packages fail
-> to resolve unless they are provided another way. Each `from_lock()` prints
-> one summary of everything it skipped, grouped by source. A fetched package
-> that depends on a skipped one fails when it is fetched, naming the
-> dependency, rather than building without it.
+`pub.from_lock()` fetches **hosted** packages, from pub.dev or another
+registry, and **git** packages. It skips **sdk** packages, and needs to be told
+what to do with **path** packages (see
+[Local packages and forks](#local-packages-and-forks)).
 
-`resolve` serves a locked package from a target of yours instead of what the
-lock describes. Every `path` package in the lock must be named in exactly one
-of `resolve`, `build_from_pubspec` or `ignored` (below); a hosted, git or sdk
-package may be mapped too, to build a fork, say:
+A git package is fetched at the commit the lock records as `resolved-ref`. That
+must be a full 40-character commit id. The package is taken from the lock's
+`path` within the git repository.
+
+The fetch uses your host's `git`, which must be 2.14 or newer, as for
+`dart pub get`. It sees your git configuration and the environment variables
+that carry configuration: `GIT_SSH_COMMAND`, `GIT_ASKPASS`,
+`GIT_TERMINAL_PROMPT`, `GIT_CONFIG_COUNT` with its keys and values, and
+`GIT_CONFIG_PARAMETERS`. So credential helpers and `insteadOf` mirrors work. The
+`GIT_*` variables that tell git where a repository is are unset, so they can't
+send the fetch into your own checkout.
+
+Writing out the files uses none of your git configuration and none of your
+`GIT_*` variables. There is no line-ending conversion, and none of your filters
+or hooks run. The repository's own `.gitattributes` do apply, as they do for
+pub. So every machine gets the same bytes.
+
+Some servers won't fetch a commit by its id. rules_dart then asks for every ref
+the server advertises, as pub does.
+
+Two locks that pin one git package at different commits fail. So does a
+package that is git in one lock and hosted in another.
+
+Packages with an `sdk` source, such as Flutter's, come with an SDK, not from
+pub. rules_dart skips them and makes no repository for them. A `package:`
+import of one fails to resolve unless something else provides the package, such
+as a target you map with `resolve`. (Flutter's come from rules_flutter's pub
+extension.) Each `pub.from_lock()` prints one message listing the sdk packages
+it skipped. If a fetched package depends on a skipped one, it fails when it is
+fetched, and the error names the dependency. It is never built without it.
+
+### Local packages and forks
+
+A lock also lists the `path` packages your pubspec depends on. rules_dart
+doesn't guess how to build them. You name each one in exactly one of three
+attributes of `pub.from_lock()`: `resolve`, `build_from_pubspec` or `ignored`.
+A `path` package left out fails when the lock is read, and so does a name the
+lock doesn't list.
+
+`resolve` serves a package from a target of yours. Use it for a local package
+that has its own BUILD files. It works for a hosted, git or sdk package too, to
+build a fork, say:
 
 ```starlark
 pub.from_lock(
     name = "pub_deps",
     lock = "//:pubspec.lock",
     resolve = {
-        "my_shared_models": "//shared_models",  # a `path` package: must be mapped
+        "my_shared_models": "//shared_models",  # a `path` package: must be named
         "http": "//third_party/http_fork",      # a hosted package: replaced
     },
 )
 ```
 
-A mapped package is that target for the whole build: `@pub_deps//:http`
-aliases it, and every locked package that depends on `http` depends on it. The
-target must build the package of that name (the `package_name` of its
-`dart_package_metadata`), which is checked when it is analyzed, and must be visible to
-the extension's repositories (`//visibility:public`). The lock's version is not
-checked. A `path` package left unmapped, or a mapped name the lock does not
-list, fails when the lock is read, naming each; two `from_lock()` calls that map
-a package to different targets fail too, as does mapping a package also
-declared with `pub.package()`. Gazelle resolves `package:http`
-imports to `@pub_deps//:http`, which leads to the mapped target, so it
-needs no `# gazelle:resolve` for that package.
+The target stands in for that package across the whole build.
+`@pub_deps//:http` becomes an alias of it, and every locked package that
+depends on `http` gets it instead. The target must build a package of that
+name, meaning the `package_name` of its `dart_package_metadata` must be `http`.
+That is checked when the target is analyzed. The lock's version of the package
+is not. The target must also be visible to the extension's repositories, so
+give it `//visibility:public`.
 
-A `path` package with no Bazel build of its own is built from its directory
-with `build_from_pubspec`, the way a hosted package is built from its archive:
-the lock's path, resolved against the lock's directory, holds it, and its
-`pubspec.yaml`, `lib/`, `hook/` and license file are served from there (other
-files, such as `.dart_tool/` and `build/`, are not, so pub and IDE output
-changes nothing). An edit under those reaches the next build. A package with a
-`BUILD` file anywhere under them is refused: map it with `resolve`. A `path`
-package nothing in the build uses, such as one only an editor or a pub-side
-tool reads, is named in `ignored` with the reason; its hub label exists, and
-anything that depends on it fails at analysis with that reason:
+Gazelle resolves `package:http` imports to `@pub_deps//:http`, which leads to
+the mapped target. So you don't need a `# gazelle:resolve` directive for it.
+
+Two `pub.from_lock()` calls that map one package to different targets fail.
+So does mapping a package that is also declared with `pub.package()`.
+
+`build_from_pubspec` is for a local package with no BUILD files. rules_dart
+builds it from its directory, the way it builds a hosted package from its
+archive. The directory is the lock's `path`, resolved against the lock's own
+directory. The build sees only the package's `pubspec.yaml`, `lib/`, `hook/` and
+license file, and an edit to any of them reaches the next build. Other files,
+such as `.dart_tool/` and `build/`, are left out, so output from pub or your IDE
+changes nothing. A package with a `BUILD` file anywhere in those parts is
+refused. Map it with `resolve` instead.
+
+`ignored` is for a `path` package that nothing in the build uses, such as one
+only your editor or a pub-side tool reads. You give a reason. The package still
+has a hub label, but anything that depends on it fails at analysis, with your
+reason in the error.
 
 ```starlark
 pub.from_lock(
@@ -594,21 +742,15 @@ pub.from_lock(
 )
 ```
 
-The lock must name the directory by a relative path, as `dart pub get` writes
-it for a relative `path:` in the pubspec, and it must be inside the repository
-that holds the lock: an absolute path, or one leading out of the repository,
-holds only on one machine and fails when the lock is read. Map such a package
-with `resolve` instead.
+For `build_from_pubspec`, the lock has to name the directory by a relative
+path. `dart pub get` writes one when the pubspec's `path:` is relative. The
+directory must also be inside the repository that holds the lock. An absolute
+path, or one leading out of the repository, would work on only one machine, so
+it fails when the lock is read. Map such a package with `resolve` instead.
 
-Two locks building one package must name the same directory, and a package
-built from its pubspec in one lock and fetched or ignored in another fails,
-naming both.
-
-Each package's `pubspec.yaml` is read with `package:yaml`, as pub reads it, by
-a small reader rules_dart compiles once per host with its Dart SDK. A pubspec
-pub would refuse (a `sdk:` constraint written as a number, say) fails the fetch
-with pub's message, naming the package. Repository rules of your own read
-pubspecs the same way (see [Reading a pubspec](#reading-a-pubspec)).
+If two locks both build one package from its pubspec, they must name the same
+directory. A package built from its pubspec in one lock and fetched or ignored
+in another fails too.
 
 ### Packages that depend on each other
 
@@ -647,16 +789,18 @@ is checked, so at most one applies. The curated cycles are listed by
 
 ### Versions
 
-rules_dart builds one version of each package for the whole build. Every
-statement of a hosted package's version is a request: a `pub.package()` in any
-module, and every lock that lists it. The highest request is built, as Bazel's
-minimal version selection picks the highest version any module asks for, and a
-`pub.package()` whose request loses keeps its `@name` repository, naming the
-version built. Two requests of one version must pin one sha256.
+rules_dart builds one version of each package for the whole build. Each place
+that states a hosted package's version makes a request. That means every
+`pub.package()`, in any module, and every lock that lists the package. The
+build takes the highest request, the way Bazel's minimal version selection
+treats a `bazel_dep`. A `pub.package()` that asked for a lower version keeps its
+`@name` repository, which builds the chosen version. Two requests for the same
+version must give the same sha256.
 
-A request is a minimum, so when a module the root depends on asks for more than
-the root does, the build takes it, and reports that the root's request was
-raised, as Bazel's `--check_direct_dependencies` does for a `bazel_dep`:
+Each request is a minimum. So a module you depend on can ask for more than your
+root module does, and the build takes the higher version. It then reports that
+it raised the root's request, much as Bazel's `--check_direct_dependencies` does
+for a `bazel_dep`:
 
 ```text
 Package "tuple" is built at 2.0.2, newer than the root module asks for:
@@ -668,27 +812,31 @@ Each request is a minimum and the highest wins. Raise the root's to 2.0.2:
 or set `pub.settings(check_direct_dependencies = "off")` in the root module to stop this check.
 ```
 
-The root module sets how this is reported, once:
+The root module chooses how this is reported:
 
 ```starlark
 pub.settings(check_direct_dependencies = "error")  # "off", "warning" (the default) or "error"
 ```
 
-Only the root's own requests are checked: raising a dependency's request, by
-the root or by another dependency, says nothing, as in Bazel. A package the
-root's lock lists as `git`, `sdk` or `path` is what that lock says for the whole
-build, over another module's `pub.package()` or lock entry for it, as a root
-`git_override` is over a `bazel_dep`, since there is no version order to
-compare. Only the root module may use `pub.settings`, `ignore_hooks` or
-`ignore_hook`.
+Only the root's own requests are checked. When the root or another dependency
+raises a dependency's request, nothing is reported, as in Bazel.
 
-The Dart SDK is not a request: the root's `dart.toolchain` pin is exact, and a
-module asking for a newer SDK fails the build, naming the fix.
+Only hosted packages have a version order. If the root's lock lists a package
+as `git`, `sdk` or `path`, the whole build uses what that lock says, over any
+other module's `pub.package()` or lock entry for it. This works like a root
+`git_override` taking precedence over a `bazel_dep`.
+
+Only the root module may use `pub.settings`, `ignore_hooks` or `ignore_hook`.
+
+The Dart SDK version isn't a request. The root's `dart.toolchain` version is
+used exactly, and a module asking for a newer SDK fails the build, with an error
+that names the fix. To take the highest request instead, the root sets
+`allow_upgrade_by_dependencies = True` on its `dart.toolchain`.
 
 ### Adding a dependency
 
-pub resolves and records versions; Bazel builds exactly what `pubspec.lock`
-records. Adding a package takes three steps:
+pub chooses versions and records them in `pubspec.lock`. Bazel builds exactly
+what the lock records. So adding a package takes three steps:
 
 ```shell
 bazel run @rules_dart//dart/pub -- add foo --directory=app   # edits app/pubspec.yaml and app/pubspec.lock
@@ -696,61 +844,68 @@ bazel run //:gazelle                                          # puts @pub_deps//
 bazel build //app/...
 ```
 
-1. `pub add` runs the toolchain's pinned SDK at the workspace root, so
-   `--directory` names the package holding the `pubspec.yaml`, and takes pub's
-   usual forms (`add dev:foo`, `add foo:^1.2.0`, `remove foo`). It must be the
-   directory whose `pubspec.lock` the `pub.from_lock()` names. To change a
-   constraint by hand, edit `pubspec.yaml` and run `pub get` (or
-   `pub upgrade foo`): the build reads only the lock, so an edit pub has not
-   resolved changes nothing.
-2. Import the package in the source, then run Gazelle, which resolves
-   `package:foo/...` to `@pub_deps//:foo` (the repository named by
-   `# gazelle:dart_pub_deps_repo`). Without Gazelle, add `@pub_deps//:foo` to
-   the `deps` of the targets that import it.
-3. Build. An error that `@pub_deps//:foo` does not exist means the lock does
-   not list `foo`: step 1 has not run for that lock.
+1. `pub add` runs the pinned SDK at the workspace root. `--directory` names the
+   package whose `pubspec.yaml` you're changing. It must be the directory whose
+   `pubspec.lock` your `pub.from_lock()` reads. pub's usual forms work:
+   `add dev:foo`, `add foo:^1.2.0`, `remove foo`. You can also edit a
+   constraint in `pubspec.yaml` by hand and then run `pub get` (or
+   `pub upgrade foo`). The build takes versions only from the lock, so until
+   pub re-resolves, the edit changes nothing.
+2. Import the package in your source, then run Gazelle. It resolves
+   `package:foo/...` to `@pub_deps//:foo`, in the hub that
+   `# gazelle:dart_pub_deps_repo` names. Without Gazelle, add `@pub_deps//:foo`
+   to the `deps` of each target that imports it.
+3. Build. If the error says `@pub_deps//:foo` doesn't exist, the lock doesn't
+   list `foo`. Step 1 hasn't run for that lock.
 
-`use_repo(pub, "pub_deps")` does not change: the hub, `pub_deps`, holds every
-package the lock names. A workspace with no `pubspec.yaml`, only `pub.package()`
-declarations, has nothing for `pub add` to edit; add the declaration by hand,
-with the digest below.
+`use_repo(pub, "pub_deps")` stays as it is, because the one hub holds every
+package the lock names.
+
+A workspace with only `pub.package()` declarations, and no `pubspec.yaml`, has
+nothing for `pub add` to edit. Add the declaration by hand, with the digest
+described next.
 
 ### The sha256 of a `pub.package()`
 
-`pub.package()` needs the digest of the package's archive, which Bazel checks
-on download: 64 lowercase hex digits, as `pubspec.lock` records it. Take it
-from pub.dev's API, where it is `archive_sha256`:
+`pub.package()` needs the sha256 of the package's archive, which Bazel checks
+when it downloads it. Write it as `pubspec.lock` does, as 64 lowercase hex
+digits. pub.dev's API gives it as `archive_sha256`:
 
 ```shell
 curl -s https://pub.dev/api/packages/path/versions/1.9.1 | jq -r .archive_sha256
 ```
 
-or, for a package that is in a `pubspec.lock` already, from the `sha256:`
-under its `description`. A digest of any other shape fails when
-`pub.package()` is read, naming the package.
+If the package is already in a `pubspec.lock`, you can copy the `sha256:` under
+its `description` instead. A digest in any other form fails when `pub.package()`
+is read, and the error names the package.
 
 ### Package identity and SBOMs
 
-Every repository the `pub` extension fetches states what it holds in Bazel's
-supply-chain metadata ([`package_metadata`](https://github.com/bazel-contrib/supply-chain)),
-as rules_python's pip and Gazelle's `go_repository` do: a `package_metadata`
-target with the package's purl, attached to every target in the repository
-by its `REPO.bazel`. An SBOM tool's aspect reads it from each target's
-`package_metadata` attribute.
+Every repository the `pub` extension fetches says what it holds, in Bazel's
+supply-chain metadata
+([`package_metadata`](https://github.com/bazel-contrib/supply-chain)).
+rules_python's pip and Gazelle's `go_repository` do the same. Each repository
+has a `package_metadata` target with the package's purl, and its `REPO.bazel`
+attaches that target to every target in the repository. An SBOM tool's aspect
+reads it from each target's `package_metadata` attribute.
 
 | Source | purl |
 |---|---|
 | hosted (`pub.package()`, `pub.from_lock()`) | `pkg:pub/<name>@<version>?checksum=sha256:<hex>`, with `repository_url` for a registry other than pub.dev |
 | git | `pkg:pub/<name>@<version>?vcs_url=git+<url>@<commit>`, with `#<path>` for a package in a subdirectory |
-| path, `build_from_pubspec` | none: the package is yours, and states its own |
+| path, `build_from_pubspec` | None. The package is yours, and states its own. |
 
 The Dart SDK's repositories are `pkg:generic/dart-sdk@<version>`, with the
-archive's `checksum` and `download_url`: the purl spec has no type for the SDK.
-Native code rules_dart builds in place of a build hook is identified as what
-it is built from: `//dart/ext/sqlite3` as the BCR `sqlite3` module, and the
-BoringSSL webcrypto vendors as BoringSSL. No pub package states a license
-kind (pub.dev computes one on its servers), so these carry no `license`; the
-license text stays the `license_file` of the package's `dart_package_metadata`.
+archive's `checksum` and `download_url`. The purl spec has no type for the SDK.
+
+Where rules_dart builds native code in place of a package's build hook, that
+code is identified by what it's built from. `//dart/ext/sqlite3` is identified
+as the BCR `sqlite3` module, and the BoringSSL that webcrypto vendors as
+BoringSSL.
+
+None of these carries a `license`, because no pub package states its license
+kind. pub.dev works it out on its own servers. The license text is still there,
+as the `license_file` of the package's `dart_package_metadata`.
 
 ## BUILD file generation with Gazelle
 
@@ -821,7 +976,7 @@ package's `test/` tree, and the test lists that instead.
 Gazelle writes a package as one `dart_library`, in the BUILD file at the
 package's root, named for the package and holding every file under its `lib/`,
 as `pub.from_lock()` builds a pub package (see
-[A package's facts](#a-packages-facts-and-where-its-root-is)). A source
+[Package metadata](#package-metadata)). A source
 carrying a builder's annotation is in it too, as is what its builders
 generate, as build_runner writes a `.g.dart` beside its source, a part of the
 same library: its codegen targets (see [Code generation](#code-generation))
