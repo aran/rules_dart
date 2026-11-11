@@ -1,3 +1,0 @@
-# Property: every pub package's bytes are verified against a pinned digest.
-# This workspace must FAIL to build, with an error naming `sha256`.
-# Check: `bazel build @path//:path` fails and its output contains "sha256".

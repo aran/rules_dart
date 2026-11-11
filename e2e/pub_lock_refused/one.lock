@@ -1,0 +1,46 @@
+# Hand-written: the build refuses it before any fetch.
+packages:
+  bar:
+    dependency: "direct main"
+    description:
+      path: "."
+      ref: main
+      resolved-ref: 0123456789abcdef0123456789abcdef01234567
+      url: "https://example.invalid/bar.git"
+    source: git
+    version: "1.0.0"
+  baz:
+    dependency: "direct main"
+    description:
+      path: "."
+      ref: main
+      resolved-ref: 0123456789abcdef0123456789abcdef01234567
+      url: "https://example.invalid/baz.git"
+    source: git
+    version: "1.0.0"
+  foo:
+    dependency: "direct main"
+    description:
+      path: "."
+      ref: main
+      resolved-ref: a1b2c3d
+      url: "https://example.invalid/foo.git"
+    source: git
+    version: "1.0.0"
+  meta:
+    dependency: "direct main"
+    description:
+      name: meta
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.17.0"
+  tuple:
+    dependency: "direct main"
+    description:
+      name: tuple
+      sha256: "1111111111111111111111111111111111111111111111111111111111111111"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.0.2"
+sdks:
+  dart: ">=3.0.0 <4.0.0"

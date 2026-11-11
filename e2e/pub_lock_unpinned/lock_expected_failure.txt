@@ -1,4 +1,0 @@
-# This workspace fails on purpose; `bazel run @overhead//locks:check` passes a
-# step that fails printing each line below.
-# A lock entry without a sha256 is refused.
-No sha256 is pinned for pub package "path"

@@ -62,12 +62,12 @@ def is_git_commit_id(ref):
             return False
     return True
 
-def check_pub_git_resolved_ref(package_name, version, resolved_ref, declared_in, rewrite = None):
-    """Fails unless `resolved_ref` pins one commit.
+def pub_git_resolved_ref_error(package_name, version, resolved_ref, declared_in, rewrite = None):
+    """Why `resolved_ref` does not pin one commit, or None when it does.
 
     A branch, a tag or an abbreviated id names whatever commit it names on the
     day of the fetch, so the package would be whatever the server holds then.
-    Call this where the entry is first read, so the error names where it was
+    Ask where the entry is first read, so the message names where it was
     declared.
 
     Args:
@@ -77,21 +77,39 @@ def check_pub_git_resolved_ref(package_name, version, resolved_ref, declared_in,
         declared_in: Where the entry was declared, for the message.
         rewrite: The command that re-resolves the lock, printed on a line of
             its own; None where it is not known.
+
+    Returns:
+        The message, or None for a full commit id.
     """
     if is_git_commit_id(resolved_ref):
-        return
-    fail(("The git package \"{name}\" {version} (in {where}) is locked at resolved-ref " +
-          "\"{ref}\", which is not a full commit id (40 lowercase hex digits), so it " +
-          "does not pin what is fetched and will not be fetched. Re-resolve the lock, " +
-          "from the root of the workspace that holds it, and pub records the commit it " +
-          "resolved as `resolved-ref`{colon}{rewrite}").format(
+        return None
+    return ("The git package \"{name}\" {version} (in {where}) is locked at resolved-ref " +
+            "\"{ref}\", which is not a full commit id (40 lowercase hex digits), so it " +
+            "does not pin what is fetched and will not be fetched. Re-resolve the lock, " +
+            "from the root of the workspace that holds it, and pub records the commit it " +
+            "resolved as `resolved-ref`{colon}{rewrite}").format(
         name = package_name,
         version = version,
         where = declared_in,
         ref = resolved_ref,
         colon = ":\n  " if rewrite else ".",
         rewrite = rewrite or "",
-    ))
+    )
+
+def check_pub_git_resolved_ref(package_name, version, resolved_ref, declared_in, rewrite = None):
+    """Fails with `pub_git_resolved_ref_error`'s message unless `resolved_ref` pins one commit.
+
+    Args:
+        package_name: The pub package name.
+        version: The package version.
+        resolved_ref: The lock entry's `description.resolved-ref`.
+        declared_in: Where the entry was declared, for the message.
+        rewrite: The command that re-resolves the lock; None where it is not
+            known.
+    """
+    error = pub_git_resolved_ref_error(package_name, version, resolved_ref, declared_in, rewrite)
+    if error:
+        fail(error)
 
 def is_relative_git_url(url):
     """Whether a lock's git `url` is a path relative to the lock, as pub reads it.

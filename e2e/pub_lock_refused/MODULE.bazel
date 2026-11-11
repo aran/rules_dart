@@ -1,0 +1,39 @@
+module(name = "pub_lock_refused_e2e")
+
+bazel_dep(name = "rules_dart", version = "0.0.0")
+local_path_override(
+    module_name = "rules_dart",
+    path = "../..",
+)
+
+dart = use_extension("@rules_dart//dart:extensions.bzl", "dart")
+dart.toolchain(dart_version = "3.13.7")
+use_repo(dart, "dart_toolchains")
+
+register_toolchains("@dart_toolchains//:all")
+
+# Every package must be pinned, and locks must agree on each package they
+# share. Each refusal below stands alone, so one evaluation of the extension
+# names them all:
+#   - `path`, declared with a blank `sha256`: an empty digest is no digest,
+#     not "do not verify";
+#   - `meta`, a hosted entry of one.lock with no `sha256`;
+#   - `foo`, a git entry of one.lock whose `resolved-ref` is no full commit id;
+#   - `tuple`, at one version with a different digest in each lock;
+#   - `bar`, a git package the locks pin at different commits;
+#   - `baz`, git in one.lock and hosted in two.lock.
+pub = use_extension("@rules_dart//dart/pub:extensions.bzl", "pub")
+pub.package(
+    name = "path",
+    sha256 = "",
+    version = "1.9.1",
+)
+pub.from_lock(
+    name = "one",
+    lock = "//:one.lock",
+)
+pub.from_lock(
+    name = "two",
+    lock = "//:two.lock",
+)
+use_repo(pub, "one", "path", "two")

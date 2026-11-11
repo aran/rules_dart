@@ -86,14 +86,14 @@ def is_pub_sha256(sha256):
             return False
     return True
 
-def check_pub_archive_sha256(package_name, version, sha256, declared_in, rewrite = None, base_url = "https://pub.dev"):
-    """Fails unless `sha256` pins the package's archive.
+def pub_archive_sha256_error(package_name, version, sha256, declared_in, rewrite = None, base_url = "https://pub.dev"):
+    """Why `sha256` does not pin the package's archive, or None when it does.
 
     An empty `sha256` means "do not check" to Bazel's downloader, so a lock entry
     without one (written by a pub older than 2.19, or edited by hand) would be
     fetched on trust. A digest of the wrong shape (short, not hex, an SRI
-    string) would only fail after the request. Call this where the digest is
-    first read, so the error names where it was declared.
+    string) would only fail after the request. Ask where the digest is first
+    read, so the message names where it was declared.
 
     Args:
         package_name: The pub package name.
@@ -106,9 +106,12 @@ def check_pub_archive_sha256(package_name, version, sha256, declared_in, rewrite
             lock, or the command is not known.
         base_url: The hosted registry, whose API gives the digest where
             there is no lock to re-resolve.
+
+    Returns:
+        The message, or None for a digest of the shape pubspec.lock records.
     """
     if is_pub_sha256(sha256):
-        return
+        return None
     if rewrite:
         remedy = ("Re-resolve the lock, from the root of the workspace that holds it, " +
                   "and pub records the digest:\n  " + rewrite)
@@ -119,22 +122,38 @@ def check_pub_archive_sha256(package_name, version, sha256, declared_in, rewrite
             version = version,
         )
     if not sha256:
-        fail(("No sha256 is pinned for pub package \"{name}\" {version} (in {where}), so its " +
-              "archive cannot be verified and will not be fetched. {remedy}").format(
+        return ("No sha256 is pinned for pub package \"{name}\" {version} (in {where}), so its " +
+                "archive cannot be verified and will not be fetched. {remedy}").format(
             name = package_name,
             version = version,
             where = declared_in,
             remedy = remedy,
-        ))
-    fail(("The sha256 for pub package \"{name}\" {version} (in {where}) is \"{sha256}\", " +
-          "which is not a SHA-256 as pubspec.lock records one (64 lowercase hex digits), " +
-          "so its archive will not be fetched. {remedy}").format(
+        )
+    return ("The sha256 for pub package \"{name}\" {version} (in {where}) is \"{sha256}\", " +
+            "which is not a SHA-256 as pubspec.lock records one (64 lowercase hex digits), " +
+            "so its archive will not be fetched. {remedy}").format(
         name = package_name,
         version = version,
         where = declared_in,
         sha256 = sha256,
         remedy = remedy,
-    ))
+    )
+
+def check_pub_archive_sha256(package_name, version, sha256, declared_in, rewrite = None, base_url = "https://pub.dev"):
+    """Fails with `pub_archive_sha256_error`'s message unless `sha256` pins the package's archive.
+
+    Args:
+        package_name: The pub package name.
+        version: The package version.
+        sha256: The archive digest as declared.
+        declared_in: Where the digest was declared, for the message.
+        rewrite: The command that re-resolves the lock it was declared in;
+            None where it is not known.
+        base_url: The hosted registry.
+    """
+    error = pub_archive_sha256_error(package_name, version, sha256, declared_in, rewrite, base_url)
+    if error:
+        fail(error)
 
 def drop_escaping_links(rctx):
     """Deletes every symlink in the repository that leaves it or dangles.

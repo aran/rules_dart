@@ -5,36 +5,13 @@ load("//dart/pub:pub_graph.bzl", "cycle_declaration", "cycle_declarations_error"
 load("//dart/pub:pub_lock_package.bzl", "pub_lock_git_package", "pub_lock_package", "pub_lock_path_package")
 load("//dart/pub:pub_versions.bzl", "CHECK_LEVELS", "pub_version_request", "select_pub_version")
 load("//dart/pub:yaml_parser.bzl", "parse_pubspec_lock")
-load("//dart/pub/private:pub_archive.bzl", "check_pub_archive_sha256")
-load("//dart/pub/private:pub_git.bzl", "check_pub_git_resolved_ref", "is_relative_git_url")
+load("//dart/pub/private:pub_archive.bzl", "pub_archive_sha256_error")
+load("//dart/pub/private:pub_lock_checks.bzl", "git_disagreement_error", "git_lock_package", "lock_mapping_error", "path_packages", "pub_command", "resolved_packages", "source_disagreement_errors")
 load("//dart/pub/private:pub_lock_hub.bzl", "pub_lock_hub")
 load("//dart/pub/private:pub_lock_library.bzl", "index_repo", "library_repo", "pub_lock_ignored", "pub_lock_index", "pub_lock_library", "pub_lock_resolved", "source_repo")
 load("//dart/pub/private:pub_settings.bzl", "root_only_settings")
 
 _SPOKE_PREFIX = "dart_pub"
-
-def _pub_command(subcommand, lock, packages = []):
-    """The command that runs pub `subcommand` on the package that holds `lock`.
-
-    `@rules_dart//dart/pub` needs only the `dart` toolchain, so it runs while
-    this extension refuses a lock. It starts at the root of the workspace it
-    is run in: the command is run from the root of the workspace that holds
-    the lock, and `--directory` is the lock's directory there.
-
-    Args:
-        subcommand: The pub subcommand: `get` or `upgrade`.
-        lock: The lock's label.
-        packages: The packages to re-resolve, for `upgrade`.
-
-    Returns:
-        The command, to print on a line of its own.
-    """
-    path = lock.package + "/" + lock.name if lock.package else lock.name
-    directory = path.rpartition("/")[0]
-    words = ["bazel run @rules_dart//dart/pub --", subcommand]
-    if directory:
-        words.append("--directory=" + directory)
-    return " ".join(words + packages)
 
 _package = tag_class(
     attrs = {
@@ -174,214 +151,6 @@ _settings = tag_class(
           "Only the root module may use this tag, at most once.",
 )
 
-def _resolved_packages(locks, declared):
-    """Decides which locked packages a workspace target serves, from `resolve`.
-
-    Fails, naming each problem of a `from_lock` call, where it maps a name its
-    lock does not list or leaves a `path` package of its lock unmapped. A
-    mapped package is one target for the whole build, as every package is one
-    repository, so two calls mapping it to different targets fail, as does one
-    mapping a package `pub.package()` also declares.
-
-    Args:
-      locks: Every lock, as `_pub_impl` parses them.
-      declared: The packages a `pub.package()` requests.
-
-    Returns:
-      Package name -> `struct(target, lock_label)`.
-    """
-    resolved = {}
-    for lock in locks:
-        tag = lock.tag
-        problems = []
-        chosen = {}
-        for attr_name, names in (("resolve", tag.resolve), ("build_from_pubspec", tag.build_from_pubspec), ("ignored", tag.ignored)):
-            stale = sorted([name for name in names if name not in lock.packages])
-            if stale:
-                problems.append(
-                    "  - `%s` %s %s, which the lock does not list. Remove %s." % (
-                        attr_name,
-                        "maps" if attr_name == "resolve" else "names",
-                        ", ".join(["`%s`" % n for n in stale]),
-                        "them" if len(stale) > 1 else "it",
-                    ),
-                )
-            if attr_name != "resolve":
-                not_path = sorted([
-                    name
-                    for name in names
-                    if name in lock.packages and lock.packages[name].get("source") != "path"
-                ])
-                if not_path:
-                    problems.append(
-                        "  - `%s` names %s, which the lock does not list as `path`: it takes only path packages." % (
-                            attr_name,
-                            ", ".join(["`%s`" % n for n in not_path]),
-                        ),
-                    )
-            for name in names:
-                chosen.setdefault(name, []).append(attr_name)
-        for name in sorted(chosen):
-            if len(chosen[name]) > 1:
-                problems.append("  - `%s` is named in %s; name it in one." % (
-                    name,
-                    " and ".join(["`%s`" % a for a in chosen[name]]),
-                ))
-        unmapped = sorted([
-            name
-            for name, info in lock.packages.items()
-            if info.get("source") == "path" and name not in chosen
-        ])
-        if unmapped:
-            problems.append(
-                ("  - it lists %s as %s. Name each in exactly one of:\n" +
-                 "      resolve = {%s}  (a target of yours builds it)\n" +
-                 "      build_from_pubspec = [%s]  (build it from its directory, as a hosted package)\n" +
-                 "      ignored = {%s}  (nothing builds it; depending on it fails with the reason)") % (
-                    ", ".join(["`%s`" % n for n in unmapped]),
-                    "`path` packages" if len(unmapped) > 1 else "a `path` package",
-                    ", ".join(['"%s": "//..."' % n for n in unmapped]),
-                    ", ".join(['"%s"' % n for n in unmapped]),
-                    ", ".join(['"%s": "<why>"' % n for n in unmapped]),
-                ),
-            )
-        problems.extend(_unbuildable_paths(lock))
-        if problems:
-            fail("pub.from_lock(name = \"%s\", lock = \"%s\"):\n%s" % (tag.name, tag.lock, "\n".join(problems)))
-
-        for name, target in tag.resolve.items():
-            if name in declared:
-                fail(
-                    ("Package \"%s\" is declared with `pub.package()` and mapped to %s by " +
-                     "the `resolve` of the `pub.from_lock()` for %s. Each package is one " +
-                     "repository or one target; keep one of the two.") % (name, target, tag.lock),
-                )
-            first = resolved.setdefault(name, struct(target = target, lock_label = str(tag.lock)))
-            if first.target != target:
-                fail(
-                    ("Package \"%s\" is mapped to different targets:\n" +
-                     "  - %s (by the `resolve` of the `pub.from_lock()` for %s)\n" +
-                     "  - %s (by the `resolve` of the `pub.from_lock()` for %s)\n" +
-                     "rules_dart builds one copy of each package; map it to one target.") % (
-                        name,
-                        first.target,
-                        first.lock_label,
-                        target,
-                        tag.lock,
-                    ),
-                )
-    return resolved
-
-def _normalize(path):
-    # Collapses `.` and `..`, so two locks naming one directory by different
-    # relative paths agree.
-    absolute = path.startswith("/")
-    parts = []
-    for part in path.replace("\\", "/").split("/"):
-        if part in ("", "."):
-            continue
-        if part == ".." and parts and parts[-1] != "..":
-            parts.pop()
-        else:
-            parts.append(part)
-    return ("/" if absolute else "") + "/".join(parts)
-
-def _path_in_repo(lock, path):
-    # The lock's relative `path`, from the root of the lock's repository; it
-    # starts with `..` when it leaves the repository.
-    return _normalize(lock.package + "/" + path if lock.package else path)
-
-def _unbuildable_paths(lock):
-    # The `build_from_pubspec` packages whose directory the lock names in a way
-    # no repository attribute can hold on every machine: by an absolute path,
-    # or by one leaving the lock's repository. MODULE.bazel.lock records every
-    # repository's attributes, so it would hold only in this checkout.
-    absolute = []
-    outside = []
-    for name in lock.tag.build_from_pubspec:
-        info = lock.packages.get(name, {})
-        if info.get("source") != "path":
-            continue
-        desc = info.get("description", {})
-        path = desc.get("path", "")
-
-        # The lock's scalars are read as strings: `true` is "True".
-        if desc.get("relative", "").lower() != "true":
-            absolute.append("`%s` (%s)" % (name, path))
-        else:
-            in_repo = _path_in_repo(lock.tag.lock, path)
-            if in_repo == ".." or in_repo.startswith("../"):
-                outside.append("`%s` (%s)" % (name, path))
-    problems = []
-    if absolute:
-        problems.append(
-            ("  - `build_from_pubspec` names %s, whose directory the lock gives by an absolute " +
-             "path, which holds only on this machine. Give the package a relative `path:` in " +
-             "the pubspec and run `dart pub get`, or map it with `resolve`.") % ", ".join(absolute),
-        )
-    if outside:
-        problems.append(
-            ("  - `build_from_pubspec` names %s, whose directory is outside the repository that " +
-             "holds the lock. A repository builds only its own files; move the package into it, " +
-             "or map it with `resolve` to a target that builds it, in a module " +
-             "`local_path_override` brings in, say.") % ", ".join(outside),
-        )
-    return problems
-
-def _path_packages(locks, declared):
-    """Collects the `path` packages each lock builds from its pubspec or ignores.
-
-    Args:
-      locks: Every lock, as `_pub_impl` parses them.
-      declared: The packages a `pub.package()` requests.
-
-    Returns:
-      `struct(built, ignored)`: package name -> `struct(directory, path,
-      version, lock, lock_label)`, and package name -> `struct(reason,
-      lock_label)`. `directory` names the package's directory by its
-      repository, for comparing and naming; `path` is the lock's path to it.
-    """
-    built = {}
-    ignored = {}
-    for lock in locks:
-        tag = lock.tag
-        for name in tag.build_from_pubspec + tag.ignored.keys():
-            if name in declared:
-                fail(("Package \"%s\" is declared with `pub.package()` and named by the " +
-                      "`pub.from_lock()` for %s. Each package is one repository; keep one of the " +
-                      "two.") % (name, tag.lock))
-        for name in tag.build_from_pubspec:
-            info = lock.packages[name]
-            desc = info.get("description", {})
-            path = desc.get("path", "")
-
-            # `_resolved_packages` has checked the path is relative and stays
-            # in the lock's repository.
-            directory = "@@%s//%s" % (tag.lock.repo_name, _path_in_repo(tag.lock, path))
-            first = built.setdefault(name, struct(
-                directory = directory,
-                path = _normalize(path),
-                version = info.get("version", ""),
-                lock = tag.lock,
-                lock_label = str(tag.lock),
-            ))
-            if first.directory != directory:
-                fail(("Package \"%s\" is built from different directories:\n" +
-                      "  - %s (by the `pub.from_lock()` for %s)\n" +
-                      "  - %s (by the `pub.from_lock()` for %s)\n" +
-                      "rules_dart builds one copy of each package; make the locks name one " +
-                      "directory.") % (name, first.directory, first.lock_label, directory, tag.lock))
-        for name, reason in tag.ignored.items():
-            first = ignored.setdefault(name, struct(reason = reason, lock_label = str(tag.lock)))
-            if first.reason != reason:
-                ignored[name] = struct(reason = first.reason + "; " + reason, lock_label = first.lock_label + ", " + str(tag.lock))
-    for name in built:
-        if name in ignored:
-            fail(("Package \"%s\" is built from its pubspec by the `pub.from_lock()` for %s and " +
-                  "ignored by the one for %s. rules_dart builds one copy of each package; " +
-                  "build it or ignore it everywhere.") % (name, built[name].lock_label, ignored[name].lock_label))
-    return struct(built = built, ignored = ignored)
-
 def _where_lock(module, lock):
     where = "the lock `//%s:%s`" % (lock.package, lock.name)
     if not module.is_root:
@@ -475,8 +244,8 @@ def _select_versions(name, decls, entries, url, check):
             url = url,
             is_root = e.is_root,
             where = e.where,
-            upgrade = _pub_command("upgrade", e.lock_file, [name]),
-            refresh = _pub_command("get", e.lock_file),
+            upgrade = pub_command("upgrade", e.lock_file, [name]),
+            refresh = pub_command("get", e.lock_file),
         )
         for e in entries
     ]
@@ -554,72 +323,6 @@ def _cycles(ctx, fetched, resolved_targets, ignored):
         ],
     )
 
-def _add_git_package(git_registry, name, info, lock_tag):
-    """Records a lock's `source: git` entry, failing where it pins nothing or disagrees.
-
-    Every lock that lists a git package must pin the same commit of the same
-    repository directory: there is no version order between commits to
-    upgrade along.
-
-    Args:
-      git_registry: Package name -> what is fetched for it; updated.
-      name: The package name.
-      info: The lock entry.
-      lock_tag: The `from_lock` tag whose lock lists it.
-    """
-    desc = info.get("description", {})
-    version = info.get("version", "")
-    url = desc.get("url", "")
-    if not url:
-        fail(("The git package \"%s\" %s (in %s) has no `description.url`. Re-resolve the " +
-              "lock to rewrite it, from the root of the workspace that holds it:\n  %s") % (
-            name,
-            version,
-            lock_tag.lock,
-            _pub_command("get", lock_tag.lock),
-        ))
-    check_pub_git_resolved_ref(
-        name,
-        version,
-        desc.get("resolved-ref", ""),
-        str(lock_tag.lock),
-        rewrite = _pub_command("get", lock_tag.lock),
-    )
-    relative = is_relative_git_url(url)
-    pkg = struct(
-        version = version,
-        url = url,
-        resolved_ref = desc["resolved-ref"],
-        path = desc.get("path", "."),
-        # A relative url is resolved against the lock's directory, so the
-        # lock is part of what it names.
-        lock = lock_tag.lock if relative else None,
-        lock_label = str(lock_tag.lock),
-        lock_file = lock_tag.lock,
-    )
-    first = git_registry.setdefault(name, pkg)
-    if (first.url, first.lock, first.resolved_ref, first.path) != (pkg.url, pkg.lock, pkg.resolved_ref, pkg.path):
-        fail(
-            ("Git package \"%s\" is locked differently across lock files:\n" +
-             "  - %s at %s, path %s (from %s)\n" +
-             "  - %s at %s, path %s (from %s)\n" +
-             "rules_dart builds one copy of each package. Make the pubspecs ask for the " +
-             "same commit, then re-resolve each lock from the root of the workspace that " +
-             "holds it:\n  %s\n  %s") % (
-                name,
-                first.url,
-                first.resolved_ref,
-                first.path,
-                first.lock_label,
-                pkg.url,
-                pkg.resolved_ref,
-                pkg.path,
-                pkg.lock_label,
-                _pub_command("upgrade", first.lock_file, [name]),
-                _pub_command("upgrade", pkg.lock_file, [name]),
-            ),
-        )
-
 def _pub_impl(ctx):
     # The root's settings, and the packages whose hooks it declared
     # irrelevant: a package is one repository however many tags name it, so
@@ -646,23 +349,39 @@ def _pub_impl(ctx):
     root_unversioned = _root_unversioned(locks)
     declarations = _declarations(ctx, root_unversioned)
     declared = declarations.declared
-    for decls in declared.values():
-        for d in decls:
-            check_pub_archive_sha256(d.tag.name, d.tag.version, d.tag.sha256, "pub.package()")
     for mod in ctx.modules:
         if mod.is_root:
             for pkg in mod.tags.package:
                 root_repos[pkg.name] = root_repos.get(pkg.name, True) and ctx.is_dev_dependency(pkg)
 
+    # Every refusal of a phase is collected and reported in one failure. A
+    # phase ends where the next needs what the refusals reject.
+    errors = []
+
+    # A declaration's digest needs nothing else read, so it is reported with
+    # whichever phase fails first. A refused one requests nothing.
+    pinned = {}
+    for name, decls in declared.items():
+        for d in decls:
+            error = pub_archive_sha256_error(d.tag.name, d.tag.version, d.tag.sha256, "pub.package()")
+            if error:
+                errors.append(error)
+            else:
+                pinned.setdefault(name, []).append(d)
+
+    # Each lock's own `resolve`, `build_from_pubspec` and `ignored`. Until
+    # they are right, what serves a lock's packages is unknown.
+    mapping_errors = [e for e in [lock_mapping_error(lock) for lock in locks] if e]
+    if mapping_errors:
+        fail("\n\n".join(errors + mapping_errors))
+
     # Packages a workspace target serves, by `resolve`, and the `path`
-    # packages built from their pubspec or ignored.
-    resolved_targets = _resolved_packages(locks, declared)
-    path_packages = _path_packages(locks, declared)
-    for name in path_packages.built.keys() + path_packages.ignored.keys():
-        if name in resolved_targets:
-            fail(("Package \"%s\" is mapped by `resolve` in the `pub.from_lock()` for %s and " +
-                  "named by `build_from_pubspec` or `ignored` in another. rules_dart builds one " +
-                  "copy of each package; choose one.") % (name, resolved_targets[name].lock_label))
+    # packages built from their pubspec or ignored. A package they disagree
+    # on is still served by one of them, so nothing below fetches it.
+    mapped = resolved_packages(locks, declared)
+    resolved_targets = mapped.targets
+    paths = path_packages(locks, declared, resolved_targets)
+    errors.extend(mapped.errors + paths.errors)
 
     # Every hosted lock entry, per package: each is a version request.
     registry = {}
@@ -700,7 +419,7 @@ def _pub_impl(ctx):
 
         for name, info in lock.packages.items():
             # One `resolve` maps is that target, however the lock lists it.
-            if name in resolved_targets or name in path_packages.built or name in path_packages.ignored:
+            if name in resolved_targets or name in paths.built or name in paths.ignored:
                 hub_packages[hub_name][name] = True
                 continue
 
@@ -721,7 +440,13 @@ def _pub_impl(ctx):
                 continue
             if source == "git":
                 hub_packages[hub_name][name] = True
-                _add_git_package(git_registry, name, info, lock_tag)
+                git = git_lock_package(name, info, lock_tag)
+                errors.extend(git.errors)
+                if git.package:
+                    first = git_registry.setdefault(name, git.package)
+                    disagreement = git_disagreement_error(name, first, git.package)
+                    if disagreement:
+                        errors.append(disagreement)
                 continue
             if source == "sdk":
                 skipped_sdk.append(name)
@@ -734,13 +459,18 @@ def _pub_impl(ctx):
             url = desc.get("url", "https://pub.dev")
             version = info.get("version", "")
             sha256 = desc.get("sha256", "")
-            check_pub_archive_sha256(
+            error = pub_archive_sha256_error(
                 name,
                 version,
                 sha256,
                 str(lock_tag.lock),
-                rewrite = _pub_command("get", lock_tag.lock),
+                rewrite = pub_command("get", lock_tag.lock),
             )
+            if error:
+                # An entry that pins nothing requests nothing, so it is in no
+                # disagreement over digests.
+                errors.append(error)
+                continue
             registry.setdefault(name, []).append(struct(
                 version = version,
                 sha256 = sha256,
@@ -764,41 +494,19 @@ def _pub_impl(ctx):
                 ),
             )
 
-    for name, path_pkg in path_packages.built.items():
-        if name in registry or name in git_registry:
-            fail(
-                ("Package \"%s\" is built from %s by the `pub.from_lock()` for %s, and another " +
-                 "lock lists it as a %s package. rules_dart builds one copy of each package; " +
-                 "make the locks agree.") % (
-                    name,
-                    path_pkg.directory,
-                    path_pkg.lock_label,
-                    "hosted" if name in registry else "git",
-                ),
-            )
-
-    for name, git_pkg in git_registry.items():
-        if name in registry:
-            fail(
-                ("Package \"%s\" is a git package in %s and a hosted package in %s. " +
-                 "rules_dart builds one copy of each package; make the locks agree, " +
-                 "or declare it with `pub.package()` in the root module.") % (
-                    name,
-                    git_pkg.lock_label,
-                    registry[name][0].lock_label,
-                ),
-            )
+    errors.extend(source_disagreement_errors(paths.built, git_registry, registry))
 
     # One version per hosted package: the highest request, a `pub.package()`
     # in any module or a lock entry, wins.
     explicit = {}  # name -> the winning declaration's version and digest
     resolved = {}  # name -> the winning lock entry's version, digest and registry
-    errors = []
     for name in sorted(declared.keys() + [n for n in registry if n not in declared]):
         entries = registry.get(name, [])
+        if not entries and name not in pinned:
+            continue
         selection = _select_versions(
             name,
-            declared.get(name, []),
+            pinned.get(name, []),
             entries,
             entries[0].url if entries else "https://pub.dev",
             settings.check,
@@ -841,13 +549,13 @@ def _pub_impl(ctx):
     explicit_names = sorted(explicit.keys())
     fetched = {name: pkg.version for name, pkg in resolved.items()}
     fetched.update({name: pkg.version for name, pkg in git_registry.items()})
-    fetched.update({name: pkg.version for name, pkg in path_packages.built.items()})
+    fetched.update({name: pkg.version for name, pkg in paths.built.items()})
     fetched.update({name: pkg.version for name, pkg in explicit.items()})
-    cycles = _cycles(ctx, fetched, resolved_targets, path_packages.ignored)
+    cycles = _cycles(ctx, fetched, resolved_targets, paths.ignored)
     unsupplied = {
         name: why
         for name, why in non_hosted.items()
-        if name not in fetched and name not in resolved_targets and name not in path_packages.ignored
+        if name not in fetched and name not in resolved_targets and name not in paths.ignored
     }
     pub_lock_index(
         name = index_repo(_SPOKE_PREFIX),
@@ -855,7 +563,7 @@ def _pub_impl(ctx):
         explicit_packages = explicit_names,
         # An ignored package's library repository is where its dependents
         # look, as for a mapped one.
-        resolved_packages = sorted(resolved_targets.keys() + path_packages.ignored.keys()),
+        resolved_packages = sorted(resolved_targets.keys() + paths.ignored.keys()),
         unsupplied = unsupplied,
         cycles = [" ".join(c) for c in cycles.declared],
         advisory_cycles = [" ".join(c) for c in cycles.advisory],
@@ -893,7 +601,7 @@ def _pub_impl(ctx):
             spoke_prefix = _SPOKE_PREFIX,
         )
 
-    for name, pkg in path_packages.built.items():
+    for name, pkg in paths.built.items():
         pub_lock_path_package(
             name = source_repo(_SPOKE_PREFIX, name),
             package_name = name,
@@ -909,7 +617,7 @@ def _pub_impl(ctx):
             spoke_prefix = _SPOKE_PREFIX,
         )
 
-    for name, pkg in path_packages.ignored.items():
+    for name, pkg in paths.ignored.items():
         pub_lock_ignored(
             name = library_repo(_SPOKE_PREFIX, name),
             package_name = name,

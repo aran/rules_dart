@@ -7,7 +7,7 @@ resolves it, by a git new enough to do what the fetch asks of it.
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
 
 # buildifier: disable=bzl-visibility
-load("//dart/pub/private:pub_git.bzl", "fetch_unset_vars", "git_fetch_url", "is_git_commit_id", "is_relative_git_url", "parse_git_version")
+load("//dart/pub/private:pub_git.bzl", "fetch_unset_vars", "git_fetch_url", "is_git_commit_id", "is_relative_git_url", "parse_git_version", "pub_git_resolved_ref_error")
 load(":small_suite.bzl", "small_unittest_suite")
 
 _SHA = "0123456789abcdef0123456789abcdef01234567"
@@ -30,6 +30,23 @@ def _refuses_anything_else_test_impl(ctx):
     asserts.false(env, is_git_commit_id(_SHA.upper()), "uppercase hex")
     asserts.false(env, is_git_commit_id(_SHA + _SHA[:24]), "a SHA-256 repository's id")
     asserts.false(env, is_git_commit_id(_SHA[:39] + "g"), "a non-hex digit")
+    return unittest.end(env)
+
+def _resolved_ref_error_test_impl(ctx):
+    env = unittest.begin(ctx)
+    asserts.equals(env, None, pub_git_resolved_ref_error("foo", "1.0.0", _SHA, "//:pubspec.lock"))
+    with_rewrite = pub_git_resolved_ref_error("foo", "1.0.0", "a1b2c3d", "//:pubspec.lock", rewrite = "bazel run @rules_dart//dart/pub -- get")
+    asserts.equals(
+        env,
+        ('The git package "foo" 1.0.0 (in //:pubspec.lock) is locked at resolved-ref "a1b2c3d", ' +
+         "which is not a full commit id (40 lowercase hex digits), so it does not pin what is " +
+         "fetched and will not be fetched. Re-resolve the lock, from the root of the workspace " +
+         "that holds it, and pub records the commit it resolved as `resolved-ref`:\n" +
+         "  bazel run @rules_dart//dart/pub -- get"),
+        with_rewrite,
+    )
+    without = pub_git_resolved_ref_error("foo", "1.0.0", "main", "@foo")
+    asserts.true(env, without.endswith("as `resolved-ref`."), without)
     return unittest.end(env)
 
 def _relative_urls_as_pub_reads_them_test_impl(ctx):
@@ -146,6 +163,7 @@ _t4_test = unittest.make(_fetch_unsets_only_where_the_repository_is_test_impl)
 _t5_test = unittest.make(_fetch_keeps_environment_config_test_impl)
 _t6_test = unittest.make(_fetch_matches_names_without_case_test_impl)
 _t7_test = unittest.make(_windows_drive_file_urls_test_impl)
+_t8_test = unittest.make(_resolved_ref_error_test_impl)
 
 def pub_git_test_suite(name):
-    small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test, _t4_test, _t5_test, _t6_test, _t7_test)
+    small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test, _t4_test, _t5_test, _t6_test, _t7_test, _t8_test)

@@ -359,55 +359,24 @@ jobs:
           fi
           echo "$out" | grep -qF 'has a Bazel build of its own (lib/BUILD.bazel)'
           echo "OK: path package with a Bazel build refused"
-      # Every pub archive is checked against a pinned digest: a lock entry or a
-      # `pub.package()` without one, or two locks disagreeing on one, fails.
-      - name: pub_lock_unpinned — expect a lock entry without sha256 to be refused
-        working-directory: e2e/pub_lock_unpinned
+      # Every pub package is pinned and locked alike in every lock: a lock entry
+      # or a `pub.package()` without a digest, a git entry without a commit, or
+      # two locks disagreeing on a package fails, and one failure names each.
+      - name: pub_lock_refused — expect every unpinned package and every disagreement between locks to be refused in one failure
+        working-directory: e2e/pub_lock_refused
         run: |
-          if bazel build @deps//:path 2>/dev/null; then
-            echo "ERROR: build should have refused path's missing sha256"
+          if out=$(bazel build @one//:meta 2>&1); then
+            echo "ERROR: build should have refused path's and meta's missing sha256, foo's abbreviated resolved-ref, and the locks' disagreements on tuple, bar and baz"
             exit 1
           fi
-          bazel build @deps//:path 2>&1 | grep -q "No sha256 is pinned for pub package \"path\""
-          echo "OK: unpinned lock entry refused"
-      - name: pub_lock_git_unpinned — expect a git entry without a full commit id to be refused
-        working-directory: e2e/pub_lock_git_unpinned
-        run: |
-          if bazel build @deps//:foo 2>/dev/null; then
-            echo "ERROR: build should have refused foo's abbreviated resolved-ref"
-            exit 1
-          fi
-          bazel build @deps//:foo 2>&1 | grep -q 'resolved-ref "a1b2c3d", which is not a full commit id'
-          echo "OK: unpinned git entry refused"
-      - name: pub_lock_git_conflict — expect the locks' disagreement to be refused
-        working-directory: e2e/pub_lock_git_conflict
-        run: |
-          if bazel build @one//:foo 2>/dev/null; then
-            echo "ERROR: build should have refused the locks' disagreement"
-            exit 1
-          fi
-          bazel build @one//:foo 2>&1 | grep -q 'is locked differently across lock files'
-          echo "OK: disagreement refused"
-      - name: pub_lock_git_hosted — expect the locks' disagreement to be refused
-        working-directory: e2e/pub_lock_git_hosted
-        run: |
-          if bazel build @one//:foo 2>/dev/null; then
-            echo "ERROR: build should have refused the locks' disagreement"
-            exit 1
-          fi
-          bazel build @one//:foo 2>&1 | grep -q 'is a git package in'
-          echo "OK: disagreement refused"
-      - name: pub_package_blank_sha — expect pub.package(sha256 = "") to be refused
-        working-directory: e2e/pub_package_blank_sha
-        run: |
-          if bazel build @path//:path 2>/dev/null; then
-            echo "ERROR: build should have refused path's blank sha256"
-            exit 1
-          fi
-          out=$(bazel build @path//:path 2>&1 || true)
           echo "$out" | grep -qF 'No sha256 is pinned for pub package "path"'
           echo "$out" | grep -qF 'https://pub.dev/api/packages/path/versions/1.9.1'
-          echo "OK: blank pub.package sha256 refused"
+          echo "$out" | grep -qF 'No sha256 is pinned for pub package "meta"'
+          echo "$out" | grep -qF 'resolved-ref "a1b2c3d", which is not a full commit id'
+          echo "$out" | grep -qF 'Package "tuple" 2.0.2 has conflicting sha256 digests'
+          echo "$out" | grep -qF 'Git package "bar" is locked differently across lock files'
+          echo "$out" | grep -qF 'Package "baz" is a git package in'
+          echo "OK: every refusal named in one failure"
       - name: pub_package_missing_dep — expect a pub.package() whose pubspec depends on an unsupplied package to be refused
         working-directory: e2e/pub_package_missing_dep
         run: |
@@ -443,15 +412,6 @@ jobs:
           bazel build @neither//:outline_tool 2>&1 | grep -q "give exactly one of \`dart_version\` and \`path\`, neither was"
           bazel build @not_a_checkout//:outline_tool 2>&1 | grep -q "/usr/pkg/kernel/pubspec.yaml does not exist"
           echo "OK: dart_kernel_source misuse refused"
-      - name: pub_lock_digest_conflict — expect locks disagreeing on a digest to be refused
-        working-directory: e2e/pub_lock_digest_conflict
-        run: |
-          if bazel build @deps_a//:path 2>/dev/null; then
-            echo "ERROR: build should have refused the conflicting sha256 digests"
-            exit 1
-          fi
-          bazel build @deps_a//:path 2>&1 | grep -q "has conflicting sha256 digests"
-          echo "OK: digest conflict refused"
       # A link hook that refuses the program's recorded uses fails the build,
       # and its own message reaches the user.
       - name: link_hook — expect a hook's refusal to fail the build, with its message

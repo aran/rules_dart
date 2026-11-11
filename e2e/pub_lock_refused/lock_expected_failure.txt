@@ -1,0 +1,15 @@
+# This workspace fails on purpose; `bazel run @overhead//locks:check` passes a
+# step that fails printing each line below.
+# pub.package(sha256 = "") is refused.
+No sha256 is pinned for pub package "path"
+https://pub.dev/api/packages/path/versions/1.9.1
+# A lock entry without a sha256 is refused.
+No sha256 is pinned for pub package "meta"
+# A git entry without a full commit id is refused.
+resolved-ref "a1b2c3d", which is not a full commit id
+# Two lock files disagree on one package's digest.
+Package "tuple" 2.0.2 has conflicting sha256 digests
+# Two lock files pin one git package at different commits.
+Git package "bar" is locked differently across lock files
+# One lock file's git package is another's hosted one.
+Package "baz" is a git package in

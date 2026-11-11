@@ -2557,9 +2557,7 @@ The [`e2e/`](e2e/) directory contains complete working examples:
 | [`pub_lock_resolve_invalid`](e2e/pub_lock_resolve_invalid/) | Unnamed, twice-named and wrongly named `path` packages and a stale `resolve` key fail                    |
 | [`pub_lock_path`](e2e/pub_lock_path/)                       | `path` packages built from their pubspec, ignored, or refused for having a BUILD file                    |
 | [`pub_lock_git`](e2e/pub_lock_git/)                         | Git packages at the locked commit and subdirectory, whatever the host's git configuration                |
-| [`pub_lock_git_unpinned`](e2e/pub_lock_git_unpinned/)       | A git package whose lock gives no full commit id fails, naming it                                        |
-| [`pub_lock_git_conflict`](e2e/pub_lock_git_conflict/)       | Two locks pinning one git package at different commits fail                                              |
-| [`pub_lock_git_hosted`](e2e/pub_lock_git_hosted/)           | A package git in one lock and hosted in another fails                                                    |
+| [`pub_lock_refused`](e2e/pub_lock_refused/)                 | Unpinned packages and locks disagreeing on a package fail, each named, in one failure                    |
 | [`pub_hub_surface`](e2e/pub_hub_surface/)                   | Every locked package in its hub, including one declared with `pub.package()`                             |
 | [`pub_package_missing_dep`](e2e/pub_package_missing_dep/)   | A `pub.package()` whose pubspec depends on an unsupplied package fails, naming both                      |
 | [`kernel_source_refused`](e2e/kernel_source_refused/)       | A `dart_kernel_source` with both or neither of `dart_version` and `path`, or no checkout, fails          |

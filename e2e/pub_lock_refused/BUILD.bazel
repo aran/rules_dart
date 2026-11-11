@@ -1,0 +1,9 @@
+exports_files([
+    "one.lock",
+    "two.lock",
+])
+
+# Property: every pub package is pinned, every package two locks share is
+# locked alike, and a build with several such problems names each in one
+# failure. This workspace must FAIL to build; `bazel build @one//:meta`
+# prints every refusal MODULE.bazel lists.

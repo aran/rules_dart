@@ -62,7 +62,7 @@ bzl_library(
         ":yaml_parser",
         "//dart/ext:registry",
         "//dart/pub/private:pub_archive",
-        "//dart/pub/private:pub_git",
+        "//dart/pub/private:pub_lock_checks",
         "//dart/pub/private:pub_lock_hub",
         "//dart/pub/private:pub_lock_library",
         "//dart/pub/private:pub_settings",
