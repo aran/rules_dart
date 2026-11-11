@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'args.dart';
+import 'cycle.dart';
 import 'directives.dart';
 import 'policy.dart';
 import 'sources.dart';
@@ -16,7 +17,8 @@ import 'uris.dart';
 /// the platform takes. The package config covers
 /// the target's own package and every package it reaches, so the files of its
 /// dependencies (`--dep-file`, a tree artifact's directory expanded) map to the
-/// URIs importers use. Writes the empty `--output` stamp when nothing is wrong;
+/// URIs importers use. With `--check-cycle`, the target's packages must be
+/// one dependency cycle (`cycleError`). Writes the empty `--output` stamp when nothing is wrong;
 /// otherwise prints every violation to [err] and returns 1.
 Future<int> runCheck(Args args, {required StringSink err}) async {
   final label = args.one('label');
@@ -50,9 +52,21 @@ Future<int> runCheck(Args args, {required StringSink err}) async {
     checkLayering: args.flag('check-layering'),
     directPackages: args.all('direct-package').toSet(),
     ownPackages: ownPackages(args).keys.toSet(),
+    suggestCycle: !args.flag('check-cycle'),
   );
-  if (violations.isNotEmpty) {
-    err.writeln(violations.map((v) => v.message).join('\n'));
+  final messages = [for (final v in violations) v.message];
+  if (args.flag('check-cycle')) {
+    final cycle = cycleError(
+      label: label,
+      files: files,
+      config: config,
+      ownPackages: ownPackages(args).keys.toSet(),
+      availablePackages: args.all('available-package').toSet(),
+    );
+    if (cycle != null) messages.add(cycle);
+  }
+  if (messages.isNotEmpty) {
+    err.writeln(messages.join('\n'));
     return 1;
   }
   File(args.one('output')).writeAsStringSync('');

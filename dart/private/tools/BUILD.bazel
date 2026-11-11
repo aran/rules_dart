@@ -254,6 +254,7 @@ _KERNEL_TOOL_SRCS = [
     "kernel_tool/check_command.dart",
     "kernel_tool/commands.dart",
     "kernel_tool/compile.dart",
+    "kernel_tool/cycle.dart",
     "kernel_tool/declared_view.dart",
     "kernel_tool/digest_command.dart",
     "kernel_tool/directives.dart",

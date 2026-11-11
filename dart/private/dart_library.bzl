@@ -182,9 +182,22 @@ def library_package(ctx, srcs, resources = [], assembled_root = None):
         language_version = identity.language_version,
     )
 
-def _dart_library_impl(ctx):
-    own_resources = ctx.files.resources
-    for f in own_resources:
+def library_sources(ctx):
+    """A library target's own files and the package they are, checked.
+
+    For a rule with `LIBRARY_SOURCE_ATTRS` and `package_identity_attrs()`:
+    `dart_library`, and each member of a `dart_package_cycle`.
+
+    Args:
+      ctx: The rule context.
+
+    Returns:
+      `struct(srcs, resources, package)`: the Dart Files (or the one source
+      directory), the other files under `lib/`, and `library_package()`'s
+      result.
+    """
+    resources = ctx.files.resources
+    for f in resources:
         if f.extension == "dart":
             fail(
                 ("%s: `%s` is a Dart source in `resources`. `resources` names " +
@@ -198,19 +211,53 @@ def _dart_library_impl(ctx):
         # the directory itself is the package root.
         if ctx.files.srcs:
             fail("%s: set either `srcs` or `srcs_dir`, not both." % ctx.label)
-        if own_resources:
+        if resources:
             fail(
                 ("%s: set either `resources` or `srcs_dir`, not both. A " +
                  "pre-assembled directory is opaque — it already carries " +
                  "every file of the package, non-Dart ones included.") % ctx.label,
             )
-        own_srcs = ctx.files.srcs_dir
-        package = library_package(ctx, own_srcs, assembled_root = own_srcs[0].short_path)
+        srcs = ctx.files.srcs_dir
+        package = library_package(ctx, srcs, assembled_root = srcs[0].short_path)
     else:
         # `srcs` may be empty: a `dart_library` with only `deps` is a valid
         # aggregate façade that re-exports its dependencies.
-        own_srcs = ctx.files.srcs
-        package = library_package(ctx, own_srcs, own_resources)
+        srcs = ctx.files.srcs
+        package = library_package(ctx, srcs, resources)
+
+    return struct(srcs = srcs, resources = resources, package = package)
+
+# The files of a library target: `dart_library`'s, and each
+# `dart_package_member`'s.
+LIBRARY_SOURCE_ATTRS = {
+    "srcs": attr.label_list(
+        doc = "Dart source files (`.dart`), source-tree or generated. Typically `glob([\"lib/**/*.dart\"])`, optionally plus `dart_codegen` outputs. Generated members join the hand-written ones wherever a consumer reads the package: the VM compiles read both in place, through roots spanning the source tree and `bazel-out`, and the web compilers and the analyzer stage them into one project. Mutually exclusive with `srcs_dir`.",
+        allow_files = [".dart"],
+    ),
+    "resources": attr.label_list(
+        doc = """Non-Dart files this package ships inside `lib/` — part of its published \
+surface, but never compiled. `package:sky_engine`'s `lib/_embedder.yaml`, which the analyzer \
+reads to resolve `dart:ui`, and `package:dwds`'s `lib/src/injected/client.js`, which it serves \
+to the browser, are both this. Anything under `lib/` is addressable as `package:<name>/<path>` \
+whatever its extension, so these are members of the package, not a consumer's `data`. \
+They are staged wherever the package itself is staged — the analyzer's hermetic project tree — \
+and ride the runfiles of every `dart_binary`/`dart_test` that depends on this library, mirroring \
+pub, where the package directory exists whole on disk at run time. They are never compile inputs. \
+`.dart` files belong in `srcs`; files outside `lib/` have no `package:` URI and belong in a \
+consumer's `data`.""",
+        allow_files = True,
+    ),
+    "srcs_dir": attr.label(
+        doc = "A pre-assembled source directory (a bazel_lib `copy_to_directory`) to use as this library's package root, instead of `srcs`. The directory is opaque and carries the package's non-Dart files too, so `resources` is rejected alongside it. For reuse/composition; usually you just list files in `srcs`.",
+        allow_files = True,
+    ),
+}
+
+def _dart_library_impl(ctx):
+    sources = library_sources(ctx)
+    own_srcs = sources.srcs
+    own_resources = sources.resources
+    package = sources.package
 
     # `dart_library` is a pure collector: it propagates its sources (source-tree
     # and/or generated) and package metadata unchanged. Co-location of a
@@ -245,28 +292,7 @@ def _dart_library_impl(ctx):
 dart_library = rule(
     implementation = _dart_library_impl,
     cfg = runtime_reset_when_independent,
-    attrs = {
-        "srcs": attr.label_list(
-            doc = "Dart source files (`.dart`), source-tree or generated. Typically `glob([\"lib/**/*.dart\"])`, optionally plus `dart_codegen` outputs. Generated members join the hand-written ones wherever a consumer reads the package: the VM compiles read both in place, through roots spanning the source tree and `bazel-out`, and the web compilers and the analyzer stage them into one project. Mutually exclusive with `srcs_dir`.",
-            allow_files = [".dart"],
-        ),
-        "resources": attr.label_list(
-            doc = """Non-Dart files this package ships inside `lib/` — part of its published \
-surface, but never compiled. `package:sky_engine`'s `lib/_embedder.yaml`, which the analyzer \
-reads to resolve `dart:ui`, and `package:dwds`'s `lib/src/injected/client.js`, which it serves \
-to the browser, are both this. Anything under `lib/` is addressable as `package:<name>/<path>` \
-whatever its extension, so these are members of the package, not a consumer's `data`. \
-They are staged wherever the package itself is staged — the analyzer's hermetic project tree — \
-and ride the runfiles of every `dart_binary`/`dart_test` that depends on this library, mirroring \
-pub, where the package directory exists whole on disk at run time. They are never compile inputs. \
-`.dart` files belong in `srcs`; files outside `lib/` have no `package:` URI and belong in a \
-consumer's `data`.""",
-            allow_files = True,
-        ),
-        "srcs_dir": attr.label(
-            doc = "A pre-assembled source directory (a bazel_lib `copy_to_directory`) to use as this library's package root, instead of `srcs`. The directory is opaque and carries the package's non-Dart files too, so `resources` is rejected alongside it. For reuse/composition; usually you just list files in `srcs`.",
-            allow_files = True,
-        ),
+    attrs = LIBRARY_SOURCE_ATTRS | {
         "deps": attr.label_list(
             doc = "Other `dart_library` targets this library depends on. Their sources and package metadata are propagated transitively.",
             providers = [DartInfo],

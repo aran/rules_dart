@@ -126,7 +126,7 @@ def _add_layering_args(args, deps, indirect_deps):
                 args.add("--direct-package", package)
     args.add_all(depset(transitive = facades), before_each = "--direct-package", map_each = _package_name, uniquify = True)
 
-def dart_import_check_action(ctx, kernel_tool, name, srcs, own, deps, indirect_deps = []):
+def dart_import_check_action(ctx, kernel_tool, name, srcs, own, deps, indirect_deps = [], check_cycle = False):
     """Checks the imports of `srcs` against `deps`, as a validation action.
 
     Args:
@@ -138,6 +138,8 @@ def dart_import_check_action(ctx, kernel_tool, name, srcs, own, deps, indirect_d
         executable stating no package.
       deps: The targets they may import from, each providing `DartInfo`.
       indirect_deps: Labels from `DartInfo.indirect_deps`.
+      check_cycle: Whether `own` must be exactly one dependency cycle, judged
+        from what `srcs` import, as a `dart_package_cycle`'s packages must.
 
     Returns:
       The result File to put in `_validation`, or `None` when there is nothing
@@ -181,6 +183,8 @@ def dart_import_check_action(ctx, kernel_tool, name, srcs, own, deps, indirect_d
     args.add_all(packages, before_each = "--available-package", map_each = _package_name, uniquify = True)
     if LAYERING_CHECK_FEATURE not in ctx.disabled_features:
         _add_layering_args(args, deps, indirect_deps)
+    if check_cycle:
+        args.add("--check-cycle")
     args.add("--output", result)
 
     ctx.actions.run(
@@ -210,7 +214,7 @@ def _import_check_aspect_impl(target, ctx):
     if forwarded != None:
         return [forwarded[DartImportCheckInfo]]
     direct = direct_dart_deps(ctx, info, reached, DartImportCheckInfo)
-    if ctx.rule.kind == "dart_library":
+    if ctx.rule.kind in ("dart_library", "dart_package_cycle"):
         # It checks itself: its `_validation` group holds the result.
         groups = target[OutputGroupInfo] if OutputGroupInfo in target else None
         results = [groups._validation] if hasattr(groups, "_validation") else []

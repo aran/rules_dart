@@ -38,7 +38,7 @@ const _optionsByCommand = {
 const _flagsByCommand = {
   'module': {'track-creation-locations'},
   'entry': {'track-creation-locations'},
-  'check': {'check-layering'},
+  'check': {'check-layering', 'check-cycle'},
 };
 
 bool isCommand(String name) => _optionsByCommand.containsKey(name);

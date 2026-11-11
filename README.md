@@ -439,6 +439,68 @@ named `lib` inside another `lib/` is an error, because the root is ambiguous.
 `lib/src/lib/` is one example. A package whose root is somewhere under another
 `lib/` is another. Rename the inner directory.
 
+#### Your packages that import each other
+
+Dart lets two packages import each other. Bazel doesn't let two targets depend
+on each other. Say `ping` imports `pong` and `pong` imports `ping`. Put each
+`dart_library` in the other's `deps` and Bazel fails with "cycle in dependency
+graph". Leave one of those `deps` out and the import check fails instead. Its
+message points you here.
+
+The fix is to build the two packages as one target. Each package gets a
+`dart_package_member` in its own BUILD file. The member holds the package's
+`lib/` files and names its `dart_package_metadata`, if it has one. Then one
+`dart_package_cycle` lists the members, with what they import from outside the
+cycle in `deps`.
+
+```starlark
+# ping/BUILD.bazel
+dart_package_member(
+    name = "member",
+    srcs = glob(["lib/**/*.dart"]),
+    package = ":pubspec-metadata",
+    visibility = ["//:__pkg__"],
+)
+
+alias(
+    name = "ping",
+    actual = "//:ping_pong",
+    visibility = ["//visibility:public"],
+)
+```
+
+```starlark
+# BUILD.bazel
+dart_package_cycle(
+    name = "ping_pong",
+    members = [
+        "//ping:member",
+        "//pong:member",
+    ],
+    deps = ["@pub_deps//:collection"],
+    visibility = ["//visibility:public"],
+)
+```
+
+Binaries and tests depend on `//:ping_pong`. The `alias` keeps `//ping`
+working too. Each package keeps its own name, root and language version.
+Analysis, formatting, coverage and the import check treat each one as they
+would a package built alone. A member isn't a library, so only its cycle can
+depend on it.
+
+Nothing is a cycle until you write one. Building the cycle checks that its
+members are exactly one cycle. Suppose someone removes an import, and `pong`
+no longer imports `ping`. The build then fails and says what to change. It
+also fails when the cycle leaves out a package that is part of it, and names
+that package.
+
+What if your package and a pub package import each other? Then your package has
+to join the pub build. List it in `build_from_pubspec` of `pub.from_lock()`
+(see [Using pub.dev packages](#using-pubdev-packages)), and it builds as a pub
+package does. Declare the cycle with `pub.cycle()`, as
+[Packages that depend on each other](#packages-that-depend-on-each-other)
+shows.
+
 ### Running the Dart SDK
 
 To run the `dart` command of the SDK the toolchain pins:
@@ -770,6 +832,9 @@ naming every package in it and the `pub.cycle()` to add. A declaration must
 name exactly one cycle at the versions the build fetches: one naming packages
 that are no cycle (a new release dropped the edge, say) or only part of one
 fails the same way, so a declaration cannot outlive its cycle.
+
+For packages of your own workspace that import each other, see
+[Your packages that import each other](#your-packages-that-import-each-other).
 
 Cycles are build-wide, as versions are, and the root module decides. Its
 declarations are checked as above. Those of a module the root depends on apply

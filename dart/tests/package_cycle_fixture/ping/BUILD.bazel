@@ -1,0 +1,40 @@
+load("//dart:defs.bzl", "dart_library", "dart_package_member", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "ping_facts",
+    package_name = "ping",
+    language_version = "3.10",
+    visibility = ["//dart/tests/package_cycle_fixture:__pkg__"],
+)
+
+dart_package_member(
+    name = "member",
+    srcs = ["lib/ping.dart"],
+    package = ":ping_facts",
+    visibility = ["//dart/tests/package_cycle_fixture:__pkg__"],
+)
+
+# `ping` a second time, for a cycle naming it twice.
+dart_package_member(
+    name = "twin_member",
+    srcs = ["lib/twin.dart"],
+    package = ":ping_facts",
+    tags = ["manual"],
+    visibility = ["//dart/tests/package_cycle_fixture:__pkg__"],
+)
+
+# Another declaration of the same root, which nothing reaching the cycle may
+# reach too.
+dart_package_metadata(
+    name = "rival",
+    package_name = "ping",
+    tags = ["manual"],
+)
+
+dart_library(
+    name = "rival_lib",
+    srcs = ["lib/twin.dart"],
+    package = ":rival",
+    tags = ["manual"],
+    visibility = ["//dart/tests/package_cycle_fixture:__pkg__"],
+)

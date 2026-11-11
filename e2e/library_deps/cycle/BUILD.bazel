@@ -1,0 +1,23 @@
+load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_package_cycle")
+
+# `ping` and `pong` import each other, which Dart allows and Bazel, between two
+# targets, does not. They are one target, each package keeping its own name,
+# root and language version. `bazel test //...` analyzes and format-checks it.
+dart_package_cycle(
+    name = "ping_pong",
+    members = [
+        "//cycle/ping:member",
+        "//cycle/pong:member",
+    ],
+    visibility = ["//visibility:public"],
+    deps = ["//utils"],
+)
+
+dart_binary(
+    name = "rally",
+    main = "rally.dart",
+    deps = [
+        "//cycle/ping",
+        "//cycle/pong",
+    ],
+)

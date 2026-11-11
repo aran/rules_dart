@@ -4,6 +4,7 @@ Load this file from your BUILD files to access the following rules:
 
 - `dart_library`: Collects Dart sources and propagates dependency information. Does not compile.
 - `dart_package_metadata`: Declares a Dart package's facts once (the Bazel stand-in for its `pubspec.yaml`); every target of the package names it with `package`.
+- `dart_package_cycle`: Packages that import each other, built as one library from a `dart_package_member` of each.
 - `dart_binary`: Compiles a Dart application (`exe`, `aot-snapshot` or `kernel`).
 - `dart_test`: Runs a Dart test file using the Dart VM.
 - `dart_analysis_options`: An `analysis_options.yaml` plus the packages its `include:` directives resolve against.
@@ -31,6 +32,7 @@ load("//dart/private:dart_codegen.bzl", _dart_codegen = "dart_codegen")
 load("//dart/private:dart_data_asset.bzl", _dart_data_asset = "dart_data_asset")
 load("//dart/private:dart_library.bzl", _dart_library = "dart_library")
 load("//dart/private:dart_linked_code_asset.bzl", _dart_linked_code_asset = "dart_linked_code_asset")
+load("//dart/private:dart_package_cycle.bzl", _dart_package_cycle = "dart_package_cycle", _dart_package_member = "dart_package_member")
 load("//dart/private:dart_package_metadata.bzl", _dart_package_metadata = "dart_package_metadata")
 load("//dart/private:dart_sqlcodegen.bzl", _dart_sqlcodegen = "dart_sqlcodegen")
 load("//dart/private:dart_test.bzl", _dart_test = "dart_test")
@@ -39,6 +41,8 @@ load("//dart/private:program_assets.bzl", _dart_program_assets = "dart_program_a
 
 dart_library = _dart_library
 dart_package_metadata = _dart_package_metadata
+dart_package_member = _dart_package_member
+dart_package_cycle = _dart_package_cycle
 dart_binary = _dart_binary
 dart_test = _dart_test
 dart_analysis_options = _dart_analysis_options

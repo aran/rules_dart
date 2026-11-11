@@ -8,6 +8,7 @@ import 'kernel_tool/args.dart';
 import 'kernel_tool/check_command.dart';
 import 'kernel_tool/commands.dart';
 import 'kernel_tool/compile.dart';
+import 'kernel_tool/cycle.dart';
 import 'kernel_tool/declared_view.dart';
 import 'kernel_tool/directives.dart';
 import 'kernel_tool/entry_command.dart';
@@ -575,6 +576,21 @@ import 'package:rel/ok.dart';
       ]);
     });
 
+    test('suggests a cycle when a library misses a package', () {
+      expect(
+        check({
+          'app/lib/a.dart': "import 'package:missing/m.dart';",
+        }, own: 'app').map((v) => v.message),
+        [
+          '//app:lib: app/lib/a.dart imports package:missing/m.dart, but no '
+              'dependency of //app:lib provides package "missing". Add the '
+              'target that provides it to deps. If package "missing" imports '
+              'this one in turn, the two are a dependency cycle: build them as '
+              'one `dart_package_cycle`.',
+        ],
+      );
+    });
+
     test('accepts packages from the available list', () {
       expect(
         check(
@@ -720,6 +736,128 @@ import 'package:app/own.dart';
             '"indirect" is not a direct dependency of //app:lib, only of '
             'something it depends on. Add the target that provides it to deps.',
       ]);
+    });
+  });
+
+  group('cycleError', () {
+    final config = PackageConfig.parse(
+      jsonEncode({
+        'configVersion': 2,
+        'packages': [
+          for (final p in ['a', 'b', 'c', 'd'])
+            {
+              'name': p,
+              'rootUri': 'org-dartlang-root:///$p/',
+              'packageUri': 'lib/',
+            },
+        ],
+      }),
+      'x/pc.json',
+    );
+
+    String? check(
+      Map<String, String> files, {
+      Set<String> own = const {'a', 'b'},
+      Set<String> available = const {},
+    }) => cycleError(
+      label: '//x:cycle',
+      files: [
+        for (final e in files.entries)
+          CheckedFile(
+            path: e.key,
+            rootPath: e.key,
+            uri: config.uriFor(e.key),
+            directives: readDirectives(e.key, e.value),
+          ),
+      ],
+      config: config,
+      ownPackages: own,
+      availablePackages: available,
+    );
+
+    test('accepts packages that import each other', () {
+      expect(
+        check({
+          'a/lib/a.dart': "import 'package:b/b.dart';",
+          'b/lib/b.dart': "export 'package:a/a.dart';",
+        }),
+        isNull,
+      );
+    });
+
+    test('counts every branch of a conditional import', () {
+      expect(
+        check({
+          'a/lib/a.dart':
+              "import 'x.dart' if (dart.library.io) 'package:b/b.dart';",
+          'b/lib/b.dart': "import 'package:a/a.dart';",
+        }),
+        isNull,
+      );
+    });
+
+    test('refuses packages that are no cycle', () {
+      expect(
+        check({
+          'a/lib/a.dart': "import 'package:b/b.dart';",
+          'b/lib/b.dart': '',
+        }),
+        '//x:cycle builds `a` and `b` as one dependency cycle, but they are '
+        'not one: `a` and `b` are in no cycle. Build each package as its own '
+        '`dart_library`, and remove //x:cycle.',
+      );
+    });
+
+    test('names a member outside the cycle', () {
+      expect(
+        check(
+          {
+            'a/lib/a.dart': "import 'package:b/b.dart';",
+            'b/lib/b.dart': "import 'package:a/a.dart';",
+            'c/lib/c.dart': "import 'package:a/a.dart';",
+          },
+          own: {'a', 'b', 'c'},
+        ),
+        '//x:cycle builds `a`, `b` and `c` as one dependency cycle, but they '
+        'are not one: `a` and `b` import each other (a -> b -> a); `c` is in '
+        'no cycle with the others. Build `c` outside `members`, as a '
+        '`dart_library`.',
+      );
+    });
+
+    test('refuses two cycles in one target', () {
+      expect(
+        check(
+          {
+            'a/lib/a.dart': "import 'package:b/b.dart';",
+            'b/lib/b.dart': "import 'package:a/a.dart';",
+            'c/lib/c.dart': "import 'package:d/d.dart';",
+            'd/lib/d.dart': "import 'package:c/c.dart';",
+          },
+          own: {'a', 'b', 'c', 'd'},
+        ),
+        '//x:cycle builds `a`, `b`, `c` and `d` as one dependency cycle, but '
+        'they are not one: `a` and `b` import each other (a -> b -> a); `c` '
+        'and `d` import each other (c -> d -> c). Build each cycle as its own '
+        '`dart_package_cycle`.',
+      );
+    });
+
+    test('names the package no dependency provides that may close it', () {
+      expect(
+        check(
+          {
+            'a/lib/a.dart': "import 'package:b/b.dart';",
+            'b/lib/b.dart': "import 'package:missing/m.dart';",
+          },
+          available: {'provided'},
+        ),
+        '//x:cycle builds `a` and `b` as one dependency cycle, but they are '
+        'not one: `a` and `b` are in no cycle. `b` imports `missing`, which no '
+        'dependency provides: if it imports the members in turn, add it to '
+        '`members`. Otherwise, build each package as its own `dart_library`, '
+        'and remove //x:cycle.',
+      );
     });
   });
 

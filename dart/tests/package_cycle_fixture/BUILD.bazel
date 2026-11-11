@@ -1,0 +1,102 @@
+"""Packages that import each other, built as one `dart_package_cycle`.
+
+`ping` imports `pong` and `pong` imports `ping`. The cycle is one library
+carrying both packages, each with its own root and language version, which a
+test compiles and runs. Building it runs its import check, which finds the two
+are one cycle.
+"""
+
+load("//dart:defs.bzl", "dart_binary", "dart_library", "dart_package_cycle", "dart_test")
+load("//dart/tests:package_cycle_test.bzl", "cycle_packages_test", "cycle_refused_test")
+
+dart_package_cycle(
+    name = "ping_pong",
+    members = [
+        "//dart/tests/package_cycle_fixture/ping:member",
+        "//dart/tests/package_cycle_fixture/pong:member",
+    ],
+)
+
+cycle_packages_test(
+    name = "ping_pong_packages_test",
+    size = "small",
+    srcs = [
+        "dart/tests/package_cycle_fixture/ping/lib/ping.dart",
+        "dart/tests/package_cycle_fixture/pong/lib/pong.dart",
+    ],
+    packages = [
+        "ping dart/tests/package_cycle_fixture/ping 3.10",
+        "pong dart/tests/package_cycle_fixture/pong -",
+    ],
+    target_under_test = ":ping_pong",
+)
+
+dart_test(
+    name = "cycle_test",
+    size = "small",
+    main = "cycle_test.dart",
+    deps = [":ping_pong"],
+)
+
+dart_package_cycle(
+    name = "one_member",
+    members = ["//dart/tests/package_cycle_fixture/pong:member"],
+    tags = ["manual"],
+)
+
+cycle_refused_test(
+    name = "one_member_test",
+    size = "small",
+    message = "a dependency cycle is of several packages, and `members` names one. Build a package that is in no cycle as a `dart_library`.",
+    target_under_test = ":one_member",
+)
+
+dart_package_cycle(
+    name = "twice",
+    members = [
+        "//dart/tests/package_cycle_fixture/ping:member",
+        "//dart/tests/package_cycle_fixture/ping:twin_member",
+        "//dart/tests/package_cycle_fixture/pong:member",
+    ],
+    tags = ["manual"],
+)
+
+cycle_refused_test(
+    name = "twice_test",
+    size = "small",
+    message = "`members` names package `ping` twice, in @@//dart/tests/package_cycle_fixture/ping:member and @@//dart/tests/package_cycle_fixture/ping:twin_member. A package is in one member.",
+    target_under_test = ":twice",
+)
+
+# A member is no library.
+dart_library(
+    name = "on_member",
+    tags = ["manual"],
+    deps = ["//dart/tests/package_cycle_fixture/pong:member"],
+)
+
+cycle_refused_test(
+    name = "member_is_no_library_test",
+    size = "small",
+    message = "does not have mandatory providers: 'DartInfo'",
+    target_under_test = ":on_member",
+)
+
+# Each member's declaration is checked against every other a program reaches
+# for its root, as a `dart_library`'s is.
+dart_binary(
+    name = "rival",
+    main = "cycle_test.dart",
+    tags = ["manual"],
+    deps = [
+        ":ping_pong",
+        "//dart/tests/package_cycle_fixture/ping:rival_lib",
+    ],
+)
+
+cycle_refused_test(
+    name = "rival_declaration_test",
+    size = "small",
+    message = "is built by targets naming different `dart_package_metadata`",
+    target_under_test = ":rival",
+)

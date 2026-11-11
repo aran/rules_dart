@@ -59,6 +59,9 @@ class Violation {
 ///   files; a package addressed outside the kernel roots is not looked into;
 /// - layering, with [checkLayering]: a package only a dependency's
 ///   dependencies provide, that is, not among [directPackages].
+///
+/// A library's import of a package no dependency provides suggests a
+/// `dart_package_cycle` unless [suggestCycle] is false.
 List<Violation> checkPolicy({
   required String label,
   required List<CheckedFile> files,
@@ -68,6 +71,7 @@ List<Violation> checkPolicy({
   bool checkLayering = false,
   Set<String> directPackages = const {},
   Set<String> ownPackages = const {},
+  bool suggestCycle = true,
 }) {
   final held = {for (final f in files) f.uri};
   // Unstated (an executable's own files), the packages its files sit in.
@@ -118,9 +122,16 @@ List<Violation> checkPolicy({
         }
       } else if (!availablePackages.contains(name) &&
           !config.names.contains(name)) {
+        // A library's own package may be what that package imports in
+        // turn, which Bazel cannot build as two targets. A cycle's own check
+        // says so for a `dart_package_cycle` ([suggestCycle] false).
+        final cycle = ownPackages.isEmpty || !suggestCycle
+            ? ''
+            : ' If package "$name" imports this one in turn, the two are a '
+                  'dependency cycle: build them as one `dart_package_cycle`.';
         add(
           '$named, but no dependency of $label provides package "$name". Add '
-          'the target that provides it to deps.',
+          'the target that provides it to deps.$cycle',
         );
       } else if (checkLayering && !directPackages.contains(name)) {
         add(

@@ -484,6 +484,26 @@ jobs:
           fi
           bazel build //import_check/user:layering_bin 2>&1 | grep -q 'package "import_check_leaf" is not a direct dependency'
           echo "OK: layering violation reported"
+      # Packages that import each other build only as one `dart_package_cycle`
+      # naming exactly their cycle. Two libraries depending on each other are
+      # Bazel's cycle error; one leaving out the dependency is told of
+      # `dart_package_cycle`; a cycle target whose members are no cycle, or
+      # only part of one, is refused, naming what to change.
+      - name: analysis_failure — expect undeclared, stale and partial package cycles to be refused
+        working-directory: e2e/analysis_failure
+        run: |
+          check() {
+            if bazel build "$1" 2>/dev/null; then
+              echo "ERROR: $1 should have been refused"
+              exit 1
+            fi
+            bazel build "$1" 2>&1 | grep -qF -- "$2"
+          }
+          check //import_check/cycle/mutual_a "cycle in dependency graph"
+          check //import_check/cycle/one_way_b "If package \"one_way_b\" imports this one in turn, the two are a dependency cycle: build them as one \`dart_package_cycle\`."
+          check //import_check/cycle:stale "\`stale_a\` and \`stale_b\` are in no cycle. Build each package as its own \`dart_library\`"
+          check //import_check/cycle:partial "\`part_b\` imports \`part_c\`, which no dependency provides: if it imports the members in turn, add it to \`members\`."
+          echo "OK: undeclared and misdeclared package cycles refused"
       # Every import, export and part must be a `dart:` library, a `package:`
       # URI a dependency provides, or a file the target holds. Each target
       # below names a file another way, and the import check refuses it with

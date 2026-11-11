@@ -1,0 +1,8 @@
+load("//dart:defs.bzl", "dart_package_member")
+
+# No declaration: the package is named for its directory.
+dart_package_member(
+    name = "member",
+    srcs = ["lib/pong.dart"],
+    visibility = ["//dart/tests/package_cycle_fixture:__pkg__"],
+)

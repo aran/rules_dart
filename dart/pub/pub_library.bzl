@@ -19,53 +19,25 @@ its own library rule, which reads both off its `members` and builds its
 members too, since they carry the same provider, so one cycle can mix packages
 of both kinds. Which members form a cycle, and what the cycle depends on, is
 planned in the library repository by `dependency_cycle()` (`pub_graph.bzl`),
-which builds a cycle only where one is declared.
+which builds a cycle only where one is declared. Packages of the workspace that
+depend on each other are built the same way, by `dart_package_cycle`.
 """
 
 load("//dart:providers.bzl", "DartInfo", "DartPackageMetadataInfo")
-load("//dart/private:dart_library.bzl", "checked_package_info")
-load("//dart/private:dart_summary.bzl", "SUMMARY_ATTRS", "dart_info")
+load(
+    "//dart/private:dart_package_cycle.bzl",
+    _DartPackageMemberInfo = "DartPackageMemberInfo",
+    _dart_package_member_info = "dart_package_member_info",
+    _package_cycle_library = "package_cycle_library",
+)
+load("//dart/private:dart_summary.bzl", "SUMMARY_ATTRS")
 load("//dart/private:dart_test_runner.bzl", _pub_test_runner = "pub_test_runner")
 load("//dart/private:exec_groups.bzl", "PORTABLE_EXEC_GROUPS")
 load("//dart/private:runtime.bzl", "runtime_reset")
 load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS")
 
-DartPackageMemberInfo = provider(
-    doc = """One pub package's files and facts, for the library its dependency cycle is built as.
-
-Not a `DartInfo`: a member is not a library, and a `deps` attribute refuses \
-one. Build it with `dart_package_member_info()`, which checks the files and \
-makes the package record.""",
-    fields = {
-        "package": "DartPackageInfo: The package's record, for `dart_info(packages = ...)`.",
-        "srcs": "list[File]: Its Dart sources under `lib/`, for `dart_info(srcs = ...)`.",
-        "resources": "list[File]: Its other files under `lib/`, for `dart_info(resources = ...)`.",
-    },
-)
-
-def dart_package_member_info(label, metadata, srcs = [], resources = []):
-    """Builds the `DartPackageMemberInfo` of a pub package declared by a `dart_package_metadata`.
-
-    For a member rule: rules_dart's `pub_package_member`, or another rule set's
-    that returns this beside providers of its own. The package's facts are its
-    declaration's, and its root is the declaration's. Fails when a
-    file is not under the package's `lib/` or two resolve to the same path.
-
-    Args:
-      label: The member's label.
-      metadata: The `DartPackageMetadataInfo` of the package's
-        `dart_package_metadata`.
-      srcs: The package's `lib/**/*.dart` Files.
-      resources: The rest of its `lib/` Files.
-
-    Returns:
-      A `DartPackageMemberInfo`.
-    """
-    return DartPackageMemberInfo(
-        package = checked_package_info(label, metadata, srcs, resources),
-        srcs = srcs,
-        resources = resources,
-    )
+DartPackageMemberInfo = _DartPackageMemberInfo
+dart_package_member_info = _dart_package_member_info
 
 def _pub_package_member_impl(ctx):
     return [dart_package_member_info(
@@ -90,22 +62,12 @@ pub_package_member = rule(
 )
 
 def _pub_library_impl(ctx):
-    members = [m[DartPackageMemberInfo] for m in ctx.attr.members]
-    srcs = [f for m in members for f in m.srcs]
-    resources = [f for m in members for f in m.resources]
-    return [
-        DefaultInfo(
-            files = depset(srcs + resources),
-            runfiles = ctx.runfiles(files = srcs + resources),
-        ),
-        dart_info(
-            ctx = ctx,
-            packages = [m.package for m in members],
-            srcs = srcs,
-            resources = resources,
-            deps = ctx.attr.deps,
-        ),
-    ]
+    library = _package_cycle_library(
+        ctx,
+        [m[DartPackageMemberInfo] for m in ctx.attr.members],
+        ctx.attr.deps,
+    )
+    return [library.default_info, library.info]
 
 pub_library = rule(
     implementation = _pub_library_impl,
