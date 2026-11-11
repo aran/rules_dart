@@ -178,24 +178,6 @@ def program_packages(package, deps):
         depset(transitive = [dep[DartInfo].transitive_packages for dep in deps]).to_list(),
     )
 
-def collect_transitive_code_assets(package, deps):
-    """Collects `DartCodeAssetInfo` from every package of a program.
-
-    Args:
-      package: The program's own `DartPackageInfo`, or `None`; see
-        `program_packages`.
-      deps: List of targets providing `DartInfo`.
-
-    Returns:
-      List of `DartCodeAssetInfo`, the program's own package's first, then in
-      dependency order, with duplicates left in place — callers dedup by asset
-      id.
-    """
-    assets = []
-    for pkg in program_packages(package, deps):
-        assets.extend(list(package_code_assets(pkg)))
-    return assets
-
 def unique_data_assets(packages):
     """The data assets of `packages`, one per id.
 

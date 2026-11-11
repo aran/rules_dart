@@ -8,13 +8,11 @@ load(
     "EMPTY_PACKAGE_CONFIG_ATTR",
     "check_unreplaced_hooks",
     "code_asset_entries",
-    "collect_transitive_code_assets",
     "collect_transitive_resources",
     "collect_transitive_runfiles",
     "empty_package_config",
     "generate_native_assets_yaml",
     "launcher_executable",
-    "resolve_code_assets",
     "runfiles_path",
     "stage_code_assets",
     "target_dart_abi",
@@ -24,6 +22,7 @@ load("//dart/private:dart_import_check.bzl", "dart_import_check_aspect", "import
 load("//dart/private:dart_module.bzl", "KERNEL_TOOL_ATTR", "PROGRAM_KERNEL_SDK_ATTR", "whole_program_kernel")
 load("//dart/private:exec_groups.bzl", "PORTABLE_EXEC_GROUPS")
 load("//dart/private:executable_package.bzl", "EXECUTABLE_PACKAGE_ATTRS", "executable_package")
+load("//dart/private:program_assets.bzl", "UNLINKED_PROGRAM_ASSETS_ATTRS", "UNLINKED_PROGRAM_ASSETS_TOOLCHAINS", "dart_program_assets_actions")
 load("//dart/private:runtime.bzl", "dart_tool_reset")
 
 visibility("//dart/...")
@@ -96,19 +95,21 @@ def _dart_binary_impl(ctx):
     fe_flags, compile_flags = front_end_flags(ctx.attr.dart_compile_flags)
     code_asset_libs = []
 
-    # Assets reach a binary two ways: propagated from any of its packages that
-    # owns one, its own or one in `deps` (the upstream semantics — depending on
-    # a package gets you its assets), or named outright. The explicit attr is for
-    # hand-written cases. The
-    # mapping is embedded in the kernel, its `relative` paths resolved against
-    # the final executable at run time: each library is linked into
-    # `<name>.native/` beside it, so the path holds wherever the executable and
-    # that directory go together.
-    resolved_assets = resolve_code_assets(
-        ctx.label,
-        collect_transitive_code_assets(own.record, ctx.attr.deps) if ctx.attr.code_assets_from_packages else [],
-        [dep[DartCodeAssetInfo] for dep in ctx.attr.code_assets],
-    )
+    # What the binary loads is what its program ships, not linked: the assets
+    # of any of its packages, its own or one in `deps` (the upstream semantics —
+    # depending on a package gets you its assets), and those named outright, for
+    # hand-written cases. The mapping is embedded in the kernel, its `relative`
+    # paths resolved against the final executable at run time: each library is
+    # linked into `<name>.native/` beside it, so the path holds wherever the
+    # executable and that directory go together.
+    resolved_assets = dart_program_assets_actions(
+        ctx,
+        package = own.record if ctx.attr.code_assets_from_packages else None,
+        deps = ctx.attr.deps if ctx.attr.code_assets_from_packages else [],
+        # Beside the executable, `<name>`, which no directory may share.
+        name = ctx.label.name + ".program",
+        code_assets = [dep[DartCodeAssetInfo] for dep in ctx.attr.code_assets],
+    ).code_assets
     native_assets_yaml = None
     if resolved_assets:
         abi = target_dart_abi(ctx)
@@ -386,7 +387,7 @@ def _dart_binary_rule(check_imports, compile_runner = True, launcher = True):
     `kernel` mode does not tree-shake, so nothing is recorded and the file is \
     the empty JSON object `{}` (`kind = "empty"`).""",
                 ),
-            }, **dict(DART_ABI_CONSTRAINT_ATTRS, **dict(EXTRA_DART_DEFINES_ATTR, **dict(TRACK_CREATION_LOCATIONS_ATTR, **dict(SPLIT_DEBUG_INFO_ATTR, **EXECUTABLE_PACKAGE_ATTRS)))))))
+            }, **dict(DART_ABI_CONSTRAINT_ATTRS, **dict(EXTRA_DART_DEFINES_ATTR, **dict(TRACK_CREATION_LOCATIONS_ATTR, **dict(SPLIT_DEBUG_INFO_ATTR, **dict(UNLINKED_PROGRAM_ASSETS_ATTRS, **EXECUTABLE_PACKAGE_ATTRS))))))))
         ),
         executable = True,
         # rules_dart's own tools are the same program in every build that
@@ -395,7 +396,10 @@ def _dart_binary_rule(check_imports, compile_runner = True, launcher = True):
         cfg = None if check_imports else dart_tool_reset,
         # The default group compiles machine code for the target, so its SDK
         # matches the target; the kernel before it is `portable`.
-        toolchains = ["//dart:toolchain_type"],
+        toolchains = ["//dart:toolchain_type"] + UNLINKED_PROGRAM_ASSETS_TOOLCHAINS,
+        # The C++ toolchain links the native code a package links into each
+        # program (`linked_code_assets`).
+        fragments = ["cpp"],
         exec_groups = PORTABLE_EXEC_GROUPS,
         doc = "Compiles a Dart application using `dart compile`.",
     )

@@ -154,9 +154,11 @@ after step 1 does steps 6–8 and 23 for the BUILD files it writes.
     name)` → `dart_program_assets_actions(ctx, package, deps, name,
     recorded_uses)` (a `DartRecordedUsesInfo`, or `None` not to link), whose
     `info` is a `DartProgramAssetsInfo`; `link_hook_runner_attr()` →
-    `program_assets_attrs()`, beside `PROGRAM_ASSETS_TOOLCHAINS`.
-    `collect_transitive_code_assets` takes the program's package (see
-    `program_packages()`).
+    `program_assets_attrs()`, beside `PROGRAM_ASSETS_TOOLCHAINS` and
+    `fragments = ["cpp"]`. `collect_transitive_code_assets`,
+    `resolve_code_assets` and `code_asset_identity` → removed; a program's code
+    assets are what `dart_program_assets_actions()` returns (`code_assets`,
+    with the rule's own as its `code_assets` argument, or `info.manifest`).
 30. `DartKernelSdkInfo.runtime` → `aot_runtime`; `platform`/`defines` →
     `runtimes` (from `dart_kernel_runtime`).
 31. `dart_toolchain.sdk_root`, `DartSdkInfo.sdk_root`/`tool_files` →
@@ -2399,6 +2401,11 @@ bundle = rule(
   `link_hook_assets`. `program_asset_file(info, id)`
   returns one, and fails naming the `link_hook_assets` to add when it is not
   there.
+- The result's `code_assets` are the `DartCodeAssetInfo` of every code asset
+  the manifest lists, when all are known at analysis time (always, unlinked),
+  for a rule that maps them then; `dart_binary` and `dart_test` embed theirs
+  from it, with their own `code_assets` passed as its `code_assets` argument,
+  which replace the packages' under the same id.
 - The result's `validation_outputs` go in the rule's `_validation` output
   group, so every hook runs whenever the target builds.
 

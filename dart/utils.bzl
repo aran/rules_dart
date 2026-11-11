@@ -21,9 +21,7 @@ load(
     _EMPTY_PACKAGE_CONFIG_ATTR = "EMPTY_PACKAGE_CONFIG_ATTR",
     _PATH_MAPPING = "PATH_MAPPING",
     _add_kernel_roots = "add_kernel_roots",
-    _code_asset_identity = "code_asset_identity",
     _collect_packages = "collect_packages",
-    _collect_transitive_code_assets = "collect_transitive_code_assets",
     _collect_transitive_resources = "collect_transitive_resources",
     _collect_transitive_runfiles = "collect_transitive_runfiles",
     _collect_transitive_srcs = "collect_transitive_srcs",
@@ -39,7 +37,6 @@ load(
     _package_identity_attrs = "package_identity_attrs",
     _package_license_file = "package_license_file",
     _program_packages = "program_packages",
-    _resolve_code_assets = "resolve_code_assets",
     _resolve_package_identity = "resolve_package_identity",
     _runfiles_path = "runfiles_path",
 )
@@ -276,16 +273,9 @@ program_packages = _program_packages
 #     )
 collect_transitive_runfiles = _collect_transitive_runfiles
 
-# Code asset resolution, as `dart_binary` and `dart_test` do it, for a rule set
-# that stages a program's native libraries itself. `resolve_code_assets` unions
-# what `collect_transitive_code_assets(package, deps)` reaches with a target's
-# own `code_assets`, one asset per id, and fails on two definitions of one id as
-# `code_asset_identity` tells them apart. `package_code_assets` reads one
-# `DartPackageInfo`'s assets.
-code_asset_identity = _code_asset_identity
-collect_transitive_code_assets = _collect_transitive_code_assets
+# The code assets one `DartPackageInfo` declares. What a program ships is
+# `dart_program_assets_actions()`'s.
 package_code_assets = _package_code_assets
-resolve_code_assets = _resolve_code_assets
 
 # The data assets one `DartPackageInfo` declares, each a
 # `struct(package, name, file, id)` as `DartDataAssetInfo.assets` holds it. What
@@ -347,19 +337,21 @@ COPY_TO_DIRECTORY_TOOLCHAINS = _COPY_TO_DIRECTORY_TOOLCHAINS
 #         name = ctx.label.name,
 #         recorded_uses = uses,       # a DartRecordedUsesInfo to link, None not to
 #         code_config = config,       # linked: the target's, for code assets
+#         code_assets = own,          # the program's own DartCodeAssetInfo
 #     )
 #
-# `code_config` is what each link hook is told of a target that loads code
-# assets, upstream's `config.extensions.code_assets` object: a Dart VM
-# program's is `vm_code_config(ctx)`, and a target loading none (the web)
-# passes `None`.
-# returns `info`, the program's `DartProgramAssetsInfo`, and
-# `validation_outputs`, for an `_validation` output group. The packages are
-# `program_packages(package, deps)`. Linked, the link hooks run in `PORTABLE`:
-# the rule declares `PORTABLE_EXEC_GROUPS`, merges `program_assets_attrs()` into
-# its `attrs`, and declares `PROGRAM_ASSETS_TOOLCHAINS` in its `toolchains` and
-# `fragments = ["cpp"]`, with which it links a package's `linked_code_assets`
-# for the program.
+# It returns `info`, the program's `DartProgramAssetsInfo`; `validation_outputs`,
+# for an `_validation` output group; and `code_assets`, the `DartCodeAssetInfo`
+# of every code asset the manifest lists when all are known at analysis time
+# (always, unlinked), for a rule that maps them for the VM then. The packages
+# are `program_packages(package, deps)`. `code_config` is what each link hook
+# is told of a target that loads code assets, upstream's
+# `config.extensions.code_assets` object: a Dart VM program's is
+# `vm_code_config(ctx)`, and a target loading none (the web) passes `None`. The
+# link hooks run in `PORTABLE`: the rule declares `PORTABLE_EXEC_GROUPS`,
+# merges `program_assets_attrs()` into its `attrs`, and declares
+# `PROGRAM_ASSETS_TOOLCHAINS` in its `toolchains` and `fragments = ["cpp"]`,
+# with which it links a package's `linked_code_assets` for the program.
 # `program_asset_file(info, id)` is the file of one asset known at analysis
 # time, and fails naming the `link_hook_assets` to add when it is not.
 dart_program_assets_actions = _dart_program_assets_actions

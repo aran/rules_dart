@@ -18,7 +18,6 @@ load(
     "EMPTY_PACKAGE_CONFIG_ATTR",
     "check_unreplaced_hooks",
     "code_asset_entries",
-    "collect_transitive_code_assets",
     "collect_transitive_resources",
     "collect_transitive_runfiles",
     "empty_package_config",
@@ -26,7 +25,6 @@ load(
     "kernel_root_path",
     "launcher_executable",
     "relative_path",
-    "resolve_code_assets",
     "runfiles_path",
     "stage_code_assets",
     "target_dart_abi",
@@ -48,6 +46,7 @@ load(
 load("//dart/private:dart_test_runner.bzl", "DartTestRunnerInfo")
 load("//dart/private:exec_groups.bzl", "PORTABLE_EXEC_GROUPS")
 load("//dart/private:executable_package.bzl", "EXECUTABLE_PACKAGE_ATTRS", "executable_package")
+load("//dart/private:program_assets.bzl", "UNLINKED_PROGRAM_ASSETS_ATTRS", "UNLINKED_PROGRAM_ASSETS_TOOLCHAINS", "dart_program_assets_actions")
 load("//dart/private:project_staging.bzl", "test_working_directory")
 
 visibility("//dart/...")
@@ -242,11 +241,17 @@ def _code_assets(ctx, package, dill):
       `(native_assets_yaml, libraries)`: the mapping File, or `None` when the
       test has no code assets, and the libraries for its runfiles.
     """
-    assets = resolve_code_assets(
-        ctx.label,
-        collect_transitive_code_assets(package, ctx.attr.deps),
-        [dep[DartCodeAssetInfo] for dep in ctx.attr.code_assets],
-    )
+
+    # What the test loads is what its program ships, not linked: the assets
+    # of its packages, its own among them, and its own `code_assets`.
+    assets = dart_program_assets_actions(
+        ctx,
+        package = package,
+        deps = ctx.attr.deps,
+        # Beside the executable, `<name>`, which no directory may share.
+        name = ctx.label.name + ".program",
+        code_assets = [dep[DartCodeAssetInfo] for dep in ctx.attr.code_assets],
+    ).code_assets
     if not assets:
         return None, []
     abi = target_dart_abi(ctx)
@@ -517,12 +522,15 @@ entry does not run. A target none of whose cases remain fails. \
             executable = True,
             cfg = "target",
         ),
-    }, **dict(EMPTY_PACKAGE_CONFIG_ATTR, **dict(COVERAGE_ATTRS, **dict(DART_ABI_CONSTRAINT_ATTRS, **dict(KERNEL_LIST_ATTR, **dict(MODULAR_KERNEL_ATTR, **dict(RUNNER_SNAPSHOT_ATTR, **dict(EXTRA_DART_DEFINES_ATTR, **dict(TRACK_CREATION_LOCATIONS_ATTR, **dict(MODULE_EXECUTABLE_ATTRS, **dict(PROGRAM_KERNEL_SDK_ATTR, **dict(_ENVIRONMENT.attrs, **EXECUTABLE_PACKAGE_ATTRS)))))))))))),
+    }, **dict(EMPTY_PACKAGE_CONFIG_ATTR, **dict(COVERAGE_ATTRS, **dict(DART_ABI_CONSTRAINT_ATTRS, **dict(KERNEL_LIST_ATTR, **dict(MODULAR_KERNEL_ATTR, **dict(RUNNER_SNAPSHOT_ATTR, **dict(EXTRA_DART_DEFINES_ATTR, **dict(TRACK_CREATION_LOCATIONS_ATTR, **dict(MODULE_EXECUTABLE_ATTRS, **dict(PROGRAM_KERNEL_SDK_ATTR, **dict(_ENVIRONMENT.attrs, **dict(UNLINKED_PROGRAM_ASSETS_ATTRS, **EXECUTABLE_PACKAGE_ATTRS))))))))))))),
     test = True,
     # The compiles are `portable`. The run is Bazel's own `test` group, which
     # puts it on a host matching the target: everything it runs, the VM and
     # native `code_assets` included, is built for the target.
-    toolchains = ["//dart:toolchain_type"],
+    toolchains = ["//dart:toolchain_type"] + UNLINKED_PROGRAM_ASSETS_TOOLCHAINS,
+    # The C++ toolchain links the native code a package links into each
+    # program (`linked_code_assets`).
+    fragments = ["cpp"],
     exec_groups = PORTABLE_EXEC_GROUPS,
     doc = (
         "Compiles a Dart test to a kernel at build time and runs it with " +

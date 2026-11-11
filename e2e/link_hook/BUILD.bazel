@@ -337,6 +337,33 @@ dart_test(
     deps = ["@rules_dart//dart/runfiles"],
 )
 
+# A binary and a test load the library `trim` links into every program as
+# their program ships it, not linked: whole.
+dart_test(
+    name = "trim_native_test",
+    size = "small",
+    main = "trim_native_test.dart",
+    deps = ["//trim"],
+)
+
+dart_binary(
+    name = "trim_app",
+    main = "trim_app.dart",
+    deps = ["//trim"],
+)
+
+dart_test(
+    name = "trim_app_test",
+    size = "small",
+    args = [
+        "$(rlocationpath :trim_app)",
+        "5",
+    ],
+    data = [":trim_app"],
+    main = "run_test.dart",
+    deps = ["@rules_dart//dart/runfiles"],
+)
+
 # The program's own package, `jingle`, declares data assets and a link hook,
 # and no library of it is in `deps`: linked, its hook keeps the tune; not
 # linked, the program ships both of its sounds.

@@ -184,14 +184,19 @@ def _entry_id(entry):
 def _sorted_entries(entries):
     return sorted(entries, key = _entry_id)
 
+# What an unlinked program's assets need beside `DART_ABI_CONSTRAINT_ATTRS`:
+# how the target's linker names a library's exports.
+UNLINKED_PROGRAM_ASSETS_ATTRS = {
+    "_os_ios": attr.label(default = "@platforms//os:ios"),
+}
+
 def program_assets_attrs():
     """The private attributes a rule calling `dart_program_assets_actions` declares.
 
     Returns:
       A dict to merge into the rule's `attrs`.
     """
-    return DART_ABI_CONSTRAINT_ATTRS | {
-        "_os_ios": attr.label(default = "@platforms//os:ios"),
+    return DART_ABI_CONSTRAINT_ATTRS | UNLINKED_PROGRAM_ASSETS_ATTRS | {
         "_link_exports": attr.label(
             default = "//dart/private/tools:link_exports",
             executable = True,
@@ -209,10 +214,13 @@ def program_assets_attrs():
         ),
     }
 
-# What a rule calling `dart_program_assets_actions` declares in `toolchains`:
-# the C++ toolchain links a package's `linked_code_assets`, and is needed only
-# by a program with one.
-PROGRAM_ASSETS_TOOLCHAINS = COPY_TO_DIRECTORY_TOOLCHAINS + use_cc_toolchain(mandatory = False)
+# What an unlinked program's assets need in `toolchains`: the C++ toolchain
+# links a package's `linked_code_assets`, and is needed only by a program with
+# one.
+UNLINKED_PROGRAM_ASSETS_TOOLCHAINS = use_cc_toolchain(mandatory = False)
+
+# What a rule calling `dart_program_assets_actions` declares in `toolchains`.
+PROGRAM_ASSETS_TOOLCHAINS = COPY_TO_DIRECTORY_TOOLCHAINS + UNLINKED_PROGRAM_ASSETS_TOOLCHAINS
 
 def vm_code_config(ctx):
     """Upstream's code-asset configuration of a Dart VM program for the target platform.
@@ -230,7 +238,7 @@ def vm_code_config(ctx):
         "target_os": os,
     }
 
-def dart_program_assets_actions(ctx, package, deps, name, recorded_uses = None, code_config = None):
+def dart_program_assets_actions(ctx, package, deps, name, recorded_uses = None, code_config = None, code_assets = []):
     """What a program ships; the operation `dart_program_assets` performs.
 
     For a rule that bundles a program itself, or compiles its own kernel and
@@ -262,20 +270,28 @@ def dart_program_assets_actions(ctx, package, deps, name, recorded_uses = None, 
         `vm_code_config(ctx)` for a Dart VM program. `None` for a target that
         loads none (the web), whose packages with a link hook may declare
         none.
+      code_assets: The program's own `DartCodeAssetInfo`, which ship as they
+        are and replace any of its packages' under the same id: how a test
+        loads a differently built library under the id a package declares.
 
     Returns:
-      A struct: `info` (the program's `DartProgramAssetsInfo`) and
+      A struct: `info` (the program's `DartProgramAssetsInfo`),
       `validation_outputs` (Files to put in an `_validation` output group, so
       that every link hook runs whenever the target builds, whatever its
-      consumers read).
+      consumers read) and `code_assets` (the `DartCodeAssetInfo` of every code
+      asset the program ships, the same ones `info.manifest` lists, when all
+      are known at analysis time, as when it is not linked; `None` when a link
+      hook decides which ship).
     """
     packages = program_packages(package, deps)
     data_assets, err = unique_data_assets(packages)
     if err != None:
         fail("%s: %s" % (ctx.label, err))
+    own_code = resolve_code_assets(ctx.label, [], code_assets)
+    replaced = {a.asset_id: True for a in own_code}
     code_assets = resolve_code_assets(
         ctx.label,
-        [asset for pkg in packages for asset in package_code_assets(pkg)],
+        [asset for pkg in packages for asset in package_code_assets(pkg) if asset.asset_id not in replaced],
         [],
     )
     hooked = {}
@@ -291,7 +307,8 @@ def dart_program_assets_actions(ctx, package, deps, name, recorded_uses = None, 
         _native_link(ctx, pkg, linked, recorded_uses, name)
         for pkg in packages
         for linked in package_linked_code_assets(pkg)
-    ]
+        if linked.asset_id not in replaced
+    ] + own_code
     entries = [_data_entry(a) for a in shipped_data] + [_code_entry(a) for a in shipped_code]
     known = {a.id: a.file for a in shipped_data}
     known.update({a.asset_id: a.file for a in shipped_code if a.file != None})
@@ -306,6 +323,7 @@ def dart_program_assets_actions(ctx, package, deps, name, recorded_uses = None, 
         return struct(
             info = DartProgramAssetsInfo(manifest = manifest, files = depset(files), known = known),
             validation_outputs = [],
+            code_assets = shipped_code,
         )
 
     linked = _link_hook_actions(
@@ -345,6 +363,7 @@ def dart_program_assets_actions(ctx, package, deps, name, recorded_uses = None, 
             known = known,
         ),
         validation_outputs = [manifest],
+        code_assets = None if [a for a in code_assets if _asset_package(a.asset_id) in hooked] else shipped_code,
     )
 
 def _asset_package(asset_id):
