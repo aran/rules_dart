@@ -16,7 +16,7 @@ dart_package_metadata(
 dart_codegen(
     name = "_event_freezed_gen",
     src = "lib/event.dart",
-    generator_bin = "@rules_dart//dart/ext/freezed:shim",
+    generator = "@rules_dart//dart/ext/freezed:shim",
     output_suffixes = [".freezed.dart"],
     package = ":pubspec-metadata",
     deps = ["@pub_deps//:freezed_annotation"],

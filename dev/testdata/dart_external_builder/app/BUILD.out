@@ -21,7 +21,7 @@ dart_codegen(
     name = "_user_greeting_gen",
     src = "lib/user.dart",
     config = "{\"salutation\":\"Hello\"}",
-    generator_bin = "@greeting_rules//ext:shim",
+    generator = "@greeting_rules//ext:shim",
     output_suffixes = [".greeting.g.part"],
     package = ":pubspec-metadata",
     deps = [
@@ -33,7 +33,7 @@ dart_codegen(
 dart_codegen(
     name = "_user_json_serializable_gen",
     src = "lib/user.dart",
-    generator_bin = "@rules_dart//dart/ext/json_serializable:shim",
+    generator = "@rules_dart//dart/ext/json_serializable:shim",
     output_suffixes = [".json_serializable.g.part"],
     package = ":pubspec-metadata",
     deps = [
@@ -45,7 +45,7 @@ dart_codegen(
 dart_codegen(
     name = "_user_combined",
     src = "lib/user.dart",
-    generator_bin = "@rules_dart//dart/ext/combining_shim:bin",
+    generator = "@rules_dart//dart/ext/combining_shim:bin",
     output_suffixes = [".g.dart"],
     package = ":pubspec-metadata",
     parts = [

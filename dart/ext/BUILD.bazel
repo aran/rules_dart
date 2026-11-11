@@ -50,7 +50,10 @@ dart_package_metadata(
 builder_shim_library(
     name = "builder_shim",
     pub_hub = "@ext_pub_deps",
-    visibility = ["//dart/ext:__subpackages__"],
+    visibility = [
+        "//dart/ext:__subpackages__",
+        "//dart/tests:__subpackages__",
+    ],
 )
 
 dart_test(

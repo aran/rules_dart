@@ -203,16 +203,6 @@ so `bazel test //...` checks every `dart/ext/<builder>/` binary, which is what
 catches a type error in a shim at its source rather than downstream in
 whatever the generated output does wrong.
 
-The path a generator takes to the rule decides what there is to analyze.
-`generator_bin` is already a target, so the same label serves both. A bare
-`generator`/`generator_script` resolves to a file, and the script runs as
-`dart <script>` with no package resolution of its own — `dart:` core
-imports only, and no providers for an analysis rule to read. Declare a
-`dart_binary` over that source as an analysis handle and leave the codegen
-call alone: promoting the script to `generator_bin` to gain a target would
-enlist it in the worker protocol above, which a plain `dart_binary` does
-not speak. `e2e/codegen/tools/BUILD.bazel` is the worked example.
-
 ## The Resolver
 
 `_ShimAnalyzerResolver` in `builder_shim.dart` implements the

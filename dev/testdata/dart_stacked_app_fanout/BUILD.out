@@ -13,7 +13,7 @@ dart_package_metadata(
 dart_codegen(
     name = "_app_stacked_app_bottomsheets_gen",
     src = "lib/app.dart",
-    generator_bin = "@rules_dart//dart/ext/stacked:shim_bottomsheet",
+    generator = "@rules_dart//dart/ext/stacked:shim_bottomsheet",
     output_suffixes = [".bottomsheets.dart"],
     package = ":pubspec-metadata",
     deps = ["@stacked"],
@@ -22,7 +22,7 @@ dart_codegen(
 dart_codegen(
     name = "_app_stacked_app_dialogs_gen",
     src = "lib/app.dart",
-    generator_bin = "@rules_dart//dart/ext/stacked:shim_dialog",
+    generator = "@rules_dart//dart/ext/stacked:shim_dialog",
     output_suffixes = [".dialogs.dart"],
     package = ":pubspec-metadata",
     deps = ["@stacked"],
@@ -31,7 +31,7 @@ dart_codegen(
 dart_codegen(
     name = "_app_stacked_app_locator_gen",
     src = "lib/app.dart",
-    generator_bin = "@rules_dart//dart/ext/stacked:shim_locator",
+    generator = "@rules_dart//dart/ext/stacked:shim_locator",
     output_suffixes = [".locator.dart"],
     package = ":pubspec-metadata",
     deps = ["@stacked"],
@@ -40,7 +40,7 @@ dart_codegen(
 dart_codegen(
     name = "_app_stacked_app_logger_gen",
     src = "lib/app.dart",
-    generator_bin = "@rules_dart//dart/ext/stacked:shim_logger",
+    generator = "@rules_dart//dart/ext/stacked:shim_logger",
     output_suffixes = [".logger.dart"],
     package = ":pubspec-metadata",
     deps = ["@stacked"],
@@ -49,7 +49,7 @@ dart_codegen(
 dart_codegen(
     name = "_app_stacked_app_router_gen",
     src = "lib/app.dart",
-    generator_bin = "@rules_dart//dart/ext/stacked:shim_router",
+    generator = "@rules_dart//dart/ext/stacked:shim_router",
     output_suffixes = [".router.dart"],
     package = ":pubspec-metadata",
     deps = ["@stacked"],

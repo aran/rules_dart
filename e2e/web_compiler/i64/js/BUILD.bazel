@@ -10,11 +10,8 @@ dart_package_metadata(
 dart_codegen(
     name = "i64_g",
     src = "lib/i64.dart",
-    generator = "//tools:variant_gen.dart",
-    generator_args = [
-        "--variant",
-        "js",
-    ],
+    config = json.encode({"variant": "js"}),
+    generator = "//tools:variant_gen",
     output_suffixes = [".g.dart"],
     package = ":pubspec-metadata",
 )

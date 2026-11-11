@@ -1,0 +1,15 @@
+load("//dart:defs.bzl", "dart_binary")
+
+# The generator the codegen fixtures under `dart/tests` run: a `package:build`
+# Builder behind rules_dart's shim, as every generator is.
+dart_binary(
+    name = "generator",
+    srcs = ["generator.dart"],
+    code_assets_from_packages = False,
+    main = "generator.dart",
+    visibility = ["//dart/tests:__subpackages__"],
+    deps = [
+        "//dart/ext:builder_shim",
+        "@ext_pub_deps//:build",
+    ],
+)

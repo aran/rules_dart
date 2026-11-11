@@ -15,7 +15,7 @@ Usage:
     dart_sqlcodegen(
         name = "schema_prep",
         src = "schema.drift",
-        generator_bin = "@rules_dart//dart/ext/drift:shim_prep",
+        generator = "@rules_dart//dart/ext/drift:shim_prep",
         output_suffixes = [".drift_prep.json"],
         package = ":pubspec-metadata",
         deps = ["@pub_deps//:drift"],
@@ -110,7 +110,7 @@ def _dart_sqlcodegen_impl(ctx):
     transitive = ([package_files] if package_files != None else []) + [sdk_files]
 
     ctx.actions.run(
-        executable = ctx.executable.generator_bin,
+        executable = ctx.executable.generator,
         arguments = [args],
         inputs = depset(direct = direct, transitive = transitive),
         outputs = outputs,
@@ -144,9 +144,11 @@ dart_sqlcodegen = rule(
             mandatory = True,
             allow_single_file = True,
         ),
-        "generator_bin": attr.label(
-            doc = "Pre-compiled generator executable matching the " +
-                  "rules_dart shim CLI contract.",
+        "generator": attr.label(
+            doc = "The generator: an executable speaking the rules_dart " +
+                  "shim contract, persistent-worker protocol included " +
+                  "(see `dart_codegen.generator`). Built for the execution " +
+                  "platform.",
             executable = True,
             cfg = config.exec(PORTABLE),
             mandatory = True,

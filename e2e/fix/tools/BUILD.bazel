@@ -1,9 +1,24 @@
 load("@rules_dart//dart:defs.bzl", "dart_binary")
+load("@rules_dart//dart/ext:defs.bzl", "builder_shim_library")
 
-# Run as a plain script by `dart_codegen`, so it ships as a source file.
-exports_files(
-    ["part_gen.dart"],
+exports_files(["pubspec.lock"])
+
+builder_shim_library(
+    name = "builder_shim",
+    pub_hub = "@generator_pub_deps",
+)
+
+# The fixtures' generator: a Builder behind rules_dart's shim runner.
+dart_binary(
+    name = "part_gen",
+    srcs = ["part_gen.dart"],
+    code_assets_from_packages = False,
+    main = "part_gen.dart",
     visibility = ["//visibility:public"],
+    deps = [
+        ":builder_shim",
+        "@generator_pub_deps//:build",
+    ],
 )
 
 # Runs as an action executable, which a source file cannot be.

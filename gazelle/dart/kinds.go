@@ -180,11 +180,11 @@ var _primitiveDartKinds = map[string]rule.KindInfo{
 	// Code-gen primitives. Emitted by Gazelle's DAG-synthesis when
 	// annotations are detected; also usable by hand.
 	"dart_codegen": {
-		MatchAttrs:    []string{"src", "generator_bin"},
+		MatchAttrs:    []string{"src", "generator"},
 		NonEmptyAttrs: map[string]bool{"src": true},
 		MergeableAttrs: map[string]bool{
 			"src":             true,
-			"generator_bin":   true,
+			"generator":       true,
 			"output_suffixes": true,
 			"deps":            true,
 			"asset_deps":      true,
@@ -197,11 +197,11 @@ var _primitiveDartKinds = map[string]rule.KindInfo{
 		ResolveAttrs: map[string]bool{"deps": true},
 	},
 	"dart_aggregate_codegen": {
-		MatchAttrs:    []string{"srcs", "generator_bin"},
+		MatchAttrs:    []string{"srcs", "generator"},
 		NonEmptyAttrs: map[string]bool{"srcs": true},
 		MergeableAttrs: map[string]bool{
 			"srcs":           true,
-			"generator_bin":  true,
+			"generator":      true,
 			"outputs":        true,
 			"deps":           true,
 			"generator_args": true,
@@ -209,11 +209,11 @@ var _primitiveDartKinds = map[string]rule.KindInfo{
 		},
 	},
 	"dart_sqlcodegen": {
-		MatchAttrs:    []string{"src", "generator_bin"},
+		MatchAttrs:    []string{"src", "generator"},
 		NonEmptyAttrs: map[string]bool{"src": true},
 		MergeableAttrs: map[string]bool{
 			"src":             true,
-			"generator_bin":   true,
+			"generator":       true,
 			"output_suffixes": true,
 			"deps":            true,
 			"data":            true,

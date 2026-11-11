@@ -5,7 +5,8 @@ load("//dart:defs.bzl", "dart_codegen", "dart_library")
 dart_codegen(
     name = "model_g",
     src = "lib/model.dart",
-    generator = "part_generator.dart",
+    config = json.encode({"content": "part of 'model.dart';\n"}),
+    generator = "//dart/tests/fixture_generator:generator",
     output_suffixes = [".g.dart"],
     # The stand-in generator writes an empty part: analysis only.
     tags = ["manual"],

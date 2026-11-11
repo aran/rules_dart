@@ -12,7 +12,7 @@ dart_package_metadata(
 dart_codegen(
     name = "via_package_gen",
     src = "lib/via_package.dart",
-    generator = "//tools:lib_gen.dart",
+    generator = "//tools:lib_gen",
     output_suffixes = [".g.dart"],
     package = ":pubspec-metadata",
 )
@@ -20,7 +20,7 @@ dart_codegen(
 dart_codegen(
     name = "via_relative_gen",
     src = "lib/via_relative.dart",
-    generator = "//tools:lib_gen.dart",
+    generator = "//tools:lib_gen",
     output_suffixes = [".g.dart"],
     package = ":pubspec-metadata",
 )

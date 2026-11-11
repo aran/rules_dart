@@ -4,7 +4,7 @@ Unlike per-file `dart_codegen`, `dart_aggregate_codegen` takes ALL sources
 in a Dart package and produces one or more aggregate outputs. Used by
 any `PackageBuilder` that needs a whole-package view of metadata.
 
-The generator (`generator_bin` binary or `generator_script`) receives:
+The generator receives:
 
   - `--input <path>`: the primary input (first entry in `srcs`).
   - `--input-asset <asset>`: the primary's Dart asset path.
@@ -28,7 +28,7 @@ Usage:
     dart_aggregate_codegen(
         name = "di_config",
         srcs = [":metadata_shards"] + SAME_PACKAGE_SOURCES,
-        generator_bin = "//tools:my_aggregate_shim",
+        generator = "//tools:my_aggregate_shim",
         outputs = ["lib/main.config.dart", "lib/main.module.dart"],
         deps = ["@pub_deps//:my_annotations"],
         package = ":pubspec-metadata",
@@ -39,8 +39,9 @@ Usage:
 `package_config.json` for the shim's analyzer; any same-package sibling
 not already in `srcs` is auto-staged as `--dep`.
 
-Worker mode (`supports-workers=1`, protobuf, singleplex) is enabled for
-`generator_bin` actions; worker requests go through `dart/ext/lib/worker_entry.dart`.
+Actions run through a persistent Bazel worker (`supports-workers=1`,
+protobuf, singleplex), so the generator must speak that protocol; worker
+requests go through `dart/ext/lib/worker_entry.dart`.
 """
 
 load("//dart:providers.bzl", "DartInfo")
@@ -66,12 +67,6 @@ def _dart_aggregate_codegen_impl(ctx):
     identity = resolve_package_identity(ctx)
     dart_sdk_info = portable_sdk(ctx)
 
-    if ctx.file.generator_script and ctx.executable.generator_bin:
-        fail("%s: only one of `generator_bin` or `generator_script` may be set." %
-             ctx.label)
-    if not ctx.file.generator_script and not ctx.executable.generator_bin:
-        fail("%s: either `generator_bin` or `generator_script` must be set." %
-             ctx.label)
     if not ctx.attr.outputs:
         fail("%s: `outputs` must contain at least one path." % ctx.label)
     if not ctx.files.srcs:
@@ -97,12 +92,9 @@ def _dart_aggregate_codegen_impl(ctx):
 
     args = ctx.actions.args()
 
-    # Configure param-file up-front when a worker binary is used so the
-    # flagfile convention (`@<path>`, multiline) is set before any args
-    # are added. Matches `dart_codegen`'s ordering.
-    if ctx.executable.generator_bin:
-        args.use_param_file("@%s", use_always = True)
-        args.set_param_file_format("multiline")
+    # Worker mode requires a single `@flagfile` arg (`@<path>`, multiline).
+    args.use_param_file("@%s", use_always = True)
+    args.set_param_file_format("multiline")
     primary = ctx.files.srcs[0]
     args.add("--input", primary)
     args.add("--input-asset", asset_path_for(primary, package_root))
@@ -127,36 +119,20 @@ def _dart_aggregate_codegen_impl(ctx):
     # What the generator's analyzer reads of the SDK at `--sdk-path`.
     transitive.append(dart_sdk_info.files.codegen)
 
-    if ctx.executable.generator_bin:
-        ctx.actions.run(
-            executable = ctx.executable.generator_bin,
-            arguments = [args],
-            inputs = depset(direct = direct_inputs, transitive = transitive),
-            outputs = outputs,
-            mnemonic = "DartAggregateCodegen",
-            exec_group = PORTABLE,
-            progress_message = "DartAggregateCodegen %s" % ctx.label,
-            execution_requirements = PATH_MAPPING | {
-                "supports-workers": "1",
-                "requires-worker-protocol": "proto",
-                "worker-key-mnemonic": "DartAggregateCodegen",
-            },
-        )
-    else:
-        ctx.actions.run(
-            executable = dart_sdk_info.dart,
-            arguments = [ctx.actions.args().add(ctx.file.generator_script), args],
-            inputs = depset(
-                direct = [ctx.file.generator_script] + direct_inputs,
-                # A script runs in the VM besides.
-                transitive = transitive + [dart_sdk_info.files.run],
-            ),
-            outputs = outputs,
-            mnemonic = "DartAggregateCodegen",
-            exec_group = PORTABLE,
-            progress_message = "DartAggregateCodegen %s" % ctx.label,
-            execution_requirements = PATH_MAPPING,
-        )
+    ctx.actions.run(
+        executable = ctx.executable.generator,
+        arguments = [args],
+        inputs = depset(direct = direct_inputs, transitive = transitive),
+        outputs = outputs,
+        mnemonic = "DartAggregateCodegen",
+        exec_group = PORTABLE,
+        progress_message = "DartAggregateCodegen %s" % ctx.label,
+        execution_requirements = PATH_MAPPING | {
+            "supports-workers": "1",
+            "requires-worker-protocol": "proto",
+            "worker-key-mnemonic": "DartAggregateCodegen",
+        },
+    )
 
     return [
         DefaultInfo(files = depset(outputs)),
@@ -193,17 +169,14 @@ dart_aggregate_codegen = rule(
                   "`--dep`.",
             providers = [DartInfo],
         ),
-        "generator_bin": attr.label(
-            doc = "Pre-compiled generator executable matching the " +
-                  "rules_dart shim CLI contract. Mutually exclusive " +
-                  "with `generator_script`.",
+        "generator": attr.label(
+            doc = "The generator: an executable speaking the rules_dart " +
+                  "shim contract, persistent-worker protocol included " +
+                  "(see `dart_codegen.generator`). Built for the execution " +
+                  "platform.",
+            mandatory = True,
             executable = True,
             cfg = config.exec(PORTABLE),
-        ),
-        "generator_script": attr.label(
-            doc = "A `.dart` script the SDK's `dart` runs as the " +
-                  "generator. Mutually exclusive with `generator_bin`.",
-            allow_single_file = [".dart"],
         ),
         "outputs": attr.string_list(
             doc = "Output file paths (package-relative). One entry per " +

@@ -1,19 +1,22 @@
-import 'dart:io';
+import 'package:build/build.dart';
+import 'package:rules_dart_ext/worker_entry.dart';
 
-/// Emits a one-line metadata shard for the input source — the stand-in for
-/// a per-file metadata stage (e.g. `.metadata.json` shards).
-/// Contract: `dart shard_gen.dart --input <src> --output <path> [...]`
-void main(List<String> args) {
-  String? input;
-  String? output;
-  for (var i = 0; i < args.length - 1; i++) {
-    if (args[i] == '--input') input = args[i + 1];
-    if (args[i] == '--output') output = args[i + 1];
+/// Emits a one-line metadata shard for its input: the stand-in for a per-file
+/// metadata stage (e.g. `.metadata.json` shards).
+Future<void> main(List<String> args) => shimMain(args, (_) => _ShardBuilder());
+
+class _ShardBuilder implements Builder {
+  // The shim takes the outputs from the rule's declared ones.
+  @override
+  Map<String, List<String>> get buildExtensions => const {
+    '.dart': ['.shard.json'],
+  };
+
+  @override
+  Future<void> build(BuildStep buildStep) async {
+    final base = buildStep.inputId.pathSegments.last;
+    for (final output in buildStep.allowedOutputs) {
+      await buildStep.writeAsString(output, 'shard-for:$base\n');
+    }
   }
-  if (input == null || output == null) {
-    stderr.writeln('Usage: shard_gen.dart --input <file> --output <file>');
-    exit(1);
-  }
-  final base = Uri.file(input).pathSegments.last;
-  File(output).writeAsStringSync('shard-for:$base\n');
 }

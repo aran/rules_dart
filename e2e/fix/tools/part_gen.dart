@@ -6,36 +6,36 @@
 // hand-written library resolves `ModelBase` and `modelLabel` out of these parts
 // while the fix rule has them excluded.
 //
-// Contract (the subset of the shim contract this needs):
-//   --input <path> --output <path> [--violation]
-import 'dart:io';
+// Options: `violation` (bool) writes the parts with a lint `dart fix` rewrites.
+import 'package:build/build.dart';
+import 'package:rules_dart_ext/worker_entry.dart';
 
-void main(List<String> args) {
-  String? input;
-  String? output;
-  var violation = false;
-  for (var i = 0; i < args.length; i++) {
-    switch (args[i]) {
-      case '--input':
-        input = args[++i];
-      case '--output':
-        output = args[++i];
-      case '--violation':
-        violation = true;
-    }
-  }
-  if (input == null || output == null) {
-    stderr.writeln(
-      'Usage: part_gen.dart --input <file> --output <file> [--violation]',
-    );
-    exit(64);
-  }
+Future<void> main(List<String> args) => shimMain(
+  args,
+  (options) => _PartBuilder(violation: options.config['violation'] == true),
+);
 
-  // `prefer_final_locals` fires on `var`, so one keyword is the whole
-  // difference between a part `dart fix` wants to rewrite and one it does not.
-  final keyword = violation ? 'var' : 'final';
-  final body = output.endsWith('.g.dart')
-      ? '''
+class _PartBuilder implements Builder {
+  _PartBuilder({required this.violation});
+
+  final bool violation;
+
+  // The shim takes the outputs from the rule's declared ones.
+  @override
+  Map<String, List<String>> get buildExtensions => const {
+    '.dart': ['.g.dart', '.freezed.dart'],
+  };
+
+  @override
+  Future<void> build(BuildStep buildStep) async {
+    final input = buildStep.inputId.pathSegments.last;
+    // `prefer_final_locals` fires on `var`, so one keyword is the whole
+    // difference between a part `dart fix` wants to rewrite and one it does
+    // not.
+    final keyword = violation ? 'var' : 'final';
+    for (final output in buildStep.allowedOutputs) {
+      final body = output.path.endsWith('.g.dart')
+          ? '''
 abstract class ModelBase {
   String describe();
 
@@ -45,16 +45,17 @@ abstract class ModelBase {
   }
 }
 '''
-      : '''
+          : '''
 String modelLabel() {
   $keyword label = 'generated';
   return label;
 }
 ''';
-
-  File(output).writeAsStringSync('''
+      await buildStep.writeAsString(output, '''
 // GENERATED CODE - DO NOT MODIFY BY HAND
-part of '${Uri.file(input).pathSegments.last}';
+part of '$input';
 
 $body''');
+    }
+  }
 }

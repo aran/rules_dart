@@ -23,8 +23,8 @@ dart_package_metadata(
 dart_codegen(
     name = "model_g",
     src = "lib/model.dart",
-    generator = "//tools:part_gen.dart",
-    generator_args = ["--violation"],
+    config = json.encode({"violation": True}),
+    generator = "//tools:part_gen",
     output_suffixes = [".g.dart"],
     package = ":pubspec-metadata",
 )
@@ -32,8 +32,8 @@ dart_codegen(
 dart_codegen(
     name = "model_freezed",
     src = "lib/model.dart",
-    generator = "//tools:part_gen.dart",
-    generator_args = ["--violation"],
+    config = json.encode({"violation": True}),
+    generator = "//tools:part_gen",
     output_suffixes = [".freezed.dart"],
     package = ":pubspec-metadata",
 )

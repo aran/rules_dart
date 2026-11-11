@@ -1,0 +1,19 @@
+name: web_compiler_e2e_tools
+publish_to: none
+description: >
+  The pub resolution of the fixture generator: package:build and the shim
+  runner it links (`builder_shim_library` lists what that needs).
+environment:
+  sdk: ^3.12.0
+dependencies:
+  analyzer: ^14.5.0
+  args: ^2.5.0
+  bazel_worker: ^1.1.0
+  build: ^4.0.0
+  crypto: ^3.0.0
+  glob: ^2.1.0
+  logging: ^1.3.0
+  package_config: ^3.0.0
+  path: ^1.9.0
+  pub_semver: ^2.2.0
+  yaml: ^3.1.0

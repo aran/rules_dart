@@ -76,7 +76,7 @@ executable_package_refused_test(
 dart_codegen(
     name = "misnamed_g",
     src = "test/member_test.dart",
-    generator = "//dart/tests/package_fixture:gen.dart",
+    generator = "//dart/tests/fixture_generator:generator",
     output_suffixes = [".g.dart"],
     tags = ["manual"],
 )

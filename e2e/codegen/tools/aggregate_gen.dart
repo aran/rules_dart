@@ -1,44 +1,38 @@
-import 'dart:io';
+import 'package:build/build.dart';
+import 'package:glob/glob.dart';
+import 'package:rules_dart_ext/worker_entry.dart';
 
-/// Aggregate-stage generator: records the asset paths the rule layer
-/// computed for the primary input and every extra input, plus each extra's
-/// content (read from its exec path). Lets tests assert that generated
-/// inputs reaching `dart_aggregate_codegen` carry correct in-package asset
-/// paths even when the codegen targets live in a different Bazel package
-/// than the Dart package root.
-///
-/// Contract (subset of the shim contract):
-/// - `--input <path> --input-asset <asset> --output <path>`
-/// - `--input-asset-extra <exec>|<asset>` (repeatable)
-void main(List<String> args) {
-  String? inputAsset;
-  String? output;
-  final extras = <String>[];
-  for (var i = 0; i < args.length - 1; i++) {
-    switch (args[i]) {
-      case '--input-asset':
-        inputAsset = args[i + 1];
-      case '--output':
-        output = args[i + 1];
-      case '--input-asset-extra':
-        extras.add(args[i + 1]);
+/// Aggregate-stage generator: records the asset path of the primary input and
+/// of every shard the aggregate sees, with each shard's content. Lets tests
+/// assert that generated inputs reaching `dart_aggregate_codegen` carry
+/// correct in-package asset paths even when the codegen targets live in a
+/// different Bazel package than the Dart package root.
+Future<void> main(List<String> args) =>
+    shimMain(args, (_) => _AggregateBuilder());
+
+class _AggregateBuilder implements Builder {
+  // The shim takes the outputs from the rule's declared ones.
+  @override
+  Map<String, List<String>> get buildExtensions => const {
+    '.dart': ['.agg.dart'],
+  };
+
+  @override
+  Future<void> build(BuildStep buildStep) async {
+    final buf = StringBuffer()
+      ..writeln('// input-asset: ${buildStep.inputId.path}');
+    final shards = await buildStep
+        .findAssets(Glob('lib/**.shard.json'))
+        .toList();
+    shards.sort((a, b) => a.path.compareTo(b.path));
+    for (final shard in shards) {
+      final content = await buildStep.readAsString(shard);
+      buf
+        ..writeln('// extra-asset: ${shard.path}')
+        ..writeln('// extra-content: ${content.trim()}');
+    }
+    for (final output in buildStep.allowedOutputs) {
+      await buildStep.writeAsString(output, buf.toString());
     }
   }
-  if (inputAsset == null || output == null) {
-    stderr.writeln(
-      'Usage: aggregate_gen.dart --input-asset <asset> --output <file> '
-      '[--input-asset-extra <exec>|<asset> ...]',
-    );
-    exit(1);
-  }
-  final buf = StringBuffer()..writeln('// input-asset: $inputAsset');
-  for (final extra in extras) {
-    final sep = extra.indexOf('|');
-    final exec = extra.substring(0, sep);
-    final asset = extra.substring(sep + 1);
-    buf
-      ..writeln('// extra-asset: $asset')
-      ..writeln('// extra-content: ${File(exec).readAsStringSync().trim()}');
-  }
-  File(output).writeAsStringSync(buf.toString());
 }

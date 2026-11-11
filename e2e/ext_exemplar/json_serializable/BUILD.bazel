@@ -34,7 +34,7 @@ dart_package_metadata(
 dart_codegen(
     name = "_primitive_user_json_part",
     src = "lib/primitive_user.dart",
-    generator_bin = "@rules_dart//dart/ext/json_serializable:shim",
+    generator = "@rules_dart//dart/ext/json_serializable:shim",
     output_suffixes = [".json_serializable.g.part"],
     package = ":pubspec-metadata",
     deps = ["@pub_deps//:json_annotation"],
@@ -43,7 +43,7 @@ dart_codegen(
 dart_codegen(
     name = "_primitive_user_combined",
     src = "lib/primitive_user.dart",
-    generator_bin = "@rules_dart//dart/ext/combining_shim:bin",
+    generator = "@rules_dart//dart/ext/combining_shim:bin",
     output_suffixes = [".g.dart"],
     package = ":pubspec-metadata",
     parts = [":_primitive_user_json_part"],

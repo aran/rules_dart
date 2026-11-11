@@ -5,8 +5,8 @@ package they belong to, in BUILD files that may not even be the same one. These
 fixtures pin both halves: pointing both at one `dart_package_metadata` states
 the package once, and naming two different ones stops the build.
 
-Nothing here executes. Every assertion is an `analysistest`, so `gen.dart` is
-never run and the generator's outputs are never produced.
+Nothing here executes. Every assertion is an `analysistest`, so the generator
+is never run and its outputs are never produced.
 """
 
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
@@ -17,8 +17,6 @@ load(
     "identity_probe",
 )
 load("//dart/tests:path_mapping_test.bzl", "path_mapping_test")
-
-exports_files(["gen.dart"])
 
 dart_package_metadata(
     name = "pubspec-metadata",
@@ -32,7 +30,7 @@ dart_package_metadata(
 dart_codegen(
     name = "model_g",
     src = "lib/model.dart",
-    generator = "gen.dart",
+    generator = "//dart/tests/fixture_generator:generator",
     output_suffixes = [".g.dart"],
     package = ":pubspec-metadata",
     tags = ["manual"],
@@ -70,7 +68,7 @@ build_test(
 dart_codegen(
     name = "misnamed_g",
     src = "lib/misnamed.dart",
-    generator = "gen.dart",
+    generator = "//dart/tests/fixture_generator:generator",
     output_suffixes = [".g.dart"],
     tags = ["manual"],
 )

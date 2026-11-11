@@ -1,20 +1,24 @@
-import 'dart:io';
+import 'package:build/build.dart';
+import 'package:rules_dart_ext/worker_entry.dart';
 
 /// Emits a standalone library (not a `part`) defining `generatedValue()`,
 /// consumed via `import` (relative or `package:`).
-/// Contract: `dart lib_gen.dart --input <src> --output <path>`,
-/// optionally `--input-asset <asset>`.
-void main(List<String> args) {
-  String? output;
-  for (var i = 0; i < args.length - 1; i++) {
-    if (args[i] == '--output') output = args[i + 1];
-  }
-  if (output == null) {
-    stderr.writeln('Usage: lib_gen.dart --input <file> --output <file>');
-    exit(1);
-  }
-  File(output).writeAsStringSync('''
+Future<void> main(List<String> args) => shimMain(args, (_) => _LibBuilder());
+
+class _LibBuilder implements Builder {
+  // The shim takes the outputs from the rule's declared ones.
+  @override
+  Map<String, List<String>> get buildExtensions => const {
+    '.dart': ['.lib.dart'],
+  };
+
+  @override
+  Future<void> build(BuildStep buildStep) async {
+    for (final output in buildStep.allowedOutputs) {
+      await buildStep.writeAsString(output, '''
 // GENERATED CODE - DO NOT MODIFY BY HAND
 String generatedValue() => 'generated lib works';
 ''');
+    }
+  }
 }

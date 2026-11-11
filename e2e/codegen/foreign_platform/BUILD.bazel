@@ -33,7 +33,7 @@ platform(
 dart_codegen(
     name = "gen",
     src = "lib/model.dart",
-    generator = "//tools:lib_gen.dart",
+    generator = "//tools:lib_gen",
     output_suffixes = [".g.dart"],
     package = ":pubspec-metadata",
 )

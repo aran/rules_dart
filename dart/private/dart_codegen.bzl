@@ -4,7 +4,7 @@ Runs a `package:build` Builder (via the rules_dart shim runner) over a
 single Dart source file, producing one or more sibling output files whose
 paths derive from the input's stem + each entry in `output_suffixes`.
 
-The generator (`generator` script or `generator_bin` binary) receives:
+The generator receives:
 
   - `--input <path>`: the input source file's exec-root path.
   - `--input-asset <asset>`: the input's Dart asset path, relative to the
@@ -33,7 +33,7 @@ Usage:
     dart_codegen(
         name = "user_g",
         src = "lib/user.dart",
-        generator_bin = "@rules_dart//dart/ext/json_serializable:shim",
+        generator = "@rules_dart//dart/ext/json_serializable:shim",
         output_suffixes = [".json_serializable.g.part"],
         package = ":pubspec-metadata",
         deps = [
@@ -50,9 +50,9 @@ can walk sibling files without the caller listing them explicitly.
 
 The generated files can be used as srcs in a downstream `dart_library`.
 
-When `generator_bin` is set, actions run through a persistent Bazel worker
-(singleplex, protobuf protocol) via `dart/ext/lib/worker_entry.dart` +
-`package:bazel_worker`. The analyzer driver is fresh per request —
+Actions run through a persistent Bazel worker (singleplex, protobuf
+protocol) via `dart/ext/lib/worker_entry.dart` + `package:bazel_worker`,
+so the generator must speak that protocol. The analyzer driver is fresh per request —
 reusing across requests is a silent-corruption hazard due to
 `source_gen`'s CWD-pinned `rootPackageName` — but the Dart VM startup
 cost is amortised across the worker's lifetime.
@@ -102,12 +102,6 @@ def _dart_codegen_impl(ctx):
     # What a generator's analyzer reads of the SDK at `--sdk-path`.
     sdk_files = sdk.files.codegen
 
-    if ctx.file.generator and ctx.executable.generator_bin:
-        fail("%s: only one of `generator` or `generator_bin` may be set." %
-             ctx.label)
-    if not ctx.file.generator and not ctx.executable.generator_bin:
-        fail("%s: either `generator` or `generator_bin` must be set." %
-             ctx.label)
     if not ctx.attr.output_suffixes:
         fail("%s: `output_suffixes` must contain at least one suffix." %
              ctx.label)
@@ -150,80 +144,46 @@ def _dart_codegen_impl(ctx):
     args = ctx.actions.args()
     direct_inputs = [src] + list(ctx.files.data)
 
-    if ctx.executable.generator_bin:
-        # Worker mode requires a single `@flagfile` / `--flagfile=` arg; the
-        # `use_param_file` + `multiline` format produces exactly that and
-        # Bazel expands it into `WorkRequest.arguments` on the transport.
-        args.use_param_file("@%s", use_always = True)
-        args.set_param_file_format("multiline")
-        args.add("--input", src)
-        args.add("--input-asset", asset_path_for(src, package_root))
-        for output in outputs:
-            args.add("--output", output)
-        direct_inputs.extend(add_shim_contract_args(
-            args,
-            ctx,
-            synth_pc,
-            dart,
-            auto_stage_srcs = auto_staged,
-            asset_deps = ctx.files.asset_deps,
-            package_root = package_root,
-        ))
-        args.add_all(ctx.attr.generator_args)
+    # Worker mode requires a single `@flagfile` / `--flagfile=` arg; the
+    # `use_param_file` + `multiline` format produces exactly that and
+    # Bazel expands it into `WorkRequest.arguments` on the transport.
+    args.use_param_file("@%s", use_always = True)
+    args.set_param_file_format("multiline")
+    args.add("--input", src)
+    args.add("--input-asset", asset_path_for(src, package_root))
+    for output in outputs:
+        args.add("--output", output)
+    direct_inputs.extend(add_shim_contract_args(
+        args,
+        ctx,
+        synth_pc,
+        dart,
+        auto_stage_srcs = auto_staged,
+        asset_deps = ctx.files.asset_deps,
+        package_root = package_root,
+    ))
+    args.add_all(ctx.attr.generator_args)
 
-        ctx.actions.run(
-            executable = ctx.executable.generator_bin,
-            arguments = [args],
-            inputs = depset(
-                direct = direct_inputs,
-                transitive = _transitive(package_files) + [sdk_files],
-            ),
-            outputs = outputs,
-            mnemonic = "DartCodegen",
-            exec_group = PORTABLE,
-            progress_message = "DartCodegen %s" % ctx.label,
-            execution_requirements = PATH_MAPPING | {
-                "supports-workers": "1",
-                "requires-worker-protocol": "proto",
-                # The worker key includes the shim binary path; using the
-                # same mnemonic across builders still yields distinct worker
-                # pools because Bazel keys on `(mnemonic, binary)`.
-                "worker-key-mnemonic": "DartCodegen",
-            },
-        )
-    else:
-        # Run generator as a Dart script via the SDK's dart executable.
-        args.add(ctx.file.generator)
-        args.add("--input", src)
-        args.add("--input-asset", asset_path_for(src, package_root))
-        for output in outputs:
-            args.add("--output", output)
-        direct_inputs.extend(add_shim_contract_args(
-            args,
-            ctx,
-            synth_pc,
-            dart,
-            auto_stage_srcs = auto_staged,
-            asset_deps = ctx.files.asset_deps,
-            package_root = package_root,
-        ))
-        args.add_all(ctx.attr.generator_args)
-        direct_inputs.append(ctx.file.generator)
-
-        ctx.actions.run(
-            executable = dart,
-            arguments = [args],
-            inputs = depset(
-                direct = direct_inputs,
-                # A script runs in the VM besides.
-                transitive = _transitive(package_files) + [sdk_files, sdk.files.run],
-            ),
-            outputs = outputs,
-            mnemonic = "DartCodegen",
-            exec_group = PORTABLE,
-            progress_message = "DartCodegen %s" % ctx.label,
-            execution_requirements = PATH_MAPPING,
-        )
+    ctx.actions.run(
+        executable = ctx.executable.generator,
+        arguments = [args],
+        inputs = depset(
+            direct = direct_inputs,
+            transitive = _transitive(package_files) + [sdk_files],
+        ),
+        outputs = outputs,
+        mnemonic = "DartCodegen",
+        exec_group = PORTABLE,
+        progress_message = "DartCodegen %s" % ctx.label,
+        execution_requirements = PATH_MAPPING | {
+            "supports-workers": "1",
+            "requires-worker-protocol": "proto",
+            # The worker key includes the generator's path; using the
+            # same mnemonic across builders still yields distinct worker
+            # pools because Bazel keys on `(mnemonic, binary)`.
+            "worker-key-mnemonic": "DartCodegen",
+        },
+    )
 
     return [
         DefaultInfo(files = depset(outputs)),
@@ -261,14 +221,12 @@ dart_codegen = rule(
             allow_single_file = [".dart"],
         ),
         "generator": attr.label(
-            doc = "A `.dart` script to run as the code generator. " +
-                  "Mutually exclusive with `generator_bin`.",
-            allow_single_file = [".dart"],
-        ),
-        "generator_bin": attr.label(
-            doc = "A pre-compiled generator executable matching the " +
-                  "rules_dart shim CLI contract. Mutually exclusive with " +
-                  "`generator`.",
+            doc = "The generator: an executable speaking the rules_dart " +
+                  "shim contract, persistent-worker protocol included, " +
+                  "such as a `dart_binary` whose `main` calls `shimMain` " +
+                  "from `package:rules_dart_ext/worker_entry.dart` with a " +
+                  "`package:build` Builder. Built for the execution platform.",
+            mandatory = True,
             executable = True,
             cfg = config.exec(PORTABLE),
         ),

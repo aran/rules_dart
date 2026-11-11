@@ -1,45 +1,41 @@
 load("@rules_dart//dart:defs.bzl", "dart_binary")
+load("@rules_dart//dart/ext:defs.bzl", "builder_shim_library")
 
 # Trivial in-tree generators shared by the fixtures. The choice of generator is
 # incidental to what's under test (generated-input co-location), so these are
-# hand-written, not real codegen packages.
-exports_files(
-    [
-        "part_gen.dart",
-        "lib_gen.dart",
-        "shard_gen.dart",
-        "aggregate_gen.dart",
-    ],
+# hand-written Builders, not real codegen packages. Each is a `dart_binary` over
+# rules_dart's shim runner, built against this workspace's own pub resolution.
+
+builder_shim_library(
+    name = "builder_shim",
+    pub_hub = "@pub_deps",
+)
+
+[dart_binary(
+    name = name,
+    srcs = [name + ".dart"],
+    code_assets_from_packages = False,
+    main = name + ".dart",
     visibility = ["//visibility:public"],
-)
-
-# Analysis handles for the exported scripts.
-#
-# The call sites pass these by bare `generator = "//tools:<x>.dart"`, which
-# resolves to a file: the script runs as `dart <script>` with no package
-# resolution of its own, so it can import `dart:` core libraries and nothing
-# else, and there is no target for the analyze aspect to visit. A `dart_binary`
-# over the same source supplies one. It is not wired into any `dart_codegen` —
-# `generator_bin` runs its executable as a persistent worker, which these
-# scripts do not speak — so it exists purely to be analyzed: nothing about
-# executing a generator has to change for it to be covered.
-
-dart_binary(
-    name = "part_gen",
-    main = "part_gen.dart",
-)
-
-dart_binary(
-    name = "lib_gen",
-    main = "lib_gen.dart",
-)
-
-dart_binary(
-    name = "shard_gen",
-    main = "shard_gen.dart",
-)
+    deps = [
+        ":builder_shim",
+        "@pub_deps//:build",
+    ],
+) for name in [
+    "part_gen",
+    "lib_gen",
+    "shard_gen",
+]]
 
 dart_binary(
     name = "aggregate_gen",
+    srcs = ["aggregate_gen.dart"],
+    code_assets_from_packages = False,
     main = "aggregate_gen.dart",
+    visibility = ["//visibility:public"],
+    deps = [
+        ":builder_shim",
+        "@pub_deps//:build",
+        "@pub_deps//:glob",
+    ],
 )

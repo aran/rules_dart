@@ -14,3 +14,11 @@ dart.toolchain(dart_version = "3.13.7")
 use_repo(dart, "dart_toolchains")
 
 register_toolchains("@dart_toolchains//:all")
+
+# The fixture generator's own pub resolution (`//tools:pubspec.lock`).
+pub = use_extension("@rules_dart//dart/pub:extensions.bzl", "pub")
+pub.from_lock(
+    name = "generator_pub_deps",
+    lock = "//tools:pubspec.lock",
+)
+use_repo(pub, "generator_pub_deps")

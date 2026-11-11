@@ -166,7 +166,7 @@ dart_codegen(
     name = "model_g",
     package = ":pubspec-metadata",
     src = "lib/model.dart",
-    generator = "//tools:gen.dart",
+    generator = "//tools:gen",
     output_suffixes = [".g.dart"],
 )
 

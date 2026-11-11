@@ -92,7 +92,7 @@ def drift_codegen(
         dart_sqlcodegen(
             name = prep_target,
             src = drift_src,
-            generator_bin = "@rules_dart//dart/ext/drift:shim_prep",
+            generator = "@rules_dart//dart/ext/drift:shim_prep",
             output_suffixes = [".drift_prep.json", ".expr.temp.dart"],
             package = package,
             deps = effective_deps,
@@ -112,7 +112,7 @@ def drift_codegen(
         dart_sqlcodegen(
             name = discover_target,
             src = drift_src,
-            generator_bin = "@rules_dart//dart/ext/drift:shim_discover",
+            generator = "@rules_dart//dart/ext/drift:shim_discover",
             config = config,
             output_suffixes = [".drift.drift_elements.json"],
             package = package,
@@ -146,7 +146,7 @@ def drift_codegen(
         dart_codegen(
             name = dart_discover_target,
             src = src,
-            generator_bin = "@rules_dart//dart/ext/drift:shim_discover",
+            generator = "@rules_dart//dart/ext/drift:shim_discover",
             config = config,
             output_suffixes = [".dart.drift_elements.json"],
             package = package,
@@ -175,7 +175,7 @@ def drift_codegen(
         dart_codegen(
             name = dart_analyzer_target,
             src = src,
-            generator_bin = "@rules_dart//dart/ext/drift:shim_analyzer",
+            generator = "@rules_dart//dart/ext/drift:shim_analyzer",
             config = config,
             output_suffixes = [
                 ".dart.drift_module.json",
@@ -205,7 +205,7 @@ def drift_codegen(
         dart_sqlcodegen(
             name = analyzer_target,
             src = drift_src,
-            generator_bin = "@rules_dart//dart/ext/drift:shim_analyzer",
+            generator = "@rules_dart//dart/ext/drift:shim_analyzer",
             config = config,
             output_suffixes = [
                 ".drift.drift_module.json",
@@ -247,7 +247,7 @@ def drift_codegen(
         dart_codegen(
             name = part_target,
             src = src,
-            generator_bin = "@rules_dart//dart/ext/drift:shim_drift",
+            generator = "@rules_dart//dart/ext/drift:shim_drift",
             config = config,
             output_suffixes = [".drift.g.part"],
             package = package,
@@ -260,7 +260,7 @@ def drift_codegen(
         dart_codegen(
             name = combined_target,
             src = src,
-            generator_bin = "@rules_dart//dart/ext/combining_shim:bin",
+            generator = "@rules_dart//dart/ext/combining_shim:bin",
             output_suffixes = [".g.dart"],
             parts = [":" + part_target],
             package = package,

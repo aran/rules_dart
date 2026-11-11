@@ -13,7 +13,7 @@ dart_package_metadata(
 dart_codegen(
     name = "defaulted_g",
     src = "lib/defaulted.dart",
-    generator = "//dart/tests/package_fixture:gen.dart",
+    generator = "//dart/tests/fixture_generator:generator",
     output_suffixes = [".g.dart"],
     package = ":pubspec-metadata",
     tags = ["manual"],

@@ -1,24 +1,26 @@
-import 'dart:io';
+import 'package:build/build.dart';
+import 'package:rules_dart_ext/worker_entry.dart';
 
-/// Emits a `part of` companion defining `generatedMessage()`.
-/// Contract: `dart part_gen.dart --input <src> --output <path>`,
-/// optionally `--input-asset <asset>`.
-void main(List<String> args) {
-  String? input;
-  String? output;
-  for (var i = 0; i < args.length - 1; i++) {
-    if (args[i] == '--input') input = args[i + 1];
-    if (args[i] == '--output') output = args[i + 1];
-  }
-  if (input == null || output == null) {
-    stderr.writeln('Usage: part_gen.dart --input <file> --output <file>');
-    exit(1);
-  }
-  final libName = Uri.file(input).pathSegments.last;
-  File(output).writeAsStringSync('''
+/// Emits a `part of` companion of its input defining `generatedMessage()`.
+Future<void> main(List<String> args) => shimMain(args, (_) => _PartBuilder());
+
+class _PartBuilder implements Builder {
+  // The shim takes the outputs from the rule's declared ones.
+  @override
+  Map<String, List<String>> get buildExtensions => const {
+    '.dart': ['.g.dart'],
+  };
+
+  @override
+  Future<void> build(BuildStep buildStep) async {
+    final libName = buildStep.inputId.pathSegments.last;
+    for (final output in buildStep.allowedOutputs) {
+      await buildStep.writeAsString(output, '''
 // GENERATED CODE - DO NOT MODIFY BY HAND
 part of '$libName';
 
 String generatedMessage() => 'generated part works';
 ''');
+    }
+  }
 }

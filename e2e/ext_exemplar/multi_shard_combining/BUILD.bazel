@@ -21,7 +21,7 @@ _ANN_DEPS = [
 dart_codegen(
     name = "_user_json_part",
     src = "lib/user.dart",
-    generator_bin = "@rules_dart//dart/ext/json_serializable:shim",
+    generator = "@rules_dart//dart/ext/json_serializable:shim",
     output_suffixes = [".json_serializable.g.part"],
     package = ":pubspec-metadata",
     deps = _ANN_DEPS,
@@ -30,7 +30,7 @@ dart_codegen(
 dart_codegen(
     name = "_user_copy_with_part",
     src = "lib/user.dart",
-    generator_bin = "@rules_dart//dart/ext/copy_with_extension_gen:shim",
+    generator = "@rules_dart//dart/ext/copy_with_extension_gen:shim",
     output_suffixes = [".copy_with_extension_gen.g.part"],
     package = ":pubspec-metadata",
     deps = _ANN_DEPS,
@@ -39,7 +39,7 @@ dart_codegen(
 dart_codegen(
     name = "_user_combined",
     src = "lib/user.dart",
-    generator_bin = "@rules_dart//dart/ext/combining_shim:bin",
+    generator = "@rules_dart//dart/ext/combining_shim:bin",
     output_suffixes = [".g.dart"],
     package = ":pubspec-metadata",
     parts = [

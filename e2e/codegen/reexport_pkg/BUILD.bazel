@@ -11,7 +11,7 @@ dart_package_metadata(
 dart_codegen(
     name = "api_gen",
     src = "lib/api.dart",
-    generator = "//tools:lib_gen.dart",
+    generator = "//tools:lib_gen",
     output_suffixes = [".g.dart"],
     package = ":pubspec-metadata",
 )

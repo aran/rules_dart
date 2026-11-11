@@ -278,7 +278,7 @@ func emitCodegen(args language.GenerateArgs, pkg string, p *codegenPlan, files [
 		r.SetAttr("src", p.file.Path)
 		r.SetAttr("output_suffixes", stage.OutputExts)
 		if stage.Combining {
-			r.SetAttr("generator_bin", "@rules_dart//dart/ext/combining_shim:bin")
+			r.SetAttr("generator", "@rules_dart//dart/ext/combining_shim:bin")
 			parts := make([]string, 0, len(stage.PartShards))
 			for _, id := range stage.PartShards {
 				parts = append(parts, ":"+p.names[id])
@@ -289,7 +289,7 @@ func emitCodegen(args language.GenerateArgs, pkg string, p *codegenPlan, files [
 			imports = append(imports, nil)
 			continue
 		}
-		r.SetAttr("generator_bin", stage.Builder.ShimLabel)
+		r.SetAttr("generator", stage.Builder.ShimLabel)
 		// What an earlier builder wrote into the source's library (a
 		// `.freezed.dart` part), this one reads as a staged file: no
 		// library can hold the source before this stage's output exists.

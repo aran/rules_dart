@@ -195,7 +195,7 @@ def shared_part_codegen(
         dart_codegen(
             name = part_target,
             src = src,
-            generator_bin = shim,
+            generator = shim,
             output_suffixes = [part_suffix],
             package = package,
             deps = codegen_deps,
@@ -206,7 +206,7 @@ def shared_part_codegen(
         dart_codegen(
             name = combined_target,
             src = src,
-            generator_bin = Label("//dart/ext/combining_shim:bin"),
+            generator = Label("//dart/ext/combining_shim:bin"),
             output_suffixes = [".g.dart"],
             parts = [":" + part_target],
             package = package,
@@ -259,7 +259,7 @@ def library_builder_codegen(
         dart_codegen(
             name = gen_target,
             src = src,
-            generator_bin = shim,
+            generator = shim,
             output_suffixes = output_suffixes,
             package = package,
             deps = codegen_deps,

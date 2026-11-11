@@ -9,7 +9,7 @@ load("@rules_dart//dart:defs.bzl", "dart_aggregate_codegen", "dart_codegen", "da
 dart_codegen(
     name = "item_shard",
     src = "//nested_aggregate_pkg:lib/item.dart",
-    generator = "//tools:shard_gen.dart",
+    generator = "//tools:shard_gen",
     output_suffixes = [".shard.json"],
     package = "//nested_aggregate_pkg:pubspec-metadata",
     deps = ["//nested_aggregate_pkg:item_lib"],
@@ -22,7 +22,7 @@ dart_aggregate_codegen(
         "//nested_aggregate_pkg:lib/item.dart",
         ":item_shard",
     ],
-    generator_script = "//tools:aggregate_gen.dart",
+    generator = "//tools:aggregate_gen",
     outputs = ["lib/item.agg.dart"],
     package = "//nested_aggregate_pkg:pubspec-metadata",
     deps = ["//nested_aggregate_pkg:item_lib"],

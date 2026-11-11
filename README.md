@@ -37,7 +37,7 @@ and run the SDK with `bazel run @rules_dart//dart -- ...` and pub with
 
 Each step names the old API and the new one; the commit with that change's
 `Changelog:` line, and the sections below, give the details. Running Gazelle
-after step 1 does steps 6–8 for the BUILD files it writes.
+after step 1 does steps 6–8 and 23 for the BUILD files it writes.
 
 **MODULE.bazel**
 
@@ -123,39 +123,43 @@ after step 1 does steps 6–8 for the BUILD files it writes.
     runs in persistent workers (`analysis_worker=false` for a process each).
 22. `dart_code_asset.shared_library` → `file`; `dart_code_asset.system_uri` →
     `uri` (upstream `CodeAsset.file` and `DynamicLoadingSystem.uri`).
+23. `generator_bin` on `dart_codegen`, `dart_aggregate_codegen` and
+    `dart_sqlcodegen` → `generator`. A `.dart` script as `generator` or
+    `generator_script` → a `dart_binary` whose `main` calls `shimMain` with a
+    `package:build` Builder (see `docs/ext.md`); its flags → `config` options.
 
 **Rule authors** (`@rules_dart//dart:utils.bzl` and providers)
 
-23. `DartCodeAssetInfo.dynamic_library` → `file`; `DartCodeAssetInfo.system_uri`
+24. `DartCodeAssetInfo.dynamic_library` → `file`; `DartCodeAssetInfo.system_uri`
     → `uri`.
-24. `DartPackageInfo.lib_root` → `package_root`; `derive_lib_root` →
+25. `DartPackageInfo.lib_root` → `package_root`; `derive_lib_root` →
     `derive_package_root`; `has_unreplaced_hook` → `unreplaced_hook`.
-25. `DartInfo.package_name`/`lib_root` → `DartInfo.packages` (from
+26. `DartInfo.package_name`/`lib_root` → `DartInfo.packages` (from
     `DartPackageInfo(...)`); `DartInfo.deps` values are tuples of package
     names. Build `DartInfo` with `dart_info(ctx = ctx, ...)` and merge
     `SUMMARY_ATTRS` into the rule's attributes.
-26. `dart_analyzable_info` → `dart_analyzable_info_no_package` (`srcs` →
+27. `dart_analyzable_info` → `dart_analyzable_info_no_package` (`srcs` →
     `entry_srcs`); `dart_analyzable_info_with_package` → `dart_analyzable_info`
     (takes `packages`); `DartAnalyzableInfo.srcs` → `entry_srcs`,
     `package_srcs` → `DartInfo.srcs`.
-27. `module_defines_transition` → `executable_defines_config`;
+28. `module_defines_transition` → `executable_defines_config`;
     `dart_entry_kernel_action` takes no `defines` and needs
     `MODULAR_KERNEL_ATTR`.
-28. `dart_link_hook_actions` and `collect_transitive_code_assets` take the
+29. `dart_link_hook_actions` and `collect_transitive_code_assets` take the
     program's package (see `program_packages()`); rules calling
     `dart_link_hook_actions` declare `COPY_TO_DIRECTORY_TOOLCHAINS`.
-29. `DartKernelSdkInfo.runtime` → `aot_runtime`; `platform`/`defines` →
+30. `DartKernelSdkInfo.runtime` → `aot_runtime`; `platform`/`defines` →
     `runtimes` (from `dart_kernel_runtime`).
-30. `dart_toolchain.sdk_root`, `DartSdkInfo.sdk_root`/`tool_files` →
+31. `dart_toolchain.sdk_root`, `DartSdkInfo.sdk_root`/`tool_files` →
     `dart_toolchain.sdk` takes a `dart_sdk_files`; read `DartSdkInfo.files`.
     A Dart SDK with no release tag also needs a `dart_outline_toolchain` and a
     `dart_analyzer_toolchain`, or `outline_kernel` and `analysis_summaries`
     off (see [A Dart SDK of your own](#a-dart-sdk-of-your-own)).
-31. `parse_pubspec_deps`/`parse_pubspec_sdk_constraint`/
+32. `parse_pubspec_deps`/`parse_pubspec_sdk_constraint`/
     `derive_language_version` → `read_pubspec` in `//dart/pub:pubspec.bzl`.
     `dart/pub/pub_lock_hub.bzl` → private.
-32. `colocate_entrypoint` → removed; a binary compiles its sources in place.
-33. Loads of `dart/private/**` or `dart/pub/private/**` from outside rules_dart
+33. `colocate_entrypoint` → removed; a binary compiles its sources in place.
+34. Loads of `dart/private/**` or `dart/pub/private/**` from outside rules_dart
     → fail; load the public `.bzl` files instead.
 
 ## Road to 1.0
@@ -1577,7 +1581,7 @@ dart_codegen(
     name = "user_g",
     src = "lib/user.dart",
     package = ":pubspec-metadata",
-    generator_bin = "@rules_dart//dart/ext/json_serializable:shim",
+    generator = "@rules_dart//dart/ext/json_serializable:shim",
     output_suffixes = [".json_serializable.g.part"],
     deps = ["@pub_deps//:json_annotation"],  # other packages' libraries user.dart imports
 )
@@ -1586,39 +1590,23 @@ dart_aggregate_codegen(
     name = "routes",
     srcs = glob(["lib/**/*.dart"]),
     package = ":pubspec-metadata",
-    generator_bin = "//tools:route_shim",
+    generator = "//tools:route_shim",
     outputs = ["lib/router.gr.dart"],
     deps = ["@pub_deps//:auto_route"],
 )
 ```
 
-Both rules take the generator either way. `generator_bin` is a target: a
-`dart_binary` speaking the shim CLI contract, run as a persistent worker (see
-[`docs/ext.md`](./docs/ext.md)). `generator` (on `dart_codegen`) or
-`generator_script` (on `dart_aggregate_codegen`) is a bare `.dart` file run as
-`dart <script>` with no package resolution of its own, so it can import `dart:`
-core libraries and nothing else — fine for a throwaway emitter, insufficient
-for anything with dependencies. `dart_sqlcodegen` is `dart_codegen` for a
-non-Dart input, such as drift's `.drift` files (see
+A generator is a target: a `dart_binary` whose `main` hands a `package:build`
+Builder to rules_dart's shim runner, which speaks the rules' command line and
+runs as a persistent worker (see [`docs/ext.md`](./docs/ext.md)). It is built
+for the execution platform, as a genrule's `tools` are. `dart_sqlcodegen` is
+`dart_codegen` for a non-Dart input, such as drift's `.drift` files (see
 [`docs/ext.md`](./docs/ext.md)).
 
-That distinction is also what analyzing a generator comes down to. A
-`generator_bin` is already a target, so the `dart_analyze` aspect checks it
-like any other executable (see
-[Static analysis](#static-analysis-and-formatting)).
-
-A bare script has no target to be checked as. Declare a `dart_binary` over the
-same source as an analysis handle — it needs no wiring into the `dart_codegen`
-call, which still runs the script itself:
-
-```starlark
-dart_binary(name = "my_generator", main = "my_generator.dart")
-```
-
-Do not promote a script to `generator_bin` just to analyze it: that path runs
-its executable as a persistent worker, which a plain `dart_binary` does not
-speak. The model files a generator reads need nothing special — they belong to
-the `dart_library` targets in `deps`, which are analyzable already.
+Because a generator is a target, the `dart_analyze` aspect checks it like any
+other executable (see [Static analysis](#static-analysis-and-formatting)). The
+model files a generator reads need nothing special — they belong to the
+`dart_library` targets in `deps`, which are analyzable already.
 
 rules_dart bundles shims for these third-party builders: `json_serializable`,
 `freezed`, `built_value`, `mockito`, `copy_with_extension_gen`, `stacked` and
@@ -1680,7 +1668,7 @@ dart_codegen(
     name = "user_g",
     src = "lib/user.dart",
     package = ":pubspec-metadata",
-    generator = "//tools:gen.dart",
+    generator = "//tools:gen",
     output_suffixes = [".g.dart"],
 )
 

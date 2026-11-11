@@ -13,7 +13,7 @@ dart_package_metadata(
 dart_codegen(
     name = "message_part",
     src = "lib/message.dart",
-    generator = "//tools:part_gen.dart",
+    generator = "//tools:part_gen",
     output_suffixes = [".g.dart"],
     package = ":pubspec-metadata",
 )

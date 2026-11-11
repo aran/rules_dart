@@ -13,7 +13,7 @@ dart_package_metadata(
 dart_codegen(
     name = "_event_freezed_gen",
     src = "lib/event.dart",
-    generator_bin = "@rules_dart//dart/ext/freezed:shim",
+    generator = "@rules_dart//dart/ext/freezed:shim",
     output_suffixes = [".freezed.dart"],
     package = ":pubspec-metadata",
     deps = ["@freezed_annotation"],
@@ -23,7 +23,7 @@ dart_codegen(
     name = "_event_json_serializable_gen",
     src = "lib/event.dart",
     asset_deps = [":_event_freezed_gen"],
-    generator_bin = "@rules_dart//dart/ext/json_serializable:shim",
+    generator = "@rules_dart//dart/ext/json_serializable:shim",
     output_suffixes = [".json_serializable.g.part"],
     package = ":pubspec-metadata",
     deps = [
@@ -35,7 +35,7 @@ dart_codegen(
 dart_codegen(
     name = "_event_combined",
     src = "lib/event.dart",
-    generator_bin = "@rules_dart//dart/ext/combining_shim:bin",
+    generator = "@rules_dart//dart/ext/combining_shim:bin",
     output_suffixes = [".g.dart"],
     package = ":pubspec-metadata",
     parts = [":_event_json_serializable_gen"],
