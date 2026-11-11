@@ -34,6 +34,22 @@ bool_flag(
     visibility = ["//visibility:public"],
 )
 
+# Whether a `dart_binary` in the `exe` or `aot-snapshot` mode leaves its
+# debugging information out of the executable and writes it to
+# `<name>.symbols`, in the `debug_info` output group, as
+# `dart compile --save-debugging-info` and `flutter build --split-debug-info`
+# do. Its stack traces then print as addresses, which the symbols file
+# translates back (`package:native_stack_traces`, `flutter symbolize`). A
+# `kernel` has no debugging information to split. `scope = "target"` keeps the
+# build's own tools out of it.
+#   bazel build //app --@rules_dart//dart:split_debug_info --output_groups=+debug_info
+bool_flag(
+    name = "split_debug_info",
+    build_setting_default = False,
+    scope = "target",
+    visibility = ["//visibility:public"],
+)
+
 # Whether `dart_test` compiles each library once into kernel modules and links
 # the ones a test reaches (the default), or compiles every test's whole program
 # from source. Turned off build-wide only, as an escape hatch:

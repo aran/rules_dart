@@ -1,0 +1,88 @@
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("//dart:defs.bzl", "dart_binary")
+load("//dart/tests:split_debug_info_test.bzl", "refused_flag_test", "split_debug_info_args_suite")
+load(":split_debug_info.bzl", "split_debug_info_run_test")
+
+# A program that prints its stack trace, built in each mode that has debugging
+# information, with `//dart:split_debug_info` on and off by a transition, so
+# the suite needs no command-line flag.
+
+dart_binary(
+    name = "exe",
+    main = "main.dart",
+    tags = ["manual"],
+)
+
+dart_binary(
+    name = "aot",
+    compile_mode = "aot-snapshot",
+    main = "main.dart",
+    tags = ["manual"],
+)
+
+dart_binary(
+    name = "kernel",
+    compile_mode = "kernel",
+    main = "main.dart",
+    tags = ["manual"],
+)
+
+[
+    split_debug_info_run_test(
+        name = "%s_%s_test" % (
+            mode,
+            "split" if split else "whole",
+        ),
+        size = "small",
+        actual = ":" + mode,
+        split = split,
+    )
+    for mode in [
+        "exe",
+        "aot",
+    ]
+    for split in [
+        True,
+        False,
+    ]
+]
+
+# The compiler's own flag writes a file Bazel does not know of.
+[
+    dart_binary(
+        name = "own_flag_%d" % i,
+        dart_compile_flags = flags,
+        main = "main.dart",
+        tags = ["manual"],
+    )
+    for i, flags in enumerate([
+        ["--save-debugging-info=x.symbols"],
+        [
+            "-S",
+            "x.symbols",
+        ],
+    ])
+]
+
+[
+    refused_flag_test(
+        name = "own_flag_%d_test" % i,
+        size = "small",
+        target_under_test = ":own_flag_%d" % i,
+    )
+    for i in range(2)
+]
+
+split_debug_info_args_suite(
+    name = "args_test",
+    aot = ":aot",
+    exe = ":exe",
+    kernel = ":kernel",
+)
+
+bzl_library(
+    name = "split_debug_info",
+    srcs = ["split_debug_info.bzl"],
+    visibility = ["//visibility:public"],
+    deps = ["//dart:defs"],
+)

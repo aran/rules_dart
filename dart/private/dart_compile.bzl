@@ -154,6 +154,7 @@ def dart_compile_action(
         compile_mode = "exe",
         extra_flags = [],
         recorded_uses = None,
+        debug_info = None,
         runner = None,
         sources = None):
     """Creates the `dart compile` action that turns a kernel into the output.
@@ -176,6 +177,9 @@ def dart_compile_action(
         recorded_uses: Optional output File for the uses of `@RecordUse`
             definitions the compiler records (`--recorded-uses`). Only the
             `exe` and `aot-snapshot` modes record.
+        debug_info: Optional output File for the debugging information the
+            compiler leaves out of the output (`--save-debugging-info`). Only
+            the `exe` and `aot-snapshot` modes have any.
         runner: Optional `compile_runner` kernel File to compile through. For a
             Mach-O `exe` or `aot-snapshot`, whose symbol table names the path
             gen_snapshot wrote the snapshot to: the runner picks that path and
@@ -209,6 +213,11 @@ def dart_compile_action(
             fail("dart_compile_action: `dart compile %s` records no uses." % compile_mode)
         args.add(recorded_uses, format = "--recorded-uses=%s")
         outputs.append(recorded_uses)
+    if debug_info != None:
+        if compile_mode not in RECORDING_COMPILE_MODES:
+            fail("dart_compile_action: `dart compile %s` has no debugging information." % compile_mode)
+        args.add(debug_info, format = "--save-debugging-info=%s")
+        outputs.append(debug_info)
 
     # Per-target extra flags (last, so they can override defaults)
     args.add_all(extra_flags)

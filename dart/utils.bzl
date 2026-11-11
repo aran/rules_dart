@@ -9,9 +9,11 @@ load(
     "//dart/private:build_settings.bzl",
     _KERNEL_LIST_ATTR = "KERNEL_LIST_ATTR",
     _MODULAR_KERNEL_ATTR = "MODULAR_KERNEL_ATTR",
+    _SPLIT_DEBUG_INFO_ATTR = "SPLIT_DEBUG_INFO_ATTR",
     _TRACK_CREATION_LOCATIONS_ATTR = "TRACK_CREATION_LOCATIONS_ATTR",
     _kernel_list = "kernel_list",
     _modular_kernel = "modular_kernel",
+    _split_debug_info = "split_debug_info",
     _track_creation_locations = "track_creation_locations",
 )
 load(
@@ -433,6 +435,13 @@ dart_link_kernel_action = _dart_link_kernel_action
 kernel_package_config = _kernel_package_config
 add_kernel_roots = _add_kernel_roots
 
+# `--@rules_dart//dart:split_debug_info` makes `dart_binary` write the
+# debugging information of an `exe` or `aot-snapshot` binary to `<name>.symbols`
+# rather than into the binary. A rule compiling such a binary merges
+# `SPLIT_DEBUG_INFO_ATTR` into its `attrs`; when `split_debug_info(ctx)` is
+# true it declares that file, passes it to `dart_compile_action` as
+# `debug_info`, and returns it in a `debug_info` output group.
+#
 # `dart compile` over a kernel, or over a script that imports only `dart:`
 # libraries and `sources` beside it, in the toolchain's SDK (a cross
 # toolchain's too): the one action `dart_binary` and the pub runner build
@@ -441,6 +450,8 @@ add_kernel_roots = _add_kernel_roots
 dart_compile_action = _dart_compile_action
 KERNEL_TOOL_ATTR = _KERNEL_TOOL_ATTR
 KERNEL_LIST_ATTR = _KERNEL_LIST_ATTR
+SPLIT_DEBUG_INFO_ATTR = _SPLIT_DEBUG_INFO_ATTR
+split_debug_info = _split_debug_info
 kernel_list = _kernel_list
 MODULAR_KERNEL_ATTR = _MODULAR_KERNEL_ATTR
 modular_kernel = _modular_kernel

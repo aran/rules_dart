@@ -2162,6 +2162,7 @@ themselves resolved in the exec configuration.
 | `--@rules_dart//dart:modular_kernel`               | on          | Compiles each library once into kernel modules that tests link; off compiles each test's whole program from source.                                                                            |
 | `--@rules_dart//dart:outline_kernel`               | on          | Compiles dependents against outlines of their dependencies' modules, made by the outline toolchain of the Dart SDK; off compiles them against full kernels.                                    |
 | `--@rules_dart//dart:runner_snapshot`              | off         | Starts the `package:test` runner from a snapshot cached on the machine (see [Faster tests and builds](#faster-tests-and-builds-optional)); off starts it from its kernel and touches no cache. |
+| `--@rules_dart//dart:split_debug_info`             | off         | Leaves an `exe`'s or `aot-snapshot`'s debugging information out of it, written to `<name>.symbols` in the `debug_info` output group; stack traces print as addresses. |
 | `--@rules_dart//dart:track_creation_locations`     | off         | Compiles VM kernels with `--track-creation-locations` (`--track-widget-creation`).                                                                                                             |
 
 ## For rule-set authors

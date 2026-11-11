@@ -125,6 +125,24 @@ TRACK_CREATION_LOCATIONS_ATTR = {
     ),
 }
 
+SPLIT_DEBUG_INFO_ATTR = {
+    "_split_debug_info": attr.label(
+        doc = "The //dart:split_debug_info build setting.",
+        default = Label("//dart:split_debug_info"),
+    ),
+}
+
+def split_debug_info(ctx):
+    """Whether this configuration's `exe`/`aot-snapshot` binaries split their debugging information.
+
+    Args:
+      ctx: Rule context carrying `_split_debug_info`.
+
+    Returns:
+      A bool.
+    """
+    return ctx.attr._split_debug_info[BuildSettingInfo].value
+
 KERNEL_LIST_ATTR = {
     "_kernel_list": attr.label(
         doc = "The //dart:kernel_list build setting.",

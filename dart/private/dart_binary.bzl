@@ -1,7 +1,7 @@
 """Implementation of the dart_binary rule."""
 
 load("//dart:providers.bzl", "DartCodeAssetInfo", "DartCompileInfo", "DartInfo", "DartRecordedUsesInfo")
-load("//dart/private:build_settings.bzl", "EXTRA_DART_DEFINES_ATTR", "TRACK_CREATION_LOCATIONS_ATTR", "merge_dart_defines", "track_creation_locations")
+load("//dart/private:build_settings.bzl", "EXTRA_DART_DEFINES_ATTR", "SPLIT_DEBUG_INFO_ATTR", "TRACK_CREATION_LOCATIONS_ATTR", "merge_dart_defines", "split_debug_info", "track_creation_locations")
 load(
     "//dart/private:common.bzl",
     "DART_ABI_CONSTRAINT_ATTRS",
@@ -84,6 +84,10 @@ def _dart_binary_impl(ctx):
                   "build is the same everywhere, and gen_snapshot converts only `file:` URIs. " +
                   "Leave it out: DWARF then names each source by that URI, whose path is the " +
                   "file's in the workspace (`external/<repo>/...` for another repository's).") % ctx.label)
+        if f == "-S" or f.startswith("--save-debugging-info"):
+            fail(("%s: `%s` cannot be used: the file it writes is not an output Bazel knows " +
+                  "of, so it is lost. Build with `--@rules_dart//dart:split_debug_info`, which " +
+                  "writes `%s.symbols` in the `debug_info` output group.") % (ctx.label, f, ctx.label.name))
     fe_flags, compile_flags = front_end_flags(ctx.attr.dart_compile_flags)
     code_asset_libs = []
 
@@ -147,6 +151,10 @@ def _dart_binary_impl(ctx):
             package_files = own.package_files,
         )]
 
+    debug_info = None
+    if compile_mode != "kernel" and split_debug_info(ctx):
+        debug_info = ctx.actions.declare_file(ctx.label.name + ".symbols")
+
     if compile_mode != "kernel":
         dart_compile_action(
             ctx = ctx,
@@ -156,6 +164,7 @@ def _dart_binary_impl(ctx):
             compile_mode = compile_mode,
             extra_flags = compile_flags,
             recorded_uses = compile_recorded_uses,
+            debug_info = debug_info,
             runner = _compile_runner(ctx, compile_mode),
         )
 
@@ -190,7 +199,11 @@ def _dart_binary_impl(ctx):
         # What makes the `dart_analyze` aspect reach this entrypoint without
         # making this target a legal `deps` entry.
         own.analyzable,
-    ] + recorded_uses_info + _import_checks(ctx, own)
+        OutputGroupInfo(
+            debug_info = depset([debug_info] if debug_info != None else []),
+            **_import_checks(ctx, own)
+        ),
+    ] + recorded_uses_info
 
 def _stage_libraries(ctx, assets):
     directory = ctx.label.name + ".native"
@@ -256,14 +269,14 @@ def _compile_runner(ctx, compile_mode):
 def _import_checks(ctx, own):
     # `dart_tool_binary` has no `kernel_tool` to check with: it builds it.
     if not hasattr(ctx.attr, "_kernel_tool"):
-        return []
-    return [OutputGroupInfo(_validation = import_check_validation(
+        return {}
+    return {"_validation": import_check_validation(
         ctx,
         ctx.executable._kernel_tool,
         [ctx.file.main] + ctx.files.srcs,
         own.record,
         ctx.attr.deps,
-    ))]
+    )}
 
 _COMPILE_RUNNER_ATTR = {
     "_compile_runner": attr.label(
@@ -342,12 +355,15 @@ def _dart_binary_rule(check_imports, compile_runner = True, launcher = True):
     In the last two modes the output is `<name>.aot` or `<name>.dill`, and the target's executable is a \
     launcher that runs it in the SDK's VM, so the target works with `bazel run` and as another target's `data`. A \
     cross-compiled output has no VM for its target here and is its own executable.
+
+    With `--@rules_dart//dart:split_debug_info`, an `exe` or `aot-snapshot` leaves its debugging \
+    information out and writes it to `<name>.symbols`, in the `debug_info` output group.
     """,
                     default = "exe",
                     values = ["exe", "aot-snapshot", "kernel"],
                 ),
                 "dart_compile_flags": attr.string_list(
-                    doc = "Extra flags passed to `dart compile` after compilation-mode defaults. Flags appear last so they can override defaults (e.g., `--extra-gen-snapshot-options=--optimization_level=3`). Front-end flags (`--enable-experiment`, `-D`/`--define`) go to the front-end step that precedes `dart compile`, and `--verbosity` to both; in the `kernel` mode, which is that step alone, every flag does, and only those `frontend_server` accepts work. `--extra-gen-snapshot-options=--resolve-dwarf-paths` is refused: sources are named by workspace-relative `org-dartlang-root:///` URIs, which gen_snapshot cannot turn into paths, and DWARF without it names them by those URIs.",
+                    doc = "Extra flags passed to `dart compile` after compilation-mode defaults. Flags appear last so they can override defaults (e.g., `--extra-gen-snapshot-options=--optimization_level=3`). Front-end flags (`--enable-experiment`, `-D`/`--define`) go to the front-end step that precedes `dart compile`, and `--verbosity` to both; in the `kernel` mode, which is that step alone, every flag does, and only those `frontend_server` accepts work. `--extra-gen-snapshot-options=--resolve-dwarf-paths` is refused: sources are named by workspace-relative `org-dartlang-root:///` URIs, which gen_snapshot cannot turn into paths, and DWARF without it names them by those URIs. `--save-debugging-info` (`-S`) is refused: `--@rules_dart//dart:split_debug_info` writes that file as an output.",
                 ),
                 "defines": attr.string_list(
                     doc = "Dart environment declarations (`key=value`). Each entry becomes a `-Dkey=value` flag.",
@@ -359,7 +375,7 @@ def _dart_binary_rule(check_imports, compile_runner = True, launcher = True):
     `kernel` mode does not tree-shake, so nothing is recorded and the file is \
     the empty JSON object `{}` (`kind = "empty"`).""",
                 ),
-            }, **dict(DART_ABI_CONSTRAINT_ATTRS, **dict(EXTRA_DART_DEFINES_ATTR, **dict(TRACK_CREATION_LOCATIONS_ATTR, **EXECUTABLE_PACKAGE_ATTRS))))))
+            }, **dict(DART_ABI_CONSTRAINT_ATTRS, **dict(EXTRA_DART_DEFINES_ATTR, **dict(TRACK_CREATION_LOCATIONS_ATTR, **dict(SPLIT_DEBUG_INFO_ATTR, **EXECUTABLE_PACKAGE_ATTRS)))))))
         ),
         executable = True,
         # rules_dart's own tools are the same program in every build that
