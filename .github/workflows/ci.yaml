@@ -40,7 +40,7 @@ jobs:
       # default shell (PowerShell on Windows), where this is invalid. Inner
       # single quotes keep the outer shell from expanding it; `case $PWD`
       # needs no quotes, which PowerShell would mangle.
-      bazel_test_command: "bash -c 'bazel test --test_output=errors //...; s=$?; [ $s -eq 4 ] && case $PWD in */e2e/analysis|*/e2e/hello_world|*/e2e/pub_deps|*/e2e/pub_lock|*/e2e/pub_lock_cross_module|*/e2e/pub_lock_dedup|*/e2e/pub_lock_upgrade|*/e2e/pub_hub_surface|*/e2e/pub_override_root_lock|*/e2e/pub_highest_wins|*/e2e/pub_root_newer|*/e2e/pub_package_padded) exit 0;; esac; exit $s'"
+      bazel_test_command: "bash -c 'bazel test --test_output=errors //...; s=$?; [ $s -eq 4 ] && case $PWD in */e2e/analysis|*/e2e/analyze_composition/dep_module|*/e2e/hello_world|*/e2e/pub_deps|*/e2e/pub_lock|*/e2e/pub_lock_cross_module|*/e2e/pub_lock_dedup|*/e2e/pub_lock_upgrade|*/e2e/pub_hub_surface|*/e2e/pub_override_root_lock|*/e2e/pub_highest_wins|*/e2e/pub_root_newer|*/e2e/pub_package_padded) exit 0;; esac; exit $s'"
       folders: |
         [
           ".",
@@ -75,6 +75,7 @@ jobs:
           "e2e/fix",
           "e2e/no_pubspec",
           "e2e/analyze_composition",
+          "e2e/analyze_composition/dep_module",
           "e2e/link_hook",
           "e2e/external_module",
           "overhead",
@@ -171,9 +172,6 @@ jobs:
         # Exit code 4 (no test targets) passes only for e2e/analysis, which has
         # none.
         run: bazel test --test_output=errors --@rules_dart//dart:analysis_summaries=false //... || { [ $? -eq 4 ] && [ "${{ matrix.folder }}" = e2e/analysis ]; }
-  # The runner snapshot cache off, the default this repository's .bazelrc
-  # overrides: `test_runner_test` checks that the runner then starts from its
-  # kernel and no cache is touched.
   coverage:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -192,6 +190,9 @@ jobs:
         run: |
           bazel coverage ${{ matrix.flags }} --combined_report=lcov //coverage/...
           bazel run //coverage/check -- "$(bazel info output_path)/_coverage/_coverage_report.dat"
+  # The runner snapshot cache off, the default this repository's .bazelrc
+  # overrides: `test_runner_test` checks that the runner then starts from its
+  # kernel and no cache is touched.
   runner-snapshot-off:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -199,6 +200,60 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: dart_test without the runner snapshot cache
         run: bazel test --test_output=errors --@rules_dart//dart:runner_snapshot=false //dart/private/tools:test_runner_test
+  # Bazel runs persistent workers in the exec root unless it sandboxes them, so
+  # a worker action that reads a file it never declared passes everywhere else
+  # here and fails only under remote or dynamic execution. Sandboxed, each
+  # worker sees only its declared inputs. Ubuntu's AppArmor refuses the
+  # unprivileged user namespaces the hardened sandbox needs, unless allowed.
+  worker-sandboxing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        folder: [".", "e2e/codegen", "e2e/analysis"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: sandboxed workers — ${{ matrix.folder }}
+        working-directory: ${{ matrix.folder }}
+        # Exit code 4 (no test targets) passes only for e2e/analysis, which has
+        # none.
+        run: bazel test --test_output=errors --worker_sandboxing --experimental_worker_sandbox_hardening //... || { [ $? -eq 4 ] && [ "${{ matrix.folder }}" = e2e/analysis ]; }
+  # MODULE.bazel's `bazel_compatibility` promises the oldest Bazel it names;
+  # this runs on that one. The lock files are written by .bazelversion's.
+  bazel-floor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      USE_BAZEL_VERSION: 9.0.0
+    strategy:
+      fail-fast: false
+      matrix:
+        folder: [".", "e2e/smoke"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Bazel ${{ env.USE_BAZEL_VERSION }} — ${{ matrix.folder }}
+        working-directory: ${{ matrix.folder }}
+        run: bazel test --lockfile_mode=off --test_output=errors //...
+  # Bazel's latest release candidate, weekly: an upstream change that breaks us
+  # shows before its release. A red run here never blocks a merge.
+  bazel-rc:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      USE_BAZEL_VERSION: last_rc
+    strategy:
+      fail-fast: false
+      matrix:
+        folder: [".", "e2e/smoke"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Bazel's latest release candidate — ${{ matrix.folder }}
+        working-directory: ${{ matrix.folder }}
+        run: bazel test --lockfile_mode=off --test_output=errors //...
   # Workspaces that are expected to fail at module resolution.
   # Validates that rules_dart produces the correct error messages.
   expected-failure:
@@ -801,6 +856,19 @@ jobs:
         run: bazel run //tool:pub_locks
       - name: bazelrc preset
         run: bazel run @overhead//preset -- --check
+  # The jobs below `conclusion` needs are every job that must pass, and some
+  # job runs in every e2e workspace.
+  ci-config:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: bazel-contrib/setup-bazel@104e3eea9447cdaa4b00d0fb46191a3985d26ab3 # 0.19.1
+        with:
+          cache-version: ${{ env.CACHE_VERSION }}
+          bazelisk-cache: true
+          repository-cache: true
+      - run: bazel run //tool:ci_check
   # Every hook in .pre-commit-config.yaml, with the prek overhead pins, as a
   # commit runs them: one build puts overhead's tools in .bazel_env, then the
   # hooks run them without Bazel.
@@ -817,18 +885,26 @@ jobs:
       - run: bazel run --noincompatible_auto_exec_groups @overhead//:bazel_env -- update-symlink
       - run: bazel run --noincompatible_auto_exec_groups @overhead//lint:prek -- run --all-files --show-diff-on-failure
   # For branch protection settings, this job provides a "stable" name that can be used to gate PR merges
-  # on "all matrix jobs were successful".
+  # on "all matrix jobs were successful". It needs every job but those with
+  # `continue-on-error`; `bazel run //tool:ci_check` checks that it does.
   conclusion:
     needs:
       - test
-      - expected-failure
+      - format-hermeticity
+      - whole-program
+      - analysis-from-source
       - coverage
+      - runner-snapshot-off
+      - worker-sandboxing
+      - bazel-floor
+      - expected-failure
       - pub-archive-links
       - dbg-mode
       - dev-tests
       - consumer-query
       - write-back
       - lockfiles
+      - ci-config
       - pre-commit
     runs-on: ubuntu-latest
     timeout-minutes: 15
