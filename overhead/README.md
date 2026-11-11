@@ -27,8 +27,10 @@ Every tool runs from the repository's checkout root, with `bazel run`.
 
 The hooks run overhead's tools without Bazel, from `.bazel_env/bin` in the
 checkout root: `check-commit-messages`, `buildifier`, `typos`, `yamlfmt`,
-`actionlint` and `dart`. None downloads anything when a hook runs: each is pinned
-in `multitool.lock.json`.
+and `actionlint`. None downloads anything when a hook runs:
+`buildifier`, `typos` and `yamlfmt` are pinned in `multitool.lock.json`;
+`check-commit-messages` and `actionlint` (which runs the pinned actionlint with
+the pinned shellcheck) are overhead's own `dart_binary`s.
 `//:bazel_env` builds them there:
 
 ```shell
@@ -90,7 +92,7 @@ The tool is built in the root workspace, so a refresh builds it with
 `--lockfile_mode=off`: a stale root lock cannot stop it, and `--override_module`
 flags in `.bazelrc.user` cannot leak into the root lock, which the tool then
 rewrites itself. A check needs no flag.
-`locks/locks.dart` says more.
+`locks/locks_cli.dart` says more.
 
 ## Bazelrc preset
 

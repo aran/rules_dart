@@ -48,13 +48,15 @@ included. Mark breaking changes with `!` in the subject (`feat(ios)!: ...`), not
 a `BREAKING CHANGE:` footer, which git does not treat as a trailer.
 
 **Checks.** `bazel run @overhead//changelog:check` checks the commit subject
-and the trailers. It runs as the `commit-msg` hook, and in CI on every push
+and the trailers of a message file (`-- <file>`), the commits of a range
+(`-- --range <revs>`) or those a push added (`-- --push <before> <after>`).
+It runs as the `commit-msg` hook, and in CI on every push
 where the repo has CI. To install the hook, `uv tool install prek`, then
 `prek install -f` (without `-f`, prek keeps an existing hook and runs both).
-The hook runs the check from `.bazel_env/bin`. Set that up once in each
-checkout with `bazel run --noincompatible_auto_exec_groups
-@overhead//:bazel_env`; a hook failing with "No such file or directory" means
-it is missing.
+The hook runs the check from `.bazel_env/bin`. Set that up in each checkout,
+and again after a `bazel clean` or a bump of overhead's pin, with
+`bazel run --noincompatible_auto_exec_groups @overhead//:bazel_env`; a hook
+failing with "No such file or directory" means it is missing.
 `bazel run @overhead//changelog` prints the unreleased notes so you can see how
 they read.
 
@@ -70,8 +72,9 @@ lines that interface needs.
 
 Tooling these repositories share lives in overhead, a module in rules_dart's
 `overhead/` that each takes as a dev dependency: the commit policy, release
-notes and release workflows, the tool pins, the lock checks. Change it there,
-not in a copy. What only one repository needs stays in that repository.
+notes, the tool pins, the lock checks. Its release workflows are rules_dart's
+`.github/workflows/overhead-*.yaml`. Change any of it there, not in a copy.
+What only one repository needs stays in that repository.
 
 ## Public repository
 

@@ -1,6 +1,6 @@
 /// Fetches SHA-256 checksums for a Dart SDK release from Google's CDN.
 ///
-/// Usage: `dart run tool/fetch_sdk_hashes.dart <version>`
+/// Usage: `bazel run //tool:fetch_sdk_hashes -- <version>`
 ///
 /// Prints the version's `versions.bzl` entries ready to paste: one for
 /// `TOOL_VERSIONS`, one for `CROSS_TOOL_VERSIONS`, then one for
@@ -45,8 +45,8 @@ List<String> crossToolFiles() {
 
 Future<void> main(List<String> args) async {
   if (args.length != 1) {
-    stderr.writeln('Usage: dart run tool/fetch_sdk_hashes.dart <version>');
-    stderr.writeln('Example: dart run tool/fetch_sdk_hashes.dart 3.12.0');
+    stderr.writeln('Usage: bazel run //tool:fetch_sdk_hashes -- <version>');
+    stderr.writeln('Example: bazel run //tool:fetch_sdk_hashes -- 3.12.0');
     exit(1);
   }
 

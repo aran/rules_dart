@@ -3,8 +3,10 @@
 ## Using devcontainers
 
 If you are using [devcontainers](https://code.visualstudio.com/docs/devcontainers/containers)
-and/or [codespaces](https://github.com/features/codespaces) then you can start
-contributing immediately and skip the next step.
+and/or [codespaces](https://github.com/features/codespaces), the container
+installs prek and the git hooks on start. It does not build `.bazel_env`, which
+most hooks run from: run the `@overhead//:bazel_env` command in the next
+section once the container is up.
 
 ## Formatting
 
@@ -61,6 +63,13 @@ tools:
 bazel run --enable_runfiles @overhead//lint:prek -- run --all-files --hook-stage manual
 ```
 
+The manual stage has no commit-message check; check the commits you are about
+to push with
+
+```shell
+bazel run --enable_runfiles @overhead//changelog:check -- --range origin/main..HEAD
+```
+
 ## Commit messages
 
 Commits follow the conventional-commit format and the `Changelog:` trailer
@@ -108,8 +117,8 @@ cd e2e/dart_test && bazel test //...
 # dart_test with pub dependencies
 cd e2e/dart_test_pkg && bazel test //...
 
-# Cross-compilation to other platforms
-cd e2e/cross_compile && bazel build //...
+# Cross-compilation to other platforms, and the architecture of each output
+cd e2e/cross_compile && bazel test //...
 
 # External pub.dev packages
 cd e2e/pub_deps && bazel build //...
@@ -132,16 +141,18 @@ it would change a BUILD file.
 You'll commonly find that you develop in another repository that
 depends on rules_dart.
 
-To always tell Bazel to use this local checkout rather than a release
-artifact or a version fetched from the registry, run this from this
-directory:
+To tell Bazel to use this local checkout rather than a release artifact or a
+version fetched from the registry, put an override in the other repository's
+gitignored `.bazelrc.user` (its `.bazelrc` ends with
+`try-import %workspace%/.bazelrc.user`), running this from this directory:
 
 ```sh
-OVERRIDE="--override_module=rules_dart=$(pwd)"
-echo "common $OVERRIDE" >> ~/.bazelrc
+echo "common --override_module=rules_dart=$(pwd)" >> <other repository>/.bazelrc.user
 ```
 
-This means that any usage of `@rules_dart` on your system will point to this folder.
+The lock tools leave `.bazelrc.user` out, so the override never reaches a
+committed `MODULE.bazel.lock`. Do not put it in `~/.bazelrc`: every Bazel
+command on the machine reads that file, lock refreshes included.
 
 ## Releasing
 
@@ -150,10 +161,14 @@ The new version is determined automatically from the commit history, assuming th
 https://github.com/marketplace/actions/conventional-commits-versioner-action.
 If you do nothing, eventually the newest commits will be released automatically as a patch or minor release.
 This automation is defined in .github/workflows/tag.yaml.
+A scheduled run tags at most once per two weeks, and only a commit on which
+CI passed. When the next version is a major, the automation tags it but does
+not release it, so tag a major by hand, as below, before the automation does.
 
 Rather than wait for the cron event, you can trigger manually. Navigate to
 https://github.com/aran/rules_dart/actions/workflows/tag.yaml
-and press the "Run workflow" button.
+and press the "Run workflow" button. A dispatched run tags whenever there is
+something to release, still only a commit on which CI passed.
 
 If you need control over the next release version, for example when making a release candidate for a new major,
 then: tag the repo and push the tag, for example
@@ -165,3 +180,7 @@ then: tag the repo and push the tag, for example
 ```
 
 Then watch the automation run on GitHub actions which creates the release.
+
+The release opens its Bazel Central Registry pull request as a draft; mark it
+ready for review, which starts BCR's checks and auto-approval. If the
+publishing step failed, `.github/workflows/publish.yaml` reruns it for a tag.

@@ -32,7 +32,8 @@ local_path_override(
     path = "..",
 )
 
-# The tool pins every consumer shares: actionlint, git-cliff, prek, shellcheck, typos, yamlfmt.
+# The tool pins every consumer shares: actionlint, buildifier, git-cliff, prek,
+# shellcheck, typos, yamlfmt.
 # rules_multitool merges the hubs of every module that declares one; the root
 # module's lock file is read last, so a consumer that pins a tool itself wins.
 multitool = use_extension("@rules_multitool//multitool:extension.bzl", "multitool")

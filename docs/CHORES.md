@@ -15,9 +15,12 @@ as the repo evolves.
   `CROSS_TOOL_VERSIONS` and to `SOURCE_VERSIONS` (the source archive the
   outline stripper builds `pkg/kernel` from)
 - `MODULE.bazel` — `dart.toolchain(dart_version = "...")`
-- every e2e and nested `MODULE.bazel` that pins one, the same
-  `dart.toolchain(dart_version = "...")` (`git grep -l 'dart_version = '`)
+- every other `MODULE.bazel` that pins one, the same
+  `dart.toolchain(dart_version = "...")`
+  (`git grep -l 'dart_version = "' -- '*MODULE.bazel'`), except the two in
+  `e2e/toolchain_pin_conflict`, whose versions are what that fixture tests
 - `README.md` — `dart.toolchain(dart_version = "...")` in installation snippet
+  (not the measurements that name the SDK they were taken on)
 - `dart/tests/versions_test.bzl` — asserted version key in `_smoke_test_impl`
 - `dart/runfiles/pubspec.yaml` — `environment.sdk` constraint (published to
   pub.dev; keep the lower bound as low as stays compatible rather than tracking
@@ -25,16 +28,19 @@ as the repo evolves.
 
 **Procedure**:
 
-1. Run `bazel run @rules_dart//dart -- run tool/fetch_sdk_hashes.dart {version}`
-   from the repository root to get SHA-256 hashes
-2. Add its three entries to `dart/private/versions.bzl`: the SDK checksums to
-   `TOOL_VERSIONS`, the cross-compilation binaries' to `CROSS_TOOL_VERSIONS`,
-   the tag's source archive (downloaded twice, the two SHA-256s agreeing) to
-   `SOURCE_VERSIONS`
+1. Run `bazel run //tool:fetch_sdk_hashes -- {version}` to get SHA-256
+   hashes
+2. Add the three entries it prints to `dart/private/versions.bzl`, each as the
+   first entry: the SDK checksums to `TOOL_VERSIONS`, the cross-compilation
+   binaries' to `CROSS_TOOL_VERSIONS`, the tag's source archive to
+   `SOURCE_VERSIONS` (the script downloads it twice and fails unless the two
+   SHA-256s agree)
 3. Update `dart_version` in all MODULE.bazel files listed above
-4. Update version references in `README.md`
+4. Update the installation snippet in `README.md`
 5. Update `dart/tests/versions_test.bzl` (asserted version key)
-6. Regenerate lock files: `bazel run --lockfile_mode=off @overhead//locks:refresh`
+6. Regenerate lock files: `bazel run --lockfile_mode=off @overhead//locks:refresh`,
+   then check that the `pubspec.lock` files still resolve on the new SDK:
+   `bazel run //tool:pub_locks`
 7. Run `bazel test //dart/tests/...` to verify unit tests pass. A failure in
    `//dart/tests/sdk_files` means the SDK moved or added a file one of its
    uses reads: update that use's entry in `SDK_FILE_SETS`
@@ -79,17 +85,24 @@ passes under `--config=deep`; at least one e2e workspace builds.
   reusable workflow sets `USE_BAZEL_VERSION` from it, so a stale value means CI
   never tests the version developers run locally
 - `.bcr/presubmit.yml` — `bazel:` matrix value (if major version changes)
-- `docs/ARCHITECTURE.md` — prose naming the major Bazel version, currently
-  "Bazel 9.x" (if major version changes)
+- `tools/preset.bazelrc` — generated for the Bazel version it runs on, and
+  checked by CI's `lockfiles` job
+- `docs/ARCHITECTURE.md` — prose naming the major Bazel version, "Bazel 9.x"
+  (if major version changes)
+- `MODULE.bazel` and `gazelle/MODULE.bazel` — the `bazel_compatibility` floor
+  (if major version changes and the rules come to need the new major)
 
 **Procedure**:
 
-1. Update all `.bazelversion` files to the new version
+1. Update all `.bazelversion` files and `bazel_versions:` in
+   `.github/workflows/ci.yaml` to the new version
 2. If the major version changed, update `.bcr/presubmit.yml` matrix and `docs/ARCHITECTURE.md`
-3. Regenerate lock files: `bazel run --lockfile_mode=off @overhead//locks:refresh`
-4. Run `bazel test //dart/tests/...` to verify
+3. Regenerate the preset: `bazel run @overhead//preset`
+4. Regenerate lock files: `bazel run --lockfile_mode=off @overhead//locks:refresh`
+5. Run `bazel test //dart/tests/...` to verify
 
-**Verification**: `bazel test //dart/tests/...` passes.
+**Verification**: `bazel test //dart/tests/...` passes;
+`bazel run @overhead//preset -- --check` passes.
 
 ---
 
@@ -103,6 +116,9 @@ passes under `--config=deep`; at least one e2e workspace builds.
 - `gazelle/MODULE.bazel` (the Gazelle plugin's module) — `gazelle`, `rules_go`
 - `dev/MODULE.bazel` — `bazel_skylib`, `gazelle`, `rules_go`,
   `bazel_skylib_gazelle_plugin`, and the Go SDK version
+- `overhead/MODULE.bazel` — `rules_multitool`, `bazel_env.bzl` and
+  `bazelrc-preset.bzl`. A `bazelrc-preset.bzl` bump changes the generated
+  preset: rerun `bazel run @overhead//preset`
 - `MODULE.bazel` — the `webcrypto_pub_archive` `http_archive` (not on BCR): a
   new `package:webcrypto` release means a new url and sha256, and moving the
   `webcrypto` bound in `dart/ext/registry.bzl` to that exact version
@@ -114,11 +130,14 @@ passes under `--config=deep`; at least one e2e workspace builds.
 
 **Procedure**:
 
-1. For each `bazel_dep` in root `MODULE.bazel`, check latest version on BCR
+1. For each `bazel_dep` in the files above, check latest version on BCR
 2. Update versions, skip any already current
-3. Mirror version changes to e2e workspaces that duplicate the same deps
-4. Regenerate lock files: `bazel run --lockfile_mode=off @overhead//locks:refresh`
-5. Run `bazel test //dart/tests/...` to verify
+3. Mirror version changes to `gazelle/`, `dev/`, `overhead/` and the e2e
+   workspaces that duplicate the same deps
+4. If `bazelrc-preset.bzl` moved, regenerate the preset:
+   `bazel run @overhead//preset`
+5. Regenerate lock files: `bazel run --lockfile_mode=off @overhead//locks:refresh`
+6. Run `bazel test //dart/tests/...` to verify
 
 **Verification**: `bazel test //dart/tests/...` passes.
 
@@ -135,17 +154,18 @@ failure. rules_dart's own extensions are reproducible, so Bazel keeps their
 results in the output base, not the lock, and editing them changes no lock.
 
 **Workspaces**: every directory with a tracked `MODULE.bazel`, found by
-`bazel run @overhead//locks:check`, except a module inside another e2e workspace
+`bazel run @overhead//locks:check`, except a module nested in another
+workspace with no tracked `MODULE.bazel.lock` of its own
 (`e2e/pub_lock_cross_module/module_b`, say), which resolves as part of it, and
 a module the root's own `local_path_override` names without a `.bazelversion`
-of its own, which resolves as part of the root.
+of its own, which resolves as part of the root. A nested module with a lock of
+its own (`e2e/analyze_composition/dep_module`) is a workspace.
 
 A workspace that fails on purpose holds a `lock_expected_failure.txt` naming
-what its failure prints (`e2e/pub_lock_conflict`, `e2e/pub_root_older_lock`,
-`e2e/pub_lock_unsupplied`, `e2e/pub_package_missing_dep`, `e2e/kernel_source_refused`, `e2e/pub_lock_resolve_invalid`, `e2e/toolchain_pin_conflict`,
-the sha256 refusals, and `e2e/pub_archive_links`, whose pub lock only exists
-while its `check.dart` runs). The tool passes a step that fails with that text
-and still refreshes the rest of the lock.
+what its failure prints (`git ls-files '*lock_expected_failure.txt'` lists
+them; `e2e/pub_archive_links` is one because its pub lock only exists while
+its `check.dart` runs). The tool passes a step that fails with that text and
+still refreshes the rest of the lock.
 
 **Procedure**:
 
@@ -164,15 +184,16 @@ workspace, reading its committed `.bazelrc` but not its `.bazelrc.user`.
 `lockfiles` job runs both.
 
 The lock tool is built in the root workspace, so a refresh builds it with
-`--lockfile_mode=update`: a stale root lock would otherwise stop it before it
-could rewrite anything. A check runs without that flag, since Bazel would then
-quietly rewrite a stale root lock before the tool checked it; a stale root lock
-fails the check at Bazel's own "no longer up-to-date" error instead.
+`--lockfile_mode=off`, which neither reads nor writes the root lock: a stale
+root lock cannot stop it, and `--override_module` flags in `.bazelrc.user`
+cannot leak into that lock. The tool then rewrites the root lock itself. A
+check needs no flag: a stale root lock fails it at Bazel's own "no longer
+up-to-date" error.
 
-`pub_locks` runs `pub get` in the in-repo Dart packages (`dart/ext/`,
-`dart/private/tools/`, `dart/runfiles/`, `overhead/`) on the pinned SDK
-(`bazel run @rules_dart//dart/pub`), with `FLUTTER_ROOT` taken from the
-environment or the `flutter` on PATH: `dart/ext/` needs a Flutter-flavored pub.
+`pub_locks` runs `pub get` on the pinned SDK (`bazel run @rules_dart//dart/pub`)
+in every tracked Dart package outside `e2e/` and `dev/testdata/`, whose locks
+are fixtures: `dart/ext/`, `dart/private/tools/`, `dart/runfiles/` and
+`overhead/`.
 
 **Verification**: All workspaces and packages report success.
 
@@ -246,16 +267,25 @@ byte-level architecture check.
 
 **Files**:
 
-- `e2e/pub_deps/MODULE.bazel` — `pub.package()` version and sha256
-- `e2e/pub_lock/pubspec.lock` — regenerate from `pubspec.yaml`
+- the e2e `pub.package()` calls
+  (`git grep -n 'pub.package(' -- 'e2e/*MODULE.bazel'`): version and sha256.
+  `very_good_analysis`, the lint set most workspaces analyze under, moves in
+  all of them together, as does `e2e/pub_deps`'s `path`. A pin whose version
+  is what its fixture tests stays put: two versions of one package across a
+  root and its `dep_mod` or `mod_b` (`e2e/pub_highest_wins`,
+  `e2e/pub_root_newer`, `e2e/pub_root_older_lock`,
+  `e2e/pub_override_root_lock`), or a fixture that fails on purpose
+- `e2e/pub_lock/pubspec.lock` — regenerate from `pubspec.yaml`. The other e2e
+  `pubspec.lock` files are fixtures, read as they are
 
 **Procedure**:
 
-1. Check pub.dev for latest versions of packages used in e2e tests
+1. Check pub.dev for latest versions of the packages above
 2. Update `pub.package()` calls with new version and sha256
 3. For `pub_lock`, run `bazel run @rules_dart//dart/pub -- get --directory=e2e/pub_lock`
    to refresh the lock file
-4. Regenerate Bazel lock files
+4. Regenerate Bazel lock files:
+   `bazel run --lockfile_mode=off @overhead//locks:refresh`
 
 **Verification**: `bazel build //...` in affected e2e workspaces succeeds.
 
@@ -267,12 +297,12 @@ byte-level architecture check.
 
 **Trigger**: Periodic or before a release.
 
-**Packages**: `dart/runfiles/`
+**Packages**: `dart/runfiles/`, published to pub.dev, and `dart/ext/`,
+`dart/private/tools/` and `overhead/`, which are `publish_to: none`.
+Maintenance includes:
 
-Each in-repo Dart package is publishable to pub.dev. Maintenance includes:
-
-- **SDK constraint**: The `environment.sdk` lower bound in `pubspec.yaml`
-  tracks the project's minimum supported Dart SDK.
+- **SDK constraint**: `dart/runfiles/`'s `environment.sdk` lower bound stays
+  as low as remains compatible, not tracking the newest SDK.
 - **Dependencies**: Any pub dependencies need periodic bumping. Run
   `bazel run @rules_dart//dart/pub -- outdated --directory=<package>` to check,
   then `... -- upgrade --directory=<package>` to take what the current
@@ -283,9 +313,9 @@ Each in-repo Dart package is publishable to pub.dev. Maintenance includes:
   there is one version per package across all locks, the highest any of them
   asks for. A consumer's newer version wins over ours silently; ours raising a
   consumer's lock warns them, naming `ext_pub_deps`. The graph rides the
-  newest analyzer line every builder accepts: today that is analyzer 14.x,
-  while `build` stays on 4.x because every generator except `source_gen`
-  caps it below 5. `e2e/codegen`,
+  newest analyzer line every builder accepts, and the `build` major that
+  every generator accepts (`source_gen` aside, they cap it below 5).
+  `e2e/codegen`,
   `e2e/dart_test_pkg`, and rules_dart_proto's `dart_proto` set floors on
   `analyzer`/`package_config` in their pubspecs to keep their locks no older
   than this one. To bump:
@@ -297,10 +327,10 @@ Each in-repo Dart package is publishable to pub.dev. Maintenance includes:
 
 - **Lock file**: `pubspec.lock` is refreshed by
   `bazel run //tool:pub_locks -- --refresh`.
-- **Version**: Committed as `0.0.0-dev`. The real version is injected from
-  the git tag at publish time by the release workflow.
-- **Publishing**: Handled automatically by the `pub-publish` job in the
-  release workflow (`.github/workflows/release.yaml`).
+- **Version** (`dart/runfiles/`): Committed as `0.0.0-dev`. The real version
+  is injected from the git tag at publish time by the release workflow.
+- **Publishing** (`dart/runfiles/`): Handled automatically by the
+  `pub-publish` job in the release workflow (`.github/workflows/release.yaml`).
 
 **Verification**: `pub get` succeeds; `pub outdated` reports no critical
 updates (both through `bazel run @rules_dart//dart/pub`).
@@ -314,11 +344,17 @@ updates (both through `bazel run @rules_dart//dart/pub`).
 **Files**:
 
 - `.github/workflows/ci.yaml` — `folders` array in the test job
+- `tools/vm/run_e2e.dart` — `_ciFolders`, a copy of that array
 
 **Procedure**:
 
-1. Compare `e2e/*/MODULE.bazel` against the `folders` array in `ci.yaml`
-2. Add/remove entries to match
+1. Compare `e2e/*/MODULE.bazel` against the `folders` array in `ci.yaml`.
+   A workspace the `test` job cannot run as it is runs in the job made for
+   it instead, and stays out of `folders`: `e2e/analysis_failure`
+   (`format-hermeticity`, `expected-failure`), each workspace with a
+   `lock_expected_failure.txt` (`expected-failure`, or `pub-archive-links`
+   for `e2e/pub_archive_links`)
+2. Add/remove entries to match, in both files
 
 **Verification**: CI workflow runs all e2e workspaces.
 
@@ -393,7 +429,8 @@ With the [multitool CLI](https://github.com/theoremlp/multitool) installed, run
 
 ## Git Hook Bumps
 
-**Trigger**: New versions of the git hooks (buildifier, etc.).
+**Trigger**: New versions of the hook repositories `.pre-commit-config.yaml`
+pins by rev (`pre-commit-hooks`, etc.).
 
 **Files**:
 
