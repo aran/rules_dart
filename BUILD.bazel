@@ -5,6 +5,7 @@ load("//dart:defs.bzl", "dart_analysis_config", "dart_analysis_options")
 
 package_metadata(
     name = "package_metadata",
+    attributes = [":license"],
     purl = purl.bazel(
         module_name(),
         module_version(),
