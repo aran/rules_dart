@@ -20,12 +20,14 @@ import 'runner_snapshot.dart';
 /// 30-second default per case is replaced by Bazel's `TEST_TIMEOUT`, so that
 /// Bazel's `size`/`timeout` is the limit. Cases are selected by tag with the
 /// target's `include_tags`/`exclude_tags` and the run's `DART_TEST_TAGS`/
-/// `DART_TEST_EXCLUDE_TAGS` (`TagSelection`). The runner reads no
+/// `DART_TEST_EXCLUDE_TAGS` (`TagSelection`), and a run's
+/// `DART_TEST_ORDERING_SEED` shuffles the cases. The runner reads no
 /// `dart_test.yaml`: what it would set, the target says. Any other test runs
-/// directly, and refuses a filter, a tag selection or sharding it cannot
-/// honour rather than quietly running everything. Unless `--@rules_dart//dart:runner_snapshot` is off, the runner
-/// starts from an app-JIT snapshot cached on the machine, which the first run
-/// to find none trains (`runner_snapshot.dart`).
+/// directly, and refuses a filter, a tag selection, an ordering seed or
+/// sharding it cannot honour rather than quietly running everything. With
+/// `--@rules_dart//dart:runner_snapshot`, the runner starts from an app-JIT
+/// snapshot cached on the machine, which the first run to find none trains
+/// (`runner_snapshot.dart`).
 ///
 /// The VM writes straight to this process's stdio rather than through it, so a
 /// test that hangs until Bazel kills it still leaves what it printed in
@@ -343,6 +345,15 @@ class TagSelection {
   ].join(' and ');
 }
 
+/// This run's `DART_TEST_ORDERING_SEED` (from `--test_env`), which the
+/// runner takes as `--test-randomize-ordering-seed`: an unsigned 32-bit
+/// integer, or `random` for one the runner picks and prints. Empty means none.
+String? orderingSeed(Map<String, String> environment) =>
+    switch (environment['DART_TEST_ORDERING_SEED']) {
+      final String value when value.isNotEmpty => value,
+      _ => null,
+    };
+
 /// The tags `package:test`'s runner names in its [output] as used by the
 /// suite but not declared: with no tags selected and no configuration read,
 /// every tag the suite, its groups and its cases use.
@@ -381,6 +392,13 @@ Future<int> _runDirectly(
     stderr.writeln(
       'dart_test: ${tags.describePerRun()} needs a test written with '
       'package:test; this one has a plain main() and cannot select cases.',
+    );
+    return 1;
+  }
+  if (orderingSeed(env) case final seed?) {
+    stderr.writeln(
+      'dart_test: DART_TEST_ORDERING_SEED=$seed needs a test written with '
+      'package:test; this one has a plain main() and cannot shuffle cases.',
     );
     return 1;
   }
@@ -540,6 +558,7 @@ Future<int> _runUnderRunner({
   final precompiled = dill.substring(0, dill.length - suffix.length);
 
   final filter = env['TESTBRIDGE_TEST_ONLY'];
+  final seed = orderingSeed(env);
   final totalShards = env['TEST_TOTAL_SHARDS'];
   final shardIndex = env['TEST_SHARD_INDEX'];
   final xmlOutput = env['XML_OUTPUT_FILE'];
@@ -571,6 +590,9 @@ Future<int> _runUnderRunner({
     '--file-reporter=json:$report',
     if (filter != null && filter.isNotEmpty) ...['--name', filter],
     ...tags.arguments,
+    // The runner prints the seed it shuffles with, `random`'s included, so
+    // test.log says how to repeat the order.
+    if (seed != null) '--test-randomize-ordering-seed=$seed',
     if (totalShards != null && shardIndex != null) ...[
       '--total-shards',
       totalShards,

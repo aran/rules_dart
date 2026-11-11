@@ -393,6 +393,7 @@ the workspace root.
 | `--name`, `-n` | `--test_filter=<regex>`, which the runner passes on as `--name`, so it is a regular expression. It selects within the targets named, so `bazel test //<dir>:<name> --test_filter=...` runs one case. |
 | `--plain-name`, `-N` | None; escape the regex metacharacters in `--test_filter`. |
 | `--tags`, `-t`, `--exclude-tags`, `-x` | The target's `include_tags` / `exclude_tags`, or `--test_env=DART_TEST_TAGS=<selector>` / `DART_TEST_EXCLUDE_TAGS` for one run. A file's `@Tags` also select whole targets through `--test_tag_filters`. See [Tests](#tests). |
+| `--test-randomize-ordering-seed` | `--test_env=DART_TEST_ORDERING_SEED=<seed>`, an unsigned 32-bit integer or `random`. See [Tests](#tests). |
 | `--shard-index`, `--total-shards` | `shard_count`. |
 | `--timeout` | The target's `size` or `timeout`. |
 | `--concurrency`, `-j` | Bazel runs targets in parallel (`--local_test_jobs`); a target's cases run in one runner. |
@@ -1069,7 +1070,8 @@ own runner, built from that same package, so Bazel's test features work:
 `package:test` must be a direct entry in `deps` (for example `@pub_deps//:test`),
 not reached only through a helper library: the runner comes with that target.
 A test whose `main` does not use `package:test` runs directly, and fails if
-given a filter, tags or shards, because it has no cases to select.
+given a filter, tags, an ordering seed or shards, because it has no cases to
+select.
 
 Cases within a target are selected by their `package:test` tags (`@Tags` on
 the library, `tags:` on `group` and `test`); whole targets are selected by
@@ -1087,6 +1089,14 @@ and with `--test_filter`. A run's selection that leaves a target no case
 passes, saying on stderr which tags the target's cases use, so
 `bazel test //... --test_env=DART_TEST_TAGS=integration` runs the cases tagged
 `integration` wherever they are.
+
+`--test_env=DART_TEST_ORDERING_SEED=<seed>` shuffles the order of a target's
+cases with that seed, an unsigned 32-bit integer, as `dart test
+--test-randomize-ordering-seed` does; `random` draws a new seed each run. The
+runner prints the seed in the test's log (`Shuffling test order with
+--test-randomize-ordering-seed=<seed>`), so passing it again repeats the order.
+Bazel caches a passing result, so add `--nocache_test_results` to shuffle a
+test that has not changed.
 
 ```starlark
 dart_test(

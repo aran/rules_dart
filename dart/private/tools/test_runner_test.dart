@@ -104,6 +104,19 @@ void main(List<String> args) {
     );
   });
 
+  test('a test without package:test refuses DART_TEST_ORDERING_SEED', () async {
+    final process = await start(['stream'], {'DART_TEST_ORDERING_SEED': '7'});
+    final err = await process.stderr.transform(utf8.decoder).join();
+    await process.stdout.drain<void>();
+    expect(await process.exitCode, 1);
+    expect(
+      err,
+      contains(
+        'DART_TEST_ORDERING_SEED=7 needs a test written with package:test',
+      ),
+    );
+  });
+
   // Cases are selected by `package:test` tags: the target's `include_tags`
   // and `exclude_tags`, narrowed for one run by DART_TEST_TAGS and
   // DART_TEST_EXCLUDE_TAGS. The fixture's target includes
@@ -225,6 +238,44 @@ void main(List<String> args) {
         expect('${result.stderr}', contains('It uses no tags.'));
       },
     );
+
+    // The runner shuffles with the seed and prints it, `random`'s too, so
+    // test.log says how to repeat the order.
+    test('DART_TEST_ORDERING_SEED shuffles the cases with that seed', () async {
+      final result = await run(
+        args[3],
+        environment: {'DART_TEST_ORDERING_SEED': '7'},
+      );
+      expect(ran(result), ['integration case', 'unit case']);
+      expect(
+        '${result.stdout}',
+        contains('Shuffling test order with --test-randomize-ordering-seed=7'),
+      );
+    });
+
+    test('DART_TEST_ORDERING_SEED=random prints the seed it drew', () async {
+      final result = await run(
+        args[3],
+        environment: {'DART_TEST_ORDERING_SEED': 'random'},
+      );
+      expect(ran(result), ['integration case', 'unit case']);
+      expect(
+        '${result.stdout}',
+        matches(RegExp(r'--test-randomize-ordering-seed=\d+')),
+      );
+    });
+
+    test('a DART_TEST_ORDERING_SEED the runner cannot read fails', () async {
+      final result = await run(
+        args[3],
+        environment: {'DART_TEST_ORDERING_SEED': 'often'},
+      );
+      expect(result.exitCode, isNot(0), reason: '${result.stdout}');
+      expect(
+        '${result.stdout}${result.stderr}',
+        contains('test-randomize-ordering-seed'),
+      );
+    });
 
     test('the target\'s selection of no case fails', () async {
       final result = await run(args[4]);
