@@ -1,6 +1,7 @@
 """Unit tests for common.bzl utilities."""
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
+load("//dart:providers.bzl", "DartPackageInfo")
 load(
     "//dart/private:common.bzl",
     "asset_path_for",
@@ -24,7 +25,7 @@ def _empty_packages_test_impl(ctx):
 
 def _single_package_test_impl(ctx):
     env = unittest.begin(ctx)
-    pkg = struct(package_name = "foo", package_root = "foo")
+    pkg = DartPackageInfo(None, package_name = "foo", package_root = "foo", language_version = "")
     result = generate_package_config_content([pkg], "..")
     asserts.true(env, '"configVersion": 2' in result)
     asserts.true(env, '"name": "foo"' in result)
@@ -35,8 +36,8 @@ def _single_package_test_impl(ctx):
 def _multiple_packages_test_impl(ctx):
     env = unittest.begin(ctx)
     pkgs = [
-        struct(package_name = "alpha", package_root = "alpha"),
-        struct(package_name = "beta", package_root = "path/to/beta"),
+        DartPackageInfo(None, package_name = "alpha", package_root = "alpha", language_version = ""),
+        DartPackageInfo(None, package_name = "beta", package_root = "path/to/beta", language_version = ""),
     ]
     result = generate_package_config_content(pkgs, "../..")
     asserts.true(env, '"name": "alpha"' in result)
@@ -47,7 +48,7 @@ def _multiple_packages_test_impl(ctx):
 
 def _empty_package_root_test_impl(ctx):
     env = unittest.begin(ctx)
-    pkg = struct(package_name = "root_pkg", package_root = "")
+    pkg = DartPackageInfo(None, package_name = "root_pkg", package_root = "", language_version = "")
     result = generate_package_config_content([pkg], "../..")
     asserts.true(env, '"rootUri": "../.."' in result)
     return unittest.end(env)
@@ -97,7 +98,7 @@ def _relative_path_from_empty_test_impl(ctx):
 # them with `struct`, matching the idiom in `source_set_test.bzl`.
 
 def _fake_pkg(package_name, package_root):
-    return struct(package_name = package_name, package_root = package_root)
+    return DartPackageInfo(None, package_name = package_name, package_root = package_root, language_version = "")
 
 def _fake_src(short_path, path = None, is_directory = False):
     return struct(
@@ -393,8 +394,8 @@ def _check_single_root_ok_test_impl(ctx):
     # One root package (or none) is fine — no error.
     env = unittest.begin(ctx)
     asserts.equals(env, None, check_single_root_package([
-        struct(package_name = "app", package_root = ""),
-        struct(package_name = "sub", package_root = "pkgs/sub"),
+        DartPackageInfo(None, package_name = "app", package_root = "", language_version = ""),
+        DartPackageInfo(None, package_name = "sub", package_root = "pkgs/sub", language_version = ""),
     ]))
     asserts.equals(env, None, check_single_root_package([]))
     return unittest.end(env)
@@ -406,8 +407,8 @@ def _check_single_root_conflict_test_impl(ctx):
     # condition crashed on the fail-message itself instead of reporting it.
     env = unittest.begin(ctx)
     err = check_single_root_package([
-        struct(package_name = "app_a", package_root = ""),
-        struct(package_name = "app_b", package_root = ""),
+        DartPackageInfo(None, package_name = "app_a", package_root = "", language_version = ""),
+        DartPackageInfo(None, package_name = "app_b", package_root = "", language_version = ""),
     ])
     asserts.true(env, err != None)
     asserts.true(env, "app_a" in err)
@@ -416,12 +417,10 @@ def _check_single_root_conflict_test_impl(ctx):
     return unittest.end(env)
 
 def _hooks_ok_test_impl(ctx):
-    # No hook, an empty hook string, and a producer that omits the field
-    # entirely must all pass.
+    # No hook and an empty hook string must pass.
     env = unittest.begin(ctx)
     asserts.equals(env, None, check_unreplaced_hooks("//a:b", [
         struct(package_name = "fine", unreplaced_hook = ""),
-        struct(package_name = "legacy"),
     ]))
     asserts.equals(env, None, check_unreplaced_hooks("//a:b", []))
     return unittest.end(env)

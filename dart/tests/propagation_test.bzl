@@ -7,8 +7,9 @@ gets you its assets with no opt-in.
 """
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts", "unittest")
-load("//dart:providers.bzl", "DartCodeAssetInfo", "DartInfo", "DartPackageInfo")
+load("//dart:providers.bzl", "DartCodeAssetInfo", "DartInfo")
 load("//dart/private:common.bzl", "merge_package_records", "package_agreement_error", "package_code_assets", "resolve_code_assets")
+load("//dart/private:package_info.bzl", "raw_dart_package_info")
 load(":small_suite.bzl", "small_unittest_suite")
 
 _L = "//pkg:consumer"
@@ -28,13 +29,21 @@ def _asset(asset_id, owner_path = "libfoo.so", link_mode = "dynamic_loading_bund
         uri = uri,
     )
 
+# Built raw, not through `DartPackageInfo(...)`: that takes the code assets as
+# targets providing `DartCodeAssetInfo`, and these tests have values.
 def _pkg(package_name, package_root, code_assets = (), version = "", language_version = ""):
-    return DartPackageInfo(
+    return raw_dart_package_info(
+        label = None,
         package_name = package_name,
         package_root = package_root,
         version = version,
         language_version = language_version,
         code_assets = code_assets,
+        data_assets = (),
+        unreplaced_hook = "",
+        link_hook = None,
+        license_file = None,
+        metadata = None,
     )
 
 # --- resolve_code_assets ---
@@ -157,13 +166,7 @@ def _union_keeps_other_fields_test_impl(ctx):
     # besides the assets has to survive that rebuild — `language_version`
     # wrong means a package compiles under the wrong Dart semantics.
     env = unittest.begin(ctx)
-    kept = DartPackageInfo(
-        package_name = "dual",
-        package_root = "first/dual",
-        version = "1.2.3",
-        language_version = "3.4",
-        code_assets = (_asset("package:dual/a.g.dart"),),
-    )
+    kept = _pkg("dual", "first/dual", (_asset("package:dual/a.g.dart"),), version = "1.2.3", language_version = "3.4")
     packages = merge_package_records([
         kept,
         _pkg("dual", "second/dual", (_asset("package:dual/b.g.dart", "libb.so"),)),
@@ -177,17 +180,6 @@ def _union_keeps_other_fields_test_impl(ctx):
         ["package:dual/a.g.dart", "package:dual/b.g.dart"],
         [a.asset_id for a in package_code_assets(packages[0])],
     )
-    return unittest.end(env)
-
-def _collect_tolerates_missing_field_test_impl(ctx):
-    # DartPackageInfo produced outside rules_dart (rules_flutter builds its
-    # own) omits `code_assets`; that must not crash the collector.
-    env = unittest.begin(ctx)
-    packages = merge_package_records([
-        DartPackageInfo(package_name = "legacy", package_root = "legacy"),
-    ])
-    asserts.equals(env, 1, len(packages))
-    asserts.equals(env, (), package_code_assets(packages[0]))
     return unittest.end(env)
 
 # --- package_agreement_error: disagreeing duplicates ---
@@ -227,12 +219,10 @@ def _agreement_rejects_disagreeing_versions_test_impl(ctx):
     return unittest.end(env)
 
 def _agreement_tolerates_one_sided_version_test_impl(ctx):
-    # The adoption path. A `DartPackageInfo` from a producer that has not
-    # adopted `version` — any rule set outside rules_dart, on its own schedule,
-    # and `//dart/tests/no_lv_fixture` in this repo — carries "". Comparing an
-    # empty against a known version would fail every dual-hub build
-    # immediately, including the agreeing ones, so only two *known* versions
-    # can disagree.
+    # A package that states no `version` (a `dart_library` written by hand)
+    # carries "". Comparing an empty against a known version would fail every
+    # dual-hub build immediately, including the agreeing ones, so only two
+    # *known* versions can disagree.
     env = unittest.begin(ctx)
     err = package_agreement_error([
         _pkg("ffi", "../rules_flutter++flutter+deps__ffi"),
@@ -274,18 +264,6 @@ def _agreement_ignores_distinct_packages_test_impl(ctx):
     err = package_agreement_error([
         _pkg("a", "first/a", version = "1.0.0", language_version = "3.7"),
         _pkg("b", "first/b", version = "2.0.0", language_version = "3.4"),
-    ])
-    asserts.equals(env, None, err)
-    return unittest.end(env)
-
-def _agreement_tolerates_records_without_the_field_test_impl(ctx):
-    # A `DartPackageInfo` from a producer predating `version` omits the field
-    # entirely rather than carrying "". Reads must be tolerant, as they are for
-    # `code_assets` and `language_version`.
-    env = unittest.begin(ctx)
-    err = package_agreement_error([
-        DartPackageInfo(package_name = "legacy", package_root = "first/legacy"),
-        _pkg("legacy", "second/legacy", version = "1.0.0"),
     ])
     asserts.equals(env, None, err)
     return unittest.end(env)
@@ -471,7 +449,6 @@ _t1_test = unittest.make(_resolve_explicit_matching_transitive_test_impl)
 _t2_test = unittest.make(_resolve_unions_distinct_test_impl)
 _t3_test = unittest.make(_resolve_keeps_non_bundle_modes_test_impl)
 _t4_test = unittest.make(_collect_unions_same_root_assets_test_impl)
-_t5_test = unittest.make(_collect_tolerates_missing_field_test_impl)
 _t6_test = unittest.make(_two_hubs_supply_one_package_test_impl)
 _t7_test = unittest.make(_unions_assets_across_differing_roots_test_impl)
 _t8_test = unittest.make(_union_keeps_other_fields_test_impl)
@@ -481,7 +458,6 @@ _t11_test = unittest.make(_agreement_tolerates_one_sided_version_test_impl)
 _t12_test = unittest.make(_agreement_rejects_disagreeing_language_versions_test_impl)
 _t13_test = unittest.make(_agreement_tolerates_one_sided_language_version_test_impl)
 _t14_test = unittest.make(_agreement_ignores_distinct_packages_test_impl)
-_t15_test = unittest.make(_agreement_tolerates_records_without_the_field_test_impl)
 _t16_test = unittest.make(_agreement_reports_every_disagreeing_package_test_impl)
 _t17_test = unittest.make(_agreement_reports_both_fields_together_test_impl)
 _t18_test = unittest.make(_resolve_explicit_replaces_transitive_test_impl)
@@ -500,7 +476,6 @@ def propagation_test_suite(name):
         _t2_test,
         _t3_test,
         _t4_test,
-        _t5_test,
         _t6_test,
         _t7_test,
         _t8_test,
@@ -510,7 +485,6 @@ def propagation_test_suite(name):
         _t12_test,
         _t13_test,
         _t14_test,
-        _t15_test,
         _t16_test,
         _t17_test,
         _t18_test,

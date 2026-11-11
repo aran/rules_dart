@@ -12,15 +12,15 @@ from `@rules_dart//dart:utils.bzl` the way a separate rule set does, so the
 re-export is exercised rather than assumed.
 """
 
-load("@rules_dart//dart:providers.bzl", "DartInfo")
-load("@rules_dart//dart:utils.bzl", "dart_analyzable_info", "dart_package_info")
+load("@rules_dart//dart:providers.bzl", "DartInfo", "DartPackageInfo")
+load("@rules_dart//dart:utils.bzl", "dart_analyzable_info")
 
 def _pkg_executable_impl(ctx):
     return [
         DefaultInfo(files = depset(ctx.files.entry_srcs + ctx.files.srcs)),
         dart_analyzable_info(
             label = ctx.label,
-            packages = [dart_package_info(
+            packages = [DartPackageInfo(
                 label = ctx.label,
                 package_name = ctx.attr.package_name,
                 package_root = ctx.label.package,

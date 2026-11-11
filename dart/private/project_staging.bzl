@@ -94,7 +94,7 @@ def staged_package_config_content(packages, root_uris):
         if root_uri == None:
             continue
         lv = ""
-        if hasattr(pkg, "language_version") and pkg.language_version:
+        if pkg.language_version:
             lv = ', "languageVersion": "{lv}"'.format(lv = pkg.language_version)
         entries.append(
             '    {{"name": "{name}", "rootUri": "{root_uri}", "packageUri": "lib/"{lv}}}'.format(
@@ -148,7 +148,7 @@ def pubspec_stub(packages, dart_sdk_info, name = "analyze_stub"):
     """
     sdk = "^%s.0" % default_language_version(dart_sdk_info)
     for p in packages:
-        if p.package_name == name and getattr(p, "language_version", ""):
+        if p.package_name == name and p.language_version:
             sdk = "^%s.0" % p.language_version
             break
     return derived_pubspec(name, sdk, packages)
@@ -185,10 +185,10 @@ def test_working_directory(short_path, packages, workspace_name):
     """
     if short_path.startswith("../"):
         repo_root = "/".join(short_path.split("/")[:2])
-        same_repo = [p for p in packages if p.package_name and (p.package_root == repo_root or p.package_root.startswith(repo_root + "/"))]
+        same_repo = [p for p in packages if (p.package_root == repo_root or p.package_root.startswith(repo_root + "/"))]
     else:
         repo_root = ""
-        same_repo = [p for p in packages if p.package_name and not p.package_root.startswith("../")]
+        same_repo = [p for p in packages if not p.package_root.startswith("../")]
     record = _deepest_root_record(short_path, package_record_index(same_repo))
     root = record.package_root if record != None else repo_root
     if root.startswith("../"):
@@ -222,7 +222,7 @@ def project_layout(packages, files, home_files):
           package record resolved from outside the project,
       )
     """
-    main = [p for p in packages if p.package_name and not p.package_root.startswith("../")]
+    main = [p for p in packages if not p.package_root.startswith("../")]
     main_index = package_record_index(main)
     index = package_record_index(packages)
     home = {}

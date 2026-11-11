@@ -144,7 +144,7 @@ analyzable_with_package_test(
 )
 
 # No package name means the caller wanted the other constructor.
-# `dart_package_info()` would build a nameless package record instead of saying
+# `DartPackageInfo(...)` would build a nameless package record instead of saying
 # so.
 wrapper_executable(
     name = "unnamed_exec",

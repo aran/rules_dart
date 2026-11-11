@@ -18,7 +18,7 @@ Two constructors cover every `DartInfo` a build produces. `dart_info()` is for a
 target that *contributes packages* — one for a library, several for a library
 over packages that depend on each other, which pub allows and Bazel does not,
 so they are one target. Each package is a `DartPackageInfo` built by
-`dart_package_info()` from what the rule states. `dart_info_no_package()` is
+`DartPackageInfo(...)` from what the rule states. `dart_info_no_package()` is
 for a target that deliberately carries none: `flutter_material_icons` ships a
 font and no Dart, and provides `DartInfo` only because
 `flutter_application(deps = ...)` requires one on every dep. Neither takes a
@@ -59,12 +59,10 @@ nothing.
 
 So construction goes through here and reading does not: `DartInfo` stays public
 and is indexed directly by every consumer. The one deliberate exception is
-`//dart/tests/no_lv_fixture`, which hand-builds a provider missing
-`language_version` precisely to prove the tolerance for pre-existing shapes
-still holds; a fixture asserting that older producers keep working cannot be
-written through a constructor that makes them current.
+`//dart/tests/no_lv_fixture`, which hand-builds a `DartInfo` precisely to prove
+that analysis refuses one `dart_info()` did not build.
 
-`language_version` is the one parameter `dart_package_info()` requires rather
+`language_version` is the one parameter `DartPackageInfo(...)` requires rather
 than defaults, which is a deliberate exception to the paragraph above: adding a field
 here is supposed to reach every call site *without* touching them, and this one
 obliges every caller to state it. The reason is that its empty value is not
@@ -82,7 +80,8 @@ say: `language_version = ""` remains legal and keeps its meaning, which
 `dart_info_fixture`'s `empty_language_version_test` pins.
 """
 
-load("//dart:providers.bzl", "DartAnalyzableInfo", "DartCodeAssetInfo", "DartDataAssetInfo", "DartInfo", "DartPackageInfo")
+load("//dart:providers.bzl", "DartAnalyzableInfo", "DartInfo")
+load("//dart/private:package_info.bzl", "check_package_name", "raw_dart_package_info")
 
 visibility("//dart/...")
 
@@ -110,66 +109,6 @@ def package_lib_prefix(package_root):
       The trailing-slashed prefix, e.g. `"pkgs/sub/lib/"` or `"lib/"`.
     """
     return (package_root + "/lib/") if package_root else "lib/"
-
-def check_code_asset_ownership(label, package_name, assets):
-    """Checks that every declared asset id is namespaced to this package.
-
-    Upstream requires `CodeAsset.id` to be `package:<package>/<name>` where
-    `<package>` is the package that owns the asset — "Code assets are
-    name-spaced in their own package to avoid naming conflicts". Since assets
-    ride `DartPackageInfo`, an id belonging to some other package would
-    propagate under the wrong owner and be impossible to trace back.
-
-    Args:
-      label: The owning rule's label (included in the error message).
-      package_name: The package name this library declares.
-      assets: List of `DartCodeAssetInfo`.
-
-    Returns:
-      An error message string on the first mismatch, else `None`.
-    """
-    prefix = "package:%s/" % package_name
-    for asset in assets:
-        if not asset.asset_id.startswith(prefix):
-            return (
-                ("%s: code asset id `%s` is not namespaced to this package. " +
-                 "Expected it to start with `%s`, because a code asset is " +
-                 "owned by the package declaring it. Move the asset to the " +
-                 "`dart_package_metadata` of the package its id names.") %
-                (label, asset.asset_id, prefix)
-            )
-    return None
-
-def check_data_asset_ownership(label, package_name, assets):
-    """Checks that every data asset is the package's own, and named once.
-
-    Upstream requires a build hook's `DataAsset.package` to be the hook's own
-    package, and its names to be unique within it: the id
-    `package:<package>/<name>` is how Dart code finds the file.
-
-    Args:
-      label: The owning rule's label (included in the error message).
-      package_name: The package name this target declares.
-      assets: List of `struct(package, name, file, id)`.
-
-    Returns:
-      An error message string on the first problem, else `None`.
-    """
-    seen = {}
-    for asset in assets:
-        if asset.package != package_name:
-            return (
-                ("%s: data asset id `%s` is not namespaced to this package. " +
-                 "Expected it to start with `package:%s/`, because a data " +
-                 "asset is owned by the package declaring it. Move the asset " +
-                 "to the `dart_package_metadata` of the package its id names.") %
-                (label, asset.id, package_name)
-            )
-        if asset.id in seen:
-            return ("%s: data asset id `%s` is declared twice, by `%s` and `%s`." %
-                    (label, asset.id, seen[asset.id].short_path, asset.file.short_path))
-        seen[asset.id] = asset.file
-    return None
 
 def dart_info_with_summaries(
         label,
@@ -298,85 +237,6 @@ def summaries_info(merged, summary = None, sdk_summary = None, sdk_owner = None,
         error = error or merged.error,
     )
 
-def dart_package_info(
-        label,
-        package_name,
-        package_root,
-        language_version,
-        code_assets = [],
-        data_assets = [],
-        unreplaced_hook = "",
-        version = "",
-        link_hook = None,
-        license_file = None):
-    """Builds the `DartPackageInfo` a package's own facts make, checking its assets.
-
-    For a rule author whose rule states a package's facts itself. A rule whose
-    target names a `dart_package_metadata` builds its record with
-    `package_info_from_metadata()` instead; a record copied from another goes
-    through `derived_package_info()`.
-
-    Args:
-      label: The constructing rule's label, for error messages. Recorded as
-        the record's `label`, so a later disagreement names this target.
-      package_name: The Dart package name. Required: a package has one.
-      package_root: `short_path`-based path to the package root (parent of `lib/`).
-        Empty string for the root package.
-      language_version: Dart language version in `<major>.<minor>` form, or ""
-        when the package states none. Required to pass — not because a package
-        must have one, but because omitting the argument and stating `""` are
-        different intentions. An absent
-        `languageVersion` in `package_config.json` is not "no language version",
-        it is *the current SDK's*, so a forgotten argument silently compiles the
-        package under newer semantics than its pubspec allows. `""` remains a
-        legal, meaningful value; only not answering is refused.
-      code_assets: Targets providing `DartCodeAssetInfo` that this package owns.
-      data_assets: Targets providing `DartDataAssetInfo` whose assets this
-        package owns.
-      unreplaced_hook: Path of a pub build hook with no Bazel replacement,
-        or "".
-      version: The package's own resolved version, or "" when unknown. Only pub
-        packages know it; a hand-written `dart_library` leaves it empty.
-      link_hook: The package's `hook/link.dart` File, or None.
-      license_file: The package's license text File, or None. Wherever it
-        lives: a license is read for its text, not for its place.
-
-    Returns:
-      A `DartPackageInfo`.
-    """
-    own_assets = [dep[DartCodeAssetInfo] for dep in code_assets]
-    own_data = data_assets_of(data_assets)
-    for err in [
-        check_code_asset_ownership(label, package_name, own_assets),
-        check_data_asset_ownership(label, package_name, own_data),
-    ]:
-        if err != None:
-            fail(err)
-    return _package_record(
-        label = label,
-        package_name = package_name,
-        package_root = package_root,
-        version = version,
-        language_version = language_version,
-        code_assets = tuple(own_assets),
-        data_assets = tuple(own_data),
-        unreplaced_hook = unreplaced_hook,
-        link_hook = link_hook,
-        license_file = license_file,
-        metadata = None,
-    )
-
-def data_assets_of(targets):
-    """The data assets of targets providing `DartDataAssetInfo`, in order.
-
-    Args:
-      targets: Targets providing `DartDataAssetInfo`.
-
-    Returns:
-      List of `struct(package, name, file, id)`.
-    """
-    return [asset for t in targets for asset in t[DartDataAssetInfo].assets.to_list()]
-
 def package_info_from_metadata(label, metadata, package_root):
     """Builds the `DartPackageInfo` of a target that names a `dart_package_metadata`.
 
@@ -395,7 +255,8 @@ def package_info_from_metadata(label, metadata, package_root):
     Returns:
       A `DartPackageInfo`.
     """
-    return _package_record(
+    check_package_name(label, metadata.package_name)
+    return raw_dart_package_info(
         label = label,
         package_name = metadata.package_name,
         package_root = package_root,
@@ -407,25 +268,6 @@ def package_info_from_metadata(label, metadata, package_root):
         link_hook = metadata.link_hook,
         license_file = metadata.license_file,
         metadata = metadata.label,
-    )
-
-def _package_record(label, package_name, package_root, version, language_version, code_assets, data_assets, unreplaced_hook, link_hook, license_file, metadata):
-    if not package_name:
-        fail(("%s: `package_name` is empty. A target that contributes no " +
-              "package is what `dart_info_no_package()` and " +
-              "`dart_analyzable_info_no_package()` are for.") % label)
-    return DartPackageInfo(
-        label = label,
-        package_name = package_name,
-        package_root = package_root,
-        version = version,
-        language_version = language_version,
-        code_assets = code_assets,
-        data_assets = data_assets,
-        unreplaced_hook = unreplaced_hook,
-        link_hook = link_hook,
-        license_file = license_file,
-        metadata = metadata,
     )
 
 def _dep_packages(deps):
@@ -510,7 +352,7 @@ def dart_analyzable_info(
     Args:
       label: The constructing rule's label, for error messages.
       packages: The `DartPackageInfo` records this target contributes, each
-        from `executable_package_record()` or `dart_package_info()`. At least
+        from `executable_package_record()` or `DartPackageInfo(...)`. At least
         one: an executable contributing no package is what
         `dart_analyzable_info_no_package()` is for.
       deps: Targets providing `DartInfo` whose closures are merged in.
@@ -598,14 +440,8 @@ def derived_package_info(
     record without those sites being touched, and means neither of them can be
     the one that quietly drops it.
 
-    Reads are tolerant (`getattr` with a default) for the same reason
-    `package_code_assets` is: a `DartPackageInfo` built by an older producer,
-    or by `//dart/tests/no_lv_fixture`, legitimately omits the later fields,
-    and a derived copy of such a record should be as complete as the original
-    rather than failing on it.
-
     Args:
-      pkg: The `DartPackageInfo` (or `DartPackageInfo`-shaped struct) to copy.
+      pkg: The `DartPackageInfo` to copy.
       package_root: Replacement `package_root`, or `None` to keep `pkg`'s.
       version: Replacement `version` string (`""` for unknown), or `None` to
         keep `pkg`'s.
@@ -622,29 +458,28 @@ def derived_package_info(
       A `DartPackageInfo`.
     """
 
-    # Paired with the `DartPackageInfo(...)` in `_package_record()` above: one builds
-    # a record from stated facts, this one from an existing record.
-    # Those are the only two places the fields are named, and both are here.
-    return DartPackageInfo(
-        label = getattr(pkg, "label", None),
+    # Paired with `package_info_from_metadata()` above: one builds a record from
+    # a declaration, this one from an existing record.
+    return raw_dart_package_info(
+        label = pkg.label,
         package_name = pkg.package_name,
         package_root = pkg.package_root if package_root == None else package_root,
-        version = getattr(pkg, "version", "") if version == None else version,
+        version = pkg.version if version == None else version,
         language_version = (
-            getattr(pkg, "language_version", "") if language_version == None else language_version
+            pkg.language_version if language_version == None else language_version
         ),
         code_assets = (
-            getattr(pkg, "code_assets", ()) if code_assets == None else code_assets
+            pkg.code_assets if code_assets == None else code_assets
         ),
         data_assets = (
-            getattr(pkg, "data_assets", ()) if data_assets == None else data_assets
+            pkg.data_assets if data_assets == None else data_assets
         ),
         unreplaced_hook = (
-            getattr(pkg, "unreplaced_hook", "") if unreplaced_hook == None else unreplaced_hook
+            pkg.unreplaced_hook if unreplaced_hook == None else unreplaced_hook
         ),
-        link_hook = getattr(pkg, "link_hook", None) if link_hook == None else link_hook,
-        license_file = getattr(pkg, "license_file", None) if license_file == None else license_file,
-        metadata = getattr(pkg, "metadata", None),
+        link_hook = pkg.link_hook if link_hook == None else link_hook,
+        license_file = pkg.license_file if license_file == None else license_file,
+        metadata = pkg.metadata,
     )
 
 def _merged_dart_info(

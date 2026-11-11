@@ -6,14 +6,15 @@ It returns `DartAnalyzableInfo` whose `entry_srcs` are empty — nothing outside
 aspect finds a library's own files.
 """
 
-load("@rules_dart//dart:utils.bzl", "dart_analyzable_info", "dart_package_info")
+load("@rules_dart//dart:providers.bzl", "DartPackageInfo")
+load("@rules_dart//dart:utils.bzl", "dart_analyzable_info")
 
 def _package_only_library_impl(ctx):
     return [
         DefaultInfo(files = depset(ctx.files.srcs)),
         dart_analyzable_info(
             label = ctx.label,
-            packages = [dart_package_info(
+            packages = [DartPackageInfo(
                 label = ctx.label,
                 package_name = ctx.attr.package_name,
                 package_root = ctx.label.package,
@@ -40,7 +41,7 @@ def _bundle_shaped_impl(ctx):
         DefaultInfo(files = depset([bundle])),
         dart_analyzable_info(
             label = ctx.label,
-            packages = [dart_package_info(
+            packages = [DartPackageInfo(
                 label = ctx.label,
                 package_name = ctx.attr.package_name,
                 package_root = ctx.label.package,

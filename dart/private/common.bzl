@@ -1,7 +1,7 @@
 """Shared utilities for Dart rules."""
 
-load("//dart:providers.bzl", "CODE_ASSET_LINK_MODES", "DartCodeAssetInfo", "DartInfo", "DartPackageMetadataInfo")
-load("//dart/private:dart_info.bzl", "dart_package_info", "derived_package_info", "package_info_from_metadata", "package_lib_prefix")
+load("//dart:providers.bzl", "CODE_ASSET_LINK_MODES", "DartCodeAssetInfo", "DartInfo", "DartPackageInfo", "DartPackageMetadataInfo")
+load("//dart/private:dart_info.bzl", "derived_package_info", "package_info_from_metadata", "package_lib_prefix")
 load("//dart/private:exec_groups.bzl", "PORTABLE", "portable_sdk")
 load("//dart/private:package_root.bzl", "derive_package_root")
 load("//dart/private:resources.bzl", "kernel_resources")
@@ -51,57 +51,48 @@ def runfiles_path(f, workspace_name):
     return workspace_name + "/" + f.short_path
 
 def package_code_assets(pkg):
-    """Code assets declared on a `DartPackageInfo`, tolerating older producers.
-
-    `code_assets` is optional in the same sense `language_version` is: a
-    `DartPackageInfo` built against a rules_dart that predates the field omits
-    it, and such a record keeps working — it simply contributes no assets.
-    `//dart/tests/no_lv_fixture` pins that tolerance, emitting a record with
-    only `package_name` and `package_root`.
+    """Code assets declared on a `DartPackageInfo`.
 
     Args:
       pkg: A `DartPackageInfo`.
 
     Returns:
-      Tuple of `DartCodeAssetInfo`; empty when the field is absent.
+      Tuple of `DartCodeAssetInfo`.
     """
-    return pkg.code_assets if hasattr(pkg, "code_assets") else ()
+    return pkg.code_assets
 
 def package_data_assets(pkg):
-    """Data assets declared on a `DartPackageInfo`, tolerating older producers.
+    """Data assets declared on a `DartPackageInfo`.
 
     Args:
       pkg: A `DartPackageInfo`.
 
     Returns:
-      Tuple of `struct(package, name, file, id)`; empty when the field is
-      absent.
+      Tuple of `struct(package, name, file, id)`.
     """
-    return getattr(pkg, "data_assets", ())
+    return pkg.data_assets
 
 def package_link_hook(pkg):
-    """A `DartPackageInfo`'s `hook/link.dart`, tolerating older producers.
+    """A `DartPackageInfo`'s `hook/link.dart`.
 
     Args:
       pkg: A `DartPackageInfo`.
 
     Returns:
-      The hook File, or `None` when the package has none or the record
-      predates the field.
+      The hook File, or `None` when the package has none.
     """
-    return getattr(pkg, "link_hook", None)
+    return pkg.link_hook
 
 def package_license_file(pkg):
-    """A `DartPackageInfo`'s license text, tolerating older producers.
+    """A `DartPackageInfo`'s license text.
 
     Args:
       pkg: A `DartPackageInfo`.
 
     Returns:
-      The license File, or `None` when the package has none or the record
-      predates the field.
+      The license File, or `None` when the package has none.
     """
-    return getattr(pkg, "license_file", None)
+    return pkg.license_file
 
 def _in_package_key(pkg, f):
     """What two records' files must share to name the same file of the package.
@@ -279,7 +270,7 @@ def derived_pubspec(name, sdk, packages):
     versions = {}
     for p in packages:
         if p.package_name and p.package_name != name:
-            versions[p.package_name] = getattr(p, "version", "") or versions.get(p.package_name, "")
+            versions[p.package_name] = p.version or versions.get(p.package_name, "")
     lines = ["name: %s" % name, "environment:", '  sdk: "%s"' % sdk]
     if versions:
         lines.append("dependencies:")
@@ -310,7 +301,7 @@ rules_dart does not support multiple versions of a package.
 # Within one repository every target of a package names one
 # `dart_package_metadata`, so its records agree by construction; these fire for
 # a package two producers supply (two pub hubs), or for records a rule builds
-# with `dart_package_info()`.
+# with `DartPackageInfo()`.
 _LICENSE_FILE_REMEDY = """
 Each package listed just above has records naming different license files, so
 which license text the package is reported with would be decided by dependency
@@ -350,17 +341,17 @@ none, or point the targets listed above at the same `dart_package_metadata`.
 # remedy. `merge_package_records` takes each from whichever record states it,
 # which is only order-independent because of this check.
 _AGREED_FIELDS = (
-    (lambda pkg: getattr(pkg, "version", ""), "versions", _VERSION_REMEDY),
-    (lambda pkg: getattr(pkg, "language_version", ""), "language versions", _LANGUAGE_VERSION_REMEDY),
+    (lambda pkg: pkg.version, "versions", _VERSION_REMEDY),
+    (lambda pkg: pkg.language_version, "language versions", _LANGUAGE_VERSION_REMEDY),
     (_license_key, "license files", _LICENSE_FILE_REMEDY),
     (_link_hook_key, "link hooks", _LINK_HOOK_REMEDY),
-    (lambda pkg: getattr(pkg, "unreplaced_hook", ""), "build hooks", _BUILD_HOOK_REMEDY),
+    (lambda pkg: pkg.unreplaced_hook, "build hooks", _BUILD_HOOK_REMEDY),
 )
 
 def _stated_by(pkg):
     """Names the target behind a record, and where its package is rooted."""
     root = pkg.package_root or "."
-    label = getattr(pkg, "label", None)
+    label = pkg.label
     if label == None:
         return root
     return "%s at %s" % (label, root)
@@ -508,7 +499,7 @@ def identity_package_record(label, identity, package_root):
     """
     if identity.metadata != None:
         return package_info_from_metadata(label, identity.metadata, package_root)
-    return dart_package_info(
+    return DartPackageInfo(
         label = label,
         package_name = identity.package_name,
         package_root = package_root,
@@ -715,9 +706,8 @@ def _metadata_agreement_error(merged):
             declared[root] = {}
             undeclared[root] = {}
             order.append(root)
-        metadata = getattr(pkg, "metadata", None)
-        if metadata != None:
-            declared[root].setdefault(metadata, pkg)
+        if pkg.metadata != None:
+            declared[root].setdefault(pkg.metadata, pkg)
         else:
             undeclared[root].setdefault(pkg.package_name, pkg)
     reported = []
@@ -733,7 +723,7 @@ def _metadata_agreement_error(merged):
                 "  - %s (package \"%s\"), named by %s\n" % (
                     m,
                     pkg.package_name,
-                    getattr(pkg, "label", None) or "a target",
+                    pkg.label if pkg.label != None else "a target",
                 )
                 for m, pkg in sorted(entries, key = lambda e: "" if e[0] == "none" else e[0])
             ]),
@@ -829,11 +819,11 @@ def _merge_one(records):
     data_assets = tuple(data_assets)
     merged = derived_package_info(
         kept,
-        version = _first_stated(records, lambda p: getattr(p, "version", ""), ""),
-        language_version = _first_stated(records, lambda p: getattr(p, "language_version", ""), ""),
+        version = _first_stated(records, lambda p: p.version, ""),
+        language_version = _first_stated(records, lambda p: p.language_version, ""),
         code_assets = code_assets,
         data_assets = data_assets,
-        unreplaced_hook = "" if code_assets or data_assets else _first_stated(records, lambda p: getattr(p, "unreplaced_hook", ""), ""),
+        unreplaced_hook = "" if code_assets or data_assets else _first_stated(records, lambda p: p.unreplaced_hook, ""),
         link_hook = _first_stated(records, package_link_hook, None),
         license_file = _first_stated(records, package_license_file, None),
     )
@@ -892,7 +882,7 @@ def merged_package_record(label, package_name, package_root, metadata, records):
     if metadata != None:
         own = package_info_from_metadata(label, metadata, package_root)
     else:
-        own = dart_package_info(
+        own = DartPackageInfo(
             label = label,
             package_name = package_name,
             package_root = package_root,
@@ -1115,7 +1105,7 @@ def generate_package_config(packages, all_srcs, config_file):
             # failing the whole package_config build here.
             continue
         lv = ""
-        if hasattr(pkg, "language_version") and pkg.language_version:
+        if pkg.language_version:
             lv = ', "languageVersion": "{lv}"'.format(lv = pkg.language_version)
         entries.append(
             '    {{"name": "{name}", "rootUri": "{root_uri}", "packageUri": "lib/"{lv}}}'.format(
@@ -1257,7 +1247,7 @@ def generate_dev_package_config(packages, all_srcs, config_file, scheme = "org-d
             else:
                 continue
         lv = ""
-        if hasattr(pkg, "language_version") and pkg.language_version:
+        if pkg.language_version:
             lv = ', "languageVersion": "{lv}"'.format(lv = pkg.language_version)
         entries.append(
             '    {{"name": "{name}", "rootUri": "{root_uri}", "packageUri": "lib/"{lv}}}'.format(
@@ -1299,7 +1289,7 @@ def generate_package_config_content(packages, prefix):
     for pkg in packages:
         root_uri = prefix + "/" + pkg.package_root if pkg.package_root else prefix
         lv = ""
-        if hasattr(pkg, "language_version") and pkg.language_version:
+        if pkg.language_version:
             lv = ', "languageVersion": "{lv}"'.format(lv = pkg.language_version)
         entries.append(
             '    {{"name": "{name}", "rootUri": "{root_uri}", "packageUri": "lib/"{lv}}}'.format(
@@ -1544,7 +1534,7 @@ def check_unreplaced_hooks(label, packages):
     offenders = [
         pkg
         for pkg in packages
-        if hasattr(pkg, "unreplaced_hook") and pkg.unreplaced_hook
+        if pkg.unreplaced_hook
     ]
     if not offenders:
         return None

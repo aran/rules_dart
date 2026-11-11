@@ -1,7 +1,7 @@
 """The `dart_package_metadata` rule: a Dart package's facts, declared once."""
 
 load("//dart:providers.bzl", "DartCodeAssetInfo", "DartDataAssetInfo", "DartPackageMetadataInfo")
-load("//dart/private:dart_info.bzl", "check_code_asset_ownership", "check_data_asset_ownership", "data_assets_of")
+load("//dart/private:package_info.bzl", "check_code_asset_ownership", "check_data_asset_ownership", "data_assets_of")
 load("//dart/private:package_root.bzl", "locate_package_root")
 
 visibility("//dart/...")

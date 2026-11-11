@@ -16,7 +16,7 @@ def _impl(ctx):
     licenses = {}
     for pkg in info.transitive_packages.to_list():
         versions.setdefault(pkg.package_name, {})[pkg.version] = True
-        f = getattr(pkg, "license_file", None)
+        f = pkg.license_file
         if f != None and f.short_path.startswith(pkg.package_root + "/"):
             licenses[pkg.package_name] = f.short_path[len(pkg.package_root) + 1:]
 

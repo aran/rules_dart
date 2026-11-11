@@ -10,7 +10,7 @@ package.
 """
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts", "unittest")
-load("//dart:providers.bzl", "DartCodeAssetInfo", "DartInfo", "DartPackageInfo", "DartPackageMetadataInfo")
+load("//dart:providers.bzl", "DartCodeAssetInfo", "DartInfo", "DartPackageMetadataInfo")
 load(
     "//dart/private:common.bzl",
     "collect_packages",
@@ -22,6 +22,7 @@ load(
     "package_link_hook",
 )
 load("//dart/private:dart_info.bzl", "package_info_from_metadata")
+load("//dart/private:package_info.bzl", "raw_dart_package_info")
 load(":small_suite.bzl", "small_unittest_suite")
 
 def _file(short_path):
@@ -35,6 +36,9 @@ def _asset(asset_id):
         uri = "",
     )
 
+# Built raw, not through `DartPackageInfo(...)`: that takes the assets as targets, and
+# these tests have values.
+# It also states `metadata`, which `DartPackageInfo(...)` does not take.
 def _pkg(
         label,
         package_name = "split",
@@ -46,7 +50,7 @@ def _pkg(
         link_hook = None,
         license_file = None,
         metadata = None):
-    return DartPackageInfo(
+    return raw_dart_package_info(
         label = label,
         package_name = package_name,
         package_root = package_root,
@@ -54,6 +58,7 @@ def _pkg(
         language_version = language_version,
         code_assets = code_assets,
         unreplaced_hook = unreplaced_hook,
+        data_assets = (),
         link_hook = link_hook,
         license_file = license_file,
         metadata = metadata,
@@ -76,7 +81,7 @@ def _meta(label, package_name = "app", package_root = "app", language_version = 
 # --- merge_package_records: a fact stated on any record is the package's ---
 
 def _merge_takes_stated_language_version_test_impl(ctx):
-    # Records naming no declaration, as a rule author's `dart_package_info()`
+    # Records naming no declaration, as a rule author's `DartPackageInfo(...)`
     # builds them: a first record stating no language version must not leave
     # the package with none in `package_config.json`.
     env = unittest.begin(ctx)
@@ -178,11 +183,11 @@ def _agreement_rejects_two_build_hooks_test_impl(ctx):
     return unittest.end(env)
 
 def _agreement_falls_back_to_root_without_label_test_impl(ctx):
-    # A record from a producer predating `label` is named by its root.
+    # A record with no `label` (a package no target stated) is named by its root.
     env = unittest.begin(ctx)
     err = package_agreement_error([
-        struct(package_name = "p", package_root = "first", language_version = "3.7"),
-        struct(package_name = "p", package_root = "second", language_version = "3.4"),
+        _pkg(None, package_name = "p", package_root = "first", language_version = "3.7"),
+        _pkg(None, package_name = "p", package_root = "second", language_version = "3.4"),
     ])
     asserts.true(env, err != None and "3.7 (first)" in err and "3.4 (second)" in err, str(err))
     return unittest.end(env)

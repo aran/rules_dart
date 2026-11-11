@@ -329,4 +329,5 @@ bzl_library(
     name = "providers",
     srcs = ["providers.bzl"],
     visibility = ["//visibility:public"],
+    deps = ["//dart/private:package_info"],
 )

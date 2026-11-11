@@ -11,11 +11,11 @@ The analysis tests are declared beside their fixtures, in
 """
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts", "unittest")
-load("//dart:providers.bzl", "DartDataAssetInfo", "DartInfo", "DartPackageInfo")
+load("//dart:providers.bzl", "DartDataAssetInfo", "DartInfo")
 load("//dart/private:common.bzl", "collect_transitive_data_assets", "merge_package_records", "package_data_assets", "unique_data_assets")
 load("//dart/private:dart_data_asset.bzl", "data_asset")
-load("//dart/private:dart_info.bzl", "check_data_asset_ownership")
 load("//dart/private:dart_package_metadata.bzl", "unreplaced_build_hook")
+load("//dart/private:package_info.bzl", "check_data_asset_ownership", "raw_dart_package_info")
 load(":small_suite.bzl", "small_unittest_suite")
 
 def _file(short_path):
@@ -51,12 +51,21 @@ _data_assets_replace_hook_test = unittest.make(_data_assets_replace_hook_test_im
 
 # --- merge_package_records ---
 
+# Built raw, not through `DartPackageInfo(...)`: that takes the assets as targets, and
+# these tests have values.
 def _record(package_root, hook = "", data_assets = ()):
-    return DartPackageInfo(
+    return raw_dart_package_info(
+        label = None,
         package_name = "split",
         package_root = package_root,
+        version = "",
+        language_version = "",
+        code_assets = (),
         data_assets = data_assets,
         unreplaced_hook = hook,
+        link_hook = None,
+        license_file = None,
+        metadata = None,
     )
 
 def _merge_unions_data_assets_test_impl(ctx):
@@ -109,13 +118,6 @@ def _program_own_package_test_impl(ctx):
     return unittest.end(env)
 
 _program_own_package_test = unittest.make(_program_own_package_test_impl)
-
-def _older_record_has_none_test_impl(ctx):
-    env = unittest.begin(ctx)
-    asserts.equals(env, (), package_data_assets(DartPackageInfo(package_name = "legacy", package_root = "legacy")))
-    return unittest.end(env)
-
-_older_record_has_none_test = unittest.make(_older_record_has_none_test_impl)
 
 # --- analysis tests ---
 
@@ -183,5 +185,4 @@ def data_asset_test_suite(name):
         _merge_unions_data_assets_test,
         _one_file_per_id_test,
         _program_own_package_test,
-        _older_record_has_none_test,
     )

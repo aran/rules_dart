@@ -24,14 +24,13 @@ invalid `deps` entry.
 """
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts")
-load("//dart:providers.bzl", "DartAnalyzableInfo", "DartCodeAssetInfo", "DartInfo")
+load("//dart:providers.bzl", "DartAnalyzableInfo", "DartCodeAssetInfo", "DartInfo", "DartPackageInfo")
 load("//dart/private:common.bzl", "package_code_assets")
 load(
     "//dart/private:dart_info.bzl",
     "dart_analyzable_info",
     "dart_analyzable_info_no_package",
     "dart_info_no_package",
-    "dart_package_info",
 )
 load("//dart/private:dart_summary.bzl", "SUMMARY_ATTRS", "dart_info")
 load("//dart/private:exec_groups.bzl", "PORTABLE_EXEC_GROUPS")
@@ -42,7 +41,7 @@ def _wrapper_library_impl(ctx):
         DefaultInfo(files = depset(ctx.files.srcs + ctx.files.resources)),
         dart_info(
             ctx = ctx,
-            packages = [dart_package_info(
+            packages = [DartPackageInfo(
                 label = ctx.label,
                 package_name = ctx.attr.package_name,
                 package_root = ctx.label.package,
@@ -90,7 +89,7 @@ def _wrapper_executable_impl(ctx):
         DefaultInfo(files = depset(ctx.files.srcs + ctx.files.entry_srcs)),
         dart_analyzable_info(
             label = ctx.label,
-            packages = [dart_package_info(
+            packages = [DartPackageInfo(
                 label = ctx.label,
                 package_name = ctx.attr.package_name,
                 package_root = ctx.label.package,
@@ -414,7 +413,7 @@ def _no_package_name_test_impl(ctx):
 # The redirect that keeps the two constructors from collapsing into one. An
 # empty `package_name` means the caller wanted `dart_analyzable_info()`, and
 # saying so is cheaper than the package record with no name that
-# `dart_package_info()` would otherwise build.
+# `DartPackageInfo(...)` would otherwise build.
 no_package_name_test = analysistest.make(
     _no_package_name_test_impl,
     expect_failure = True,
@@ -455,7 +454,7 @@ def _language_version_passthrough_test_impl(ctx):
 
     return analysistest.end(env)
 
-# `language_version` is a required parameter of `dart_package_info()`, which is a claim
+# `language_version` is a required parameter of `DartPackageInfo(...)`, which is a claim
 # about the *calling convention* and not about the value: a package that states
 # no language version is still expressible, by answering `""`. These two cases
 # are what says so — the stated value reaches the record, and the empty one

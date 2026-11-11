@@ -359,7 +359,7 @@ def _format_language_versions(info, own_paths, default):
     """
     own = own_packages(info)
     if len(own) == 1:
-        return {getattr(own[0], "language_version", "") or default: own_paths}
+        return {own[0].language_version or default: own_paths}
 
     # Several own packages are told apart by root like an entrypoint's.
     roots = own or [
@@ -374,7 +374,7 @@ def _format_language_versions(info, own_paths, default):
             if p.package_root == "" or path.startswith(p.package_root + "/"):
                 if best == None or len(p.package_root) > len(best.package_root):
                     best = p
-        version = (getattr(best, "language_version", "") if best else "") or default
+        version = (best.language_version if best else "") or default
         groups.setdefault(version, []).append(path)
     return groups
 

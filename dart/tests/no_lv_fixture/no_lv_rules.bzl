@@ -1,13 +1,14 @@
-"""Test-only rule that emits `DartPackageInfo` without `language_version`."""
+"""Test-only rule that emits a package stating no language version, in a hand-built `DartInfo`."""
 
 load("//dart:providers.bzl", "DartInfo", "DartPackageInfo")
 
 def _no_lv_dart_library_impl(ctx):
     srcs = ctx.files.srcs
     pkg = DartPackageInfo(
+        ctx.label,
         package_name = ctx.attr.package_name,
         package_root = ctx.label.package,
-        # `language_version` omitted.
+        language_version = "",
     )
     return [
         DefaultInfo(files = depset(srcs)),
@@ -32,5 +33,5 @@ no_lv_dart_library = rule(
             mandatory = True,
         ),
     },
-    doc = "A `dart_library`-shaped rule that emits `DartPackageInfo` without `language_version`.",
+    doc = "A `dart_library`-shaped rule whose package states no language version.",
 )

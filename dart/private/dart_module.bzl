@@ -87,7 +87,7 @@ def kernel_package_config(packages, scheme = KERNEL_FILESYSTEM_SCHEME):
     for pkg in packages:
         root = kernel_root_path(pkg.package_root)
         lv = ""
-        if getattr(pkg, "language_version", ""):
+        if pkg.language_version:
             lv = ', "languageVersion": "%s"' % pkg.language_version
         entries.append('    {"name": "%s", "rootUri": "%s:///%s", "packageUri": "lib/"%s}' % (
             pkg.package_name,

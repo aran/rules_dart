@@ -62,7 +62,6 @@ load(
     _dart_analyzable_info = "dart_analyzable_info",
     _dart_analyzable_info_no_package = "dart_analyzable_info_no_package",
     _dart_info_no_package = "dart_info_no_package",
-    _dart_package_info = "dart_package_info",
     _package_info_from_metadata = "package_info_from_metadata",
     _package_lib_prefix = "package_lib_prefix",
 )
@@ -173,10 +172,6 @@ package_identity_attrs = _package_identity_attrs
 library_package = _library_package
 resolve_package_identity = _resolve_package_identity
 executable_package_record = _executable_package_record
-
-# The `DartPackageInfo` record of a package a target contributes, from what the
-# rule states about it; checks that its code and data assets are namespaced to it.
-dart_package_info = _dart_package_info
 
 # The `DartPackageInfo` record of a target that names a `dart_package_metadata`
 # (its `DartPackageMetadataInfo`), rooted where the target's sources are. Every

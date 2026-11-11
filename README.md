@@ -131,7 +131,7 @@ after step 1 does steps 6–8 for the BUILD files it writes.
 24. `DartPackageInfo.lib_root` → `package_root`; `derive_lib_root` →
     `derive_package_root`; `has_unreplaced_hook` → `unreplaced_hook`.
 25. `DartInfo.package_name`/`lib_root` → `DartInfo.packages` (from
-    `dart_package_info()`); `DartInfo.deps` values are tuples of package
+    `DartPackageInfo(...)`); `DartInfo.deps` values are tuples of package
     names. Build `DartInfo` with `dart_info(ctx = ctx, ...)` and merge
     `SUMMARY_ATTRS` into the rule's attributes.
 26. `dart_analyzable_info` → `dart_analyzable_info_no_package` (`srcs` →

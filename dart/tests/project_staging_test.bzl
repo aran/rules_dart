@@ -1,11 +1,12 @@
 """Unit tests for project_staging.bzl."""
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
+load("//dart:providers.bzl", "DartPackageInfo")
 load("//dart/private:project_staging.bzl", "in_place_root", "main_package_roots", "project_layout", "pubspec_stub", "staged_package_config_content", "test_working_directory")
 load(":small_suite.bzl", "small_unittest_suite")
 
 def _pkg(name, language_version = "", package_root = ""):
-    return struct(package_name = name, language_version = language_version, package_root = package_root)
+    return DartPackageInfo(None, package_name = name, package_root = package_root, language_version = language_version)
 
 def _file(short_path):
     if short_path.startswith("../"):
@@ -114,7 +115,7 @@ def _dependencies_test_impl(ctx):
     env = unittest.begin(ctx)
     pkgs = [
         _pkg("app", "3.5"),
-        struct(package_name = "json_annotation", language_version = "3.0", package_root = "", version = "4.12.0"),
+        DartPackageInfo(None, package_name = "json_annotation", package_root = "", language_version = "3.0", version = "4.12.0"),
         _pkg("util"),
     ]
 
@@ -149,7 +150,7 @@ def _test_working_directory_test_impl(ctx):
 
     # Pub packages and other repositories' packages never hold a main-repository
     # test; an unnamed record is no package.
-    asserts.equals(env, ("_main", "test/a_test.dart"), where("test/a_test.dart", [_pkg("dep", package_root = "../dep+"), _pkg("", package_root = "")]))
+    asserts.equals(env, ("_main", "test/a_test.dart"), where("test/a_test.dart", [_pkg("dep", package_root = "../dep+"), _pkg("app", package_root = "")]))
 
     # A test in another repository runs in that repository's runfiles.
     ext = [_pkg("app", package_root = ""), _pkg("lib", package_root = "../ext+/pkgs/lib")]

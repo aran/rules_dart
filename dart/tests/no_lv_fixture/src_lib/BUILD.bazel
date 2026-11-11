@@ -1,9 +1,8 @@
 load("//dart/tests:summaries_test.bzl", "summaries_refused_test")
 load("//dart/tests/no_lv_fixture:no_lv_rules.bzl", "no_lv_dart_library")
 
-# A record with only `package_name` and `package_root`, as an older producer builds
-# it, over a hand-written file: the aspect checks it from source and must not
-# assume the optional `language_version` is present.
+# A package stating no language version, over a hand-written file: the aspect
+# checks it from source and must not assume a language version is present.
 no_lv_dart_library(
     name = "src_lib",
     package_name = "no_lv_src_lib",

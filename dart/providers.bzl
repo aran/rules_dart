@@ -1,5 +1,12 @@
 """Providers for Dart rules."""
 
+load(
+    "//dart/private:package_info.bzl",
+    _DartCodeAssetInfo = "DartCodeAssetInfo",
+    _DartDataAssetInfo = "DartDataAssetInfo",
+    _DartPackageInfo = "DartPackageInfo",
+)
+
 # The upstream `code_assets` link-mode vocabulary, verbatim (see
 # `code_assets/lib/src/code_assets/syntax.g.dart`). Declared here, next to the
 # provider whose field carries it, so that consumers in other rule sets —
@@ -78,22 +85,7 @@ collecting its output can check that both name the same package.""",
     },
 )
 
-DartPackageInfo = provider(
-    doc = "Record of a single Dart package in the build graph, carried in depsets within DartInfo.",
-    fields = {
-        "label": "Label or None: The target that stated this record — for a merged record, the first of the targets whose records were merged. Read only for error messages, which name the targets whose statements disagree. Optional; absent from a record built by a producer predating the field.",
-        "package_name": "str: The Dart package name. Required.",
-        "package_root": "str: The short_path-based path to the package root directory (parent of `lib/`). Configuration-independent. Required; empty string for the root package.",
-        "version": "str: The package's own version, as resolved by pub (e.g. `2.2.0`). Optional; empty string when unknown, which is what a `dart_library` written by hand and a producer predating this field both carry. Recorded so that two records for one package name can be checked for agreement — see `package_agreement_error`.",
-        "language_version": "str: Dart language version implied by the package's `environment.sdk` constraint, in `<major>.<minor>` form. Optional; empty string when unknown.",
-        "code_assets": "tuple[DartCodeAssetInfo]: Native code assets this package owns. A tuple rather than a list because `DartPackageInfo` is carried in a depset, whose elements must be hashable.",
-        "data_assets": "tuple[struct]: Data assets this package owns, each as `DartDataAssetInfo.assets` holds one. Optional; absent from a record built by a producer predating the field. Read them with `collect_transitive_data_assets()` from `//dart:utils.bzl`.",
-        "unreplaced_hook": "str: Path of a `hook/build.dart` this package ships that has no Bazel replacement (empty when none). Merged across a package's records: unreplaced when any states one and none has `code_assets` or `data_assets`. Acted on by `dart_binary`/`dart_test`.",
-        "link_hook": "File or None: The package's `hook/link.dart`, which `dart_link_hook` runs. Optional; `None` when the package has none, and absent from a record built by a producer predating the field.",
-        "license_file": "File or None: The package's license text — for a pub package, the `NOTICES` file at its root if it has one, else its `LICENSE`, the file `flutter build` collects for the license page. Optional; `None` when the package has none, and absent from a record built by a producer predating the field. Read it with `package_license_file()` from `//dart:utils.bzl`.",
-        "metadata": "Label or None: The `dart_package_metadata` the record was built from (`package_info_from_metadata()`), or `None` for a package that names none. Records of one package rooted at one directory must name the same one. Optional; absent from a record built by a producer predating the field.",
-    },
-)
+DartPackageInfo = _DartPackageInfo
 
 DartAnalyzableInfo = provider(
     doc = """An executable target's analyzable closure: everything \
@@ -148,21 +140,7 @@ DartCompileInfo = provider(
     },
 )
 
-DartCodeAssetInfo = provider(
-    doc = """A native code asset (a Bazel-built dynamic library) bound to the \
-Dart `@Native`/`@DefaultAsset` asset id the owning package uses.
-
-Produced by the `dart_code_asset` rule and consumed via the `code_assets` \
-attribute of `dart_test` / `dart_binary`, which embed the mapping into the \
-compiled kernel (`frontend_server --native-assets`) so the Dart VM resolves the \
-package's `@Native` symbols against the Bazel-built library at runtime.""",
-    fields = {
-        "asset_id": "str: The code-asset id the owning package declares (its `@ffi.DefaultAsset` / `@Native(assetId:)`), e.g. `package:sqlite3/src/ffi/libsqlite3.g.dart`.",
-        "link_mode": "str: How the runtime loads the asset. One of `dynamic_loading_bundle`, `dynamic_loading_system`, `dynamic_loading_executable`, `dynamic_loading_process` — the upstream `code_assets` strings, verbatim.",
-        "file": "File or None: The dynamic library (`.so`/`.dylib`/`.dll`) the asset resolves to. Set only for `dynamic_loading_bundle`; `None` otherwise.",
-        "uri": "str: System library URI (e.g. `libsqlite3.so.0`) for `dynamic_loading_system`. Empty string otherwise.",
-    },
-)
+DartCodeAssetInfo = _DartCodeAssetInfo
 
 DartRecordedUsesInfo = provider(
     doc = """The uses of `@RecordUse` definitions the compiler recorded while \
@@ -182,23 +160,7 @@ unchanged.""",
     },
 )
 
-DartDataAssetInfo = provider(
-    doc = """Data assets: files a Dart program reads at run time by asset id, \
-the counterpart of `DartCodeAssetInfo` for data rather than native code.
-
-Produced by `dart_data_asset`, one asset a package declares in the \
-`data_assets` of its `dart_package_metadata`, standing in for one its build \
-hook would emit; and by `dart_link_hook`, the data assets a linked program \
-ships: what its link hooks emit, and the declared assets of packages without \
-one. A program nothing links ships its packages' declared assets, which \
-`collect_transitive_data_assets()` from `//dart:utils.bzl` returns. Carries \
-only what upstream's `DataAsset` carries — package, name, file — and no \
-bundling paths: where the file lands inside an application is the bundler's \
-decision (rules_flutter's, for a Flutter app).""",
-    fields = {
-        "assets": "depset[struct]: One struct per data asset, with `package` (str: the owning package), `name` (str: the asset's name within the package, e.g. `glyphs/index.json`), `file` (File) and `id` (str: `package:<package>/<name>`, the id Dart code loads it by).",
-    },
-)
+DartDataAssetInfo = _DartDataAssetInfo
 
 DartAnalysisOptionsInfo = provider(
     doc = """An `analysis_options.yaml` together with the packages its \

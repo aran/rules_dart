@@ -13,7 +13,7 @@ The pure helpers are unit tests; the rule shapes are `analysistest`s over
 """
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts", "unittest")
-load("//dart:providers.bzl", "DartDataAssetInfo", "DartInfo", "DartRecordedUsesInfo")
+load("//dart:providers.bzl", "DartDataAssetInfo", "DartInfo", "DartPackageInfo", "DartRecordedUsesInfo")
 load("//dart/private:common.bzl", "merge_package_records", "package_link_hook")
 load("//dart/private:dart_compile.bzl", "recorded_uses_kind")
 load("//dart/private:dart_data_asset.bzl", "parse_data_asset_ids")
@@ -107,7 +107,7 @@ def _package_files_test_impl(ctx):
     # A program's own files reach its package's hook only from that
     # package's `lib/`, and only with the package they belong to.
     env = unittest.begin(ctx)
-    pkg = struct(package_name = "app", package_root = "app")
+    pkg = DartPackageInfo(None, package_name = "app", package_root = "app", language_version = "")
     lib = struct(short_path = "app/lib/a.dart")
     asserts.equals(env, None, package_files_error("//a:b", pkg, [lib]))
     asserts.equals(env, None, package_files_error("//a:b", None, []))
@@ -181,8 +181,8 @@ def _merge_adopts_link_hook_test_impl(ctx):
     env = unittest.begin(ctx)
     hook = struct(short_path = "b/hook/link.dart")
     merged = merge_package_records([
-        struct(package_name = "p", package_root = "a", link_hook = None),
-        struct(package_name = "p", package_root = "b", link_hook = hook),
+        DartPackageInfo(None, package_name = "p", package_root = "a", link_hook = None, language_version = ""),
+        DartPackageInfo(None, package_name = "p", package_root = "b", link_hook = hook, language_version = ""),
     ])
     asserts.equals(env, 1, len(merged))
     asserts.equals(env, "a", merged[0].package_root)
@@ -193,8 +193,8 @@ def _merge_adopts_link_hook_test_impl(ctx):
     # see `package_record_test`.
     first = struct(short_path = "a/hook/link.dart")
     kept = merge_package_records([
-        struct(package_name = "p", package_root = "a", link_hook = first),
-        struct(package_name = "p", package_root = "b", link_hook = struct(short_path = "b/hook/link.dart")),
+        DartPackageInfo(None, package_name = "p", package_root = "a", link_hook = first, language_version = ""),
+        DartPackageInfo(None, package_name = "p", package_root = "b", link_hook = struct(short_path = "b/hook/link.dart"), language_version = ""),
     ])
     asserts.equals(env, first, package_link_hook(kept[0]))
     return unittest.end(env)

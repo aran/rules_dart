@@ -7,7 +7,7 @@ module), a library rule that wraps both pub packages and first-party code
 several compilers through a split transition (`flutter_web_application`).
 """
 
-load("@rules_dart//dart:providers.bzl", "DartInfo")
+load("@rules_dart//dart:providers.bzl", "DartInfo", "DartPackageInfo")
 load(
     "@rules_dart//dart:utils.bzl",
     "COPY_TO_DIRECTORY_TOOLCHAINS",
@@ -18,7 +18,6 @@ load(
     "collect_transitive_srcs",
     "colocate_packages",
     "dart_info",
-    "dart_package_info",
     "derive_package_root",
     "non_dart_transition",
     "runtime_reset_when_independent",
@@ -50,7 +49,7 @@ def _module_library_impl(ctx):
     return [
         dart_info(
             ctx = ctx,
-            packages = [dart_package_info(
+            packages = [DartPackageInfo(
                 label = ctx.label,
                 package_name = ctx.attr.package_name,
                 package_root = derive_package_root(ctx.label.workspace_root, ctx.label.package),

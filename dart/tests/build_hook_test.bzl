@@ -5,9 +5,10 @@ The analysis tests are declared beside their fixtures, in
 """
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts", "unittest")
-load("//dart:providers.bzl", "DartCodeAssetInfo", "DartInfo", "DartPackageInfo")
+load("//dart:providers.bzl", "DartCodeAssetInfo", "DartInfo")
 load("//dart/private:common.bzl", "merge_package_records")
 load("//dart/private:dart_package_metadata.bzl", "build_hook_error", "unreplaced_build_hook")
+load("//dart/private:package_info.bzl", "raw_dart_package_info")
 load(":small_suite.bzl", "small_unittest_suite")
 
 def _records_build_hook_test_impl(ctx):
@@ -68,12 +69,21 @@ def _unreplaced_build_hook_test_impl(ctx):
 
 _unreplaced_build_hook_unit_test = unittest.make(_unreplaced_build_hook_test_impl)
 
+# Built raw, not through `DartPackageInfo(...)`: that takes the assets as targets, and
+# these tests have values.
 def _record(package_root, hook = "", assets = ()):
-    return DartPackageInfo(
+    return raw_dart_package_info(
+        label = None,
         package_name = "split",
         package_root = package_root,
+        version = "",
+        language_version = "",
         code_assets = assets,
+        data_assets = (),
         unreplaced_hook = hook,
+        link_hook = None,
+        license_file = None,
+        metadata = None,
     )
 
 _ASSET = DartCodeAssetInfo(

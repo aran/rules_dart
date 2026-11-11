@@ -10,6 +10,7 @@ load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
 load("//dart:providers.bzl", "DartInfo", "DartPackageInfo")
 load("//dart/private:common.bzl", "collect_packages", "collect_transitive_srcs", "package_code_assets")
 load("//dart/private:dart_info.bzl", "derived_package_info", "package_lib_prefix")
+load("//dart/private:package_info.bzl", "raw_dart_package_info")
 load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS", "colocate_packages", "needs_source_assembly", "package_for", "package_record_for", "package_record_for_index", "package_record_index")
 
 def _fake_file(is_source):
@@ -22,7 +23,7 @@ def _fake_src(short_path, is_source = True, is_directory = False):
 
 def _fake_pkg(package_name, package_root):
     # package_for only inspects DartPackageInfo.package_name and .package_root.
-    return struct(package_name = package_name, package_root = package_root)
+    return DartPackageInfo(None, package_name = package_name, package_root = package_root, language_version = "")
 
 def _all_source_no_assembly_test_impl(ctx):
     # Pure source-tree files already share one directory → no assembly.
@@ -203,6 +204,23 @@ def _colocate_loose_passthrough_test_impl(ctx):
     asserts.equals(env, "myapp", packages2[0].package_name)
     return unittest.end(env)
 
+# Built raw, not through `DartPackageInfo(...)`: that takes the code assets as
+# targets providing `DartCodeAssetInfo`, and these tests have values.
+def _record(package_root, language_version, code_assets, unreplaced_hook):
+    return raw_dart_package_info(
+        label = None,
+        package_name = "pkg",
+        package_root = package_root,
+        version = "",
+        language_version = language_version,
+        code_assets = code_assets,
+        data_assets = (),
+        unreplaced_hook = unreplaced_hook,
+        link_hook = None,
+        license_file = None,
+        metadata = None,
+    )
+
 def _fake_asset(asset_id):
     # derived_package_info only moves these around; it never reads inside one.
     return struct(asset_id = asset_id)
@@ -213,13 +231,7 @@ def _derive_carries_every_field_test_impl(ctx):
     # packages that happened to need assembly, which is the hardest shape of
     # this bug to notice.
     env = unittest.begin(ctx)
-    p = DartPackageInfo(
-        package_name = "pkg",
-        package_root = "old/root",
-        language_version = "2.12",
-        code_assets = (_fake_asset("package:pkg/a.g.dart"),),
-        unreplaced_hook = "hook/build.dart",
-    )
+    p = _record("old/root", "2.12", (_fake_asset("package:pkg/a.g.dart"),), "hook/build.dart")
     out = derived_package_info(p, package_root = "bazel-out/k8/bin/app.pkg.pkgsrcs")
     asserts.equals(env, "pkg", out.package_name)
     asserts.equals(env, "bazel-out/k8/bin/app.pkg.pkgsrcs", out.package_root)
@@ -228,30 +240,11 @@ def _derive_carries_every_field_test_impl(ctx):
     asserts.equals(env, "hook/build.dart", out.unreplaced_hook)
     return unittest.end(env)
 
-def _derive_defaults_absent_fields_test_impl(ctx):
-    # A record from a producer predating the later fields — the `no_lv_fixture`
-    # shape — copies to a complete record rather than failing on the read.
-    env = unittest.begin(ctx)
-    p = DartPackageInfo(package_name = "pkg", package_root = "old/root")
-    out = derived_package_info(p, package_root = "bazel-out/k8/bin/app.pkg.pkgsrcs")
-    asserts.equals(env, "pkg", out.package_name)
-    asserts.equals(env, "bazel-out/k8/bin/app.pkg.pkgsrcs", out.package_root)
-    asserts.equals(env, "", out.language_version)
-    asserts.equals(env, (), out.code_assets)
-    asserts.equals(env, "", out.unreplaced_hook)
-    return unittest.end(env)
-
 def _derive_overrides_only_named_test_impl(ctx):
     # Overriding `code_assets` leaves `package_root` alone, and vice versa — the
     # two call sites each name exactly one field.
     env = unittest.begin(ctx)
-    p = DartPackageInfo(
-        package_name = "pkg",
-        package_root = "keep/me",
-        language_version = "3.0",
-        code_assets = (_fake_asset("package:pkg/a.g.dart"),),
-        unreplaced_hook = "",
-    )
+    p = _record("keep/me", "3.0", (_fake_asset("package:pkg/a.g.dart"),), "")
     out = derived_package_info(p, code_assets = (_fake_asset("package:pkg/b.g.dart"),))
     asserts.equals(env, "keep/me", out.package_root)
     asserts.equals(env, "3.0", out.language_version)
@@ -263,7 +256,6 @@ def _derive_overrides_only_named_test_impl(ctx):
     return unittest.end(env)
 
 _derive_carries_test = unittest.make(_derive_carries_every_field_test_impl)
-_derive_defaults_test = unittest.make(_derive_defaults_absent_fields_test_impl)
 _derive_overrides_test = unittest.make(_derive_overrides_only_named_test_impl)
 
 # --- colocate_packages end-to-end -------------------------------------------
@@ -344,7 +336,6 @@ def source_set_test_suite(name):
     _index_matches_scan_test(name = "source_set_index_matches_scan_test", size = "small")
     _colocate_loose_test(name = "source_set_colocate_loose_test", size = "small")
     _derive_carries_test(name = "source_set_derive_carries_test", size = "small")
-    _derive_defaults_test(name = "source_set_derive_defaults_test", size = "small")
     _derive_overrides_test(name = "source_set_derive_overrides_test", size = "small")
     native.test_suite(
         name = name,
@@ -363,7 +354,6 @@ def source_set_test_suite(name):
             ":source_set_index_matches_scan_test",
             ":source_set_colocate_loose_test",
             ":source_set_derive_carries_test",
-            ":source_set_derive_defaults_test",
             ":source_set_derive_overrides_test",
         ],
     )
