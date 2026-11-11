@@ -343,8 +343,8 @@ updates (both through `bazel run @rules_dart//dart/pub`).
 
 **Files**:
 
-- `.github/workflows/ci.yaml` — `folders` array in the test job
-- `tools/vm/run_e2e.dart` — `_ciFolders`, a copy of that array
+- `.github/workflows/ci.yaml` — `folders` array in the test job.
+  `tools/vm/run_e2e.dart` reads it from there.
 
 **Procedure**:
 
@@ -354,7 +354,7 @@ updates (both through `bazel run @rules_dart//dart/pub`).
    (`format-hermeticity`, `expected-failure`), each workspace with a
    `lock_expected_failure.txt` (`expected-failure`, or `pub-archive-links`
    for `e2e/pub_archive_links`)
-2. Add/remove entries to match, in both files
+2. Add/remove entries to match
 
 **Verification**: CI workflow runs all e2e workspaces.
 

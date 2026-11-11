@@ -2,68 +2,26 @@
 ///
 /// Usage:
 ///
-///     dart run tools/vm/run_e2e.dart <vm-name> [--windows] \
+///     bazel run //tools/vm:run_e2e -- <vm-name> [--windows] \
 ///         [--folders=e2e/ext_exemplar,e2e/dart_test] [--keep-going]
 ///
 /// Transfers the committed working tree (`git archive HEAD`) to the VM,
-/// extracts it, then runs `bazel test //...` in each CI folder, mirroring
-/// `.github/workflows/ci.yaml` (exit code 4 — "no test targets" — counts as a
-/// pass, as do build-only folders). Prints a per-folder PASS/FAIL summary and
-/// exits non-zero if any folder failed.
-///
-/// The Linux-only *expected failure* workspaces (`pub_lock_conflict`,
-/// `toolchain_pin_conflict`,
-/// `pub_lock_unpinned`, `pub_lock_git_unpinned`, `pub_lock_git_conflict`,
-/// `pub_lock_git_hosted`, `pub_package_blank_sha`, `pub_package_missing_dep`,
-/// `pub_lock_digest_conflict`, `pub_cycle_refused`, `kernel_source_refused`, `analysis_failure`, `link_hook`) must fail to
-/// build with a specific error;
-/// they are checked separately on Linux.
+/// extracts it, then does what `.github/workflows/ci.yaml` at HEAD does: the
+/// `test` job's command in each of its folders, and on Linux, when no
+/// `--folders` are given, every step of the `expected-failure` job in its
+/// working directory. Prints a per-folder PASS/FAIL summary and exits non-zero
+/// if any failed.
 library;
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
+import '../../tool/ci_workflow.dart';
 import 'gcloud.dart';
 
-/// The `folders` matrix from `.github/workflows/ci.yaml` (the `test` job).
-const _ciFolders = [
-  '.',
-  'e2e/smoke',
-  'e2e/hello_world',
-  'e2e/library_deps',
-  'e2e/analysis',
-  'e2e/dart_test',
-  'e2e/dart_test_pkg',
-  'e2e/codegen',
-  'e2e/pub_deps',
-  'e2e/pub_lock',
-  'e2e/web_app',
-  'e2e/web_compiler',
-  'e2e/gazelle',
-  'e2e/cross_compile',
-  'e2e/pub_lock_cross_module',
-  'e2e/pub_lock_dedup',
-  'e2e/pub_lock_upgrade',
-  'e2e/pub_hub_surface',
-  'e2e/pub_lock_cycle',
-  'e2e/pub_package_cycle',
-  'e2e/pub_lock_git',
-  'e2e/pub_lock_resolve',
-  'e2e/pub_lock_path',
-  'e2e/pub_member_kind',
-  'e2e/pub_override_root_lock',
-  'e2e/pub_highest_wins',
-  'e2e/pub_root_newer',
-  'e2e/pub_package_padded',
-  'e2e/ext_exemplar',
-  'e2e/fix',
-  'e2e/no_pubspec',
-  'e2e/analyze_composition',
-  'e2e/link_hook',
-  'e2e/external_module',
-  'overhead',
-  'dev',
-];
+/// The job whose steps each check a failure rules_dart must report.
+const _expectedFailureJob = 'expected-failure';
 
 /// Per-folder timeout. The first folder pays for the hermetic Dart SDK
 /// download + dependency fetch; later folders re-fetch (separate output bases).
@@ -92,12 +50,14 @@ Future<void> main(List<String> args) async {
   final foldersArg = args
       .firstWhere((a) => a.startsWith('--folders='), orElse: () => '')
       .replaceFirst('--folders=', '');
-  final folders = foldersArg.isEmpty
-      ? _ciFolders
-      : foldersArg.split(',').map((s) => s.trim()).toList();
-
   final repoRoot = _repoRoot();
   _warnIfDirty(repoRoot);
+  final workflow = CiWorkflow.parse(
+    _run('git', ['-C', repoRoot, 'show', 'HEAD:.github/workflows/ci.yaml']),
+  );
+  final folders = foldersArg.isEmpty
+      ? workflow.testFolders
+      : foldersArg.split(',').map((s) => s.trim()).toList();
 
   // 1. Package the committed tree.
   final tgz = '${Directory.systemTemp.path}/rules_dart_src.tgz';
@@ -126,10 +86,14 @@ Future<void> main(List<String> args) async {
     await sshRun(vmName, 'tar -xf C:\\rd_src.tgz -C C:\\rd');
   } else {
     await scpToVm(vmName, tgz, '~/rules_dart_src.tgz', compress: true);
+    // A repository, as CI's checkout is: steps restore what they edit with
+    // `git checkout`.
     await sshRun(
       vmName,
       "bash -lc 'rm -rf ~/rd && mkdir -p ~/rd && "
-      "tar xzf ~/rules_dart_src.tgz -C ~/rd'",
+      "tar xzf ~/rules_dart_src.tgz -C ~/rd && cd ~/rd/rules_dart && "
+      "git init -q && git add -A && "
+      "git -c user.name=e2e -c user.email=e2e@localhost commit -qm HEAD'",
     );
   }
 
@@ -137,7 +101,13 @@ Future<void> main(List<String> args) async {
   final results = <_FolderResult>[];
   for (final folder in folders) {
     stdout.writeln('\n=== $folder ===');
-    final result = await _runFolder(vmName, folder, isWindows: isWindows);
+    final result = await _runFolder(
+      vmName,
+      folder,
+      workflow.testCommand,
+      noTests: workflow.noTestFolders.contains(folder),
+      isWindows: isWindows,
+    );
     results.add(result);
     stdout.writeln(
       '${result.pass ? "PASS" : "FAIL"} $folder (exit ${result.exitCode})',
@@ -148,16 +118,24 @@ Future<void> main(List<String> args) async {
     }
   }
 
-  // 4. Expected-failure checks (Linux only, mirrors ci.yaml).
+  // 4. The expected-failure job's steps (Linux only, as in CI).
   final expectedFailures = <_FolderResult>[];
   if (!isWindows && foldersArg.isEmpty) {
-    for (final check in _expectedFailureChecks) {
-      stdout.writeln('\n=== ${check.folder} (expected failure) ===');
-      final r = await _runExpectedFailure(vmName, check);
-      expectedFailures.add(r);
+    for (final step in workflow.job(_expectedFailureJob).steps) {
+      final script = step.run;
+      if (script == null) continue;
+      stdout.writeln('\n=== ${step.name} ===');
+      final r = await _runScript(vmName, step.workingDirectory, script);
+      final result = _FolderResult(
+        '${step.workingDirectory}: ${step.name}',
+        r.exitCode,
+        r.exitCode == 0,
+        r.tail,
+      );
+      expectedFailures.add(result);
       stdout.writeln(
-        '${r.pass ? "PASS" : "FAIL"} ${check.folder} '
-        '(exit ${r.exitCode})',
+        '${result.pass ? "PASS" : "FAIL"} ${result.folder} '
+        '(exit ${result.exitCode})',
       );
     }
   }
@@ -183,258 +161,68 @@ Future<void> main(List<String> args) async {
   exit(1);
 }
 
-/// Runs `bazel test //...` in [folder] and maps the exit code: 0 (success) and
-/// 4 (no test targets) pass; anything else fails.
+/// Runs CI's [command] in [folder]. On Linux the command is CI's own, which
+/// decides what passes; Windows runs `bazel test //...` from `cmd`, passing
+/// on 0, and on 4 (no test targets) where [noTests] says CI's command does.
 Future<_FolderResult> _runFolder(
   String vmName,
-  String folder, {
+  String folder,
+  String command, {
+  required bool noTests,
   required bool isWindows,
 }) async {
-  final String command;
-  if (isWindows) {
-    final winFolder = folder == '.'
-        ? 'C:\\rd\\rules_dart'
-        : 'C:\\rd\\rules_dart\\${folder.replaceAll('/', '\\')}';
-    // /v:on enables delayed expansion so !errorlevel! is bazel's real exit,
-    // not the parse-time value. --output_user_root keeps paths under MAX_PATH.
-    command =
-        'cmd /v:on /c "cd /d $winFolder && '
-        'bazel --output_user_root=C:/b test --test_output=errors //... & '
-        'echo RD_EXIT=!errorlevel!"';
-  } else {
-    final dir = folder == '.'
-        ? '\$HOME/rd/rules_dart'
-        : '\$HOME/rd/rules_dart/$folder';
-    command =
-        "bash -lc 'cd $dir && "
-        "bazel test --test_output=errors //...; echo RD_EXIT=\$?'";
+  if (!isWindows) {
+    final r = await _runScript(vmName, folder, command);
+    return _FolderResult(folder, r.exitCode, r.exitCode == 0, r.tail);
   }
-
+  final winFolder = folder == '.'
+      ? 'C:\\rd\\rules_dart'
+      : 'C:\\rd\\rules_dart\\${folder.replaceAll('/', '\\')}';
+  // /v:on enables delayed expansion so !errorlevel! is bazel's real exit,
+  // not the parse-time value. --output_user_root keeps paths under MAX_PATH.
   final ProcessResult result;
   try {
-    result = await sshExec(vmName, command).timeout(_folderTimeout);
+    result = await sshExec(
+      vmName,
+      'cmd /v:on /c "cd /d $winFolder && '
+      'bazel --output_user_root=C:/b test --test_output=errors //... & '
+      'echo RD_EXIT=!errorlevel!"',
+    ).timeout(_folderTimeout);
   } on TimeoutException {
     return _FolderResult(folder, -2, false, 'TIMEOUT after $_folderTimeout');
   }
-
-  final combined = '${result.stdout}\n${result.stderr}';
   final exitCode = _parseRdExit(result.stdout.toString());
-  final pass = exitCode == 0 || exitCode == 4;
-  return _FolderResult(folder, exitCode, pass, _tail(combined));
+  return _FolderResult(
+    folder,
+    exitCode,
+    exitCode == 0 || (exitCode == 4 && noTests),
+    _tail('${result.stdout}\n${result.stderr}'),
+  );
 }
 
-/// A workspace that must FAIL to build with a specific error message.
-class _ExpectedFailure {
-  const _ExpectedFailure(this.folder, this.target, this.expectedError);
-
-  final String folder;
-  final String target;
-  final String expectedError;
-}
-
-const _expectedFailureChecks = [
-  _ExpectedFailure(
-    'e2e/pub_lock_conflict',
-    '//:app',
-    'bazel run @rules_dart//dart/pub -- upgrade --directory=b path',
-  ),
-  _ExpectedFailure(
-    'e2e/pub_root_older_lock',
-    '//...',
-    'bazel run @rules_dart//dart/pub -- upgrade tuple',
-  ),
-  _ExpectedFailure(
-    'e2e/toolchain_pin_conflict',
-    '@dart_toolchains//:all',
-    'newer_dep requests 99.0.0',
-  ),
-  _ExpectedFailure(
-    'e2e/pub_lock_unsupplied',
-    '//...',
-    'nothing supplies `petitparser`',
-  ),
-  _ExpectedFailure(
-    'e2e/pub_lock_path',
-    '@refused//:has_build',
-    'has a Bazel build of its own (lib/BUILD.bazel)',
-  ),
-  _ExpectedFailure(
-    'e2e/pub_lock_resolve_invalid',
-    '@pub//:path',
-    'it lists `models` as a `path` package',
-  ),
-  // Every pub archive is checked against a pinned digest.
-  _ExpectedFailure(
-    'e2e/pub_lock_unpinned',
-    '@deps//:path',
-    'No sha256 is pinned for pub package "path"',
-  ),
-  _ExpectedFailure(
-    'e2e/pub_lock_git_unpinned',
-    '@deps//:foo',
-    'resolved-ref "a1b2c3d", which is not a full commit id',
-  ),
-  _ExpectedFailure(
-    'e2e/pub_lock_git_conflict',
-    '@one//:foo',
-    'is locked differently across lock files',
-  ),
-  _ExpectedFailure(
-    'e2e/pub_lock_git_hosted',
-    '@one//:foo',
-    'is a git package in',
-  ),
-  _ExpectedFailure(
-    'e2e/pub_package_blank_sha',
-    '@path//:path',
-    'No sha256 is pinned for pub package "path"',
-  ),
-  _ExpectedFailure(
-    'e2e/pub_package_missing_dep',
-    '@provider//:provider',
-    'nothing supplies `flutter`',
-  ),
-  // A dependency cycle builds only as the root module declares it.
-  _ExpectedFailure(
-    'e2e/pub_cycle_refused',
-    '@deps//:left',
-    'pub.cycle(packages = ["left", "right"])',
-  ),
-  _ExpectedFailure(
-    'e2e/pub_cycle_refused',
-    '@deps//:old_a',
-    '`old_a` is in no cycle',
-  ),
-  _ExpectedFailure(
-    'e2e/pub_cycle_refused',
-    '@deps//:tri_a',
-    'pub.cycle(packages = ["tri_a", "tri_b", "tri_c"])',
-  ),
-  _ExpectedFailure(
-    'e2e/pub_lock_digest_conflict',
-    '@deps_a//:path',
-    'has conflicting sha256 digests',
-  ),
-  _ExpectedFailure(
-    'e2e/kernel_source_refused',
-    '@both//:outline_tool',
-    'give exactly one of `dart_version` and `path`, both were given',
-  ),
-  _ExpectedFailure(
-    'e2e/kernel_source_refused',
-    '@neither//:outline_tool',
-    'give exactly one of `dart_version` and `path`, neither was',
-  ),
-  _ExpectedFailure(
-    'e2e/kernel_source_refused',
-    '@not_a_checkout//:outline_tool',
-    '/usr/pkg/kernel/pubspec.yaml does not exist',
-  ),
-  // The `dart_analyze` aspect's red paths, each with an error string no other
-  // target shares, so a grep hit cannot be another target's.
-  _ExpectedFailure(
-    'e2e/analysis_failure',
-    '//:bad_lib',
-    'unused_local_variable',
-  ),
-  // The entrypoint half: a `dart_binary`'s `main` reaches the analyzer through
-  // `DartAnalyzableInfo`, and a diagnostic in it must fail the build too.
-  _ExpectedFailure('e2e/analysis_failure', '//:bad_bin', 'unused_import'),
-  _ExpectedFailure(
-    'e2e/analysis_failure',
-    '//flutter_shaped',
-    'unused_element',
-  ),
-  _ExpectedFailure('e2e/analysis_failure', '//nested', 'avoid_print'),
-  // Analysis against summaries refuses, with the analyzer's own error, where
-  // the stock analyzer drops it.
-  _ExpectedFailure(
-    'e2e/analysis_failure',
-    '//summaries/user',
-    'analysis_summaries=false',
-  ),
-  _ExpectedFailure(
-    'e2e/analysis_failure',
-    '//unresolved_ruleset:clean_lib',
-    'include_file_not_found',
-  ),
-  _ExpectedFailure(
-    'e2e/analysis_failure',
-    '//vga:double_quoted_lib',
-    'prefer_single_quotes',
-  ),
-  _ExpectedFailure(
-    'e2e/analysis_failure',
-    '//vga:undocumented_lib',
-    'public_member_api_docs',
-  ),
-  // The import check refuses a spelling that reaches a file no declared input
-  // provides, naming what to write instead; a library checks itself.
-  _ExpectedFailure(
-    'e2e/analysis_failure',
-    '//import_check/spellings:relative_lib_test',
-    "Use 'package:import_check_spellings/x.dart' instead",
-  ),
-  _ExpectedFailure(
-    'e2e/analysis_failure',
-    '//import_check/spellings:file_uri_bin',
-    "imports 'file:///tmp/undeclared.dart', a file: URI",
-  ),
-  _ExpectedFailure(
-    'e2e/analysis_failure',
-    '//import_check/spellings:unheld_part',
-    "has the part 'unheld_part.g.dart'",
-  ),
-  // A link hook refusing the program's recorded uses fails the build with its
-  // own message.
-  _ExpectedFailure(
-    'e2e/link_hook',
-    '//:dynamic_app_assets',
-    'a Glyph is constructed at run time',
-  ),
-  // A link hook runs against its package as Bazel declared it, so a file of
-  // the package no target lists is not there to import.
-  _ExpectedFailure(
-    'e2e/link_hook',
-    '//:undeclared_assets',
-    'package:undeclared_hook/extra.dart',
-  ),
-];
-
-/// Checks an expected-failure workspace: the build must FAIL (a successful
-/// build means the error path regressed, e.g. a swallowed exit code) AND its
-/// output must carry the expected error (mirrors the `expected-failure` job
-/// in ci.yaml).
-Future<_FolderResult> _runExpectedFailure(
+/// Runs [script] with bash on the Linux VM in [dir] (relative to the
+/// checkout), as a GitHub Actions `run` step does (`bash -e -o pipefail`).
+Future<({int exitCode, String tail})> _runScript(
   String vmName,
-  _ExpectedFailure check,
+  String dir,
+  String script,
 ) async {
-  final dir = '\$HOME/rd/rules_dart/${check.folder}';
+  final path = dir == '.' ? '' : '/$dir';
+  // Base64 carries the script through the SSH command line unquoted.
+  final encoded = base64.encode(utf8.encode(script));
   final command =
-      "bash -lc 'cd $dir && "
-      // `test`, not `build`: the workspaces apply the `dart_analyze` aspect
-      // under `bazel test` only.
-      "if bazel test ${check.target} > /tmp/expected_failure.out 2>&1; "
-      "then echo BUILD_UNEXPECTEDLY_PASSED; echo RD_EXIT=2; "
-      "elif grep -q \"${check.expectedError}\" /tmp/expected_failure.out; "
-      "then echo RD_EXIT=0; else echo RD_EXIT=1; fi'";
+      "bash -lc 'cd \$HOME/rd/rules_dart$path && "
+      'echo $encoded | base64 -d > /tmp/rd_step.sh && '
+      "bash -e -o pipefail /tmp/rd_step.sh; echo RD_EXIT=\$?'";
   final ProcessResult result;
   try {
     result = await sshExec(vmName, command).timeout(_folderTimeout);
   } on TimeoutException {
-    return _FolderResult(
-      check.folder,
-      -2,
-      false,
-      'TIMEOUT after $_folderTimeout',
-    );
+    return (exitCode: -2, tail: 'TIMEOUT after $_folderTimeout');
   }
-  final exitCode = _parseRdExit(result.stdout.toString());
-  return _FolderResult(
-    check.folder,
-    exitCode,
-    exitCode == 0,
-    _tail('${result.stdout}\n${result.stderr}'),
+  return (
+    exitCode: _parseRdExit(result.stdout.toString()),
+    tail: _tail('${result.stdout}\n${result.stderr}'),
   );
 }
 
@@ -498,9 +286,10 @@ void _warnIfDirty(String repoRoot) {
   }
 }
 
-void _run(String exe, List<String> args) {
+String _run(String exe, List<String> args) {
   final r = Process.runSync(exe, args);
   if (r.exitCode != 0) {
     throw Exception('$exe ${args.join(' ')} failed:\n${r.stderr}');
   }
+  return r.stdout as String;
 }

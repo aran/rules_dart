@@ -15,6 +15,10 @@ dart_binary(
 
 dart_binary(
     name = "run_e2e",
-    srcs = ["gcloud.dart"],
+    srcs = [
+        "gcloud.dart",
+        "//tool:ci_workflow.dart",
+    ],
     main = "run_e2e.dart",
+    deps = ["@ext_pub_deps//:yaml"],
 )
