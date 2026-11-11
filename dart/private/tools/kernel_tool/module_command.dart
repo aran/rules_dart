@@ -89,7 +89,10 @@ Future<int> runModule(
       ? roots
       : [for (final root in roots) rootArgument(view.of(root))];
   try {
-    var compiled = 0;
+    // Whether the compiler holds state the next module can build on, which
+    // only a compile that succeeded leaves. Asked to reuse what a failed
+    // compile left, `kernel_worker` can take the next request and never answer.
+    var reusable = false;
     for (var i = 0; i < planned.length; i++) {
       final plan = planned[i];
       final record = manifest.modules[i];
@@ -135,7 +138,7 @@ Future<int> runModule(
           // this target's classes to stale ones — Flutter widgets that were no
           // longer `Widget`s.
           '--use-incremental-compiler',
-          if (compiled > 0) '--reuse-compiler-result',
+          if (reusable) '--reuse-compiler-result',
           for (final summary in summaries) ...['--input-summary', summary],
           for (final uri in sources) ...['--source', uri],
           '--output',
@@ -148,8 +151,8 @@ Future<int> runModule(
         ],
         digested,
       );
-      compiled++;
-      if (result.exitCode == 0 && File(output).existsSync()) {
+      reusable = result.exitCode == 0 && File(output).existsSync();
+      if (reusable) {
         record
           ..status = statusOk
           ..dill = '$i.dill';

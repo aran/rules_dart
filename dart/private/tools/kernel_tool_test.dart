@@ -1473,6 +1473,38 @@ import 'package:app/own.dart';
         jsonDecode(File(path('$name.modules.json')).readAsStringSync())
             as Map<String, dynamic>;
 
+    test(
+      'module reuses the compiler only after a compile that succeeded',
+      () async {
+        write('root/app/pc.json', _packageConfig);
+        final args = moduleArgs('lib', {
+          'app/lib/a.dart': '',
+          'app/lib/b.dart': '',
+          'app/lib/c.dart': '',
+          'app/lib/d.dart': '',
+        });
+        final worker = _FakeKernelWorker(fails: 'b.dart');
+        final err = StringBuffer();
+        expect(
+          await runModule(
+            Args.parse('module', args.skip(1).toList()),
+            err: err,
+            worker: worker,
+          ),
+          0,
+          reason: '$err',
+        );
+        expect(worker.compiles, hasLength(4));
+        final failed = worker.compiles.indexWhere(
+          (c) => c.source.endsWith('b.dart'),
+        );
+        expect(failed, isNot(3), reason: 'a module must follow the failure');
+        for (final (i, c) in worker.compiles.indexed) {
+          expect(c.reuse, i > 0 && i != failed + 1, reason: c.source);
+        }
+      },
+    );
+
     test('module records an unsupported module and fails its dependents without compiling', () async {
       write('root/app/pc.json', _packageConfig);
       final args = moduleArgs('lib', {
@@ -1931,4 +1963,29 @@ Future<bool> _gone(int child) async {
     await Future<void>.delayed(const Duration(milliseconds: 50));
   }
   return false;
+}
+
+/// A compiler that writes each module's output, except the one with a source
+/// ending in [fails], and records what it was asked.
+class _FakeKernelWorker extends KernelWorker {
+  _FakeKernelWorker({required this.fails}) : super('unused', 'unused');
+
+  final String fails;
+  final compiles = <({String source, bool reuse})>[];
+
+  @override
+  Future<CompileResult> compile(
+    List<String> arguments,
+    List<String> inputs,
+    Digests digests,
+  ) async {
+    final source = arguments[arguments.indexOf('--source') + 1];
+    compiles.add((
+      source: source,
+      reuse: arguments.contains('--reuse-compiler-result'),
+    ));
+    if (source.endsWith(fails)) return (exitCode: 254, output: 'Error: no');
+    File(arguments[arguments.indexOf('--output') + 1]).writeAsStringSync('');
+    return (exitCode: 0, output: '');
+  }
 }
