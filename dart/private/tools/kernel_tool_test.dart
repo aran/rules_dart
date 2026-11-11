@@ -1140,7 +1140,6 @@ import 'package:app/own.dart';
     });
 
     test('a stop kills a compiler that would never exit', () async {
-      if (Platform.isWindows) return;
       // A "compiler" that ignores its stdin, as a kernel_worker does whose
       // stdin a stray forked child holds open.
       final dir = Directory.systemTemp.createTempSync('serve_test');
@@ -1164,7 +1163,9 @@ import 'package:app/own.dart';
       stop.add(null);
       expect(await served, 143);
       expect(await _gone(compiler), isTrue);
-    });
+      // The stand-in compiler is a POSIX shell script, and whether it is gone
+      // is asked with a POSIX signal.
+    }, skip: Platform.isWindows ? 'needs /bin/sh and POSIX signals' : false);
   });
 
   group('Digests', () {
