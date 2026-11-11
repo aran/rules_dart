@@ -722,10 +722,10 @@ def _merged_dart_info(
         # failing loudly is the whole point.
         transitive_code_asset_files = depset(
             direct = [
-                a.dynamic_library
+                a.file
                 for pkg in packages
                 for a in pkg.code_assets
-                if a.dynamic_library != None
+                if a.file != None
             ],
             transitive = [
                 info.transitive_code_asset_files

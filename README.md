@@ -118,37 +118,41 @@ after step 1 does steps 6–8 for the BUILD files it writes.
     an SDK summary bug, `--@rules_dart//dart:analysis_summaries=false`.
     `--@rules_dart//dart:analysis_shutdown_workaround` → removed; analysis
     runs in persistent workers (`analysis_worker=false` for a process each).
+21. `dart_code_asset.shared_library` → `file`; `dart_code_asset.system_uri` →
+    `uri` (upstream `CodeAsset.file` and `DynamicLoadingSystem.uri`).
 
 **Rule authors** (`@rules_dart//dart:utils.bzl` and providers)
 
-21. `DartPackageInfo.lib_root` → `package_root`; `derive_lib_root` →
+22. `DartCodeAssetInfo.dynamic_library` → `file`; `DartCodeAssetInfo.system_uri`
+    → `uri`.
+23. `DartPackageInfo.lib_root` → `package_root`; `derive_lib_root` →
     `derive_package_root`; `has_unreplaced_hook` → `unreplaced_hook`.
-22. `DartInfo.package_name`/`lib_root` → `DartInfo.packages` (from
+24. `DartInfo.package_name`/`lib_root` → `DartInfo.packages` (from
     `dart_package_info()`); `DartInfo.deps` values are tuples of package
     names. Build `DartInfo` with `dart_info(ctx = ctx, ...)` and merge
     `SUMMARY_ATTRS` into the rule's attributes.
-23. `dart_analyzable_info` → `dart_analyzable_info_no_package` (`srcs` →
+25. `dart_analyzable_info` → `dart_analyzable_info_no_package` (`srcs` →
     `entry_srcs`); `dart_analyzable_info_with_package` → `dart_analyzable_info`
     (takes `packages`); `DartAnalyzableInfo.srcs` → `entry_srcs`,
     `package_srcs` → `DartInfo.srcs`.
-24. `module_defines_transition` → `executable_defines_config`;
+26. `module_defines_transition` → `executable_defines_config`;
     `dart_entry_kernel_action` takes no `defines` and needs
     `MODULAR_KERNEL_ATTR`.
-25. `dart_link_hook_actions` and `collect_transitive_code_assets` take the
+27. `dart_link_hook_actions` and `collect_transitive_code_assets` take the
     program's package (see `program_packages()`); rules calling
     `dart_link_hook_actions` declare `COPY_TO_DIRECTORY_TOOLCHAINS`.
-26. `DartKernelSdkInfo.runtime` → `aot_runtime`; `platform`/`defines` →
+28. `DartKernelSdkInfo.runtime` → `aot_runtime`; `platform`/`defines` →
     `runtimes` (from `dart_kernel_runtime`).
-27. `dart_toolchain.sdk_root`, `DartSdkInfo.sdk_root`/`tool_files` →
+29. `dart_toolchain.sdk_root`, `DartSdkInfo.sdk_root`/`tool_files` →
     `dart_toolchain.sdk` takes a `dart_sdk_files`; read `DartSdkInfo.files`.
     A Dart SDK with no release tag also needs a `dart_outline_toolchain` and a
     `dart_analyzer_toolchain`, or `outline_kernel` and `analysis_summaries`
     off (see [A Dart SDK of your own](#a-dart-sdk-of-your-own)).
-28. `parse_pubspec_deps`/`parse_pubspec_sdk_constraint`/
+30. `parse_pubspec_deps`/`parse_pubspec_sdk_constraint`/
     `derive_language_version` → `read_pubspec` in `//dart/pub:pubspec.bzl`.
     `dart/pub/pub_lock_hub.bzl` → private.
-29. `colocate_entrypoint` → removed; a binary compiles its sources in place.
-30. Loads of `dart/private/**` or `dart/pub/private/**` from outside rules_dart
+31. `colocate_entrypoint` → removed; a binary compiles its sources in place.
+32. Loads of `dart/private/**` or `dart/pub/private/**` from outside rules_dart
     → fail; load the public `.bzl` files instead.
 
 ## Road to 1.0
@@ -1846,7 +1850,7 @@ cc_shared_library(
 dart_code_asset(
     name = "counter_asset",
     asset_id = "package:counter/counter.dart",  # the id the `@Native` bindings declare
-    shared_library = ":counter_shared",
+    file = ":counter_shared",
 )
 
 dart_binary(
@@ -1877,12 +1881,12 @@ names. Every `code_assets` entry provides `DartCodeAssetInfo`, which
   that its `deps` bring, so a test can load a differently built library under
   the id a package declares. Two different assets for one id from `deps` fail,
   naming both.
-- `shared_library` may instead be one prebuilt library file (a checked-in or
+- `file` may instead be one prebuilt library file (a checked-in or
   `http_file` `.so`, `.dylib` or `.dll`), as `cc_import` takes one. Its
   extension must be the target platform's, so `select()` on the platform for a
   multi-platform build.
 - `link_mode` is `dynamic_loading_bundle` by default, a library Bazel builds (or
-  you supply) and ships with the program. `dynamic_loading_system` (with `system_uri`),
+  you supply) and ships with the program. `dynamic_loading_system` (with `uri`),
   `dynamic_loading_executable` and `dynamic_loading_process` look the symbols up
   in the executable or the running process. `static` is refused.
 - A package whose `hook/build.dart` has no Bazel replacement fails any

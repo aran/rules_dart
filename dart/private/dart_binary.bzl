@@ -215,7 +215,7 @@ def _stage_libraries(ctx, assets):
     directory = ctx.label.name + ".native"
     owners = {}
     for asset in assets:
-        library = asset.dynamic_library
+        library = asset.file
         if library == None:
             continue
         previous = owners.get(library.basename)

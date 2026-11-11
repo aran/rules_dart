@@ -22,7 +22,7 @@ load(
 dart_code_asset(
     name = "dep_asset",
     asset_id = "package:info_dep/src/ffi/dep.g.dart",
-    shared_library = "//dart/tests/cc_fixture:empty_shared",
+    file = "//dart/tests/cc_fixture:empty_shared",
 )
 
 dart_package_metadata(
@@ -120,7 +120,7 @@ dart_code_asset(
     # A different library from `dep_asset`'s: the two records would dedupe to a
     # single file otherwise, and the flat-depset assertion could not tell a
     # forwarded asset from a dropped one.
-    shared_library = "//dart/tests/cc_fixture:empty_shared_alt",
+    file = "//dart/tests/cc_fixture:empty_shared_alt",
 )
 
 wrapper_executable(

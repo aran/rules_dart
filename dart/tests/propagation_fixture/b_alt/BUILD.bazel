@@ -5,7 +5,7 @@ load("//dart:defs.bzl", "dart_code_asset", "dart_library", "dart_package_metadat
 dart_code_asset(
     name = "alt_code_asset",
     asset_id = "package:prop_b/src/ffi/prop_b.g.dart",
-    shared_library = "//dart/tests/cc_fixture:empty_shared_alt",
+    file = "//dart/tests/cc_fixture:empty_shared_alt",
 )
 
 dart_package_metadata(

@@ -79,8 +79,8 @@ def _record(package_root, hook = "", assets = ()):
 _ASSET = DartCodeAssetInfo(
     asset_id = "package:split/native.dart",
     link_mode = "dynamic_loading_process",
-    dynamic_library = None,
-    system_uri = "",
+    file = None,
+    uri = "",
 )
 
 def _merged_hook(records):

@@ -22,23 +22,23 @@ def _expect(msg):
     return analysistest.make(_impl, expect_failure = True)
 
 _static_rejected_test = _expect("dart-lang/sdk/issues/49418")
-_bundle_needs_library_test = _expect("requires `shared_library`, a `cc_shared_library` or a prebuilt library file")
-_bundle_rejects_system_uri_test = _expect("`system_uri` is only valid with")
-_system_needs_uri_test = _expect("requires `system_uri =")
-_system_rejects_library_test = _expect("`shared_library` is only valid with")
-_process_rejects_library_test = _expect("`shared_library` is only valid with")
-_executable_rejects_system_uri_test = _expect("`system_uri` is only valid with")
+_bundle_needs_library_test = _expect("requires `file`, a `cc_shared_library` or a prebuilt library file")
+_bundle_rejects_uri_test = _expect("`uri` is only valid with")
+_system_needs_uri_test = _expect("requires `uri =")
+_system_rejects_library_test = _expect("`file` is only valid with")
+_process_rejects_library_test = _expect("`file` is only valid with")
+_executable_rejects_uri_test = _expect("`uri` is only valid with")
 _prebuilt_wrong_platform_test = _expect("is not a dynamic library for the target platform")
 _prebuilt_not_a_library_test = _expect("is not a dynamic library for the target platform")
 _prebuilt_two_files_test = _expect("nor a single prebuilt library file; it has 2 files")
-_system_rejects_prebuilt_test = _expect("`shared_library` is only valid with")
+_system_rejects_prebuilt_test = _expect("`file` is only valid with")
 
 def _prebuilt_carried_impl(ctx):
     env = analysistest.begin(ctx)
     info = analysistest.target_under_test(env)[DartCodeAssetInfo]
     asserts.equals(env, "dynamic_loading_bundle", info.link_mode)
-    asserts.true(env, info.dynamic_library != None, "no dynamic_library")
-    asserts.equals(env, ctx.attr.basename, info.dynamic_library.basename)
+    asserts.true(env, info.file != None, "no file")
+    asserts.equals(env, ctx.attr.basename, info.file.basename)
     return analysistest.end(env)
 
 _prebuilt_carried_test = analysistest.make(
@@ -70,7 +70,7 @@ def code_asset_test_suite(name):
         name = "ca_static",
         asset_id = _ASSET_ID,
         link_mode = "static",
-        shared_library = _SHARED_LIB,
+        file = _SHARED_LIB,
         tags = ["manual"],
     )
     _static_rejected_test(
@@ -91,16 +91,16 @@ def code_asset_test_suite(name):
     )
 
     dart_code_asset(
-        name = "ca_bundle_with_system_uri",
+        name = "ca_bundle_with_uri",
         asset_id = _ASSET_ID,
-        shared_library = _SHARED_LIB,
-        system_uri = "libfixture.so.0",
+        file = _SHARED_LIB,
+        uri = "libfixture.so.0",
         tags = ["manual"],
     )
-    _bundle_rejects_system_uri_test(
-        name = "bundle_rejects_system_uri_test",
+    _bundle_rejects_uri_test(
+        name = "bundle_rejects_uri_test",
         size = "small",
-        target_under_test = ":ca_bundle_with_system_uri",
+        target_under_test = ":ca_bundle_with_uri",
     )
 
     dart_code_asset(
@@ -119,8 +119,8 @@ def code_asset_test_suite(name):
         name = "ca_system_with_library",
         asset_id = _ASSET_ID,
         link_mode = "dynamic_loading_system",
-        shared_library = _SHARED_LIB,
-        system_uri = "libfixture.so.0",
+        file = _SHARED_LIB,
+        uri = "libfixture.so.0",
         tags = ["manual"],
     )
     _system_rejects_library_test(
@@ -133,7 +133,7 @@ def code_asset_test_suite(name):
         name = "ca_process_with_library",
         asset_id = _ASSET_ID,
         link_mode = "dynamic_loading_process",
-        shared_library = _SHARED_LIB,
+        file = _SHARED_LIB,
         tags = ["manual"],
     )
     _process_rejects_library_test(
@@ -143,22 +143,22 @@ def code_asset_test_suite(name):
     )
 
     dart_code_asset(
-        name = "ca_executable_with_system_uri",
+        name = "ca_executable_with_uri",
         asset_id = _ASSET_ID,
         link_mode = "dynamic_loading_executable",
-        system_uri = "libfixture.so.0",
+        uri = "libfixture.so.0",
         tags = ["manual"],
     )
-    _executable_rejects_system_uri_test(
-        name = "executable_rejects_system_uri_test",
+    _executable_rejects_uri_test(
+        name = "executable_rejects_uri_test",
         size = "small",
-        target_under_test = ":ca_executable_with_system_uri",
+        target_under_test = ":ca_executable_with_uri",
     )
 
     dart_code_asset(
         name = "ca_prebuilt_wrong_platform",
         asset_id = _ASSET_ID,
-        shared_library = _WRONG_PLATFORM,
+        file = _WRONG_PLATFORM,
         tags = ["manual"],
     )
     _prebuilt_wrong_platform_test(
@@ -170,7 +170,7 @@ def code_asset_test_suite(name):
     dart_code_asset(
         name = "ca_prebuilt_not_a_library",
         asset_id = _ASSET_ID,
-        shared_library = _PREBUILT + "libwrong.txt",
+        file = _PREBUILT + "libwrong.txt",
         tags = ["manual"],
     )
     _prebuilt_not_a_library_test(
@@ -182,7 +182,7 @@ def code_asset_test_suite(name):
     dart_code_asset(
         name = "ca_prebuilt_two_files",
         asset_id = _ASSET_ID,
-        shared_library = _PREBUILT + "two_files",
+        file = _PREBUILT + "two_files",
         tags = ["manual"],
     )
     _prebuilt_two_files_test(
@@ -195,8 +195,8 @@ def code_asset_test_suite(name):
         name = "ca_system_with_prebuilt",
         asset_id = _ASSET_ID,
         link_mode = "dynamic_loading_system",
-        shared_library = _RIGHT_PLATFORM,
-        system_uri = "libfixture.so.0",
+        file = _RIGHT_PLATFORM,
+        uri = "libfixture.so.0",
         tags = ["manual"],
     )
     _system_rejects_prebuilt_test(
@@ -208,7 +208,7 @@ def code_asset_test_suite(name):
     dart_code_asset(
         name = "ca_prebuilt",
         asset_id = _ASSET_ID,
-        shared_library = _RIGHT_PLATFORM,
+        file = _RIGHT_PLATFORM,
         tags = ["manual"],
     )
     _prebuilt_carried_test(
@@ -232,10 +232,10 @@ def code_asset_test_suite(name):
             ":prebuilt_carried_test",
             ":static_rejected_test",
             ":bundle_needs_library_test",
-            ":bundle_rejects_system_uri_test",
+            ":bundle_rejects_uri_test",
             ":system_needs_uri_test",
             ":system_rejects_library_test",
             ":process_rejects_library_test",
-            ":executable_rejects_system_uri_test",
+            ":executable_rejects_uri_test",
         ],
     )

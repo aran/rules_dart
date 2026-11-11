@@ -34,7 +34,7 @@ staged_defines_test(
 dart_code_asset(
     name = "asset",
     asset_id = "package:defines_fixture/src/ffi/defines_fixture.g.dart",
-    shared_library = "//dart/tests/cc_fixture:empty_shared",
+    file = "//dart/tests/cc_fixture:empty_shared",
 )
 
 dart_binary(

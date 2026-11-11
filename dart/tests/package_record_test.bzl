@@ -31,8 +31,8 @@ def _asset(asset_id):
     return DartCodeAssetInfo(
         asset_id = asset_id,
         link_mode = "dynamic_loading_bundle",
-        dynamic_library = struct(owner = "lib.so", path = "lib.so"),
-        system_uri = "",
+        file = struct(owner = "lib.so", path = "lib.so"),
+        uri = "",
     )
 
 def _pkg(

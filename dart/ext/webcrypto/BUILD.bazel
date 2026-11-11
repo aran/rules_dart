@@ -30,6 +30,6 @@ dart_code_asset(
     # lib/src/boringssl/lookup/lookup.dart binds its `@Native` functions to
     # this id; the hook registers its library under the same name.
     asset_id = "package:webcrypto/webcrypto.dart",
-    shared_library = ":libwebcrypto",
+    file = ":libwebcrypto",
     visibility = ["//visibility:public"],
 )

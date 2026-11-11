@@ -36,7 +36,7 @@ def _library_extension(ctx):
     return None, ".so"
 
 def _extract_dynamic_library(ctx, library_target):
-    """The dynamic-library File behind `shared_library`.
+    """The dynamic-library File behind `file`.
 
     From a `cc_shared_library`, read from
     `CcSharedLibraryInfo.linker_input.libraries[*].dynamic_library` rather than
@@ -48,24 +48,24 @@ def _extract_dynamic_library(ctx, library_target):
         info = library_target[CcSharedLibraryInfo]
         libraries = info.linker_input.libraries
         if not libraries:
-            fail("dart_code_asset %s: `shared_library` %s has no libraries in its CcSharedLibraryInfo." %
+            fail("dart_code_asset %s: `file` %s has no libraries in its CcSharedLibraryInfo." %
                  (ctx.label, library_target.label))
         for lib in libraries:
             if lib.dynamic_library != None:
                 return lib.dynamic_library
-        fail("dart_code_asset %s: `shared_library` %s has no dynamic_library File on its CcSharedLibraryInfo." %
+        fail("dart_code_asset %s: `file` %s has no dynamic_library File on its CcSharedLibraryInfo." %
              (ctx.label, library_target.label))
 
     files = library_target[DefaultInfo].files.to_list()
     if len(files) != 1:
-        fail(("dart_code_asset %s: `shared_library` %s is neither a `cc_shared_library` " +
+        fail(("dart_code_asset %s: `file` %s is neither a `cc_shared_library` " +
               "nor a single prebuilt library file; it has %d files.") %
              (ctx.label, library_target.label, len(files)))
     library = files[0]
     os, extension = _library_extension(ctx)
     name = library.basename
     if not (name.endswith(extension) or (extension == ".so" and ".so." in name)):
-        fail(("dart_code_asset %s: `shared_library` file %s is not a dynamic library " +
+        fail(("dart_code_asset %s: `file` file %s is not a dynamic library " +
               "for the target platform, which loads %s files%s.") %
              (ctx.label, library.short_path, extension, " (%s)" % os if os else ""))
     return library
@@ -84,41 +84,41 @@ def _dart_code_asset_impl(ctx):
         fail("dart_code_asset %s: invalid link_mode %r. Expected one of: %s." %
              (ctx.label, link_mode, ", ".join(CODE_ASSET_LINK_MODES)))
 
-    dynamic_library = None
-    system_uri = ""
+    file = None
+    uri = ""
 
     if link_mode == "dynamic_loading_bundle":
-        if ctx.attr.shared_library == None:
+        if ctx.attr.file == None:
             fail(("dart_code_asset %s: link_mode = \"dynamic_loading_bundle\" " +
-                  "requires `shared_library`, a `cc_shared_library` or a prebuilt library file.") % ctx.label)
-        if ctx.attr.system_uri:
-            fail(("dart_code_asset %s: `system_uri` is only valid with " +
+                  "requires `file`, a `cc_shared_library` or a prebuilt library file.") % ctx.label)
+        if ctx.attr.uri:
+            fail(("dart_code_asset %s: `uri` is only valid with " +
                   "link_mode = \"dynamic_loading_system\".") % ctx.label)
-        dynamic_library = _extract_dynamic_library(ctx, ctx.attr.shared_library)
+        file = _extract_dynamic_library(ctx, ctx.attr.file)
     elif link_mode == "dynamic_loading_system":
-        if not ctx.attr.system_uri:
+        if not ctx.attr.uri:
             fail(("dart_code_asset %s: link_mode = \"dynamic_loading_system\" " +
-                  "requires `system_uri = \"<uri>\"`.") % ctx.label)
-        if ctx.attr.shared_library != None:
-            fail(("dart_code_asset %s: `shared_library` is only valid with " +
+                  "requires `uri = \"<uri>\"`.") % ctx.label)
+        if ctx.attr.file != None:
+            fail(("dart_code_asset %s: `file` is only valid with " +
                   "link_mode = \"dynamic_loading_bundle\".") % ctx.label)
-        system_uri = ctx.attr.system_uri
+        uri = ctx.attr.uri
     else:  # dynamic_loading_executable / dynamic_loading_process
-        if ctx.attr.shared_library != None:
-            fail(("dart_code_asset %s: `shared_library` is only valid with " +
+        if ctx.attr.file != None:
+            fail(("dart_code_asset %s: `file` is only valid with " +
                   "link_mode = \"dynamic_loading_bundle\".") % ctx.label)
-        if ctx.attr.system_uri:
-            fail(("dart_code_asset %s: `system_uri` is only valid with " +
+        if ctx.attr.uri:
+            fail(("dart_code_asset %s: `uri` is only valid with " +
                   "link_mode = \"dynamic_loading_system\".") % ctx.label)
 
-    files = depset([dynamic_library] if dynamic_library != None else [])
+    files = depset([file] if file != None else [])
     return [
         DefaultInfo(files = files),
         DartCodeAssetInfo(
             asset_id = ctx.attr.asset_id,
             link_mode = link_mode,
-            dynamic_library = dynamic_library,
-            system_uri = system_uri,
+            file = file,
+            uri = uri,
         ),
     ]
 
@@ -137,7 +137,7 @@ dart_code_asset = rule(
             default = "dynamic_loading_bundle",
             doc = """How the runtime loads this asset. One of `dynamic_loading_bundle` (a \
 Bazel-built library shipped alongside the app), `dynamic_loading_system` (a library already \
-present on the target system, named by `system_uri`), `dynamic_loading_executable`, or \
+present on the target system, named by `uri`), `dynamic_loading_executable`, or \
 `dynamic_loading_process`. The reserved `static` mode fails fast — neither the Dart VM nor the \
 Flutter engine implements it.
 
@@ -145,7 +145,7 @@ May be a `select()`: an ext package that bundles on one platform and uses the sy
 another expresses that here, and consumers see a single target.""",
             values = list(CODE_ASSET_LINK_MODES) + ["static"],
         ),
-        "shared_library": attr.label(
+        "file": attr.label(
             allow_files = True,
             doc = """The dynamic library that backs this code asset: a `cc_shared_library`, or one \
 prebuilt library file (a checked-in or downloaded `.so`, `.dylib` or `.dll`, as \
@@ -158,7 +158,7 @@ prebuilt library file (a checked-in or downloaded `.so`, `.dylib` or `.dll`, as 
         "_tvos": attr.label(default = "@platforms//os:tvos"),
         "_visionos": attr.label(default = "@platforms//os:visionos"),
         "_watchos": attr.label(default = "@platforms//os:watchos"),
-        "system_uri": attr.string(
+        "uri": attr.string(
             doc = "System library URI, e.g. `libsqlite3.so.0`. Required for `dynamic_loading_system`; forbidden for the other link modes.",
         ),
     },

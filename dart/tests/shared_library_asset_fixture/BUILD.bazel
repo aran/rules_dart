@@ -26,13 +26,13 @@ cc_shared_library(
 dart_code_asset(
     name = "a",
     asset_id = "package:a/a.dart",
-    shared_library = ":counter_shared",
+    file = ":counter_shared",
 )
 
 dart_code_asset(
     name = "b",
     asset_id = "package:b/b.dart",
-    shared_library = ":counter_shared",
+    file = ":counter_shared",
 )
 
 dart_test(

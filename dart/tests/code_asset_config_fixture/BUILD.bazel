@@ -41,7 +41,7 @@ cc_shared_library(
 dart_code_asset(
     name = "asset",
     asset_id = "package:code_asset_config_fixture/which.dart",
-    shared_library = ":which_shared",
+    file = ":which_shared",
 )
 
 transitioned_asset(

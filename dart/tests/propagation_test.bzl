@@ -13,10 +13,10 @@ load(":small_suite.bzl", "small_unittest_suite")
 
 _L = "//pkg:consumer"
 
-def _asset(asset_id, owner_path = "libfoo.so", link_mode = "dynamic_loading_bundle", system_uri = ""):
+def _asset(asset_id, owner_path = "libfoo.so", link_mode = "dynamic_loading_bundle", uri = ""):
     """A DartCodeAssetInfo stand-in.
 
-    `dynamic_library` needs only the `owner` and `path` of a `File`.
+    `file` needs only the `owner` and `path` of a `File`.
     """
     library = None
     if link_mode == "dynamic_loading_bundle":
@@ -24,8 +24,8 @@ def _asset(asset_id, owner_path = "libfoo.so", link_mode = "dynamic_loading_bund
     return DartCodeAssetInfo(
         asset_id = asset_id,
         link_mode = link_mode,
-        dynamic_library = library,
-        system_uri = system_uri,
+        file = library,
+        uri = uri,
     )
 
 def _pkg(package_name, package_root, code_assets = (), version = "", language_version = ""):
@@ -77,7 +77,7 @@ def _resolve_explicit_replaces_transitive_test_impl(ctx):
         [_asset("package:a/a.g.dart", "liba_manual.so")],
     )
     asserts.equals(env, ["package:b/b.g.dart", "package:a/a.g.dart"], [r.asset_id for r in result])
-    asserts.equals(env, "liba_manual.so", result[1].dynamic_library.owner)
+    asserts.equals(env, "liba_manual.so", result[1].file.owner)
     return unittest.end(env)
 
 def _resolve_explicit_settles_conflicting_deps_test_impl(ctx):
@@ -90,18 +90,18 @@ def _resolve_explicit_settles_conflicting_deps_test_impl(ctx):
         [_asset("package:a/a.g.dart", "liba_two.so")],
     )
     asserts.equals(env, ["package:a/a.g.dart"], [r.asset_id for r in result])
-    asserts.equals(env, "liba_two.so", result[0].dynamic_library.owner)
+    asserts.equals(env, "liba_two.so", result[0].file.owner)
     return unittest.end(env)
 
 def _resolve_keeps_non_bundle_modes_test_impl(ctx):
     env = unittest.begin(ctx)
     result = resolve_code_assets(_L, [
-        _asset("package:a/a.g.dart", link_mode = "dynamic_loading_system", system_uri = "liba.so.0"),
+        _asset("package:a/a.g.dart", link_mode = "dynamic_loading_system", uri = "liba.so.0"),
         _asset("package:b/b.g.dart", link_mode = "dynamic_loading_process"),
     ], [])
     asserts.equals(env, 2, len(result))
-    asserts.equals(env, None, result[0].dynamic_library)
-    asserts.equals(env, "liba.so.0", result[0].system_uri)
+    asserts.equals(env, None, result[0].file)
+    asserts.equals(env, "liba.so.0", result[0].uri)
     return unittest.end(env)
 
 # --- merge_package_records: dedup and asset union ---

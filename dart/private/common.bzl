@@ -1473,7 +1473,7 @@ def target_dart_abi(ctx):
 # lives here and not next to `CODE_ASSET_LINK_MODES`.
 _VM_PATH_TYPE = {
     "dynamic_loading_bundle": ("relative", "library"),
-    "dynamic_loading_system": ("system", "system_uri"),
+    "dynamic_loading_system": ("system", "uri"),
     "dynamic_loading_executable": ("executable", ""),
     "dynamic_loading_process": ("process", ""),
 }
@@ -1495,7 +1495,7 @@ _VM_PATH_TYPE_IS_TOTAL = fail(
     "CODE_ASSET_LINK_MODES must map to a Dart VM path type.",
 ) if _UNMAPPED_LINK_MODES else True
 
-def native_assets_path_list(label, link_mode, relative_lib_path, system_uri):
+def native_assets_path_list(label, link_mode, relative_lib_path, uri):
     """Returns the VM path-list for one code asset, per its link mode.
 
     Args:
@@ -1503,7 +1503,7 @@ def native_assets_path_list(label, link_mode, relative_lib_path, system_uri):
       link_mode: One of `CODE_ASSET_LINK_MODES`.
       relative_lib_path: Path to the library relative to the dill, for
         `dynamic_loading_bundle`.
-      system_uri: The system library URI, for `dynamic_loading_system`.
+      uri: The system library URI, for `dynamic_loading_system`.
 
     Returns:
       List of strings forming the asset's JSON path-list.
@@ -1515,8 +1515,8 @@ def native_assets_path_list(label, link_mode, relative_lib_path, system_uri):
     path_type, payload = mapping
     if payload == "library":
         return [path_type, relative_lib_path]
-    if payload == "system_uri":
-        return [path_type, system_uri]
+    if payload == "uri":
+        return [path_type, uri]
     return [path_type]
 
 def check_unreplaced_hooks(label, packages):
@@ -1585,8 +1585,8 @@ def code_asset_identity(asset):
     Returns:
       A tuple that two assets share exactly when they define one library.
     """
-    library = asset.dynamic_library.path if asset.dynamic_library != None else ""
-    return (asset.link_mode, asset.system_uri, library)
+    library = asset.file.path if asset.file != None else ""
+    return (asset.link_mode, asset.uri, library)
 
 def resolve_code_assets(label, transitive_assets, explicit_assets):
     """Unions transitively-propagated code assets with explicitly named ones.
@@ -1627,8 +1627,8 @@ def _unique_code_assets(label, assets):
             order.append(asset.asset_id)
         elif code_asset_identity(previous) != code_asset_identity(asset):
             same_target = (
-                previous.dynamic_library != None and asset.dynamic_library != None and
-                previous.dynamic_library.owner == asset.dynamic_library.owner
+                previous.file != None and asset.file != None and
+                previous.file.owner == asset.file.owner
             )
             fail(("%s: code asset id `%s` is claimed twice with different " +
                   "definitions: %s and %s. The Dart VM resolves an asset id to " +
@@ -1640,7 +1640,7 @@ def _unique_code_assets(label, assets):
                 code_asset_identity(asset),
                 ("this is %s built in two configurations: a transition between " +
                  "here and one of them changes a setting it is built with; reset " +
-                 "that setting before the library") % asset.dynamic_library.owner if same_target else "drop one of the declarations",
+                 "that setting before the library") % asset.file.owner if same_target else "drop one of the declarations",
             ))
     return [by_id[asset_id] for asset_id in order]
 
@@ -1661,13 +1661,13 @@ def code_asset_entries(label, assets, output_dir):
     libraries = []
     for info in assets:
         relative_lib_path = ""
-        if info.dynamic_library != None:
-            relative_lib_path = relative_path(output_dir, info.dynamic_library.path)
-            if info.dynamic_library not in libraries:
-                libraries.append(info.dynamic_library)
+        if info.file != None:
+            relative_lib_path = relative_path(output_dir, info.file.path)
+            if info.file not in libraries:
+                libraries.append(info.file)
         entries.append((
             info.asset_id,
-            native_assets_path_list(label, info.link_mode, relative_lib_path, info.system_uri),
+            native_assets_path_list(label, info.link_mode, relative_lib_path, info.uri),
         ))
     return entries, libraries
 
@@ -1695,7 +1695,7 @@ def stage_code_assets(ctx, assets, directory):
     links = {}
     staged = []
     for asset in assets:
-        library = asset.dynamic_library
+        library = asset.file
         if library == None:
             staged.append(asset)
             continue
@@ -1706,8 +1706,8 @@ def stage_code_assets(ctx, assets, directory):
         staged.append(DartCodeAssetInfo(
             asset_id = asset.asset_id,
             link_mode = asset.link_mode,
-            dynamic_library = links[library],
-            system_uri = asset.system_uri,
+            file = links[library],
+            uri = asset.uri,
         ))
     return staged
 

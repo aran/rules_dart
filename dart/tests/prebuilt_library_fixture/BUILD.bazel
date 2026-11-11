@@ -12,7 +12,7 @@ filegroup(
 dart_code_asset(
     name = "prebuilt_asset",
     asset_id = "package:c/c.dart",
-    shared_library = ":prebuilt",
+    file = ":prebuilt",
 )
 
 dart_test(

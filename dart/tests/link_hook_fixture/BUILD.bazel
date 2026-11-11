@@ -87,7 +87,7 @@ recording_binary_test(
 dart_code_asset(
     name = "asset",
     asset_id = "package:link_hook_fixture/src/ffi.g.dart",
-    shared_library = "//dart/tests/cc_fixture:empty_shared",
+    file = "//dart/tests/cc_fixture:empty_shared",
     tags = ["manual"],
 )
 

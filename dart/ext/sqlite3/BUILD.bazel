@@ -45,7 +45,7 @@ dart_code_asset(
     # sqlite3's bindings declare @ffi.DefaultAsset(...) in lib/src/ffi/
     # libsqlite3.g.dart; its hook emits the code asset under this id.
     asset_id = "package:sqlite3/src/ffi/libsqlite3.g.dart",
-    shared_library = ":libsqlite3",
+    file = ":libsqlite3",
     visibility = ["//visibility:public"],
 )
 

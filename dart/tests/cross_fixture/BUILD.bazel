@@ -55,14 +55,14 @@ native_has_no_target_flags_test(
 )
 
 # A `dynamic_loading_system` asset names a library already present on the target
-# and takes no `shared_library`, so nothing here needs a cc toolchain for
+# and takes no `file`, so nothing here needs a cc toolchain for
 # riscv64/armv7 — which is what lets these tests reach `target_dart_abi`
 # instead of dying in cc toolchain resolution first.
 dart_code_asset(
     name = "system_asset",
     asset_id = "package:cross_fixture/src/ffi/cross.g.dart",
     link_mode = "dynamic_loading_system",
-    system_uri = "libc.so.6",
+    uri = "libc.so.6",
 )
 
 dart_binary(

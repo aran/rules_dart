@@ -26,7 +26,7 @@ dart_binary(
 dart_code_asset(
     name = "asset",
     asset_id = "package:kernel_uri_fixture/src/ffi/kernel_uri_fixture.g.dart",
-    shared_library = "//dart/tests/cc_fixture:empty_shared",
+    file = "//dart/tests/cc_fixture:empty_shared",
 )
 
 dart_binary(

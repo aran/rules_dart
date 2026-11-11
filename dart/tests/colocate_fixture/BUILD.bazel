@@ -21,7 +21,7 @@ genrule(
 dart_code_asset(
     name = "code_asset",
     asset_id = "package:colo_pkg/src/ffi/colo.g.dart",
-    shared_library = "//dart/tests/cc_fixture:empty_shared",
+    file = "//dart/tests/cc_fixture:empty_shared",
 )
 
 dart_package_metadata(
