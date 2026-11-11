@@ -1,0 +1,17 @@
+# Property: a `dart_kernel_source` names its Dart SDK by exactly one of
+# `dart_version` and `path`, and a `path` that is no Dart SDK checkout is
+# refused, naming the path.
+# The three repositories, declared in MODULE.bazel, must FAIL to fetch, each
+# with its own error (CI's expected-failure job checks them): `@both` and
+# `@neither` print "give exactly one of `dart_version` and `path`",
+# `@not_a_checkout` prints "/usr/pkg/kernel/pubspec.yaml does not exist".
+# `manual` keeps them out of `//...`, which the rest of the workspace builds.
+filegroup(
+    name = "refused",
+    srcs = [
+        "@both//:outline_tool",
+        "@neither//:outline_tool",
+        "@not_a_checkout//:outline_tool",
+    ],
+    tags = ["manual"],
+)

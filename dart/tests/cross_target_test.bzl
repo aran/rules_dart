@@ -3,7 +3,7 @@
 These resolve a cross toolchain and inspect the compile action, so they run on
 any host without fetching the target's cross artifacts or executing anything.
 Byte-level proof that each target really produces its architecture lives in
-`e2e/cross_compile`.
+`e2e/basics/cross_compile`.
 
 Because analysis resolves the cross toolchain from whatever host runs the test,
 one suite covers `linux-x64_cross_*` on Linux CI, `macos-arm64_cross_*` on

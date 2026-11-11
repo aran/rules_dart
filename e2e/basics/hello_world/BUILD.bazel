@@ -1,0 +1,24 @@
+load("@rules_dart//dart:defs.bzl", "dart_binary")
+
+# `hello.dart` is under no `lib/`, so no `dart_library` takes it; the aspect
+# analyzes the entrypoint under `bazel test`. The binary has no deps, which is
+# the degenerate shape for the analysis package config.
+dart_binary(
+    name = "hello",
+    main = "hello.dart",
+)
+
+# Alternative compile modes — same source, different output formats. The
+# aspect analyzes each, pinning that analysis works for every `compile_mode`.
+
+dart_binary(
+    name = "hello_aot",
+    compile_mode = "aot-snapshot",
+    main = "hello.dart",
+)
+
+dart_binary(
+    name = "hello_kernel",
+    compile_mode = "kernel",
+    main = "hello.dart",
+)

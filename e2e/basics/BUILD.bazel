@@ -1,0 +1,46 @@
+load(
+    "@rules_dart//dart:defs.bzl",
+    "dart_analysis_config",
+    "dart_analysis_options",
+    "dart_library",
+    "dart_package_metadata",
+)
+
+# Every directory below is one fixture: `hello_world`, `library_deps`,
+# `web_app`, `no_pubspec`, `cross_compile` and `kernel_source_refused`. Each
+# file is analyzed under the nearest options file above it: this one's ruleset,
+# or `no_pubspec`'s own.
+dart_analysis_config(
+    name = "analysis_config",
+    options = [
+        ":options",
+        "//no_pubspec:options",
+    ],
+)
+
+# The lint ruleset is a pub package the options file includes by `package:`
+# URI. It belongs here rather than in any library's `deps`: naming it there
+# would carry a lint-only package into the `DartInfo` of everything downstream.
+dart_analysis_options(
+    name = "options",
+    src = "analysis_options.yaml",
+    deps = ["@very_good_analysis"],
+)
+
+# The workspace's root package (empty package_root), which `//web_app`'s
+# binaries depend on: its lib/ sources must be staged for the web compile like
+# any other dep package. No pubspec states it, here or on any directory above
+# `//no_pubspec`.
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "basics",
+)
+
+exports_files(["lib/root_greet.dart"])
+
+dart_library(
+    name = "rootlib",
+    srcs = ["lib/root_greet.dart"],
+    package = ":pubspec-metadata",
+    visibility = ["//visibility:public"],
+)

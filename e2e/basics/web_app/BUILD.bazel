@@ -1,0 +1,75 @@
+load("@rules_dart//dart:defs.bzl", "dart_js_binary", "dart_test", "dart_wasm_binary")
+
+# `//:rootlib` is the workspace's root package (empty package_root): its lib/
+# sources must be staged for the web compile like any other dep package.
+
+# The web binaries carry the package's own `main.dart`/`config.dart`, which no
+# `dart_library` owns; the aspect analyzing the binaries is what reaches them.
+dart_js_binary(
+    name = "app",
+    srcs = ["config.dart"],
+    # A define containing a space must survive intact (no shell splitting).
+    defines = ["banner=hello world"],
+    main = "main.dart",
+    deps = [
+        "//:rootlib",
+        "//web_app/greet",
+        "@pub_deps//:characters",
+    ],
+)
+
+dart_wasm_binary(
+    name = "app_wasm",
+    srcs = ["config.dart"],
+    defines = ["banner=hello world"],
+    main = "main.dart",
+    deps = [
+        "//:rootlib",
+        "//web_app/greet",
+        "@pub_deps//:characters",
+    ],
+)
+
+# The source map picked out by output group.
+filegroup(
+    name = "app_map",
+    srcs = [":app"],
+    output_group = "source_map",
+)
+
+dart_test(
+    name = "js_output_test",
+    size = "small",
+    args = ["$(rlocationpath :app_map)"],
+    data = [
+        ":app",
+        ":app_map",
+    ],
+    main = "test/js_output_test.dart",
+    deps = ["@rules_dart//dart/runfiles"],
+)
+
+# The loader picked out by output group, as a genrule's `$(execpath)` would.
+filegroup(
+    name = "app_wasm_mjs",
+    srcs = [":app_wasm"],
+    output_group = "mjs",
+)
+
+dart_test(
+    name = "wasm_output_test",
+    size = "small",
+    args = ["$(rlocationpath :app_wasm_mjs)"],
+    # The sources the map names, which it must name relative to itself.
+    data = [
+        "config.dart",
+        "main.dart",
+        ":app_wasm",
+        ":app_wasm_mjs",
+        "//:lib/root_greet.dart",
+        "//web_app/greet",
+        "@pub_deps//:characters",
+    ],
+    main = "test/wasm_output_test.dart",
+    deps = ["@rules_dart//dart/runfiles"],
+)

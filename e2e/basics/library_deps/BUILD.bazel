@@ -1,0 +1,18 @@
+load("@rules_dart//dart:defs.bzl", "dart_binary")
+
+dart_binary(
+    name = "app",
+    srcs = ["version.dart"],
+    main = "main.dart",
+    deps = ["//library_deps/greeter"],
+)
+
+# A binary that depends on a source-less aggregate `dart_library`
+# (`//library_deps/facade`, which re-exports `//library_deps/utils`) builds.
+# Analyzing the binary, not a library, is what puts `facade_main.dart` under the
+# ruleset at all — an entrypoint belongs to no package's `lib/`.
+dart_binary(
+    name = "app_via_facade",
+    main = "facade_main.dart",
+    deps = ["//library_deps/facade"],
+)

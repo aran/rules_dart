@@ -1,0 +1,39 @@
+load("@rules_dart//dart:defs.bzl", "dart_analysis_options", "dart_test")
+load(":checks.bzl", "pub_graph_check")
+
+# A fixture with no `pubspec.yaml` in it or in any directory above it, up to
+# the workspace root: every fact a pubspec would state is stated on targets. Package names and language versions are on
+# `dart_package_metadata`, dependencies are `deps`, pub
+# packages are `pub.package()` pins, executables are `dart_binary` targets.
+# The nearest options file to every file here, so it alone governs them.
+dart_analysis_options(
+    name = "options",
+    src = "analysis_options.yaml",
+    visibility = ["//:__pkg__"],
+)
+
+# A `pub.package()` takes its dependencies from the pubspec of its archive:
+# `json_annotation`'s says `meta`, and `deps` no longer exists to restate it.
+pub_graph_check(
+    name = "pub_package_takes_dependencies_from_its_pubspec",
+    direct_deps = ["meta"],
+    target = "@json_annotation",
+)
+
+# The premise of the fixture: no pubspec here, nor in any directory a tool's
+# walk up from here reaches. It reads the source tree through the BUILD.bazel
+# symlink, so it runs locally, where that leads to the tree, and is never
+# cached: a new pubspec is not one of its inputs.
+dart_test(
+    name = "no_pubspec_test",
+    size = "small",
+    args = ["$(rlocationpath BUILD.bazel)"],
+    data = ["BUILD.bazel"],
+    main = "check/no_pubspec_test.dart",
+    tags = [
+        "external",
+        "local",
+        "no-remote",
+    ],
+    deps = ["@rules_dart//dart/runfiles"],
+)

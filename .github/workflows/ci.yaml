@@ -40,23 +40,20 @@ jobs:
       # default shell (PowerShell on Windows), where this is invalid. Inner
       # single quotes keep the outer shell from expanding it; `case $PWD`
       # needs no quotes, which PowerShell would mangle.
-      bazel_test_command: "bash -c 'bazel test --test_output=errors //...; s=$?; [ $s -eq 4 ] && case $PWD in */e2e/analysis|*/e2e/analyze_composition/dep_module|*/e2e/hello_world|*/e2e/pub_deps|*/e2e/pub_lock|*/e2e/pub_lock_cross_module|*/e2e/pub_lock_dedup|*/e2e/pub_lock_upgrade|*/e2e/pub_hub_surface|*/e2e/pub_override_root_lock|*/e2e/pub_highest_wins|*/e2e/pub_root_newer|*/e2e/pub_package_padded) exit 0;; esac; exit $s'"
+      bazel_test_command: "bash -c 'bazel test --test_output=errors //...; s=$?; [ $s -eq 4 ] && case $PWD in */e2e/analysis|*/e2e/analyze_composition/dep_module|*/e2e/pub_deps|*/e2e/pub_lock|*/e2e/pub_lock_cross_module|*/e2e/pub_lock_dedup|*/e2e/pub_lock_upgrade|*/e2e/pub_hub_surface|*/e2e/pub_override_root_lock|*/e2e/pub_highest_wins|*/e2e/pub_root_newer|*/e2e/pub_package_padded) exit 0;; esac; exit $s'"
       folders: |
         [
           ".",
           "e2e/smoke",
-          "e2e/hello_world",
-          "e2e/library_deps",
+          "e2e/basics",
           "e2e/analysis",
           "e2e/dart_test",
           "e2e/dart_test_pkg",
           "e2e/codegen",
           "e2e/pub_deps",
           "e2e/pub_lock",
-          "e2e/web_app",
           "e2e/web_compiler",
           "e2e/gazelle",
-          "e2e/cross_compile",
           "e2e/pub_lock_cross_module",
           "e2e/pub_lock_dedup",
           "e2e/pub_lock_upgrade",
@@ -73,7 +70,6 @@ jobs:
           "e2e/pub_package_padded",
           "e2e/ext_exemplar",
           "e2e/fix",
-          "e2e/no_pubspec",
           "e2e/analyze_composition",
           "e2e/analyze_composition/dep_module",
           "e2e/link_hook",
@@ -402,7 +398,7 @@ jobs:
           bazel build //mine 2>&1 | grep -qF 'pub.cycle(packages = ["mine", "theirs"])'
           echo "OK: undeclared and misdeclared cycles refused"
       - name: kernel_source_refused — expect a dart_kernel_source naming both or neither of dart_version and path, or a path that is no checkout, to be refused
-        working-directory: e2e/kernel_source_refused
+        working-directory: e2e/basics
         run: |
           for repo in both neither not_a_checkout; do
             if bazel build @$repo//:outline_tool 2>/dev/null; then
@@ -796,16 +792,16 @@ jobs:
         working-directory: e2e/pub_lock_git
         run: dart check_host_config.dart
   # `dart compile kernel` rejects `--enable-asserts`, so dbg-mode flags are
-  # chosen per compile mode. hello_world builds all four dart_binary modes;
-  # dart_test exercises the kernel test path end-to-end.
+  # chosen per compile mode. basics' hello_world builds all four dart_binary
+  # modes; dart_test exercises the kernel test path end-to-end.
   dbg-mode:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: hello_world — build all compile modes under -c dbg
-        working-directory: e2e/hello_world
-        run: bazel build -c dbg //...
+        working-directory: e2e/basics
+        run: bazel build -c dbg //hello_world/...
       - name: dart_test — run tests under -c dbg
         working-directory: e2e/dart_test
         run: bazel test -c dbg --test_output=errors //...

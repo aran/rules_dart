@@ -1,0 +1,13 @@
+load("@rules_dart//dart:defs.bzl", "dart_package_member")
+
+dart_package_member(
+    name = "member",
+    srcs = glob(["lib/**/*.dart"]),
+    visibility = ["//library_deps/cycle:__pkg__"],
+)
+
+alias(
+    name = "pong",
+    actual = "//library_deps/cycle:ping_pong",
+    visibility = ["//visibility:public"],
+)

@@ -1,0 +1,32 @@
+load("@rules_dart//dart:defs.bzl", "dart_package_member", "dart_package_metadata", "dart_test")
+
+# `ping` states its facts; `pong` states none and is named for its directory.
+# Each package's declaration and files are its own, whichever target builds it.
+dart_package_metadata(
+    name = "metadata",
+    package_name = "ping",
+    language_version = "3.11",
+)
+
+dart_package_member(
+    name = "member",
+    srcs = glob(["lib/**/*.dart"]),
+    package = ":metadata",
+    visibility = ["//library_deps/cycle:__pkg__"],
+)
+
+# What the package's library would be called, so that a target outside the
+# cycle can depend on `//cycle/ping`.
+alias(
+    name = "ping",
+    actual = "//library_deps/cycle:ping_pong",
+    visibility = ["//visibility:public"],
+)
+
+dart_test(
+    name = "ping_test",
+    size = "small",
+    main = "test/ping_test.dart",
+    package = ":metadata",
+    deps = [":ping"],
+)

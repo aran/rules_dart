@@ -1,8 +1,0 @@
-# Lints that read a pubspec: they judge the one rules_dart writes from each
-# target (its name, its dependencies), since this workspace has none.
-linter:
-  rules:
-    - depend_on_referenced_packages
-    - package_names
-    - prefer_final_locals
-    - sort_pub_dependencies
