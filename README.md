@@ -909,17 +909,18 @@ as the `license_file` of the package's `dart_package_metadata`.
 
 ## BUILD file generation with Gazelle
 
-rules_dart's [Gazelle](https://github.com/bazelbuild/bazel-gazelle) plugin
-generates `BUILD.bazel` files from your Dart source tree. It is the module
-`rules_dart_gazelle_plugin` (see [Installation](#installation)).
-
-Add `gazelle` to your `MODULE.bazel`, beside that module:
+rules_dart has a [Gazelle](https://github.com/bazelbuild/bazel-gazelle) plugin
+that writes your `BUILD.bazel` files for you. It reads your Dart sources, their
+imports and each package's `pubspec.yaml`. The plugin is a module of its own,
+`rules_dart_gazelle_plugin` (see [Installation](#installation)). Add Gazelle
+itself beside it in `MODULE.bazel`:
 
 ```starlark
 bazel_dep(name = "gazelle", version = "0.54.0")
 ```
 
-Then create a root `BUILD.bazel` with the Gazelle targets:
+Then define a Gazelle binary with the Dart plugin, and a target that runs it, in
+the root `BUILD.bazel`:
 
 ```starlark
 load("@gazelle//:def.bzl", "gazelle", "gazelle_binary")
@@ -937,158 +938,265 @@ gazelle(
 )
 ```
 
-Run Gazelle to generate or update BUILD files:
+If your pub.dev packages come from `pub.from_lock(name = "pub_deps", ...)`, tell
+Gazelle so with a directive in the same file:
+
+```starlark
+# gazelle:dart_pub_deps_repo pub_deps
+```
+
+Without it, an import of `package:path/path.dart` resolves to `@path`, the
+repository that `pub.package(name = "path", ...)` creates.
+
+Run Gazelle whenever you add files or change imports:
 
 ```shell
 bazel run //:gazelle
 ```
 
-Gazelle reads every directory of a package: the files under `lib/` become the
-package's `dart_library` (see [One library per package](#one-library-per-package)),
-each `_test.dart` file a `dart_test`, each file in `bin/` a `dart_binary`, and
-the files of any other directory scripts (below). As
-upstream, a Dart file belongs to the innermost package whose root holds it,
-and a package's root is the directory holding its `pubspec.yaml`, or else a
-`dart_package_metadata`: every directory below it, `tool/`, `example/` and
-`benchmark/` too, is in that package, and each rule Gazelle writes there names
-its metadata, up to an `example/` (or any directory) with a pubspec of its
-own, which is a package of its own. A package with neither has its root above
-its `lib/`, `bin/` and `test/`, as `dart_library` derives it. Gazelle
-resolves `import` statements to determine `deps`, including support for
-`show` and `deferred` import modifiers.
+Take a package laid out like this, where `lib/greeter.dart` imports
+`package:path`:
 
-Dart files in any other directory (`tool/`, `example/`) are scripts, as
-`dart run tool/x.dart` runs them: each file with a top-level `main` is a
-`dart_binary`, holding in `srcs` the files beside it that it imports, directly
-or through one another. A file there with no `main` that no script beside it
-imports fails the run, naming it.
+```
+greeter/
+├── pubspec.yaml
+├── bin/
+│   └── greet.dart
+├── lib/
+│   ├── greeter.dart
+│   └── src/
+│       └── format.dart
+└── test/
+    ├── fixtures.dart
+    └── greeter_test.dart
+```
 
-As package:test does, Gazelle makes a test of each `_test.dart` file. Any other
-file in `test/` is a helper: it goes in the `srcs` of every test that imports
-it, directly or through another helper, and what it imports in that test's
-`deps`. A helper in the test's own directory is listed by name. A directory
-under `test/` that a file elsewhere imports from gets a `filegroup` named for
-it, holding its helpers (and any test imported from elsewhere), visible to the
-package's `test/` tree, and the test lists that instead.
+Gazelle writes a BUILD file in `greeter/`, `greeter/bin/` and `greeter/test/`.
+The one at the package's root holds the package's metadata and its library:
+
+```starlark
+# greeter/BUILD.bazel
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "greeter",
+    language_version = "3.11",
+    visibility = ["//greeter:__subpackages__"],
+)
+
+dart_library(
+    name = "greeter",
+    srcs = [
+        "lib/greeter.dart",
+        "lib/src/format.dart",
+    ],
+    package = ":pubspec-metadata",
+    visibility = ["//visibility:public"],
+    deps = ["@pub_deps//:path"],
+)
+```
+
+`bin/greet.dart` becomes a `dart_binary` named `greet` in `greeter/bin/`. The test
+directory gets a `dart_test` for the `_test.dart` file. `fixtures.dart` is a
+helper the test imports, so it goes in the test's `srcs`:
+
+```starlark
+# greeter/test/BUILD.bazel
+dart_test(
+    name = "greeter_test",
+    srcs = ["fixtures.dart"],
+    main = "greeter_test.dart",
+    package = "//greeter:pubspec-metadata",
+    deps = [
+        "//greeter",
+        "@pub_deps//:test",
+    ],
+)
+```
+
+In general, Gazelle treats each directory of a package as `dart` and `pub`
+would:
+
+- **`lib/`**: every file goes into the package's one `dart_library` (see
+  [One library per package](#one-library-per-package)).
+- **`bin/`**: each file becomes a `dart_binary`.
+- **`test/`**: each `_test.dart` file becomes a `dart_test`, and the other files
+  are helpers (below).
+- **Any other directory**, such as `tool/`, `example/` or `benchmark/`: its
+  files are scripts (below).
+
+Gazelle fills in `deps` from each file's `import` and `export` directives,
+including every URI of a conditional import. Modifiers such as `deferred as`,
+`show` and `hide` don't change what is imported.
+
+A package's root is the directory holding its `pubspec.yaml`. A directory whose
+BUILD file has a `dart_package_metadata` is a root too, pubspec or not. Every
+directory below the root is in that package, `tool/`, `example/` and
+`benchmark/` included, and every rule Gazelle writes there names the package's
+metadata. That stops at a directory below with a pubspec of its own, such as an
+`example/` that is a separate package. As with `pub`, that directory is the root
+of a new package. A package with neither a pubspec nor metadata has its root at
+the directory above its `lib/`, `bin/` and `test/`, where `dart_library`
+places it.
+
+Scripts are the files you'd run with `dart run tool/release.dart`. Each file
+with a top-level `main` becomes a `dart_binary`. Its `srcs` hold the files beside
+it that it imports, directly or through each other. A file with no `main` that
+no script beside it imports fails the run. So does a directory named `lib`
+below the root that isn't the package's own `lib/` (`tool/lib/`, say), unless a
+pubspec makes it a package of its own. A script whose binary would take the
+library's name fails too, and the error asks you to rename the file.
+
+Gazelle treats `test/` as `package:test` does. It makes a test of each
+`_test.dart` file, and any other file there is a helper. A helper goes in the
+`srcs` of every test that imports it, directly or through another helper. What
+the helper imports goes in that test's `deps`. A test lists a helper in its own
+directory by file name. When tests import helpers from another directory under
+`test/`, Gazelle gives that directory a `filegroup` named after it, holding its
+helpers, and the tests list the filegroup. That filegroup is visible to the
+package's whole `test/` tree. It also holds any test file that a file elsewhere
+imports.
+
+When a run finds problems like these, Gazelle reports every one of them and
+then fails, before it writes any BUILD file.
 
 ### One library per package
 
-Gazelle writes a package as one `dart_library`, in the BUILD file at the
-package's root, named for the package and holding every file under its `lib/`,
-as `pub.from_lock()` builds a pub package (see
-[Package metadata](#package-metadata)). A source
-carrying a builder's annotation is in it too, as is what its builders
-generate, as build_runner writes a `.g.dart` beside its source, a part of the
-same library: its codegen targets (see [Code generation](#code-generation))
-are named for its path under `lib/` without `.dart` (a single builder's macro
-is `src/model/user_codegen` for `lib/src/model/user.dart`), and the library
-lists their outputs in `srcs`. A plain source and an annotated one may import
-each other. A file one of those codegen targets produces is in no `srcs`, even
-when it is in the source tree, as a published package carries it; any other
-file is a source, whatever its name.
+Gazelle writes each package as a single `dart_library`. It sits in the BUILD
+file at the package's root, takes the package's name, and holds every file under
+`lib/`. That is also how `pub.from_lock()` builds a package from pub.dev (see
+[Package metadata](#package-metadata)).
 
-Gazelle allows no BUILD file under `lib/`, since one would cut the package's
-library off from the files below it: the split layout the rules accept is one
-you write and keep by hand, outside Gazelle. Gazelle removes the rules it
-writes from such a file, and in fix mode deletes the file; one holding
-anything else (a rule, an attribute or a directive Gazelle does not write)
-fails the run, naming the file, so that you move what it holds to the
-package's root.
+Sources that carry a builder's annotation are in that library too, along with
+what their builders generate. build_runner works the same way: it writes a
+`.g.dart` beside its source, as a part of the same library. Gazelle gives each
+annotated source codegen targets (see [Code generation](#code-generation)),
+named after its path under `lib/` without `.dart`. For
+`lib/src/model/user.dart` with a single builder, the target is
+`src/model/user_codegen`. The library lists the codegen outputs in its `srcs`.
+Plain and annotated sources may import each other.
 
-An imported file, by `package:` URI or relative path, resolves to the rule
-that lists it; only an import of a file no generated or hand-written rule
-lists by name (a pub package's, or one in a `glob`) resolves by package name.
-A file two rules list is logged rather than guessed; a
-`# gazelle:resolve dart package:<pkg>/<path> <label>` directive picks one.
+A generated file can already sit in the source tree, as a published package
+ships it. If one of those codegen targets produces it, Gazelle leaves the file
+out of every `srcs`. Every other file is a source, whatever its name. A
+`.g.dart` that no codegen target produces is an ordinary source.
+
+You can't keep a BUILD file under `lib/` with Gazelle. Bazel would end the
+library's sources at that directory, so the files below it would drop out of the
+package's library. The rules do accept a package split into several libraries
+this way, but you write and maintain that layout by hand, without Gazelle (see
+[Package metadata](#package-metadata)).
+
+When Gazelle finds a BUILD file under `lib/` that holds only rules it wrote, it
+removes the rules, and in its default fix mode deletes the file. In
+`-mode=diff` or `-mode=print`, which write nothing, that file fails the run
+instead. A BUILD file there holding anything Gazelle didn't write always fails
+the run: another rule, a directive, or an attribute Gazelle doesn't manage or
+that is marked `# keep`. The error names the file and asks you to move what it
+holds to the package's root.
+
+Gazelle resolves an import to the rule that lists the imported file, whether
+the import is a `package:` URI or a relative path. It falls back to the
+package's name only for a file that no rule lists by name: a pub package's
+file, or one matched by a `glob`. If two rules list the same file, Gazelle logs
+it and adds neither. A `# gazelle:resolve dart package:<pkg>/<path> <label>`
+directive picks one.
 
 ### Directives
 
-Add directives as comments in a `BUILD.bazel` file to control generation:
+Directives are comments in a `BUILD.bazel` file. Each applies to its directory
+and the directories below it. Most projects need only `dart_pub_deps_repo`,
+because Gazelle reads the rest from `pubspec.yaml` and `build.yaml`.
 
-- **`# gazelle:dart_pub_deps_repo pub_deps`** — tells Gazelle which
-  external repository holds pub.dev packages. Imports like
-  `package:shelf/shelf.dart` are resolved to `@pub_deps//:shelf`.
+- **`# gazelle:dart_pub_deps_repo pub_deps`**: the repository that holds your
+  pub.dev packages. With this one, `package:shelf/shelf.dart` resolves to
+  `@pub_deps//:shelf`. Without it, it resolves to `@shelf`.
 
-- **`# gazelle:dart_package_name my_app`** — the package's name, for a
-  package whose `pubspec.yaml` does not state it or that has none. Gazelle
-  writes it as the `package_name` of the package's `dart_package_metadata`.
+- **`# gazelle:dart_package_name my_app`**: the package's name, for a package
+  with no `pubspec.yaml` or one that doesn't state it. Gazelle writes it as the
+  `package_name` of the package's `dart_package_metadata`.
 
-- **`# gazelle:dart_language_version 3.13`** — the package's language
-  version, likewise, as the metadata's `language_version`.
+- **`# gazelle:dart_language_version 3.13`**: the package's language version,
+  in the same cases. Gazelle writes it as the metadata's `language_version`.
 
-  Each of these two states a fact of the package of the BUILD file stating it,
-  and holds in that directory and below it up to the root of another package
-  (a directory with its own `pubspec.yaml` or `dart_package_metadata`), which
-  states its own, as upstream each package's pubspec does.
+  These two describe one package. They hold in the BUILD file's directory and
+  below, up to the root of another package (a directory with its own
+  `pubspec.yaml` or `dart_package_metadata`). That package states its own, as
+  each package's pubspec does for `pub`.
 
-- **`# gazelle:dart_build_yaml_ignore targets.$default.builders.json_serializable.generate_for`**
-  — a part of the `build.yaml` beside the BUILD file that the build goes
-  without (see [build.yaml](#buildyaml)).
+- **`# gazelle:dart_build_yaml_ignore targets.$default.builders.json_serializable.generate_for`**:
+  a part of the `build.yaml` beside this BUILD file that the build does without
+  (see [build.yaml](#buildyaml)).
 
-- **`# gazelle:dart_builder_config JsonSerializable {"field_rename": "snake"}`**
-  — the options of the builder of an annotation, as the JSON object
-  `build.yaml`'s `options:` would hand it, for a package without a
-  `build.yaml`. Gazelle writes them into the `config` of the codegen targets
-  it writes for that builder, in that directory and below. Options the
-  package's `build.yaml` states differently fail the run, naming both.
+- **`# gazelle:dart_builder_config JsonSerializable {"field_rename": "snake"}`**:
+  options for the builder of an annotation, for a package with no
+  `build.yaml`. The value is the JSON object that `build.yaml`'s `options:`
+  would hand the builder. Gazelle writes it into the `config` of that builder's
+  codegen targets, in this directory and below. If the package's `build.yaml`
+  states different options, the run fails and names both.
 
-- **`# gazelle:dart_builder_runtime_dep JsonSerializable //third_party:json_annotation`**
-  — the library of an annotation's runtime package, for a fork of it: the
-  label replaces that package in the `deps` of the package's library and of
-  the builder's codegen targets.
+- **`# gazelle:dart_builder_runtime_dep JsonSerializable //third_party:json_annotation`**:
+  the library of an annotation's runtime package, if you use a fork of it. The
+  label replaces that package in the `deps` of the package's library and of the
+  builder's codegen targets.
 
-- **`# gazelle:dart_builder <Annotation> macro=<file>%<symbol> shim=<label> ...`**
-  — in the BUILD file at the repository's root only: registers a builder
-  another module ships, so that Gazelle writes its targets.
+- **`# gazelle:dart_builder <Annotation> macro=<file>%<symbol> shim=<label> ...`**:
+  registers a builder that another module ships, so that Gazelle writes its
+  targets. It goes only in the BUILD file at the repository's root.
 
-  These three are described fully in
-  [`docs/ext.md`](docs/ext.md#directives).
+  [`docs/ext.md`](docs/ext.md#directives) describes these last three fully.
 
-- **`# gazelle:resolve dart foo //third_party:foo`** — overrides
-  automatic dependency resolution for a Dart package (the `foo` of
-  `package:foo/...` imports), mapping it to an explicit Bazel target.
+- **`# gazelle:resolve dart foo //third_party:foo`**: Gazelle's own override,
+  mapping the Dart package `foo` (the `foo` of `package:foo/...` imports) to an
+  explicit Bazel target.
 
 ### pubspec.yaml and the package's metadata
 
-Gazelle states a package's facts once, on the package's one
-`dart_package_metadata` in the BUILD file at its root, which it names
-`pubspec-metadata`, and every rule it writes for the package names it with
-`package`: the library and codegen targets, and the binaries and tests in
-every directory of the package, its root, `bin/`, `test/`, `tool/` and the
-rest (`package = "//my_app:pubspec-metadata"`). It writes there:
+Gazelle states a package's facts once, on one `dart_package_metadata` named
+`pubspec-metadata` in the BUILD file at the package's root. Every rule it writes
+for the package names it with `package`. That includes the library and codegen
+targets, and the binaries and tests in every directory of the package
+(`package = "//greeter:pubspec-metadata"`). Gazelle fills in:
 
-- `package_name` and `language_version`: from a `pubspec.yaml` at the root
-  (`name`, and the lower bound of `environment.sdk`), or the directives
-  above, so most projects need no directives at all;
-- `build_hook` and `link_hook`: the package's hooks (see [Hooks](#hooks));
-- `license_file`: the root's `NOTICES`, or else `LICENSE`, by exact name, as
-  `pub.from_lock()` chooses.
+- `package_name` from the pubspec's `name`, and `language_version` from the
+  lower bound of its `environment.sdk`. The directives above supply them where
+  the pubspec doesn't, so most projects need no directives.
+- `build_hook` and `link_hook`, the package's hooks (see [Hooks](#hooks)).
+- `license_file`: the root's `NOTICES` file, or else its `LICENSE`, by exact
+  name. `pub.from_lock()` chooses the same way.
 
-A package needs no `pubspec.yaml`. One that nothing states a fact of has no
-metadata, and its rules name none: the rules name it after its root
-directory. At the repository's root, which has no directory name, a package
-with codegen targets gets one stating its library's name.
+A package doesn't need a `pubspec.yaml`. If nothing states any of these facts,
+Gazelle writes no metadata, and the package's rules name none. The rules then
+name the package after its root directory. The repository's root has no
+directory name, so a package there with codegen targets gets metadata stating
+its library's name.
 
-**The attributes above are output: each run rewrites them from
-`pubspec.yaml`, the directives and the package's files, and `# keep` on one
-makes it yours.** A `dart_package_metadata` already at the root is the
-package's, whatever its name: Gazelle merges into it and keeps what it does not
-write (`code_assets`, `data_assets`, `link_hook_assets`, `version`), and fails
-when the root's BUILD file holds two. One with no `pubspec.yaml` or directive
-beside it is itself the source of its name and version. A `# keep` attribute,
-a directive and the `pubspec.yaml` must agree: where two state a package's name
-or language version differently, Gazelle reports each disagreement, naming both
+**Gazelle owns these five attributes. Each run rewrites them from
+`pubspec.yaml`, the directives and the package's files. Mark one `# keep` to
+make it yours.**
+
+If the root's BUILD file already has a `dart_package_metadata`, Gazelle uses
+it, whatever it is named. It merges its attributes in and keeps the ones it
+doesn't write: `code_assets`, `data_assets`, `link_hook_assets`,
+`linked_code_assets` and `version`. A root BUILD file with two of them fails the
+run. Metadata with no `pubspec.yaml` and no directive beside it is itself the
+source of the package's name and language version, and Gazelle leaves those
+alone.
+
+A fact can be stated in up to three places: a `# keep` attribute, a directive
+and the pubspec. They must agree. When two state the package's name or
+language version differently, Gazelle reports each disagreement, with both
 values and where each is stated, and fails without writing any BUILD file.
-These facts are the metadata's alone: Gazelle removes `package_name`,
+
+The facts belong on the metadata alone. Gazelle removes `package_name`,
 `language_version`, `build_hook`, `link_hook` and `license_file` from the
 package's other rules, and moves a library's `code_assets` onto the metadata.
 
 ### build.yaml
 
-For a package it writes codegen for, Gazelle reads the `build.yaml` at the
-package's root, where build_runner finds its builder options, and writes each
-bundled builder's `targets.$default.builders.<builder>.options` into the
-`config` of the targets it writes for that builder, as the JSON object
+build_runner reads builder options from the `build.yaml` at a package's root.
+For a package Gazelle writes codegen for, Gazelle reads that file too. Each
+bundled builder's `targets.$default.builders.<builder>.options` goes into the
+`config` of the targets Gazelle writes for that builder, as the JSON object
 build_runner would hand the builder:
 
 ```yaml
@@ -1109,52 +1217,67 @@ json_serializable_codegen(
 )
 ```
 
-A builder is named as build_runner names it, `<package>:<builder>`, or a bare
-`<package>` for the builder of that name; the bundled builders' names are
-listed in
-[`docs/ext.md`](docs/ext.md#buildyaml), and a builder another module ships is
-named by the `key` of its `# gazelle:dart_builder` directive. Options of a
-builder no source of the package uses have no target to go into. The rest of
-the file has no place in a Bazel build: another target than `$default`, a
-target's `sources`, a builder's `generate_for`, `enabled`, `dev_options` or
-`release_options`, `global_options`, and a builder Gazelle knows no name for.
-A codegen macro's `srcs` choose the files it runs on. Gazelle names every such
-part, by its key path and line, and fails without writing any BUILD file:
+Builders are named as build_runner names them: `<package>:<builder>` (or the
+older `<package>|<builder>`), or a bare `<package>` for the builder of that name.
+[`docs/ext.md`](docs/ext.md#buildyaml) lists the bundled builders' names. A
+builder from another module is named by the `key` of its `# gazelle:dart_builder`
+directive. Options for a builder that no source of the package uses have no
+target to go into.
+
+The rest of the file has no place in a Bazel build. In Bazel, a codegen
+target's `srcs` choose the files it runs on. So Gazelle can't carry over:
+
+- any target other than `$default`
+- a target's `sources`
+- a builder's `generate_for`, `enabled`, `dev_options` or `release_options`
+- `global_options`
+- a builder Gazelle knows no name for
+
+Gazelle names every such part, by its key path and line, and fails without
+writing any BUILD file:
 
 ```
 gazelle: dart: build.yaml:9: `targets.$default.builders.json_serializable.generate_for` is not carried into the build: ...; to build without it, add `# gazelle:dart_build_yaml_ignore targets.$default.builders.json_serializable.generate_for` to the BUILD file in .
 ```
 
-`# gazelle:dart_build_yaml_ignore <key path>`, one per part, in the BUILD file
-beside the `build.yaml`, acknowledges that the build goes without that part,
-and Gazelle carries the rest. An ignore that names no such part of that file
-fails the run too, as does one stated twice. A package that keeps
-`build.yaml` for build_runner alone has Gazelle not read it at all with
-`# gazelle:exclude build.yaml` in its root's BUILD file. A `build.<name>.yaml`,
-which build_runner reads only with `--config <name>`, fails the run until it
-is excluded so. Options a `# gazelle:dart_builder_config` directive states
-differently for the same builder are a disagreement, as for the package's
-name (see [Directives](#directives)).
+To build without such a part, add `# gazelle:dart_build_yaml_ignore <key path>`
+for it to the BUILD file beside the `build.yaml`, one directive per part.
+Gazelle then carries over the rest. An ignore that names no part of that file
+fails the run, and so does one stated twice.
+
+If a package keeps its `build.yaml` for build_runner alone, add
+`# gazelle:exclude build.yaml` to its root's BUILD file, and Gazelle won't read
+it at all. build_runner reads a `build.<name>.yaml` only with `--config <name>`.
+Gazelle fails the run on one until you exclude it the same way.
+
+A `# gazelle:dart_builder_config` directive that states different options for
+the same builder is a disagreement, as for the package's name (see
+[Directives](#directives)).
 
 ### Hooks
 
-A package's `hook/build.dart` is its metadata's `build_hook`, and its
-`hook/link.dart` its metadata's `link_hook`: Gazelle puts each hook in a
-`filegroup` in `hook/` and names it on the package's `dart_package_metadata`.
-A build hook fails every binary and test that reaches the package until the
-metadata's `code_assets` and `data_assets` supply what the hook would build (see
-[Native code assets](#native-code-assets) and [Data assets](#data-assets));
-both are yours: Gazelle never writes or removes them. A link hook's imports are the `deps` of the
-package's library,
-for a linked program to run it (see
-[Recorded uses and link hooks](#recorded-uses-and-link-hooks)). A package
-whose hook nothing here uses has Gazelle not see it, with
-`# gazelle:exclude hook/build.dart` (or `hook/link.dart`) in its root's BUILD
-file. Gazelle writes nothing else for `hook/`.
+A package's `hook/build.dart` is its build hook, and `hook/link.dart` its link
+hook. Gazelle puts each in a `filegroup` in `hook/` (named `build` and `link`)
+and names them as the `build_hook` and `link_hook` of the package's
+`dart_package_metadata`. It writes nothing else for `hook/`.
+
+rules_dart never runs a build hook. A package with one fails every binary and
+test that reaches it, until its metadata's `code_assets` and `data_assets`
+supply what the hook would build (see [Native code assets](#native-code-assets)
+and [Data assets](#data-assets)). You write those two attributes yourself.
+Gazelle never writes or removes them.
+
+A link hook's imports go in the `deps` of the package's library, so that a
+linked program can run it (see
+[Recorded uses and link hooks](#recorded-uses-and-link-hooks)).
+
+If your build uses nothing a hook provides, hide the hook from Gazelle with
+`# gazelle:exclude hook/build.dart` (or `hook/link.dart`) in the package root's
+BUILD file.
 
 ### Test tags
 
-A test file's suite-level package:test tags become its `dart_test`'s Bazel
+A test file's suite-level `package:test` tags become its `dart_test`'s Bazel
 `tags`:
 
 ```dart
@@ -1176,26 +1299,29 @@ dart_test(
 )
 ```
 
-so Bazel's own tag filters select whole test files:
+Bazel's own tag filters can then select whole test files:
 
 ```shell
 bazel test //... --test_tag_filters=-slow          # skip slow files
 bazel test //... --test_tag_filters=integration    # only integration files
 ```
 
-Gazelle reads `@Tags` where package:test does, on the file's first directive
-(`library`, `import`, `export` or `part`), bare or import-prefixed
-(`@t.Tags([...])`). Tags on individual tests and groups (`test(..., tags: ...)`)
-stay with package:test. Gazelle warns instead of copying when the annotation is
-not a list of string literals (a `const` variable, say), and for a tag Bazel
-gives meaning to (`manual`, `exclusive`, `external`, `local`, and the `no-*`,
-`requires-*`, `supports-*`, `disable-*` and `block-network` execution tags),
-since copying it would change how the test runs.
+Gazelle reads `@Tags` where `package:test` does: on the file's first directive
+(`library`, `import`, `export` or `part`). It may be bare or import-prefixed
+(`@t.Tags([...])`). Tags on individual tests and groups
+(`test(..., tags: ...)`) stay with `package:test` (see [Tests](#tests)).
 
-Gazelle manages `tags` on `dart_test`: a tag removed from `@Tags` leaves the
-target on the next run. A tag you write yourself stays only when marked
-`# keep`, as for every attribute Gazelle manages, and Gazelle logs each tag it
-removes:
+In two cases Gazelle warns instead of copying a tag. One is an annotation that
+isn't a list of string literals, such as a `const` variable. The other is a tag
+that means something to Bazel, since copying it would change how the test runs:
+`manual`, `exclusive`, `exclusive-if-local`, `external`, `local`,
+`block-network`, and any tag starting `no-`, `requires-`, `supports-` or
+`disable-`.
+
+Gazelle manages a `dart_test`'s `tags`. A tag you remove from `@Tags` leaves the
+target on the next run. A tag you add by hand stays only if you mark it
+`# keep`, as with every attribute Gazelle manages. Gazelle logs each tag it
+removes.
 
 ```starlark
     tags = [
@@ -1206,10 +1332,9 @@ removes:
 
 ### Test platforms
 
-A test file's package:test `@TestOn` becomes its `dart_test`'s
-`target_compatible_with`, so that Bazel skips the test on a platform
-package:test would not run it on, rather than failing it: `dart test` on a
-file whose `@TestOn` excludes the platform finds no tests and fails.
+`dart test` on a file whose `@TestOn` excludes the current platform finds no
+tests, and fails. Under Bazel the test should be skipped instead. So Gazelle
+turns a test file's `@TestOn` into its `dart_test`'s `target_compatible_with`:
 
 ```dart
 @TestOn('vm && !windows')
@@ -1223,134 +1348,187 @@ library;
     }),
 ```
 
-Gazelle evaluates the selector as package:test does, over the platforms a
-`dart_test` is built for: the Dart VM on Linux, macOS, Windows or another OS,
-and the web platforms, which carry the `@rules_dart//dart/constraints:runtime`
-value `js` or `wasm` and, as a browser has for package:test, no OS. It maps
-`vm` (and `dart-vm`), `browser`, `js`, `wasm`, `linux`, `mac-os`, `windows`
-and `posix`; a selector naming anything else (a browser by name, a compiler,
-`android`), or accepting a set of platforms no list or single `select()`
-states, fails the run, naming the file. Write the attribute by hand then,
-marked `# keep`, as for any attribute Gazelle manages; Gazelle logs a
-`target_compatible_with` it removes. A workspace whose tests name an OS needs
-`bazel_dep(name = "platforms", ...)` for the `@platforms` labels.
+Gazelle evaluates the selector as `package:test` does, over the platforms a
+`dart_test` can be built for. Those are the Dart VM on Linux, macOS, Windows or
+another OS, and the two web platforms. A web platform carries the
+`@rules_dart//dart/constraints:runtime` value `js` or `wasm` and, as a browser
+has for `package:test`, no OS.
+
+Gazelle understands `vm` (and `dart-vm`), `browser`, `js`, `wasm`, `linux`,
+`mac-os`, `windows` and `posix`. A selector that names anything else (a browser
+by name, a compiler, `android`) fails the run, naming the file. So does one
+whose platforms no list or single `select()` can express. In those cases, write
+the attribute by hand and mark it `# keep`, as for any attribute Gazelle
+manages. Gazelle logs a `target_compatible_with` it removes.
+
+The `@platforms` labels need `bazel_dep(name = "platforms", ...)` in a workspace
+whose tests name an OS.
 
 ### Analysis options
 
-For every directory holding an `analysis_options.yaml`, Gazelle emits a
-`dart_analysis_options` named `analysis_options` (`analysis_options_yaml` if
-another rule in that directory has the name) whose `deps` are the packages its
-`include: package:<pkg>/...` lines name. In the root package it keeps one
-`dart_analysis_config` named `analysis_config` listing all of them, which is the
-target the `analysis_config` flag points at. A run on part of the tree
-(`gazelle path/to/dir`, or `-r=false`) updates only the directories it visits
-and keeps the config's other entries, so `gazelle -mode=diff` over the whole
-repository in CI reports an `analysis_options.yaml` nobody listed.
+Every directory with an `analysis_options.yaml` gets a `dart_analysis_options`
+named `analysis_options`. If another rule there already has that name, it is
+named `analysis_options_yaml`. Its `deps` are the packages that the file's
+`include: package:<pkg>/...` lines name.
+
+In the root package, Gazelle keeps one `dart_analysis_config`, named
+`analysis_config`, that lists all of them. That is the target the
+`analysis_config` flag points at (see
+[Static analysis and formatting](#static-analysis-and-formatting)).
+
+A run on part of the tree (`gazelle path/to/dir`, or `-r=false`) updates only
+the directories it visits, and keeps the config's other entries. So to catch an
+`analysis_options.yaml` that nobody listed, run `gazelle -mode=diff` over the
+whole repository in CI.
 
 ## Tests
 
-A `dart_test` whose `deps` include `package:test` runs under `package:test`'s
-own runner, built from that same package, so Bazel's test features work:
+A `dart_test` runs one test file, its `main`:
 
-- `bazel test --test_filter=<regex>` runs the cases whose names match.
-- `shard_count` splits a file's cases across shards.
+```starlark
+dart_test(
+    name = "parser_test",
+    main = "test/parser_test.dart",
+    deps = [
+        ":parser",
+        "@pub_deps//:test",
+    ],
+)
+```
+
+When `deps` lists `package:test`, as here, the test runs under `package:test`'s
+own runner, built from that same `package:test` target. Bazel's test features
+then work on the file's cases:
+
+- `bazel test --test_filter=<regex>` runs the cases whose names match. A target
+  with no matching case passes, so the filter can be used across `//...`.
+- `shard_count` splits the file's cases across shards. A shard that draws no
+  case passes.
 - Each case appears in Bazel's test report (`test.xml`).
-- Bazel's `size`/`timeout` is the only time limit. `package:test`'s default
-  30-second limit per case is switched off; a `timeout:` a test states on a
-  case still applies.
+- The target's `size` or `timeout` is the time limit. `package:test`'s default
+  of 30 seconds per case doesn't apply. A `timeout:` that a test states on its
+  own case still does.
 
-`package:test` must be a direct entry in `deps` (for example `@pub_deps//:test`),
-not reached only through a helper library: the runner comes with that target.
-A test whose `main` does not use `package:test` runs directly, and fails if
-given a filter, tags, an ordering seed or shards, because it has no cases to
-select.
+`package:test` must be listed in the test's own `deps`, because the runner
+comes with that target. Reaching it only through a helper library isn't
+enough, and fails the build with a message saying to add it.
 
-Cases within a target are selected by their `package:test` tags (`@Tags` on
-the library, `tags:` on `group` and `test`); whole targets are selected by
-Bazel's `tags` and `--test_tag_filters`, into which Gazelle copies a file's
-`@Tags` (see [Test tags](#test-tags)). A
-target's `include_tags` and `exclude_tags` are lists of boolean selectors, as
-`dart test --tags`/`--exclude-tags` take them: a case runs when it matches
-every `include_tags` entry and no `exclude_tags` entry, and a target none of
-whose cases are left fails. One run narrows that further, without rebuilding,
-with `--test_env=DART_TEST_TAGS=<selector>` and
-`--test_env=DART_TEST_EXCLUDE_TAGS=<selector>`, whose values are written as
-`dart test --tags` takes them (`a,b` is `a && b`). These combine with the
-target's as `package:test` combines its configuration with its command line,
-and with `--test_filter`. A run's selection that leaves a target no case
-passes, saying on stderr which tags the target's cases use, so
-`bazel test //... --test_env=DART_TEST_TAGS=integration` runs the cases tagged
-`integration` wherever they are.
+A test that doesn't depend on `package:test` at all runs its `main` directly.
+It has no cases to select, so `include_tags` or `exclude_tags` on it fails the
+build. A `--test_filter`, a run's tag selection, an ordering seed or a
+`shard_count` fails the test.
 
-`--test_env=DART_TEST_ORDERING_SEED=<seed>` shuffles the order of a target's
-cases with that seed, an unsigned 32-bit integer, as `dart test
---test-randomize-ordering-seed` does; `random` draws a new seed each run. The
-runner prints the seed in the test's log (`Shuffling test order with
---test-randomize-ordering-seed=<seed>`), so passing it again repeats the order.
-Bazel caches a passing result, so add `--nocache_test_results` to shuffle a
-test that has not changed.
+### Selecting cases by tag
+
+There are two kinds of tag. Bazel's `tags` choose whole targets, with
+`--test_tag_filters`. Gazelle copies a file's `@Tags` into them (see
+[Test tags](#test-tags)). `package:test`'s tags choose cases inside a target.
+Those come from `@Tags` on the library and `tags:` on `group` and `test`.
+
+A target chooses its cases with `include_tags` and `exclude_tags`. Each entry is
+one boolean selector, as `dart test --tags` and `--exclude-tags` take them
+(`unit`, `a && !b`). A case runs when it matches every `include_tags` entry and
+no `exclude_tags` entry. A target that leaves itself no case fails, since it
+would never run anything.
 
 ```starlark
 dart_test(
     name = "parser_test",
     exclude_tags = ["slow"],
     main = "test/parser_test.dart",
-    deps = [":parser", "@pub_deps//:test"],
+    deps = [
+        ":parser",
+        "@pub_deps//:test",
+    ],
 )
 ```
 
+One run can narrow the selection further, without rebuilding:
+
+```shell
+bazel test //... --test_env=DART_TEST_TAGS=integration
+bazel test //... --test_env=DART_TEST_EXCLUDE_TAGS=slow
+```
+
+These values are written as `dart test --tags` takes them, so `a,b` means
+`a && b`. They combine with the target's own selection as `package:test`
+combines its configuration with its command line, and with `--test_filter`. A
+run's selection that leaves a target no case passes, and says on stderr which
+tags that target's cases use. So the first command above runs the cases tagged
+`integration`, wherever they are.
+
+### Test order
+
+`--test_env=DART_TEST_ORDERING_SEED=<seed>` shuffles the order of a target's
+cases, as `dart test --test-randomize-ordering-seed` does. The seed is an
+unsigned 32-bit integer, or `random` for a new one each run. The test's log
+prints the seed it used
+(`Shuffling test order with --test-randomize-ordering-seed=<seed>`), so passing
+it again repeats the order. Bazel caches a passing result, so add
+`--nocache_test_results` to shuffle a test that hasn't changed.
+
+### Settings from dart_test.yaml
+
 The runner reads no `dart_test.yaml`, neither the package's nor one at the
-workspace root: each setting it holds has its place on the target or in
-Bazel. Moving a package to Bazel moves them into its BUILD files:
+workspace root. Each of its settings has a place on the target or in Bazel, so
+moving a package to Bazel moves them into its BUILD files:
 
-- `include_tags`, `exclude_tags`: the attributes of the same names, and
-  `DART_TEST_TAGS`/`DART_TEST_EXCLUDE_TAGS` for one run.
-- `timeout`: the target's `size` or `timeout`. A `@Timeout` or `timeout:` in
-  the test still applies to its own cases.
-- `retry`: the target's `flaky`, or `--flaky_test_attempts`.
-- `concurrency`, sharding: `shard_count`, and Bazel's own parallelism across
-  targets.
-- Its other keys have no counterpart: cases that need other settings go in a
-  target of their own.
+| `dart_test.yaml`               | In Bazel                                                                                                     |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `include_tags`, `exclude_tags` | The target's attributes of the same names. `DART_TEST_TAGS` and `DART_TEST_EXCLUDE_TAGS` for one run.      |
+| `timeout`                      | The target's `size` or `timeout`. A `@Timeout` or `timeout:` in the test still applies to its own cases.   |
+| `retry`                        | The target's `flaky`, or `--flaky_test_attempts`.                                                           |
+| `concurrency`, sharding        | `shard_count`, and Bazel's own parallelism across targets.                                                  |
+| Anything else                  | No counterpart. Put cases that need other settings in a target of their own.                               |
 
-With no file to declare them in, the runner warns of every tag a test uses as
-"not specified in dart_test.yaml"; the warning is harmless under Bazel, and
-creating the file does not silence it and changes nothing.
+With no file to declare tags in, the runner warns about every tag a test uses,
+saying it is "not specified in dart_test.yaml". The warning is harmless under
+Bazel. Creating the file doesn't silence it, and changes nothing else either.
 
-The runner can start from a snapshot of itself cached on the machine, which
+The runner can start from a snapshot of itself cached on the machine. That
 roughly halves a test's start-up (see
 [Faster tests and builds](#faster-tests-and-builds-optional)).
 
-Like any Bazel test, a `dart_test` is built for the target platform, native
-`code_assets` and the Dart VM included, and runs on a host matching it. To run
-tests on another host, a remote Linux executor say, build them for that host's
-platform: with `--platforms`, or per test with a platform transition such as
-`platform_transition_test` from `aspect_bazel_lib`.
+### Where a test runs
 
-A test runs in its package's root, as `dart test` runs it, so a test reads its
-`data` by its path from there (`File('test/fixtures/input.json')`) and
-`Directory.current` is that root, inside the test's runfiles. Its package is the
-one whose root is the deepest directory holding the test file, among its own
-and its `deps`' packages in the same repository, wherever its BUILD file sits:
-a test in `pkgs/app/test/BUILD.bazel` that depends on `//pkgs/app` runs in
-`pkgs/app`. A test no package of its repository holds runs at the repository's
-root, where Bazel starts every test. Only the `data` of the test and of the
-libraries it depends on (a `dart_library`'s `data`, which every binary and test
-reaching it carries, as with `py_library`) is there, not the whole package;
+Like any Bazel test, a `dart_test` is built for the target platform, and runs on
+a host that matches it. Its native `code_assets` and its Dart VM are built for
+that platform too. To run tests on another host, such as a remote Linux
+executor, build them for that host's platform. Use `--platforms`, or a platform
+transition on each test such as `platform_transition_test` from
+`aspect_bazel_lib`.
+
+A test runs in its package's root, as `dart test` runs it.
+`Directory.current` is that root, inside the test's runfiles, so a test reads
+its `data` by its path from there (`File('test/fixtures/input.json')`).
+
+The test's package is the one whose root is the deepest directory holding the
+test file. rules_dart looks among the test's own package and the packages of its
+`deps` in the same repository, wherever the test's BUILD file is. A test in
+`pkgs/app/test/BUILD.bazel` that depends on `//pkgs/app` runs in `pkgs/app`. A
+test that no package of its repository holds runs at the repository's root,
+where Bazel starts every test.
+
+The directory holds only the test's runfiles, not the whole package. Those are
+the `data` of the test and of the libraries it depends on. (A `dart_library`'s
+`data` goes with every binary and test that reaches it, as with `py_library`.)
 `Runfiles.rlocation()` still finds a file by its runfiles path from anywhere.
-Where Bazel builds no runfiles tree (Windows by default), the launcher lays out
-the test's runfiles from the runfiles manifest as a tree holds them, less the
-launcher's own program and kernels, and runs it there. A test, and a `kernel` or
-`aot-snapshot` binary run by its launcher, is given an empty package config, so
-`Isolate.resolvePackageUri` returns null, as in an `exe` installed alone: the VM
-would otherwise look up from the program and, unsandboxed, find the
-workspace's own `.dart_tool`.
+
+Bazel builds no runfiles tree on Windows by default. There the launcher lays out
+the test's runfiles from the runfiles manifest, as a tree would hold them, and
+runs the test in that copy. It leaves out the launcher's own program and the
+kernels.
+
+A test, and a `kernel` or `aot-snapshot` binary that its launcher runs, gets an
+empty package config. So `Isolate.resolvePackageUri` returns null, as it does
+in an `exe` installed on its own. Otherwise the VM would look upward from the
+program and, without a sandbox, find the workspace's own `.dart_tool`.
 
 A test carries only the part of the Dart SDK that runs its compiled code: the
 `dart` launcher and the VM. A test that runs SDK commands itself, such as
-`dart compile` or `dart analyze`, adds `@rules_dart//dart` to its `data`, which
-brings the whole SDK, and runs that target's launcher (found with
-`$(rlocationpath @rules_dart//dart)`) as it would `dart`:
+`dart compile` or `dart analyze`, needs the whole SDK. Add `@rules_dart//dart`
+to its `data`, and run that target's launcher as you would `dart`, finding it
+with `$(rlocationpath @rules_dart//dart)`:
 
 ```starlark
 dart_test(
@@ -1361,82 +1539,99 @@ dart_test(
 )
 ```
 
-Each library is compiled once into kernel modules that every test reaching it
-links. A library's dependents compile against its modules' outlines, which
-leave out function bodies, so an edit inside a body recompiles that library
-alone, plus the links of the tests that reach it. In a file that declares a
-mixin, an edit that moves code also recompiles the library's dependents. The
-outlines are made by a stripper built on the source of the same Dart SDK as
-the compiler, which each Dart toolchain registers beside it (a Dart SDK of
-your own needs one too, see [A Dart SDK of your own](#a-dart-sdk-of-your-own)).
-To have dependents compile against full kernels instead, pass
-`--@rules_dart//dart:outline_kernel=false`.
+### How tests are compiled
+
+Each library is compiled once, into kernel modules that every test reaching it
+links. Its dependents compile against outlines of those modules, which leave
+out function bodies. So an edit inside a function body recompiles only that
+library, plus the link step of each test that reaches it.
+
+Some code keeps its source positions in the outline, because the VM copies it
+into the classes that use it. That is every mixin and `mixin class`, and every
+class of a library written before Dart 3.0. In those, an edit that moves code
+also recompiles the library's dependents.
+
+The outlines come from a stripper built from the source of the same Dart SDK as
+the compiler. Each Dart toolchain registers one beside it. A Dart SDK of your
+own needs one too (see [A Dart SDK of your own](#a-dart-sdk-of-your-own)). Two
+flags turn this off:
+
+- `--@rules_dart//dart:outline_kernel=false` compiles dependents against full
+  kernels instead of outlines.
+- `--@rules_dart//dart:modular_kernel=false` compiles each test's whole program
+  from source.
 
 A test's program is a kernel list: a small text file naming the kernels it
-reaches, its entrypoint's first, which the Dart VM loads as one program. Each
-kernel is stored once however many tests reach it, rather than copied into
+reaches, its entrypoint's first. The Dart VM loads the list as one program. So
+each kernel is stored once, however many tests reach it, rather than copied into
 every test. The launcher writes the list again at each run, naming each kernel
-where it finds it in runfiles, so the test runs the same under `bazel test`,
-`bazel run`, a runfiles manifest (Windows) and remote execution. To store one
-joined kernel per test instead, pass `--@rules_dart//dart:kernel_list=false`.
+where it finds it in runfiles. That way the test runs the same under
+`bazel test`, `bazel run`, a runfiles manifest (Windows) and remote execution.
+To store one joined kernel per test instead, pass
+`--@rules_dart//dart:kernel_list=false`.
 
-A test's `defines` are configuration: its dependencies' modules are compiled in
-the same environment as its entrypoint, which is the test's `defines`, then the
-`extra_dart_defines` flag. Test rules of other rule sets link the same modules
-(see [Linking programs from modules](#linking-programs-from-modules)).
+A test's `defines` are configuration. The modules of its dependencies are
+compiled in the same environment as its entrypoint: the test's `defines`, then
+the `extra_dart_defines` flag. Test rules of other rule sets link the same
+modules (see [Linking programs from modules](#linking-programs-from-modules)).
 
 ### Coverage
 
-`bazel coverage` runs `dart_test` targets and collects the lines they run,
-with nothing to install: the hermetic Dart VM counts what runs, and the
-collector is built from rules_dart's pinned `package:coverage`.
+`bazel coverage` runs `dart_test` targets and records the lines they run. There
+is nothing to install. The hermetic Dart VM counts what runs, and the collector
+is built from rules_dart's pinned `package:coverage`.
 
 ```sh
 bazel coverage --combined_report=lcov //...
 ```
 
 Bazel prints where the merged LCOV report is
-(`$(bazel info output_path)/_coverage/_coverage_report.dat`); each test's own
-is `bazel-testlogs/<package>/<name>/coverage.dat`. Any LCOV tool reads them.
+(`$(bazel info output_path)/_coverage/_coverage_report.dat`). Each test's own
+report is `bazel-testlogs/<package>/<name>/coverage.dat`. Any LCOV tool reads
+them.
 
-- **What is reported.** The `srcs` of every `dart_library` a test reaches
-  through `deps`, for the libraries `--instrumentation_filter` selects (by
-  default those in the packages named on the command line), each file under
-  its path in the workspace. As for every Bazel language, a generated source
-  (a `dart_codegen` output, a `genrule`'s) is reported only with
-  `--experimental_collect_code_coverage_for_generated_files`, under its
-  `bazel-out/` path, and a test's own `main` and `srcs` only with
-  `--instrument_test_targets`; without them, those files are not in the
-  report at all. Lines only: no
-  function or branch counts. A line marked `// coverage:ignore-line`, the
-  lines from a `// coverage:ignore-start` to the next `// coverage:ignore-end`,
-  and a file with a `// coverage:ignore-file` are left out, as `dart test
-  --coverage-path` leaves them out; an unbalanced marker fails the test.
-- **Plain-`main()` tests** run with the VM service on, each isolate pausing as
-  it exits until its coverage is read. Such a test must return from `main`
-  (setting `exitCode` to fail): `exit()` ends the VM before it pauses, and
-  under `bazel coverage` the test then fails, saying so.
-- **`package:test` tests** have their runner collect each suite.
-- **The build is the same.** The VM counts lines in any kernel, so a coverage
-  build compiles the kernels a test build does; only the test's launcher
-  configuration and runfiles differ, the latter carrying the reported sources,
-  which the ignore comments are read from.
-- Bazel's own report merger needs a runfiles tree, so `bazel coverage` fails
-  with `--noenable_runfiles`, Windows' default.
+The report covers the `srcs` of every `dart_library` a test reaches through
+`deps`, for the libraries `--instrumentation_filter` selects. By default those
+are the libraries in the packages named on the command line. Each file is
+listed under its path in the workspace. It counts lines only, with no function
+or branch counts.
+
+Two kinds of file are left out unless you ask for them, as for every Bazel
+language:
+
+- A generated source, such as a `dart_codegen` or `genrule` output. Pass
+  `--experimental_collect_code_coverage_for_generated_files` to include it,
+  under its `bazel-out/` path.
+- A test's own `main` and `srcs`. Pass `--instrument_test_targets` to include
+  them.
+
+You can leave code out with comments, as `dart test --coverage-path` does:
+`// coverage:ignore-line` for a line, `// coverage:ignore-start` to the next
+`// coverage:ignore-end` for a range, and `// coverage:ignore-file` for a file.
+An unbalanced start or end fails the test.
+
+A `package:test` test has its runner collect each suite. A test with a plain
+`main()` runs with the VM service on, and each isolate pauses as it exits until
+its coverage is read. That test must return from `main`, setting `exitCode` to
+fail. A call to `exit()` ends the VM before it can pause, and under
+`bazel coverage` the test then fails, saying why.
+
+A coverage build compiles the same kernels as a test build, since the VM counts
+lines in any kernel. Only the test's launcher configuration and runfiles
+differ. The runfiles also carry the reported sources, which the ignore comments
+are read from.
+
+Bazel's own report merger needs a runfiles tree. So `bazel coverage` fails with
+`--noenable_runfiles`, which is the default on Windows.
 
 A test rule of another rule set collects coverage the same way (see
 [Coverage in your own test rule](#coverage-in-your-own-test-rule)).
 
 ## Static analysis and formatting
 
-`dart analyze` and the `dart format` check run as an aspect, `dart_analyze`,
-over every Dart target a `bazel test` names. The analyzer's lints are those the
-`analysis_options.yaml` files enable ([Lints](#lints)); `@rules_dart//dart/fix`
-writes the analyzer's fixes into your sources and `@rules_dart//dart/format`
-the check's formatting ([Formatting and fixing](#formatting-and-fixing)); and
-analysis and fixes run in [persistent workers](#analysis-workers). Enable the
-aspect in `.bazelrc`, and list every `analysis_options.yaml` in the repository in
-one `dart_analysis_config`:
+`bazel test` can check two more things about your code: that the analyzer
+reports nothing (`dart analyze`), and that `dart format` would change nothing.
+Both checks run as an aspect, `dart_analyze`. You enable it in `.bazelrc`:
 
 ```
 # .bazelrc
@@ -1446,9 +1641,10 @@ test --output_groups=+dart_format
 common --@rules_dart//dart:analysis_config=//:analysis_config
 ```
 
-Each check is its own output group: keep the `dart_analyze` line for analysis,
-the `dart_format` line for the format check, or both. A check whose group is
-not requested does not run.
+Each check is its own output group, and a check whose group isn't requested
+doesn't run. Keep the `dart_analyze` line for analysis, the `dart_format` line
+for the format check, or both. The last line names a `dart_analysis_config`
+listing every `analysis_options.yaml` in the repository:
 
 ```starlark
 # BUILD.bazel
@@ -1457,7 +1653,7 @@ load("@rules_dart//dart:defs.bzl", "dart_analysis_config", "dart_analysis_option
 dart_analysis_options(
     name = "analysis_options",
     src = "analysis_options.yaml",
-    deps = ["@very_good_analysis"],  # packages its `include:` names
+    deps = ["@pub_deps//:very_good_analysis"],  # packages its `include:` names
 )
 
 dart_analysis_config(
@@ -1469,62 +1665,76 @@ dart_analysis_config(
 )
 ```
 
-Each file is judged by the nearest listed `analysis_options.yaml` above it, as
-in the IDE, so every listed file must have that name. An options file may
-`include:` another listed one by relative path (`include:
-../analysis_options.yaml`). Any other yaml it includes comes from a package, by
-`package:` URI, with that package in the `dart_analysis_options`'s `deps`: only
-listed options files and those packages are staged, so a relative include of
-any other file fails both checks rather than reading a file no target
-declares. `bazel test //...` then
-analyzes every Dart target it matches, and any diagnostic, down to an info,
-fails the build. Only each target's own hand-written files are checked: its
-dependencies are resolved but not re-checked (each is checked as a target of
-its own), generated files are never checked, and targets in other repositories
-(pub packages, other Bazel modules) are left to the module that owns them.
-Options files from other repositories are refused; to share a ruleset across
-modules, `include:` it from an options file of your own and put its package in
-that `dart_analysis_options`'s `deps`. Tag a target `no-dart-analyze` to skip
-its analysis, and `no-dart-format` to skip its format check; each tag leaves
-the other check in place.
+Gazelle writes both (see [Analysis options](#analysis-options)). The flag goes
+under `common`, not `test`, so that the format and fix tools below see the same
+options. With no config named, every file gets the SDK's defaults.
 
-A `dart_binary`, `dart_test`, `dart_js_binary` or `dart_wasm_binary` has its
-entrypoint checked, which is how you lint a `main.dart`: it sits outside any
-package's `lib/`, so no `dart_library` will accept it, and it would otherwise be
-the one file in a project nothing checks.
+`bazel test //...` then checks every Dart target it matches. Any diagnostic,
+down to an info, fails the build.
+
+The aspect checks only the targets the command names, and only each target's
+own hand-written files:
+
+- A target's dependencies are resolved but not checked again. Each is checked
+  as a target of its own.
+- Generated files are never checked.
+- Targets in other repositories, such as pub packages and other Bazel modules,
+  are left to the module that owns them.
+- The entrypoint of a `dart_binary`, `dart_test`, `dart_js_binary` or
+  `dart_wasm_binary` is checked. That is how a `main.dart` gets linted. It sits
+  outside any package's `lib/`, so no `dart_library` accepts it, and it would
+  otherwise be the one file nothing checks.
+
+To skip a target's analysis, tag it `no-dart-analyze`. To skip its format
+check, tag it `no-dart-format`. Each tag leaves the other check in place.
+
+Each file is judged by the nearest listed `analysis_options.yaml` above it, as
+in the IDE. The analyzer finds options files by that name, so every listed file
+must have it. An options file may `include:` another listed one by relative path
+(`include: ../analysis_options.yaml`). Any other yaml it includes must come from
+a package, by `package:` URI, with that package in the `dart_analysis_options`'s
+`deps`.
+
+The checks run against a staged copy of your sources, not the sources
+themselves. Only the listed options files and those packages are staged. So an
+options file the config doesn't list is never read, whatever directory it is
+in, and a relative `include:` of an unlisted file fails both checks. The
+verdict can't depend on files no target declares, or on sandboxing settings.
+
+Options files from other repositories are refused. To share a ruleset across
+modules, `include:` it from an options file of your own, and put its package in
+that `dart_analysis_options`'s `deps`.
 
 The format check runs `dart format` over the same files, and fails the build
-if formatting would change any of them. Its settings are
-the `formatter:` section (`page_width`, `trailing_commas`) of the same nearest
-listed `analysis_options.yaml`, including what that file `include:`s, and a
-file under no listed options file gets stock defaults. Options files the
-config does not list are never read, whatever directory they sit in: the check
-runs against a staged copy of your sources, not the sources themselves, so the
-verdict cannot depend on files no target declares or on sandboxing settings.
-If an options file cannot be read — an `include:` that does not resolve — the
-check fails rather than quietly formatting at stock defaults, as `dart format`
-itself would.
+if formatting would change any of them. It takes its settings (`page_width`,
+`trailing_commas`) from the `formatter:` section of the same nearest listed
+`analysis_options.yaml`, including what that file `include:`s. A file under no
+listed options file gets the formatter's defaults. If an options file can't be
+read, because an `include:` doesn't resolve, the check fails. `dart format`
+itself would fall back to defaults without saying so.
 
-The language version selects the formatting _style_: below `3.7`, `dart format`
+The language version selects the formatting _style_. Below `3.7`, `dart format`
 writes the old short style, and from `3.7` on the tall one. The check formats
-each target at its own package's `language_version` (set on its
-`dart_package_metadata`; Gazelle copies it from `pubspec.yaml`). An
+each target at its own package's `language_version`, which is set on its
+`dart_package_metadata` (Gazelle copies it from `pubspec.yaml`). An
 executable's entrypoint takes the version of the package it names with
-`package`, or else of the package its `deps` bring whose root directory
-contains it (see [Executables in a package](#executables-in-a-package)). With no version
-stated, the check uses the newest the SDK knows, so a package on an older
-version must state it for the check to hold it to the style its own
+`package`. Failing that, it takes the version of the package among its `deps`
+whose root directory contains it (see
+[Executables in a package](#executables-in-a-package)). With no version stated,
+the check uses the newest the SDK knows. So a package on an older version must
+state it, or the check will hold it to a different style than its own
 `dart format` produces.
 
 ### Formatting and fixing
 
-`@rules_dart//dart/format` writes into your sources what the format check
-computed for the targets you name: every file it would reject, formatted with
-its own options and at its own target's language version. The rewrite is the
-check's own output, so after a run the check passes. `@rules_dart//dart/fix`
-does the same for `dart fix --apply`: the analyzer's automated fixes, the same
-quick-fixes an IDE offers, driven by the lints your options enable and
-computed over the project the analysis stages for each target.
+Two tools write into your sources what the checks found.
+`@rules_dart//dart/format` writes what the format check computed: every file it
+would reject, formatted with that file's options and at its target's language
+version. The rewrite is the check's own output, so after a run the check
+passes. `@rules_dart//dart/fix` does the same for `dart fix --apply`. It applies
+the analyzer's automated fixes, the quick-fixes an IDE offers, for the lints your
+options enable. They are computed over the same staged project the analysis
+uses for each target.
 
 ```sh
 bazel run @rules_dart//dart/format -- //...                 # every target of the workspace
@@ -1535,37 +1745,40 @@ bazel run @rules_dart//dart/fix -- $(bazel query 'kind(dart_library, //app/...)'
 ```
 
 After an optional `--dry-run`, the arguments are those of `bazel build`: its
-flags and target patterns, relative to the directory you run from, with `--`
+flags and its target patterns, relative to the directory you run from. Put `--`
 before patterns that start with `-`, as `bazel build -- //app/... -//app/gen/...`
-needs. Each tool runs `bazel build` with them and the `dart_analyze` aspect,
-and writes the result, so it formats or fixes the targets that build would
-build. Flags given to `bazel run` itself build the tool, not those targets:
-pass them after the `--`. A target your `.bazelrc` leaves out with
-`--build_tag_filters` is left out here too, even when named, as `bazel build`
-leaves it out; pass the config that includes it. The tool sets
-`--aspects`, `--output_groups`, `--run_validations` and
-`--build_event_json_file` itself and refuses them. A `bazel query` prints
-labels, so its output works as the arguments. The build reads your `.bazelrc`
-as any other does, which is why the `analysis_config` line goes under
-`common`: under `test` alone the tools would format and fix with no options.
+needs. Each tool runs `bazel build` with those arguments and the `dart_analyze`
+aspect, then writes the result. So it formats or fixes exactly the targets that
+build would build, and a `bazel query` works as the arguments. Some details
+follow from that:
+
+- Flags given to `bazel run` itself build the tool, not your targets. Pass them
+  after the `--`.
+- A target your `.bazelrc` leaves out with `--build_tag_filters` is left out
+  here too, even when named. Pass the config that includes it.
+- The tool sets `--aspects`, `--output_groups`, `--run_validations` and
+  `--build_event_json_file` itself, and refuses them.
+- The build reads your `.bazelrc` like any other. That's why the
+  `analysis_config` line goes under `common`. Under `test` alone, the tools
+  would format and fix with no options.
+
 Only each target's own hand-written files are written, as only they are
-checked; a target tagged `no-dart-format` is not formatted, and one tagged
+checked. A target tagged `no-dart-format` is not formatted. One tagged
 `no-dart-analyze` can still be fixed. Generated files are never written: only
-files Bazel records as sources are eligible, so codegen output stays
-resolvable to its importers without being edited. A fix can make further
-fixes possible, so run `fix` until it fixes nothing.
+files Bazel records as sources are eligible, so codegen output is never edited.
+A fix can make further fixes possible, so run `fix` until it fixes nothing.
 
 Nothing is written unless everything can be. Each change records the bytes it
-was computed from, and a file that changed since the build, or one two targets
-would rewrite differently, refuses the whole run.
+was computed from. If a file changed since the build, or two targets would
+rewrite one file differently, the whole run is refused.
 
 ### Lints
 
-Lints are the rules an `analysis_options.yaml` enables, as in any Dart project;
-the analyzer reads that file and the package's `pubspec.yaml` plays no part. A
+Lints are the rules an `analysis_options.yaml` enables, as in any Dart project.
+The analyzer reads that file, and the package's `pubspec.yaml` plays no part. A
 ruleset published as a package, such as `package:lints` or
-`package:very_good_analysis`, is included by `package:` URI, and its package goes
-in the `deps` of the `dart_analysis_options` that holds the file:
+`package:very_good_analysis`, is included by `package:` URI. Its package goes in
+the `deps` of the `dart_analysis_options` that holds the file:
 
 ```yaml
 # analysis_options.yaml
@@ -1587,88 +1800,95 @@ dart_analysis_options(
 ```
 
 Gazelle writes these `deps` from the `include:` lines (see
-[Analysis options](#analysis-options)). The ruleset is staged to resolve the
-include alone: it is not a dependency of the code it lints, and it is not itself
-analyzed. A lint that reads the pubspec reads one generated for the analysis
-from the target's `deps` and its package's `language_version`, so
-`depend_on_referenced_packages` is satisfied by `deps` and `sdk_version_since`
-judges the code against the version the package compiles at. `// ignore:`
-comments and `analyzer: errors:` settings work as in an IDE; `no-dart-analyze`
-skips a whole target.
+[Analysis options](#analysis-options)). The ruleset is staged only so that the
+include resolves. It isn't a dependency of the code it lints, and it isn't
+analyzed itself.
+
+Some lints read the pubspec. For them, the analysis generates one from the
+target's `deps` and its package's `language_version`. So
+`depend_on_referenced_packages` is satisfied by `deps`, and `sdk_version_since`
+judges the code against the version the package compiles at.
+
+`// ignore:` comments and `analyzer: errors:` settings work as in an IDE. To skip
+a whole target, tag it `no-dart-analyze`.
 
 ### Analysis against summaries
 
 Each target is analyzed against analyzer summaries of its dependencies, not
-their source. A summary records a library's declarations without its function
-bodies, comments or source positions, and every library gets one, written by
-an action of its own. An edit inside a function body, or to a comment, leaves
-the library's summary unchanged, so Bazel re-analyzes that library's own
-target and no target above it. An edit that changes a declaration, a private
-one included, changes the summary and re-analyzes the targets that depend on
-it.
+their source. A summary records a library's declarations, without its function
+bodies, comments or source positions. Every library gets one, written by an
+action of its own.
 
-This uses parts of the analyzer that the Dart SDK does not support. The SDK
-removed the analyzer's own way of analyzing against summaries, its "build
-mode"
+An edit inside a function body, or to a comment, leaves the library's summary
+unchanged. Bazel then re-analyzes only that library's own target, and no target
+above it. An edit that changes a declaration, a private one included, changes
+the summary, and the targets that depend on it are analyzed again.
+
+The Dart SDK doesn't support this. It removed the analyzer's own way of
+analyzing against summaries, its "build mode"
 ([dart-lang/sdk@00a45e4](https://github.com/dart-lang/sdk/commit/00a45e425a7d944ad0da5f9417e21d760bf9235e),
-"Remove build mode from analyzer_cli"), and then the `dartanalyzer` tool that
-offered it ([dart-lang/sdk#46100](https://github.com/dart-lang/sdk/issues/46100)).
-No SDK command reads summaries, and `package:analyzer` offers reading and
-writing them only in its private `src/` API. So rules_dart builds its own
-analyzer on the SDK's `pkg/analyzer` and `pkg/linter`, unmodified, from the
-source archive of the SDK's release tag, and reports what that release's
-`dart analyze --fatal-infos` reports.
+"Remove build mode from analyzer_cli"). It then removed the `dartanalyzer` tool
+that offered it ([dart-lang/sdk#46100](https://github.com/dart-lang/sdk/issues/46100)).
+No SDK command reads summaries, and `package:analyzer` reads and writes them
+only in its private `src/` API.
 
-Analyzing against summaries hits known analyzer bugs, and the summary analyzer
-fails the analysis, with the reason and the flag that turns summaries off,
-wherever it can tell the answer is wrong:
+So rules_dart builds its own analyzer from the SDK's `pkg/analyzer` and
+`pkg/linter`, unmodified, taken from the source archive of the SDK's release
+tag. It reports what that release's `dart analyze --fatal-infos` reports.
+
+Analyzing against summaries runs into known analyzer bugs. Wherever the summary
+analyzer can tell that the answer is wrong, it fails the analysis, giving the
+reason and the flag that turns summaries off:
 
 - **Crashes.** The analyzer crashes on some code that uses a dependency's
   declarations, such as a public nullable field that is not promoted, or a
   `const` constructor of a dependency whose evaluation fails. The library would
-  get no diagnostics at all. The analysis fails with the crash. The known
+  get no diagnostics at all, so the analysis fails with the crash. The known
   crashes happen only on code with a compile error.
-- **Swallowed exceptions.** An exception in a lint rule is caught and ignored
-  by the analyzer, losing the rule's diagnostics. The analysis fails with it.
-- **`base` and `final` class modifiers.** The analyzer does not report a class
+- **Swallowed exceptions.** The analyzer catches and ignores an exception in a
+  lint rule, losing the rule's diagnostics. The analysis fails with it.
+- **`base` and `final` class modifiers.** The analyzer doesn't report a class
   that subtypes a dependency's `base` or `final` class without being `base`,
   `final` or `sealed` itself (`subtype_of_base_is_not_base_final_or_sealed` and
   its relatives). The summary analyzer finds those classes and fails with the
   error the analyzer would have reported.
 - **`prefer_relative_imports` in a package split across targets.** The lint
-  does not fire for a `package:` import of the same package's file in another
+  doesn't fire for a `package:` import of the same package's file in another
   target. With the lint on, the summary analyzer finds those imports and fails.
 - **`comment_references` from doc imports.** A name that an `@docImport` brings
-  in from a dependency or from the SDK is reported as not in scope. Analysis
-  fails on the diagnostic anyway, and the summary analyzer says which ones are
-  false.
+  in from a dependency or from the SDK is reported as not in scope. The
+  diagnostic fails the analysis anyway, and the summary analyzer says which ones
+  are false.
 - **Context messages.** A diagnostic's context message that points into a
   dependency ("'x' refers to a public property", "the error is in the field
   initializer of 'E'") loses its location or is left out. The diagnostic itself
   is reported as it would be.
 - **Plugins and data-driven fixes.** Analyzer plugins and validation of
-  `lib/fix_data.yaml` run only in the analysis server, which cannot read
-  summaries; a target whose options enable a plugin, or whose package has a
+  `lib/fix_data.yaml` run only in the analysis server, which can't read
+  summaries. A target whose options enable a plugin, or whose package has a
   `lib/fix_data.yaml`, fails.
 
-The list is what comparing analysis from summaries with analysis from source
-finds over this repository, its examples, a corpus of pub packages and the
-analyzer's and linter's own tests. A loss outside it cannot be detected;
-analyzing with the flag off is the reference.
+The list comes from comparing analysis from summaries with analysis from source
+over this repository, its examples, a corpus of pub packages and the analyzer's
+and linter's own tests. A loss outside the list can't be detected. Analyzing
+with the flag off is the reference.
 
 The summary analyzer must be built from the same SDK release as the Dart
-toolchain: the `dart` extension registers it for its own SDK. A Dart SDK with
-no release tag (Flutter's beta and main channels, a local build) has no
-unmodified analyzer source to build it from, so analysis fails, naming this
-flag, unless you register an analyzer toolchain built from its checkout (see
-[A Dart SDK of your own](#a-dart-sdk-of-your-own)). Every library declares its
-summary, so
-with the flag on any build configures the summary analyzer and fetches the
-SDK's source archive it is built from (the same archive the outline stripper is
-built from, kept in the repository cache), as rules_java and rules_go fetch
-their toolchains' tools; nothing is built until an analysis reads a summary,
-and a failure to build it fails only that analysis. To analyze against
-dependencies' source, with the SDK's own `dart analyze`:
+toolchain, and the `dart` extension registers it for its own SDK. A Dart SDK
+with no release tag (Flutter's beta and main channels, a local build) has no
+unmodified analyzer source to build it from. There, analysis fails and names the
+flag, unless you register an analyzer toolchain built from that SDK's checkout
+(see [A Dart SDK of your own](#a-dart-sdk-of-your-own)).
+
+With the flag on, every library declares a summary, so any build configures the
+summary analyzer. It fetches the SDK source archive the analyzer is built from,
+the same one the outline stripper uses, and keeps it in the repository cache.
+rules_java and rules_go fetch their toolchains' tools the same way. Nothing is
+built until an analysis reads a summary, and a failure to build the analyzer
+fails only that analysis.
+
+To analyze against dependencies' source instead, with the SDK's own
+`dart analyze`:
 
 ```sh
 bazel test //... --@rules_dart//dart:analysis_summaries=false
@@ -1678,36 +1898,37 @@ bazel test //... --@rules_dart//dart:analysis_summaries=false
 
 ### Analysis workers
 
-Analysis and fixes run in Bazel persistent workers, so a tool's start is paid
-once per worker instead of once per target. With summaries on (the default),
-the analysis actions (`DartAnalyze`) and the actions writing summaries
-(`DartSummarize`) run the summary analyzer in its workers: each request gets a
-fresh analysis context, so one request never sees another's files, and the
-worker saves the Dart VM's start and keeps the analyzer's code compiled.
+Analysis and fixes run in Bazel persistent workers, so a tool's start-up is paid
+once per worker instead of once per target. There are two kinds.
 
-Fixes (`DartFix`), and analysis with `analysis_summaries=false`, run in
-workers that each keep one Dart analysis server for the requests of a build,
-so the server's start and its analysis of the SDK are paid once per worker.
-The server stops once its worker has had no request for a minute; the worker
-itself (a small process) stays with Bazel's server. Each request is analyzed
-afresh: the result is what `dart analyze` would print for the same files.
+With summaries on (the default), analysis (`DartAnalyze` actions) and summary
+writing (`DartSummarize`) run in workers of the summary analyzer. Each request
+gets a fresh analysis context, so one request never sees another's files. The
+worker saves the Dart VM's start-up, and keeps the analyzer's code compiled.
 
-To start a fresh process for every action instead (the summary analyzer, or
-`dart analyze` and `dart fix`):
+Fixes (`DartFix`), and analysis with `analysis_summaries=false`, run in workers
+that each keep one Dart analysis server for the requests of a build. The
+server's start-up and its analysis of the SDK are paid once per worker. Each
+request is still analyzed afresh, and the result is what `dart analyze` would
+print for the same files. The server stops after its worker has had no request
+for a minute. The worker itself, a small process, stays with Bazel's server.
+
+To start a fresh process for every action instead, whether the summary analyzer
+or `dart analyze` and `dart fix`:
 
 ```sh
 bazel test //... --@rules_dart//dart:analysis_worker=false
 ```
 
-Bazel's own worker flags apply: `--worker_max_instances=DartAnalyze=N` (and
-`DartSummarize=N`, `DartFix=N`) sets how many workers of each run at once (an
-analysis server holds a few hundred MB), and `--strategy=DartAnalyze=sandboxed`,
+Bazel's own worker flags apply. `--worker_max_instances=DartAnalyze=N` (and
+`DartSummarize=N`, `DartFix=N`) sets how many workers of each kind run at once.
+An analysis server holds a few hundred MB. `--strategy=DartAnalyze=sandboxed`,
 or remote execution, runs each action in a process of its own.
 
 ### Checking targets `//...` does not reach
 
-The `.bazelrc` setup checks the targets a test run names, so it never reaches a
-target tagged `manual`, or a fixture that must not be built by a wildcard.
+The `.bazelrc` setup checks the targets a test run names. So it never reaches a
+target tagged `manual`, or a fixture that a wildcard must not build.
 `dart_analysis_test` applies the same aspect to the targets it lists:
 
 ```starlark
@@ -1719,11 +1940,16 @@ dart_analysis_test(
 )
 ```
 
-Both checks run on each listed target, less what its `no-dart-analyze` or
-`no-dart-format` tag removes, under the same `analysis_config` flag, whatever
-output groups the command line asks for. A violation fails the build of the
-test. It is not the way to enable the checks — the `.bazelrc` setup is — only
-the way to reach what that setup cannot name.
+Both checks run on each listed target, less whichever its `no-dart-analyze` or
+`no-dart-format` tag removes. They use the same `analysis_config` flag, and run
+whatever output groups the command line asks for. A violation fails the build
+of the test.
+
+This rule is not how you enable the checks. The `.bazelrc` setup does that.
+`dart_analysis_test` is only for what that setup can't name. Web-only code is
+one case: `//...` skips it on the host, and `dart_analysis_test`'s
+`web_platforms` checks it on each web platform listed (see
+[Per-compiler code](#per-compiler-code)).
 
 ## Code generation
 
