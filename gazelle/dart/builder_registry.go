@@ -2,7 +2,6 @@ package dart
 
 import (
 	"log"
-	"sort"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -357,27 +356,6 @@ func configureBuilderDirectives(c *config.Config, f *rule.File) {
 			}
 		}
 	}
-}
-
-// allRegisteredProducedExtensions returns every output extension declared
-// by every registered builder, sorted lexicographically for deterministic
-// callers. Used by generate.go to suppress generating rules for files
-// whose names look like codegen outputs.
-func (r *builderRegistry) allRegisteredProducedExtensions() []string {
-	seen := map[string]struct{}{}
-	var out []string
-	for _, infos := range r.byAnnotation {
-		for _, b := range infos {
-			for _, ext := range b.Produces {
-				if _, ok := seen[ext]; !ok {
-					seen[ext] = struct{}{}
-					out = append(out, ext)
-				}
-			}
-		}
-	}
-	sort.Strings(out)
-	return out
 }
 
 // lookup returns every builderInfo that watches `annotation`. Most

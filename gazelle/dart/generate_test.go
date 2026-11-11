@@ -48,20 +48,3 @@ func TestDefaultBuildersIncludesShipped(t *testing.T) {
 		t.Errorf("@StackedApp should register 5 sub-builders, got %d", got)
 	}
 }
-
-// TestAllRegisteredProducedExtensionsSorted verifies the returned slice
-// is lexicographically sorted so downstream consumers (Gazelle's
-// generated-file filter) don't depend on Go's randomised map iteration.
-func TestAllRegisteredProducedExtensionsSorted(t *testing.T) {
-	r := registryWith(
-		&builderInfo{Annotation: "Z", Produces: []string{".zzz.g.part"}},
-		&builderInfo{Annotation: "A", Produces: []string{".aaa.g.part"}},
-		&builderInfo{Annotation: "M", Produces: []string{".mmm.g.part", ".more.g.part"}},
-	)
-	got := r.allRegisteredProducedExtensions()
-	for i := 1; i < len(got); i++ {
-		if got[i] < got[i-1] {
-			t.Fatalf("extensions not sorted: %v", got)
-		}
-	}
-}
