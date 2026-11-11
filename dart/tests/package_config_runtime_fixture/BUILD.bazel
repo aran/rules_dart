@@ -1,5 +1,6 @@
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("//dart:defs.bzl", "dart_binary", "dart_test")
+load("//dart/tests:no_cc_test.bzl", "no_cc_test")
 load(":executable.bzl", "executable_of")
 
 # Each way rules_dart starts a program in the Dart VM gives it an empty package
@@ -55,6 +56,20 @@ dart_test(
     main = "driver.dart",
     deps = ["//dart/runfiles"],
 )
+
+# None of these reaches a code asset, so none needs a C/C++ toolchain: they
+# configure no C/C++ target, their tools' included.
+[
+    no_cc_test(
+        name = "%s_no_cc_test" % t,
+        size = "small",
+        target_under_test = ":" + t,
+    )
+    for t in [
+        "runner_test",
+        "kernel",
+    ]
+]
 
 bzl_library(
     name = "executable",
