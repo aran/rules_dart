@@ -16,6 +16,7 @@ Load this file from your BUILD files to access the following rules:
 - `dart_sqlcodegen`: Like `dart_codegen` but accepts non-Dart inputs (e.g. `.drift` files).
 - `dart_code_asset`: Binds a Bazel-built native dynamic library to a Dart code-asset id, for use in `dart_test`/`dart_binary` `code_assets`.
 - `dart_data_asset`: Binds a file to a Dart data-asset id, for the `data_assets` of a `dart_package_metadata`.
+- `dart_linked_code_asset`: Native code a package links into each program, exporting the symbols the program's recorded uses reach, for the `linked_code_assets` of a `dart_package_metadata`.
 - `dart_program_assets`: The assets a program ships, after its packages' `hook/link.dart` over a `dart_binary`'s recorded uses when linked.
 """
 
@@ -29,6 +30,7 @@ load("//dart/private:dart_code_asset.bzl", _dart_code_asset = "dart_code_asset")
 load("//dart/private:dart_codegen.bzl", _dart_codegen = "dart_codegen")
 load("//dart/private:dart_data_asset.bzl", _dart_data_asset = "dart_data_asset")
 load("//dart/private:dart_library.bzl", _dart_library = "dart_library")
+load("//dart/private:dart_linked_code_asset.bzl", _dart_linked_code_asset = "dart_linked_code_asset")
 load("//dart/private:dart_package_metadata.bzl", _dart_package_metadata = "dart_package_metadata")
 load("//dart/private:dart_sqlcodegen.bzl", _dart_sqlcodegen = "dart_sqlcodegen")
 load("//dart/private:dart_test.bzl", _dart_test = "dart_test")
@@ -49,6 +51,7 @@ dart_aggregate_codegen = _dart_aggregate_codegen
 dart_sqlcodegen = _dart_sqlcodegen
 dart_code_asset = _dart_code_asset
 dart_data_asset = _dart_data_asset
+dart_linked_code_asset = _dart_linked_code_asset
 dart_program_assets = _dart_program_assets
 DartCodeAssetInfo = _DartCodeAssetInfo
 DartDataAssetInfo = _DartDataAssetInfo

@@ -26,6 +26,24 @@ package's `@Native` symbols against the Bazel-built library at runtime.""",
     },
 )
 
+DartLinkedCodeAssetInfo = provider(
+    doc = """Native code a package links into each program that uses it: the \
+Bazel counterpart of a link hook that tree-shakes a native library to the \
+symbols a program's recorded uses reach.
+
+Produced by `dart_linked_code_asset` and named in the `linked_code_assets` of \
+a `dart_package_metadata`. A linked program runs `symbols` over its recorded \
+uses and links `library` into a shared library exporting just those symbols, \
+shipped as the code asset `asset_id`; an unlinked one links it whole.""",
+    fields = {
+        "asset_id": "str: The code-asset id the package's `@Native` bindings use, `package:<package>/<name>`.",
+        "library": "CcInfo: The native code to link, as a `cc_library` provides it.",
+        "owner": "Label: The target `library` came from, whose own objects are linked whole, as a `cc_shared_library`'s `deps` are; what they depend on is linked as needed.",
+        "symbols": "FilesToRunProvider: The tool mapping a program's recorded uses to the symbols to keep, run as `symbols <recorded_uses.json> <output>`; it writes one symbol name per line.",
+        "name": "str: The library's name, `lib<name>.so` (`.dylib`, `<name>.dll`) in a program.",
+    },
+)
+
 DartDataAssetInfo = provider(
     doc = """Data assets: files a Dart program reads at run time by asset id, \
 the counterpart of `DartCodeAssetInfo` for data rather than native code.
@@ -68,6 +86,32 @@ def check_code_asset_ownership(label, package_name, assets):
                  "`dart_package_metadata` of the package its id names.") %
                 (label, asset.asset_id, prefix)
             )
+    return None
+
+def check_linked_code_asset_ownership(label, package_name, linked, code_assets):
+    """Checks that every linked code asset is the package's own, and named once.
+
+    Args:
+      label: The owning rule's label (included in the error message).
+      package_name: The package name this target declares.
+      linked: List of `DartLinkedCodeAssetInfo`.
+      code_assets: The package's `DartCodeAssetInfo`, whose ids none may share.
+
+    Returns:
+      An error message string on the first problem, else `None`.
+    """
+    prefix = "package:%s/" % package_name
+    seen = {a.asset_id: True for a in code_assets}
+    for asset in linked:
+        if not asset.asset_id.startswith(prefix):
+            return (("%s: linked code asset id `%s` is not namespaced to this " +
+                     "package. Expected it to start with `%s`, because a code " +
+                     "asset is owned by the package declaring it.") %
+                    (label, asset.asset_id, prefix))
+        if asset.asset_id in seen:
+            return ("%s: code asset id `%s` is declared twice: a package's " +
+                    "`code_assets` and `linked_code_assets` name each id once.") % (label, asset.asset_id)
+        seen[asset.asset_id] = True
     return None
 
 def check_data_asset_ownership(label, package_name, assets):
@@ -198,6 +242,7 @@ def _init(
         version = "",
         link_hook = None,
         link_hook_assets = [],
+        linked_code_assets = [],
         license_file = None):
     # `language_version` has no default: omitting it and stating `""` are
     # different intentions. An absent `languageVersion` in `package_config.json`
@@ -207,8 +252,10 @@ def _init(
     check_package_name(label, package_name)
     own_assets = [dep[DartCodeAssetInfo] for dep in code_assets]
     own_data = data_assets_of(data_assets)
+    own_linked = [dep[DartLinkedCodeAssetInfo] for dep in linked_code_assets]
     for err in [
         check_code_asset_ownership(label, package_name, own_assets),
+        check_linked_code_asset_ownership(label, package_name, own_linked, own_assets),
         check_data_asset_ownership(label, package_name, own_data),
         link_hook_assets_error(label, package_name, link_hook, link_hook_assets),
     ]:
@@ -225,6 +272,7 @@ def _init(
         "unreplaced_hook": unreplaced_hook,
         "link_hook": link_hook,
         "link_hook_assets": tuple(link_hook_assets),
+        "linked_code_assets": tuple(own_linked),
         "license_file": license_file,
         "metadata": None,
     }
@@ -234,12 +282,13 @@ DartPackageInfo, raw_dart_package_info = provider(
     doc = """Record of a single Dart package in the build graph, carried in depsets within DartInfo.
 
 `DartPackageInfo(...)` states a package's own facts, for a rule author whose rule \
-does so itself, and checks them: the code and data assets, and the \
-`link_hook_assets` ids, which need a `link_hook`, must be the package's own, \
+does so itself, and checks them: the code, data and linked code assets, and \
+the `link_hook_assets` ids, which need a `link_hook`, must be the package's own, \
 `package_name` must not be empty, and `language_version` must be passed, as \
-`""` when the package states none. Its `code_assets` and `data_assets` take the \
-targets providing `DartCodeAssetInfo` and `DartDataAssetInfo`, not the values the \
-fields then hold. A rule whose target names a `dart_package_metadata` builds its \
+`""` when the package states none. Its `code_assets`, `data_assets` and \
+`linked_code_assets` take the targets providing `DartCodeAssetInfo`, \
+`DartDataAssetInfo` and `DartLinkedCodeAssetInfo`, not the values the fields \
+then hold. A rule whose target names a `dart_package_metadata` builds its \
 record with `package_info_from_metadata()` instead, and a record copied from \
 another goes through `derived_package_info()`.""",
     fields = {
@@ -253,6 +302,7 @@ another goes through `derived_package_info()`.""",
         "unreplaced_hook": "str: Path of a `hook/build.dart` this package ships that has no Bazel replacement (empty when none). Merged across a package's records: unreplaced when any states one and none has `code_assets` or `data_assets`. Acted on by `dart_binary`/`dart_test`.",
         "link_hook": "File or None: The package's `hook/link.dart`, which a linked program runs (`dart_program_assets`). Optional; `None` when the package has none.",
         "link_hook_assets": "tuple[str]: The ids (`package:<package>/<name>`) of the data assets the package's `link_hook` promises: it emits each in every program, and may emit others. A linked program declares a File for each, known at analysis time. Empty when it promises none.",
+        "linked_code_assets": "tuple[DartLinkedCodeAssetInfo]: Native code the package links into each program, as a code asset of its own. Empty when none.",
         "license_file": "File or None: The package's license text — for a pub package, the `NOTICES` file at its root if it has one, else its `LICENSE`, the file `flutter build` collects for the license page. Optional; `None` when the package has none. Read it with `package_license_file()` from `//dart:utils.bzl`.",
         "metadata": "Label or None: The `dart_package_metadata` the record was built from (`package_info_from_metadata()`), or `None` for a package that names none. Records of one package rooted at one directory must name the same one.",
     },

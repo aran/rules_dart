@@ -18,8 +18,9 @@ load("//dart:providers.bzl", "DartInfo", "DartPackageInfo", "DartProgramAssetsIn
 load("//dart/private:common.bzl", "merge_package_records", "package_link_hook")
 load("//dart/private:dart_compile.bzl", "recorded_uses_kind")
 load("//dart/private:dart_package_metadata.bzl", "link_hook_error")
+load("//dart/private:exec_groups.bzl", "PORTABLE_EXEC_GROUPS")
 load("//dart/private:package_info.bzl", "link_hook_assets_error", "parse_data_asset_ids")
-load("//dart/private:program_assets.bzl", "package_files_error", "program_asset_file", "recorded_uses_file_error")
+load("//dart/private:program_assets.bzl", "PROGRAM_ASSETS_TOOLCHAINS", "dart_program_assets_actions", "package_files_error", "program_asset_file", "program_assets_attrs", "recorded_uses_file_error")
 
 # buildifier: disable=bzl-visibility
 load("//dart/pub/private:build_content.bzl", "classify_pub_hooks", "make_dart_library_build_content")
@@ -441,6 +442,49 @@ def _link_hook_code_assets_test_impl(ctx):
 
 link_hook_code_assets_test = analysistest.make(_link_hook_code_assets_test_impl)
 
+def _native_link_test_impl(ctx):
+    # The package's tool maps the program's uses to symbols, which become the
+    # linker's export list; the library is the program's own, and known.
+    env = analysistest.begin(ctx)
+    target = analysistest.target_under_test(env)
+    info = target[DartProgramAssetsInfo]
+    library = info.known["package:link_hook_native/native"]
+    asserts.true(env, library.basename in ["libnative.so", "libnative.dylib", "native.dll"], library.basename)
+    asserts.true(env, library.short_path.startswith("dart/tests/link_hook_fixture/%s/link_hook_native/" % target.label.name), library.short_path)
+    asserts.true(env, library in info.files.to_list())
+    links = [a for a in analysistest.target_actions(env) if library in a.outputs.to_list()]
+    asserts.equals(env, 1, len(links))
+    symbols = _actions(env, "DartLinkSymbols")
+    exports = _actions(env, "DartLinkExports")
+    if not ctx.attr.linked:
+        asserts.equals(env, [], symbols)
+        asserts.equals(env, [], exports)
+        return analysistest.end(env)
+    asserts.equals(env, 1, len(symbols))
+    uses = [f for f in symbols[0].inputs.to_list() if f.basename == "uses.json"]
+    asserts.equals(env, 1, len(uses))
+    asserts.equals(env, uses[0].path, symbols[0].argv[1])
+    asserts.true(env, symbols[0].argv[2].endswith("link_hook_native/native.symbols"), str(symbols[0].argv))
+    asserts.equals(env, 1, len(exports))
+    argv = exports[0].argv
+    script = exports[0].outputs.to_list()[0]
+    asserts.true(env, argv[argv.index("--format") + 1] in ["elf", "macho", "def"], str(argv))
+    asserts.true(env, script in links[0].inputs.to_list(), str(links[0].inputs.to_list()))
+    return analysistest.end(env)
+
+native_link_test = analysistest.make(_native_link_test_impl, attrs = {"linked": attr.bool()})
+
+def _without_cpp_impl(ctx):
+    result = dart_program_assets_actions(ctx, package = None, deps = ctx.attr.deps, name = ctx.label.name)
+    return [result.info]
+
+assets_without_cpp = rule(
+    implementation = _without_cpp_impl,
+    attrs = {"deps": attr.label_list(providers = [DartInfo])} | program_assets_attrs(),
+    exec_groups = PORTABLE_EXEC_GROUPS,
+    toolchains = PROGRAM_ASSETS_TOOLCHAINS,
+)
+
 def _unlinked_assets_test_impl(ctx):
     # Not linked, no hook runs, every declared asset ships, and the manifest
     # is written at analysis time with all of them, known.
@@ -521,6 +565,7 @@ def _expect_failure(msg):
 
 link_hook_assets_without_hook_test = _expect_failure("`link_hook_assets` [\"package:link_hook_hookless/index.json\"] are stated for package `link_hook_hookless`, which has no `link_hook`")
 unknown_asset_test = _expect_failure("`package:link_hook_fixture/data/raw.json` is not an asset this program is known to ship before it is built. Either no package of the program declares it, or package `link_hook_fixture` has a link hook, which decides when it runs whether it ships. To name it here, list it in the `link_hook_assets` of `link_hook_fixture`'s `dart_package_metadata`")
+without_cpp_test = _expect_failure("assets_without_cpp has to declare 'cpp' as a required fragment")
 own_package_not_named_test = _expect_failure("is the uses of a program in the package declared by `@@//dart/tests/link_hook_fixture:pubspec-metadata`, but `package` names none")
 recorded_uses_not_json_test = _expect_failure("must provide `DartRecordedUsesInfo`")
 misplaced_link_hook_test = _expect_failure("`link_hook` must be the package's `hook/link.dart`")

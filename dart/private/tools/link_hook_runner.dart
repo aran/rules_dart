@@ -178,7 +178,9 @@ Future<void> main(List<String> arguments) async {
           '${asset.file == null ? 'link mode' : 'file ${asset.file!.toFilePath()}'} '
           'is none of the code assets its package declares'
           '${receivedCode.isEmpty ? '' : ' (${receivedCode.map((r) => '`${r.id}`').join(', ')})'}. '
-          'A link hook selects among those, and builds no native code',
+          'A link hook selects among those, and builds no native code: '
+          'native code linked for each program is a `dart_linked_code_asset` '
+          'in the `linked_code_assets` of $declaration',
         );
       } else if (input.linkMode != asset.linkMode) {
         errors.add(

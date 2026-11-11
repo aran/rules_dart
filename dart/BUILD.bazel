@@ -254,6 +254,7 @@ bzl_library(
         "//dart/private:dart_codegen",
         "//dart/private:dart_data_asset",
         "//dart/private:dart_library",
+        "//dart/private:dart_linked_code_asset",
         "//dart/private:dart_package_metadata",
         "//dart/private:dart_sqlcodegen",
         "//dart/private:dart_test",

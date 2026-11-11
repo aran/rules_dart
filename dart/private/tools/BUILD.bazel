@@ -240,6 +240,16 @@ dart_binary(
 )
 
 dart_binary(
+    name = "link_exports",
+    compile_mode = "exe",
+    main = "link_exports.dart",
+    # Public: rules calling `dart_program_assets_actions` declare it as an
+    # attribute.
+    visibility = ["//visibility:public"],
+    deps = ["@ext_pub_deps//:args"],
+)
+
+dart_binary(
     name = "program_assets_manifest",
     compile_mode = "exe",
     main = "program_assets_manifest.dart",

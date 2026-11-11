@@ -47,6 +47,7 @@ in_rule_assets = rule(
     } | package_identity_attrs() | program_assets_attrs(),
     exec_groups = PORTABLE_EXEC_GROUPS,
     toolchains = PROGRAM_ASSETS_TOOLCHAINS,
+    fragments = ["cpp"],
 )
 
 def _known_asset_impl(ctx):

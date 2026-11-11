@@ -9,6 +9,7 @@ load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 cc_library(
     name = "empty",
     srcs = ["empty.cc"],
+    visibility = ["//dart/tests:__subpackages__"],
 )
 
 cc_shared_library(

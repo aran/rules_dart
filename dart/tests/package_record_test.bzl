@@ -22,7 +22,7 @@ load(
     "package_link_hook",
 )
 load("//dart/private:dart_info.bzl", "package_info_from_metadata")
-load("//dart/private:package_info.bzl", "raw_dart_package_info")
+load("//dart/private:package_info.bzl", "check_linked_code_asset_ownership", "raw_dart_package_info")
 load(":small_suite.bzl", "small_unittest_suite")
 
 def _file(short_path):
@@ -49,6 +49,7 @@ def _pkg(
         unreplaced_hook = "",
         link_hook = None,
         link_hook_assets = (),
+        linked_code_assets = (),
         license_file = None,
         metadata = None):
     return raw_dart_package_info(
@@ -62,6 +63,7 @@ def _pkg(
         data_assets = (),
         link_hook = link_hook,
         link_hook_assets = link_hook_assets,
+        linked_code_assets = linked_code_assets,
         license_file = license_file,
         metadata = metadata,
     )
@@ -78,6 +80,7 @@ def _meta(label, package_name = "app", package_root = "app", language_version = 
         unreplaced_hook = "",
         link_hook = link_hook,
         link_hook_assets = link_hook_assets,
+        linked_code_assets = (),
         license_file = license_file,
     )
 
@@ -117,6 +120,33 @@ def _merge_takes_every_stated_fact_test_impl(ctx):
     asserts.equals(env, license, package_license_file(merged))
     asserts.equals(env, "hook/build.dart", merged.unreplaced_hook)
     return unittest.end(env)
+
+def _merge_unions_linked_code_assets_test_impl(ctx):
+    # Native code linked per program unions as code assets do: dropping one
+    # record's would leave its bindings unresolved.
+    env = unittest.begin(ctx)
+    a = struct(asset_id = "package:split/a")
+    b = struct(asset_id = "package:split/b")
+    merged = merge_package_records([
+        _pkg("//pkg/lib/a", linked_code_assets = (a,)),
+        _pkg("//pkg/lib/b", linked_code_assets = (b, a)),
+    ])[0]
+    asserts.equals(env, (a, b), merged.linked_code_assets)
+    return unittest.end(env)
+
+_merge_unions_linked_code_assets_test = unittest.make(_merge_unions_linked_code_assets_test_impl)
+
+def _linked_code_asset_ownership_test_impl(ctx):
+    env = unittest.begin(ctx)
+    native = struct(asset_id = "package:app/native")
+    asserts.equals(env, None, check_linked_code_asset_ownership("//app:m", "app", [native], []))
+    err = check_linked_code_asset_ownership("//app:m", "app", [struct(asset_id = "package:other/native")], [])
+    asserts.true(env, "linked code asset id `package:other/native` is not namespaced to this package" in err, err)
+    err = check_linked_code_asset_ownership("//app:m", "app", [native], [_asset("package:app/native")])
+    asserts.true(env, "code asset id `package:app/native` is declared twice: a package's `code_assets` and `linked_code_assets` name each id once." in err, err)
+    return unittest.end(env)
+
+_linked_code_asset_ownership_test = unittest.make(_linked_code_asset_ownership_test_impl)
 
 def _merge_keeps_a_complete_first_record_test_impl(ctx):
     # A duplicate that adds nothing leaves the first record as it was.
@@ -326,6 +356,8 @@ def package_record_test_suite(name):
         _merge_takes_stated_language_version_test,
         _merge_takes_every_stated_fact_test,
         _merge_keeps_a_complete_first_record_test,
+        _merge_unions_linked_code_assets_test,
+        _linked_code_asset_ownership_test,
         _merge_order_does_not_decide_test,
         _agreement_names_both_targets_test,
         _agreement_rejects_two_link_hooks_test,

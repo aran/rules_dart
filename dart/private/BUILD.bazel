@@ -131,6 +131,19 @@ bzl_library(
         ":project_staging",
         ":source_set",
         "//dart:providers",
+        "@rules_cc//cc:find_cc_toolchain",
+        "@rules_cc//cc/common:cc_common",
+    ],
+)
+
+bzl_library(
+    name = "dart_linked_code_asset",
+    srcs = ["dart_linked_code_asset.bzl"],
+    visibility = ["//dart:__subpackages__"],
+    deps = [
+        ":package_info",
+        ":runtime",
+        "@rules_cc//cc/common:cc_info",
     ],
 )
 

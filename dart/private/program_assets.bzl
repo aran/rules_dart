@@ -34,7 +34,9 @@ what each hook emitted with the assets of the packages without one into the
 manifest.
 """
 
-load("//dart:providers.bzl", "DartInfo", "DartProgramAssetsInfo", "DartRecordedUsesInfo")
+load("@rules_cc//cc:find_cc_toolchain.bzl", "find_cc_toolchain", "use_cc_toolchain")
+load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
+load("//dart:providers.bzl", "DartCodeAssetInfo", "DartInfo", "DartProgramAssetsInfo", "DartRecordedUsesInfo")
 load(
     "//dart/private:common.bzl",
     "DART_ABI_CONSTRAINT_ATTRS",
@@ -48,6 +50,7 @@ load(
     "package_identity_attrs",
     "package_link_hook",
     "package_link_hook_assets",
+    "package_linked_code_assets",
     "program_packages",
     "resolve_code_assets",
     "resolve_package_identity",
@@ -188,6 +191,12 @@ def program_assets_attrs():
       A dict to merge into the rule's `attrs`.
     """
     return DART_ABI_CONSTRAINT_ATTRS | {
+        "_os_ios": attr.label(default = "@platforms//os:ios"),
+        "_link_exports": attr.label(
+            default = "//dart/private/tools:link_exports",
+            executable = True,
+            cfg = config.exec(PORTABLE),
+        ),
         "_link_hook_runner": attr.label(
             default = "//dart/private/tools:link_hook_runner",
             executable = True,
@@ -200,8 +209,10 @@ def program_assets_attrs():
         ),
     }
 
-# What a rule calling `dart_program_assets_actions` declares in `toolchains`.
-PROGRAM_ASSETS_TOOLCHAINS = COPY_TO_DIRECTORY_TOOLCHAINS
+# What a rule calling `dart_program_assets_actions` declares in `toolchains`:
+# the C++ toolchain links a package's `linked_code_assets`, and is needed only
+# by a program with one.
+PROGRAM_ASSETS_TOOLCHAINS = COPY_TO_DIRECTORY_TOOLCHAINS + use_cc_toolchain(mandatory = False)
 
 def vm_code_config(ctx):
     """Upstream's code-asset configuration of a Dart VM program for the target platform.
@@ -227,8 +238,9 @@ def dart_program_assets_actions(ctx, package, deps, name, recorded_uses = None, 
     Linking runs each package's link hook, which reads uses and writes data
     files, the same whichever host runs it, so the hooks run in `PORTABLE`:
     the caller's rule declares `PORTABLE_EXEC_GROUPS`, merges
-    `program_assets_attrs()` into its `attrs` and declares
-    `PROGRAM_ASSETS_TOOLCHAINS` in its `toolchains`.
+    `program_assets_attrs()` into its `attrs`, and declares
+    `PROGRAM_ASSETS_TOOLCHAINS` in its `toolchains` and `fragments = ["cpp"]`,
+    with which it links a package's `linked_code_assets`.
 
     Args:
       ctx: The rule context.
@@ -271,9 +283,15 @@ def dart_program_assets_actions(ctx, package, deps, name, recorded_uses = None, 
         hooked = {pkg.package_name: pkg for pkg in packages if package_link_hook(pkg) != None}
 
     # The assets of packages without a link hook ship as they are, and are
-    # known now; those of a package with one are its hook's input.
+    # known now; those of a package with one are its hook's input. The native
+    # code a package links into each program is linked now, for this program.
     shipped_data = [a for a in data_assets if a.package not in hooked]
     shipped_code = [a for a in code_assets if _asset_package(a.asset_id) not in hooked]
+    shipped_code += [
+        _native_link(ctx, pkg, linked, recorded_uses, name)
+        for pkg in packages
+        for linked in package_linked_code_assets(pkg)
+    ]
     entries = [_data_entry(a) for a in shipped_data] + [_code_entry(a) for a in shipped_code]
     known = {a.id: a.file for a in shipped_data}
     known.update({a.asset_id: a.file for a in shipped_code if a.file != None})
@@ -331,6 +349,126 @@ def dart_program_assets_actions(ctx, package, deps, name, recorded_uses = None, 
 
 def _asset_package(asset_id):
     return asset_id[len("package:"):].partition("/")[0]
+
+def _link_format(ctx):
+    """How the target's linker names the symbols a shared library exports."""
+    if ctx.target_platform_has_constraint(ctx.attr._os_windows[platform_common.ConstraintValueInfo]):
+        return "def", "%s.dll"
+    for os in ["_os_macos", "_os_ios"]:
+        if ctx.target_platform_has_constraint(getattr(ctx.attr, os)[platform_common.ConstraintValueInfo]):
+            return "macho", "lib%s.dylib"
+    return "elf", "lib%s.so"
+
+def _native_link(ctx, pkg, linked, recorded_uses, name):
+    """Links one package's `linked_code_assets` entry for this program.
+
+    Linked, its tool maps the program's uses to the symbols to keep, and the
+    library exports just those, the rest of its code dropped as the linker
+    can, as upstream's `LinkerOptions.treeshake` links it: an ELF version
+    script with `--gc-sections`, a Mach-O exported-symbols list with
+    `-dead_strip`, or a Windows module-definition file. Unlinked, it exports
+    everything, as a build hook's library does.
+
+    Returns:
+      The program's `DartCodeAssetInfo` for it.
+    """
+    what = "%s: package `%s` links native code into each program (`%s`)" % (ctx.label, pkg.package_name, linked.asset_id)
+    cc_toolchain = find_cc_toolchain(ctx, mandatory = False)
+    if cc_toolchain == None:
+        fail(what + ", and no C++ toolchain is registered for the target platform.")
+    link_format, library_name = _link_format(ctx)
+    feature_configuration = cc_common.configure_features(
+        ctx = ctx,
+        cc_toolchain = cc_toolchain,
+        # Unlinked, a Windows DLL exports nothing unless told to.
+        requested_features = ctx.features + (["windows_export_all_symbols"] if recorded_uses == None else []),
+        unsupported_features = ctx.disabled_features,
+    )
+    prefix = "%s/%s/%s" % (name, pkg.package_name, linked.name)
+
+    # The library's own objects are linked whole, as a `cc_shared_library`'s
+    # `deps` are; what it depends on, as the link needs.
+    linker_inputs = []
+    for linker_input in linked.library.linking_context.linker_inputs.to_list():
+        if linker_input.owner == linked.owner:
+            linker_input = cc_common.create_linker_input(
+                owner = linker_input.owner,
+                libraries = depset([
+                    cc_common.create_library_to_link(
+                        actions = ctx.actions,
+                        feature_configuration = feature_configuration,
+                        cc_toolchain = cc_toolchain,
+                        static_library = library.static_library,
+                        pic_static_library = library.pic_static_library,
+                        alwayslink = True,
+                    )
+                    for library in linker_input.libraries
+                    if library.static_library != None or library.pic_static_library != None
+                ]),
+                user_link_flags = linker_input.user_link_flags,
+                additional_inputs = depset(linker_input.additional_inputs),
+            )
+        linker_inputs.append(linker_input)
+
+    user_link_flags = []
+    additional_inputs = []
+    variables = {}
+    if recorded_uses != None:
+        symbols = ctx.actions.declare_file(prefix + ".symbols")
+        args = ctx.actions.args()
+        args.add(recorded_uses.file)
+        args.add(symbols)
+        ctx.actions.run(
+            executable = linked.symbols,
+            arguments = [args],
+            inputs = [recorded_uses.file],
+            outputs = [symbols],
+            mnemonic = "DartLinkSymbols",
+            progress_message = "Choosing the symbols of %s to keep for %s" % (linked.asset_id, ctx.label),
+        )
+        exports = ctx.actions.declare_file(prefix + "." + link_format)
+        args = ctx.actions.args()
+        args.add("--format", link_format)
+        args.add("--symbols", symbols)
+        args.add("--output", exports)
+        args.add("--tool", str(linked.symbols.executable.owner))
+        ctx.actions.run(
+            executable = ctx.executable._link_exports,
+            arguments = [args],
+            inputs = [symbols],
+            outputs = [exports],
+            mnemonic = "DartLinkExports",
+            exec_group = PORTABLE,
+            progress_message = "Listing the exports of %s for %s" % (linked.asset_id, ctx.label),
+            execution_requirements = PATH_MAPPING,
+        )
+        additional_inputs.append(exports)
+        if link_format == "elf":
+            user_link_flags = ["-Wl,--version-script=" + exports.path, "-Wl,--gc-sections"]
+        elif link_format == "macho":
+            user_link_flags = ["-Wl,-exported_symbols_list," + exports.path, "-Wl,-dead_strip"]
+        else:
+            variables["def_file_path"] = exports.path
+            user_link_flags = ["/OPT:REF"]
+    library = ctx.actions.declare_file("%s/%s/%s" % (name, pkg.package_name, library_name % linked.name))
+    cc_common.link(
+        actions = ctx.actions,
+        name = prefix,
+        feature_configuration = feature_configuration,
+        cc_toolchain = cc_toolchain,
+        linking_contexts = [cc_common.create_linking_context(linker_inputs = depset(linker_inputs))],
+        output_type = "dynamic_library",
+        main_output = library,
+        user_link_flags = user_link_flags,
+        additional_inputs = additional_inputs,
+        variables_extension = variables,
+    )
+    return DartCodeAssetInfo(
+        asset_id = linked.asset_id,
+        link_mode = "dynamic_loading_bundle",
+        file = library,
+        uri = "",
+    )
 
 def _link_hook_actions(ctx, packages, package, hooked, data_assets, code_assets, code_config, deps, recorded_uses, name):
     """Runs the link hook of each package in `hooked` over the program's uses.
@@ -546,6 +684,7 @@ package.""") | program_assets_attrs(),
     provides = [DartProgramAssetsInfo],
     exec_groups = PORTABLE_EXEC_GROUPS,
     toolchains = PROGRAM_ASSETS_TOOLCHAINS,
+    fragments = ["cpp"],
     doc = """The assets a program ships, as `DartProgramAssetsInfo`: its packages' data and code \
 assets, after their link hooks over the program's recorded uses when `recorded_uses` is set.""",
 )

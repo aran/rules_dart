@@ -1940,6 +1940,31 @@ names. Every `code_assets` entry provides `DartCodeAssetInfo`, which
 - In a [linked](#recorded-uses-and-link-hooks) program, the code assets of a
   package with a `link_hook` are that hook's input, and only those it emits
   ship.
+- Native code linked into each program, keeping only what the program uses,
+  is a `dart_linked_code_asset` in the package's `linked_code_assets`: a
+  `cc_library`, and a tool that maps the program's recorded uses to the
+  symbols to keep, as upstream's link hooks pass
+  `LinkerOptions.treeshake(symbolsToKeep:)`. A linked program runs the tool
+  (`<tool> <recorded_uses.json> <output>`, writing one symbol per line) and
+  links the library with the registered C++ toolchain into a shared library
+  that exports just those symbols, shipped under the asset's id; an unlinked
+  one links it whole. The tool cannot be a library of the package that names
+  it, which would depend on itself:
+
+  ```starlark
+  dart_linked_code_asset(
+      name = "ops",
+      asset_id = "package:ops/ops.dart",  # the id the `@Native` bindings declare
+      library = ":ops_cc",                 # a cc_library
+      symbols = "//tools:ops_symbols",     # a dart_binary reading the uses
+  )
+
+  dart_package_metadata(
+      name = "pubspec-metadata",
+      package_name = "ops",
+      linked_code_assets = [":ops"],
+  )
+  ```
 - A build tool that never loads native code sets `code_assets_from_packages = False`
   on its `dart_binary`, so it neither builds the libraries its packages declare,
   its own and those in its dependency closure, nor hits that error.
@@ -2065,6 +2090,9 @@ dart_program_assets(
   `input.assets.data`, as a build hook routes them to it, and emits any data
   assets of its own package; what it emits ships, beside the declared assets of
   the packages that have no link hook.
+- Native code a package links per program is its `linked_code_assets` (see
+  [Native code assets](#native-code-assets)), linked by the program with the
+  C++ toolchain over the same uses; a link hook builds no native code.
 - A hook also receives its package's declared
   [code assets](#native-code-assets) as `input.assets.code`, with the target in
   `input.config.code`, and selects among them: each it emits, under an id of
@@ -2346,7 +2374,8 @@ bundle = rule(
     implementation = _bundle_impl,
     attrs = {...} | program_assets_attrs(),
     exec_groups = PORTABLE_EXEC_GROUPS,
-    toolchains = PROGRAM_ASSETS_TOOLCHAINS,
+    toolchains = PROGRAM_ASSETS_TOOLCHAINS,  # with the C++ toolchain, for linked_code_assets
+    fragments = ["cpp"],
 )
 ```
 
@@ -2365,8 +2394,9 @@ bundle = rule(
   execution root.
   Where each lands in the application is the bundler's decision.
 - `info.known` maps the id of each asset known at analysis time to its File:
-  unlinked, every asset; linked, those of packages without a link hook and the
-  ids each hook promises in `link_hook_assets`. `program_asset_file(info, id)`
+  unlinked, every asset; linked, those of packages without a link hook, every
+  package's `linked_code_assets` and the ids each hook promises in
+  `link_hook_assets`. `program_asset_file(info, id)`
   returns one, and fails naming the `link_hook_assets` to add when it is not
   there.
 - The result's `validation_outputs` go in the rule's `_validation` output

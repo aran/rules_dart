@@ -8,6 +8,7 @@ produce is `e2e/link_hook`'s to show.
 load("//dart:defs.bzl", "dart_binary", "dart_code_asset", "dart_data_asset", "dart_library", "dart_package_metadata", "dart_program_assets")
 load(
     "//dart/tests:link_hook_test.bzl",
+    "assets_without_cpp",
     "empty_recording_binary_test",
     "known_asset",
     "known_asset_test",
@@ -15,6 +16,7 @@ load(
     "link_hook_actions_test",
     "link_hook_code_assets_test",
     "link_hook_data_assets_test",
+    "native_link_test",
     "not_recording_binary_test",
     "own_package_not_named_test",
     "recorded_uses_not_json_test",
@@ -22,6 +24,7 @@ load(
     "unknown_asset_test",
     "unlinked_assets_test",
     "validation_runs_assetless_hook_test",
+    "without_cpp_test",
 )
 load("//dart/tests:path_mapping_test.bzl", "path_mapping_test")
 
@@ -221,6 +224,46 @@ link_hook_code_assets_test(
     name = "link_hook_code_assets_test",
     size = "small",
     target_under_test = ":linked_with_code",
+)
+
+# Native code linked into each program: over the program's uses when linked,
+# whole when not. A rule that cannot link it says what to declare.
+dart_program_assets(
+    name = "linked_native",
+    recorded_uses = "uses.json",
+    tags = ["manual"],
+    deps = ["//dart/tests/link_hook_fixture/native:native_lib"],
+)
+
+native_link_test(
+    name = "native_link_test",
+    size = "small",
+    linked = True,
+    target_under_test = ":linked_native",
+)
+
+dart_program_assets(
+    name = "unlinked_native",
+    tags = ["manual"],
+    deps = ["//dart/tests/link_hook_fixture/native:native_lib"],
+)
+
+native_link_test(
+    name = "unlinked_native_link_test",
+    size = "small",
+    target_under_test = ":unlinked_native",
+)
+
+assets_without_cpp(
+    name = "native_without_cpp",
+    tags = ["manual"],
+    deps = ["//dart/tests/link_hook_fixture/native:native_lib"],
+)
+
+without_cpp_test(
+    name = "without_cpp_test",
+    size = "small",
+    target_under_test = ":native_without_cpp",
 )
 
 # Not linked: every declared asset ships, the hook's package's among them.

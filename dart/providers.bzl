@@ -4,6 +4,7 @@ load(
     "//dart/private:package_info.bzl",
     _DartCodeAssetInfo = "DartCodeAssetInfo",
     _DartDataAssetInfo = "DartDataAssetInfo",
+    _DartLinkedCodeAssetInfo = "DartLinkedCodeAssetInfo",
     _DartPackageInfo = "DartPackageInfo",
 )
 
@@ -81,7 +82,8 @@ collecting its output can check that both name the same package.""",
         "data_assets": "tuple[struct]: Data assets the package owns, each as `DartDataAssetInfo.assets` holds one.",
         "unreplaced_hook": "str: `hook/build.dart` when the package has a build hook and no `code_assets` or `data_assets` replace it; empty otherwise.",
         "link_hook": "File or None: The package's `hook/link.dart`.",
-        "link_hook_assets": "tuple[str]: The ids of the data assets `link_hook` always emits.",
+        "link_hook_assets": "tuple[str]: The ids of the data assets `link_hook` promises to emit in every program.",
+        "linked_code_assets": "tuple[DartLinkedCodeAssetInfo]: Native code the package links into each program.",
         "license_file": "File or None: The package's license text.",
     },
 )
@@ -162,6 +164,8 @@ JSON the Dart compiler writes, unchanged.""",
 )
 
 DartDataAssetInfo = _DartDataAssetInfo
+
+DartLinkedCodeAssetInfo = _DartLinkedCodeAssetInfo
 
 DartProgramAssetsInfo = provider(
     doc = """The assets one program ships: the data and code assets of its packages, \

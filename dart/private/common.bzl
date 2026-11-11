@@ -94,6 +94,17 @@ def package_link_hook_assets(pkg):
     """
     return pkg.link_hook_assets
 
+def package_linked_code_assets(pkg):
+    """The native code a `DartPackageInfo` links into each program.
+
+    Args:
+      pkg: A `DartPackageInfo`.
+
+    Returns:
+      Tuple of `DartLinkedCodeAssetInfo`.
+    """
+    return pkg.linked_code_assets
+
 def package_license_file(pkg):
     """A `DartPackageInfo`'s license text.
 
@@ -550,6 +561,7 @@ def codegen_identity(identity):
         unreplaced_hook = "",
         link_hook = None,
         link_hook_assets = (),
+        linked_code_assets = (),
         license_file = None,
     )
 
@@ -820,15 +832,21 @@ def _merge_one(records):
             if asset not in data_assets:
                 data_assets.append(asset)
     data_assets = tuple(data_assets)
+    linked_code_assets = []
+    for pkg in records:
+        for asset in package_linked_code_assets(pkg):
+            if asset not in linked_code_assets:
+                linked_code_assets.append(asset)
     merged = derived_package_info(
         kept,
         version = _first_stated(records, lambda p: p.version, ""),
         language_version = _first_stated(records, lambda p: p.language_version, ""),
         code_assets = code_assets,
         data_assets = data_assets,
-        unreplaced_hook = "" if code_assets or data_assets else _first_stated(records, lambda p: p.unreplaced_hook, ""),
+        unreplaced_hook = "" if code_assets or data_assets or linked_code_assets else _first_stated(records, lambda p: p.unreplaced_hook, ""),
         link_hook = _first_stated(records, package_link_hook, None),
         link_hook_assets = _first_stated(records, package_link_hook_assets, ()),
+        linked_code_assets = tuple(linked_code_assets),
         license_file = _first_stated(records, package_license_file, None),
     )
 

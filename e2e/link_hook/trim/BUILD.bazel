@@ -1,0 +1,35 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_linked_code_asset", "dart_package_metadata")
+
+# A package whose native library is linked into each program exporting only
+# the operations the program uses, as a link hook tree-shaking it with
+# `LinkerOptions.treeshake` would: `//trim_symbols` maps the program's
+# recorded uses of `TrimOp` to the symbols to keep. It is no library of this
+# package, which names it.
+cc_library(
+    name = "ops_cc",
+    srcs = ["native/ops.c"],
+)
+
+dart_linked_code_asset(
+    name = "ops",
+    asset_id = "package:trim/ops",
+    library = ":ops_cc",
+    symbols = "//trim_symbols",
+)
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "trim",
+    linked_code_assets = [":ops"],
+)
+
+dart_library(
+    name = "trim",
+    srcs = ["lib/trim.dart"],
+    package = ":pubspec-metadata",
+    visibility = ["//visibility:public"],
+    deps = ["@pub_deps//:meta"],
+)
+
+exports_files(glob(["uses/*.json"]))

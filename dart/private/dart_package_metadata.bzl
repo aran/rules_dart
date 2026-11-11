@@ -1,7 +1,7 @@
 """The `dart_package_metadata` rule: a Dart package's facts, declared once."""
 
 load("//dart:providers.bzl", "DartCodeAssetInfo", "DartDataAssetInfo", "DartPackageMetadataInfo")
-load("//dart/private:package_info.bzl", "check_code_asset_ownership", "check_data_asset_ownership", "data_assets_of", "link_hook_assets_error")
+load("//dart/private:package_info.bzl", "DartLinkedCodeAssetInfo", "check_code_asset_ownership", "check_data_asset_ownership", "check_linked_code_asset_ownership", "data_assets_of", "link_hook_assets_error")
 load("//dart/private:package_root.bzl", "locate_package_root")
 
 visibility("//dart/...")
@@ -73,11 +73,13 @@ def _dart_package_metadata_impl(ctx):
     package_root = root.root
     assets = [a[DartCodeAssetInfo] for a in ctx.attr.code_assets]
     data_assets = data_assets_of(ctx.attr.data_assets)
+    linked = [a[DartLinkedCodeAssetInfo] for a in ctx.attr.linked_code_assets]
     for err in [
         link_hook_error(ctx.label, package_root, ctx.file.link_hook),
         build_hook_error(ctx.label, package_root, ctx.file.build_hook),
         check_code_asset_ownership(ctx.label, ctx.attr.package_name, assets),
         check_data_asset_ownership(ctx.label, ctx.attr.package_name, data_assets),
+        check_linked_code_asset_ownership(ctx.label, ctx.attr.package_name, linked, assets),
         link_hook_assets_error(ctx.label, ctx.attr.package_name, ctx.file.link_hook, ctx.attr.link_hook_assets),
     ]:
         if err != None:
@@ -90,9 +92,10 @@ def _dart_package_metadata_impl(ctx):
         version = ctx.attr.version,
         code_assets = tuple(assets),
         data_assets = tuple(data_assets),
-        unreplaced_hook = unreplaced_build_hook(ctx.file.build_hook, assets + data_assets),
+        unreplaced_hook = unreplaced_build_hook(ctx.file.build_hook, assets + data_assets + linked),
         link_hook = ctx.file.link_hook,
         link_hook_assets = tuple(ctx.attr.link_hook_assets),
+        linked_code_assets = tuple(linked),
         license_file = ctx.file.license_file,
     )]
 
@@ -146,6 +149,15 @@ on a package gets you its assets with no opt-in, and the root package is like an
 the program is linked and the package has a `link_hook`, they are the hook's `LinkInput.assets` \
 instead, and only those it emits ship.""",
             providers = [DartCodeAssetInfo],
+        ),
+        "linked_code_assets": attr.label_list(
+            doc = """Native code this package links into each program (see the \
+`dart_linked_code_asset` rule): what a link hook that tree-shakes a native library to the symbols \
+the program uses would build. A linked program runs each one's tool over its recorded uses and \
+links the library exporting just those symbols; an unlinked one links it whole. Either way it \
+ships as a code asset under its `asset_id`, which must be namespaced to `package_name` and no \
+id of `code_assets`.""",
+            providers = [DartLinkedCodeAssetInfo],
         ),
         "data_assets": attr.label_list(
             doc = """Data assets this package owns (see the `dart_data_asset` rule): the files \
@@ -206,8 +218,8 @@ directory and states nothing else.
 
 Gazelle writes it at each package root, named `pubspec-metadata`, from
 `pubspec.yaml`, `hook/` and the license file; it adopts one already there,
-whatever its name, and keeps a hand-written `code_assets`, `data_assets` and
-`link_hook_assets`. Pub's spoke repositories write one per package.
+whatever its name, and keeps a hand-written `code_assets`, `data_assets`,
+`link_hook_assets` and `linked_code_assets`. Pub's spoke repositories write one per package.
 
 Not to be confused with `pub.package()`, the module extension tag that fetches a
 published package from pub.dev. This declares facts about a package in the

@@ -271,6 +271,72 @@ dart_test(
     deps = ["@rules_dart//dart/runfiles"],
 )
 
+# Native code linked per program. `trim`'s library is linked into each linked
+# program exporting just the operations the program uses, and whole into an
+# unlinked one.
+dart_program_assets(
+    name = "trim_add_assets",
+    recorded_uses = "//trim:uses/add.json",
+    deps = ["//trim"],
+)
+
+dart_program_assets(
+    name = "trim_unlinked_assets",
+    deps = ["//trim"],
+)
+
+# A program using none of the operations ships a library exporting none.
+dart_program_assets(
+    name = "trim_none_assets",
+    recorded_uses = "recorded_uses.json",
+    deps = ["//trim"],
+)
+
+dart_test(
+    name = "trim_none_assets_test",
+    size = "small",
+    args = [
+        "'$(rlocationpaths :trim_none_assets)'",
+        "package:trim/ops",
+        "-trim_add",
+        "-trim_mul",
+        "-trim_sub",
+    ],
+    data = [":trim_none_assets"],
+    main = "exports_test.dart",
+    deps = ["@rules_dart//dart/runfiles"],
+)
+
+dart_test(
+    name = "trim_add_assets_test",
+    size = "small",
+    args = [
+        "'$(rlocationpaths :trim_add_assets)'",
+        "package:trim/ops",
+        "+trim_add",
+        "-trim_mul",
+        "-trim_sub",
+    ],
+    data = [":trim_add_assets"],
+    main = "exports_test.dart",
+    deps = ["@rules_dart//dart/runfiles"],
+)
+
+dart_test(
+    name = "trim_unlinked_assets_test",
+    size = "small",
+    args = [
+        "'$(rlocationpaths :trim_unlinked_assets)'",
+        "package:trim/ops",
+        "+trim_add",
+        "+trim_mul",
+        "+trim_sub",
+    ],
+    data = [":trim_unlinked_assets"],
+    main = "exports_test.dart",
+    deps = ["@rules_dart//dart/runfiles"],
+)
+
 # The program's own package, `jingle`, declares data assets and a link hook,
 # and no library of it is in `deps`: linked, its hook keeps the tune; not
 # linked, the program ships both of its sounds.
@@ -371,6 +437,15 @@ dart_program_assets(
         "route",
     ]
 ]
+
+# Expected to fail: `trim`'s tool writes a symbol name with a space in it.
+# Tagged manual; CI's expected-failure job builds it.
+dart_program_assets(
+    name = "trim_bad_assets",
+    recorded_uses = "//trim:uses/bad.json",
+    tags = ["manual"],
+    deps = ["//trim"],
+)
 
 # Expected to fail: `pick`'s hook emits a library it built rather than one its
 # package declares. Tagged manual; CI's expected-failure job builds it.

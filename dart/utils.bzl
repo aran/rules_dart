@@ -357,7 +357,9 @@ COPY_TO_DIRECTORY_TOOLCHAINS = _COPY_TO_DIRECTORY_TOOLCHAINS
 # `validation_outputs`, for an `_validation` output group. The packages are
 # `program_packages(package, deps)`. Linked, the link hooks run in `PORTABLE`:
 # the rule declares `PORTABLE_EXEC_GROUPS`, merges `program_assets_attrs()` into
-# its `attrs` and declares `PROGRAM_ASSETS_TOOLCHAINS` in its `toolchains`.
+# its `attrs`, and declares `PROGRAM_ASSETS_TOOLCHAINS` in its `toolchains` and
+# `fragments = ["cpp"]`, with which it links a package's `linked_code_assets`
+# for the program.
 # `program_asset_file(info, id)` is the file of one asset known at analysis
 # time, and fails naming the `link_hook_assets` to add when it is not.
 dart_program_assets_actions = _dart_program_assets_actions

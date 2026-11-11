@@ -1,0 +1,25 @@
+load("//dart:defs.bzl", "dart_library", "dart_linked_code_asset", "dart_package_metadata")
+
+# A package that links native code into each program. The tool is any
+# executable: nothing here runs it.
+dart_linked_code_asset(
+    name = "native",
+    asset_id = "package:link_hook_native/native",
+    library = "//dart/tests/cc_fixture:empty",
+    symbols = "//dart/private/tools:link_exports",
+    tags = ["manual"],
+)
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "link_hook_native",
+    linked_code_assets = [":native"],
+)
+
+dart_library(
+    name = "native_lib",
+    srcs = ["lib/native.dart"],
+    package = ":pubspec-metadata",
+    tags = ["manual"],
+    visibility = ["//dart/tests/link_hook_fixture:__pkg__"],
+)

@@ -492,8 +492,9 @@ jobs:
           expect faults_escape "emitted \`package:faults/../escape.txt\`, whose name is not a relative path"
           expect faults_unpromised "did not emit \`package:faults/promised.txt\`, which the \`link_hook_assets\` of \`@@//faults:pubspec-metadata\` promise"
           expect faults_route "routed assets or metadata to the link hooks of glyphs"
+          expect trim_bad_assets "//trim_symbols:trim_symbols wrote \"trim_bad name\", which is not a symbol name. It writes one native symbol name per line."
           expect pick_built_assets "emitted code asset \`package:pick/built\`, whose file"
-          expect pick_built_assets "is none of the code assets its package declares (\`package:pick/add\`, \`package:pick/mul\`). A link hook selects among those, and builds no native code"
+          expect pick_built_assets "is none of the code assets its package declares (\`package:pick/add\`, \`package:pick/mul\`). A link hook selects among those, and builds no native code: native code linked for each program is a \`dart_linked_code_asset\` in the \`linked_code_assets\` of \`@@//pick:pubspec-metadata\`"
           echo "OK: faulty link-hook outputs reported"
       # A VM program reaching web-only code, which `//...` skips, is refused
       # by name, with the chain to the incompatible library.
