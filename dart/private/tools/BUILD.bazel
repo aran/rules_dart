@@ -249,16 +249,6 @@ dart_binary(
     deps = ["@ext_pub_deps//:args"],
 )
 
-dart_binary(
-    name = "program_assets_manifest",
-    compile_mode = "exe",
-    main = "program_assets_manifest.dart",
-    # Public: rules calling `dart_program_assets_actions` declare it as an
-    # attribute.
-    visibility = ["//visibility:public"],
-    deps = ["@ext_pub_deps//:args"],
-)
-
 _KERNEL_TOOL_SRCS = [
     "kernel_tool/args.dart",
     "kernel_tool/check_command.dart",

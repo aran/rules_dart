@@ -12,11 +12,6 @@ same way and are covered by a build's execution log, not here.
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts")
 
-# Actions whose job is to name one configuration's files: a program's asset
-# manifest lists each asset's path for the actions that bundle them, so it is
-# configuration-specific by what it says, and its action is not mapped.
-_CONFIGURATION_SPECIFIC = ["DartProgramAssets"]
-
 def _unmapped(text):
     """The configuration directories `text` names other than the mapped one."""
     return [part.partition("/")[0] for part in text.split("bazel-out/")[1:] if not part.startswith("cfg/")]
@@ -27,7 +22,7 @@ def _path_mapping_test_impl(ctx):
 
     # An action that does not declare `supports-path-mapping` shows its File
     # arguments unmapped, so the arguments are the whole check.
-    dart = [a for a in actions if a.mnemonic.startswith("Dart") and a.mnemonic not in _CONFIGURATION_SPECIFIC]
+    dart = [a for a in actions if a.mnemonic.startswith("Dart")]
     asserts.true(env, dart, "no Dart actions to check")
     read = {}
     for action in dart:

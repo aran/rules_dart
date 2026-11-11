@@ -1,3 +1,12 @@
+# Builds with path mapping, as a downstream that shares results across
+# configurations does: an action that supports it sees `bazel-out/cfg/...` for
+# each output directory and runs sandboxed. `read_assets` opens every file a
+# program's manifest names that way. Windows has no sandbox, so there Bazel
+# would fail a path-mapped action.
+common --enable_platform_specific_config
+common:linux --experimental_output_paths=strip
+common:macos --experimental_output_paths=strip
+
 # Analyze and format-check every Dart target a test run names, under
 # //:analysis_config.
 test --aspects=@rules_dart//dart:analyze.bzl%dart_analyze

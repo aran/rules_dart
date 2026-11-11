@@ -22,7 +22,7 @@ load("//dart/private:dart_import_check.bzl", "dart_import_check_aspect", "import
 load("//dart/private:dart_module.bzl", "KERNEL_TOOL_ATTR", "PROGRAM_KERNEL_SDK_ATTR", "whole_program_kernel")
 load("//dart/private:exec_groups.bzl", "PORTABLE_EXEC_GROUPS")
 load("//dart/private:executable_package.bzl", "EXECUTABLE_PACKAGE_ATTRS", "executable_package")
-load("//dart/private:program_assets.bzl", "UNLINKED_PROGRAM_ASSETS_ATTRS", "UNLINKED_PROGRAM_ASSETS_TOOLCHAINS", "dart_program_assets_actions")
+load("//dart/private:program_assets.bzl", "UNLINKED_PROGRAM_ASSETS_ATTRS", "UNLINKED_PROGRAM_ASSETS_TOOLCHAINS", "dart_program_assets_actions", "program_kernel_code_assets")
 load("//dart/private:runtime.bzl", "dart_tool_reset")
 
 visibility("//dart/...")
@@ -102,14 +102,14 @@ def _dart_binary_impl(ctx):
     # paths resolved against the final executable at run time: each library is
     # linked into `<name>.native/` beside it, so the path holds wherever the
     # executable and that directory go together.
-    resolved_assets = dart_program_assets_actions(
+    resolved_assets = program_kernel_code_assets(dart_program_assets_actions(
         ctx,
         package = own.record if ctx.attr.code_assets_from_packages else None,
         deps = ctx.attr.deps if ctx.attr.code_assets_from_packages else [],
         # Beside the executable, `<name>`, which no directory may share.
         name = ctx.label.name + ".program",
         code_assets = [dep[DartCodeAssetInfo] for dep in ctx.attr.code_assets],
-    ).code_assets
+    ).info)
     native_assets_yaml = None
     if resolved_assets:
         abi = target_dart_abi(ctx)

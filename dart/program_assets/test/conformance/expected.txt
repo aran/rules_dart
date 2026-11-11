@@ -1,0 +1,8 @@
+data	package:banner/banner.txt	banner.txt
+data	package:glyphs/index.txt	index.txt
+data	package:pick/note.txt	pick.data/note.txt
+data	package:sounds/bell.txt	sounds.data/bell.txt
+data	package:sounds/voices/hello.txt	sounds.data/voices/hello.txt
+code	package:pick/add	dynamic_loading_bundle	libadd.so
+code	package:sqlite/sqlite	dynamic_loading_system	libsqlite3.so.0
+code	package:trim/ops	dynamic_loading_bundle	libtrim.so

@@ -1,0 +1,3 @@
+code	package:pick/add	dynamic_loading_bundle	libadd.so
+code	package:sqlite/sqlite	dynamic_loading_system	libsqlite3.so.0
+code	package:trim/ops	dynamic_loading_bundle	libtrim.so

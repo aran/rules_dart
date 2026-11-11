@@ -93,9 +93,11 @@ after step 1 does steps 6–8 and 23 for the BUILD files it writes.
     `dart test` does: fix paths that assumed the workspace root. A test
     running SDK commands adds `@rules_dart//dart` to its `data`.
 14. `dart_link_hook` → `dart_program_assets`, providing
-    `DartProgramAssetsInfo` (its `manifest` lists what ships) in place of
-    `DartDataAssetInfo`. It takes the program's own `package`, which must be
-    the recording `dart_binary`'s; that package's link hook now runs too.
+    `DartProgramAssetsInfo` in place of `DartDataAssetInfo`; its output,
+    `<name>.program_assets`, lists what ships for `ProgramAssets.read`
+    (`@rules_dart//dart/program_assets`). It takes the program's own
+    `package`, which must be the recording `dart_binary`'s; that package's
+    link hook now runs too.
     `dart_link_hook.data_assets` → removed; an id a rule names at analysis
     time goes in the `link_hook_assets` of its package's
     `dart_package_metadata`, which the hook must always emit.
@@ -156,9 +158,9 @@ after step 1 does steps 6–8 and 23 for the BUILD files it writes.
     `info` is a `DartProgramAssetsInfo`; `link_hook_runner_attr()` →
     `program_assets_attrs()`, beside `PROGRAM_ASSETS_TOOLCHAINS` and
     `fragments = ["cpp"]`. `collect_transitive_code_assets`,
-    `resolve_code_assets` and `code_asset_identity` → removed; a program's code
-    assets are what `dart_program_assets_actions()` returns (`code_assets`,
-    with the rule's own as its `code_assets` argument, or `info.manifest`).
+    `resolve_code_assets` and `code_asset_identity` → removed; the code
+    assets a program's kernel maps are `program_kernel_code_assets(info)`, with
+    the rule's own as `dart_program_assets_actions()`'s `code_assets` argument.
 30. `DartKernelSdkInfo.runtime` → `aot_runtime`; `platform`/`defines` →
     `runtimes` (from `dart_kernel_runtime`).
 31. `dart_toolchain.sdk_root`, `DartSdkInfo.sdk_root`/`tool_files` →
@@ -2099,11 +2101,17 @@ dart_program_assets(
   [code assets](#native-code-assets) as `input.assets.code`, with the target in
   `input.config.code`, and selects among them: each it emits, under an id of
   its own package, ships, and those it does not emit do not, as upstream ships
-  only what a link hook emits of the assets routed to it. It may not emit native
-  code it builds itself; the build fails naming the file. What a hook emits may depend on the
-  program (the sounds above ship only those the program plays), so it lands in
-  one output directory per package, and the target's manifest lists each asset
-  and its file.
+  only what a link hook emits of the assets routed to it. It keeps one as its
+  package declares it, under the same id and link mode: the program's kernel
+  maps every id before any hook runs. It may not emit native code it builds
+  itself; the build fails naming the file. What a hook emits may depend on the
+  program (the sounds above ship only those the program plays), so its data
+  assets land in one output directory per package, each at its name.
+- The target's output, `<name>.program_assets`, lists what ships, with its
+  runfiles holding every file: a test or program with the target in its
+  `data` reads it with `ProgramAssets.read` from
+  `@rules_dart//dart/program_assets` (see
+  [Program assets in your own rules](#program-assets-in-your-own-rules)).
 - Bazel names every file before anything runs, so a rule that needs one of a
   hook's assets by name at analysis time names it in the `link_hook_assets` of
   the package's `dart_package_metadata`: a promise that the hook emits it in
@@ -2111,8 +2119,9 @@ dart_program_assets(
   `program_asset_file()`; the hook may emit others besides.
 - The build fails, naming what to change, when a hook fails (with the hook's
   own message), does not emit an id it promises, emits an asset of another
-  package, emits one id twice or a name that is not a relative path, emits a
-  code asset that is not one of its package's, or routes assets to another
+  package, emits one id twice, a name that is not a relative path, two names
+  that differ only in case or a name that is a directory of another, emits a
+  code asset that is not one of its package's as declared, or routes assets to another
   package's link hook, which rules_dart does not support: each hook runs on its
   own.
 - The program's own package is linked like those in `deps`: name it in
@@ -2359,7 +2368,7 @@ than from the packages, so it and every other consumer agree. Inside a rule,
 as `dart_program_assets` does:
 
 ```starlark
-load("@rules_dart//dart:utils.bzl", "PORTABLE_EXEC_GROUPS", "PROGRAM_ASSETS_TOOLCHAINS", "dart_program_assets_actions", "program_asset_file", "program_assets_attrs")
+load("@rules_dart//dart:utils.bzl", "PORTABLE_EXEC_GROUPS", "PROGRAM_ASSETS_TOOLCHAINS", "dart_program_assets_actions", "program_assets_action_args", "program_assets_attrs")
 
 def _bundle_impl(ctx):
     assets = dart_program_assets_actions(
@@ -2369,8 +2378,14 @@ def _bundle_impl(ctx):
         name = ctx.label.name,
         recorded_uses = uses,       # its DartRecordedUsesInfo to link it; None not to
     )
-    info = assets.info              # DartProgramAssetsInfo
-    ...
+    a = program_assets_action_args(ctx.actions, assets.info)
+    ctx.actions.run(
+        executable = ctx.executable._bundler,
+        arguments = [args, a.args],  # the tool gets --program-assets=<file>
+        inputs = depset(inputs, transitive = [a.inputs]),
+        execution_requirements = {"supports-path-mapping": "1"},
+        ...
+    )
 
 bundle = rule(
     implementation = _bundle_impl,
@@ -2388,26 +2403,82 @@ bundle = rule(
   `config.extensions.code_assets` (`target_os`, `target_architecture`,
   `link_mode_preference`, and `ios` or `android` there): `vm_code_config(ctx)`
   for a Dart VM program, `None` for a target that loads none.
-- `info.manifest` lists every asset the program ships, read in an action with
-  `info.files` as inputs: JSON in the shape of upstream's encoded assets,
-  `{"assets": [{"type": "data_assets/data", "encoding": {"package", "name",
-  "file"}}, {"type": "code_assets/code", "encoding": {"id", "link_mode":
-  {"type", "uri"}, "file"}}, ...]}`, sorted by id, each `file` relative to the
-  execution root.
-  Where each lands in the application is the bundler's decision.
-- `info.known` maps the id of each asset known at analysis time to its File:
-  unlinked, every asset; linked, those of packages without a link hook, every
+- `program_assets_action_args(ctx.actions, info)` returns `args`, an `Args`
+  of its own, and `inputs`, every File it names. The tool is given one flag,
+  `--program-assets=<file>`, a param file Bazel writes from the action's
+  mapped command line, so an action that supports path mapping (or runs in a
+  sandbox, a worker or remotely) opens every path in it. A Dart tool reads it
+  with `ProgramAssets.read(path)` from the `@rules_dart//dart/program_assets`
+  library, which returns what ships, sorted by id: data assets (`package`,
+  `name`, `file`) and code assets (`id`, `linkMode`, `file`, `fileName`,
+  `uri`). Where each lands in the application is the bundler's decision.
+  `@rules_dart//dart/program_assets:list` prints the same, for debugging.
+- Hand a tool only what it reads, and its action waits on and reruns for
+  nothing else: `data = False` leaves out the data assets, and `code` says
+  what it reads of the code assets: `"libraries"` (the default), each with its
+  library; `"names"`, each one's id, link mode, library file name and uri,
+  without the library, as a tool writing a manifest of them needs; or `None`.
+  Either code view holds each link hook's decision of which ship. The file
+  says what it holds; `ProgramAssets.data` or `.code` throws for what it does
+  not, and a file holding the code by name has no library paths.
+- `program_kernel_code_assets(info)` is the `DartCodeAssetInfo` of every code
+  asset the program can load, linked or not: the ones that ship and every one
+  a link hook chooses among, since the kernel's mapping is made before any
+  hook runs. A rule compiling the program's kernel maps these; `dart_binary`
+  and `dart_test` embed theirs from it, with their own `code_assets` passed as
+  `dart_program_assets_actions()`'s `code_assets` argument, which replace the
+  packages' under the same id.
+- `program_asset_file(info, id)` is the File of one asset known at analysis
+  time: unlinked, any; linked, those of packages without a link hook, every
   package's `linked_code_assets` and the ids each hook promises in
-  `link_hook_assets`. `program_asset_file(info, id)`
-  returns one, and fails naming the `link_hook_assets` to add when it is not
-  there.
-- The result's `code_assets` are the `DartCodeAssetInfo` of every code asset
-  the manifest lists, when all are known at analysis time (always, unlinked),
-  for a rule that maps them then; `dart_binary` and `dart_test` embed theirs
-  from it, with their own `code_assets` passed as its `code_assets` argument,
-  which replace the packages' under the same id.
+  `link_hook_assets`. It fails naming the `link_hook_assets` to add when the
+  id is not there.
+- `DartProgramAssetsInfo` holds the facts these read: `data_assets` and
+  `code_assets` (by id, what certainly ships) and `link_outputs` (per hooked
+  package, its output directory, the code assets it chose among and the file
+  of the ids it kept). Read it through the helpers: a consumer of
+  `data_assets` and `code_assets` alone misses what the hooks emit.
 - The result's `validation_outputs` go in the rule's `_validation` output
   group, so every hook runs whenever the target builds.
+
+#### The program-assets file
+
+What `program_assets_action_args()` hands a tool, and what a
+`dart_program_assets` target writes for its runfiles, is a text file of one
+item per line, each line ending in a newline, with no quoting: an item is a
+whole line, and an empty line is an empty item. `ProgramAssets.read` is the
+reference reader; a tool in another language reads it as follows, and checks
+itself against the conformance fixture in `dart/program_assets/test/conformance/`
+(read in that directory, `program.params` lists what `expected.txt` says and
+`code_names.params` what `code_names.expected.txt` says, in
+the format `@rules_dart//dart/program_assets:list` prints).
+
+- It starts `--format`, `rules_dart_program_assets/1`: refuse any other
+  value, which is another format or version. Then `--paths` and `exec`
+  (paths relative to the working directory, as an action has them) or
+  `runfiles` (runfiles paths, to resolve with a runfiles library). Then
+  `--holds` and what the file holds, separated by spaces: `data`, and `code`
+  (the code assets with their libraries) or `code-names` (the code assets
+  by name). Refuse a record of anything it does not hold.
+- Then records, each a tag line and a fixed number of lines:
+  - `--data-asset`, its id (`package:<package>/<name>`), its file: a data
+    asset that ships.
+  - `--link-data`, a package, a directory: the data assets one package's link
+    hook emitted. Each file under the directory, at any depth, is a data
+    asset of the package that ships, named by its path in the directory with
+    `/` separators; follow symbolic links, as a sandbox stages files as
+    links.
+  - `--code-asset`, its id, its link mode (upstream's `link_mode.type`:
+    `dynamic_loading_bundle`, `dynamic_loading_system`, …), its library or
+    an empty line, its uri or an empty line: a code asset that ships. Its
+    library is a path under `code`, and the library's file name under
+    `code-names`, where the library is not there to open.
+  - `--link-code`, a package, a selection file, followed by one or more
+    `--candidate` records, each as a `--code-asset`: the code assets one
+    package's link hook chose among. The selection file names, one per
+    line, the candidates that ship; those it does not name do not.
+- An id appears once in all that ships. Records are sorted by id within each
+  kind, and nothing else in the file is ordered.
 
 ### Analyzable targets
 

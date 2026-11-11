@@ -1,0 +1,23 @@
+{
+  "constants": [
+    { "type": "string", "value": "relinked" },
+    { "definition_index": 0, "type": "instance", "value": { "name": 0 } }
+  ],
+  "definitions": [
+    {
+      "path": [{ "kind": "class", "name": "Op" }],
+      "uri": "package:pick/pick.dart"
+    }
+  ],
+  "loading_units": [{ "name": "1" }],
+  "uses": {
+    "instances": [
+      {
+        "definition_index": 0,
+        "uses": [
+          { "constant_index": 1, "loading_unit_index": 0, "type": "constant" }
+        ]
+      }
+    ]
+  }
+}

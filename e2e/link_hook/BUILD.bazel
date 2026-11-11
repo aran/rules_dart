@@ -1,5 +1,5 @@
 load("@rules_dart//dart:defs.bzl", "dart_analysis_config", "dart_analysis_options", "dart_binary", "dart_program_assets", "dart_test")
-load(":in_rule.bzl", "in_rule_assets", "known_asset")
+load(":in_rule.bzl", "assets_test", "in_rule_assets", "known_asset")
 
 exports_files(["pubspec.lock"])
 
@@ -101,6 +101,13 @@ in_rule_assets(
     ]
 ]
 
+# A linked program whose hook promises a file.
+assets_test(
+    name = "app_assets_test",
+    assets = ":app_assets",
+    expected = ["package:glyphs/glyphs/index.json=[heart,star]"],
+)
+
 known_asset(
     name = "generated_assets_index",
     asset_id = "package:generated_hook/generated_hook/names.json",
@@ -178,17 +185,64 @@ dart_program_assets(
     ],
 )
 
-dart_test(
+assets_test(
     name = "linked_assets_test",
-    size = "small",
-    args = [
-        "'$(rlocationpaths :sounds_app_assets)'",
+    assets = ":sounds_app_assets",
+    expected = [
         "package:banner/banner.txt=welcome",
         "package:sounds/chime.txt=ding",
     ],
-    data = [":sounds_app_assets"],
-    main = "assets_test.dart",
-    deps = ["@rules_dart//dart/runfiles"],
+)
+
+# A consumer handed only the data assets, a hook's output directory among them.
+assets_test(
+    name = "linked_data_assets_test",
+    assets = ":sounds_app_assets",
+    code = "none",
+    expected = [
+        "package:banner/banner.txt=welcome",
+        "package:sounds/chime.txt=ding",
+    ],
+)
+
+# A test reads what a program ships from its runfiles: the target's
+# `<name>.program_assets`, through `ProgramAssets.read`, linked and not, with a
+# link hook's output directory, a promised file, a code selection and a
+# library linked for the program.
+dart_test(
+    name = "runfiles_assets_test",
+    size = "small",
+    args = [
+        "$(rlocationpath :sounds_app_assets)",
+        "package:banner/banner.txt=welcome",
+        "package:sounds/chime.txt=ding",
+        ";",
+        "$(rlocationpath :sounds_app_unlinked_assets)",
+        "package:banner/banner.txt=welcome",
+        "package:sounds/bell.txt=dong",
+        "package:sounds/chime.txt=ding",
+        ";",
+        "$(rlocationpath :app_assets)",
+        "package:glyphs/glyphs/index.json=[heart,star]",
+        ";",
+        "$(rlocationpath :pick_add_assets)",
+        "package:pick/add",
+        ";",
+        "$(rlocationpath :trim_add_assets)",
+        "package:trim/ops",
+    ],
+    data = [
+        ":app_assets",
+        ":pick_add_assets",
+        ":sounds_app_assets",
+        ":sounds_app_unlinked_assets",
+        ":trim_add_assets",
+    ],
+    main = "runfiles_assets_test.dart",
+    deps = [
+        "@rules_dart//dart/program_assets",
+        "@rules_dart//dart/runfiles",
+    ],
 )
 
 # What `sounds`' hook keeps depends on the program: one using only the bell
@@ -206,35 +260,27 @@ dart_program_assets(
     deps = ["//sounds"],
 )
 
-dart_test(
+assets_test(
     name = "bell_app_assets_test",
-    size = "small",
-    args = [
-        "'$(rlocationpaths :bell_app_assets)'",
+    assets = ":bell_app_assets",
+    expected = [
         "package:sounds/bell.txt=dong",
     ],
-    data = [":bell_app_assets"],
-    main = "assets_test.dart",
-    deps = ["@rules_dart//dart/runfiles"],
 )
 
-dart_test(
+assets_test(
     name = "unlinked_assets_test",
-    size = "small",
-    args = [
-        "'$(rlocationpaths :sounds_app_unlinked_assets)'",
+    assets = ":sounds_app_unlinked_assets",
+    expected = [
         "package:banner/banner.txt=welcome",
         "package:sounds/bell.txt=dong",
         "package:sounds/chime.txt=ding",
     ],
-    data = [":sounds_app_unlinked_assets"],
-    main = "assets_test.dart",
-    deps = ["@rules_dart//dart/runfiles"],
 )
 
 # Code assets. `pick` declares two native libraries and has a link hook,
-# which receives them and keeps those the program uses, under ids of its own;
-# not linked, a program ships both under the ids the package declares.
+# which receives them and keeps those the program uses, as they are declared;
+# not linked, a program ships both.
 dart_program_assets(
     name = "pick_add_assets",
     recorded_uses = "//pick:uses/add.json",
@@ -246,29 +292,38 @@ dart_program_assets(
     deps = ["//pick"],
 )
 
-dart_test(
+assets_test(
     name = "pick_add_assets_test",
-    size = "small",
-    args = [
-        "'$(rlocationpaths :pick_add_assets)'",
-        "package:pick/kept/add",
+    assets = ":pick_add_assets",
+    expected = [
+        "package:pick/add",
     ],
-    data = [":pick_add_assets"],
-    main = "assets_test.dart",
-    deps = ["@rules_dart//dart/runfiles"],
 )
 
-dart_test(
+# A consumer handed only the code assets, with their libraries or by name,
+# where it is not given the libraries.
+assets_test(
+    name = "pick_add_code_assets_test",
+    assets = ":pick_add_assets",
+    data = False,
+    expected = ["package:pick/add"],
+)
+
+assets_test(
+    name = "pick_add_code_names_test",
+    assets = ":pick_add_assets",
+    code = "names",
+    data = False,
+    expected = ["package:pick/add"],
+)
+
+assets_test(
     name = "pick_unlinked_assets_test",
-    size = "small",
-    args = [
-        "'$(rlocationpaths :pick_unlinked_assets)'",
+    assets = ":pick_unlinked_assets",
+    expected = [
         "package:pick/add",
         "package:pick/mul",
     ],
-    data = [":pick_unlinked_assets"],
-    main = "assets_test.dart",
-    deps = ["@rules_dart//dart/runfiles"],
 )
 
 # Native code linked per program. `trim`'s library is linked into each linked
@@ -292,17 +347,42 @@ dart_program_assets(
     deps = ["//trim"],
 )
 
+[
+    known_asset(
+        name = name + "_ops",
+        asset_id = "package:trim/ops",
+        assets = ":" + name,
+    )
+    for name in [
+        "trim_none_assets",
+        "trim_add_assets",
+        "trim_unlinked_assets",
+    ]
+]
+
+[
+    assets_test(
+        name = name + "_manifest_test",
+        assets = ":" + name,
+        expected = ["package:trim/ops"],
+    )
+    for name in [
+        "trim_none_assets",
+        "trim_add_assets",
+        "trim_unlinked_assets",
+    ]
+]
+
 dart_test(
     name = "trim_none_assets_test",
     size = "small",
     args = [
-        "'$(rlocationpaths :trim_none_assets)'",
-        "package:trim/ops",
+        "$(rlocationpath :trim_none_assets_ops)",
         "-trim_add",
         "-trim_mul",
         "-trim_sub",
     ],
-    data = [":trim_none_assets"],
+    data = [":trim_none_assets_ops"],
     main = "exports_test.dart",
     deps = ["@rules_dart//dart/runfiles"],
 )
@@ -311,13 +391,12 @@ dart_test(
     name = "trim_add_assets_test",
     size = "small",
     args = [
-        "'$(rlocationpaths :trim_add_assets)'",
-        "package:trim/ops",
+        "$(rlocationpath :trim_add_assets_ops)",
         "+trim_add",
         "-trim_mul",
         "-trim_sub",
     ],
-    data = [":trim_add_assets"],
+    data = [":trim_add_assets_ops"],
     main = "exports_test.dart",
     deps = ["@rules_dart//dart/runfiles"],
 )
@@ -326,13 +405,12 @@ dart_test(
     name = "trim_unlinked_assets_test",
     size = "small",
     args = [
-        "'$(rlocationpaths :trim_unlinked_assets)'",
-        "package:trim/ops",
+        "$(rlocationpath :trim_unlinked_assets_ops)",
         "+trim_add",
         "+trim_mul",
         "+trim_sub",
     ],
-    data = [":trim_unlinked_assets"],
+    data = [":trim_unlinked_assets_ops"],
     main = "exports_test.dart",
     deps = ["@rules_dart//dart/runfiles"],
 )
@@ -394,17 +472,13 @@ dart_program_assets(
 )
 
 [
-    dart_test(
+    assets_test(
         name = name + "_test",
-        size = "small",
-        args = [
-            "'$(rlocationpaths :%s)'" % name,
+        assets = ":" + name,
+        expected = [
             "package:jingle/tune.txt=tune",
             "package:sounds/chime.txt=ding",
         ],
-        data = [":" + name],
-        main = "assets_test.dart",
-        deps = ["@rules_dart//dart/runfiles"],
     )
     for name in [
         "jingle_assets",
@@ -412,19 +486,15 @@ dart_program_assets(
     ]
 ]
 
-dart_test(
+assets_test(
     name = "jingle_unlinked_assets_test",
-    size = "small",
-    args = [
-        "'$(rlocationpaths :jingle_unlinked_assets)'",
+    assets = ":jingle_unlinked_assets",
+    expected = [
         "package:jingle/hum.txt=hum",
         "package:jingle/tune.txt=tune",
         "package:sounds/bell.txt=dong",
         "package:sounds/chime.txt=ding",
     ],
-    data = [":jingle_unlinked_assets"],
-    main = "assets_test.dart",
-    deps = ["@rules_dart//dart/runfiles"],
 )
 
 # Expected to fail: `glyphs`' hook refuses a Glyph built at run time. Tagged
@@ -462,6 +532,8 @@ dart_program_assets(
         "escape",
         "unpromised",
         "route",
+        "case",
+        "prefix",
     ]
 ]
 
@@ -475,13 +547,21 @@ dart_program_assets(
 )
 
 # Expected to fail: `pick`'s hook emits a library it built rather than one its
-# package declares. Tagged manual; CI's expected-failure job builds it.
-dart_program_assets(
-    name = "pick_built_assets",
-    recorded_uses = "//pick:uses/built.json",
-    tags = ["manual"],
-    deps = ["//pick"],
-)
+# package declares, keeps one under another id, or keeps one with another link
+# mode. Tagged manual; CI's expected-failure job builds each.
+[
+    dart_program_assets(
+        name = "pick_%s_assets" % fault,
+        recorded_uses = "//pick:uses/%s.json" % fault,
+        tags = ["manual"],
+        deps = ["//pick"],
+    )
+    for fault in [
+        "built",
+        "renamed",
+        "relinked",
+    ]
+]
 
 # Expected to fail: the hook imports a file of its package that no target
 # declares. `no-sandbox` runs it where the file is on disk, so only the
@@ -506,4 +586,12 @@ dart_analysis_options(
 dart_analysis_config(
     name = "analysis_config",
     options = [":options"],
+)
+
+# What a consumer of what a program ships does: opens every file it ships,
+# run path-mapped (`read_assets` in in_rule.bzl).
+dart_binary(
+    name = "read_assets",
+    main = "read_assets.dart",
+    deps = ["@rules_dart//dart/program_assets"],
 )

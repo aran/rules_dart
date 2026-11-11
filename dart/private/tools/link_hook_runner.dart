@@ -5,19 +5,19 @@
 // routed to it), runs the hook on the hermetic SDK's `dart`, checks its
 // `LinkOutput`, and copies each data asset it emits to its output: the File
 // Bazel declared for each id the package's `link_hook_assets` promise, and the
-// package's output directory for the rest. A code asset it emits must be one
-// it received, under an id of its own package. The record it writes names
-// what was emitted, data assets by name and code assets by the input each
-// keeps, and no path, so the same inputs give the same bytes under every
-// output layout.
+// package's output directory, at its name, for the rest. A code asset it emits
+// must be one it received, as it was declared: the same id, link mode and
+// file. `--code-selection` gets the ids of those it keeps, one per line, and
+// no path, so the same inputs give the same bytes under every output layout.
 //
 // Usage:
 //   link_hook_runner --dart <dart> --packages <package_config.json>
 //       --package-name <name> --package-root <dir> [--metadata <label>]
-//       --recorded-uses <json> --output <record.json> --directory <dir>
+//       --recorded-uses <json> --directory <dir>
 //       [--input-data-asset <name>=<path>]...
 //       [--promised-data-asset <name>=<path>]...
-//       [--code-config <json> [--input-code-asset <id>=<link mode>=<path or uri>]...]
+//       [--code-config <json> [--input-code-asset <id>=<link mode>=<path or uri>]...
+//        --code-selection <file>]
 import 'dart:convert';
 import 'dart:io';
 
@@ -35,8 +35,8 @@ Future<void> main(List<String> arguments) async {
     ..addOption('package-root', mandatory: true)
     ..addOption('metadata')
     ..addOption('recorded-uses', mandatory: true)
-    ..addOption('output', mandatory: true)
     ..addOption('directory', mandatory: true)
+    ..addOption('code-selection')
     ..addMultiOption('input-data-asset', splitCommas: false)
     ..addMultiOption('promised-data-asset', splitCommas: false)
     ..addOption('code-config')
@@ -150,18 +150,21 @@ Future<void> main(List<String> arguments) async {
         emitted[asset.name] = asset;
       }
     }
-    // A code asset it keeps is one it received, by its file (or, without
-    // one, by how the runtime finds it), under an id of its own package.
-    final kept = <String, CodeAsset>{};
+    // A code asset it keeps is one it received, as it was declared: the
+    // program's kernel maps ids before any hook runs, so one kept under
+    // another id would not load.
+    final kept = <String>{};
+    final receivedById = {for (final r in receivedCode) r.id: r};
+    String path(Uri file) => File.fromUri(file).absolute.path;
     for (final asset
         in code == null ? const <CodeAsset>[] : output.assets.code) {
-      final input = receivedCode
+      final declared = receivedById[asset.id];
+      final sameFile = receivedCode
           .where(
-            (r) => asset.file == null
-                ? r.file == null && r.linkMode == asset.linkMode
-                : r.file != null &&
-                      File.fromUri(r.file!).absolute.path ==
-                          File.fromUri(asset.file!).absolute.path,
+            (r) =>
+                asset.file != null &&
+                r.file != null &&
+                path(r.file!) == path(asset.file!),
           )
           .firstOrNull;
       if (!asset.id.startsWith('package:$packageName/')) {
@@ -170,9 +173,16 @@ Future<void> main(List<String> arguments) async {
           "link hook emits its own package's code assets, "
           '`package:$packageName/<name>`',
         );
-      } else if (kept.containsKey(asset.id)) {
+      } else if (kept.contains(asset.id)) {
         errors.add('emitted code asset `${asset.id}` more than once');
-      } else if (input == null) {
+      } else if (declared == null && sameFile != null) {
+        errors.add(
+          'emitted code asset `${sameFile.id}` as `${asset.id}`. A link hook '
+          'keeps a code asset under the id its package declares: the '
+          "program's kernel maps ids before linking, so it would not load "
+          'under another',
+        );
+      } else if (declared == null) {
         errors.add(
           'emitted code asset `${asset.id}`, whose '
           '${asset.file == null ? 'link mode' : 'file ${asset.file!.toFilePath()}'} '
@@ -182,16 +192,28 @@ Future<void> main(List<String> arguments) async {
           'native code linked for each program is a `dart_linked_code_asset` '
           'in the `linked_code_assets` of $declaration',
         );
-      } else if (input.linkMode != asset.linkMode) {
+      } else if (declared.linkMode != asset.linkMode) {
         errors.add(
           'emitted code asset `${asset.id}` with link mode '
-          '`${asset.linkMode}`, but `${input.id}`, whose file it is, has '
-          '`${input.linkMode}`',
+          '`${_linkModeName(asset.linkMode)}`, but its package declares it '
+          'with `${_linkModeName(declared.linkMode)}`. A link hook keeps a '
+          'code asset as its package declares it',
+        );
+      } else if ((asset.file == null) != (declared.file == null) ||
+          (asset.file != null && path(asset.file!) != path(declared.file!))) {
+        errors.add(
+          'emitted code asset `${asset.id}` with '
+          '${asset.file == null ? 'no file' : 'file ${asset.file!.toFilePath()}'}, '
+          'which is not the file its package declares for it. A link hook '
+          'selects among its package\'s code assets, and builds no native '
+          'code: native code linked for each program is a '
+          '`dart_linked_code_asset` in the `linked_code_assets` of $declaration',
         );
       } else {
-        kept[asset.id] = input;
+        kept.add(asset.id);
       }
     }
+    errors.addAll(_nameCollisions(packageName, [...emitted.keys]));
     final missing = promised.keys.where((n) => !emitted.containsKey(n));
     if (missing.isNotEmpty) {
       errors.add(
@@ -210,17 +232,14 @@ Future<void> main(List<String> arguments) async {
       File(destination).parent.createSync(recursive: true);
       File.fromUri(asset.file).copySync(destination);
     }
-    // The record names each asset by name only; where its file is follows
-    // from the outputs Bazel declared.
-    final record = {
-      'code': [
-        for (final id in [...kept.keys]..sort())
-          {'id': id, 'input': kept[id]!.id},
-      ],
-      'data': [...emitted.keys]..sort(),
-    };
-    File(args.option('output')!)
-        .writeAsStringSync(const JsonEncoder.withIndent('  ').convert(record));
+    directory.createSync(recursive: true);
+    if (args.option('code-selection') case final selection?) {
+      File(selection).writeAsStringSync(
+        [
+          for (final id in [...kept]..sort()) '$id\n',
+        ].join(),
+      );
+    }
   } on _LinkFailure catch (failure) {
     stderr.writeln(failure.message);
     exitCode = 1;
@@ -228,6 +247,44 @@ Future<void> main(List<String> arguments) async {
     scratch.deleteSync(recursive: true);
   }
 }
+
+/// What makes two emitted names unusable together: names that differ only in
+/// case are one file on a case-insensitive file system, and a name that is a
+/// directory of another cannot also be a file. Either way, a consumer listing
+/// the package's output directory would see something other than what the
+/// hook emitted.
+List<String> _nameCollisions(String packageName, List<String> names) {
+  final errors = <String>[];
+  String id(String name) => '`package:$packageName/$name`';
+  final byFolded = <String, String>{};
+  for (final name in [...names]..sort()) {
+    final other = byFolded[name.toLowerCase()];
+    if (other != null) {
+      errors.add(
+        'emitted ${id(other)} and ${id(name)}, whose names differ only in '
+        'case: on a case-insensitive file system they are one file',
+      );
+    } else {
+      byFolded[name.toLowerCase()] = name;
+    }
+  }
+  final all = names.toSet();
+  for (final name in [...names]..sort()) {
+    final segments = name.split('/');
+    for (var i = 1; i < segments.length; i++) {
+      final prefix = segments.take(i).join('/');
+      if (all.contains(prefix)) {
+        errors.add(
+          'emitted ${id(prefix)} and ${id(name)}: a name cannot be both a '
+          'file and a directory of another',
+        );
+      }
+    }
+  }
+  return errors;
+}
+
+String _linkModeName(LinkMode mode) => mode.toJson()['type']! as String;
 
 bool _isRelativePath(String name) {
   final segments = name.split('/');

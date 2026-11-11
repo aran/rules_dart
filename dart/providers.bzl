@@ -177,18 +177,20 @@ packages and whether it is linked, which `dart_program_assets` and \
 `dart_program_assets_actions()` perform. A bundler, `dart_binary` and \
 `dart_test` all take what they ship from it, so no two of them can disagree.
 
-The same shape whether or not the program is linked. Unlinked (a debug build), \
-every package's declared assets ship and all are known at analysis time; \
-linked, a package's link hook decides at build time which of its assets ship, \
-and only the ones known before it runs are in `known`.""",
+Read it through the helpers in `//dart:utils.bzl`, not field by field: \
+`program_assets_action_args()` hands an action every asset in one param file, \
+which `ProgramAssets.read` (`@rules_dart//dart/program_assets`) reads into \
+what ships, `link_outputs` applied; `program_kernel_code_assets()` is what a \
+kernel of the program maps; `program_asset_file()` is one asset by id at \
+analysis time. A consumer reading `data_assets` and `code_assets` alone misses \
+what the link hooks emit.
+
+The same shape whether or not the program is linked; unlinked, \
+`link_outputs` is empty.""",
     fields = {
-        "manifest": """File: every asset the program ships, read in an action. JSON in the shape \
-of upstream's encoded assets: `{"assets": [{"type": "data_assets/data", "encoding": {"package", \
-"name", "file"}}, {"type": "code_assets/code", "encoding": {"id", "link_mode": {"type", "uri"?}, \
-"file"?}}]}`, sorted by id, each `file` the path of a File in `files` relative to the execution \
-root.""",
-        "files": "depset[File]: Every file `manifest` names, and the link hooks' output directories, which hold some of them. What an action reading `manifest` takes as inputs.",
-        "known": "dict[str, File]: The file of each asset whose id is known at analysis time, by id: unlinked, every asset with a file; linked, the assets of packages without a link hook and the `link_hook_assets` each hook promises. Every entry is also in `manifest`. Read one with `program_asset_file()` from `//dart:utils.bzl`, which names what to change when an id is not there.",
+        "data_assets": "dict[str, File]: The data assets that ship and are known at analysis time, by id: those of packages without a link hook, and the ids each hook promises in its package's `link_hook_assets`.",
+        "code_assets": "dict[str, DartCodeAssetInfo]: The code assets that ship and are known at analysis time, by id: those of packages without a link hook, every package's `linked_code_assets` (linked for this program), and the program's own.",
+        "link_outputs": "tuple[struct]: One per package whose link hook ran, sorted by package: `package` (its name); `data_assets` (a directory holding each data asset the hook emitted, other than the ones it promises, at its name); `code_assets` (dict[str, DartCodeAssetInfo]: the package's code assets, which the hook chose among, by id); `code_selection` (a File naming the ids of those it kept, one per line, or `None` when it had none to choose among). Empty when the program is not linked.",
     },
 )
 

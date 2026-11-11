@@ -8,6 +8,7 @@ produce is `e2e/link_hook`'s to show.
 load("//dart:defs.bzl", "dart_binary", "dart_code_asset", "dart_data_asset", "dart_library", "dart_package_metadata", "dart_program_assets")
 load(
     "//dart/tests:link_hook_test.bzl",
+    "assets_action_args_test",
     "assets_without_cpp",
     "empty_recording_binary_test",
     "known_asset",
@@ -18,10 +19,13 @@ load(
     "link_hook_data_assets_test",
     "native_link_test",
     "not_recording_binary_test",
+    "nothing_read_test",
     "own_package_not_named_test",
+    "read_assets",
     "recorded_uses_not_json_test",
     "recording_binary_test",
     "unknown_asset_test",
+    "unknown_code_view_test",
     "unlinked_assets_test",
     "validation_runs_assetless_hook_test",
     "without_cpp_test",
@@ -224,6 +228,91 @@ link_hook_code_assets_test(
     name = "link_hook_code_assets_test",
     size = "small",
     target_under_test = ":linked_with_code",
+)
+
+# An action given the program's assets with `program_assets_action_args()`:
+# one flag, one param file holding what the action reads, every file it names
+# an input and no other: all of them; the data alone; the code alone, with its
+# libraries or by name, where a hook's selection is an input and its
+# libraries are not.
+VIEWS = [
+    # (suffix, data, code)
+    ("", True, "libraries"),
+    ("_data", True, "none"),
+    ("_code", False, "libraries"),
+    ("_code_names", False, "names"),
+]
+
+[
+    read_assets(
+        name = name + view + "_read",
+        assets = ":" + name,
+        code = code,
+        data = data,
+        tags = ["manual"],
+    )
+    for name in [
+        "linked_with_code",
+        "linked_with_data",
+    ]
+    for view, data, code in VIEWS
+]
+
+[
+    assets_action_args_test(
+        name = "linked_with_code%s_action_args_test" % view,
+        size = "small",
+        assets = ":linked_with_code",
+        code = code,
+        data = data,
+        expected_candidates = ["package:link_hook_coded/native"],
+        target_under_test = ":linked_with_code%s_read" % view,
+    )
+    for view, data, code in VIEWS
+]
+
+[
+    assets_action_args_test(
+        name = "linked_with_data%s_action_args_test" % view,
+        size = "small",
+        assets = ":linked_with_data",
+        code = code,
+        data = data,
+        expected_data = [
+            "package:link_hook_fixture/data/index.json",
+            "package:plain_data/banner.txt",
+        ],
+        target_under_test = ":linked_with_data%s_read" % view,
+    )
+    for view, data, code in VIEWS
+]
+
+# A tool handed nothing, or a code view that does not exist, is refused.
+read_assets(
+    name = "nothing_read",
+    assets = ":linked_with_data",
+    code = "none",
+    data = False,
+    tags = ["manual"],
+)
+
+nothing_read_test(
+    name = "nothing_read_test",
+    size = "small",
+    target_under_test = ":nothing_read",
+)
+
+read_assets(
+    name = "unknown_code_view_read",
+    assets = ":linked_with_data",
+    code = "bytes",
+    tags = ["manual"],
+)
+
+unknown_code_view_test(
+    name = "unknown_code_view_test",
+    size = "small",
+    target_under_test = ":unknown_code_view_read",
 )
 
 # Native code linked into each program: over the program's uses when linked,

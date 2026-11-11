@@ -1,0 +1,47 @@
+load("//dart:defs.bzl", "dart_binary", "dart_library", "dart_test")
+
+# For a tool that reads what a program ships: the program-assets line format
+# that `program_assets_action_args()` gives an action and `dart_program_assets`
+# writes for its runfiles. See lib/program_assets.dart.
+dart_library(
+    name = "program_assets",
+    srcs = ["lib/program_assets.dart"],
+    visibility = ["//visibility:public"],
+    deps = ["//dart/runfiles"],
+)
+
+# Prints what a program ships, from a file in the line format.
+dart_binary(
+    name = "list",
+    main = "bin/list.dart",
+    visibility = ["//visibility:public"],
+    deps = [":program_assets"],
+)
+
+# The conformance fixture: read in its directory, `program.params` is what
+# `expected.txt` lists, and `code_names.params` what `code_names.expected.txt`
+# does. A reader in another language checks itself on it.
+filegroup(
+    name = "conformance",
+    srcs = glob(["test/conformance/**"]),
+    visibility = ["//visibility:public"],
+)
+
+dart_test(
+    name = "program_assets_test",
+    size = "small",
+    data = [
+        ":conformance",
+        ":list",
+    ],
+    env = {
+        "CONFORMANCE": "$(rlocationpaths :conformance)",
+        "LIST_TOOL": "$(rlocationpath :list)",
+    },
+    main = "test/program_assets_test.dart",
+    deps = [
+        ":program_assets",
+        "//dart/runfiles",
+        "@ext_pub_deps//:test",
+    ],
+)

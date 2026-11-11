@@ -5,8 +5,10 @@ modes that tree-shake, and an empty file stands in for the others — and each
 compile pipeline (direct, and with a native-assets mapping for code assets) must carry the
 flag to the one action that records. A linked `dart_program_assets` runs one
 action per package with a hook, declares a File for each id the
-`link_hook_assets` of the package's `dart_package_metadata` promise, and a
-directory for the rest; an unlinked one runs none. Every `fail()` it can raise is a message a user reads, so each
+`link_hook_assets` of the package's `dart_package_metadata` promise, a
+directory for the rest and, with code assets to choose among, a file of the
+ids it keeps; an unlinked one runs none. `program_assets_action_args()` hands
+it all to an action in one param file. Every `fail()` it can raise is a message a user reads, so each
 has a case asserting what it says.
 
 The pure helpers are unit tests; the rule shapes are `analysistest`s over
@@ -20,7 +22,7 @@ load("//dart/private:dart_compile.bzl", "recorded_uses_kind")
 load("//dart/private:dart_package_metadata.bzl", "link_hook_error")
 load("//dart/private:exec_groups.bzl", "PORTABLE_EXEC_GROUPS")
 load("//dart/private:package_info.bzl", "link_hook_assets_error", "parse_data_asset_ids")
-load("//dart/private:program_assets.bzl", "PROGRAM_ASSETS_TOOLCHAINS", "dart_program_assets_actions", "package_files_error", "program_asset_file", "program_assets_attrs", "recorded_uses_file_error")
+load("//dart/private:program_assets.bzl", "PROGRAM_ASSETS_FORMAT", "PROGRAM_ASSETS_TOOLCHAINS", "dart_program_assets_actions", "package_files_error", "program_asset_file", "program_assets_action_args", "program_assets_attrs", "program_kernel_code_assets", "recorded_uses_file_error")
 
 # buildifier: disable=bzl-visibility
 load("//dart/pub/private:build_content.bzl", "classify_pub_hooks", "make_dart_library_build_content")
@@ -333,7 +335,7 @@ def _link_hook_actions_test_impl(ctx):
     asserts.false(env, "--hook" in argv, str(argv))
 
     info = target[DartProgramAssetsInfo]
-    index = info.known["package:link_hook_fixture/data/index.json"]
+    index = info.data_assets["package:link_hook_fixture/data/index.json"]
     asserts.true(env, index.short_path.endswith(target.label.name + "/link_hook_fixture/data/index.json"))
     asserts.true(env, index in runs[0].outputs.to_list())
     asserts.true(env, _has_path_arg(argv, "data/index.json=", index), str(argv))
@@ -341,17 +343,33 @@ def _link_hook_actions_test_impl(ctx):
     asserts.equals(env, 1, len(directory), str(runs[0].outputs.to_list()))
     asserts.true(env, directory[0].short_path.endswith(target.label.name + "/link_hook_fixture.data"))
     asserts.true(env, _has_path_arg(argv, "", directory[0]), str(argv))
-    files = info.files.to_list()
-    asserts.true(env, index in files and directory[0] in files, str(files))
-    asserts.true(env, info.manifest in target[DefaultInfo].files.to_list())
 
-    # The manifest is merged from each hook's record.
-    merges = _actions(env, "DartProgramAssets")
-    asserts.equals(env, 1, len(merges))
-    asserts.equals(env, [info.manifest], merges[0].outputs.to_list())
-    records = [f for f in runs[0].outputs.to_list() if f.basename == "link_hook_fixture.link_output.json"]
-    asserts.equals(env, 1, len(records))
-    asserts.true(env, records[0] in merges[0].inputs.to_list())
+    # What the hook emits is its package's one link output: the directory,
+    # and no selection, as it has no code assets to choose among. The
+    # promised file is a data asset that ships, and not in the directory.
+    asserts.equals(env, 1, len(info.link_outputs))
+    output = info.link_outputs[0]
+    asserts.equals(env, "link_hook_fixture", output.package)
+    asserts.equals(env, directory[0], output.data_assets)
+    asserts.equals(env, {}, output.code_assets)
+    asserts.equals(env, None, output.code_selection)
+    asserts.false(env, "--code-selection" in argv, str(argv))
+    asserts.equals(env, sorted([index.path, directory[0].path]), sorted([f.path for f in runs[0].outputs.to_list()]))
+
+    # No action beyond the hook's: nothing merges what it emits.
+    asserts.equals(env, [], _actions(env, "DartProgramAssets"))
+
+    # The target's output lists the assets for its runfiles, which hold them.
+    listing = target[DefaultInfo].files.to_list()
+    asserts.equals(env, [target.label.name + ".program_assets"], [f.basename for f in listing])
+    runfiles = target[DefaultInfo].default_runfiles.files.to_list()
+    asserts.true(env, index in runfiles and directory[0] in runfiles and listing[0] in runfiles, str(runfiles))
+    writes = [a for a in _actions(env, "FileWrite") if listing[0] in a.outputs.to_list()]
+    asserts.equals(env, 1, len(writes))
+    asserts.true(env, writes[0].content.startswith("--format\n%s\n--paths\nrunfiles\n--holds\ndata code\n" % PROGRAM_ASSETS_FORMAT), writes[0].content)
+    asserts.true(env, ("--link-data\nlink_hook_fixture\n_main/" + directory[0].short_path + "\n") in writes[0].content, writes[0].content)
+    asserts.false(env, "--link-code" in writes[0].content, writes[0].content)
+    asserts.false(env, "bazel-out/" in writes[0].content, writes[0].content)
 
     recorded = ctx.attr.recorded_uses_basename
     inputs = runs[0].inputs.to_list()
@@ -390,23 +408,14 @@ def _link_hook_data_assets_test_impl(ctx):
     asserts.equals(
         env,
         sorted(["package:plain_data/banner.txt", "package:link_hook_fixture/data/index.json"]),
-        sorted(info.known.keys()),
+        sorted(info.data_assets.keys()),
     )
-    banner = info.known["package:plain_data/banner.txt"]
+    banner = info.data_assets["package:plain_data/banner.txt"]
     asserts.equals(env, "dart/tests/link_hook_fixture/plain_data/banner.txt", banner.short_path)
-    asserts.true(env, banner in info.files.to_list())
-    asserts.false(env, raw[0] in info.files.to_list())
-
-    # The banner's entry is written now, for the manifest step to merge.
-    plan = [a for a in _actions(env, "FileWrite") if a.outputs.to_list()[0].basename.endswith(".assets_plan.json")]
-    asserts.equals(env, 1, len(plan))
-    content = json.decode(plan[0].content)
-    asserts.equals(
-        env,
-        [{"type": "data_assets/data", "encoding": {"package": "plain_data", "name": "banner.txt", "file": banner.path}}],
-        content["assets"],
-    )
-    asserts.equals(env, ["link_hook_fixture"], content["packages"].keys())
+    asserts.equals(env, ["link_hook_fixture"], [o.package for o in info.link_outputs])
+    runfiles = target[DefaultInfo].default_runfiles.files.to_list()
+    asserts.true(env, banner in runfiles, str(runfiles))
+    asserts.false(env, raw[0] in runfiles, str(runfiles))
     return analysistest.end(env)
 
 link_hook_data_assets_test = analysistest.make(_link_hook_data_assets_test_impl)
@@ -428,16 +437,20 @@ def _link_hook_code_assets_test_impl(ctx):
     asserts.equals(env, "dynamic", config["link_mode_preference"])
     asserts.true(env, config["target_os"] in ["linux", "macos", "windows"], str(config))
 
+    # The library is a candidate of the hook's link output, not a code asset
+    # that certainly ships; the hook writes the ids it keeps to its selection.
     info = target[DartProgramAssetsInfo]
-    asserts.equals(env, {}, info.known)
-    asserts.true(env, library[0] in info.files.to_list())
-    plan = [a for a in _actions(env, "FileWrite") if a.outputs.to_list()[0].basename.endswith(".assets_plan.json")]
-    inputs = json.decode(plan[0].content)["packages"]["link_hook_coded"]["code_inputs"]
-    asserts.equals(
-        env,
-        {"package:link_hook_coded/native": {"id": "package:link_hook_coded/native", "link_mode": {"type": "dynamic_loading_bundle"}, "file": library[0].path}},
-        inputs,
-    )
+    asserts.equals(env, {}, info.code_assets)
+    asserts.equals(env, 1, len(info.link_outputs))
+    output = info.link_outputs[0]
+    asserts.equals(env, ["package:link_hook_coded/native"], output.code_assets.keys())
+    asserts.equals(env, library[0], output.code_assets["package:link_hook_coded/native"].file)
+    asserts.equals(env, "link_hook_coded.code_selection", output.code_selection.basename)
+    asserts.true(env, output.code_selection in runs[0].outputs.to_list())
+    asserts.true(env, _has_path_arg(argv, "", output.code_selection), str(argv))
+
+    # A kernel of the program maps every id it can load, the candidates too.
+    asserts.equals(env, ["package:link_hook_coded/native"], [a.asset_id for a in program_kernel_code_assets(info)])
     return analysistest.end(env)
 
 link_hook_code_assets_test = analysistest.make(_link_hook_code_assets_test_impl)
@@ -448,10 +461,9 @@ def _native_link_test_impl(ctx):
     env = analysistest.begin(ctx)
     target = analysistest.target_under_test(env)
     info = target[DartProgramAssetsInfo]
-    library = info.known["package:link_hook_native/native"]
+    library = info.code_assets["package:link_hook_native/native"].file
     asserts.true(env, library.basename in ["libnative.so", "libnative.dylib", "native.dll"], library.basename)
     asserts.true(env, library.short_path.startswith("dart/tests/link_hook_fixture/%s/link_hook_native/" % target.label.name), library.short_path)
-    asserts.true(env, library in info.files.to_list())
     links = [a for a in analysistest.target_actions(env) if library in a.outputs.to_list()]
     asserts.equals(env, 1, len(links))
     symbols = _actions(env, "DartLinkSymbols")
@@ -486,39 +498,26 @@ assets_without_cpp = rule(
 )
 
 def _unlinked_assets_test_impl(ctx):
-    # Not linked, no hook runs, every declared asset ships, and the manifest
-    # is written at analysis time with all of them, known.
+    # Not linked, no hook runs, and every declared asset ships, known.
     env = analysistest.begin(ctx)
     target = analysistest.target_under_test(env)
     asserts.equals(env, [], _actions(env, "DartLinkHook"))
-    asserts.equals(env, [], _actions(env, "DartProgramAssets"))
     info = target[DartProgramAssetsInfo]
     asserts.equals(
         env,
         sorted(["package:plain_data/banner.txt", "package:link_hook_fixture/data/raw.json"]),
-        sorted(info.known.keys()),
+        sorted(info.data_assets.keys()),
     )
-    writes = [a for a in _actions(env, "FileWrite") if info.manifest in a.outputs.to_list()]
-    asserts.equals(env, 1, len(writes))
-    content = json.decode(writes[0].content)
-    asserts.equals(
-        env,
-        ["data/raw.json", "banner.txt"],
-        [entry["encoding"]["name"] for entry in content["assets"]],
-    )
-    asserts.equals(
-        env,
-        sorted([f.short_path for f in info.known.values()]),
-        sorted([f.short_path for f in info.files.to_list()]),
-    )
+    asserts.equals(env, {}, info.code_assets)
+    asserts.equals(env, (), info.link_outputs)
     return analysistest.end(env)
 
 unlinked_assets_test = analysistest.make(_unlinked_assets_test_impl)
 
 def _validation_runs_assetless_hook_test_impl(ctx):
-    # A hook whose package promises no `link_hook_assets` still runs, as the
-    # manifest is a validation output, so its verdict on the program's uses is
-    # never skipped.
+    # A hook whose package promises no `link_hook_assets` still runs, as its
+    # output directory is a validation output, so its verdict on the
+    # program's uses is never skipped.
     env = analysistest.begin(ctx)
     target = analysistest.target_under_test(env)
     runs = _actions(env, "DartLinkHook")
@@ -528,11 +527,90 @@ def _validation_runs_assetless_hook_test_impl(ctx):
     # Beside it, Bazel carries its libraries' own validations (their import
     # checks) into the group.
     validation = target[OutputGroupInfo]._validation.to_list()
-    asserts.true(env, info.manifest in validation, str(validation))
-    asserts.equals(env, {}, info.known)
+    asserts.true(env, info.link_outputs[0].data_assets in validation, str(validation))
+    asserts.equals(env, {}, info.data_assets)
     return analysistest.end(env)
 
 validation_runs_assetless_hook_test = analysistest.make(_validation_runs_assetless_hook_test_impl)
+
+def _read_assets_impl(ctx):
+    code = ctx.attr.code if ctx.attr.code != "none" else None
+    a = program_assets_action_args(ctx.actions, ctx.attr.assets[DartProgramAssetsInfo], data = ctx.attr.data, code = code)
+    out = ctx.actions.declare_file(ctx.label.name + ".txt")
+    ctx.actions.run_shell(
+        outputs = [out],
+        inputs = a.inputs,
+        arguments = [a.args],
+        command = "touch " + out.path,
+        mnemonic = "ReadProgramAssets",
+    )
+    return [DefaultInfo(files = depset([out]))]
+
+read_assets = rule(
+    implementation = _read_assets_impl,
+    attrs = {
+        "assets": attr.label(providers = [DartProgramAssetsInfo]),
+        "code": attr.string(default = "libraries"),
+        "data": attr.bool(default = True),
+    },
+)
+
+def _assets_action_args_test_impl(ctx):
+    # The tool gets one flag naming one param file, which holds what the
+    # action reads of the program's assets in the line format: each certain
+    # one by id, each hook's output directory, and its selection and
+    # candidates, with every File's path as Bazel maps it. Every File it
+    # names is an input, and no other asset's file is.
+    env = analysistest.begin(ctx)
+    reads = _actions(env, "ReadProgramAssets")
+    asserts.equals(env, 1, len(reads))
+    info = ctx.attr.assets[DartProgramAssetsInfo]
+    output = info.link_outputs[0]
+    data = ctx.attr.data
+    code = ctx.attr.code if ctx.attr.code != "none" else None
+    holds = (["data"] if data else []) + ({"libraries": ["code"], "names": ["code-names"]}.get(code, []))
+    expected = ["--format", PROGRAM_ASSETS_FORMAT, "--paths", "exec", "--holds", " ".join(holds)]
+    wanted = []
+    libraries = []
+    if data:
+        for asset_id in sorted(info.data_assets.keys()):
+            expected.extend(["--data-asset", asset_id, info.data_assets[asset_id].path])
+            wanted.append(info.data_assets[asset_id])
+        expected.extend(["--link-data", output.package, output.data_assets.path])
+        wanted.append(output.data_assets)
+    if code != None and output.code_selection != None:
+        expected.extend(["--link-code", output.package, output.code_selection.path])
+        wanted.append(output.code_selection)
+        for asset_id in sorted(output.code_assets.keys()):
+            library = output.code_assets[asset_id].file
+            libraries.append(library)
+            expected.extend(["--candidate", asset_id, "dynamic_loading_bundle", library.path if code == "libraries" else library.basename, ""])
+    if code == "libraries":
+        wanted.extend(libraries)
+    argv = reads[0].argv
+
+    # Analysis shows a param file's lines in place of its flag.
+    asserts.equals(env, expected, argv[argv.index("--format"):])
+    asserts.equals(env, ctx.attr.expected_data, sorted(info.data_assets.keys()))
+    asserts.equals(env, ctx.attr.expected_candidates, sorted(output.code_assets.keys()))
+    inputs = reads[0].inputs.to_list()
+    asserts.equals(env, sorted([f.path for f in wanted]), sorted([f.path for f in inputs]))
+    if data and code == "libraries":
+        for f in ctx.attr.assets[DefaultInfo].default_runfiles.files.to_list():
+            if f.basename != ctx.attr.assets.label.name + ".program_assets":
+                asserts.true(env, f in inputs, "%s is not an input" % f.short_path)
+    return analysistest.end(env)
+
+assets_action_args_test = analysistest.make(
+    _assets_action_args_test_impl,
+    attrs = {
+        "assets": attr.label(providers = [DartProgramAssetsInfo]),
+        "code": attr.string(default = "libraries"),
+        "data": attr.bool(default = True),
+        "expected_candidates": attr.string_list(),
+        "expected_data": attr.string_list(),
+    },
+)
 
 def _known_asset_test_impl(ctx):
     env = analysistest.begin(ctx)
@@ -568,6 +646,8 @@ unknown_asset_test = _expect_failure("`package:link_hook_fixture/data/raw.json` 
 without_cpp_test = _expect_failure("assets_without_cpp has to declare 'cpp' as a required fragment")
 own_package_not_named_test = _expect_failure("is the uses of a program in the package declared by `@@//dart/tests/link_hook_fixture:pubspec-metadata`, but `package` names none")
 recorded_uses_not_json_test = _expect_failure("must provide `DartRecordedUsesInfo`")
+nothing_read_test = _expect_failure("A tool handed a program's assets reads some of them: `data = True`, a `code` view, or both.")
+unknown_code_view_test = _expect_failure("`code` is one of [\"libraries\", \"names\"], or None for no code assets; got \"bytes\".")
 misplaced_link_hook_test = _expect_failure("`link_hook` must be the package's `hook/link.dart`")
 
 def link_hook_test_suite(name):

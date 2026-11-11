@@ -88,7 +88,9 @@ load(
     _PROGRAM_ASSETS_TOOLCHAINS = "PROGRAM_ASSETS_TOOLCHAINS",
     _dart_program_assets_actions = "dart_program_assets_actions",
     _program_asset_file = "program_asset_file",
+    _program_assets_action_args = "program_assets_action_args",
     _program_assets_attrs = "program_assets_attrs",
+    _program_kernel_code_assets = "program_kernel_code_assets",
     _vm_code_config = "vm_code_config",
 )
 load(
@@ -340,24 +342,43 @@ COPY_TO_DIRECTORY_TOOLCHAINS = _COPY_TO_DIRECTORY_TOOLCHAINS
 #         code_assets = own,          # the program's own DartCodeAssetInfo
 #     )
 #
-# It returns `info`, the program's `DartProgramAssetsInfo`; `validation_outputs`,
-# for an `_validation` output group; and `code_assets`, the `DartCodeAssetInfo`
-# of every code asset the manifest lists when all are known at analysis time
-# (always, unlinked), for a rule that maps them for the VM then. The packages
-# are `program_packages(package, deps)`. `code_config` is what each link hook
-# is told of a target that loads code assets, upstream's
+# It returns `info`, the program's `DartProgramAssetsInfo`, and
+# `validation_outputs`, for an `_validation` output group. The packages are
+# `program_packages(package, deps)`. `code_config` is what each link hook is
+# told of a target that loads code assets, upstream's
 # `config.extensions.code_assets` object: a Dart VM program's is
 # `vm_code_config(ctx)`, and a target loading none (the web) passes `None`. The
 # link hooks run in `PORTABLE`: the rule declares `PORTABLE_EXEC_GROUPS`,
 # merges `program_assets_attrs()` into its `attrs`, and declares
 # `PROGRAM_ASSETS_TOOLCHAINS` in its `toolchains` and `fragments = ["cpp"]`,
 # with which it links a package's `linked_code_assets` for the program.
-# `program_asset_file(info, id)` is the file of one asset known at analysis
-# time, and fails naming the `link_hook_assets` to add when it is not.
+#
+# Read `info` with these:
+#
+#     a = program_assets_action_args(ctx.actions, info)
+#     ctx.actions.run(
+#         arguments = [own_args, a.args],
+#         inputs = depset(own_inputs, transitive = [a.inputs]),
+#         ...
+#     )
+#
+# gives the tool `--program-assets=<file>`, a param file in the line format
+# the README documents, which `ProgramAssets.read` from
+# `@rules_dart//dart/program_assets` reads into the assets that ship; Bazel
+# writes its paths mapped, so the action may support path mapping. A tool
+# that reads less is handed less, and its action takes only those files:
+# `data = False` leaves out the data assets, and `code = "names"` hands the
+# code assets without their libraries, `code = None` not at all.
+# `program_kernel_code_assets(info)` is every code asset the program can
+# load, what its kernel maps (`dart_binary` and `dart_test` embed it), linked
+# or not. `program_asset_file(info, id)` is the file of one asset known at
+# analysis time, and fails naming the `link_hook_assets` to add when it is not.
 dart_program_assets_actions = _dart_program_assets_actions
 program_assets_attrs = _program_assets_attrs
 PROGRAM_ASSETS_TOOLCHAINS = _PROGRAM_ASSETS_TOOLCHAINS
 program_asset_file = _program_asset_file
+program_assets_action_args = _program_assets_action_args
+program_kernel_code_assets = _program_kernel_code_assets
 vm_code_config = _vm_code_config
 parse_data_asset_ids = _parse_data_asset_ids
 

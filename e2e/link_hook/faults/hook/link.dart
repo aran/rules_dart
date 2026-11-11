@@ -39,6 +39,16 @@ Future<void> main(List<String> args) async {
     if (faults.contains('escape')) {
       output.assets.data.add(asset('../escape.txt'));
     }
+    if (faults.contains('case')) {
+      output.assets.data
+        ..add(asset('Case.txt'))
+        ..add(asset('case.txt'));
+    }
+    if (faults.contains('prefix')) {
+      output.assets.data
+        ..add(asset('dir'))
+        ..add(asset('dir/inner.txt'));
+    }
     if (faults.contains('route')) {
       output.assets.data.add(
         asset('routed.txt'),

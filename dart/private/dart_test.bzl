@@ -46,7 +46,7 @@ load(
 load("//dart/private:dart_test_runner.bzl", "DartTestRunnerInfo")
 load("//dart/private:exec_groups.bzl", "PORTABLE_EXEC_GROUPS")
 load("//dart/private:executable_package.bzl", "EXECUTABLE_PACKAGE_ATTRS", "executable_package")
-load("//dart/private:program_assets.bzl", "UNLINKED_PROGRAM_ASSETS_ATTRS", "UNLINKED_PROGRAM_ASSETS_TOOLCHAINS", "dart_program_assets_actions")
+load("//dart/private:program_assets.bzl", "UNLINKED_PROGRAM_ASSETS_ATTRS", "UNLINKED_PROGRAM_ASSETS_TOOLCHAINS", "dart_program_assets_actions", "program_kernel_code_assets")
 load("//dart/private:project_staging.bzl", "test_working_directory")
 
 visibility("//dart/...")
@@ -244,14 +244,14 @@ def _code_assets(ctx, package, dill):
 
     # What the test loads is what its program ships, not linked: the assets
     # of its packages, its own among them, and its own `code_assets`.
-    assets = dart_program_assets_actions(
+    assets = program_kernel_code_assets(dart_program_assets_actions(
         ctx,
         package = package,
         deps = ctx.attr.deps,
         # Beside the executable, `<name>`, which no directory may share.
         name = ctx.label.name + ".program",
         code_assets = [dep[DartCodeAssetInfo] for dep in ctx.attr.code_assets],
-    ).code_assets
+    ).info)
     if not assets:
         return None, []
     abi = target_dart_abi(ctx)

@@ -1,6 +1,8 @@
 // Keeps the native libraries of the operations the program uses, out of the
-// ones the build hook routed here, each under a `kept/` id. An `Op('built')`
-// instead emits a library of its own, which a link hook may not.
+// ones the build hook routed here, as they are. An `Op('built')` instead emits
+// a library of its own, an `Op('renamed')` keeps `add` under another id, and
+// an `Op('relinked')` keeps `add` with another link mode, which a link hook
+// may not.
 import 'dart:io';
 
 import 'package:code_assets/code_assets.dart';
@@ -23,7 +25,15 @@ Future<void> main(List<String> args) async {
     for (final asset in input.assets.code) {
       final name = asset.id.substring('package:pick/'.length);
       if (used.contains(name)) {
-        output.assets.code.add(asset.copyWith(id: 'package:pick/kept/$name'));
+        output.assets.code.add(asset);
+      }
+      if (name == 'add' && used.contains('renamed')) {
+        output.assets.code.add(asset.copyWith(id: 'package:pick/renamed'));
+      }
+      if (name == 'add' && used.contains('relinked')) {
+        output.assets.code.add(
+          CodeAsset(package: 'pick', name: 'add', linkMode: LookupInProcess()),
+        );
       }
     }
     if (used.contains('built')) {
