@@ -1,16 +1,20 @@
-// Runs one package's `hook/link.dart` for `dart_link_hook`.
+// Runs one package's `hook/link.dart` for a linked program's assets.
 //
 // Builds the hook's `LinkInput` (package, roots, recorded uses, and the data
 // assets the package declares, which its build hook would have routed to it),
 // runs the hook on the hermetic SDK's `dart`, checks its `LinkOutput`, and
-// copies each data asset it emits to the output Bazel declared for that
-// asset's id.
+// copies each data asset it emits to its output: the File Bazel declared for
+// each id the package's `link_hook_assets` promise, and the package's output
+// directory for the rest. The record it writes names what was emitted, by
+// name, and no path, so the same inputs give the same bytes under every
+// output layout.
 //
 // Usage:
 //   link_hook_runner --dart <dart> --packages <package_config.json>
-//       --package-name <name> --package-root <dir>
-//       --recorded-uses <json> --output <link_output.json>
-//       [--input-data-asset <name>=<path>]... [--data-asset <name>=<path>]...
+//       --package-name <name> --package-root <dir> [--metadata <label>]
+//       --recorded-uses <json> --output <record.json> --directory <dir>
+//       [--input-data-asset <name>=<path>]...
+//       [--promised-data-asset <name>=<path>]...
 import 'dart:convert';
 import 'dart:io';
 
@@ -24,15 +28,21 @@ Future<void> main(List<String> arguments) async {
     ..addOption('packages', mandatory: true)
     ..addOption('package-name', mandatory: true)
     ..addOption('package-root', mandatory: true)
+    ..addOption('metadata')
     ..addOption('recorded-uses', mandatory: true)
     ..addOption('output', mandatory: true)
+    ..addOption('directory', mandatory: true)
     ..addMultiOption('input-data-asset', splitCommas: false)
-    ..addMultiOption('data-asset', splitCommas: false);
+    ..addMultiOption('promised-data-asset', splitCommas: false);
   final args = parser.parse(arguments);
   final packageName = args.option('package-name')!;
+  final metadata = args.option('metadata');
+  final declaration = metadata == null
+      ? "the package's `dart_package_metadata`"
+      : '`$metadata`';
 
   // Data assets, by name within the package: those the hook receives, and
-  // those it is declared to emit.
+  // those it promises to emit.
   Map<String, String> byName(String option) => {
     for (final entry in args.multiOption(option))
       entry.substring(0, entry.indexOf('=')): entry.substring(
@@ -40,7 +50,8 @@ Future<void> main(List<String> arguments) async {
       ),
   };
   final received = byName('input-data-asset');
-  final declared = byName('data-asset');
+  final promised = byName('promised-data-asset');
+  final directory = Directory(args.option('directory')!);
 
   final scratch = Directory.systemTemp.createTempSync('dart_link_hook_');
   try {
@@ -88,57 +99,60 @@ Future<void> main(List<String> arguments) async {
       ),
     };
 
+    final emitted = <String, DataAsset>{};
     final errors = [
       ...await ProtocolBase.validateLinkOutput(input, output),
-      for (final asset in output.assets.data)
-        if (asset.package != packageName)
-          'emitted `${asset.id}`, a data asset of another package; '
-              'dart_link_hook gives a hook only its own package\'s',
       ...await DataAssetsExtension().validateLinkOutput(input, output),
       for (final asset in output.assets.encodedAssets)
         if (!asset.isDataAsset)
-          'emitted a `${asset.type}` asset; dart_link_hook collects only '
-              'data assets',
+          'emitted a `${asset.type}` asset; a linked program takes only data '
+              'assets from a link hook',
       if (output.assets.encodedAssetsForLink.isNotEmpty)
-        'routed assets to the link hooks of '
-            '${output.assets.encodedAssetsForLink.keys.join(', ')}; '
-            'dart_link_hook runs each hook on its own',
+        'routed assets or metadata to the link hooks of '
+            '${output.assets.encodedAssetsForLink.keys.join(', ')}. '
+            'rules_dart runs each link hook on its own, over its own '
+            "package's assets, and passes nothing between link hooks",
     ];
+    for (final asset in output.assets.data) {
+      if (asset.package != packageName) {
+        errors.add(
+          'emitted `${asset.id}`, a data asset of another package. A link '
+          "hook emits only its own package's data assets, "
+          '`package:$packageName/<name>`',
+        );
+      } else if (emitted.containsKey(asset.name)) {
+        errors.add('emitted `${asset.id}` more than once');
+      } else if (!_isRelativePath(asset.name)) {
+        errors.add(
+          'emitted `${asset.id}`, whose name is not a relative path, so its '
+          "file would be outside the package's output directory",
+        );
+      } else {
+        emitted[asset.name] = asset;
+      }
+    }
+    final missing = promised.keys.where((n) => !emitted.containsKey(n));
+    if (missing.isNotEmpty) {
+      errors.add(
+        'did not emit ${missing.map((n) => '`package:$packageName/$n`').join(', ')}, '
+        'which the `link_hook_assets` of $declaration promise. A hook must '
+        'emit every id it promises, whatever the program: remove the id '
+        'from `link_hook_assets`, or make the hook always emit it.',
+      );
+    }
     if (errors.isNotEmpty) {
       _fail(packageName, 'produced unusable output', errors.join('\n'));
     }
 
-    final emitted = {for (final asset in output.assets.data) asset.name: asset};
-    final undeclared = emitted.keys.where((n) => !declared.containsKey(n));
-    final missing = declared.keys.where((n) => !emitted.containsKey(n));
-    if (undeclared.isNotEmpty || missing.isNotEmpty) {
-      String ids(Iterable<String> names) =>
-          names.map((n) => '  package:$packageName/$n').join('\n');
-      _fail(
-        packageName,
-        'emitted data assets other than the ones `data_assets` declares',
-        [
-          if (undeclared.isNotEmpty)
-            'Emitted but not declared:\n${ids(undeclared)}',
-          if (missing.isNotEmpty) 'Declared but not emitted:\n${ids(missing)}',
-        ].join('\n'),
-      );
+    for (final MapEntry(key: name, value: asset) in emitted.entries) {
+      final destination = promised[name] ?? '${directory.path}/$name';
+      File(destination).parent.createSync(recursive: true);
+      File.fromUri(asset.file).copySync(destination);
     }
-    for (final MapEntry(key: name, value: path) in declared.entries) {
-      File.fromUri(emitted[name]!.file).copySync(path);
-    }
-    // The record kept of the hook's output names each asset by its declared
-    // output rather than the scratch file it was copied from, and drops the
-    // timestamp, so the same inputs always produce the same bytes.
+    // The record names each asset by name only; where its file is follows
+    // from the outputs Bazel declared.
     final record = {
-      'assets': [
-        for (final name in declared.keys)
-          DataAsset(
-            package: packageName,
-            name: name,
-            file: Uri.file(declared[name]!),
-          ).encode().toJson(),
-      ],
+      'data': [...emitted.keys]..sort(),
     };
     File(args.option('output')!)
         .writeAsStringSync(const JsonEncoder.withIndent('  ').convert(record));
@@ -148,6 +162,13 @@ Future<void> main(List<String> arguments) async {
   } finally {
     scratch.deleteSync(recursive: true);
   }
+}
+
+bool _isRelativePath(String name) {
+  final segments = name.split('/');
+  return !name.startsWith('/') &&
+      !name.contains(r'\') &&
+      segments.every((s) => s.isNotEmpty && s != '.' && s != '..');
 }
 
 LinkInput _linkInput({
@@ -176,7 +197,7 @@ LinkInput _linkInput({
 Never _fail(String packageName, String what, String detail) =>
     throw _LinkFailure(
       [
-        'dart_link_hook: hook/link.dart of package `$packageName` $what.',
+        'hook/link.dart of package `$packageName` $what.',
         if (detail.isNotEmpty) detail,
       ].join('\n'),
     );

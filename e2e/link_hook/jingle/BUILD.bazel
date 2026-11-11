@@ -24,6 +24,7 @@ dart_package_metadata(
         ":tune",
     ],
     link_hook = "hook/link.dart",
+    link_hook_assets = ["package:jingle/tune.txt"],
     visibility = ["//visibility:public"],
 )
 

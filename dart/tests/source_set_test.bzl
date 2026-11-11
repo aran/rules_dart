@@ -217,6 +217,7 @@ def _record(package_root, language_version, code_assets, unreplaced_hook):
         data_assets = (),
         unreplaced_hook = unreplaced_hook,
         link_hook = None,
+        link_hook_assets = (),
         license_file = None,
         metadata = None,
     )

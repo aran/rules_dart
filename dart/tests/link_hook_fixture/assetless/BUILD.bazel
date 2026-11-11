@@ -1,0 +1,16 @@
+load("//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+# A package with a link hook that emits no data asset: it states no
+# `link_hook_assets`.
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "link_hook_assetless",
+    link_hook = "hook/link.dart",
+)
+
+dart_library(
+    name = "assetless",
+    srcs = ["lib/assetless.dart"],
+    package = ":pubspec-metadata",
+    visibility = ["//dart/tests/link_hook_fixture:__pkg__"],
+)

@@ -24,7 +24,6 @@ load(
     _code_asset_identity = "code_asset_identity",
     _collect_packages = "collect_packages",
     _collect_transitive_code_assets = "collect_transitive_code_assets",
-    _collect_transitive_data_assets = "collect_transitive_data_assets",
     _collect_transitive_resources = "collect_transitive_resources",
     _collect_transitive_runfiles = "collect_transitive_runfiles",
     _collect_transitive_srcs = "collect_transitive_srcs",
@@ -50,7 +49,6 @@ load(
     _COVERAGE_ATTRS = "COVERAGE_ATTRS",
     _test_coverage = "test_coverage",
 )
-load("//dart/private:dart_data_asset.bzl", _parse_data_asset_ids = "parse_data_asset_ids")
 load("//dart/private:dart_deps.bzl", _DART_TOOLCHAIN_TYPES_ATTR = "DART_TOOLCHAIN_TYPES_ATTR")
 load(
     "//dart/private:dart_import_check.bzl",
@@ -66,11 +64,6 @@ load(
     _package_lib_prefix = "package_lib_prefix",
 )
 load("//dart/private:dart_library.bzl", _library_package = "library_package")
-load(
-    "//dart/private:dart_link_hook.bzl",
-    _dart_link_hook_actions = "dart_link_hook_actions",
-    _link_hook_runner_attr = "link_hook_runner_attr",
-)
 load(
     "//dart/private:dart_module.bzl",
     _KERNEL_TOOL_ATTR = "KERNEL_TOOL_ATTR",
@@ -91,7 +84,15 @@ load(
     _PORTABLE = "PORTABLE",
     _PORTABLE_EXEC_GROUPS = "PORTABLE_EXEC_GROUPS",
 )
+load("//dart/private:package_info.bzl", _parse_data_asset_ids = "parse_data_asset_ids")
 load("//dart/private:package_root.bzl", _derive_package_root = "derive_package_root")
+load(
+    "//dart/private:program_assets.bzl",
+    _PROGRAM_ASSETS_TOOLCHAINS = "PROGRAM_ASSETS_TOOLCHAINS",
+    _dart_program_assets_actions = "dart_program_assets_actions",
+    _program_asset_file = "program_asset_file",
+    _program_assets_attrs = "program_assets_attrs",
+)
 load(
     "//dart/private:runtime.bzl",
     _RUNTIME_INDEPENDENT_ATTR = "RUNTIME_INDEPENDENT_ATTR",
@@ -285,14 +286,9 @@ collect_transitive_code_assets = _collect_transitive_code_assets
 package_code_assets = _package_code_assets
 resolve_code_assets = _resolve_code_assets
 
-# The data assets a program ships when nothing links it (a debug build), for a
-# bundler: `collect_transitive_data_assets(package, deps)`, every one of the
-# program's packages' `data_assets`, one per id, each a
-# `struct(package, name, file, id)` as `DartDataAssetInfo.assets` holds it. A
-# linked program's are what `dart_link_hook_actions` returns, which hands the
-# assets of a package with a link hook to the hook. `package_data_assets` reads
-# one `DartPackageInfo`'s.
-collect_transitive_data_assets = _collect_transitive_data_assets
+# The data assets one `DartPackageInfo` declares, each a
+# `struct(package, name, file, id)` as `DartDataAssetInfo.assets` holds it. What
+# a program ships is `dart_program_assets_actions()`'s.
 package_data_assets = _package_data_assets
 
 # The license text of one `DartPackageInfo`, or `None`, for a bundler building
@@ -339,15 +335,29 @@ test_coverage = _test_coverage
 colocate_packages = _colocate_packages
 COPY_TO_DIRECTORY_TOOLCHAINS = _COPY_TO_DIRECTORY_TOOLCHAINS
 
-# Run link hooks from inside another rule, for one that compiles its own kernel
-# and so cannot depend on a `dart_link_hook` target without a cycle. It takes
-# the program's `(package, deps)` as the helpers above do, and with `package`
-# the program's own files under that package's `lib/` (`package_files`, `[]`
-# for none), which the package's link hook may import. The hooks run in
-# `PORTABLE`: the rule declares `PORTABLE_EXEC_GROUPS` and merges
-# `link_hook_runner_attr()` into its `attrs`.
-dart_link_hook_actions = _dart_link_hook_actions
-link_hook_runner_attr = _link_hook_runner_attr
+# What a program ships, from inside another rule: what a bundler bundles, and
+# what a rule compiling its own kernel embeds, which cannot depend on a
+# `dart_program_assets` target without a cycle.
+#
+#     assets = dart_program_assets_actions(
+#         ctx,
+#         package = package,          # the program's own record, or None
+#         deps = ctx.attr.deps,
+#         name = ctx.label.name,
+#         recorded_uses = uses,       # a DartRecordedUsesInfo to link, None not to
+#     )
+#
+# returns `info`, the program's `DartProgramAssetsInfo`, and
+# `validation_outputs`, for an `_validation` output group. The packages are
+# `program_packages(package, deps)`. Linked, the link hooks run in `PORTABLE`:
+# the rule declares `PORTABLE_EXEC_GROUPS`, merges `program_assets_attrs()` into
+# its `attrs` and declares `PROGRAM_ASSETS_TOOLCHAINS` in its `toolchains`.
+# `program_asset_file(info, id)` is the file of one asset known at analysis
+# time, and fails naming the `link_hook_assets` to add when it is not.
+dart_program_assets_actions = _dart_program_assets_actions
+program_assets_attrs = _program_assets_attrs
+PROGRAM_ASSETS_TOOLCHAINS = _PROGRAM_ASSETS_TOOLCHAINS
+program_asset_file = _program_asset_file
 parse_data_asset_ids = _parse_data_asset_ids
 
 # Per-library kernel compilation (see `dart_module.bzl`). A rule set with its own

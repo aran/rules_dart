@@ -81,6 +81,7 @@ collecting its output can check that both name the same package.""",
         "data_assets": "tuple[struct]: Data assets the package owns, each as `DartDataAssetInfo.assets` holds one.",
         "unreplaced_hook": "str: `hook/build.dart` when the package has a build hook and no `code_assets` or `data_assets` replace it; empty otherwise.",
         "link_hook": "File or None: The package's `hook/link.dart`.",
+        "link_hook_assets": "tuple[str]: The ids of the data assets `link_hook` always emits.",
         "license_file": "File or None: The package's license text.",
     },
 )
@@ -149,18 +150,43 @@ constant fields, which annotated static methods were called with which \
 constant arguments.
 
 Provided by a `dart_binary` with `record_use = True`, and read by \
-`dart_link_hook`, which hands the file to each package's `hook/link.dart` as \
-`LinkInput.recordedUses`. The file is the JSON the Dart compiler writes, \
-unchanged.""",
+`dart_program_assets`, which links the program over them: it hands the file to \
+each package's `hook/link.dart` as `LinkInput.recordedUses`. The file is the \
+JSON the Dart compiler writes, unchanged.""",
     fields = {
         "file": "File: The recorded-uses JSON.",
         "kind": "str: `aot` when the compiler recorded the uses — the `exe` and `aot-snapshot` modes, whose tree-shaking is what makes the set of uses known — or `empty` for the `kernel` mode, which records nothing; their file is the empty JSON object the compiler writes when there is nothing to record.",
-        "package": "Label or None: the `dart_package_metadata` of the program's own package (its `package`), which a `dart_link_hook` over these uses must name too.",
-        "package_files": "list[File]: The program's own files under its package's `lib/`, which that package's link hook may import; what `dart_link_hook_actions` takes as `package_files`.",
+        "package": "Label or None: the `dart_package_metadata` of the program's own package (its `package`), which the program's assets must name too.",
+        "package_files": "list[File]: The program's own files under its package's `lib/`, which that package's link hook may import.",
     },
 )
 
 DartDataAssetInfo = _DartDataAssetInfo
+
+DartProgramAssetsInfo = provider(
+    doc = """The assets one program ships: the data and code assets of its packages, \
+after their link hooks when the program is linked.
+
+What a package declares is a fact of the package, the same in every program; \
+what a program ships is the result of one operation over the program, its \
+packages and whether it is linked, which `dart_program_assets` and \
+`dart_program_assets_actions()` perform. A bundler, `dart_binary` and \
+`dart_test` all take what they ship from it, so no two of them can disagree.
+
+The same shape whether or not the program is linked. Unlinked (a debug build), \
+every package's declared assets ship and all are known at analysis time; \
+linked, a package's link hook decides at build time which of its assets ship, \
+and only the ones known before it runs are in `known`.""",
+    fields = {
+        "manifest": """File: every asset the program ships, read in an action. JSON in the shape \
+of upstream's encoded assets: `{"assets": [{"type": "data_assets/data", "encoding": {"package", \
+"name", "file"}}, {"type": "code_assets/code", "encoding": {"id", "link_mode": {"type", "uri"?}, \
+"file"?}}]}`, sorted by id, each `file` the path of a File in `files` relative to the execution \
+root.""",
+        "files": "depset[File]: Every file `manifest` names, and the link hooks' output directories, which hold some of them. What an action reading `manifest` takes as inputs.",
+        "known": "dict[str, File]: The file of each asset whose id is known at analysis time, by id: unlinked, every asset with a file; linked, the assets of packages without a link hook and the `link_hook_assets` each hook promises. Every entry is also in `manifest`. Read one with `program_asset_file()` from `//dart:utils.bzl`, which names what to change when an id is not there.",
+    },
+)
 
 DartAnalysisOptionsInfo = provider(
     doc = """An `analysis_options.yaml` together with the packages its \

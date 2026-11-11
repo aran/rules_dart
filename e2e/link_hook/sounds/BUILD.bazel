@@ -23,6 +23,9 @@ dart_package_metadata(
         ":bell",
         ":chime",
     ],
+    # It keeps the sounds the program uses, so it promises none: what it emits
+    # depends on the program, and lands in the program's output directory for
+    # the package.
     link_hook = "hook/link.dart",
 )
 

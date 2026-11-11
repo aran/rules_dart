@@ -1,0 +1,17 @@
+load("//dart:defs.bzl", "dart_package_metadata")
+load("//dart/tests:link_hook_test.bzl", "link_hook_assets_without_hook_test")
+
+# Assets a link hook emits, stated for a package with no link hook, which the
+# declaration refuses.
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "link_hook_hookless",
+    link_hook_assets = ["package:link_hook_hookless/index.json"],
+    tags = ["manual"],
+)
+
+link_hook_assets_without_hook_test(
+    name = "link_hook_assets_without_hook_test",
+    size = "small",
+    target_under_test = ":pubspec-metadata",
+)

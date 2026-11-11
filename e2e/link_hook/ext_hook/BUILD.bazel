@@ -4,6 +4,7 @@ dart_package_metadata(
     name = "pubspec-metadata",
     package_name = "ext_hook",
     link_hook = "hook/link.dart",
+    link_hook_assets = ["package:ext_hook/ext_hook/names.json"],
 )
 
 # A package with a link hook that arrives from another module, as a pub

@@ -42,6 +42,7 @@ def _pkg(package_name, package_root, code_assets = (), version = "", language_ve
         data_assets = (),
         unreplaced_hook = "",
         link_hook = None,
+        link_hook_assets = (),
         license_file = None,
         metadata = None,
     )

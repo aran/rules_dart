@@ -227,13 +227,24 @@ dart_binary(
     name = "link_hook_runner",
     compile_mode = "exe",
     main = "link_hook_runner.dart",
-    # Public: rules calling `dart_link_hook_actions` declare it as an attribute.
+    # Public: rules calling `dart_program_assets_actions` declare it as an
+    # attribute.
     visibility = ["//visibility:public"],
     deps = [
         "@ext_pub_deps//:args",
         "@ext_pub_deps//:data_assets",
         "@ext_pub_deps//:hooks",
     ],
+)
+
+dart_binary(
+    name = "program_assets_manifest",
+    compile_mode = "exe",
+    main = "program_assets_manifest.dart",
+    # Public: rules calling `dart_program_assets_actions` declare it as an
+    # attribute.
+    visibility = ["//visibility:public"],
+    deps = ["@ext_pub_deps//:args"],
 )
 
 _KERNEL_TOOL_SRCS = [

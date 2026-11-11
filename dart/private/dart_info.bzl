@@ -266,6 +266,7 @@ def package_info_from_metadata(label, metadata, package_root):
         data_assets = metadata.data_assets,
         unreplaced_hook = metadata.unreplaced_hook,
         link_hook = metadata.link_hook,
+        link_hook_assets = metadata.link_hook_assets,
         license_file = metadata.license_file,
         metadata = metadata.label,
     )
@@ -429,6 +430,7 @@ def derived_package_info(
         data_assets = None,
         unreplaced_hook = None,
         link_hook = None,
+        link_hook_assets = None,
         license_file = None):
     """Copies `pkg`, overriding the named fields and carrying the rest through.
 
@@ -452,6 +454,8 @@ def derived_package_info(
       unreplaced_hook: Replacement `unreplaced_hook` string (`""` for
         none), or `None` to keep `pkg`'s.
       link_hook: Replacement `link_hook` File, or `None` to keep `pkg`'s.
+      link_hook_assets: Replacement `link_hook_assets` tuple, or `None` to
+        keep `pkg`'s.
       license_file: Replacement `license_file` File, or `None` to keep `pkg`'s.
 
     Returns:
@@ -478,6 +482,9 @@ def derived_package_info(
             pkg.unreplaced_hook if unreplaced_hook == None else unreplaced_hook
         ),
         link_hook = pkg.link_hook if link_hook == None else link_hook,
+        link_hook_assets = (
+            pkg.link_hook_assets if link_hook_assets == None else link_hook_assets
+        ),
         license_file = pkg.license_file if license_file == None else license_file,
         metadata = pkg.metadata,
     )

@@ -1,0 +1,27 @@
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+# A package whose link hook breaks one rule of what a hook may emit, chosen by
+# the `Fault` the program uses: each JSON file in `uses/` is the recorded uses
+# of a program using one. Every program over it fails; see `//:faults_*`.
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "faults",
+    link_hook = "hook/link.dart",
+    link_hook_assets = ["package:faults/promised.txt"],
+)
+
+dart_library(
+    name = "faults",
+    srcs = ["lib/faults.dart"],
+    package = ":pubspec-metadata",
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@pub_deps//:data_assets",
+        "@pub_deps//:hooks",
+        "@pub_deps//:meta",
+        "@pub_deps//:record_use",
+    ],
+)
+
+exports_files(glob(["uses/*.json"]))

@@ -4,6 +4,7 @@ dart_package_metadata(
     name = "pubspec-metadata",
     package_name = "undeclared_hook",
     link_hook = "hook/link.dart",
+    link_hook_assets = ["package:undeclared_hook/undeclared_hook/extra.json"],
 )
 
 # A package whose hook imports `lib/extra.dart`, which is in the package's

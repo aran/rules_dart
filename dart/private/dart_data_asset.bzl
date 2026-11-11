@@ -6,42 +6,15 @@ Bazel stand-in for a `DataAsset` a `hook/build.dart` emits, as
 `data_assets` of its `dart_package_metadata`, from where it reaches every
 program depending on the package.
 
-The provider is `DartDataAssetInfo`, the one `dart_link_hook` gives a linked
-program's assets in, so a declared asset and one a link hook emits reach a
-bundler the same way.
+What a program ships is `DartProgramAssetsInfo`'s: these when nothing links
+it, or what the package's link hook keeps of them when it is linked.
 """
 
 load("//dart:providers.bzl", "DartDataAssetInfo")
+load("//dart/private:package_info.bzl", "parse_data_asset_ids")
 load("//dart/private:runtime.bzl", "non_dart_transition")
 
 visibility("//dart/...")
-
-def parse_data_asset_ids(label, ids):
-    """Splits data asset ids into package and name.
-
-    Args:
-      label: The rule's label, for messages.
-      ids: The ids, each `package:<package>/<name>`.
-
-    Returns:
-      `(assets, error)`: a list of `struct(package, name, id)` in declaration
-      order, and None; or None and an error string.
-    """
-    assets = []
-    seen = {}
-    for asset_id in ids:
-        rest = asset_id[len("package:"):] if asset_id.startswith("package:") else ""
-        package, _, name = rest.partition("/")
-        segments = name.split("/")
-        if not package or not name or "" in segments or "." in segments or ".." in segments:
-            return None, ("%s: data asset id `%s` is not of the form " +
-                          "`package:<package>/<name>`, with `<name>` a relative " +
-                          "path.") % (label, asset_id)
-        if asset_id in seen:
-            return None, "%s: data asset id `%s` is declared twice." % (label, asset_id)
-        seen[asset_id] = True
-        assets.append(struct(package = package, name = name, id = asset_id))
-    return assets, None
 
 def data_asset(package, name, file):
     """One data asset, as `DartDataAssetInfo.assets` holds it.

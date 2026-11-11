@@ -4,6 +4,7 @@ dart_package_metadata(
     name = "pubspec-metadata",
     package_name = "generated_hook",
     link_hook = "hook/link.dart",
+    link_hook_assets = ["package:generated_hook/generated_hook/names.json"],
 )
 
 # A package whose hook imports a library with a generated part: the part is

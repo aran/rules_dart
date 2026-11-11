@@ -110,8 +110,8 @@ var _primitiveDartKinds = map[string]rule.KindInfo{
 		MergeableAttrs: map[string]bool{"srcs": true, "visibility": true},
 	},
 	// A package's facts (metadata.go). Gazelle writes all but
-	// `code_assets`, `data_assets` and `version`, which it keeps: only a
-	// person states them. A hook or license file gone from the package leaves it.
+	// `code_assets`, `data_assets`, `link_hook_assets` and `version`, which it
+	// keeps: only a person states them. A hook or license file gone from the package leaves it.
 	"dart_package_metadata": {
 		NonEmptyAttrs: map[string]bool{"package_name": true},
 		MergeableAttrs: map[string]bool{

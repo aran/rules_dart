@@ -23,7 +23,7 @@ def _record_test_impl(ctx):
     asserts.equals(env, ctx.attr.expected_metadata, str(mine.metadata) if mine.metadata else "")
     if ctx.attr.same_as:
         theirs = _record(ctx.attr.same_as)
-        for field in ["package_name", "package_root", "version", "language_version", "code_assets", "unreplaced_hook", "link_hook", "license_file", "metadata"]:
+        for field in ["package_name", "package_root", "version", "language_version", "code_assets", "unreplaced_hook", "link_hook", "link_hook_assets", "license_file", "metadata"]:
             asserts.equals(env, getattr(theirs, field), getattr(mine, field), "`%s` differs from rules_dart's record" % field)
     return analysistest.end(env)
 

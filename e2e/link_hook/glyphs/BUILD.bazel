@@ -4,10 +4,12 @@ dart_package_metadata(
     name = "pubspec-metadata",
     package_name = "glyphs",
     link_hook = "hook/link.dart",
+    link_hook_assets = ["package:glyphs/glyphs/index.json"],
 )
 
 # A package with a link hook: `hook/link.dart` reads the recorded uses of
-# `Glyph` and emits `package:glyphs/glyphs/index.json`. The hook's own imports
+# `Glyph` and always emits `package:glyphs/glyphs/index.json`, which the
+# metadata states. The hook's own imports
 # are ordinary dependencies of the package, as pub requires.
 dart_library(
     name = "glyphs",

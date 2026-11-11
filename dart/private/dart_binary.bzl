@@ -381,7 +381,7 @@ def _dart_binary_rule(check_imports, compile_runner = True, launcher = True):
                 ),
                 "record_use": attr.bool(
                     doc = """Record the uses of `@RecordUse` definitions (`package:meta`) as \
-    `<name>.recorded_uses.json`, provided as `DartRecordedUsesInfo` for `dart_link_hook`. \
+    `<name>.recorded_uses.json`, provided as `DartRecordedUsesInfo` for `dart_program_assets`. \
     In the `exe` and `aot-snapshot` modes the compiler records them as it tree-shakes. The \
     `kernel` mode does not tree-shake, so nothing is recorded and the file is \
     the empty JSON object `{}` (`kind = "empty"`).""",

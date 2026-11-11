@@ -5,19 +5,21 @@ so the hook is never run and no binary is compiled. The behaviour the hooks
 produce is `e2e/link_hook`'s to show.
 """
 
-load("//dart:defs.bzl", "dart_binary", "dart_code_asset", "dart_data_asset", "dart_library", "dart_link_hook", "dart_package_metadata")
+load("//dart:defs.bzl", "dart_binary", "dart_code_asset", "dart_data_asset", "dart_library", "dart_package_metadata", "dart_program_assets")
 load(
     "//dart/tests:link_hook_test.bzl",
-    "asset_without_hook_test",
     "empty_recording_binary_test",
+    "known_asset",
+    "known_asset_test",
     "library_records_link_hook_test",
     "link_hook_actions_test",
     "link_hook_data_assets_test",
-    "malformed_asset_id_test",
     "not_recording_binary_test",
     "own_package_not_named_test",
     "recorded_uses_not_json_test",
     "recording_binary_test",
+    "unknown_asset_test",
+    "unlinked_assets_test",
     "validation_runs_assetless_hook_test",
 )
 load("//dart/tests:path_mapping_test.bzl", "path_mapping_test")
@@ -35,6 +37,7 @@ dart_package_metadata(
     package_name = "link_hook_fixture",
     data_assets = [":raw"],
     link_hook = "hook/link.dart",
+    link_hook_assets = ["package:link_hook_fixture/data/index.json"],
 )
 
 dart_library(
@@ -134,11 +137,10 @@ not_recording_binary_test(
     target_under_test = ":plain",
 )
 
-# --- dart_link_hook ---
+# --- dart_program_assets ---
 
-dart_link_hook(
+dart_program_assets(
     name = "linked",
-    data_assets = ["package:link_hook_fixture/data/index.json"],
     recorded_uses = ":exe",
     tags = ["manual"],
     deps = [":lib"],
@@ -153,9 +155,8 @@ link_hook_actions_test(
 
 # The hook's package is the program's own, and no library of it is in `deps`:
 # its hook runs as a dependency's would.
-dart_link_hook(
+dart_program_assets(
     name = "linked_own_package",
-    data_assets = ["package:link_hook_fixture/data/index.json"],
     package = ":pubspec-metadata",
     recorded_uses = "uses.json",
     tags = ["manual"],
@@ -171,9 +172,8 @@ link_hook_actions_test(
 
 # The hook receives its package's declared data asset; the declared asset of
 # the package without a hook ships beside what the hook emits.
-dart_link_hook(
+dart_program_assets(
     name = "linked_with_data",
-    data_assets = ["package:link_hook_fixture/data/index.json"],
     recorded_uses = "uses.json",
     tags = ["manual"],
     deps = [
@@ -190,9 +190,8 @@ link_hook_data_assets_test(
 
 # The same, with the hook's package the program's own and no library of it in
 # `deps`: its assets are the hook's input as a dependency's would be.
-dart_link_hook(
+dart_program_assets(
     name = "linked_own_package_with_data",
-    data_assets = ["package:link_hook_fixture/data/index.json"],
     package = ":pubspec-metadata",
     recorded_uses = "uses.json",
     tags = ["manual"],
@@ -208,6 +207,50 @@ link_hook_data_assets_test(
     target_under_test = ":linked_own_package_with_data",
 )
 
+# Not linked: every declared asset ships, the hook's package's among them.
+dart_program_assets(
+    name = "unlinked_with_data",
+    tags = ["manual"],
+    deps = [
+        ":lib",
+        "//dart/tests/link_hook_fixture/plain_data",
+    ],
+)
+
+unlinked_assets_test(
+    name = "unlinked_assets_test",
+    size = "small",
+    target_under_test = ":unlinked_with_data",
+)
+
+# The promised asset is known at analysis time; one the hook may or may not
+# emit is not, and naming it says what to change.
+known_asset(
+    name = "known_index",
+    asset_id = "package:link_hook_fixture/data/index.json",
+    assets = ":linked_with_data",
+    tags = ["manual"],
+)
+
+known_asset_test(
+    name = "known_asset_test",
+    size = "small",
+    target_under_test = ":known_index",
+)
+
+known_asset(
+    name = "unknown_raw",
+    asset_id = "package:link_hook_fixture/data/raw.json",
+    assets = ":linked_with_data",
+    tags = ["manual"],
+)
+
+unknown_asset_test(
+    name = "unknown_asset_test",
+    size = "small",
+    target_under_test = ":unknown_raw",
+)
+
 # A program in the package, linked without naming it: its hook would not run.
 dart_binary(
     name = "own_exe",
@@ -218,7 +261,7 @@ dart_binary(
     deps = [":lib"],
 )
 
-dart_link_hook(
+dart_program_assets(
     name = "own_package_not_named",
     recorded_uses = ":own_exe",
     tags = ["manual"],
@@ -231,11 +274,12 @@ own_package_not_named_test(
     target_under_test = ":own_package_not_named",
 )
 
-dart_link_hook(
+# A hook whose package promises no `link_hook_assets`.
+dart_program_assets(
     name = "linked_from_file",
     recorded_uses = "uses.json",
     tags = ["manual"],
-    deps = [":lib"],
+    deps = ["//dart/tests/link_hook_fixture/assetless"],
 )
 
 validation_runs_assetless_hook_test(
@@ -244,35 +288,7 @@ validation_runs_assetless_hook_test(
     target_under_test = ":linked_from_file",
 )
 
-dart_link_hook(
-    name = "asset_without_hook",
-    data_assets = ["package:link_hook_fixture_dep/x.json"],
-    recorded_uses = "uses.json",
-    tags = ["manual"],
-    deps = [":lib"],
-)
-
-asset_without_hook_test(
-    name = "asset_without_hook_test",
-    size = "small",
-    target_under_test = ":asset_without_hook",
-)
-
-dart_link_hook(
-    name = "malformed_asset_id",
-    data_assets = ["link_hook_fixture/x.json"],
-    recorded_uses = "uses.json",
-    tags = ["manual"],
-    deps = [":lib"],
-)
-
-malformed_asset_id_test(
-    name = "malformed_asset_id_test",
-    size = "small",
-    target_under_test = ":malformed_asset_id",
-)
-
-dart_link_hook(
+dart_program_assets(
     name = "recorded_uses_not_json",
     recorded_uses = ":plain",
     tags = ["manual"],

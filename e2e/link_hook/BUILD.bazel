@@ -1,13 +1,11 @@
-load("@rules_dart//dart:defs.bzl", "dart_analysis_config", "dart_analysis_options", "dart_binary", "dart_link_hook", "dart_test")
-load(":in_rule.bzl", "in_rule_assets", "unlinked_assets")
+load("@rules_dart//dart:defs.bzl", "dart_analysis_config", "dart_analysis_options", "dart_binary", "dart_program_assets", "dart_test")
+load(":in_rule.bzl", "in_rule_assets", "known_asset")
 
 exports_files(["pubspec.lock"])
 
-_INDEX = ["package:glyphs/glyphs/index.json"]
-
-# Each binary records the uses of `@RecordUse` classes; each `dart_link_hook`
-# runs `glyphs`' hook/link.dart over them and declares the one data asset it
-# emits.
+# Each binary records the uses of `@RecordUse` classes; each linked
+# `dart_program_assets` runs `glyphs`' hook/link.dart over them, and declares
+# the one data asset its `dart_package_metadata` promises the hook emits.
 
 # AOT modes: the compiler writes the recorded uses beside the executable.
 dart_binary(
@@ -17,9 +15,8 @@ dart_binary(
     deps = ["//glyphs"],
 )
 
-dart_link_hook(
+dart_program_assets(
     name = "app_assets",
-    data_assets = _INDEX,
     recorded_uses = ":app",
     deps = ["//glyphs"],
 )
@@ -32,9 +29,8 @@ dart_binary(
     deps = ["//glyphs"],
 )
 
-dart_link_hook(
+dart_program_assets(
     name = "app_aot_assets",
-    data_assets = _INDEX,
     recorded_uses = ":app_aot",
     deps = ["//glyphs"],
 )
@@ -48,17 +44,15 @@ dart_binary(
     deps = ["//glyphs"],
 )
 
-dart_link_hook(
+dart_program_assets(
     name = "app_kernel_assets",
-    data_assets = _INDEX,
     recorded_uses = ":app_kernel",
     deps = ["//glyphs"],
 )
 
 # Recorded uses from anywhere, as a plain JSON file.
-dart_link_hook(
+dart_program_assets(
     name = "file_assets",
-    data_assets = _INDEX,
     recorded_uses = "recorded_uses.json",
     deps = ["//glyphs"],
 )
@@ -66,18 +60,16 @@ dart_link_hook(
 # A hook whose package has a part written by a generator: the package is split
 # between the source tree and `bazel-out`, and the hook runs from one assembled
 # directory holding both.
-dart_link_hook(
+dart_program_assets(
     name = "generated_assets",
-    data_assets = ["package:generated_hook/generated_hook/names.json"],
     recorded_uses = "recorded_uses.json",
     deps = ["//generated"],
 )
 
 # A hook of a package in an external repository, whose imports come from the
 # rest of this closure.
-dart_link_hook(
+dart_program_assets(
     name = "external_assets",
-    data_assets = ["package:ext_hook/ext_hook/names.json"],
     recorded_uses = "recorded_uses.json",
     deps = [
         "@ext_hook",
@@ -89,46 +81,75 @@ dart_link_hook(
 # The same hooks run from inside another rule's implementation.
 in_rule_assets(
     name = "in_rule_assets",
-    data_assets = _INDEX,
     recorded_uses = ":app",
     deps = ["//glyphs"],
+)
+
+# The index each hook promises, named at analysis time.
+[
+    known_asset(
+        name = name + "_index",
+        asset_id = "package:glyphs/glyphs/index.json",
+        assets = ":" + name,
+    )
+    for name in [
+        "app_assets",
+        "app_aot_assets",
+        "app_kernel_assets",
+        "file_assets",
+        "in_rule_assets",
+    ]
+]
+
+known_asset(
+    name = "generated_assets_index",
+    asset_id = "package:generated_hook/generated_hook/names.json",
+    assets = ":generated_assets",
+)
+
+known_asset(
+    name = "external_assets_index",
+    asset_id = "package:ext_hook/ext_hook/names.json",
+    assets = ":external_assets",
 )
 
 dart_test(
     name = "index_test",
     size = "small",
     args = [
-        "$(rlocationpath :app_assets)",
+        "$(rlocationpath :app_assets_index)",
         "heart,star",
-        "$(rlocationpath :app_aot_assets)",
+        "$(rlocationpath :app_aot_assets_index)",
         "heart,star",
-        "$(rlocationpath :app_kernel_assets)",
+        "$(rlocationpath :app_kernel_assets_index)",
         "(none)",
-        "$(rlocationpath :file_assets)",
+        "$(rlocationpath :file_assets_index)",
         "moon",
-        "$(rlocationpath :in_rule_assets)",
+        "$(rlocationpath :in_rule_assets_index)",
         "heart,star",
-        "$(rlocationpath :generated_assets)",
+        "$(rlocationpath :generated_assets_index)",
         "alpha,beta",
-        "$(rlocationpath :external_assets)",
+        "$(rlocationpath :external_assets_index)",
         "external",
     ],
     data = [
-        ":app_aot_assets",
-        ":app_assets",
-        ":app_kernel_assets",
-        ":external_assets",
-        ":file_assets",
-        ":generated_assets",
-        ":in_rule_assets",
+        ":app_aot_assets_index",
+        ":app_assets_index",
+        ":app_kernel_assets_index",
+        ":external_assets_index",
+        ":file_assets_index",
+        ":generated_assets_index",
+        ":in_rule_assets_index",
     ],
     main = "index_test.dart",
     deps = ["@rules_dart//dart/runfiles"],
 )
 
 # Declared data assets. `sounds` declares what its build hook emits and has a
-# link hook, which receives them and keeps the sounds the program uses;
-# `banner` declares one and has no link hook, so it ships as it is.
+# link hook, which receives them and keeps the sounds the program uses, which
+# depend on the program: it promises none, and what it keeps lands in its
+# output directory. `banner` declares one and has no link hook, so it ships as
+# it is.
 dart_binary(
     name = "sounds_app",
     main = "sounds_app.dart",
@@ -139,9 +160,8 @@ dart_binary(
     ],
 )
 
-dart_link_hook(
+dart_program_assets(
     name = "sounds_app_assets",
-    data_assets = ["package:sounds/chime.txt"],
     recorded_uses = ":sounds_app",
     deps = [
         "//banner",
@@ -150,7 +170,7 @@ dart_link_hook(
 )
 
 # Not linked, a program ships every declared asset.
-unlinked_assets(
+dart_program_assets(
     name = "sounds_app_unlinked_assets",
     deps = [
         "//banner",
@@ -163,10 +183,37 @@ dart_test(
     size = "small",
     args = [
         "'$(rlocationpaths :sounds_app_assets)'",
-        "banner.txt=welcome",
-        "chime.txt=ding",
+        "package:banner/banner.txt=welcome",
+        "package:sounds/chime.txt=ding",
     ],
     data = [":sounds_app_assets"],
+    main = "assets_test.dart",
+    deps = ["@rules_dart//dart/runfiles"],
+)
+
+# What `sounds`' hook keeps depends on the program: one using only the bell
+# ships the bell, and not the chime.
+dart_binary(
+    name = "bell_app",
+    main = "bell_app.dart",
+    record_use = True,
+    deps = ["//sounds"],
+)
+
+dart_program_assets(
+    name = "bell_app_assets",
+    recorded_uses = ":bell_app",
+    deps = ["//sounds"],
+)
+
+dart_test(
+    name = "bell_app_assets_test",
+    size = "small",
+    args = [
+        "'$(rlocationpaths :bell_app_assets)'",
+        "package:sounds/bell.txt=dong",
+    ],
+    data = [":bell_app_assets"],
     main = "assets_test.dart",
     deps = ["@rules_dart//dart/runfiles"],
 )
@@ -176,9 +223,9 @@ dart_test(
     size = "small",
     args = [
         "'$(rlocationpaths :sounds_app_unlinked_assets)'",
-        "banner.txt=welcome",
-        "bell.txt=dong",
-        "chime.txt=ding",
+        "package:banner/banner.txt=welcome",
+        "package:sounds/bell.txt=dong",
+        "package:sounds/chime.txt=ding",
     ],
     data = [":sounds_app_unlinked_assets"],
     main = "assets_test.dart",
@@ -194,12 +241,8 @@ _JINGLE_DEPS = [
     "@pub_deps//:hooks",
 ]
 
-dart_link_hook(
+dart_program_assets(
     name = "jingle_assets",
-    data_assets = [
-        "package:jingle/tune.txt",
-        "package:sounds/chime.txt",
-    ],
     package = "//jingle:pubspec-metadata",
     recorded_uses = "//jingle:app",
     deps = _JINGLE_DEPS,
@@ -207,16 +250,12 @@ dart_link_hook(
 
 in_rule_assets(
     name = "jingle_in_rule_assets",
-    data_assets = [
-        "package:jingle/tune.txt",
-        "package:sounds/chime.txt",
-    ],
     package = "//jingle:pubspec-metadata",
     recorded_uses = "//jingle:app",
     deps = _JINGLE_DEPS,
 )
 
-unlinked_assets(
+dart_program_assets(
     name = "jingle_unlinked_assets",
     package = "//jingle:pubspec-metadata",
     deps = _JINGLE_DEPS,
@@ -228,8 +267,8 @@ unlinked_assets(
         size = "small",
         args = [
             "'$(rlocationpaths :%s)'" % name,
-            "chime.txt=ding",
-            "tune.txt=tune",
+            "package:jingle/tune.txt=tune",
+            "package:sounds/chime.txt=ding",
         ],
         data = [":" + name],
         main = "assets_test.dart",
@@ -246,10 +285,10 @@ dart_test(
     size = "small",
     args = [
         "'$(rlocationpaths :jingle_unlinked_assets)'",
-        "bell.txt=dong",
-        "chime.txt=ding",
-        "hum.txt=hum",
-        "tune.txt=tune",
+        "package:jingle/hum.txt=hum",
+        "package:jingle/tune.txt=tune",
+        "package:sounds/bell.txt=dong",
+        "package:sounds/chime.txt=ding",
     ],
     data = [":jingle_unlinked_assets"],
     main = "assets_test.dart",
@@ -267,21 +306,39 @@ dart_binary(
     deps = ["//glyphs"],
 )
 
-dart_link_hook(
+dart_program_assets(
     name = "dynamic_app_assets",
-    data_assets = _INDEX,
     recorded_uses = ":dynamic_app",
     tags = ["manual"],
     deps = ["//glyphs"],
 )
 
+# Expected to fail: `faults`' hook does what the recorded uses of each JSON
+# file ask, each against one check of what a hook emits. Tagged manual so
+# `//...` stays green; CI's expected-failure job builds each and checks its
+# message.
+[
+    dart_program_assets(
+        name = "faults_" + fault,
+        recorded_uses = "//faults:uses/%s.json" % fault,
+        tags = ["manual"],
+        deps = ["//faults"],
+    )
+    for fault in [
+        "foreign",
+        "twice",
+        "escape",
+        "unpromised",
+        "route",
+    ]
+]
+
 # Expected to fail: the hook imports a file of its package that no target
 # declares. `no-sandbox` runs it where the file is on disk, so only the
 # package's assembled directory keeps the hook from reading it. Tagged manual
 # so `//...` stays green; CI's expected-failure job builds it.
-dart_link_hook(
+dart_program_assets(
     name = "undeclared_assets",
-    data_assets = ["package:undeclared_hook/undeclared_hook/extra.json"],
     recorded_uses = "recorded_uses.json",
     tags = [
         "manual",

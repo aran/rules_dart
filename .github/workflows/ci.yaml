@@ -475,6 +475,24 @@ jobs:
           fi
           bazel build //:undeclared_assets 2>&1 | grep -q "package:undeclared_hook/extra.dart"
           echo "OK: undeclared file not found by the hook"
+      # A link hook breaking a rule of what it may emit fails the build, naming
+      # what it did and what to change.
+      - name: link_hook — expect each faulty output of a hook to fail the build, with what to change
+        working-directory: e2e/link_hook
+        run: |
+          expect() {
+            if bazel build "//:faults_$1" 2>/dev/null; then
+              echo "ERROR: //:faults_$1 should have failed"
+              exit 1
+            fi
+            bazel build "//:faults_$1" 2>&1 | grep -qF "$2"
+          }
+          expect foreign "emitted \`package:glyphs/foreign.txt\`, a data asset of another package"
+          expect twice "emitted \`package:faults/twice.txt\` more than once"
+          expect escape "emitted \`package:faults/../escape.txt\`, whose name is not a relative path"
+          expect unpromised "did not emit \`package:faults/promised.txt\`, which the \`link_hook_assets\` of \`@@//faults:pubspec-metadata\` promise"
+          expect route "routed assets or metadata to the link hooks of glyphs"
+          echo "OK: faulty link-hook outputs reported"
       # A VM program reaching web-only code, which `//...` skips, is refused
       # by name, with the chain to the incompatible library.
       - name: web_compiler — expect a VM program reaching web-only code to be refused

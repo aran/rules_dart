@@ -83,6 +83,17 @@ def package_link_hook(pkg):
     """
     return pkg.link_hook
 
+def package_link_hook_assets(pkg):
+    """The ids of the data assets a `DartPackageInfo`'s link hook always emits.
+
+    Args:
+      pkg: A `DartPackageInfo`.
+
+    Returns:
+      Tuple of ids, each `package:<package>/<name>`; empty when none.
+    """
+    return pkg.link_hook_assets
+
 def package_license_file(pkg):
     """A `DartPackageInfo`'s license text.
 
@@ -114,6 +125,9 @@ def _license_key(pkg):
 
 def _link_hook_key(pkg):
     return _in_package_key(pkg, package_link_hook(pkg))
+
+def _link_hook_assets_key(pkg):
+    return ", ".join(package_link_hook_assets(pkg))
 
 def collect_code_asset_files(deps):
     """Merges `DartInfo.transitive_code_asset_files` across deps.
@@ -171,37 +185,17 @@ def collect_transitive_code_assets(package, deps):
         assets.extend(list(package_code_assets(pkg)))
     return assets
 
-def collect_transitive_data_assets(package, deps):
-    """Collects the data assets of every package of a program.
-
-    The data assets a program ships when nothing links it, as a build hook
-    routes them to the application bundle then; `dart_link_hook` gives a
-    linked program's.
-
-    Args:
-      package: The program's own `DartPackageInfo`, or `None`; see
-        `program_packages`.
-      deps: List of targets providing `DartInfo`.
-
-    Returns:
-      List of `struct(package, name, file, id)`, one per id, the program's own
-      package's first, then in dependency order. Fails when two records of one
-      package name different files for one id: an application bundles one
-      file per id.
-    """
-    assets, err = unique_data_assets(program_packages(package, deps))
-    if err != None:
-        fail(err)
-    return assets
-
 def unique_data_assets(packages):
-    """The data assets of `packages`, one per id; what `collect_transitive_data_assets` returns.
+    """The data assets of `packages`, one per id.
 
     Args:
       packages: List of `DartPackageInfo`, merged as `collect_packages` merges them.
 
     Returns:
-      `(assets, error)`: the list and None, or None and an error string.
+      `(assets, error)`: the list, the first package's first, and None; or
+      None and an error string when two records of one package name
+      different files for one id, since an application bundles one file per
+      id.
     """
     by_id = {}
     for pkg in packages:
@@ -323,6 +317,12 @@ which one runs would be decided by dependency order. A package has one
 them.
 """
 
+_LINK_HOOK_ASSETS_REMEDY = """
+Each package listed just above has records naming different data assets its
+link hook emits. A package's hook emits what it emits: make the producers name
+the same `link_hook_assets`, or only one of them.
+"""
+
 _BUILD_HOOK_REMEDY = """
 Each package listed just above has records naming different build hooks. A
 package has one `hook/build.dart`; make every producer that states one state
@@ -345,6 +345,7 @@ _AGREED_FIELDS = (
     (lambda pkg: pkg.language_version, "language versions", _LANGUAGE_VERSION_REMEDY),
     (_license_key, "license files", _LICENSE_FILE_REMEDY),
     (_link_hook_key, "link hooks", _LINK_HOOK_REMEDY),
+    (_link_hook_assets_key, "link-hook assets", _LINK_HOOK_ASSETS_REMEDY),
     (lambda pkg: pkg.unreplaced_hook, "build hooks", _BUILD_HOOK_REMEDY),
 )
 
@@ -548,6 +549,7 @@ def codegen_identity(identity):
         data_assets = (),
         unreplaced_hook = "",
         link_hook = None,
+        link_hook_assets = (),
         license_file = None,
     )
 
@@ -608,8 +610,9 @@ def package_agreement_error(merged):
     skipped.
 
     The fields are the package's own facts: `version`, `language_version`,
-    `license_file`, `link_hook` and `unreplaced_hook`. Only two *stated* values
-    can disagree. A record that states none carries "" (or `None`) — every
+    `license_file`, `link_hook`, `link_hook_assets` and `unreplaced_hook`.
+    Only two *stated* values can disagree. A record that states none carries
+    "" (or `None`, or `()`) — every
     `DartPackageInfo` built by a rule set that predates the field, every
     hand-written `dart_library`, which has no version to state, and every
     target of a split package but the one carrying the hook or the license.
@@ -754,10 +757,10 @@ def merge_package_records(merged):
 
     The merged record is the first record, for source resolution, with every
     package-level fact taken from whichever record states it: `version`,
-    `language_version`, `license_file`, `link_hook` and `unreplaced_hook`. A
-    producer that states fewer facts (an older one, or a rule set adopting a
-    field on its own schedule) knows less, so a fact stated on any record is
-    the package's. Taking the first stated value is order-independent only
+    `language_version`, `license_file`, `link_hook`, `link_hook_assets` and
+    `unreplaced_hook`. A producer that states fewer facts (an older one, or a
+    rule set adopting a field on its own schedule) knows less, so a fact
+    stated on any record is the package's. Taking the first stated value is order-independent only
     because the records agree, so this calls `package_agreement_error` first
     and fails, naming both targets, when two records at one root name
     different declarations or two records state different values of any of
@@ -766,7 +769,7 @@ def merge_package_records(merged):
     Code and data assets union instead, each once: dropping a later record's
     assets would silently lose a native library, and the failure would surface
     at runtime as an unresolved `@Native` symbol. `resolve_code_assets` and
-    `collect_transitive_data_assets` fail later if — and only if — two assets
+    `unique_data_assets` fail later if — and only if — two assets
     genuinely claim one id, which is the case the Dart VM cannot resolve either.
     Assets replace a build hook, so the merged package's hook is unreplaced
     when any record names one and no record supplies assets: a hub curating
@@ -825,6 +828,7 @@ def _merge_one(records):
         data_assets = data_assets,
         unreplaced_hook = "" if code_assets or data_assets else _first_stated(records, lambda p: p.unreplaced_hook, ""),
         link_hook = _first_stated(records, package_link_hook, None),
+        link_hook_assets = _first_stated(records, package_link_hook_assets, ()),
         license_file = _first_stated(records, package_license_file, None),
     )
 

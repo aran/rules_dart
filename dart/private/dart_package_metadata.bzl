@@ -1,7 +1,7 @@
 """The `dart_package_metadata` rule: a Dart package's facts, declared once."""
 
 load("//dart:providers.bzl", "DartCodeAssetInfo", "DartDataAssetInfo", "DartPackageMetadataInfo")
-load("//dart/private:package_info.bzl", "check_code_asset_ownership", "check_data_asset_ownership", "data_assets_of")
+load("//dart/private:package_info.bzl", "check_code_asset_ownership", "check_data_asset_ownership", "data_assets_of", "link_hook_assets_error")
 load("//dart/private:package_root.bzl", "locate_package_root")
 
 visibility("//dart/...")
@@ -9,7 +9,7 @@ visibility("//dart/...")
 def link_hook_error(label, package_root, link_hook):
     """Checks that a `link_hook` is the package's `hook/link.dart`.
 
-    The hook's location is how `dart_link_hook` finds the package root it
+    The hook's location is how a linked program finds the package root it
     hands the hook, so a file anywhere else would give the hook the wrong
     `packageRoot`.
 
@@ -78,6 +78,7 @@ def _dart_package_metadata_impl(ctx):
         build_hook_error(ctx.label, package_root, ctx.file.build_hook),
         check_code_asset_ownership(ctx.label, ctx.attr.package_name, assets),
         check_data_asset_ownership(ctx.label, ctx.attr.package_name, data_assets),
+        link_hook_assets_error(ctx.label, ctx.attr.package_name, ctx.file.link_hook, ctx.attr.link_hook_assets),
     ]:
         if err != None:
             fail(err)
@@ -91,6 +92,7 @@ def _dart_package_metadata_impl(ctx):
         data_assets = tuple(data_assets),
         unreplaced_hook = unreplaced_build_hook(ctx.file.build_hook, assets + data_assets),
         link_hook = ctx.file.link_hook,
+        link_hook_assets = tuple(ctx.attr.link_hook_assets),
         license_file = ctx.file.license_file,
     )]
 
@@ -121,11 +123,20 @@ root. Leave it unset for a hook whose assets nothing here uses.""",
             allow_single_file = [".dart"],
         ),
         "link_hook": attr.label(
-            doc = """The package's `hook/link.dart`, if it has one. `dart_link_hook` runs it \
-over an executable's recorded uses; nothing else does, matching upstream, where only a \
-release build links. Must be the file at `hook/link.dart` under the package root. Its imports \
+            doc = """The package's `hook/link.dart`, if it has one. A linked \
+`dart_program_assets` runs it over an executable's recorded uses; nothing else does, matching \
+upstream, where only a release build links. Must be the file at `hook/link.dart` under the package root. Its imports \
 are ordinary `deps` of the package's library, as pub requires.""",
             allow_single_file = [".dart"],
+        ),
+        "link_hook_assets": attr.string_list(
+            doc = """The ids (`package:<package_name>/<name>`, as `dart_data_asset.asset_id` \
+takes) of the data assets `link_hook` promises: it emits each in every program, and may emit \
+others, which depend on the program. Bazel names every output before anything runs, so a linked \
+program declares one file per promised id, known at analysis time for a rule to name \
+(`program_asset_file()`), and fails when the hook does not emit one. What else it emits is in \
+the program's manifest only. Each must be the package's own, and listed once; requires \
+`link_hook`.""",
         ),
         "code_assets": attr.label_list(
             doc = """Native code assets this package owns (see the `dart_code_asset` rule). \
@@ -137,9 +148,10 @@ on a package gets you its assets with no opt-in, and the root package is like an
         "data_assets": attr.label_list(
             doc = """Data assets this package owns (see the `dart_data_asset` rule): the files \
 its build hook would emit as `DataAsset`s. They reach every program that depends on any library \
-of the package, directly or transitively, or is in it, through `collect_transitive_data_assets`; when the \
-package has a `link_hook`, `dart_link_hook` hands them to it as `LinkInput.assets` instead, as a \
-build hook routes its data assets to its own link hook when linking. Each `asset_id` must be \
+of the package, directly or transitively, or is in it (see `dart_program_assets`); when the \
+program is linked and the package has a `link_hook`, they are the hook's `LinkInput.assets` \
+instead, and ship as it decides, as a build hook routes its data assets to its own link hook \
+when linking. Each `asset_id` must be \
 `package:<package_name>/<name>`, each name once.""",
             providers = [DartDataAssetInfo],
         ),
@@ -192,8 +204,8 @@ directory and states nothing else.
 
 Gazelle writes it at each package root, named `pubspec-metadata`, from
 `pubspec.yaml`, `hook/` and the license file; it adopts one already there,
-whatever its name, and keeps a hand-written `code_assets` and `data_assets`.
-Pub's spoke repositories write one per package.
+whatever its name, and keeps a hand-written `code_assets`, `data_assets` and
+`link_hook_assets`. Pub's spoke repositories write one per package.
 
 Not to be confused with `pub.package()`, the module extension tag that fetches a
 published package from pub.dev. This declares facts about a package in the

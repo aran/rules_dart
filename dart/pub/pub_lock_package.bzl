@@ -67,7 +67,7 @@ def _write_member(ctx, purl = "", reproducible = True):
     # user has declared it irrelevant — record it for the consuming binary to
     # complain about. Recording rather than failing here is deliberate: the
     # whole lock is materialised, including packages nothing depends on. A link
-    # hook is recorded too, for `dart_link_hook` to run.
+    # hook is recorded too, for a linked program to run.
     hooks = _classify_pub_hooks(
         has_build_hook = ctx.path("hook/build.dart").exists,
         has_link_hook = ctx.path("hook/link.dart").exists,

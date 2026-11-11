@@ -150,7 +150,7 @@ def classify_pub_hooks(has_build_hook, has_link_hook, build_hook_handled):
     A build hook builds native code at `pub get` time, which rules_dart cannot
     run; unless it is replaced by curated `code_assets` or declared irrelevant,
     it is recorded so a consuming binary fails with an explanation. A link hook
-    is runnable — `dart_link_hook` runs it — so it is recorded as the
+    is runnable — a linked program's assets run it — so it is recorded as the
     package's `link_hook` whatever the build hook's fate.
 
     Args:

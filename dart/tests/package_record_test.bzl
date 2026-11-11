@@ -48,6 +48,7 @@ def _pkg(
         code_assets = (),
         unreplaced_hook = "",
         link_hook = None,
+        link_hook_assets = (),
         license_file = None,
         metadata = None):
     return raw_dart_package_info(
@@ -60,11 +61,12 @@ def _pkg(
         unreplaced_hook = unreplaced_hook,
         data_assets = (),
         link_hook = link_hook,
+        link_hook_assets = link_hook_assets,
         license_file = license_file,
         metadata = metadata,
     )
 
-def _meta(label, package_name = "app", package_root = "app", language_version = "", version = "", code_assets = (), link_hook = None, license_file = None):
+def _meta(label, package_name = "app", package_root = "app", language_version = "", version = "", code_assets = (), link_hook = None, link_hook_assets = (), license_file = None):
     return DartPackageMetadataInfo(
         label = label,
         package_name = package_name,
@@ -75,6 +77,7 @@ def _meta(label, package_name = "app", package_root = "app", language_version = 
         data_assets = (),
         unreplaced_hook = "",
         link_hook = link_hook,
+        link_hook_assets = link_hook_assets,
         license_file = license_file,
     )
 
@@ -106,9 +109,11 @@ def _merge_takes_every_stated_fact_test_impl(ctx):
         _pkg("//pkg/lib/c", link_hook = hook),
         _pkg("//pkg/lib/d", license_file = license),
         _pkg("//pkg/lib/e", unreplaced_hook = "hook/build.dart"),
+        _pkg("//pkg/lib/f", link_hook = hook, link_hook_assets = ("package:split/index.json",)),
     ])[0]
     asserts.equals(env, "1.2.3", merged.version)
     asserts.equals(env, hook, package_link_hook(merged))
+    asserts.equals(env, ("package:split/index.json",), merged.link_hook_assets)
     asserts.equals(env, license, package_license_file(merged))
     asserts.equals(env, "hook/build.dart", merged.unreplaced_hook)
     return unittest.end(env)
@@ -171,6 +176,22 @@ def _agreement_accepts_one_link_hook_from_two_hubs_test_impl(ctx):
         _pkg("@hub_a//ffi", package_name = "ffi", package_root = "../hub_a__ffi", link_hook = _file("../hub_a__ffi/hook/link.dart")),
         _pkg("@hub_b//ffi", package_name = "ffi", package_root = "../hub_b__ffi", link_hook = _file("../hub_b__ffi/hook/link.dart")),
     ]))
+    return unittest.end(env)
+
+def _agreement_rejects_two_link_hook_asset_lists_test_impl(ctx):
+    # One hook, two statements of what it emits: dependency order would pick
+    # the outputs Bazel declares.
+    env = unittest.begin(ctx)
+    hook = _file("pkg/hook/link.dart")
+    err = package_agreement_error([
+        _pkg("//pkg:a", link_hook = hook, link_hook_assets = ("package:split/a.json",)),
+        _pkg("//pkg:b", link_hook = hook, link_hook_assets = ("package:split/b.json",)),
+        _pkg("//pkg:c", link_hook = hook),
+    ])
+    asserts.true(env, err != None, "two link-hook asset lists must be reported")
+    for part in ["link-hook assets", "package:split/a.json (//pkg:a at pkg)", "package:split/b.json (//pkg:b at pkg)", "`link_hook_assets`"]:
+        asserts.true(env, part in err, "%s not in: %s" % (part, err))
+    asserts.true(env, "//pkg:c" not in err, "a record stating none is not named: %s" % err)
     return unittest.end(env)
 
 def _agreement_rejects_two_build_hooks_test_impl(ctx):
@@ -253,6 +274,7 @@ def _merged_record_carries_every_field_test_impl(ctx):
         version = "1.0.0",
         code_assets = (_asset("package:app/a.dart"),),
         link_hook = hook,
+        link_hook_assets = ("package:app/index.json",),
         license_file = license,
     )
     record = merged_package_record("//app", "app", "app", meta, [
@@ -264,6 +286,7 @@ def _merged_record_carries_every_field_test_impl(ctx):
     asserts.equals(env, "1.0.0", record.version)
     asserts.equals(env, ["package:app/a.dart"], [a.asset_id for a in record.code_assets])
     asserts.equals(env, hook, record.link_hook)
+    asserts.equals(env, ("package:app/index.json",), record.link_hook_assets)
     asserts.equals(env, license, record.license_file)
     return unittest.end(env)
 
@@ -282,6 +305,7 @@ _merge_order_does_not_decide_test = unittest.make(_merge_order_does_not_decide_t
 _agreement_names_both_targets_test = unittest.make(_agreement_names_both_targets_test_impl)
 _agreement_rejects_two_link_hooks_test = unittest.make(_agreement_rejects_two_link_hooks_test_impl)
 _agreement_accepts_one_link_hook_from_two_hubs_test = unittest.make(_agreement_accepts_one_link_hook_from_two_hubs_test_impl)
+_agreement_rejects_two_link_hook_asset_lists_test = unittest.make(_agreement_rejects_two_link_hook_asset_lists_test_impl)
 _agreement_rejects_two_build_hooks_test = unittest.make(_agreement_rejects_two_build_hooks_test_impl)
 _agreement_falls_back_to_root_without_label_test = unittest.make(_agreement_falls_back_to_root_without_label_test_impl)
 _merged_record_without_records_is_fresh_test = unittest.make(_merged_record_without_records_is_fresh_test_impl)
@@ -305,6 +329,7 @@ def package_record_test_suite(name):
         _merge_order_does_not_decide_test,
         _agreement_names_both_targets_test,
         _agreement_rejects_two_link_hooks_test,
+        _agreement_rejects_two_link_hook_asset_lists_test,
         _agreement_accepts_one_link_hook_from_two_hubs_test,
         _agreement_rejects_two_build_hooks_test,
         _agreement_falls_back_to_root_without_label_test,

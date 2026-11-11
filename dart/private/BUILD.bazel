@@ -120,14 +120,14 @@ bzl_library(
 )
 
 bzl_library(
-    name = "dart_link_hook",
-    srcs = ["dart_link_hook.bzl"],
+    name = "program_assets",
+    srcs = ["program_assets.bzl"],
     visibility = ["//dart:__subpackages__"],
     deps = [
         ":common",
-        ":dart_data_asset",
         ":dart_info",
         ":exec_groups",
+        ":package_info",
         ":project_staging",
         ":source_set",
         "//dart:providers",

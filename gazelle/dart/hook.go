@@ -19,7 +19,8 @@ import (
 // replace what it builds. So Gazelle states it, and the build says what to do.
 //
 // hook/link.dart decides what the package ships from a program's recorded
-// uses; `dart_link_hook` runs it from the metadata's `link_hook`, and its
+// uses; a linked `dart_program_assets` runs it from the metadata's
+// `link_hook`, and its
 // imports are the dependencies of the package's library, as pub requires.
 //
 // A package has Gazelle not see a hook with `# gazelle:exclude

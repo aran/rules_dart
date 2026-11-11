@@ -29,6 +29,7 @@ dart_package_metadata(
     language_version = "3.10",
     license_file = "LICENSE",
     link_hook = "//hook:link",
+    link_hook_assets = ["package:old/index.json"],
     version = "1.2.3",
 )
 `
@@ -56,6 +57,9 @@ dart_package_metadata(
 	}
 	if assets := got.AttrStrings("data_assets"); len(assets) != 1 || assets[0] != ":data" {
 		t.Errorf("data_assets = %v, want [:data]", assets)
+	}
+	if assets := got.AttrStrings("link_hook_assets"); len(assets) != 1 || assets[0] != "package:old/index.json" {
+		t.Errorf("link_hook_assets = %v, want [package:old/index.json]", assets)
 	}
 }
 
@@ -92,7 +96,9 @@ func TestRemovedFactAttrsManaged(t *testing.T) {
 	if dartKinds(defaultBuilders())["dart_package_metadata"].MergeableAttrs["code_assets"] {
 		t.Error("dart_package_metadata manages code_assets, which only a person states")
 	}
-	if dartKinds(defaultBuilders())["dart_package_metadata"].MergeableAttrs["data_assets"] {
-		t.Error("dart_package_metadata manages data_assets, which only a person states")
+	for _, a := range []string{"data_assets", "link_hook_assets"} {
+		if dartKinds(defaultBuilders())["dart_package_metadata"].MergeableAttrs[a] {
+			t.Errorf("dart_package_metadata manages %s, which only a person states", a)
+		}
 	}
 }

@@ -7,7 +7,7 @@ load(
     "KERNEL_TOOL_ATTR",
     "PORTABLE",
     "PORTABLE_EXEC_GROUPS",
-    "link_hook_runner_attr",
+    "program_assets_attrs",
 )
 
 def _probe_impl(ctx):
@@ -24,6 +24,6 @@ probe = rule(
     implementation = _probe_impl,
     attrs = {
         DART_TOOLCHAIN_TYPES_ATTR: attr.label_list(default = [Label("@rules_dart//dart:toolchain_type")]),
-    } | KERNEL_TOOL_ATTR | link_hook_runner_attr(),
+    } | KERNEL_TOOL_ATTR | program_assets_attrs(),
     exec_groups = PORTABLE_EXEC_GROUPS,
 )

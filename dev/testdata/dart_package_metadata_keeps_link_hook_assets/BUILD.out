@@ -1,0 +1,18 @@
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "glyphs",
+    language_version = "3.12",
+    link_hook = "//hook:link",
+    link_hook_assets = ["package:glyphs/glyphs/index.json"],
+    visibility = ["//:__subpackages__"],
+)
+
+dart_library(
+    name = "glyphs",
+    srcs = ["lib/glyphs.dart"],
+    package = ":pubspec-metadata",
+    visibility = ["//visibility:public"],
+    deps = ["@hooks"],
+)

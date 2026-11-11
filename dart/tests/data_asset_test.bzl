@@ -12,7 +12,7 @@ The analysis tests are declared beside their fixtures, in
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts", "unittest")
 load("//dart:providers.bzl", "DartDataAssetInfo", "DartInfo")
-load("//dart/private:common.bzl", "collect_transitive_data_assets", "merge_package_records", "package_data_assets", "unique_data_assets")
+load("//dart/private:common.bzl", "merge_package_records", "package_data_assets", "program_packages", "unique_data_assets")
 load("//dart/private:dart_data_asset.bzl", "data_asset")
 load("//dart/private:dart_package_metadata.bzl", "unreplaced_build_hook")
 load("//dart/private:package_info.bzl", "check_data_asset_ownership", "raw_dart_package_info")
@@ -64,6 +64,7 @@ def _record(package_root, hook = "", data_assets = ()):
         data_assets = data_assets,
         unreplaced_hook = hook,
         link_hook = None,
+        link_hook_assets = (),
         license_file = None,
         metadata = None,
     )
@@ -113,8 +114,8 @@ def _program_own_package_test_impl(ctx):
     # `deps`, as a dependency's would.
     env = unittest.begin(ctx)
     a = data_asset("split", "a", _file("x/a"))
-    asserts.equals(env, [a], collect_transitive_data_assets(_record("x", data_assets = (a,)), []))
-    asserts.equals(env, [], collect_transitive_data_assets(None, []))
+    asserts.equals(env, ([a], None), unique_data_assets(program_packages(_record("x", data_assets = (a,)), [])))
+    asserts.equals(env, ([], None), unique_data_assets(program_packages(None, [])))
     return unittest.end(env)
 
 _program_own_package_test = unittest.make(_program_own_package_test_impl)
@@ -147,7 +148,7 @@ def _library_carries_data_assets_test_impl(ctx):
     asserts.equals(env, 1, len(records))
     asserts.equals(env, ["package:data_asset_fixture/greeting.txt"], [a.id for a in package_data_assets(records[0])])
     asserts.equals(env, "", records[0].unreplaced_hook)
-    collected = collect_transitive_data_assets(None, [target])
+    collected, _ = unique_data_assets(program_packages(None, [target]))
     asserts.equals(env, ["package:data_asset_fixture/greeting.txt"], [a.id for a in collected])
     return analysistest.end(env)
 
