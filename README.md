@@ -1953,21 +1953,21 @@ one case: `//...` skips it on the host, and `dart_analysis_test`'s
 
 ## Code generation
 
-`dart_codegen` runs a generator on each source file individually.
-`dart_aggregate_codegen` runs a generator over all sources at once (for
-generators like auto_route that need a whole-package view).
+In Bazel a code generator is a target, not a `build_runner` step. rules_dart
+has two rules for running one. `dart_codegen` runs a generator on one source
+file. `dart_aggregate_codegen` runs a generator over many sources at once, for
+generators that need a view of the whole package, such as auto_route.
 
 ```starlark
-load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_aggregate_codegen")
+load("@rules_dart//dart:defs.bzl", "dart_aggregate_codegen", "dart_codegen")
 
-# One target per input file; outputs are the input's stem plus each suffix.
 dart_codegen(
     name = "user_g",
     src = "lib/user.dart",
     package = ":pubspec-metadata",
     generator = "@rules_dart//dart/ext/json_serializable:shim",
-    output_suffixes = [".json_serializable.g.part"],
-    deps = ["@pub_deps//:json_annotation"],  # other packages' libraries user.dart imports
+    output_suffixes = [".json_serializable.g.part"],  # writes lib/user.json_serializable.g.part
+    deps = ["@pub_deps//:json_annotation"],           # other packages' libraries user.dart imports
 )
 
 dart_aggregate_codegen(
@@ -1975,29 +1975,38 @@ dart_aggregate_codegen(
     srcs = glob(["lib/**/*.dart"]),
     package = ":pubspec-metadata",
     generator = "//tools:route_shim",
-    outputs = ["lib/router.gr.dart"],
+    outputs = ["lib/router.gr.dart"],                 # the files to write, listed by hand
     deps = ["@pub_deps//:auto_route"],
 )
 ```
 
-A generator is a target: a `dart_binary` whose `main` hands a `package:build`
-Builder to rules_dart's shim runner, which speaks the rules' command line and
-runs as a persistent worker (see [`docs/ext.md`](./docs/ext.md)). It is built
-for the execution platform, as a genrule's `tools` are. `dart_sqlcodegen` is
-`dart_codegen` for a non-Dart input, such as drift's `.drift` files (see
-[`docs/ext.md`](./docs/ext.md)).
+A `dart_codegen` names each output after its input: the input's stem plus one
+of `output_suffixes`. A `dart_aggregate_codegen` writes exactly the `outputs`
+you list.
 
-Because a generator is a target, the `dart_analyze` aspect checks it like any
+The generator is a target too. It is a `dart_binary` whose `main` passes a
+`package:build` Builder to rules_dart's shim runner (`shimMain`, from
+`package:rules_dart_ext/worker_entry.dart`). The shim runner speaks the rules'
+command line and runs as a persistent worker. Bazel builds the generator for
+the execution platform, as it builds a genrule's `tools`. The contract is in
+[`docs/ext.md`](./docs/ext.md).
+
+Because the generator is a target, the `dart_analyze` aspect checks it like any
 other executable (see [Static analysis](#static-analysis-and-formatting)). The
-model files a generator reads need nothing special — they belong to the
-`dart_library` targets in `deps`, which are analyzable already.
+model files it reads need nothing special. They belong to the `dart_library`
+targets in `deps`, which are analyzed already.
 
-rules_dart bundles shims for these third-party builders: `json_serializable`,
-`freezed`, `built_value`, `mockito`, `copy_with_extension_gen`, `stacked` and
-`drift`. Each has a convenience macro (`json_serializable_codegen`,
-`freezed_codegen`, …) under `dart/ext/<builder>/defs.bzl`. It writes the
-builder's codegen targets for its `srcs` and names what they generate, which
-the `dart_library` holding the sources lists in its own `srcs`:
+For a source that isn't Dart, such as drift's `.drift` files, use
+`dart_sqlcodegen`. It is `dart_codegen` for a non-Dart input.
+
+You rarely write a `dart_codegen` yourself. rules_dart bundles shims for seven
+third-party builders: `json_serializable`, `freezed`, `built_value`, `mockito`,
+`copy_with_extension_gen`, `stacked` and `drift`. Each has macros in
+`dart/ext/<builder>/defs.bzl` (`json_serializable_codegen`, `freezed_codegen`,
+`copy_with_codegen`, six `stacked_*_codegen`, and so on). A macro writes the
+builder's codegen targets for its `srcs`. The target it is named for collects
+the generated files, and the `dart_library` holding the sources lists it in its
+own `srcs`:
 
 ```starlark
 load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_codegen")
@@ -2005,7 +2014,7 @@ load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_code
 json_serializable_codegen(
     name = "user_codegen",
     srcs = ["lib/user.dart"],
-    asset_deps = ["lib/role.dart"],  # the package's files user.dart imports
+    asset_deps = ["lib/role.dart"],  # files of this package that user.dart imports
     package = ":pubspec-metadata",
 )
 
@@ -2017,27 +2026,32 @@ dart_library(
 )
 ```
 
-A generator sees its package's other files through `asset_deps`, not through
-a library, since the library holds what it generates; `deps` are the other
-packages' libraries. Gazelle discovers
-the matching annotations in sources and emits the macro automatically. See
-[`docs/ext.md`](./docs/ext.md) for the shim contract, worker behaviour, and
-the guards for generated files checked into a source tree. Two more
-`dart/ext` packages are not builders but Bazel builds of a package's native
-library: `sqlite3` (`sqlite3_code_asset()`) and `webcrypto` (see
-[Native code assets](#native-code-assets)).
+The generator sees files from two attributes. `deps` are other packages'
+libraries. `asset_deps` are files of its own package, such as `lib/role.dart`
+above. Those can't come through a library, because the library they would come
+through is the one that holds the generated output.
 
-bazel_lib's `copy_to_directory` assembles hand-written and generated files, from
-any targets, into one directory, which a `dart_library` takes as `srcs_dir`.
+If you use Gazelle, it finds the annotations in your sources and writes these
+macros for you. [`docs/ext.md`](./docs/ext.md) also covers how the worker
+behaves and the checks for generated files checked into a source tree.
+
+Two more `dart/ext` packages are not builders. `sqlite3`
+(`sqlite3_code_asset()`) and `webcrypto` build a package's native library with
+Bazel (see [Native code assets](#native-code-assets)).
+
+To put hand-written and generated files from any targets into one directory,
+use bazel_lib's `copy_to_directory`. A `dart_library` takes that directory as
+`srcs_dir`.
 
 ### A generator and its package
 
-A generated file is part of the package whose sources it was generated from, so
-a codegen rule and the `dart_library` collecting its output name the same
-`dart_package_metadata`, and the build fails naming both when they do not. The
-generator runs at the package's language version: the one its
-`dart_package_metadata` states, else the SDK's own, which is what the analyzer
-and the format check assume too.
+A generated file belongs to the package whose sources it came from. So the
+codegen rule and the `dart_library` that collects its output must name the same
+`dart_package_metadata`. If they don't, the build fails and names both.
+
+The generator runs at the package's language version. That is the version its
+`dart_package_metadata` states, or the SDK's own if it states none. The analyzer
+and the format check use the same version.
 
 ```starlark
 load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library", "dart_package_metadata")
@@ -2063,21 +2077,20 @@ dart_library(
 )
 ```
 
-Because `package` names a target, the rules naming it can sit in different
-BUILD files. The builder macros (`json_serializable_codegen` and friends) take
-`package` too and forward it to every rule they emit.
-
-This is not `pub.package()`, which fetches a published package from pub.dev;
-`dart_package_metadata` states facts about a package you are building yourself.
+`package` names a target, so the rules that share it can sit in different BUILD
+files. The builder macros take `package` too, and pass it to every rule they
+write.
 
 ### Executables in a package
 
 Dart gives every file under a package's root to that package, `bin/` and
-`test/` included, so an entrypoint there compiles at the package's language
-version. A `dart_binary`, `dart_test`, `dart_js_binary` or `dart_wasm_binary`
-says which package it is in by naming the package's `dart_package_metadata`
-with `package`, as a library does. Its package is then rooted at the
-declaration's package root, wherever the executable's own BUILD file is:
+`test/` included. So a test's entrypoint compiles at the package's language
+version, not the SDK's.
+
+A `dart_binary`, `dart_test`, `dart_js_binary` or `dart_wasm_binary` says which
+package it is in the way a library does: it names the package's
+`dart_package_metadata` with `package`. Its BUILD file doesn't have to be the
+package's. The executable's package is rooted where the metadata's is:
 
 ```starlark
 # greeter/test/BUILD.bazel
@@ -2089,21 +2102,28 @@ dart_test(
 )
 ```
 
-The entrypoint compiles, analyzes and is format-checked at the package's
-version, whether or not the executable depends on a library of the package. An
-executable naming no `dart_package_metadata` adds no package of its own: its
-entrypoint takes the version of a package its `deps` bring whose root contains
-it, or else the SDK's. The build fails naming both sides when an executable's
-package contradicts its `deps`: a package in `deps` rooted at the same
-directory must be the same package; one with the same name must be rooted
-there; and each of the executable's own files must sit under the package root
-and not inside another package's.
+The entrypoint then compiles, is analyzed and is format-checked at the
+package's version. That holds whether or not the executable depends on one of
+the package's libraries.
+
+An executable that names no `package` adds no package of its own. Its
+entrypoint takes the version of a package from its `deps` whose root contains
+it. If there is none, it takes the SDK's.
+
+The build fails, naming both sides, if an executable's package contradicts its
+`deps`:
+
+- A package in `deps` rooted at the same directory must be the same package.
+- A package in `deps` with the same name must be rooted there.
+- Each of the executable's own files must be under the package root, and not
+  inside a package from `deps` nested within it.
 
 ## Web compilation
 
-`dart_js_binary` compiles a Dart entrypoint to JavaScript via `dart compile js`.
-`dart_wasm_binary` compiles to WebAssembly via `dart compile wasm` (requires a
-browser with WasmGC support).
+`dart_js_binary` compiles a Dart entrypoint to JavaScript with
+`dart compile js`. `dart_wasm_binary` compiles it to WebAssembly with
+`dart compile wasm`. The WebAssembly output needs a browser that supports
+WasmGC.
 
 ```starlark
 load("@rules_dart//dart:defs.bzl", "dart_js_binary", "dart_wasm_binary")
@@ -2123,21 +2143,29 @@ dart_wasm_binary(
 
 ### Per-compiler code
 
-Dart picks native or web code itself, with a conditional import on
-`dart.library.js_interop`. What it cannot do is give dart2js and dart2wasm
-different declared types or different files. For that, the runtime is a
-constraint of the target platform, `@rules_dart//dart/constraints:runtime`:
-`js` (dart2js and DDC), `wasm` (dart2wasm), or `vm`, the default, which every
-platform that does not mention it carries, the host included. Each web binary
-builds everything it depends on for a platform carrying its compiler,
-`@rules_dart//dart/platforms:js` or `:wasm` unless its `platform` attribute
-names one of your own. A library picks a variant with a `select()` in its
-`deps`:
+Most code that differs between native and web needs nothing from Bazel. A
+conditional import on `dart.library.js_interop` picks native or web code, and
+Dart handles it. But a conditional import can't tell dart2js from dart2wasm. If
+those two need different declared types or different files, the build has to
+choose.
+
+The build sees the compiler as a constraint of the target platform,
+`@rules_dart//dart/constraints:runtime`. It has three values:
+
+- `js`, for dart2js and DDC.
+- `wasm`, for dart2wasm.
+- `vm`, the default. Every platform that doesn't mention the constraint has it,
+  the host included.
+
+A web binary builds everything it depends on for a platform with its compiler's
+value. That is `@rules_dart//dart/platforms:js` or `:wasm`, unless the binary's
+`platform` attribute names one of yours. A library picks a variant with a
+`select()` in its `deps`:
 
 ```starlark
 dart_library(
     name = "vec",
-    srcs = ["lib/vec.dart"],  # import 'package:i64/i64.dart';
+    srcs = ["lib/vec.dart"],  # import 'package:i64/i64.dart'.
     deps = select({
         "@rules_dart//dart/constraints:js": ["//i64/js:i64"],
         "@rules_dart//dart/constraints:wasm": ["//i64/typed:i64"],
@@ -2146,14 +2174,14 @@ dart_library(
 )
 ```
 
-The variants are separate `dart_library` targets of packages with the same
-`package_name`, each in its own directory, so the import is the same whichever is picked.
+Each variant is a separate `dart_library` in its own directory, and all of them
+have the same `package_name`. So the import is the same whichever is picked.
 Building `:app` or `:app_wasm` builds only that binary's variant.
 
-A platform of your own carries the compiler's constraint value, and whatever
-constraints of yours a `select()` needs beside it. Give it no `flags`: they
-stay set beneath the binary, in the code it shares with VM builds, which is
-then built twice.
+A platform of your own has the compiler's constraint value, plus any of your
+own constraints that a `select()` needs. Don't give it `flags`. A platform's
+flags stay set beneath the binary, including in the code it shares with VM
+builds, and that code is then built twice.
 
 ```starlark
 platform(
@@ -2170,19 +2198,21 @@ dart_wasm_binary(
 )
 ```
 
-Code generators cannot vary by compiler: `dart_codegen` and its siblings are
+Code generators can't vary by compiler. `dart_codegen` and its siblings are
 built for the platform the build had before any web binary, so their outputs
-are shared by both binaries and the VM. A generator that needs per-compiler
-output emits every variant, one `dart_codegen` per variant directory, and the
-library above chooses.
+are shared by both binaries and by the VM. If a generator needs per-compiler
+output, have it write every variant, with one `dart_codegen` per variant
+directory, and let the library's `select()` choose.
 
-Code with no variant for the VM (it imports `dart:js_interop` unconditionally,
-say) says so in `target_compatible_with`: incompatible where the runtime
-is `vm`. Then `bazel build //...` skips it on the host, and a VM program
-reaching it is incompatible too. Code with no variant for the web says
-`target_compatible_with = ["@rules_dart//dart/constraints:vm"]`. `bazel test
-//...` never analyses web-only code; a `dart_analysis_test` with
-`web_platforms` does:
+Some code has no VM variant. It might import `dart:js_interop`
+unconditionally, for example. Mark it incompatible with the `vm` runtime in
+`target_compatible_with`, as below. Then `bazel build //...` skips it on the
+host, and a VM program that reaches it is incompatible too. Code with no web
+variant says `target_compatible_with = ["@rules_dart//dart/constraints:vm"]`.
+
+`bazel test //...` builds for the host, so it never analyzes web-only code. A
+`dart_analysis_test` with `web_platforms` does. It checks its `targets` once on
+each platform listed:
 
 ```starlark
 dart_library(
@@ -2208,11 +2238,12 @@ dart_analysis_test(
 )
 ```
 
-Only the libraries on the path from a binary to such a `select()` are
-configured once per compiler; they run no actions. Pub packages, codegen and
-native code assets go back to the build's own platform and are built once. A
-hand-written library that cannot reach per-compiler code may say so with
-`runtime_independent = True`, as every pub package does, and is built once
+You might worry that every target under two web binaries is built twice. It
+isn't. Only the libraries on the path from a binary to a `select()` like this
+are configured once per compiler, and they run no actions. Pub packages, codegen
+and native code assets go back to the build's own platform, so they are built
+once. A hand-written library that can't reach per-compiler code can say so with
+`runtime_independent = True`, as every pub package does. It is then built once
 too.
 
 Rules of other rule sets that build Dart for a web platform use rules_dart's
@@ -2220,10 +2251,10 @@ transitions (see [Web platforms in your own rules](#web-platforms-in-your-own-ru
 
 ## Native code assets
 
-A Dart package that needs native code usually builds it in a
-`hook/build.dart`. rules_dart does not run a package's build hook; a native
-library is built by Bazel and bound to the id the Dart bindings use. The chain
-is `cc_library` → `cc_shared_library` → `dart_code_asset` → `code_assets`:
+Many Dart packages with native code build it in a `hook/build.dart`. rules_dart
+never runs a build hook. Instead, Bazel builds the native library, and you bind
+it to the asset id the Dart bindings use. The chain is `cc_library` →
+`cc_shared_library` → `dart_code_asset` → `code_assets`:
 
 ```starlark
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
@@ -2258,100 +2289,133 @@ dart_binary(
 )
 ```
 
-The `asset_id` is the id the bindings resolve against: the `package:` URI of the
-library that declares the `@Native` functions, or the one its `@DefaultAsset`
-names. Every `code_assets` entry provides `DartCodeAssetInfo`, which
-`dart_code_asset` does.
+The `asset_id` is the id the bindings resolve against. That is the `package:`
+URI of the library that declares the `@Native` functions, or the id its
+`@DefaultAsset` names. Every entry in `code_assets` must provide
+`DartCodeAssetInfo`, as `dart_code_asset` does.
 
-- Name the asset in the `code_assets` of the `dart_binary` or `dart_test` that
-  runs the code, or in the `dart_package_metadata` of the package that owns the
-  bindings, from where it reaches every binary and test depending on any
-  library of that package, and every one in the package (its `package`), as
-  upstream treats the root package like any other. A package has one `dart_package_metadata`, so its
-  assets are one set for all its libraries; assets that differ between programs
-  (a test's stub library, a build for another platform) are not a fact of the
-  package, and are the `code_assets` of the executable, which replace the
-  package's by id. Do not declare a second `dart_package_metadata` to vary them. A binary's libraries
-  are linked into `<name>.native/` beside the executable, which must be
-  installed with it (`cp -RL`, since they are links); a test finds them in
-  runfiles.
-- An entry in a target's own `code_assets` replaces the asset of the same id
-  that its `deps` bring, so a test can load a differently built library under
-  the id a package declares. Two different assets for one id from `deps` fail,
-  naming both.
-- `file` may instead be one prebuilt library file (a checked-in or
-  `http_file` `.so`, `.dylib` or `.dll`), as `cc_import` takes one. Its
-  extension must be the target platform's, so `select()` on the platform for a
-  multi-platform build.
-- `link_mode` is `dynamic_loading_bundle` by default, a library Bazel builds (or
-  you supply) and ships with the program. `dynamic_loading_system` (with `uri`),
-  `dynamic_loading_executable` and `dynamic_loading_process` look the symbols up
-  in the executable or the running process. `static` is refused.
-- A package whose `hook/build.dart` has no Bazel replacement fails any
-  `dart_binary` or `dart_test` that reaches it, naming the package. For a pub
-  package, rules_dart sees the hook; supply a replacement with
-  `pub.from_lock(resolve = ...)`, or, if its native code is not used, list it in
-  `pub.from_lock(ignore_hooks = [...])` or set `pub.package(ignore_hook = True)`.
-  Your own package states its hook with `build_hook` on its
-  `dart_package_metadata`, since a rule cannot look for files (Gazelle states
-  it for you, see [Hooks](#hooks)), and replaces it with the `code_assets` of
-  the same `dart_package_metadata`; a binary's or test's own `code_assets` do
-  not replace a package's hook:
+A binary's native libraries are linked into `<name>.native/` beside the
+executable. Install that directory with the executable, and copy with
+`cp -RL`, since its files are symlinks into the output tree. A test finds its
+libraries in runfiles.
 
-  ```starlark
-  dart_package_metadata(
-      name = "pubspec-metadata",
-      package_name = "bindings",
-      build_hook = "hook/build.dart",
-      code_assets = [":counter_asset"],
-  )
+**Where to name an asset.** There are two places:
 
-  dart_library(
-      name = "bindings",
-      srcs = glob(["lib/**/*.dart"]),
-      package = ":pubspec-metadata",
-  )
-  ```
-- In a [linked](#recorded-uses-and-link-hooks) program, the code assets of a
-  package with a `link_hook` are that hook's input, and only those it emits
-  ship.
-- Native code linked into each program, keeping only what the program uses,
-  is a `dart_linked_code_asset` in the package's `linked_code_assets`: a
-  `cc_library`, and a tool that maps the program's recorded uses to the
-  symbols to keep, as upstream's link hooks pass
-  `LinkerOptions.treeshake(symbolsToKeep:)`. A linked program runs the tool
-  (`<tool> <recorded_uses.json> <output>`, writing one symbol per line) and
-  links the library with the registered C++ toolchain into a shared library
-  that exports just those symbols, shipped under the asset's id; an unlinked
-  one links it whole. The tool cannot be a library of the package that names
-  it, which would depend on itself:
+- In the `code_assets` of the `dart_binary` or `dart_test` that runs the code.
+- In the `code_assets` of the `dart_package_metadata` of the package that owns
+  the bindings. From there the asset reaches every binary and test that
+  depends on any library of the package, and every one that is in the package
+  (that names it as `package`). Upstream treats the root package like any
+  other, and so does rules_dart. Each id there must be the package's own,
+  `package:<package_name>/...`.
 
-  ```starlark
-  dart_linked_code_asset(
-      name = "ops",
-      asset_id = "package:ops/ops.dart",  # the id the `@Native` bindings declare
-      library = ":ops_cc",                 # a cc_library
-      symbols = "//tools:ops_symbols",     # a dart_binary reading the uses
-  )
+A package has one `dart_package_metadata`, so its assets are one set for all its
+libraries. An asset that differs between programs isn't a fact of the package.
+A test's stub library is one example, and a build for another platform is
+another. Put those in the executable's own `code_assets`. Don't declare a second
+`dart_package_metadata` to vary them.
 
-  dart_package_metadata(
-      name = "pubspec-metadata",
-      package_name = "ops",
-      linked_code_assets = [":ops"],
-  )
-  ```
-- A build tool that never loads native code sets `code_assets_from_packages = False`
-  on its `dart_binary`, so it neither builds the libraries its packages declare,
-  its own and those in its dependency closure, nor hits that error.
+**Replacing an asset.** An entry in a target's own `code_assets` replaces the
+asset with the same id that its `deps` bring. That is how a test loads a
+differently built library under the id a package declares. If `deps` bring two
+different assets for one id, the build fails and names both.
 
-rules_dart ships replacements for two packages, under `dart/ext`:
-`sqlite3_code_asset()` from `@rules_dart//dart/ext/sqlite3:defs.bzl`
-(`package:sqlite3` 2.0.0 and later) and `@rules_dart//dart/ext/webcrypto:code_asset`
-(`package:webcrypto` 0.6.1). `pub.from_lock()` attaches them to a lock that
-pins those versions, so a program using `package:sqlite3` needs nothing more
-than the dependency. Naming one explicitly, as the
-[`sqlite3_binary`](e2e/ext_exemplar/sqlite3_binary/) exemplar does, builds the
-same library for that target:
+**A prebuilt library.** `file` can also be one prebuilt library file, such as a
+checked-in or `http_file` `.so`, `.dylib` or `.dll`, as `cc_import` takes one.
+Its extension must be the target platform's, so a multi-platform build needs a
+`select()` on the platform.
+
+**Link modes.** `link_mode` is `dynamic_loading_bundle` by default: a library
+Bazel builds (or you supply) that ships with the program. It is the only mode
+that takes a `file`. `dynamic_loading_system` loads a library already on the
+target system, which you name with `uri`. `dynamic_loading_executable` and
+`dynamic_loading_process` look the symbols up in the executable or the running
+process. `static` is refused, because neither the Dart VM nor the Flutter
+engine implements it.
+
+**Packages with a build hook.** Suppose a package has a `hook/build.dart` and
+nothing replaces it. Then every `dart_binary` and `dart_test` that reaches the
+package fails, naming it. Without that check you would get a program whose
+`@Native` bindings fail at run time.
+
+For a pub package, rules_dart finds the hook itself. You can supply a
+replacement with `pub.from_lock(resolve = ...)`. If nothing uses the package's
+native code, list it in `pub.from_lock(ignore_hooks = [...])`, or set
+`pub.package(ignore_hook = True)`.
+
+For your own package, state the hook with `build_hook` on its
+`dart_package_metadata`. A rule can't look for files, so it won't find the hook
+on its own. Gazelle states it for you (see [Hooks](#hooks)). Replace the hook
+with the `code_assets` of the same `dart_package_metadata`. A binary's or
+test's own `code_assets` don't replace a package's hook.
+
+```starlark
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "bindings",
+    build_hook = "hook/build.dart",
+    code_assets = [":counter_asset"],
+)
+
+dart_library(
+    name = "bindings",
+    srcs = glob(["lib/**/*.dart"]),
+    package = ":pubspec-metadata",
+)
+```
+
+**Build tools.** A tool that never loads native code, such as a code generator,
+sets `code_assets_from_packages = False` on its `dart_binary`. It then builds
+none of the native libraries its packages declare, its own package's or any in
+its dependency closure. It also never fails for an unreplaced hook. rules_dart's
+own builder shims set it: `drift_dev` depends on `package:sqlite3`, but
+generating code never calls into libsqlite3.
+
+**Linked programs.** In a [linked](#recorded-uses-and-link-hooks) program, the
+code assets of a package with a `link_hook` are that hook's input. Only the ones
+the hook emits ship.
+
+Some native code is linked into each program, keeping only the symbols that
+program uses. Upstream's link hooks do this by passing
+`LinkerOptions.treeshake(symbolsToKeep:)`. In rules_dart it is a
+`dart_linked_code_asset` in the package's `linked_code_assets`. It names a
+`cc_library` and a tool that maps the program's recorded uses to the symbols to
+keep:
+
+```starlark
+dart_linked_code_asset(
+    name = "ops",
+    asset_id = "package:ops/ops.dart",  # the id the `@Native` bindings declare
+    library = ":ops_cc",                 # a cc_library
+    symbols = "//tools:ops_symbols",     # a dart_binary reading the uses
+)
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "ops",
+    linked_code_assets = [":ops"],
+)
+```
+
+A linked program runs the tool as `<tool> <recorded_uses.json> <output>`, and
+the tool writes one symbol per line. The program then links the library with
+the registered C++ toolchain into a shared library that exports just those
+symbols, and ships it under the asset's id. A program that isn't linked links
+the whole library. The id must be the package's own, and not also one of its
+`code_assets`. The tool can't be a library of the package that names it,
+because the package would then depend on itself.
+
+**Replacements rules_dart ships.** Two packages have one, under `dart/ext`:
+
+- `package:sqlite3` 2.0.0 and later: `sqlite3_code_asset()` from
+  `@rules_dart//dart/ext/sqlite3:defs.bzl`.
+- `package:webcrypto` 0.6.1: `@rules_dart//dart/ext/webcrypto:code_asset`.
+
+You don't have to name them. When a pub package resolves to one of these
+versions, from a lock or a `pub.package()`, rules_dart attaches its replacement.
+A program using `package:sqlite3` needs nothing more than the dependency. Naming
+one yourself, as the [`sqlite3_binary`](e2e/ext_exemplar/sqlite3_binary/)
+exemplar does, builds the same library for that target:
 
 ```starlark
 load("@rules_dart//dart/ext/sqlite3:defs.bzl", "sqlite3_code_asset")
@@ -2366,11 +2430,13 @@ dart_binary(
 
 ## Data assets
 
-A package's `hook/build.dart` can also emit data assets: files a program
-loads by id, `package:<package>/<name>`, at run time (a Flutter app through
-`rootBundle`). rules_dart does not run the hook; `dart_data_asset` binds a
-file, written by hand or by any rule, to the id the hook would give it, and the
-package's `dart_package_metadata` names it in `data_assets`:
+A package's `hook/build.dart` can also emit data assets. These are files a
+program loads at run time by an id, `package:<package>/<name>`. A Flutter app
+loads them through `rootBundle`.
+
+rules_dart doesn't run the hook for these either. `dart_data_asset` binds a file
+to the id the hook would give it. The file can be checked in or made by any
+rule. The package's `dart_package_metadata` lists it in `data_assets`:
 
 ```starlark
 load("@rules_dart//dart:defs.bzl", "dart_data_asset", "dart_library", "dart_package_metadata")
@@ -2395,35 +2461,42 @@ dart_library(
 )
 ```
 
-- Each id must be in the declaring package (`package:sounds/...` above), and
-  each name in it once, as upstream requires of a build hook's assets; anything
-  else fails the `dart_package_metadata`.
-- Data assets, like code assets, replace the build hook: a package whose hook
-  emits only data assets builds once they are declared.
-- They reach every program over any library of the package, and every program
-  in the package (its `package`), as upstream treats the root package like any
-  other. A program nothing
-  links (a debug build) ships them all. A linked one ships what
-  [`dart_program_assets`](#recorded-uses-and-link-hooks) gives it: when
-  linking, a build hook sends its data assets to the package's own link hook,
-  so the declared assets of a package with a `link_hook` are that hook's
-  input, and it decides which ship; those of packages without one ship as
-  they are.
-- A data asset has no place in an application of its own: where the file lands
-  is the bundler's decision (rules_flutter's, for a Flutter app), and
-  `dart_binary` and `dart_test` bundle none, since the Dart VM does not load
-  them. A rule set's bundler reads what a program ships through rules_dart's
-  API (see [Program assets in your own rules](#program-assets-in-your-own-rules)).
+Each id must be in the declaring package (`package:sounds/...` above), and each
+name may appear only once. Upstream requires the same of a build hook's assets.
+Anything else fails the `dart_package_metadata`.
+
+Data assets replace the build hook, as code assets do. A package whose hook
+emits only data assets builds once they are declared.
+
+They reach every program that depends on any library of the package, and every
+program that is in the package (that names it as `package`). Which of them ship
+depends on whether the program is linked:
+
+- A program nothing links, such as a debug build, ships them all.
+- A linked program ships what
+  [`dart_program_assets`](#recorded-uses-and-link-hooks) gives it. When
+  linking, upstream's build hook sends its data assets to the package's own
+  link hook. So the declared assets of a package with a `link_hook` are that
+  hook's input, and the hook decides which ship. Assets of packages without a
+  link hook ship as they are.
+
+`dart_binary` and `dart_test` bundle no data assets, since the Dart VM doesn't
+load them. Where the files land in an application is up to the bundler
+(rules_flutter's, for a Flutter app). A rule set's bundler reads what a program
+ships through rules_dart's API (see
+[Program assets in your own rules](#program-assets-in-your-own-rules)).
 
 ## Recorded uses and link hooks
 
 A package can ship a `hook/link.dart` that decides what to include from how the
-program uses the package: the compiler records each constant instance of a
-`@RecordUse` class (and each constant call to a `@RecordUse` static method)
-that survives tree-shaking. `dart_binary(record_use = True)` writes those uses
-beside the executable, and `dart_program_assets` with `recorded_uses` links the
-program: it runs the link hook of each of the program's packages over them,
-and provides what the program ships as `DartProgramAssetsInfo`.
+program uses the package. The compiler records those uses as it tree-shakes. It
+records each constant instance of a `@RecordUse` class that survives
+tree-shaking, and each constant call to a `@RecordUse` static method.
+
+Two targets do the work. `dart_binary(record_use = True)` writes the uses beside
+the executable. A `dart_program_assets` whose `recorded_uses` names that binary
+then links the program. It runs the link hook of each of the program's packages
+over the uses, and provides what the program ships as `DartProgramAssetsInfo`:
 
 ```starlark
 load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_library", "dart_package_metadata", "dart_program_assets")
@@ -2457,150 +2530,176 @@ dart_program_assets(
 )
 ```
 
-- Without `recorded_uses` the program is not linked, as in a debug build: no
-  hook runs and every package's declared assets ship.
-- Uses are recorded in the `exe` and `aot-snapshot` modes; in `kernel` the
-  hooks see none.
-- Each hook receives its package's declared [data assets](#data-assets) as
-  `input.assets.data`, as a build hook routes them to it, and emits any data
-  assets of its own package; what it emits ships, beside the declared assets of
-  the packages that have no link hook.
-- Native code a package links per program is its `linked_code_assets` (see
-  [Native code assets](#native-code-assets)), linked by the program with the
-  C++ toolchain over the same uses; a link hook builds no native code.
-- A hook also receives its package's declared
-  [code assets](#native-code-assets) as `input.assets.code`, with the target in
-  `input.config.code`, and selects among them: each it emits, under an id of
-  its own package, ships, and those it does not emit do not, as upstream ships
-  only what a link hook emits of the assets routed to it. It keeps one as its
-  package declares it, under the same id and link mode: the program's kernel
-  maps every id before any hook runs. It may not emit native code it builds
-  itself; the build fails naming the file. What a hook emits may depend on the
-  program (the sounds above ship only those the program plays), so its data
-  assets land in one output directory per package, each at its name.
-- The target's output, `<name>.program_assets`, lists what ships, with its
-  runfiles holding every file: a test or program with the target in its
-  `data` reads it with `ProgramAssets.read` from
-  `@rules_dart//dart/program_assets` (see
-  [Program assets in your own rules](#program-assets-in-your-own-rules)).
-- Bazel names every file before anything runs, so a rule that needs one of a
-  hook's assets by name at analysis time names it in the `link_hook_assets` of
-  the package's `dart_package_metadata`: a promise that the hook emits it in
-  every program. Each promised id gets a file of its own, known to
-  `program_asset_file()`; the hook may emit others besides.
-- The build fails, naming what to change, when a hook fails (with the hook's
-  own message), does not emit an id it promises, emits an asset of another
-  package, emits one id twice, a name that is not a relative path, two names
-  that differ only in case or a name that is a directory of another, emits a
-  code asset that is not one of its package's as declared, or routes assets to another
-  package's link hook, which rules_dart does not support: each hook runs on its
-  own.
-- The program's own package is linked like those in `deps`: name it in
-  `package`, as the `dart_binary` in `recorded_uses` does (the two must agree),
-  and its hook runs and its assets ship. A link hook's imports are `deps` of the
-  package's library, as pub requires, or of the program for its own package's
-  hook, which may also import the program's own files under the package's
-  `lib/`.
-- Pub packages that ship a link hook get `link_hook` set by `pub.from_lock()`,
-  and Gazelle sets it for your own (see [Hooks](#hooks)).
+Without `recorded_uses`, the program isn't linked, as in a debug build. No hook
+runs, and every package's declared assets ship.
+
+Uses are recorded only in the `exe` and `aot-snapshot` modes. The `kernel` mode
+doesn't tree-shake, so its hooks see no uses.
+
+**What a hook receives.** A hook gets its package's declared
+[data assets](#data-assets) as `input.assets.data`, as a build hook routes them
+to it. It gets its package's declared [code assets](#native-code-assets) as
+`input.assets.code`, with the target in `input.config.code`.
+
+**What ships.** Every data asset a hook emits ships, beside the declared assets
+of packages with no link hook. A hook emits data assets of its own package only.
+Code assets work by selection. Each code asset the hook emits ships, and the
+ones it doesn't emit don't, as upstream ships only what a link hook emits of
+the assets routed to it.
+
+A hook must keep a code asset as its package declares it, under the same id and
+link mode. The program's kernel maps every id before any hook runs, so an asset
+under another id wouldn't load. A hook may not emit native code it builds
+itself, and the build fails naming the file. Native code linked for each
+program is a package's `linked_code_assets` instead (see
+[Native code assets](#native-code-assets)). The program links it with the C++
+toolchain over the same uses.
+
+What a hook emits may depend on the program. The `sounds` hook above ships only
+the sounds the program plays. So a package's emitted data assets land in one
+output directory per package, each file at its name.
+
+**Reading what ships.** The target's output, `<name>.program_assets`, lists
+what ships, and its runfiles hold every file. A test or program with the target
+in its `data` reads it with `ProgramAssets.read` from
+`@rules_dart//dart/program_assets` (see
+[Program assets in your own rules](#program-assets-in-your-own-rules)).
+
+**Naming a hook's asset in advance.** Bazel names every file before anything
+runs. A rule that needs one of a hook's assets by name at analysis time can't
+wait for the hook. Instead, list the id in the `link_hook_assets` of the
+package's `dart_package_metadata`. That is a promise that the hook emits it in
+every program. Each promised id gets a file of its own, which
+`program_asset_file()` returns. The hook may emit other assets as well.
+
+**When the build fails.** It fails, naming what to change, when a hook:
+
+- fails, with the hook's own message, or writes no output.
+- doesn't emit an id it promises.
+- emits an asset of another package, or one id twice.
+- emits a name that isn't a relative path, two names that differ only in case,
+  or a name that is a directory of another.
+- emits a code asset that isn't one of its package's as declared.
+- emits an asset that is neither data nor code.
+- routes assets to another package's link hook. rules_dart doesn't support
+  this: each hook runs on its own.
+
+**The program's own package.** It is linked like the packages in `deps`. Name
+it in `package` on the `dart_program_assets`, as the `dart_binary` in
+`recorded_uses` does. The two must agree. Its hook then runs and its assets
+ship.
+
+**A hook's imports.** These are `deps` of the package's library, as pub
+requires. The hook of the program's own package may also import from the
+program's `deps`, and the program's own files under the package's `lib/`.
+
+rules_dart sets `link_hook` for pub packages that ship one. Gazelle sets it for
+your own (see [Hooks](#hooks)).
 
 ## Without a pubspec.yaml
 
 A rules_dart workspace needs no `pubspec.yaml` and no `pubspec.lock`. Every fact
-a pubspec gives has a home in Bazel:
+a pubspec states has a home in Bazel:
 
 | The pubspec states | Bazel states it as |
 | --- | --- |
-| `name` | `package_name` on the package's `dart_package_metadata`; `# gazelle:dart_package_name` for Gazelle. With no `dart_package_metadata`, the package root directory's name. |
-| `environment.sdk`, its lower bound | `language_version` on the `dart_package_metadata`, or `# gazelle:dart_language_version`. Unstated, the SDK's own. |
-| `dependencies`, `dev_dependencies` | The `deps` of the target that imports the package, which Gazelle writes from the imports. |
-| The versions in `pubspec.lock` | `pub.package()` declarations, each with `version` and `sha256` (see [Using pub.dev packages](#using-pubdev-packages)). Each is a minimum, and the highest any module asks for is built (see [Versions](#versions)). |
-| `dependency_overrides` | None: no declaration can force a lower version. A lock's `pub.from_lock(resolve = ...)` builds a target of yours in a package's place. |
-| `hook/build.dart`, `hook/link.dart` | `build_hook` and `link_hook` on the `dart_package_metadata`; what the link hook emits, `link_hook_assets`. |
+| `name` | `package_name` on the package's `dart_package_metadata`, or `# gazelle:dart_package_name` for Gazelle. With no `dart_package_metadata`, the name of the package root directory. |
+| `environment.sdk`, its lower bound | `language_version` on the `dart_package_metadata`, or `# gazelle:dart_language_version`. If unstated, the SDK's own. |
+| `dependencies`, `dev_dependencies` | The `deps` of the target that imports the package. Gazelle writes them from the imports. |
+| The versions in `pubspec.lock` | `pub.package()` declarations, each with `version` and `sha256` (see [Using pub.dev packages](#using-pubdev-packages)). Each version is a minimum, and the build uses the highest any module asks for (see [Versions](#versions)). |
+| `dependency_overrides` | Nothing can force a lower version. To build a target of yours in a package's place, use a lock's `pub.from_lock(resolve = ...)`. |
+| `hook/build.dart`, `hook/link.dart` | `build_hook` and `link_hook` on the `dart_package_metadata`. What the link hook promises to emit is `link_hook_assets`. |
 | Native libraries a hook would build | `code_assets` on the `dart_package_metadata` (see [Native code assets](#native-code-assets)). |
 | Data assets a hook would emit | `data_assets` on the `dart_package_metadata` (see [Data assets](#data-assets)). |
 | The license file | `license_file` on the `dart_package_metadata`. |
 | `executables:` | A `dart_binary`. |
 
-[`e2e/no_pubspec`](e2e/no_pubspec/) is the worked example, and a test in it
-fails if a `pubspec.yaml` or `pubspec.lock` appears anywhere in the workspace.
-Its `MODULE.bazel` declares `json_annotation` and `meta`; `app/BUILD.bazel`
-and `greet/BUILD.bazel` each state their package's name and language version
-once, in a `dart_package_metadata`, which `app`'s `json_serializable_codegen`
-and `dart_library` share.
+[`e2e/no_pubspec`](e2e/no_pubspec/) is the worked example. A test in it fails if
+a `pubspec.yaml` or `pubspec.lock` appears anywhere in the workspace. Its
+`MODULE.bazel` declares `json_annotation` and `meta`. `app/BUILD.bazel` and
+`greet/BUILD.bazel` each state their package's name and language version once,
+in a `dart_package_metadata`. In `app`, the `json_serializable_codegen` and the
+`dart_library` share it.
 
-Gazelle works without a pubspec. A package's root is the directory above its
-`lib/`, `bin/` and `test/`, its name is the root directory's unless a
-`dart_package_metadata` or `# gazelle:dart_package_name` states one, and an
-import of `package:foo/...` becomes a dep on `@foo` (the repository
-`pub.package(name = "foo")` creates), or on `@pub_deps//:foo` with
-`# gazelle:dart_pub_deps_repo pub_deps`. Analysis, tests and code generation need
-none either: what reads a pubspec reads one generated from the target's `deps`
-and package record.
+Gazelle works without a pubspec too. It takes a package's root to be the
+directory above its `lib/`, `bin/` and `test/`. The package's name is the root
+directory's, unless a `dart_package_metadata` or
+`# gazelle:dart_package_name` states one. An import of `package:foo/...`
+becomes a dep on `@foo`, the repository `pub.package(name = "foo")` creates. With
+`# gazelle:dart_pub_deps_repo pub_deps`, it becomes a dep on
+`@pub_deps//:foo` instead.
 
-The price is pub's resolver. With no `pubspec.yaml` there is nothing for
-`pub get`, `pub add`, `pub upgrade` or `pub outdated` to work on, and no lock, so
-no tool chooses versions for you:
+Analysis, tests and code generation need no pubspec either. Where a tool reads
+one, rules_dart generates it from the target's `deps` and package metadata.
 
-- Every third-party package is a `pub.package()` you write, with its `sha256`
-  (`archive_sha256` in
-  `https://pub.dev/api/packages/<name>/versions/<version>`, see
-  [The sha256 of a `pub.package()`](#the-sha256-of-a-pubpackage)), and you pick its version.
-- A pinned package is built with the dependencies its own pubspec states, and
-  each must be pinned too: the transitive closure is yours to write, and a
-  missing pin fails the fetch naming both packages.
-- Upgrading means editing the version and digest by hand.
+What you give up is pub's resolver. With no `pubspec.yaml`, `pub get`,
+`pub add`, `pub upgrade` and `pub outdated` have nothing to work on. There is
+no lock, so no tool chooses versions for you:
+
+- You write a `pub.package()` for every third-party package, and pick its
+  version. Its `sha256` is the `archive_sha256` in
+  `https://pub.dev/api/packages/<name>/versions/<version>` (see
+  [The sha256 of a `pub.package()`](#the-sha256-of-a-pubpackage)).
+- A package is built with the dependencies its own pubspec states, and each of
+  those must be declared too. So you write the whole transitive closure. A
+  missing one fails the fetch, naming both packages.
+- To upgrade, you edit the version and digest by hand.
 - A package you publish to pub.dev still needs its `pubspec.yaml`.
 
-A workspace may mix both: a package with a pubspec and one without sit side by
-side, and a `pub.package()` and a `pub.from_lock()` lock may both ask for one
-package, the higher version being built. Where a pubspec and a directive or
+A workspace can mix both. A package with a pubspec and one without can sit side
+by side. A `pub.package()` and a `pub.from_lock()` lock can both ask for the
+same package, and the higher version is built. If a pubspec and a directive or
 `dart_package_metadata` state the same fact differently, Gazelle fails and names
 both (see
 [pubspec.yaml and the package's metadata](#pubspecyaml-and-the-packages-metadata)).
 
 ## Faster tests and builds (optional)
 
-rules_dart's defaults work everywhere Bazel runs. These settings make builds
-and tests faster where your setup allows them, and each asks something of you.
-Put them in your `.bazelrc`.
+rules_dart's defaults work everywhere Bazel runs. The settings below make
+builds and tests faster where your setup allows them. Each asks something of
+you. Put them in your `.bazelrc`.
 
-**Start the test runner from a cached snapshot.** A `package:test` test's
-start-up roughly halves (about 330 → 160 ms on macOS, 1050 → 400 ms on Linux).
+**Start the test runner from a cached snapshot.** This roughly halves a
+`package:test` test's start-up: about 330 → 160 ms on macOS, and
+1050 → 400 ms on Linux.
 
 ```
 test --@rules_dart//dart:runner_snapshot
 ```
 
-The runner then starts from a snapshot of itself cached on the machine. The
-first test to find none trains it, once per `package:test` runner and Dart
-SDK: after the test, it loads the test's file again with no case selected,
-while the VM records the runner's compiled code. The cache is outside Bazel,
-because a snapshot's bytes differ from one training to the next, and it cannot
-change a test's result. It lives in `/tmp/rules_dart-<uid>/runner` on macOS,
-`/dev/shm/rules_dart-<uid>/runner` on Linux (both cleared at reboot) and
-`%LOCALAPPDATA%\rules_dart\runner` on Windows, and keeps the eight snapshots
-used most recently. To put it elsewhere, pass
+The runner then starts from a snapshot of itself, cached on the machine. The
+snapshot is trained once per `package:test` runner and Dart SDK, by the first
+test that finds none. After that test runs, the launcher loads its file again
+with no case selected, and the VM records the runner's compiled code.
+
+The cache is outside Bazel, because a snapshot's bytes differ from one training
+to the next. It can't change a test's result, only how fast the runner starts.
+It keeps the eight snapshots used most recently, in:
+
+- `/tmp/rules_dart-<uid>/runner` on macOS.
+- `/dev/shm/rules_dart-<uid>/runner` on Linux.
+- `%LOCALAPPDATA%\rules_dart\runner` on Windows.
+
+The first two are cleared at reboot. To put the cache elsewhere, pass
 `--test_env=RULES_DART_RUNNER_SNAPSHOT_DIR=<dir> --sandbox_writable_path=<dir>`.
-Anything that goes wrong with it fails the test, saying so.
+If anything goes wrong with the cache, the test fails and says so.
 
 Turn it on only where tests run on your own machines. The cache needs a
-directory every test can write and that outlives a test: `/tmp` on macOS,
-`/dev/shm` on Linux, local application data on Windows. A remote executor may
-have none, which fails every test, or a fresh one for each action, which makes
-every test train a snapshot it then throws away. If yours keeps a writable
-`/dev/shm` between actions with room for the snapshots (about 50 MB for each
-`package:test` version and Dart SDK), the cache works there too. Otherwise,
-turn it on under a config only local runs use:
+directory that every test can write to and that outlives a test. A remote
+executor may have none, which fails every test. Or it may give each action a
+fresh one, so every test trains a snapshot and then throws it away. If your
+executor keeps a writable `/dev/shm` between actions, with room for the
+snapshots (about 50 MB for each `package:test` version and Dart SDK), the cache
+works there too. Otherwise, turn it on under a config that only local runs use:
 
 ```
 test:local --@rules_dart//dart:runner_snapshot
 ```
 
 **Share actions between configurations (Linux, macOS, remote execution).** A
-library built in two configurations (for the host and the target, or for a
-platform transition) compiles twice. With path mapping, one result serves
-both:
+library built in two configurations compiles twice. That happens when it is
+built for both the host and the target, or across a platform transition. With
+path mapping, one result serves both:
 
 ```
 common --enable_platform_specific_config
@@ -2608,65 +2707,83 @@ common:linux --experimental_output_paths=strip
 common:macos --experimental_output_paths=strip
 ```
 
-Bazel runs a path-mapped action only in a sandbox or remotely, so leave it off
-on Windows, where it fails the build. Rules of your own that pass a
-configuration's output path to an action as a string, rather than a `File`,
-must be fixed first (see [Architecture](docs/ARCHITECTURE.md)).
+Bazel runs a path-mapped action only in a sandbox or remotely. On Windows it
+fails the build, so leave it off there. If you have rules of your own that pass
+a configuration's output path to an action as a string, rather than as a
+`File`, fix them first (see [Architecture](docs/ARCHITECTURE.md)).
 
 ## Flags
 
-Every command-line setting rules_dart reads. Set one per invocation or in
-`.bazelrc` (`common --@rules_dart//dart:<name>=<value>`). All but
-`modular_kernel`, `outline_kernel` and `analysis_summaries` stay out of the
-exec configuration, so build tools (codegen builders, any `cfg = "exec"` Dart
-tool) are built the same whatever they are set to. Those three keep Bazel's
-default scope; `outline_kernel` and `analysis_summaries` select tools that are
-themselves resolved in the exec configuration.
+These are all the command-line settings rules_dart reads. Set one per
+invocation, or in `.bazelrc` as
+`common --@rules_dart//dart:<name>=<value>`.
+
+Build tools, such as codegen builders or any `cfg = "exec"` Dart tool, are built
+the same whatever you set most of these to. Three are the exception:
+`modular_kernel`, `outline_kernel` and `analysis_summaries` keep Bazel's default
+scope, so they apply in the exec configuration too. `outline_kernel` and
+`analysis_summaries` need that because the tools they select are themselves
+resolved in the exec configuration.
 
 | Flag                                               | Default     | What it does                                                                                                                                                                                   |
 | -------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--@rules_dart//dart:analysis_config=<label>`      | none listed | The `dart_analysis_config` whose options analysis, fixes and formatting use; with none listed, every file gets the SDK's defaults.                                                             |
-| `--@rules_dart//dart:analysis_summaries`           | on          | Analyzes each target against analyzer summaries of its dependencies (see [Analysis against summaries](#analysis-against-summaries)); off analyzes their source.                                |
-| `--@rules_dart//dart:analysis_worker`              | on          | Runs analysis and fixes in persistent workers (see [Analysis workers](#analysis-workers)); off starts a process per action.                                                                    |
-| `--@rules_dart//dart:extra_dart_defines=KEY=VALUE` | none        | Adds an environment declaration to every Dart compile, after target `defines`; repeat for more.                                                                                                |
-| `--@rules_dart//dart:kernel_list`                  | on          | Runs each test from a kernel list naming the kernels it reaches; off stores one joined kernel per test.                                                                                        |
-| `--@rules_dart//dart:modular_kernel`               | on          | Compiles each library once into kernel modules that tests link; off compiles each test's whole program from source.                                                                            |
-| `--@rules_dart//dart:outline_kernel`               | on          | Compiles dependents against outlines of their dependencies' modules, made by the outline toolchain of the Dart SDK; off compiles them against full kernels.                                    |
-| `--@rules_dart//dart:runner_snapshot`              | off         | Starts the `package:test` runner from a snapshot cached on the machine (see [Faster tests and builds](#faster-tests-and-builds-optional)); off starts it from its kernel and touches no cache. |
-| `--@rules_dart//dart:split_debug_info`             | off         | Leaves an `exe`'s or `aot-snapshot`'s debugging information out of it, written to `<name>.symbols` in the `debug_info` output group; stack traces print as addresses. |
+| `--@rules_dart//dart:analysis_config=<label>`      | none listed | The `dart_analysis_config` whose options analysis, fixes and formatting use. With none listed, every file gets the SDK's defaults.                                                             |
+| `--@rules_dart//dart:analysis_summaries`           | on          | Analyzes each target against analyzer summaries of its dependencies (see [Analysis against summaries](#analysis-against-summaries)). Off, it analyzes their source.                            |
+| `--@rules_dart//dart:analysis_worker`              | on          | Runs analysis and fixes in persistent workers (see [Analysis workers](#analysis-workers)). Off, each action starts a process.                                                                  |
+| `--@rules_dart//dart:extra_dart_defines=KEY=VALUE` | none        | Adds an environment declaration to every Dart compile, after target `defines`. Repeat it for more.                                                                                             |
+| `--@rules_dart//dart:kernel_list`                  | on          | Runs each test from a kernel list naming the kernels it reaches. Off, each test stores one joined kernel.                                                                                      |
+| `--@rules_dart//dart:modular_kernel`               | on          | Compiles each library once into kernel modules that tests link. Off, each test compiles its whole program from source.                                                                         |
+| `--@rules_dart//dart:outline_kernel`               | on          | Compiles dependents against outlines of their dependencies' modules, made by the Dart SDK's outline toolchain. Off, they compile against full kernels.                                         |
+| `--@rules_dart//dart:runner_snapshot`              | off         | Starts the `package:test` runner from a snapshot cached on the machine (see [Faster tests and builds](#faster-tests-and-builds-optional)). Off, it starts from its kernel and touches no cache. |
+| `--@rules_dart//dart:split_debug_info`             | off         | Leaves an `exe`'s or `aot-snapshot`'s debugging information out of it, and writes it to `<name>.symbols` in the `debug_info` output group. Stack traces then print as addresses.              |
 | `--@rules_dart//dart:track_creation_locations`     | off         | Compiles VM kernels with `--track-creation-locations` (`--track-widget-creation`).                                                                                                             |
 
 ## For rule-set authors
 
-This section is for rules of other rule sets (rules_flutter's, say) that build
-on rules_dart's. A workspace that only uses rules_dart's rules needs none of
-it. The API is in `@rules_dart//dart:utils.bzl`, `@rules_dart//dart:providers.bzl`
+This section is for rules in other rule sets, such as rules_flutter's, that
+build on rules_dart's. If you only use rules_dart's own rules, you can skip it.
+The API is in `@rules_dart//dart:utils.bzl`, `@rules_dart//dart:providers.bzl`
 and `@rules_dart//dart:toolchain.bzl`.
 
 ### Linking programs from modules
 
-A rule set's test or executable links the kernel modules rules_dart compiles
-for each library (see [Tests](#tests)) with `dart_link_kernel_action`. Its
-launcher reads, joins or rewrites the program's kernel list with the
-`@rules_dart//dart/kernel_list` library (`package:kernel_list/kernel_list.dart`):
-`kernelsInRunfiles` finds a program's kernels through runfiles,
-`writeKernelList` writes a list naming them, and `joinKernels` joins them for
-a program that takes a single kernel file, in memory on Linux and in a
-temporary file elsewhere.
+rules_dart compiles each library once into a kernel module (see
+[Tests](#tests)). A rule set's own test or executable can link those modules
+into its program, as `dart_test` does. The steps, all from
+`@rules_dart//dart:utils.bzl`, are:
 
-Such a rule set honours the `modular_kernel` escape hatch too: it merges
-`MODULAR_KERNEL_ATTR` from `@rules_dart//dart:utils.bzl` and, when
-`modular_kernel(ctx)` is false, compiles its whole program with
-`dart_whole_program_kernel_action`. `dart_entry_kernel_action` fails if called
-then, since no module was compiled.
+1. Make a module aspect with `dart_module_aspect(kernel_sdk)`, once per
+   platform, at the top level of a `.bzl` file. Attach it to the rule's `deps`.
+2. Gather the modules with `collect_modules(deps)`.
+3. Compile the entrypoint against them with `dart_entry_kernel_action`.
+4. Link the entry and the modules it reaches with `dart_link_kernel_action`.
+   With `kernel_list = True`, the output is a kernel list: a text file naming
+   the kernels, which the VM reads as one program. `kernel_list(ctx)`, with
+   `KERNEL_LIST_ATTR` merged into the rule's `attrs`, says whether the build
+   wants one.
+
+The rule's launcher reads, joins or rewrites the program's kernel list with the
+`@rules_dart//dart/kernel_list` library (`package:kernel_list/kernel_list.dart`):
+
+- `kernelsInRunfiles` finds a program's kernels through runfiles.
+- `writeKernelList` writes a list naming them.
+- `joinKernels` joins them for a process that takes a single kernel file. On
+  Linux the joined program is in memory. Elsewhere it is a temporary file.
+
+The rule must also honour the `modular_kernel` escape hatch. It merges
+`MODULAR_KERNEL_ATTR` into its `attrs`. When `modular_kernel(ctx)` is false, no
+module is compiled, so it compiles its whole program with
+`dart_whole_program_kernel_action`. `dart_entry_kernel_action` fails if it is
+called then.
 
 ### Environment declarations
 
-An executable's `defines` are configuration: its dependencies' modules are
-compiled in the same environment as its entrypoint. A rule set's executable
-gets that environment from `executable_defines_config` in
-`@rules_dart//dart:utils.bzl`, which also takes the declarations the rule
-derives from its other attributes:
+An executable's `defines` are configuration, not just flags to its own compile.
+Its dependencies' modules are compiled in the same environment as its
+entrypoint. A rule set's executable gets that environment from
+`executable_defines_config` in `@rules_dart//dart:utils.bzl`. Call it once per
+rule kind, at the top level of a `.bzl` file. It takes a function that derives
+more declarations from the rule's other attributes:
 
 ```starlark
 def _flavor_defines(attr):
@@ -2687,212 +2804,290 @@ my_test = rule(
 ```
 
 The environment is `defines`, then the derived declarations, then the
-`extra_dart_defines` flag. `dart_entry_kernel_action` compiles the entrypoint in
-it and fails if a dependency's modules were compiled in another; a compile the
-rule runs itself, such as one of the whole program, takes
-`executable_defines(ctx)`. A derived key that `defines` also sets is an error.
+`extra_dart_defines` flag. A derived key that `defines` also sets is an error.
+
+`dart_entry_kernel_action` compiles the entrypoint in this environment. It
+fails if a dependency's modules were compiled in another. A compile the rule
+runs itself, such as one of the whole program, takes `executable_defines(ctx)`.
 
 ### Coverage in your own test rule
 
-A test rule that collects coverage from a Dart VM of its own (a Flutter test's)
-reuses the conversion: it merges `COVERAGE_ATTRS` from
-`@rules_dart//dart:utils.bzl` into its `attrs` (the converter and the
-`_lcov_merger` Bazel's coverage runner needs), gives its result
-`coverage_common.instrumented_files_info`, and calls `test_coverage(ctx,
-packages, sources, deps)` with the test's own Dart files and its `deps`, which
-is `None` unless the build is for coverage and otherwise writes the file naming
-the packages' `lib/` directories and the runfiles path of each source Bazel
-instruments, and returns `converter` and `sources` (runfiles paths) and the
-`runfiles` to merge into the test's, which carry those sources. Inside the test,
-over a directory of `package:coverage` JSON (what its `collect` returns, one
-file per suite), it runs `@rules_dart//dart:coverage_converter`:
+A test rule that collects coverage from a Dart VM of its own, as a Flutter test
+does, can reuse rules_dart's conversion to LCOV. The rule:
+
+1. Merges `COVERAGE_ATTRS` from `@rules_dart//dart:utils.bzl` into its `attrs`.
+   These are the converter and the `_lcov_merger` that Bazel's coverage runner
+   needs.
+2. Gives its result `coverage_common.instrumented_files_info`.
+3. Calls `test_coverage(ctx, packages, sources, deps)`. `packages` are the
+   `DartPackageInfo` records of every package the test runs
+   (`collect_packages(deps)` and the test's own). `sources` are the test's own
+   Dart files, and `deps` its dependency targets.
+
+`test_coverage` returns `None` unless the build is for coverage. Otherwise it
+writes a file naming each package's `lib/` directories and the runfiles path of
+each source Bazel instruments. It returns a struct with:
+
+- `converter`, the converter's runfiles path.
+- `sources`, the runfiles path of that file.
+- `runfiles`, to merge into the test's. They carry the sources, whose
+  `coverage:ignore` comments the converter reads.
+
+Inside the test, run `@rules_dart//dart:coverage_converter` over a directory of
+`package:coverage` JSON, which is what `collect` returns, one file per suite:
 
 ```sh
 coverage_converter --hitmaps=<dir> --sources=<sources> --output=$COVERAGE_DIR/<name>.dat
 ```
 
-`--hitmaps` is searched for `*.json` at any depth, and the counts of a script
-in several files add. `--output` ends in `.dat`, in `COVERAGE_DIR`. Bazel's
-`COVERAGE_MANIFEST` must be set, as must the test's runfiles variables, which a
-process the test starts inherits; a script the manifest does not list is not
-reported. The exit status is 0, 2 for a usage error, or another value for a
+`--hitmaps` is searched for `*.json` at any depth. If one script appears in
+several files, its counts add. `--output` must end in `.dat` and be in
+`COVERAGE_DIR`.
+
+Bazel's `COVERAGE_MANIFEST` must be set, and so must the test's runfiles
+variables. A process the test starts inherits them. A script the manifest
+doesn't list isn't reported.
+
+The exit status is 0 for success and 2 for a usage error. Any other value is a
 failure, with a message on stderr. These flags are stable.
 
 ### Web platforms in your own rules
 
 A rule set that builds Dart for a web platform uses the transitions in
-`@rules_dart//dart:utils.bzl` (`web_platform_transition`,
-`web_platforms_transition`, or `web_platform_settings` in a transition of its
-own), never `--platforms` alone: they record the platform the build had, which
-is what the resets go back to. Its split may see fewer keys in
-`ctx.split_attr` than it returned: branches that a dependency's reset brings to
-one configuration arrive as one key. Its analysis tests take
-`config_settings = web_platform_config_settings(platform)`, the same settings
-as a fixed dict.
+`@rules_dart//dart:utils.bzl`. It never sets `--platforms` alone. The
+transitions record the platform the build had before, and that is what the
+resets go back to. There are three ways in:
+
+- `web_platform_transition`, to the platform in the rule's `platform`
+  attribute.
+- `web_platforms_transition`, a split with one branch per platform in the
+  rule's `web_platforms` attribute.
+- `web_platform_settings(settings, platform)`, in a transition of your own. It
+  takes `WEB_PLATFORM_SETTINGS` among its `inputs` and `outputs`.
+
+A split may see fewer keys in `ctx.split_attr` than it returned. Branches that a
+dependency's reset brings back to one configuration arrive as one key.
+
+The resets are exported too. `runtime_reset` goes back to the earlier platform.
+`non_dart_transition` also turns off `track_creation_locations` and clears an
+executable's environment declarations, for a rule nothing of which is compiled
+Dart.
+
+The rule set's analysis tests take
+`config_settings = web_platform_config_settings(platform)`. That gives the same
+settings as a fixed dict. It assumes the tests run on the host platform. Pass
+`platforms` if they run under another `--platforms`.
 
 ### Program assets in your own rules
 
-What a program ships is one operation over the program, its packages and
-whether it is linked; a bundler takes its assets from that operation rather
-than from the packages, so it and every other consumer agree. Inside a rule,
-`dart_program_assets_actions()` from `@rules_dart//dart:utils.bzl` performs it,
-as `dart_program_assets` does:
+What a program ships is the result of one operation, over the program, its
+packages and whether it is linked. A bundler takes its assets from that
+operation, not from the packages, so that every consumer agrees.
+`dart_program_assets` performs it as a target. Inside a rule,
+`dart_program_assets_actions()` from `@rules_dart//dart:utils.bzl` performs it:
 
 ```starlark
-load("@rules_dart//dart:utils.bzl", "PORTABLE_EXEC_GROUPS", "PROGRAM_ASSETS_TOOLCHAINS", "dart_program_assets_actions", "program_assets_action_args", "program_assets_attrs")
+load("@rules_dart//dart:utils.bzl", "PORTABLE_EXEC_GROUPS", "PROGRAM_ASSETS_TOOLCHAINS", "dart_program_assets_actions", "program_assets_action_args", "program_assets_attrs", "vm_code_config")
 
 def _bundle_impl(ctx):
     assets = dart_program_assets_actions(
         ctx,
-        package = package,          # the program's own DartPackageInfo, or None
+        package = package,               # the program's own DartPackageInfo, or None
         deps = ctx.attr.deps,
         name = ctx.label.name,
-        recorded_uses = uses,       # its DartRecordedUsesInfo to link it; None not to
+        recorded_uses = recorded_uses,   # its DartRecordedUsesInfo to link it; None not to
+        code_config = vm_code_config(ctx),
     )
     a = program_assets_action_args(ctx.actions, assets.info)
     ctx.actions.run(
         executable = ctx.executable._bundler,
-        arguments = [args, a.args],  # the tool gets --program-assets=<file>
+        arguments = [args, a.args],      # the tool gets --program-assets=<file>
         inputs = depset(inputs, transitive = [a.inputs]),
         execution_requirements = {"supports-path-mapping": "1"},
         ...
     )
+    return [OutputGroupInfo(_validation = depset(assets.validation_outputs)), ...]
 
 bundle = rule(
     implementation = _bundle_impl,
     attrs = {...} | program_assets_attrs(),
     exec_groups = PORTABLE_EXEC_GROUPS,
-    toolchains = PROGRAM_ASSETS_TOOLCHAINS,  # with the C++ toolchain, for linked_code_assets
+    toolchains = PROGRAM_ASSETS_TOOLCHAINS,  # includes the C++ toolchain, for linked_code_assets
     fragments = ["cpp"],
 )
 ```
 
-- Link a release build and not a debug one, as `flutter build` does. The
-  program's packages are `program_packages(package, deps)`, its own among them.
-- Linked, pass `code_config`, what each hook is told of a target that loads
-  code assets, as upstream's hook input has it at
-  `config.extensions.code_assets` (`target_os`, `target_architecture`,
-  `link_mode_preference`, and `ios` or `android` there): `vm_code_config(ctx)`
-  for a Dart VM program, `None` for a target that loads none.
-- `program_assets_action_args(ctx.actions, info)` returns `args`, an `Args`
-  of its own, and `inputs`, every File it names. The tool is given one flag,
-  `--program-assets=<file>`, a param file Bazel writes from the action's
-  mapped command line, so an action that supports path mapping (or runs in a
-  sandbox, a worker or remotely) opens every path in it. A Dart tool reads it
-  with `ProgramAssets.read(path)` from the `@rules_dart//dart/program_assets`
-  library, which returns what ships, sorted by id: data assets (`package`,
-  `name`, `file`) and code assets (`id`, `linkMode`, `file`, `fileName`,
-  `uri`). Where each lands in the application is the bundler's decision.
-  `@rules_dart//dart/program_assets:list` prints the same, for debugging.
-- Hand a tool only what it reads, and its action waits on and reruns for
-  nothing else: `data = False` leaves out the data assets, and `code` says
-  what it reads of the code assets: `"libraries"` (the default), each with its
-  library; `"names"`, each one's id, link mode, library file name and uri,
-  without the library, as a tool writing a manifest of them needs; or `None`.
-  Either code view holds each link hook's decision of which ship. The file
-  says what it holds; `ProgramAssets.data` or `.code` throws for what it does
-  not, and a file holding the code by name has no library paths.
-- `program_kernel_code_assets(info)` is the `DartCodeAssetInfo` of every code
-  asset the program can load, linked or not: the ones that ship and every one
-  a link hook chooses among, since the kernel's mapping is made before any
-  hook runs. A rule compiling the program's kernel maps these; `dart_binary`
-  and `dart_test` embed theirs from it, with their own `code_assets` passed as
-  `dart_program_assets_actions()`'s `code_assets` argument, which replace the
-  packages' under the same id.
-- `program_asset_file(info, id)` is the File of one asset known at analysis
-  time: unlinked, any; linked, those of packages without a link hook, every
-  package's `linked_code_assets` and the ids each hook promises in
-  `link_hook_assets`. It fails naming the `link_hook_assets` to add when the
-  id is not there.
-- `DartProgramAssetsInfo` holds the facts these read: `data_assets` and
-  `code_assets` (by id, what certainly ships) and `link_outputs` (per hooked
-  package, its output directory, the code assets it chose among and the file
-  of the ids it kept). Read it through the helpers: a consumer of
-  `data_assets` and `code_assets` alone misses what the hooks emit.
-- The result's `validation_outputs` go in the rule's `_validation` output
-  group, so every hook runs whenever the target builds.
+**When to link.** Link a release build and not a debug one, as `flutter build`
+does. The program's packages are `program_packages(package, deps)`, its own
+among them.
+
+**`code_config`.** A linked program passes `code_config`. It is what each hook
+is told about a target that loads code assets, as upstream's hook input has it
+at `config.extensions.code_assets`: `target_os`, `target_architecture`,
+`link_mode_preference`, and `ios` or `android` there. For a Dart VM program use
+`vm_code_config(ctx)`. For a target that loads no code assets, such as the web,
+pass `None`.
+
+**Handing assets to a tool.** `program_assets_action_args(ctx.actions, info)`
+returns `args`, an `Args` of its own, and `inputs`, every File it names. The
+tool gets one flag, `--program-assets=<file>`. The file is a param file Bazel
+writes from the action's mapped command line. So every path in it opens
+correctly under path mapping, in a sandbox, in a worker, or remotely.
+
+A Dart tool reads the file with `ProgramAssets.read(path)` from the
+`@rules_dart//dart/program_assets` library. It returns what ships, sorted by id:
+
+- data assets, with `package`, `name` and `file`.
+- code assets, with `id`, `linkMode`, `file`, `fileName` and `uri`.
+
+Where each lands in the application is the bundler's decision. For debugging,
+`@rules_dart//dart/program_assets:list` prints the same list.
+
+**Handing a tool only what it reads.** An action waits on and reruns for only
+what it is given. Two arguments narrow it:
+
+- `data = False` leaves out the data assets.
+- `code` says what the tool reads of the code assets. `"libraries"` (the
+  default) gives each with its library. `"names"` gives each one's id, link
+  mode, library file name and uri, without the library, as a tool writing a
+  manifest needs. `None` gives no code assets.
+
+Either code view includes each link hook's choice of which ship. The file says
+what it holds. `ProgramAssets.data` or `.code` throws for what it doesn't hold,
+and a file holding the code by name has no library paths.
+
+**The kernel's code assets.** `program_kernel_code_assets(info)` is the
+`DartCodeAssetInfo` of every code asset the program can load, linked or not.
+That is the ones that ship, plus every one a link hook chooses among, since the
+kernel's mapping is made before any hook runs. A rule that compiles the
+program's kernel maps these. `dart_binary` and `dart_test` embed theirs from it.
+They pass their own `code_assets` as `dart_program_assets_actions()`'s
+`code_assets` argument, which replace the packages' assets with the same id.
+
+**One asset by id.** `program_asset_file(info, id)` is the File of one asset
+known at analysis time. Unlinked, that is any asset. Linked, it is:
+
+- the assets of packages without a link hook.
+- every package's `linked_code_assets`.
+- the ids each hook promises in `link_hook_assets`.
+
+For any other id it fails, naming the `link_hook_assets` to add.
+
+**The provider.** `DartProgramAssetsInfo` holds the facts these helpers read:
+
+- `data_assets` and `code_assets`, by id: what certainly ships.
+- `link_outputs`: for each package whose hook ran, its output directory, the
+  code assets it chose among, and the file of the ids it kept.
+
+Read it through the helpers. A consumer that reads only `data_assets` and
+`code_assets` misses what the hooks emit.
+
+**Validation.** Put the result's `validation_outputs` in the rule's
+`_validation` output group. Then every hook runs whenever the target builds.
 
 #### The program-assets file
 
-What `program_assets_action_args()` hands a tool, and what a
-`dart_program_assets` target writes for its runfiles, is a text file of one
-item per line, each line ending in a newline, with no quoting: an item is a
-whole line, and an empty line is an empty item. `ProgramAssets.read` is the
-reference reader; a tool in another language reads it as follows, and checks
-itself against the conformance fixture in `dart/program_assets/test/conformance/`
-(read in that directory, `program.params` lists what `expected.txt` says and
-`code_names.params` what `code_names.expected.txt` says, in
-the format `@rules_dart//dart/program_assets:list` prints).
+This is the file `program_assets_action_args()` hands a tool, and the one a
+`dart_program_assets` target writes for its runfiles. `ProgramAssets.read` is
+the reference reader. A tool in another language reads it as described below.
 
-- It starts `--format`, `rules_dart_program_assets/1`: refuse any other
-  value, which is another format or version. Then `--paths` and `exec`
-  (paths relative to the working directory, as an action has them) or
-  `runfiles` (runfiles paths, to resolve with a runfiles library). Then
-  `--holds` and what the file holds, separated by spaces: `data`, and `code`
-  (the code assets with their libraries) or `code-names` (the code assets
-  by name). Refuse a record of anything it does not hold.
-- Then records, each a tag line and a fixed number of lines:
-  - `--data-asset`, its id (`package:<package>/<name>`), its file: a data
-    asset that ships.
-  - `--link-data`, a package, a directory: the data assets one package's link
-    hook emitted. Each file under the directory, at any depth, is a data
-    asset of the package that ships, named by its path in the directory with
-    `/` separators; follow symbolic links, as a sandbox stages files as
-    links.
-  - `--code-asset`, its id, its link mode (upstream's `link_mode.type`:
-    `dynamic_loading_bundle`, `dynamic_loading_system`, …), its library or
-    an empty line, its uri or an empty line: a code asset that ships. Its
-    library is a path under `code`, and the library's file name under
-    `code-names`, where the library is not there to open.
-  - `--link-code`, a package, a selection file, followed by one or more
-    `--candidate` records, each as a `--code-asset`: the code assets one
-    package's link hook chose among. The selection file names, one per
-    line, the candidates that ship; those it does not name do not.
-- An id appears once in all that ships. Records are sorted by id within each
-  kind, and nothing else in the file is ordered.
+To check a reader, use the conformance fixture in
+`dart/program_assets/test/conformance/`. Read in that directory,
+`program.params` lists what `expected.txt` says, and `code_names.params` lists
+what `code_names.expected.txt` says. The expected files are in the format
+`@rules_dart//dart/program_assets:list` prints.
+
+The file is text with one item per line, and each line ends in a newline. There
+is no quoting. An item is a whole line, and an empty line is an empty item.
+
+It starts with a header of three flags:
+
+- `--format`, then `rules_dart_program_assets/1`. Refuse any other value: it is
+  another format or version.
+- `--paths`, then `exec` or `runfiles`. `exec` paths are relative to the
+  working directory, as an action has them. `runfiles` paths are to resolve
+  with a runfiles library.
+- `--holds`, then what the file holds, separated by spaces: `data`, and either
+  `code` (the code assets with their libraries) or `code-names` (the code
+  assets by name). Refuse a record of anything the file doesn't hold.
+
+Then come records. Each is a tag line followed by a fixed number of lines:
+
+- `--data-asset`, its id (`package:<package>/<name>`), and its file: a data
+  asset that ships.
+- `--link-data`, a package, and a directory: the data assets one package's link
+  hook emitted. Each file under the directory, at any depth, is a data asset of
+  the package that ships. Its name is its path in the directory, with `/`
+  separators. Follow symbolic links, because a sandbox stages files as links.
+- `--code-asset`, its id, its link mode, its library or an empty line, and its
+  uri or an empty line: a code asset that ships. The link mode is upstream's
+  `link_mode.type` (`dynamic_loading_bundle`, `dynamic_loading_system`, …).
+  Under `code` the library is a path. Under `code-names` it is the library's
+  file name, since the library isn't there to open.
+- `--link-code`, a package, and a selection file, followed by one or more
+  `--candidate` records laid out like `--code-asset`: the code assets one
+  package's link hook chose among. The selection file names the candidates
+  that ship, one per line. The ones it doesn't name don't ship.
+
+An id appears only once in all that ships. `--data-asset` and `--code-asset`
+records, and each `--link-code`'s candidates, are sorted by id. A reader should
+assume no other order.
 
 ### Analyzable targets
 
-The `dart_analyze` aspect checks a library by its `DartInfo`, and an
-executable by its `DartAnalyzableInfo`, which an executable returns instead of
-`DartInfo` so that it is analyzable without being a valid `deps` entry. Build
-one with `dart_analyzable_info()` (for a target whose sources are a package's)
-or `dart_analyzable_info_no_package()` from `@rules_dart//dart:utils.bzl`,
-never by hand; build `DartInfo` with `dart_info()`.
+The `dart_analyze` aspect checks a library by its `DartInfo`. It checks an
+executable by its `DartAnalyzableInfo`. An executable returns that instead of
+`DartInfo`, so it can be analyzed without being a valid `deps` entry.
+
+Build these providers with the functions in `@rules_dart//dart:utils.bzl`,
+never by hand. `DartInfo` comes from `dart_info()`. `DartAnalyzableInfo` comes
+from `dart_analyzable_info()` for a target whose sources belong to a package, or
+`dart_analyzable_info_no_package()` for one whose sources don't.
 
 ### Reading a pubspec
 
-A repository rule reads a `pubspec.yaml` as `pub.from_lock()` does, with
-Dart's own `package:yaml`, through `read_pubspec` from
-`@rules_dart//dart/pub:pubspec.bzl`.
+A repository rule can read a `pubspec.yaml` the way `pub.from_lock()` does, with
+`read_pubspec(rctx, package_name)` from `@rules_dart//dart/pub:pubspec.bzl`. It
+uses Dart's own `package:yaml`, the loader pub uses, and refuses what pub
+refuses, with pub's message. It returns the pubspec's `name`, `dependencies`,
+`sdk_constraint` and `language_version`, and the whole document as `fields`.
 
 ### A Dart SDK of your own
 
-Each Dart toolchain registers, beside the compiler, the outline stripper (see
-[Tests](#tests)) and the summary analyzer (see
-[Analysis against summaries](#analysis-against-summaries)), both built from
-the source of the same SDK release. A Dart SDK with no release tag (a fork, a
-local build, Flutter's beta and main channels) needs its own, built from its
-source checkout (`third_party/dart` in a Flutter engine checkout):
+Each Dart toolchain registers two tools beside the compiler: the outline
+stripper (see [Tests](#tests)) and the summary analyzer (see
+[Analysis against summaries](#analysis-against-summaries)). Both are built from
+the source of the same SDK release.
 
-- Outlines: register a `dart_outline_toolchain` (from
-  `@rules_dart//dart:toolchain.bzl`) whose tool is the `:outline_tool` of a
-  `dart_kernel_source(path = "<checkout>")`, a repository rule in
-  `@rules_dart//dart:repositories.bzl` (`use_repo_rule`), built on that
-  checkout's `pkg/kernel`. A repository rule that already reads the checkout
-  calls `fetch_dart_kernel_source(rctx, path, prefix)` from the same file to
-  put the same packages and stripper in a directory of its own repository. Or
-  turn outlines off with `--@rules_dart//dart:outline_kernel=false`.
-- Summaries: register a `dart_analyzer_toolchain` (from
-  `@rules_dart//dart:toolchain.bzl`) whose tool is the `:summary_analyzer` of a
-  `dart_analyzer_source(path = "<checkout>")`, built on that checkout's
-  `pkg/analyzer` and `pkg/linter`; `fetch_dart_analyzer_source(rctx, path,
-  prefix)` is its counterpart for a repository rule of your own. Both are in
-  `@rules_dart//dart:repositories.bzl`. Or turn summaries off with
-  `--@rules_dart//dart:analysis_summaries=false`.
+A Dart SDK with no release tag has no such source to fetch. That includes a
+fork, a local build, and Flutter's beta and main channels. It needs its own
+tools, built from its source checkout. In a Flutter engine checkout that is
+`third_party/dart`. Each has an off switch if you'd rather not build it.
+
+**Outlines.** Register a `dart_outline_toolchain`, from
+`@rules_dart//dart:toolchain.bzl`. Its `tool` is the `:outline_tool` of a
+`dart_kernel_source(path = "<checkout>")` repository, built on that checkout's
+`pkg/kernel`. Or turn outlines off with
+`--@rules_dart//dart:outline_kernel=false`.
+
+**Summaries.** Register a `dart_analyzer_toolchain`, from the same file. Its
+`tool` is the `:summary_analyzer` of a
+`dart_analyzer_source(path = "<checkout>")` repository, built on that
+checkout's `pkg/analyzer` and `pkg/linter`. Or turn summaries off with
+`--@rules_dart//dart:analysis_summaries=false`.
+
+`dart_kernel_source` and `dart_analyzer_source` are repository rules in
+`@rules_dart//dart:repositories.bzl`, for `use_repo_rule`. A repository rule of
+your own that already reads the checkout can call
+`fetch_dart_kernel_source(rctx, path, prefix)` or
+`fetch_dart_analyzer_source(rctx, path, prefix)`, from the same file. These put
+the same packages and tool in a directory of its own repository.
 
 Each toolchain's `version` is that of the Dart toolchain whose kernels or
-analysis it serves.
+analysis it serves. Set its `tool` only when its flag is on, so that the tool
+isn't built otherwise. For example:
+`select({"@rules_dart//dart:is_outline_kernel": ..., "//conditions:default": None})`,
+or `:is_analysis_summaries` for the analyzer.
 
 ## Examples
 
@@ -2900,13 +3095,16 @@ The [`e2e/`](e2e/) directory contains complete working examples:
 
 | Example                                                     | What it demonstrates                                                                                     |
 | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| [`smoke`](e2e/smoke/)                                       | The install instructions, used from an outside module, as the Bazel Central Registry checks them         |
 | [`hello_world`](e2e/hello_world/)                           | Minimal binary + all compile modes (`exe`, `aot-snapshot`, `kernel`)                                     |
 | [`no_pubspec`](e2e/no_pubspec/)                             | No `pubspec.yaml` anywhere: codegen, analysis, format, fix, tests, every binary                          |
 | [`library_deps`](e2e/library_deps/)                         | Transitive `dart_library` dependencies, `srcs` attribute                                                 |
 | [`dart_test`](e2e/dart_test/)                               | Tests with and without deps, `srcs` for test helpers                                                     |
 | [`analysis`](e2e/analysis/)                                 | The `dart_analyze` aspect's checks with `package:`-included options                                      |
+| [`analysis_failure`](e2e/analysis_failure/)                 | Targets the `dart_analyze` aspect fails, each with a diagnostic of its own                               |
 | [`fix`](e2e/fix/)                                           | `@rules_dart//dart/fix` and `format` write-back, and that generated files are never rewritten            |
 | [`analyze_composition`](e2e/analyze_composition/)           | A lint ruleset and page width shared from another Bazel module                                           |
+| [`external_module`](e2e/external_module/)                   | A module building its own rules on rules_dart's exported helpers                                         |
 | [`web_app`](e2e/web_app/)                                   | JavaScript and WebAssembly compilation with library deps                                                 |
 | [`web_compiler`](e2e/web_compiler/)                         | Per-compiler code by `select()`, and the resets other modules' rules use                                 |
 | [`pub_deps`](e2e/pub_deps/)                                 | Single pub.dev package via `pub.package()`                                                               |
@@ -2931,6 +3129,8 @@ The [`e2e/`](e2e/) directory contains complete working examples:
 | [`pub_lock_refused`](e2e/pub_lock_refused/)                 | Unpinned packages and locks disagreeing on a package fail, each named, in one failure                    |
 | [`pub_hub_surface`](e2e/pub_hub_surface/)                   | Every locked package in its hub, including one declared with `pub.package()`                             |
 | [`pub_package_missing_dep`](e2e/pub_package_missing_dep/)   | A `pub.package()` whose pubspec depends on an unsupplied package fails, naming both                      |
+| [`pub_package_padded`](e2e/pub_package_padded/)             | An archive with bytes after its gzip stream fetches through `pub.package()` as through a lock            |
+| [`pub_archive_links`](e2e/pub_archive_links/)               | Nothing in a fetched pub archive can refer outside the package                                           |
 | [`kernel_source_refused`](e2e/kernel_source_refused/)       | A `dart_kernel_source` with both or neither of `dart_version` and `path`, or no checkout, fails          |
 | [`pub_override_root_lock`](e2e/pub_override_root_lock/)     | A higher root lock serves a dependency module's `pub.package()` repository and the lock's own dependents |
 | [`pub_highest_wins`](e2e/pub_highest_wins/)                 | The highest request builds, over root and dependency `pub.package()`s, warning for the root's            |
@@ -2940,11 +3140,15 @@ The [`e2e/`](e2e/) directory contains complete working examples:
 | [`ext_exemplar`](e2e/ext_exemplar/)                         | One package per bundled `dart/ext` builder, plus native `code_assets`, sqlite3/webcrypto                 |
 | [`link_hook`](e2e/link_hook/)                               | `record_use`, `hook/link.dart` emitting data assets via `dart_program_assets`, declared data assets      |
 
-> **Note**: Only the `exe` and `aot-snapshot` compile modes cross-compile via
-> `--platforms`. `kernel` is a VM format that ignores target
-> flags. Built natively, a `kernel` or `aot-snapshot` target's
-> executable is a launcher that runs the output in the SDK's VM, so it works with
-> `bazel run` and as `data`; cross-compiled, the target's executable is the
-> output itself, for the target's own runtime to run. Linux targets are `linux-x64`, `linux-arm64`, `linux-riscv64` and
-> `linux-arm` (armv7, selected by `@platforms//cpu:armv7`), reachable from every
-> supported host. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for details.
+> **Note**: Only the `exe` and `aot-snapshot` compile modes cross-compile with
+> `--platforms`. `kernel` is a VM format and ignores target flags.
+>
+> Built for the host, a `kernel` or `aot-snapshot` target's executable is a
+> launcher that runs the output in the SDK's VM. So it works with `bazel run`
+> and as another target's `data`. Cross-compiled, the target's executable is
+> the output itself, for the target's own runtime to run.
+>
+> The Linux targets are `linux-x64`, `linux-arm64`, `linux-riscv64` and
+> `linux-arm` (armv7, selected by `@platforms//cpu:armv7`). Every supported host
+> can build for all of them. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+> for details.
