@@ -43,10 +43,9 @@ class ShimWorkerLoop extends AsyncWorkerLoop {
   Future<WorkResponse> performRequest(WorkRequest request) async {
     final factories = factoryOrFactories;
     final arguments = request.arguments.toList();
-    final sandboxDir = request.sandboxDir;
     final inputs = [for (final input in request.inputs) input.path];
     final (exit, output) = await Isolate.run(
-      () => _performRequest(factories, arguments, sandboxDir, inputs),
+      () => _performRequest(factories, arguments, inputs),
     );
     return WorkResponse()
       ..exitCode = exit
@@ -58,23 +57,10 @@ class ShimWorkerLoop extends AsyncWorkerLoop {
 Future<(int, String)> _performRequest(
   Object factoryOrFactories,
   List<String> arguments,
-  String sandboxDir,
   List<String> inputs,
 ) async {
   final stderrBuffer = StringBuffer();
   int exit = 0;
-
-  // Respect WorkRequest.sandboxDir when set, so staging lives and dies with
-  // the request's sandbox. Bazel sets it only for multiplex workers under
-  // multiplex sandboxing; the shims run as singleplex workers, so it is
-  // unset and staging goes to the system temp dir.
-  Directory? stagingRoot;
-  if (sandboxDir.isNotEmpty) {
-    stagingRoot = Directory(sandboxDir);
-    if (!await stagingRoot.exists()) {
-      await stagingRoot.create(recursive: true);
-    }
-  }
 
   // Route diagnostics through `WorkResponse.output` rather than the
   // shared worker stderr (Bazel's protocol requires stdout/stderr clean).
@@ -92,7 +78,6 @@ Future<(int, String)> _performRequest(
         await runShim(
           arguments,
           factoryOrFactories,
-          stagingRoot: stagingRoot,
           writeDiagnostic: sink,
           // Unsandboxed, the worker could read anything under a package's
           // root; Bazel's contract is that it reads only these.
