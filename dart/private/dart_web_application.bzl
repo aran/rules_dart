@@ -13,8 +13,8 @@ load("//dart/private:common.bzl", "PATH_MAPPING", "SDK_ENV", "collect_transitive
 load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS", "portable_sdk")
 load("//dart/private:executable_package.bzl", "EXECUTABLE_PACKAGE_ATTRS", "executable_package")
 load("//dart/private:project_staging.bzl", "project_layout", "stage_dart_project")
-load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS")
 load("//dart/private:runtime.bzl", "RuntimeInfo", "web_platform_transition")
+load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS")
 
 def _get_web_compilation_mode_flags(ctx, compile_mode):
     """Returns compiler flags for the current Bazel compilation mode (web targets).
@@ -82,20 +82,36 @@ def _dart_web_compile(ctx, compile_mode):
                 collect_transitive_resources(ctx.attr.deps).to_list())
     staged = stage_dart_project(ctx, project_layout(packages, all_srcs, [ctx.file.main] + ctx.files.srcs), dart_sdk_info)
 
-    # `dart compile wasm` writes more than the module: the `.mjs` loader that
-    # instantiates it, the `.support.js` feature check a page runs first, and
-    # a source map unless told not to. Undeclared, Bazel discards them and the
-    # `.wasm` cannot be run.
+    # The compilers write more than the program. `dart compile js` writes a
+    # source map the `.js` points at (unless told not to). `dart compile wasm`
+    # writes the `.mjs` loader that instantiates the module, the `.support.js`
+    # feature check a page runs first, and a source map. Undeclared, Bazel
+    # discards them: the `.wasm` cannot be run and the `.js` names a map that
+    # is not there.
     output_groups = {}
+    source_maps = "--no-source-maps" not in ctx.attr.dart_compile_flags
     if compile_mode == "js":
         output = ctx.actions.declare_file(ctx.label.name + ".js")
+        if source_maps:
+            output_groups["source_map"] = ctx.actions.declare_file(ctx.label.name + ".js.map")
     else:
         output = ctx.actions.declare_file(ctx.label.name + ".wasm")
         output_groups["mjs"] = ctx.actions.declare_file(ctx.label.name + ".mjs")
         output_groups["support_js"] = ctx.actions.declare_file(ctx.label.name + ".support.js")
-        if "--no-source-maps" not in ctx.attr.dart_compile_flags:
+        if source_maps:
             output_groups["source_map"] = ctx.actions.declare_file(ctx.label.name + ".wasm.map")
-    outputs = [output] + output_groups.values()
+
+    # dart2wasm names its map and its loader after the module, so it cannot
+    # write the map where its sources are made relative to. With a map, it
+    # compiles into a directory and `wasm_outputs` puts the files where they are
+    # declared.
+    two_step = compile_mode == "wasm" and source_maps
+    compiled = None
+    if two_step:
+        compiled = ctx.actions.declare_directory(ctx.label.name + ".wasm_compiled")
+        outputs = [compiled]
+    else:
+        outputs = [output] + output_groups.values()
 
     args = ctx.actions.args()
     args.add("compile")
@@ -104,11 +120,25 @@ def _dart_web_compile(ctx, compile_mode):
     for d in merge_dart_defines(ctx):
         args.add("-D" + d)
     args.add_all(ctx.attr.dart_compile_flags)
-    args.add("-o", output)
+    if two_step:
+        args.add_all([compiled], before_each = "-o", format_each = "%s/" + format_literal(ctx.label.name) + ".wasm", expand_directories = False)
+    else:
+        args.add("-o", output)
 
     # The entrypoint is compiled from inside the staged tree so the compiler's
     # walk-up finds the sibling .dart_tool/package_config.json.
-    args.add_all([staged.src_tree], format_each = "%s/" + format_literal(ctx.file.main.short_path), expand_directories = False)
+    if compile_mode == "js":
+        args.add_all([staged.src_tree], format_each = "%s/" + format_literal(ctx.file.main.short_path), expand_directories = False)
+    else:
+        # dart2wasm writes each source's `file:` URI into the source map. Named
+        # through a multi-root scheme rooted at the action's working directory
+        # (the execroot), the map holds `execroot:///bazel-out/...` instead of
+        # the sandbox's absolute path, so it neither carries the user's name nor
+        # differs from one machine or sandbox to the next. `source_map_relativize`
+        # then makes those relative to the map, as dart2js writes them.
+        args.add("-E--multi-root-scheme=execroot")
+        args.add("-E--multi-root=.")
+        args.add_all([staged.src_tree], format_each = "execroot:///%s/" + format_literal(ctx.file.main.short_path), expand_directories = False)
 
     ctx.actions.run(
         executable = dart_sdk_info.dart,
@@ -124,6 +154,31 @@ def _dart_web_compile(ctx, compile_mode):
         env = SDK_ENV,
         execution_requirements = PATH_MAPPING,
     )
+
+    if two_step:
+        finish = ctx.actions.args()
+        finish.add(ctx.file._wasm_outputs)
+        finish.add_all([compiled], expand_directories = False)
+        finish.add(ctx.label.name)
+        finish.add(output)
+        finish.add(output_groups["mjs"])
+        finish.add(output_groups["support_js"])
+        finish.add(output_groups["source_map"])
+        ctx.actions.run(
+            executable = dart_sdk_info.dart,
+            arguments = [finish],
+            inputs = depset(
+                direct = [compiled, ctx.file._wasm_outputs],
+                transitive = [dart_sdk_info.files.run],
+            ),
+            outputs = [output] + output_groups.values(),
+            mnemonic = "DartWasmOutputs",
+            exec_group = PORTABLE,
+            progress_message = "Placing Dart wasm outputs %s" % ctx.label,
+            env = SDK_ENV,
+            execution_requirements = PATH_MAPPING,
+        )
+        outputs = [output] + output_groups.values()
 
     return [
         DefaultInfo(
@@ -150,6 +205,10 @@ def _web_binary_attrs(compiler):
                    "whichever host compiles it.").format(c = compiler),
             default = "//dart/platforms:" + compiler,
             providers = [platform_common.PlatformInfo],
+        ),
+        "_wasm_outputs": attr.label(
+            default = "//dart/private/tools:wasm_outputs.dart",
+            allow_single_file = True,
         ),
         "_runtime": attr.label(
             default = "//dart/private:target_runtime",
@@ -182,7 +241,9 @@ dart_js_binary = rule(
     attrs = _web_binary_attrs("js"),
     toolchains = COPY_TO_DIRECTORY_TOOLCHAINS,
     exec_groups = PORTABLE_EXEC_GROUPS,
-    doc = "Compiles a Dart web application to JavaScript via `dart compile js`.",
+    doc = "Compiles a Dart web application to JavaScript via `dart compile js`.\n\n" +
+          "Outputs `<name>.js` and the `<name>.js.map` it points at, unless `dart_compile_flags` has " +
+          "`--no-source-maps`. The map is also the `source_map` output group, so a `filegroup` can pick it out.",
 )
 
 dart_wasm_binary = rule(
@@ -192,6 +253,7 @@ dart_wasm_binary = rule(
     exec_groups = PORTABLE_EXEC_GROUPS,
     doc = "Compiles a Dart web application to WebAssembly via `dart compile wasm`. Requires a browser with WasmGC support.\n\n" +
           "Outputs `<name>.wasm`, the `<name>.mjs` loader that instantiates it, `<name>.support.js`, and " +
-          "`<name>.wasm.map` unless `dart_compile_flags` has `--no-source-maps`. Each file but the module is " +
+          "`<name>.wasm.map` unless `dart_compile_flags` has `--no-source-maps`; the map names its " +
+          "sources relative to itself, as `dart_js_binary`'s does, not by the absolute path of the sandbox that built them. Each file but the module is " +
           "also an output group (`mjs`, `support_js`, `source_map`), so a `filegroup` can pick one out.",
 )

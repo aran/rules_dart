@@ -77,6 +77,21 @@ exports_files(
     ],
 )
 
+# Run from source by the SDK's own `dart` in the web compile: a script, so the
+# action needs no tool built for another platform.
+exports_files(
+    ["wasm_outputs.dart"],
+    visibility = ["//dart:__subpackages__"],
+)
+
+dart_test(
+    name = "wasm_outputs_test",
+    size = "small",
+    srcs = ["wasm_outputs.dart"],
+    main = "wasm_outputs_test.dart",
+    deps = ["@ext_pub_deps//:test"],
+)
+
 dart_test(
     name = "apply_args_test",
     size = "small",

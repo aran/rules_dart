@@ -55,10 +55,21 @@ dart_wasm_binary(
     ],
 )
 
+# The source map picked out by output group.
+filegroup(
+    name = "app_map",
+    srcs = [":app"],
+    output_group = "source_map",
+)
+
 dart_test(
     name = "js_output_test",
     size = "small",
-    data = [":app"],
+    args = ["$(rlocationpath :app_map)"],
+    data = [
+        ":app",
+        ":app_map",
+    ],
     main = "test/js_output_test.dart",
     deps = ["@rules_dart//dart/runfiles"],
 )
@@ -74,9 +85,15 @@ dart_test(
     name = "wasm_output_test",
     size = "small",
     args = ["$(rlocationpath :app_wasm_mjs)"],
+    # The sources the map names, which it must name relative to itself.
     data = [
+        "config.dart",
+        "lib/root_greet.dart",
+        "main.dart",
         ":app_wasm",
         ":app_wasm_mjs",
+        "//greet",
+        "@pub_deps//:characters",
     ],
     main = "test/wasm_output_test.dart",
     deps = ["@rules_dart//dart/runfiles"],
