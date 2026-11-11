@@ -1,7 +1,9 @@
 # Reusable: cuts a GitHub release of a tag with bazel-contrib's
 # release_ruleset, which runs the caller's `.github/workflows/release_prep.sh
 # <tag>` (a stub calling `bazel run @overhead//release:prep -- <tag>`) and
-# uploads the source archive it writes. The caller chains publishing:
+# uploads the source archive it writes, once the CI workflow has passed on the
+# tagged commit: a tag pushed by hand gets the check the tag workflow makes.
+# The caller chains publishing:
 #
 #   jobs:
 #     release:
@@ -10,6 +12,7 @@
 #         release_files: <module>-*.tar.gz
 #         tag_name: ${{ inputs.tag_name || github.ref_name }}
 #       permissions:
+#         actions: read
 #         contents: write
 #         id-token: write
 #         attestations: write
@@ -28,12 +31,38 @@ on:
       tag_name:
         required: true
         type: string
+      ci_workflow:
+        description: The CI workflow file that must have passed on the tagged commit
+        type: string
+        default: ci.yaml
 permissions:
+  actions: read
   id-token: write
   attestations: write
   contents: write
 jobs:
+  require-ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read # read the CI result for the commit
+      contents: read
+    steps:
+      - name: Require CI to have passed on the tagged commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CI_WORKFLOW: ${{ inputs.ci_workflow }}
+          TAG: ${{ inputs.tag_name }}
+        run: |
+          SHA=$(gh api "repos/$GITHUB_REPOSITORY/commits/$TAG" --jq .sha)
+          CONCLUSIONS=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow "$CI_WORKFLOW" \
+            --commit "$SHA" --status completed --json conclusion --jq '.[].conclusion')
+          if ! grep -qx success <<<"$CONCLUSIONS"; then
+            echo "::error::$CI_WORKFLOW has no successful run on $SHA ($TAG); not releasing."
+            exit 1
+          fi
   release:
+    needs: require-ci
     uses: bazel-contrib/.github/.github/workflows/release_ruleset.yaml@1d798ff015ed0696433e01e2c3ccbb2abefadad7 # v7.7.0
     with:
       release_files: ${{ inputs.release_files }}

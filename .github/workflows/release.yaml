@@ -19,6 +19,7 @@ on:
     tags:
       - "v*.*.*"
 permissions:
+  actions: read # the release checks CI passed on the tagged commit
   id-token: write
   attestations: write
   contents: write
