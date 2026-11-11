@@ -3,8 +3,9 @@
 # Each subdirectory hosts the shim binary + convenience macro for one
 # pub.dev builder (json_serializable, freezed, …). See docs/ext.md.
 
-load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("@bazel_lib//:bzl_library.bzl", "bzl_library")
 load("//dart:defs.bzl", "dart_package_metadata", "dart_test")
+load("//tool:starlark_docs.bzl", "starlark_docs_test")
 load(":defs.bzl", "builder_shim_library")
 
 exports_files(
@@ -66,3 +67,6 @@ dart_test(
         "@ext_pub_deps//:test",
     ],
 )
+
+# Every public symbol of this package's .bzl files is documented.
+starlark_docs_test(name = "docs_test")

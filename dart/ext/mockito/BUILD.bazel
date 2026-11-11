@@ -1,5 +1,6 @@
-load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("@bazel_lib//:bzl_library.bzl", "bzl_library")
 load("//dart:defs.bzl", "dart_binary")
+load("//tool:starlark_docs.bzl", "starlark_docs_test")
 
 # Shim binary for the mockito Builder. Plain Builder; produces .mocks.dart
 # directly. Note the entrypoint imports from `package:mockito/src/builder.dart`,
@@ -22,3 +23,6 @@ bzl_library(
     visibility = ["//visibility:public"],
     deps = ["@rules_dart//dart/ext:defs"],
 )
+
+# Every public symbol of this package's .bzl files is documented.
+starlark_docs_test(name = "docs_test")

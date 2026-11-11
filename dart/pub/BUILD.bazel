@@ -1,5 +1,6 @@
-load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("@bazel_lib//:bzl_library.bzl", "bzl_library")
 load("//dart/pub/private:pub_runner.bzl", "pub_runner")
+load("//tool:starlark_docs.bzl", "starlark_docs_test")
 
 # Runs pub from the pinned Dart SDK, at the root of the workspace it is run in:
 #   bazel run @rules_dart//dart/pub -- get
@@ -43,6 +44,7 @@ bzl_library(
         "//dart:providers",
         "//dart/private:dart_library",
         "//dart/private:dart_summary",
+        "//dart/private:dart_test_runner",
         "//dart/private:exec_groups",
         "//dart/private:runtime",
         "//dart/private:source_set",
@@ -91,6 +93,9 @@ bzl_library(
     visibility = ["//visibility:public"],
     deps = ["//dart/pub/private:version"],
 )
+
+# Every public symbol of this package's .bzl files is documented.
+starlark_docs_test(name = "docs_test")
 
 bzl_library(
     name = "pub_graph",

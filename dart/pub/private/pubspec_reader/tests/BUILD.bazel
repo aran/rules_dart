@@ -1,4 +1,4 @@
-load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("@bazel_lib//:bzl_library.bzl", "bzl_library")
 load("//dart:defs.bzl", "dart_test")
 load(":reader_unit_test.bzl", "reader_unit_test_suite")
 

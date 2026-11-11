@@ -1,5 +1,6 @@
-load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("@bazel_lib//:bzl_library.bzl", "bzl_library")
 load("//dart:defs.bzl", "dart_binary")
+load("//tool:starlark_docs.bzl", "starlark_docs_test")
 
 # drift_dev's modern path is a 4-stage pipeline:
 #   prep → discover → analyzer → driftBuilder (SharedPart) → combining
@@ -64,3 +65,6 @@ bzl_library(
         "@rules_dart//dart/ext:defs",
     ],
 )
+
+# Every public symbol of this package's .bzl files is documented.
+starlark_docs_test(name = "docs_test")

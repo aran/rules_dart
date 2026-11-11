@@ -1,5 +1,6 @@
-load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("@bazel_lib//:bzl_library.bzl", "bzl_library")
 load("//dart:defs.bzl", "dart_binary")
+load("//tool:starlark_docs.bzl", "starlark_docs_test")
 
 # Six independent shim binaries, one per stacked_generator LibraryBuilder.
 
@@ -81,3 +82,6 @@ bzl_library(
     visibility = ["//visibility:public"],
     deps = ["@rules_dart//dart/ext:defs"],
 )
+
+# Every public symbol of this package's .bzl files is documented.
+starlark_docs_test(name = "docs_test")

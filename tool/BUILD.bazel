@@ -1,9 +1,19 @@
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("//dart:defs.bzl", "dart_binary", "dart_test")
 
 # Read by //tools/vm:run_e2e, which runs what CI runs.
 exports_files(
     ["ci_workflow.dart"],
     visibility = ["//tools/vm:__pkg__"],
+)
+
+# Read by every `starlark_docs_test`.
+exports_files(
+    [
+        "starlark_docs.dart",
+        "starlark_docs_check.dart",
+    ],
+    visibility = ["//dart:__subpackages__"],
 )
 
 # Checks (or with `-- --refresh`, rewrites) the pubspec.lock files outside
@@ -37,4 +47,24 @@ dart_test(
         "@ext_pub_deps//:test",
         "@ext_pub_deps//:yaml",
     ],
+)
+
+dart_test(
+    name = "starlark_docs_test",
+    size = "small",
+    srcs = ["starlark_docs.dart"],
+    data = ["//tool/testdata:undocumented.binaryproto"],
+    main = "starlark_docs_test.dart",
+    deps = [
+        "//dart/runfiles",
+        "@ext_pub_deps//:protobuf",
+        "@ext_pub_deps//:test",
+    ],
+)
+
+bzl_library(
+    name = "starlark_docs",
+    srcs = ["starlark_docs.bzl"],
+    visibility = ["//visibility:public"],
+    deps = ["//dart:defs"],
 )

@@ -1,4 +1,4 @@
-load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("@bazel_lib//:bzl_library.bzl", "bzl_library")
 
 exports_files(
     ["pub_runner.dart"],
@@ -29,6 +29,7 @@ bzl_library(
     deps = [
         "//dart:providers",
         "//dart/private:dart_test",
+        "//dart/private:dart_test_runner",
     ],
 )
 

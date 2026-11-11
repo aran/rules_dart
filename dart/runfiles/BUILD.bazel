@@ -1,5 +1,8 @@
 load("//dart:defs.bzl", "dart_binary", "dart_library", "dart_test")
 
+# Test fixtures: no API docs.
+# gazelle:map_kind bzl_library bzl_library @bazel_skylib//:bzl_library.bzl
+
 # `@rules_dart//dart/pub` compiles it in from source, built with no rule of
 # rules_dart's own (see `dart/pub/private/pub_runner.bzl`).
 exports_files(

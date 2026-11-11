@@ -31,6 +31,9 @@ load(":versions_test.bzl", "versions_test_suite")
 load(":web_compiler_test.bzl", "web_compiler_test_suite")
 load(":yaml_parser_test.bzl", "yaml_parser_test_suite")
 
+# Test fixtures: no API docs.
+# gazelle:map_kind bzl_library bzl_library @bazel_skylib//:bzl_library.bzl
+
 versions_test_suite(name = "versions_test")
 
 toolchains_test_suite(name = "toolchains_test")

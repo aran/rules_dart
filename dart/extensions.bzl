@@ -23,23 +23,26 @@ load(":repositories.bzl", "dart_register_toolchains")
 
 _DEFAULT_NAME = "dart"
 
-dart_toolchain = tag_class(attrs = {
-    "name": attr.string(doc = """\
+dart_toolchain = tag_class(
+    doc = "Requests a Dart SDK version and registers its toolchains under `name`.",
+    attrs = {
+        "name": attr.string(doc = """\
 Base name for generated repositories, allowing more than one Dart toolchain to be registered.
 Overriding the default is only permitted in the root module.
 """, default = _DEFAULT_NAME),
-    "dart_version": attr.string(doc = """\
+        "dart_version": attr.string(doc = """\
 Explicit version of the Dart SDK. In the root module it is used exactly, and a
 dependency requesting a newer one fails the build unless
 `allow_upgrade_by_dependencies` is set. In any other module it is the oldest
 SDK the module accepts.
 """, mandatory = True),
-    "allow_upgrade_by_dependencies": attr.bool(doc = """\
+        "allow_upgrade_by_dependencies": attr.bool(doc = """\
 Lets dependencies raise the SDK version: when a module requests a newer Dart SDK
 than the root module's `dart_version`, the highest request is used instead of
 failing the build. Only the root module may set it.
 """, default = False),
-})
+    },
+)
 
 def _toolchain_extension(module_ctx):
     registrations = {}

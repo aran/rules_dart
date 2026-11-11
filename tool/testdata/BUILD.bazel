@@ -1,0 +1,7 @@
+# The `ModuleInfo` Bazel extracts from a partly documented .bzl file, which
+# //tool:starlark_docs_test decodes and checks.
+starlark_doc_extract(
+    name = "undocumented",
+    src = "undocumented.bzl",
+    visibility = ["//tool:__pkg__"],
+)

@@ -1,6 +1,7 @@
-load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("@bazel_lib//:bzl_library.bzl", "bzl_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("//dart:defs.bzl", "dart_code_asset")
+load("//tool:starlark_docs.bzl", "starlark_docs_test")
 
 # rules_dart-provided code-asset support for `package:sqlite3` (Layer 2:
 # the fallback for when the package itself doesn't ship Bazel support).
@@ -47,6 +48,9 @@ dart_code_asset(
     shared_library = ":libsqlite3",
     visibility = ["//visibility:public"],
 )
+
+# Every public symbol of this package's .bzl files is documented.
+starlark_docs_test(name = "docs_test")
 
 bzl_library(
     name = "defs",

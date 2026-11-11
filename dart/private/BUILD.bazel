@@ -1,4 +1,4 @@
-load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("@bazel_lib//:bzl_library.bzl", "bzl_library")
 load("@bazel_skylib//rules:common_settings.bzl", "bool_setting", "string_list_setting", "string_setting")
 load(":dart_analyze_aspect.bzl", "dart_analysis_config")
 load(":dart_module.bzl", "vm_kernel_sdk", "vm_program_kernel_sdk")
@@ -84,7 +84,10 @@ bzl_library(
     name = "package_config",
     srcs = ["package_config.bzl"],
     visibility = ["//dart:__subpackages__"],
-    deps = ["//dart:providers"],
+    deps = [
+        ":common",
+        "//dart:providers",
+    ],
 )
 
 bzl_library(
@@ -95,8 +98,11 @@ bzl_library(
         ":build_settings",
         ":common",
         ":dart_compile",
+        ":dart_import_check",
+        ":dart_module",
         ":exec_groups",
         ":executable_package",
+        ":runtime",
         ":source_set",
         "//dart:providers",
     ],
@@ -108,7 +114,11 @@ bzl_library(
     visibility = ["//dart:__subpackages__"],
     deps = [
         ":common",
+        ":dart_data_asset",
+        ":dart_info",
         ":exec_groups",
+        ":project_staging",
+        ":source_set",
         "//dart:providers",
     ],
 )
@@ -136,8 +146,12 @@ bzl_library(
         ":common",
         ":dart_compile",
         ":dart_coverage",
+        ":dart_import_check",
+        ":dart_module",
+        ":dart_test_runner",
         ":exec_groups",
         ":executable_package",
+        ":project_staging",
         ":source_set",
         "//dart:providers",
     ],
@@ -157,7 +171,10 @@ bzl_library(
     name = "project_staging",
     srcs = ["project_staging.bzl"],
     visibility = ["//dart:__subpackages__"],
-    deps = [":source_set"],
+    deps = [
+        ":common",
+        ":source_set",
+    ],
 )
 
 bzl_library(
@@ -190,6 +207,7 @@ bzl_library(
     deps = [
         ":common",
         ":dart_summary",
+        ":exec_groups",
         ":project_staging",
         ":resources",
         ":source_set",
@@ -208,6 +226,7 @@ bzl_library(
         ":common",
         ":dart_analyze_aspect",
         ":exec_groups",
+        ":runtime",
     ],
 )
 
@@ -231,7 +250,12 @@ bzl_library(
     name = "dart_codegen",
     srcs = ["dart_codegen.bzl"],
     visibility = ["//dart:__subpackages__"],
-    deps = [":runtime"],
+    deps = [
+        ":common",
+        ":exec_groups",
+        ":runtime",
+        "//dart:providers",
+    ],
 )
 
 bzl_library(
@@ -239,6 +263,8 @@ bzl_library(
     srcs = ["dart_aggregate_codegen.bzl"],
     visibility = ["//dart:__subpackages__"],
     deps = [
+        ":common",
+        ":exec_groups",
         ":runtime",
         "//dart:providers",
     ],

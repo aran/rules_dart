@@ -27,7 +27,7 @@ bazel_dep(name = "yaml.bzl", version = "0.1.2")
 # `//dart/ext/sqlite3:code_asset` target is usable from downstream modules.
 # The native libraries are only built if a target referencing them is built;
 # they are not fetched for normal Dart-only usage.
-bazel_dep(name = "rules_cc", version = "0.2.26")
+bazel_dep(name = "rules_cc", version = "0.2.28")
 bazel_dep(name = "sqlite3", version = "3.53.4")
 
 # Pub package archives are extracted at fetch time with tar.bzl's prebuilt

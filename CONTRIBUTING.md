@@ -134,7 +134,10 @@ cd e2e/web_app && bazel build //...
 
 Gazelle writes the `bzl_library` targets, and only those.
 Run `bazel run @rules_dart_dev//:gazelle` to keep them up-to-date; CI fails when
-it would change a BUILD file.
+it would change a BUILD file. It writes a new target's `deps` but leaves an
+existing target's alone, so a `load()` added to a file needs its `deps` entry
+by hand. For a public file, its API docs extraction fails the build without it,
+and `docs_test` in its package fails when a public symbol has no doc.
 
 ## Using this as a development dependency of other rules
 
