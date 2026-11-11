@@ -1,0 +1,70 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
+load("@rules_dart//dart:defs.bzl", "dart_code_asset", "dart_library", "dart_package_metadata")
+
+# A package with two native libraries, each a code asset, and a link hook that
+# keeps those the program uses: linked, a program ships only the libraries
+# whose `Op` it constructs, under the ids the hook gives them.
+[
+    cc_library(
+        name = op + "_cc",
+        srcs = ["native/%s.c" % op],
+    )
+    for op in [
+        "add",
+        "mul",
+    ]
+]
+
+[
+    cc_shared_library(
+        name = op + "_shared",
+        # A Windows DLL exports nothing unless told to.
+        features = select({
+            "@platforms//os:windows": ["windows_export_all_symbols"],
+            "//conditions:default": [],
+        }),
+        deps = [":%s_cc" % op],
+    )
+    for op in [
+        "add",
+        "mul",
+    ]
+]
+
+[
+    dart_code_asset(
+        name = op,
+        asset_id = "package:pick/%s" % op,
+        file = ":%s_shared" % op,
+    )
+    for op in [
+        "add",
+        "mul",
+    ]
+]
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "pick",
+    code_assets = [
+        ":add",
+        ":mul",
+    ],
+    link_hook = "hook/link.dart",
+)
+
+dart_library(
+    name = "pick",
+    srcs = ["lib/pick.dart"],
+    package = ":pubspec-metadata",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@pub_deps//:code_assets",
+        "@pub_deps//:hooks",
+        "@pub_deps//:meta",
+        "@pub_deps//:record_use",
+    ],
+)
+
+exports_files(glob(["uses/*.json"]))

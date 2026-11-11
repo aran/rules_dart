@@ -37,6 +37,7 @@ manifest.
 load("//dart:providers.bzl", "DartInfo", "DartProgramAssetsInfo", "DartRecordedUsesInfo")
 load(
     "//dart/private:common.bzl",
+    "DART_ABI_CONSTRAINT_ATTRS",
     "PATH_MAPPING",
     "SDK_ENV",
     "collect_transitive_resources",
@@ -50,6 +51,7 @@ load(
     "program_packages",
     "resolve_code_assets",
     "resolve_package_identity",
+    "target_dart_abi",
     "unique_data_assets",
 )
 load("//dart/private:dart_info.bzl", "package_lib_prefix")
@@ -131,29 +133,6 @@ def package_files_error(label, package, files):
                 "hook can import.") % (label, outside, prefix, package.package_name)
     return None
 
-def linked_code_assets_error(label, package_name, metadata, assets):
-    """Refuses code assets a link hook would receive.
-
-    Args:
-      label: The program's label, for messages.
-      package_name: The package with the link hook.
-      metadata: Its `dart_package_metadata` label, or None.
-      assets: Its declared `DartCodeAssetInfo`.
-
-    Returns:
-      An error string, or None when it declares none.
-    """
-    if not assets:
-        return None
-    return ("%s: package `%s` has a `link_hook` and declares code assets %s " +
-            "(in %s). Linked, a build hook routes its code assets to its link " +
-            "hook, and a linked program cannot yet hand code assets to a hook.") % (
-        label,
-        package_name,
-        [a.asset_id for a in assets],
-        "`%s`" % metadata if metadata != None else "its record",
-    )
-
 def program_asset_file(info, asset_id):
     """The file of one asset a program ships, known at analysis time.
 
@@ -208,7 +187,7 @@ def program_assets_attrs():
     Returns:
       A dict to merge into the rule's `attrs`.
     """
-    return {
+    return DART_ABI_CONSTRAINT_ATTRS | {
         "_link_hook_runner": attr.label(
             default = "//dart/private/tools:link_hook_runner",
             executable = True,
@@ -224,7 +203,23 @@ def program_assets_attrs():
 # What a rule calling `dart_program_assets_actions` declares in `toolchains`.
 PROGRAM_ASSETS_TOOLCHAINS = COPY_TO_DIRECTORY_TOOLCHAINS
 
-def dart_program_assets_actions(ctx, package, deps, name, recorded_uses = None):
+def vm_code_config(ctx):
+    """Upstream's code-asset configuration of a Dart VM program for the target platform.
+
+    Args:
+      ctx: The rule context, with `program_assets_attrs()`.
+
+    Returns:
+      The `config.extensions.code_assets` object of a hook input.
+    """
+    os, _, architecture = target_dart_abi(ctx).partition("_")
+    return {
+        "link_mode_preference": "dynamic",
+        "target_architecture": architecture,
+        "target_os": os,
+    }
+
+def dart_program_assets_actions(ctx, package, deps, name, recorded_uses = None, code_config = None):
     """What a program ships; the operation `dart_program_assets` performs.
 
     For a rule that bundles a program itself, or compiles its own kernel and
@@ -248,6 +243,13 @@ def dart_program_assets_actions(ctx, package, deps, name, recorded_uses = None):
         `dart_package_metadata`, and its `package_files` are the program's own
         files under that package's `lib/`, which the package's link hook may
         import.
+      code_config: Linked, what every link hook is told of a target that
+        loads code assets, as upstream's hook input has it at
+        `config.extensions.code_assets` (`target_os`, `target_architecture`,
+        `link_mode_preference`, and `ios` or `android` for those targets):
+        `vm_code_config(ctx)` for a Dart VM program. `None` for a target that
+        loads none (the web), whose packages with a link hook may declare
+        none.
 
     Returns:
       A struct: `info` (the program's `DartProgramAssetsInfo`) and
@@ -288,22 +290,14 @@ def dart_program_assets_actions(ctx, package, deps, name, recorded_uses = None):
             validation_outputs = [],
         )
 
-    for package_name, pkg in hooked.items():
-        err = linked_code_assets_error(
-            ctx.label,
-            package_name,
-            pkg.metadata,
-            [a for a in code_assets if _asset_package(a.asset_id) == package_name],
-        )
-        if err != None:
-            fail(err)
-
     linked = _link_hook_actions(
         ctx,
         packages = packages,
         package = package,
         hooked = hooked,
         data_assets = data_assets,
+        code_assets = code_assets,
+        code_config = code_config,
         deps = deps,
         recorded_uses = recorded_uses,
         name = name,
@@ -338,14 +332,14 @@ def dart_program_assets_actions(ctx, package, deps, name, recorded_uses = None):
 def _asset_package(asset_id):
     return asset_id[len("package:"):].partition("/")[0]
 
-def _link_hook_actions(ctx, packages, package, hooked, data_assets, deps, recorded_uses, name):
+def _link_hook_actions(ctx, packages, package, hooked, data_assets, code_assets, code_config, deps, recorded_uses, name):
     """Runs the link hook of each package in `hooked` over the program's uses.
 
     Returns:
       A struct: `records` (each hook's record of what it emitted), `outputs`
-      (the Files and directories its emitted assets are in), `known` (the
-      promised ids' Files) and `plan` (by package, what the manifest step
-      reads with each record).
+      (the Files and directories its emitted assets are in, and the files of
+      the code assets it may select), `known` (the promised ids' Files) and
+      `plan` (by package, what the manifest step reads with each record).
     """
     sdk = portable_sdk(ctx)
     err = recorded_uses_package_error(
@@ -430,6 +424,25 @@ def _link_hook_actions(ctx, packages, package, hooked, data_assets, deps, record
         inputs = [a for a in data_assets if a.package == package_name]
         for asset in inputs:
             args.add("--input-data-asset", asset.file, format = format_literal(asset.name) + "=%s")
+
+        # A build hook routes its code assets to its link hook too, which
+        # selects among them under its own package's ids.
+        code_inputs = [a for a in code_assets if _asset_package(a.asset_id) == package_name]
+        if code_config != None:
+            args.add("--code-config", json.encode(code_config))
+        elif code_inputs:
+            fail(("%s: package `%s` has a `link_hook` and declares code assets %s, " +
+                  "and the program's target loads none.") % (
+                ctx.label,
+                package_name,
+                [a.asset_id for a in code_inputs],
+            ))
+        for asset in code_inputs:
+            prefix = "%s=%s=" % (asset.asset_id, asset.link_mode)
+            if asset.file != None:
+                args.add("--input-code-asset", asset.file, format = format_literal(prefix) + "%s")
+            else:
+                args.add("--input-code-asset", prefix + asset.uri)
         hook_outputs = [record, directory]
         promised_files = {}
         for asset in promised:
@@ -439,16 +452,19 @@ def _link_hook_actions(ctx, packages, package, hooked, data_assets, deps, record
             known[asset.id] = out
             args.add("--promised-data-asset", out, format = format_literal(asset.name) + "=%s")
         outputs.extend(hook_outputs[1:])
+        outputs.extend([a.file for a in code_inputs if a.file != None])
         plan[package_name] = {
-            "record": record.path,
+            "code_inputs": {a.asset_id: _code_entry(a)["encoding"] for a in code_inputs},
             "directory": directory.path,
             "promised": promised_files,
+            "record": record.path,
         }
         ctx.actions.run(
             executable = ctx.executable._link_hook_runner,
             arguments = [args],
             inputs = depset(
-                [recorded_uses.file] + package_inputs + [a.file for a in inputs],
+                [recorded_uses.file] + package_inputs + [a.file for a in inputs] +
+                [a.file for a in code_inputs if a.file != None],
                 # The hook is a script, which `dart` runs in the VM.
                 transitive = [sdk.files.run],
             ),
@@ -485,12 +501,14 @@ def _recorded_uses(ctx, package):
 def _dart_program_assets_impl(ctx):
     identity = resolve_package_identity(ctx)
     package = executable_package_record(ctx.label, identity) if identity.metadata != None else None
+    recorded_uses = _recorded_uses(ctx, package)
     result = dart_program_assets_actions(
         ctx,
         package = package,
         deps = ctx.attr.deps,
         name = ctx.label.name,
-        recorded_uses = _recorded_uses(ctx, package),
+        recorded_uses = recorded_uses,
+        code_config = vm_code_config(ctx) if recorded_uses != None else None,
     )
     return [
         DefaultInfo(files = depset([result.info.manifest], transitive = [result.info.files])),

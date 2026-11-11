@@ -1,0 +1,25 @@
+load("//dart:defs.bzl", "dart_code_asset", "dart_library", "dart_package_metadata")
+
+# A package with a code asset and a link hook, which receives it and selects
+# whether the program ships it.
+dart_code_asset(
+    name = "native",
+    asset_id = "package:link_hook_coded/native",
+    file = "//dart/tests/cc_fixture:empty_shared",
+    tags = ["manual"],
+)
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "link_hook_coded",
+    code_assets = [":native"],
+    link_hook = "hook/link.dart",
+)
+
+dart_library(
+    name = "coded",
+    srcs = ["lib/coded.dart"],
+    package = ":pubspec-metadata",
+    tags = ["manual"],
+    visibility = ["//dart/tests/link_hook_fixture:__pkg__"],
+)

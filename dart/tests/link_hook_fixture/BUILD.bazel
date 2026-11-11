@@ -13,6 +13,7 @@ load(
     "known_asset_test",
     "library_records_link_hook_test",
     "link_hook_actions_test",
+    "link_hook_code_assets_test",
     "link_hook_data_assets_test",
     "not_recording_binary_test",
     "own_package_not_named_test",
@@ -205,6 +206,21 @@ link_hook_data_assets_test(
     name = "link_hook_own_package_data_assets_test",
     size = "small",
     target_under_test = ":linked_own_package_with_data",
+)
+
+# The hook receives its package's code asset, with the target it is built
+# for; whether it ships is the hook's to say, so it is not known.
+dart_program_assets(
+    name = "linked_with_code",
+    recorded_uses = "uses.json",
+    tags = ["manual"],
+    deps = ["//dart/tests/link_hook_fixture/coded"],
+)
+
+link_hook_code_assets_test(
+    name = "link_hook_code_assets_test",
+    size = "small",
+    target_under_test = ":linked_with_code",
 )
 
 # Not linked: every declared asset ships, the hook's package's among them.

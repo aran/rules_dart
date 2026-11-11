@@ -2,9 +2,10 @@
 //
 // The plan, written at analysis time, holds the assets known then (those of
 // packages without a link hook) and, for each package with one, where its
-// hook's record and outputs are. Each record names what the hook emitted;
-// this resolves each name to its file and writes every asset, sorted by id,
-// as `DartProgramAssetsInfo.manifest` describes.
+// hook's record and outputs are and the code assets it received. Each record
+// names what the hook emitted: data assets by name, code assets by the input
+// each keeps. This resolves each to its file and writes every asset, sorted
+// by id, as `DartProgramAssetsInfo.manifest` describes.
 //
 // Usage:
 //   program_assets_manifest --plan <plan.json> --output <manifest.json>
@@ -33,6 +34,18 @@ void main(List<String> arguments) {
     final record = jsonDecode(
       File(hook['record']! as String).readAsStringSync(),
     ) as Map<String, Object?>;
+    // A kept code asset is the input it names, under the id it was given.
+    final codeInputs = hook['code_inputs']! as Map<String, Object?>;
+    for (final kept
+        in (record['code']! as List<Object?>).cast<Map<String, Object?>>()) {
+      assets.add({
+        'encoding': {
+          ...codeInputs[kept['input']]! as Map<String, Object?>,
+          'id': kept['id'],
+        },
+        'type': 'code_assets/code',
+      });
+    }
     for (final name in (record['data']! as List<Object?>).cast<String>()) {
       // Keys in order, as the entries written at analysis time have them.
       assets.add({

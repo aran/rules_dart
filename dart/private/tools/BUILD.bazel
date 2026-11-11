@@ -232,8 +232,10 @@ dart_binary(
     visibility = ["//visibility:public"],
     deps = [
         "@ext_pub_deps//:args",
+        "@ext_pub_deps//:code_assets",
         "@ext_pub_deps//:data_assets",
         "@ext_pub_deps//:hooks",
+        "@ext_pub_deps//:logging",
     ],
 )
 

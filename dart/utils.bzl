@@ -92,6 +92,7 @@ load(
     _dart_program_assets_actions = "dart_program_assets_actions",
     _program_asset_file = "program_asset_file",
     _program_assets_attrs = "program_assets_attrs",
+    _vm_code_config = "vm_code_config",
 )
 load(
     "//dart/private:runtime.bzl",
@@ -345,8 +346,13 @@ COPY_TO_DIRECTORY_TOOLCHAINS = _COPY_TO_DIRECTORY_TOOLCHAINS
 #         deps = ctx.attr.deps,
 #         name = ctx.label.name,
 #         recorded_uses = uses,       # a DartRecordedUsesInfo to link, None not to
+#         code_config = config,       # linked: the target's, for code assets
 #     )
 #
+# `code_config` is what each link hook is told of a target that loads code
+# assets, upstream's `config.extensions.code_assets` object: a Dart VM
+# program's is `vm_code_config(ctx)`, and a target loading none (the web)
+# passes `None`.
 # returns `info`, the program's `DartProgramAssetsInfo`, and
 # `validation_outputs`, for an `_validation` output group. The packages are
 # `program_packages(package, deps)`. Linked, the link hooks run in `PORTABLE`:
@@ -358,6 +364,7 @@ dart_program_assets_actions = _dart_program_assets_actions
 program_assets_attrs = _program_assets_attrs
 PROGRAM_ASSETS_TOOLCHAINS = _PROGRAM_ASSETS_TOOLCHAINS
 program_asset_file = _program_asset_file
+vm_code_config = _vm_code_config
 parse_data_asset_ids = _parse_data_asset_ids
 
 # Per-library kernel compilation (see `dart_module.bzl`). A rule set with its own

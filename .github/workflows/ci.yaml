@@ -481,17 +481,19 @@ jobs:
         working-directory: e2e/link_hook
         run: |
           expect() {
-            if bazel build "//:faults_$1" 2>/dev/null; then
-              echo "ERROR: //:faults_$1 should have failed"
+            if bazel build "//:$1" 2>/dev/null; then
+              echo "ERROR: //:$1 should have failed"
               exit 1
             fi
-            bazel build "//:faults_$1" 2>&1 | grep -qF "$2"
+            bazel build "//:$1" 2>&1 | grep -qF "$2"
           }
-          expect foreign "emitted \`package:glyphs/foreign.txt\`, a data asset of another package"
-          expect twice "emitted \`package:faults/twice.txt\` more than once"
-          expect escape "emitted \`package:faults/../escape.txt\`, whose name is not a relative path"
-          expect unpromised "did not emit \`package:faults/promised.txt\`, which the \`link_hook_assets\` of \`@@//faults:pubspec-metadata\` promise"
-          expect route "routed assets or metadata to the link hooks of glyphs"
+          expect faults_foreign "emitted \`package:glyphs/foreign.txt\`, a data asset of another package"
+          expect faults_twice "emitted \`package:faults/twice.txt\` more than once"
+          expect faults_escape "emitted \`package:faults/../escape.txt\`, whose name is not a relative path"
+          expect faults_unpromised "did not emit \`package:faults/promised.txt\`, which the \`link_hook_assets\` of \`@@//faults:pubspec-metadata\` promise"
+          expect faults_route "routed assets or metadata to the link hooks of glyphs"
+          expect pick_built_assets "emitted code asset \`package:pick/built\`, whose file"
+          expect pick_built_assets "is none of the code assets its package declares (\`package:pick/add\`, \`package:pick/mul\`). A link hook selects among those, and builds no native code"
           echo "OK: faulty link-hook outputs reported"
       # A VM program reaching web-only code, which `//...` skips, is refused
       # by name, with the chain to the incompatible library.

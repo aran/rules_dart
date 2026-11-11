@@ -232,6 +232,45 @@ dart_test(
     deps = ["@rules_dart//dart/runfiles"],
 )
 
+# Code assets. `pick` declares two native libraries and has a link hook,
+# which receives them and keeps those the program uses, under ids of its own;
+# not linked, a program ships both under the ids the package declares.
+dart_program_assets(
+    name = "pick_add_assets",
+    recorded_uses = "//pick:uses/add.json",
+    deps = ["//pick"],
+)
+
+dart_program_assets(
+    name = "pick_unlinked_assets",
+    deps = ["//pick"],
+)
+
+dart_test(
+    name = "pick_add_assets_test",
+    size = "small",
+    args = [
+        "'$(rlocationpaths :pick_add_assets)'",
+        "package:pick/kept/add",
+    ],
+    data = [":pick_add_assets"],
+    main = "assets_test.dart",
+    deps = ["@rules_dart//dart/runfiles"],
+)
+
+dart_test(
+    name = "pick_unlinked_assets_test",
+    size = "small",
+    args = [
+        "'$(rlocationpaths :pick_unlinked_assets)'",
+        "package:pick/add",
+        "package:pick/mul",
+    ],
+    data = [":pick_unlinked_assets"],
+    main = "assets_test.dart",
+    deps = ["@rules_dart//dart/runfiles"],
+)
+
 # The program's own package, `jingle`, declares data assets and a link hook,
 # and no library of it is in `deps`: linked, its hook keeps the tune; not
 # linked, the program ships both of its sounds.
@@ -332,6 +371,15 @@ dart_program_assets(
         "route",
     ]
 ]
+
+# Expected to fail: `pick`'s hook emits a library it built rather than one its
+# package declares. Tagged manual; CI's expected-failure job builds it.
+dart_program_assets(
+    name = "pick_built_assets",
+    recorded_uses = "//pick:uses/built.json",
+    tags = ["manual"],
+    deps = ["//pick"],
+)
 
 # Expected to fail: the hook imports a file of its package that no target
 # declares. `no-sandbox` runs it where the file is on disk, so only the

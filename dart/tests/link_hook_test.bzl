@@ -410,6 +410,37 @@ def _link_hook_data_assets_test_impl(ctx):
 
 link_hook_data_assets_test = analysistest.make(_link_hook_data_assets_test_impl)
 
+def _link_hook_code_assets_test_impl(ctx):
+    env = analysistest.begin(ctx)
+    target = analysistest.target_under_test(env)
+    runs = _actions(env, "DartLinkHook")
+    asserts.equals(env, 1, len(runs))
+    argv = runs[0].argv
+    library = [f for f in runs[0].inputs.to_list() if f.basename.startswith("libempty_shared.") or f.basename == "empty_shared.dll"]
+    asserts.equals(env, 1, len(library), str(runs[0].inputs.to_list()))
+    asserts.true(
+        env,
+        "package:link_hook_coded/native=dynamic_loading_bundle=" + library[0].path in argv,
+        str(argv),
+    )
+    config = json.decode(argv[argv.index("--code-config") + 1])
+    asserts.equals(env, "dynamic", config["link_mode_preference"])
+    asserts.true(env, config["target_os"] in ["linux", "macos", "windows"], str(config))
+
+    info = target[DartProgramAssetsInfo]
+    asserts.equals(env, {}, info.known)
+    asserts.true(env, library[0] in info.files.to_list())
+    plan = [a for a in _actions(env, "FileWrite") if a.outputs.to_list()[0].basename.endswith(".assets_plan.json")]
+    inputs = json.decode(plan[0].content)["packages"]["link_hook_coded"]["code_inputs"]
+    asserts.equals(
+        env,
+        {"package:link_hook_coded/native": {"id": "package:link_hook_coded/native", "link_mode": {"type": "dynamic_loading_bundle"}, "file": library[0].path}},
+        inputs,
+    )
+    return analysistest.end(env)
+
+link_hook_code_assets_test = analysistest.make(_link_hook_code_assets_test_impl)
+
 def _unlinked_assets_test_impl(ctx):
     # Not linked, no hook runs, every declared asset ships, and the manifest
     # is written at analysis time with all of them, known.

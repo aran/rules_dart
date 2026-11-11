@@ -1,7 +1,7 @@
 name: rules_dart_ext
 publish_to: none
 description: >
-  Shared pubspec for the rules_dart code-gen extensions. Pins the shim-runner library deps (package:build, package:analyzer) and the per-builder generator packages (json_serializable, freezed, mockito, drift_dev, stacked_generator, …) so all shim binaries compile from one resolved version graph. Also pins package:hooks and package:data_assets for the link hook runner, and package:coverage and package:vm_service for the collector `dart_test` runs under `bazel coverage`, and package:protobuf for the check that the public .bzl files are documented.
+  Shared pubspec for the rules_dart code-gen extensions. Pins the shim-runner library deps (package:build, package:analyzer) and the per-builder generator packages (json_serializable, freezed, mockito, drift_dev, stacked_generator, …) so all shim binaries compile from one resolved version graph. Also pins package:hooks, package:data_assets and package:code_assets for the link hook runner, and package:coverage and package:vm_service for the collector `dart_test` runs under `bazel coverage`, and package:protobuf for the check that the public .bzl files are documented.
 
 environment:
   sdk: ^3.12.0
@@ -10,6 +10,7 @@ dependencies:
   args: ^2.5.0
   bazel_worker: ^1.1.0
   build: ^4.0.0
+  code_assets: ^2.2.0
   coverage: ^1.16.0
   crypto: ^3.0.0
   data_assets: ^0.20.0

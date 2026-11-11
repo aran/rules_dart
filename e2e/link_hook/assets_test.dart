@@ -1,9 +1,10 @@
-// Checks the data assets a program ships, as its manifest lists them.
+// Checks the assets a program ships, as its manifest lists them.
 //
 // Arguments: the runfiles paths of a `dart_program_assets` target's files,
 // separated by spaces (its manifest, `<name>.assets.json`, among them), then
-// the `<id>=<content>` each data asset must hold, one argument each. The
-// manifest must list exactly those, and each file must hold its content.
+// one argument per asset: `<id>=<content>` for a data asset, whose file must
+// hold that content, and `<id>` for a code asset, whose file must be there.
+// The manifest must list exactly those.
 import 'dart:convert';
 import 'dart:io';
 
@@ -20,15 +21,20 @@ void main(List<String> args) {
   final shipped = <String, String>{};
   for (final asset
       in (manifest['assets']! as List<Object?>).cast<Map<String, Object?>>()) {
-    if (asset['type'] != 'data_assets/data') continue;
     final encoding = asset['encoding']! as Map<String, Object?>;
-    final id = 'package:${encoding['package']}/${encoding['name']}';
-    final file = runfiles.rlocation(_runfilesPath(encoding['file']! as String));
-    shipped[id] = File(file).readAsStringSync().trim();
+    final file = File(
+      runfiles.rlocation(_runfilesPath(encoding['file']! as String)),
+    );
+    if (asset['type'] == 'code_assets/code') {
+      shipped[encoding['id']! as String] = file.existsSync() ? '' : 'missing';
+    } else {
+      final id = 'package:${encoding['package']}/${encoding['name']}';
+      shipped[id] = file.readAsStringSync().trim();
+    }
   }
   final expected = {
     for (final pair in args.skip(1).map((a) => a.split('=')))
-      pair.first: pair.last,
+      pair.first: pair.length > 1 ? pair.last : '',
   };
   final ok =
       shipped.length == expected.length &&

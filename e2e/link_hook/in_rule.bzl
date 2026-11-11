@@ -17,6 +17,7 @@ load(
     "program_asset_file",
     "program_assets_attrs",
     "resolve_package_identity",
+    "vm_code_config",
 )
 
 def _own_package(ctx):
@@ -30,6 +31,7 @@ def _impl(ctx):
         deps = ctx.attr.deps,
         name = ctx.label.name,
         recorded_uses = ctx.attr.recorded_uses[DartRecordedUsesInfo],
+        code_config = vm_code_config(ctx),
     )
     return [
         DefaultInfo(files = depset([result.info.manifest], transitive = [result.info.files])),

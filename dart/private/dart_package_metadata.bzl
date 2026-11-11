@@ -142,7 +142,9 @@ the program's manifest only. Each must be the package's own, and listed once; re
             doc = """Native code assets this package owns (see the `dart_code_asset` rule). \
 They reach every `dart_binary`/`dart_test` that depends on any library of the package, directly \
 or transitively, and every one in the package (its `package`) — matching upstream, where depending \
-on a package gets you its assets with no opt-in, and the root package is like any other. Each `asset_id` must be namespaced to `package_name`.""",
+on a package gets you its assets with no opt-in, and the root package is like any other. Each `asset_id` must be namespaced to `package_name`. When \
+the program is linked and the package has a `link_hook`, they are the hook's `LinkInput.assets` \
+instead, and only those it emits ship.""",
             providers = [DartCodeAssetInfo],
         ),
         "data_assets": attr.label_list(
