@@ -164,7 +164,7 @@ def _target_runtime_impl(ctx):
     for value in ["js", "wasm"]:
         if ctx.target_platform_has_constraint(getattr(ctx.attr, "_" + value)[platform_common.ConstraintValueInfo]):
             return [RuntimeInfo(value = value)]
-    return [RuntimeInfo(value = "none")]
+    return [RuntimeInfo(value = "vm")]
 
 # Reached through a binary's web transition, it says which compiler the
 # platform it was given carries, so the binary can refuse one that carries the

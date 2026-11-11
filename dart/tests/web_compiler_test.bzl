@@ -265,9 +265,13 @@ def web_compiler_test_suite(name):
 
 def _wrong_platform_test_impl(ctx):
     env = analysistest.begin(ctx)
-    asserts.expect_failure(env, "must list `@rules_dart//dart/constraints:wasm` in its `constraint_values`")
+    asserts.expect_failure(env, ctx.attr.message)
     return analysistest.end(env)
 
-# A web binary given a platform without its compiler's constraint says what
-# the platform lacks.
-wrong_platform_test = analysistest.make(_wrong_platform_test_impl, expect_failure = True)
+# A web binary given a platform without its compiler's constraint says which
+# constraint the platform carries and which it lacks.
+wrong_platform_test = analysistest.make(
+    _wrong_platform_test_impl,
+    attrs = {"message": attr.string(mandatory = True)},
+    expect_failure = True,
+)

@@ -122,7 +122,26 @@ dart_wasm_binary(
 wrong_platform_test(
     name = "wrong_platform_test",
     size = "small",
+    message = "carries `@rules_dart//dart/constraints:js`, not `:wasm`. A platform a `dart_wasm_binary` builds for must list `@rules_dart//dart/constraints:wasm` in its `constraint_values`",
     target_under_test = ":app_wasm_on_js",
+)
+
+# A platform carrying no web compiler.
+platform(name = "vm_platform")
+
+dart_js_binary(
+    name = "app_js_on_vm",
+    main = "bin/main.dart",
+    platform = ":vm_platform",
+    tags = ["manual"],
+    deps = [":facade"],
+)
+
+wrong_platform_test(
+    name = "vm_platform_test",
+    size = "small",
+    message = "carries `@rules_dart//dart/constraints:vm`, not `:js`",
+    target_under_test = ":app_js_on_vm",
 )
 
 # What web-only code writes as its `target_compatible_with`.
