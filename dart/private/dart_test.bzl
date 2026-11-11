@@ -19,6 +19,7 @@ load(
     "code_asset_entries",
     "collect_transitive_code_assets",
     "collect_transitive_resources",
+    "collect_transitive_runfiles",
     "generate_native_assets_yaml",
     "kernel_root_path",
     "launcher_executable",
@@ -183,7 +184,7 @@ def _dart_test_impl(ctx):
             transitive = [dart_sdk_info.files.run, program_files, collect_transitive_resources(ctx.attr.deps)],
         ),
     )
-    runfiles = runfiles.merge(launcher.runfiles)
+    runfiles = runfiles.merge_all([launcher.runfiles, collect_transitive_runfiles(ctx, ctx.attr.deps)])
     if coverage:
         runfiles = runfiles.merge(coverage.runfiles).merge(ctx.attr._coverage_collector[DefaultInfo].default_runfiles)
     for data_dep in ctx.attr.data:

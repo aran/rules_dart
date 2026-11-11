@@ -176,7 +176,8 @@ def dart_info_with_summaries(
         srcs,
         resources,
         indirect_deps,
-        summaries):
+        summaries,
+        runfiles = None):
     """`dart_info()` (`dart_summary.bzl`) once the library's summaries are known.
 
     `dart_info()` declares the summary action, which needs the staging this
@@ -190,6 +191,7 @@ def dart_info_with_summaries(
       resources: As `dart_info()`'s.
       indirect_deps: As `dart_info()`'s.
       summaries: The value of `DartInfo.summaries`, from `summaries_info()`.
+      runfiles: This target's own runfiles (its `data`), or None.
 
     Returns:
       A `DartInfo`.
@@ -215,6 +217,7 @@ def dart_info_with_summaries(
         resources = resources,
         packages = packages,
         summaries = summaries,
+        runfiles = runfiles,
     )
 
 def dep_summaries(label, deps):
@@ -649,7 +652,8 @@ def _merged_dart_info(
         srcs,
         resources,
         packages,
-        summaries):
+        summaries,
+        runfiles = None):
     """Merges a target's own contributions with its dependencies' closures.
 
     The single place `DartInfo`'s fields are enumerated. Every public
@@ -664,11 +668,20 @@ def _merged_dart_info(
       resources: This target's own non-Dart files under `lib/`.
       packages: This target's own `DartPackageInfo` records.
       summaries: Value for `DartInfo.summaries`, from `summaries_info()`.
+      runfiles: This target's own runfiles (its `data`), or None.
 
     Returns:
       A `DartInfo`.
     """
+
+    # `getattr`: a provider built before the field existed has none.
+    all_runfiles = ([runfiles] if runfiles != None else []) + [
+        info.runfiles
+        for info in dep_infos
+        if getattr(info, "runfiles", None) != None
+    ]
     return DartInfo(
+        runfiles = all_runfiles[0].merge_all(all_runfiles[1:]) if all_runfiles else None,
         summaries = summaries,
         packages = tuple(packages),
         srcs = list(srcs),

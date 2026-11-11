@@ -9,6 +9,7 @@ load(
     "code_asset_entries",
     "collect_transitive_code_assets",
     "collect_transitive_resources",
+    "collect_transitive_runfiles",
     "generate_native_assets_yaml",
     "launcher_executable",
     "resolve_code_assets",
@@ -178,7 +179,8 @@ def _dart_binary_impl(ctx):
         files = ctx.files.data + code_asset_libs,
         transitive_files = collect_transitive_resources(ctx.attr.deps),
     ).merge_all(
-        [dep[DefaultInfo].default_runfiles for dep in ctx.attr.data],
+        [dep[DefaultInfo].default_runfiles for dep in ctx.attr.data] +
+        [collect_transitive_runfiles(ctx, ctx.attr.deps)],
     )
     executable = output
     launcher = _launcher(ctx, dart_sdk_info, compile_mode, output)

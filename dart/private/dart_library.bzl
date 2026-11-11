@@ -222,11 +222,13 @@ def _dart_library_impl(ctx):
         deps = ctx.attr.deps,
         srcs = own_srcs,
         resources = own_resources,
+        data = ctx.attr.data,
     )
+    runfiles = ctx.runfiles(files = own_srcs + own_resources)
     return [
         DefaultInfo(
             files = depset(own_srcs + own_resources),
-            runfiles = ctx.runfiles(files = own_srcs + own_resources),
+            runfiles = runfiles.merge(info.runfiles) if info.runfiles != None else runfiles,
         ),
         info,
         # What `bazel coverage` reports on for a test that reaches this.
@@ -266,6 +268,14 @@ consumer's `data`.""",
         "deps": attr.label_list(
             doc = "Other `dart_library` targets this library depends on. Their sources and package metadata are propagated transitively.",
             providers = [DartInfo],
+        ),
+        "data": attr.label_list(
+            doc = """Files the library needs at run time, outside its package's `lib/`: a \
+fixture, a model, a tool it runs. They are never compile inputs. With their own runfiles, they \
+join the runfiles of every `dart_binary`/`dart_test` that depends on this library, directly or \
+not, as `py_library`'s and `go_library`'s `data` do, and are found there with `rlocation`. \
+Files under `lib/` are the package's own and belong in `resources`.""",
+            allow_files = True,
         ),
     } | package_identity_attrs() | RUNTIME_INDEPENDENT_ATTR | LIBRARY_IMPORT_CHECKER_ATTRS | SUMMARY_ATTRS,
     exec_groups = PORTABLE_EXEC_GROUPS,

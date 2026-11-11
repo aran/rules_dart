@@ -1302,6 +1302,24 @@ def collect_transitive_srcs(deps):
     """
     return depset(transitive = [dep[DartInfo].transitive_srcs for dep in deps])
 
+def collect_transitive_runfiles(ctx, deps):
+    """The runfiles (`data`) the libraries of `deps` and theirs need at run time.
+
+    Args:
+        ctx: The rule context.
+        deps: List of targets providing DartInfo.
+
+    Returns:
+        A runfiles object, empty when none needs any.
+    """
+
+    # `getattr`: a provider built before the field existed has none.
+    return ctx.runfiles().merge_all([
+        dep[DartInfo].runfiles
+        for dep in deps
+        if getattr(dep[DartInfo], "runfiles", None) != None
+    ])
+
 def collect_transitive_resources(deps):
     """Collect all transitive `resources` files from DartInfo deps.
 

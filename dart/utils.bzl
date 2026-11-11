@@ -25,6 +25,7 @@ load(
     _collect_transitive_code_assets = "collect_transitive_code_assets",
     _collect_transitive_data_assets = "collect_transitive_data_assets",
     _collect_transitive_resources = "collect_transitive_resources",
+    _collect_transitive_runfiles = "collect_transitive_runfiles",
     _collect_transitive_srcs = "collect_transitive_srcs",
     _derive_package_name = "derive_package_name",
     _executable_package_record = "executable_package_record",
@@ -265,6 +266,16 @@ runfiles_path = _runfiles_path
 # the program's own package ships its assets and runs its link hook exactly as
 # a dependency's does, as upstream's hooks runner treats the root package.
 program_packages = _program_packages
+
+# The runfiles a program needs from the libraries it depends on: the `data` of
+# every `DartInfo` in `deps` and theirs (`dart_library.data`, or what a library
+# rule of another rule set passes `dart_info()` as `data`). A rule merges
+# the returned `runfiles` into its own:
+#
+#     runfiles = ctx.runfiles(files = ctx.files.data).merge(
+#         collect_transitive_runfiles(ctx, ctx.attr.deps),
+#     )
+collect_transitive_runfiles = _collect_transitive_runfiles
 
 # Code asset resolution, as `dart_binary` and `dart_test` do it, for a rule set
 # that stages a program's native libraries itself. `resolve_code_assets` unions

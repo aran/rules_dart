@@ -1,0 +1,49 @@
+load("//dart:defs.bzl", "dart_binary", "dart_library", "dart_test")
+load(":library_data_test.bzl", "runfiles_hold_test")
+
+# `reader` needs `fixture.txt` and the `helper` program, with its own runfiles,
+# at run time; `facade` depends on it and has no `data` of its own.
+
+dart_binary(
+    name = "helper",
+    compile_mode = "kernel",
+    data = ["helper_data.txt"],
+    main = "helper.dart",
+)
+
+dart_library(
+    name = "reader",
+    srcs = ["lib/reader.dart"],
+    data = [
+        "fixture.txt",
+        ":helper",
+    ],
+)
+
+dart_library(
+    name = "facade",
+    deps = [":reader"],
+)
+
+dart_test(
+    name = "library_data_test",
+    size = "small",
+    main = "library_data_test.dart",
+    deps = [
+        ":facade",
+        "//dart/runfiles",
+    ],
+)
+
+dart_binary(
+    name = "app",
+    main = "helper.dart",
+    tags = ["manual"],
+    deps = [":facade"],
+)
+
+runfiles_hold_test(
+    name = "binary_runfiles_test",
+    size = "small",
+    target_under_test = ":app",
+)

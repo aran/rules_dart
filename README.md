@@ -1142,8 +1142,9 @@ one whose root is the deepest directory holding the test file, among its own
 and its `deps`' packages in the same repository, wherever its BUILD file sits:
 a test in `pkgs/app/test/BUILD.bazel` that depends on `//pkgs/app` runs in
 `pkgs/app`. A test no package of its repository holds runs at the repository's
-root, where Bazel starts every test. Only the test's `data` is there, not the
-whole package; `Runfiles.rlocation()` still finds a file by its runfiles path
+root, where Bazel starts every test. Only the `data` of the test and of the
+libraries it depends on (a `dart_library`'s `data`, which every binary and test
+reaching it carries, as with `py_library`) is there, not the whole package; `Runfiles.rlocation()` still finds a file by its runfiles path
 from anywhere. Where Bazel builds no runfiles tree (Windows by default), the
 launcher lays out the test's runfiles from the runfiles manifest as a tree
 holds them, less the launcher's own program and kernels, and runs it there.

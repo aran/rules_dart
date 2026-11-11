@@ -315,7 +315,8 @@ def dart_info(
         srcs = [],
         resources = [],
         indirect_deps = [],
-        analysis_deps = []):
+        analysis_deps = [],
+        data = []):
     """Builds a `DartInfo` for a library, merging its dependencies' closures.
 
     The caller supplies only what this target contributes itself; everything
@@ -360,6 +361,10 @@ def dart_info(
         against and hands on: Flutter's `sky_engine`, whose `_embedder.yaml`
         gives the analyzer `dart:ui`, which the compiler takes from its SDK.
         Nothing else of them joins this `DartInfo`.
+      data: Targets whose files and runfiles the library needs at run time,
+        as `py_library`'s `data`: never compile inputs, they join the
+        runfiles of every executable that reaches the library
+        (`DartInfo.runfiles`).
 
     Returns:
       A `DartInfo`.
@@ -372,4 +377,19 @@ def dart_info(
         resources = resources,
         indirect_deps = indirect_deps,
         summaries = _own_summaries(ctx, packages, srcs, resources, deps + analysis_deps),
+        runfiles = _data_runfiles(ctx, data) if data else None,
     )
+
+def _data_runfiles(ctx, data):
+    """The runfiles of `data` targets: their files and their own runfiles.
+
+    Args:
+      ctx: The rule context.
+      data: Targets.
+
+    Returns:
+      A runfiles object.
+    """
+    return ctx.runfiles(
+        transitive_files = depset(transitive = [t[DefaultInfo].files for t in data]),
+    ).merge_all([t[DefaultInfo].default_runfiles for t in data])
