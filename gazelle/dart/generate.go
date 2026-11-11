@@ -15,7 +15,8 @@ import (
 )
 
 // GenerateRules generates Dart BUILD rules for a directory: the Dart targets,
-// then the analysis options targets (analysis_options.go).
+// then the analysis options targets (analysis_options.go), then the cycles
+// its directives declare (cycle.go).
 func (d *dartLang) GenerateRules(args language.GenerateArgs) language.GenerateResult {
 	res := d.generateDartRules(args)
 	// After any codegen of the directory has read its build.yaml.
@@ -25,6 +26,11 @@ func (d *dartLang) GenerateRules(args language.GenerateArgs) language.GenerateRe
 		taken[r.Name()] = true
 	}
 	gen, imports, empty := d.analysisRules(args, taken)
+	res.Gen = append(res.Gen, gen...)
+	res.Imports = append(res.Imports, imports...)
+	res.Empty = append(res.Empty, empty...)
+	// After the directories below, whose members a cycle here builds.
+	gen, imports, empty = d.cycleRules(args)
 	res.Gen = append(res.Gen, gen...)
 	res.Imports = append(res.Imports, imports...)
 	res.Empty = append(res.Empty, empty...)
@@ -179,9 +185,11 @@ func (d *dartLang) packageLibraryRules(args language.GenerateArgs) ([]*rule.Rule
 	is := collectRepoImports(args, files)
 	// What the builders generate imports their runtime libraries.
 	addRuntimeDeps(is, runtime)
-	gen = append(gen, r)
-	imports = append(imports, is)
-	return gen, imports, staleSourceLibraries(args.File, root, scan, r.Name())
+	// A package of a declared cycle is a member of it instead (cycle.go).
+	lib, libImports, replaced := d.cycleMemberRules(args, root, r, is)
+	gen = append(gen, lib...)
+	imports = append(imports, libImports...)
+	return gen, imports, append(staleSourceLibraries(args.File, root, scan, r.Name()), replaced...)
 }
 
 // staleSourceLibraries returns an empty-rule marker for each library in f, the

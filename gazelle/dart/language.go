@@ -24,6 +24,7 @@ type dartLang struct {
 	scan      scanState
 	buildYaml buildYamlState
 	stale     staleBuildFiles
+	cycles    cycleState
 	// mode is Gazelle's -mode: "fix" (the default), "print" or "diff".
 	mode string
 	// external is the builders the repository root's `dart_builder`
@@ -81,6 +82,8 @@ func (*dartLang) KnownDirectives() []string {
 		// The `language_version` of the package, for a package whose
 		// pubspec.yaml does not state it or that has none.
 		keyLanguageVersion,
+		// Packages that import each other, built as one target (cycle.go).
+		keyCycle,
 	}
 }
 
@@ -111,6 +114,7 @@ func (d *dartLang) Configure(c *config.Config, rel string, f *rule.File) {
 		}
 	}
 	d.buildYaml.configureIgnores(rel, f)
+	d.configureCycles(c, rel, f)
 	if rel != "" {
 		d.refuseNestedBuilders(rel, f)
 	}
@@ -129,7 +133,7 @@ func (d *dartLang) Loads() []rule.LoadInfo {
 		[]rule.LoadInfo{
 			{
 				Name:    "@rules_dart//dart:defs.bzl",
-				Symbols: []string{"dart_library", "dart_binary", "dart_test", "dart_codegen", "dart_aggregate_codegen", "dart_sqlcodegen", "dart_analysis_options", "dart_analysis_config", "dart_package_metadata"},
+				Symbols: []string{"dart_library", "dart_binary", "dart_test", "dart_codegen", "dart_aggregate_codegen", "dart_sqlcodegen", "dart_analysis_options", "dart_analysis_config", "dart_package_metadata", "dart_package_member", "dart_package_cycle"},
 			},
 		},
 		macroLoads(d.builders())...,
@@ -141,7 +145,7 @@ func (d *dartLang) ApparentLoads(moduleToApparentName func(string) string) []rul
 		[]rule.LoadInfo{
 			{
 				Name:    "@rules_dart//dart:defs.bzl",
-				Symbols: []string{"dart_library", "dart_binary", "dart_test", "dart_codegen", "dart_aggregate_codegen", "dart_sqlcodegen", "dart_analysis_options", "dart_analysis_config", "dart_package_metadata"},
+				Symbols: []string{"dart_library", "dart_binary", "dart_test", "dart_codegen", "dart_aggregate_codegen", "dart_sqlcodegen", "dart_analysis_options", "dart_analysis_config", "dart_package_metadata", "dart_package_member", "dart_package_cycle"},
 			},
 		},
 		macroLoads(d.builders())...,

@@ -80,7 +80,7 @@ func dartKinds(builders []*builderInfo) map[string]rule.KindInfo {
 	}
 	for k, v := range _primitiveDartKinds {
 		switch k {
-		case "filegroup", "dart_package_metadata", "dart_analysis_options", "dart_analysis_config":
+		case "filegroup", "alias", "dart_package_metadata", "dart_analysis_options", "dart_analysis_config":
 		default:
 			v = withRemovedFacts(v)
 		}
@@ -134,6 +134,21 @@ var _primitiveDartKinds = map[string]rule.KindInfo{
 			"code_assets": true,
 		},
 		ResolveAttrs: map[string]bool{"deps": true},
+	},
+	// A package of a cycle, and the cycle (cycle.go). The alias in the
+	// package's library's name points at the cycle.
+	"dart_package_member": {
+		NonEmptyAttrs:  map[string]bool{"srcs": true},
+		MergeableAttrs: map[string]bool{"srcs": true, "package": true, "visibility": true},
+	},
+	"dart_package_cycle": {
+		NonEmptyAttrs:  map[string]bool{"members": true},
+		MergeableAttrs: map[string]bool{"members": true, "deps": true},
+		ResolveAttrs:   map[string]bool{"deps": true},
+	},
+	"alias": {
+		NonEmptyAttrs:  map[string]bool{"actual": true},
+		MergeableAttrs: map[string]bool{"actual": true},
 	},
 	"dart_binary": {
 		MatchAttrs:    []string{"main"},

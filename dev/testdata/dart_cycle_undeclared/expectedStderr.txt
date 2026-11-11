@@ -1,0 +1,3 @@
+gazelle: dart: packages `ping` and `pong` depend on each other: ping -> pong -> ping. Bazel builds no cycle of targets, so packages that import each other are built as one target, where a directive declares them. Add it to the BUILD file of pp, or of a directory above it:
+
+    # gazelle:dart_cycle ping pong

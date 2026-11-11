@@ -139,6 +139,7 @@ func (s *generationErrors) check(rel, fact string, stated []statement) {
 // DoneGeneratingRules fails the run when generating found any problem,
 // before Gazelle resolves or writes anything.
 func (d *dartLang) DoneGeneratingRules() {
+	d.cycles.check(&d.errs)
 	if len(d.errs.errors) == 0 {
 		return
 	}

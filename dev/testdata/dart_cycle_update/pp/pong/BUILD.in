@@ -1,0 +1,14 @@
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "pong",
+    visibility = ["//pp/pong:__subpackages__"],
+)
+
+dart_library(
+    name = "pong",
+    srcs = ["lib/pong.dart"],
+    package = ":pubspec-metadata",
+    visibility = ["//visibility:public"],
+)

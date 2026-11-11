@@ -1,0 +1,21 @@
+load("@rules_dart//dart:defs.bzl", "dart_package_member", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "pong",
+    language_version = "3.11",
+    visibility = ["//rally/pong:__subpackages__"],
+)
+
+dart_package_member(
+    name = "pong_member",
+    srcs = ["lib/pong.dart"],
+    package = ":pubspec-metadata",
+    visibility = ["//rally:__pkg__"],
+)
+
+alias(
+    name = "pong",
+    actual = "//rally:ping_pong",
+    visibility = ["//visibility:public"],
+)

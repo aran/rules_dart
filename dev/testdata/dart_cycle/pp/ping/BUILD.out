@@ -1,0 +1,20 @@
+load("@rules_dart//dart:defs.bzl", "dart_package_member", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "ping",
+    visibility = ["//pp/ping:__subpackages__"],
+)
+
+dart_package_member(
+    name = "ping_member",
+    srcs = ["lib/ping.dart"],
+    package = ":pubspec-metadata",
+    visibility = ["//pp:__pkg__"],
+)
+
+alias(
+    name = "ping",
+    actual = "//pp:ping_pong",
+    visibility = ["//visibility:public"],
+)

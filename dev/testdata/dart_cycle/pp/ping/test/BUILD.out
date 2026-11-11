@@ -1,0 +1,8 @@
+load("@rules_dart//dart:defs.bzl", "dart_test")
+
+dart_test(
+    name = "ping_test",
+    main = "ping_test.dart",
+    package = "//pp/ping:pubspec-metadata",
+    deps = ["//pp:ping_pong"],
+)

@@ -1,8 +1,9 @@
 load("@gazelle//:def.bzl", "gazelle", "gazelle_binary")
 load("@rules_dart//dart:defs.bzl", "dart_test")
 
-# Gazelle writes the BUILD files of `codegen/`, `split/` and `cycle/` (bar
-# `cycle/BUILD.bazel`'s `dart_code_asset` and the `code_assets` naming it),
+# Gazelle writes the BUILD files of `codegen/`, `split/`, `cycle/` (bar
+# `cycle/BUILD.bazel`'s `dart_code_asset` and the `code_assets` naming it) and
+# `rally/` (bar the `dart_cycle` directive declaring its packages a cycle),
 # which this workspace builds and tests; CI fails when `bazel run //:gazelle --
 # -mode=diff` would change one. `gazelle_test` runs it over copies of the
 # samples below, which are its inputs and have no BUILD files of their own.

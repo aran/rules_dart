@@ -501,6 +501,9 @@ package does. Declare the cycle with `pub.cycle()`, as
 [Packages that depend on each other](#packages-that-depend-on-each-other)
 shows.
 
+Gazelle can write these targets for you. Add a `dart_cycle` directive (see
+[Directives](#directives)).
+
 ### Running the Dart SDK
 
 To run the `dart` command of the SDK the toolchain pins:
@@ -1187,6 +1190,20 @@ because Gazelle reads the rest from `pubspec.yaml` and `build.yaml`.
   below, up to the root of another package (a directory with its own
   `pubspec.yaml` or `dart_package_metadata`). That package states its own, as
   each package's pubspec does for `pub`.
+
+- **`# gazelle:dart_cycle ping pong`**: `ping` and `pong` import each other,
+  so they build as one target (see
+  [Your packages that import each other](#your-packages-that-import-each-other)).
+  Put it in a BUILD file above both packages. Gazelle writes a
+  `dart_package_member` and an `alias` at each package's root. It writes the
+  `dart_package_cycle`, named `ping_pong`, beside the directive. Imports of
+  either package resolve to the cycle.
+
+  Gazelle finds cycles itself, from what the packages import. If it finds one
+  with no directive, the run fails. The error names the packages, a path
+  through them, and the directive to add. A directive that no longer names
+  exactly one cycle fails the run too, and the error says what to change. Take
+  the directive out and Gazelle writes each package's `dart_library` again.
 
 - **`# gazelle:dart_build_yaml_ignore targets.$default.builders.json_serializable.generate_for`**:
   a part of the `build.yaml` beside this BUILD file that the build does without

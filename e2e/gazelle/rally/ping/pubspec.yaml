@@ -1,0 +1,3 @@
+name: ping
+environment:
+  sdk: ^3.11.0

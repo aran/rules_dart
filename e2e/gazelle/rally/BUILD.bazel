@@ -1,0 +1,14 @@
+load("@rules_dart//dart:defs.bzl", "dart_package_cycle")
+
+# `ping` and `pong` import each other. Gazelle writes a member and an alias at
+# each package's root, and the cycle here.
+# gazelle:dart_cycle ping pong
+
+dart_package_cycle(
+    name = "ping_pong",
+    members = [
+        "//rally/ping:ping_member",
+        "//rally/pong:pong_member",
+    ],
+    visibility = ["//visibility:public"],
+)

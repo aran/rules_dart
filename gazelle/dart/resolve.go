@@ -16,7 +16,7 @@ import (
 // indexedKinds is the set of rule kinds that provide a Dart package for
 // import resolution. A codegen macro is not one: the library holding its
 // sources lists what it generates.
-var indexedKinds = map[string]bool{"dart_library": true}
+var indexedKinds = map[string]bool{"dart_library": true, "dart_package_cycle": true}
 
 // Imports returns the import specifications for a rule.
 // These are used to build the import index for dependency resolution.
@@ -29,6 +29,13 @@ func (d *dartLang) Imports(c *config.Config, r *rule.Rule, f *rule.File) []resol
 // its package's name.
 func (d *dartLang) importSpecs(c *config.Config, r *rule.Rule, rel string) []resolve.ImportSpec {
 	if !indexedKinds[r.Kind()] {
+		return nil
+	}
+	if r.Kind() == "dart_package_cycle" {
+		// What its members, written below it, provide (cycle.go).
+		if decl := declAt(c, rel, r.Name()); decl != nil {
+			return append([]resolve.ImportSpec{{Lang: dartName, Imp: r.Name()}}, d.cycles.cycleSpecs(decl)...)
+		}
 		return nil
 	}
 	place := placeOf(c, rel)

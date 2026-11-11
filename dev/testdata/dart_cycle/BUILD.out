@@ -1,0 +1,17 @@
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+# gazelle:dart_pub_deps_repo pub_deps
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "app",
+    visibility = ["//:__subpackages__"],
+)
+
+dart_library(
+    name = "app",
+    srcs = ["lib/app.dart"],
+    package = ":pubspec-metadata",
+    visibility = ["//visibility:public"],
+    deps = ["//pp:ping_pong"],
+)

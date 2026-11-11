@@ -1,0 +1,13 @@
+load("@rules_dart//dart:defs.bzl", "dart_package_cycle")
+
+# gazelle:dart_cycle pong ping
+
+dart_package_cycle(
+    name = "ping_pong",
+    members = [
+        "//pp/ping:ping_member",
+        "//pp/pong:pong_member",
+    ],
+    visibility = ["//visibility:public"],
+    deps = ["@pub_deps//:collection"],
+)
