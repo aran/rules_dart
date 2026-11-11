@@ -1,2 +1,7 @@
 # A nested workspace reads only its own rc files: import its untracked per-user overrides.
 try-import %workspace%/.bazelrc.user
+
+# A consumer may turn this on across its whole graph, so the rules must read
+# a target's files through DefaultInfo. Not at the root: bazel_lib's
+# bzl_library, which the API docs build on, still reads them the old way.
+common --incompatible_disable_target_default_provider_fields
