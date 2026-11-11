@@ -44,9 +44,9 @@ Usage:
 
 `deps` is a list of `dart_library`-shaped targets (anything exporting
 `DartInfo`). Their transitive sources populate a `package_config.json`
-so `package:` imports resolve; any file that belongs to the *same* Dart
-package as `src` is also auto-staged as `--dep` so the Resolver can walk
-sibling files without the caller listing them explicitly.
+so `package:` imports resolve; any of their files under the `lib/` of the
+Dart package `src` belongs to is also auto-staged as `--dep` so the Resolver
+can walk sibling files without the caller listing them explicitly.
 
 The generated files can be used as srcs in a downstream `dart_library`.
 
@@ -273,18 +273,19 @@ dart_codegen = rule(
         "output_suffixes": attr.string_list(
             doc = "One or more suffixes appended to the input stem to " +
                   "derive output file paths. E.g. `['.g.dart']` for a " +
-                  "SharedPart combining output; `['.config.dart', " +
-                  "'.module.dart']` for a builder that " +
-                  "emits both per input. At least one suffix is required.",
+                  "SharedPart combining output; `['.dart.drift_module.json', " +
+                  "'.dart.types.temp.dart']` for a builder that " +
+                  "emits both per input (drift's analyzer). At least one " +
+                  "suffix is required.",
             mandatory = True,
         ),
         "deps": attr.label_list(
             doc = "`dart_library`-shaped targets (anything exporting " +
                   "`DartInfo`) whose transitive sources populate a " +
                   "synthesised `package_config.json` for the shim's " +
-                  "analyzer. Any file belonging to the same Dart package " +
-                  "as `src` is also auto-staged as `--dep` so the " +
-                  "Resolver can walk siblings.",
+                  "analyzer. Any of their files under the `lib/` of " +
+                  "`src`'s Dart package is also auto-staged as `--dep` so " +
+                  "the Resolver can walk siblings.",
             providers = [DartInfo],
         ),
         "parts": attr.label_list(
@@ -316,8 +317,9 @@ dart_codegen = rule(
             allow_files = True,
         ),
         "asset_deps": attr.label_list(
-            doc = "Non-Dart files the Builder's `Resolver` / `findAssets` " +
-                  "must see (e.g. `.drift` schemas, `.drift_prep.json` " +
+            doc = "Files the Builder's `Resolver` / `findAssets` must " +
+                  "see that no library in `deps` holds: non-Dart files " +
+                  "(e.g. `.drift` schemas, `.drift_prep.json` " +
                   "sidecars, `.yaml` configs read via `BuildStep`). Each " +
                   "file is staged as an action input and passed as " +
                   "`--dep <exec>|<asset>` using `asset_path_for`. Dart " +

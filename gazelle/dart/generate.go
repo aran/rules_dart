@@ -400,8 +400,8 @@ func (d *dartLang) testHelpers(args language.GenerateArgs, test DartFileInfo) ([
 }
 
 // helperTests returns empty-rule markers for each existing dart_test whose
-// main is a helper: a file package:test never runs, made a test by earlier
-// Gazelle versions. `# keep` keeps one written by hand.
+// main is a helper: a file package:test never runs, so not a test.
+// `# keep` keeps one written by hand.
 func helperTests(f *rule.File, helpers map[string]DartFileInfo) []*rule.Rule {
 	if f == nil {
 		return nil
@@ -451,8 +451,10 @@ func testTags(args language.GenerateArgs, f DartFileInfo) []string {
 // previously generated rule is no longer produced (e.g. an annotation was
 // removed from the source). Deliberately limited to the convenience-macro
 // kinds and the codegen primitives Gazelle synthesizes itself:
-// dart_library / dart_binary / dart_test are NEVER deleted so hand-written
-// targets (e.g. srcs=[] aggregator libraries) survive regeneration.
+// dart_library / dart_binary / dart_test are not among them, so hand-written
+// targets (e.g. srcs=[] aggregator libraries) survive regeneration. Those
+// kinds are removed only by the checks that recognise a target as Gazelle's
+// to remove (`helperTests`, stale libraries, lib_dir.go, hook.go).
 // `# keep` remains the escape hatch for hand-written codegen rules.
 func deletableKinds(builders []*builderInfo) map[string]bool {
 	m := map[string]bool{

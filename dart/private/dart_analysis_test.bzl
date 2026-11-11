@@ -64,7 +64,7 @@ dart_analysis_test = rule(
     doc = """Runs the `dart_analyze` aspect's checks on targets `bazel test //...` cannot reach.
 
 For a target tagged `manual`, or a fixture that must not be built by a
-wildcard, list it here: the test fails to build if `dart analyze` reports
+wildcard, list it here: the test fails to build if the analyzer reports
 anything in the target's own files, or if `dart format` would change one. Both
 checks run on every listed target, less whatever its `no-dart-analyze` or
 `no-dart-format` tag removes, under the options the

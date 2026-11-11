@@ -15,6 +15,8 @@ repository (`''`, main module) makes apparent → canonical name lookups
 resolve correctly under bzlmod.
 
 ```dart
+import 'dart:io';
+
 import 'package:runfiles/runfiles.dart';
 
 void main() {

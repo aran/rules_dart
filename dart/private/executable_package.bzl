@@ -23,7 +23,9 @@ load("//dart/private:common.bzl", "codegen_identity_error", "executable_package_
 load("//dart/private:dart_info.bzl", "dart_analyzable_info", "dart_analyzable_info_no_package", "package_lib_prefix")
 
 # The package attribute of every executable rule.
-EXECUTABLE_PACKAGE_ATTRS = package_identity_attrs()
+EXECUTABLE_PACKAGE_ATTRS = package_identity_attrs(
+    doc = "The `dart_package_metadata` declaring the Dart package this executable is a member of, wherever its BUILD file is: its own files take that package's language version, and its record joins the packages it compiles against. Unset, the executable contributes no package, and its entrypoint takes the version of a package its `deps` bring whose root contains it, or the SDK's own.",
+)
 
 def _in_root(path, root):
     """Whether a `short_path` lies under a package root directory."""

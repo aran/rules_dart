@@ -2137,8 +2137,8 @@ def add_shim_contract_args(
       args: The `ctx.actions.args()` object to append flags to.
       ctx: The rule context (reads `package`, `config`, etc.).
       synth_pc: The synthesised `package_config.json` File from
-        `synth_package_config`, or `None` for targets without
-        `library_deps`.
+        `synth_package_config`, or `None` for a target with no
+        `deps`.
       sdk_dart: The `dart` executable File (from the caller's resolved
         toolchain) used to compute `--sdk-path`. Passed in so this helper
         stays agnostic of which toolchain type the caller resolves.

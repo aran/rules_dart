@@ -12,10 +12,13 @@ along `deps`), and only that target's *own* files: its `DefaultInfo` `.dart`
 files plus its `DartAnalyzableInfo.entry_srcs`. Each check is its own output group
 and its own actions — `dart_analyze` for the analyzer, `dart_format` for the
 format check — so a project runs whichever of the two its `--output_groups`
-names, and only that one. Its in-repository dependencies are staged so their imports resolve and excluded so they are not re-checked — each
-is checked when it is itself a target of the build. Targets in other
-repositories (pub packages, other Bazel modules) are never checked here: the
-module that owns them checks them under its own options. Generated files
+names, and only that one. Its in-repository dependencies are never re-checked
+here — each is checked when it is itself a target of the build: under
+`analysis_summaries` (the default) their imports resolve through the
+dependencies' analyzer summaries and only the target's own files are staged;
+with it off they are staged so their imports resolve, and excluded. Targets
+in other repositories (pub packages, other Bazel modules) are never checked
+here: the module that owns them checks them under its own options. Generated files
 (anything not `is_source`) are never checked. The `no-dart-analyze` tag opts a
 target out of analysis (its fixes stay available to
 `@rules_dart//dart/fix`), and `no-dart-format` out of the format check and its

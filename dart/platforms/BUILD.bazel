@@ -1,6 +1,6 @@
 # The platforms `dart_js_binary` and `dart_wasm_binary` build their `deps` for
-# unless their `platform` attribute names another. Each carries only the web
-# compiler constraint: no `os` or `cpu`, because neither JavaScript nor a
+# unless their `platform` attribute names another. Each carries only the runtime
+# constraint (`//dart/constraints:runtime`): no `os` or `cpu`, because neither JavaScript nor a
 # dart2wasm module (WasmGC, hosted by JavaScript) has one in `@platforms`'
 # vocabulary, and no `flags`. Native code reached on one fails toolchain
 # resolution rather than quietly building for some other wasm target.

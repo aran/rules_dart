@@ -153,7 +153,7 @@ DartSdkInfo = provider(
         "version": "str: The SDK version string (e.g. `3.13.7`).",
         "files": "DartSdkFilesInfo: The SDK's files by the use that reads them.",
         "target_os": "str: Cross-compilation target OS (`macos`, `linux`, `windows`), or empty for native.",
-        "target_arch": "str: Cross-compilation target architecture (`x64`, `arm64`), or empty for native.",
+        "target_arch": "str: Cross-compilation target architecture (`x64`, `arm64`, `riscv64`, `arm`), or empty for native.",
         "exec_os": "str: The OS the SDK's own binaries run on (`macos`, `linux`, `windows`).",
         "exec_arch": "str: The architecture the SDK's own binaries run on (`x64`, `arm64`).",
         "cross_tools": "struct | None: For a cross toolchain, what `dart compile` needs for the target that the SDK does not ship: `files`, a depset to add to the action's inputs, and `home`, the directory to give it as its home so it finds them. None for native.",

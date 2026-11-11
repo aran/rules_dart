@@ -48,9 +48,9 @@ def check_files_under_package_root(label, package_root, files, attr_name = "srcs
     """Detects `srcs`/`resources` entries that do not sit under the package's `lib/`.
 
     A Dart package resolves `package:<name>/x.dart` to `<package_root>/lib/x.dart`,
-    and the consumer stages a package by stripping `package_root` from each file
-    (`colocate_packages`). A file outside `<package_root>/lib/` therefore lands
-    outside `lib/` in the staged tree and resolves to nothing. Nothing fails
+    whether its files are read in place or staged by stripping `package_root`
+    (`colocate_packages`). A file outside `<package_root>/lib/` therefore
+    resolves to nothing. Nothing fails
     until the kernel compile, which reports only a missing path inside a
     `.pkgsrcs` directory — no target name, no mention of `lib/`.
 
@@ -243,7 +243,7 @@ dart_library = rule(
     cfg = runtime_reset_when_independent,
     attrs = {
         "srcs": attr.label_list(
-            doc = "Dart source files (`.dart`), source-tree or generated. Typically `glob([\"lib/**/*.dart\"])`, optionally plus `dart_codegen` outputs. Generated members are co-located with the rest of the package by the consuming `dart_binary`/`dart_test`. Mutually exclusive with `srcs_dir`.",
+            doc = "Dart source files (`.dart`), source-tree or generated. Typically `glob([\"lib/**/*.dart\"])`, optionally plus `dart_codegen` outputs. Generated members join the hand-written ones wherever a consumer reads the package: the VM compiles read both in place, through roots spanning the source tree and `bazel-out`, and the web compilers and the analyzer stage them into one project. Mutually exclusive with `srcs_dir`.",
             allow_files = [".dart"],
         ),
         "resources": attr.label_list(
@@ -270,5 +270,5 @@ consumer's `data`.""",
     } | package_identity_attrs() | RUNTIME_INDEPENDENT_ATTR | LIBRARY_IMPORT_CHECKER_ATTRS | SUMMARY_ATTRS,
     exec_groups = PORTABLE_EXEC_GROUPS,
     toolchains = COPY_TO_DIRECTORY_TOOLCHAINS,
-    doc = "Collects Dart sources and propagates dependency information via `DartInfo`. Its package is the one the `dart_package_metadata` it names in `package` declares, or, naming none, one named after its root directory that states nothing else. Does not compile or assemble; consumers co-locate generated sources. Its `_validation` output group checks what its sources import, export and include as parts against its `deps` (see `dart_import_check.bzl`), so any build of the library runs the check.",
+    doc = "Collects Dart sources and propagates dependency information via `DartInfo`. Its package is the one the `dart_package_metadata` it names in `package` declares, or, naming none, one named after its root directory that states nothing else. Does not compile or assemble; each consumer reads its sources, generated ones included, as `srcs` describes. Its `_validation` output group checks what its sources import, export and include as parts against its `deps` (see `dart_import_check.bzl`), so any build of the library runs the check.",
 )

@@ -6,8 +6,8 @@ import (
 )
 
 // pipelineStage represents one rule the DAG-emitter will produce: a
-// single dart_codegen / dart_aggregate_codegen / combining_shim
-// invocation operating on one input source.
+// single dart_codegen or combining_shim invocation operating on one input
+// source.
 type pipelineStage struct {
 	// Builder is the registered builder driving this stage. Nil for the
 	// synthetic combining stage.

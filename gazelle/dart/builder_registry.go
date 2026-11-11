@@ -23,7 +23,7 @@ type builderInfo struct {
 
 	// ShimLabel is the absolute label of the per-builder shim binary
 	// (e.g. "@rules_dart//dart/ext/json_serializable:shim"). Used as
-	// `generator_bin` on the emitted dart_codegen / dart_aggregate_codegen.
+	// `generator_bin` on the emitted dart_codegen.
 	ShimLabel string
 
 	// Macro is the loadable symbol for the convenience macro Gazelle emits

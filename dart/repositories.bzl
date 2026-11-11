@@ -1,7 +1,8 @@
-"""Declare runtime dependencies
+"""The repository rules that fetch the Dart SDK and what is built from its source.
 
-These are needed for local dev, and users must install them as well.
-See https://docs.bazel.build/versions/main/skylark/deploying.html#dependencies
+Each SDK, cross-compilation pair, outline stripper and summary analyzer is a
+repository of its own; `dart_register_toolchains` declares them all and the
+repository exposing their toolchains.
 """
 
 load("//dart/private:toolchains_repo.bzl", "CROSS_TARGETS", "PLATFORMS", "SDK_CACHE_DIR", "TARGET_PLATFORMS", "cross_tool_files", "toolchains_repo")
@@ -529,7 +530,8 @@ def dart_register_toolchains(name, **kwargs):
 
     Args:
         name: base name for all created repos, like "dart"
-        **kwargs: passed to each dart_repositories and dart_cross_tools call
+        **kwargs: passed to each dart_repositories, dart_cross_tools,
+            dart_kernel_source, dart_analyzer_source and toolchains_repo call
     """
     for platform in PLATFORMS.keys():
         dart_repositories(

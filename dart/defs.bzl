@@ -8,7 +8,7 @@ Load this file from your BUILD files to access the following rules:
 - `dart_binary`: Compiles a Dart application (`exe`, `aot-snapshot` or `kernel`).
 - `dart_test`: Runs a Dart test file using the Dart VM.
 - `dart_analysis_options`: An `analysis_options.yaml` plus the packages its `include:` directives resolve against.
-- `dart_analysis_config`: Lists every `dart_analysis_options` for the `dart_analyze` aspect (`//dart:analyze.bzl`), which runs `dart analyze` and the `dart format` check under `bazel test`.
+- `dart_analysis_config`: Lists every `dart_analysis_options` for the `dart_analyze` aspect (`//dart:analyze.bzl`), which runs the analyzer and the `dart format` check under `bazel test`.
 - `dart_analysis_test`: Runs the `dart_analyze` aspect's checks on named targets `bazel test //...` cannot reach (tagged `manual`, fixtures).
 - `dart_js_binary`: Compiles a Dart web application to JavaScript.
 - `dart_wasm_binary`: Compiles a Dart web application to WebAssembly.

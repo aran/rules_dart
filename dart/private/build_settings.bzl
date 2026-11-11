@@ -12,8 +12,10 @@ repeated key.
 Unlike rules_flutter's equivalent, no define keys are reserved here. That list
 exists there because the Flutter build sets `dart.vm.product` and friends itself
 from the compilation mode, and a user value would silently fight it. rules_dart
-maps compilation mode to `--enable-asserts` and gen-snapshot options only and
-sets no define of its own, so it has nothing to protect.
+maps compilation mode to `--enable-asserts` and gen-snapshot options, and sets
+only the `dart.vm.*` defines `dart compile` itself sets, ahead of the user's,
+so a user value wins as it would under `dart compile`: it has nothing to
+protect.
 """
 
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")

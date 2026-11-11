@@ -146,6 +146,11 @@ _from_lock = tag_class(
             default = {},
         ),
     },
+    doc = "The packages a `pubspec.lock` names, each built as a library with the " +
+          "dependencies its pubspec states and aliased in the hub `name`. `hosted` and " +
+          "`git` packages are fetched; every `path` package is named in `resolve`, " +
+          "`build_from_pubspec` or `ignored`; an `sdk` package is skipped unless `resolve` " +
+          "maps it.",
 )
 
 _settings = tag_class(
@@ -987,5 +992,5 @@ pub = module_extension(
         "cycle": _cycle,
         "settings": _settings,
     },
-    doc = "Declares pub.dev package dependencies for download and use as dart_library targets.",
+    doc = "Declares pub package dependencies (hosted, git and path) for download and use as dart_library targets.",
 )

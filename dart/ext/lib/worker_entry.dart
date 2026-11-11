@@ -64,10 +64,10 @@ Future<(int, String)> _performRequest(
   final stderrBuffer = StringBuffer();
   int exit = 0;
 
-  // Respect WorkRequest.sandboxDir when set (Bazel populates it with
-  // `--experimental_sandboxed_worker`): rooted staging there means
-  // per-request hermeticity lines up with Bazel's sandbox lifecycle.
-  // When unset (the default), fall back to the system temp dir.
+  // Respect WorkRequest.sandboxDir when set, so staging lives and dies with
+  // the request's sandbox. Bazel sets it only for multiplex workers under
+  // multiplex sandboxing; the shims run as singleplex workers, so it is
+  // unset and staging goes to the system temp dir.
   Directory? stagingRoot;
   if (sandboxDir.isNotEmpty) {
     stagingRoot = Directory(sandboxDir);

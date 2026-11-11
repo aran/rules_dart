@@ -6,7 +6,8 @@ re-running Gazelle must delete the previously generated macro call
 (`macro/`) and the synthesized `dart_codegen` stages (`event/`),
 regenerating a plain `dart_library` in their place.
 
-Deletion is deliberately limited to macro kinds and the codegen
-primitives: `dart_library` / `dart_binary` / `dart_test` are never
-deleted so hand-written aggregator targets survive (`# keep` remains
-the escape hatch for hand-written codegen rules).
+This deletion is limited to macro kinds and the codegen primitives, so
+hand-written aggregator targets survive; a `dart_library`, `dart_binary` or
+`dart_test` is removed only by the checks that recognise it as Gazelle's (a
+helper's test, a stale library, a `lib/` BUILD file, a library of hooks).
+`# keep` remains the escape hatch for hand-written codegen rules.

@@ -322,11 +322,11 @@ def dart_info(
     transitive is merged here (see `dart_info.bzl`). Adding a field to
     `DartInfo` is therefore a change in rules_dart and nothing else.
 
-    A library contributes one package, built by `dart_package_info()`, or
-    several: pub allows packages to depend on each other (`dio` and
-    `dio_web_adapter`), Bazel does not allow a dependency cycle, so the
-    packages of such a cycle are one target, compiled together, each keeping
-    its own name and `package_root`. A target contributing none is what
+    A library contributes one package, its record built from its declaration
+    (`library_package()`) or by `dart_package_info()`, or several: pub allows
+    packages to depend on each other (`dio` and `dio_web_adapter`), Bazel does
+    not allow a dependency cycle, so the packages of such a cycle are one
+    target, compiled together, each keeping its own name and `package_root`. A target contributing none is what
     `dart_info_no_package()` is for.
 
     It also declares the action writing the library's analyzer summary, which
@@ -344,7 +344,7 @@ def dart_info(
     Args:
       ctx: The constructing rule's context.
       packages: The `DartPackageInfo` records this target contributes, each
-        from `dart_package_info()`. At least one.
+        from `library_package()` or `dart_package_info()`. At least one.
       deps: Targets providing `DartInfo` whose closures are merged in.
       srcs: This target's own Dart sources (or its source directory), of all
         its packages.

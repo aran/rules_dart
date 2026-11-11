@@ -50,10 +50,10 @@ package's `lib/`, and the tempting alternative — a provider with its own
 `transitive_*` fields — is precisely the second enumeration point everything
 above exists to prevent. Its two constructors therefore mirror the two above and
 nest the `DartInfo` each builds, instead of restating any part of it:
-`dart_analyzable_info()` takes `dart_info()`'s arguments and nests its result,
-for a target whose sources *are* packages — the shape a downstream
-`flutter_test` has, and the one that made hand-building the outer provider look
-like the only option — and `dart_analyzable_info_no_package()` takes
+`dart_analyzable_info()` takes `dart_info()`'s package arguments and nests the
+`DartInfo` they make, for a target whose sources *are* packages — the shape a
+downstream `flutter_test` has, and the one that made hand-building the outer
+provider look like the only option — and `dart_analyzable_info_no_package()` takes
 `dart_info_no_package()`'s and nests that, for an entrypoint that contributes
 nothing.
 
@@ -472,23 +472,26 @@ def dart_analyzable_info(
         entry_srcs = []):
     """Builds a `DartAnalyzableInfo` for an executable that contributes packages.
 
-    The executable's counterpart of `dart_info()`, taking the same arguments
-    with the same meanings, and the one place `DartAnalyzableInfo` is built for
-    a target whose sources *are* packages. A downstream `flutter_test` is one
-    shape: it names a `package_name` and its sources are that package's `lib/`
-    files, which import each other by `package:` URI. A library whose analysis
-    closure differs from its compile closure is another: `flutter_library` adds
-    `sky_engine` for the analyzer alone, and a Flutter pub library over a
-    dependency cycle does that for several packages at once. Without a package
-    record those imports have no package to resolve against and every one of
-    them reports `uri_does_not_exist`; the analyzer is right, because nothing in
-    a package-less closure names the package they ask for.
+    The executable's counterpart of `dart_info()`, taking its `packages`,
+    `deps`, `srcs` and `resources` with the same meanings (and the rule's
+    `label` in place of its `ctx`: its own files are analyzed from source, so
+    it declares no summary), and the one place `DartAnalyzableInfo` is built
+    for a target whose sources *are* packages. A downstream `flutter_test` is
+    one shape: it names its package's declaration and its sources are that
+    package's `lib/` files, which import each other by `package:` URI. A
+    library whose analysis closure differs from its compile closure is
+    another: `flutter_library` adds `sky_engine` for the analyzer alone, and a
+    Flutter pub library over a dependency cycle does that for several packages
+    at once. Without a package record those imports have no package to resolve
+    against and every one of them reports `uri_does_not_exist`; the analyzer
+    is right, because nothing in a package-less closure names the package
+    they ask for.
 
-    The nested `DartInfo` is built by `dart_info()` and the wrapper enumerates
-    no field of it, which is what keeps a rule in this position from writing
-    `DartAnalyzableInfo(dart_info = dart_info(...))` by hand — a second
-    construction site for the outer provider, and precisely what this file
-    exists to prevent.
+    The nested `DartInfo` is built as `dart_info()` builds one and the wrapper
+    enumerates no field of it, which is what keeps a rule in this position
+    from writing `DartAnalyzableInfo(dart_info = dart_info(...))` by hand — a
+    second construction site for the outer provider, and precisely what this
+    file exists to prevent.
 
     `srcs` and `entry_srcs` are told apart by `package:` reachability: a file
     under a package's `lib/` is reachable as `package:<package_name>/…` and
@@ -502,8 +505,9 @@ def dart_analyzable_info(
     Args:
       label: The constructing rule's label, for error messages.
       packages: The `DartPackageInfo` records this target contributes, each
-        from `dart_package_info()`. At least one: an executable contributing no
-        package is what `dart_analyzable_info_no_package()` is for.
+        from `executable_package_record()` or `dart_package_info()`. At least
+        one: an executable contributing no package is what
+        `dart_analyzable_info_no_package()` is for.
       deps: Targets providing `DartInfo` whose closures are merged in.
       srcs: This target's own Dart sources that are its packages' `lib/` files,
         exactly as `dart_info(srcs)`.

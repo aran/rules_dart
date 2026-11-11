@@ -1,4 +1,4 @@
-"""Tests for the web compiler constraint: what the web binaries build for, and what resets it.
+"""Tests for the runtime constraint: what the web binaries build for, and what resets it.
 
 A target's configuration shows in its outputs' root: one built with no web
 compiler writes under the same `bin` directory as the test itself, and one

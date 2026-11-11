@@ -32,11 +32,15 @@ dart/ext/
 │   ├── builder_shim.dart      Generic shim runner: arg parser, AssetReader,
 │   │                          AssetWriter, Resolver (analyzer),
 │   │                          BuildStep, package_config synthesis.
-│   └── worker_entry.dart      AsyncWorkerLoop subclass; constructs a fresh
-│                              AnalysisContext per request. `shimMain`
-│                              dispatches worker vs one-shot.
+│   ├── worker_entry.dart      AsyncWorkerLoop subclass; runs each request in
+│   │                          a fresh isolate. `shimMain` dispatches worker
+│   │                          vs one-shot.
+│   └── src/declared_file_system.dart
+│                              The file system holding only declared inputs.
 ├── defs.bzl                   The builder API: `builder_shim_library`,
 │                              `shared_part_codegen`, `library_builder_codegen`.
+├── registry.bzl               Curated code assets and dependency cycles for
+│                              pub packages.
 ├── combining_shim/bin/        Concatenates SharedPart shards into one .g.dart,
 │                              mirroring source_gen|combining_builder.
 ├── json_serializable/         One shim binary + convenience macro per builder.
@@ -45,7 +49,9 @@ dart/ext/
 ├── mockito/
 ├── copy_with_extension_gen/
 ├── stacked/                   Six independent LibraryBuilders.
-└── drift/                     Four-stage: prep + discover/analyzer/driftBuilder.
+├── drift/                     Four-stage: prep + discover/analyzer/driftBuilder.
+├── sqlite3/, webcrypto/       Code assets replacing those packages' build hooks.
+└── test/                      The shim runner's tests.
 ```
 
 Every shim binary is a `dart_binary(compile_mode="exe")`. In worker mode
@@ -58,12 +64,14 @@ All shim CLIs share this contract (`dart/ext/lib/builder_shim.dart:ShimArgs.pars
 
 ```
 --input <exec-path>                      Primary input file.
---input-asset <lib-rel-path>             Asset path of --input within its owning
-                                         package (preserves lib/src/...).
+--input-asset <asset-path>               Asset path of --input relative to its
+                                         package root (lib/src/...).
 --output <path>                          Declared output file. Repeatable — one
                                          per declared Bazel output (for multi-
-                                         output builders that emit both
-                                         `.config.dart` and `.module.dart`).
+                                         output builders, e.g. drift's
+                                         analyzer emitting both
+                                         `.dart.drift_module.json` and
+                                         `.dart.types.temp.dart`).
 --package <name>                         Owning Dart package name (required).
 --root-language-version <major.minor>    Consumer's language version (required).
 --dep <exec-path>|<asset-path>           Additional source visible to analyzer.
@@ -73,8 +81,8 @@ All shim CLIs share this contract (`dart/ext/lib/builder_shim.dart:ShimArgs.pars
 --part <path>                            SharedPart shard. Repeatable
                                          (combining_shim only).
 --config <json-string>                   Builder options.
---package-config <path>                  Synthesised package_config.json with
-                                         every third-party pub dep.
+--package-config <path>                  Synthesised package_config.json of
+                                         every package `deps` reach.
 --sdk-path <dir>                         Dart SDK root for the analyzer.
 [--persistent_worker]                    Switches to bazel_worker protocol.
 ```
@@ -113,7 +121,7 @@ the shim verbatim as `--config`:
   factories it runs on both; its prep stage and the combining shim read
   none.
 - Keys and values are builder-defined — the same names the builder accepts
-  under `options:` in `build.yaml`. rules_dart does not read `build.yaml`
+  under `options:` in `build.yaml`. The rules do not read `build.yaml`
   (see [build.yaml](#buildyaml)); `config` is the
   per-target replacement. Gazelle writes it from the package's `build.yaml`
   (see [build.yaml](#buildyaml)), or from the
@@ -131,8 +139,9 @@ Bazel spawns one process per action, passes `@<flagfile>` (see
 ### Persistent worker
 
 `execution_requirements = {"supports-workers": "1",
-"requires-worker-protocol": "proto", "worker-key-mnemonic":
-"DartCodegen"}` triggers Bazel's worker protocol. Each shim's `main`
+"requires-worker-protocol": "proto", "worker-key-mnemonic": ...}` triggers
+Bazel's worker protocol, keyed `DartCodegen`, `DartAggregateCodegen` or
+`DartSqlCodegen` by rule. Each shim's `main`
 dispatches via `shimMain(args, factory)`:
 
 - With `--persistent_worker`, enters `AsyncWorkerLoop`; reads repeated
@@ -154,9 +163,10 @@ each request and `source_gen` reads it, and the working directory belongs to
 the process. Parallelism is preserved by `--worker_max_instances` spawning
 multiple singleplex workers.
 
-`WorkRequest.sandbox_dir` is honoured — when set by
-`--experimental_sandboxed_worker`, staging roots there so per-request
-hermeticity matches Bazel's sandbox lifecycle.
+`WorkRequest.sandbox_dir`, when set, roots the staging directory there.
+Bazel sets it only for multiplex workers under multiplex sandboxing, so for
+the singleplex shims it is unset and staging goes to the system temp
+directory.
 
 A worker runs unsandboxed in the execroot, where the package config's
 `rootUri`s lead to whole package directories. The shim therefore gives the
@@ -177,7 +187,7 @@ are outside this view.
 `builder_shim.dart` constructs a fresh `AnalysisContextCollection` per
 request, as each request's isolate starts with none. The collection is
 `dispose()`-d in `finally` so long-running workers don't leak analyzer
-driver threads or file-watching handles. Dart-VM startup is still
+driver threads or file-watching handles. Dart-VM startup is
 amortised across the worker's lifetime — that's the latency win from
 worker mode, not analyzer-context reuse.
 
@@ -249,19 +259,21 @@ Builder log output is captured via
 and builder warnings/errors vanish silently. The root log level is
 captured and restored per request so a Builder that elevates it
 (e.g. for its own diagnostics) can't poison later worker requests.
-Default level is `WARNING` (matches `build_runner_core`).
+The shim sets the level to `WARNING` for the run, so a builder's
+`INFO` messages do not reach the action's output.
 
-`ResourceManager` is per-request (scoped to one `runShim` call); multi-
-stage pipelines each get their own and dispose all of them in `finally`
-so cross-action `fetchResource` state doesn't leak.
+`ResourceManager` is per request: one per `runShim` call, shared by every
+stage of a multi-stage pipeline, as build_runner shares one across a build,
+and disposed once in `finally`, so `fetchResource` state doesn't leak into
+the next request.
 
 ## Rule-layer auto-staging
 
 `deps` on `dart_codegen` / `dart_sqlcodegen` / `dart_aggregate_codegen`
 accepts `dart_library`-shaped targets (anything exporting `DartInfo`).
 The rule walks each dep's `DartInfo.transitive_srcs` and
-`transitive_resources` and auto-stages any file whose owning package matches
-the codegen target's package name — i.e. same-package sibling files. Every
+`transitive_resources` and auto-stages every file under the `lib/` of the
+codegen target's package — i.e. same-package sibling files. Every
 file of every other package in `deps`, sources and `resources` alike, is an
 input of the action, since a generator may read any of them through the
 package config.
@@ -286,10 +298,10 @@ cascade), is staged through `asset_deps` instead, which passes the same
 library of such files would fail its import check.
 
 Implementation: `same_package_library_dep_files` + `asset_path_for` in
-`dart/private/common.bzl`. The helper returns both the sibling files and
-the Dart package's `package_root`, so asset paths are computed by stripping
-`package_root` from `short_path` (not the codegen rule's Bazel package
-path). This survives configurations where the codegen rule lives at a
+`dart/private/common.bzl`. Asset paths are computed by stripping the Dart
+package's `package_root` from `short_path` (not the codegen rule's Bazel
+package path): the root of the `dart_package_metadata` the target names, or,
+naming none, the root `deps` give its package. This survives configurations where the codegen rule lives at a
 deeper Bazel-package path than the Dart package root
 (`//myapp/lib:codegen` for Dart package `myapp`).
 
@@ -325,9 +337,12 @@ codegen chain. It writes every target for a package's `lib/` in the BUILD
 file at the package's root, beside the package's one `dart_library`, which
 holds every source, annotated or not, and lists in `srcs` what the codegen
 targets generate, as build_runner writes a `.g.dart` beside its source, a
-part of the same library. The targets for a source are named for its path
-under `lib/` without `.dart` (`user_codegen` for `lib/user.dart`,
-`src/model/user_codegen` for `lib/src/model/user.dart`). The library holds
+part of the same library. A source's convenience macro is named for its
+path under `lib/` without `.dart` (`user_codegen` for `lib/user.dart`,
+`src/model/user_codegen` for `lib/src/model/user.dart`); the stages of a
+chain are private targets from the same stem (`_user_<annotation>_gen`, with
+the output's leading segment added for a fan-out builder, and
+`_user_combined` for the combining step). The library holds
 what a generator writes, so no generator depends on it: each sees, through
 `asset_deps`, the files of the package its source reaches by imports, cycles
 included, with what builders that run before its own (by `runs_before` and
@@ -416,7 +431,8 @@ root and names it on every macro, codegen target and library it writes.
 For a package it writes codegen for, Gazelle reads `build.yaml` at the
 package's root and carries the one part of it a Bazel build has a place for:
 `targets.$default.builders.<builder>.options` of a builder it writes targets
-for becomes their `config`, the JSON object build_runner would hand the
+for becomes their `config` (options of a builder in the table that the
+package's sources do not use are read and carried nowhere), the JSON object build_runner would hand the
 builder. A builder is named as build_runner names it, `<package>:<builder>`,
 a bare `<package>` meaning the builder of that name and `|` the older
 separator:
@@ -480,9 +496,10 @@ build. Each has a dedicated test.
 
 ## Equivalence with `build_runner`
 
-For any `build.yaml` over a set of `package:build` Builders, an
-equivalent rules_dart target configuration produces bit-identical Builder
-output and preserves ordering constraints. The argument:
+For a `build.yaml` within what [build.yaml](#buildyaml) accepts, over a
+set of `package:build` Builders, an equivalent rules_dart target
+configuration produces bit-identical Builder output and preserves ordering
+constraints. The argument:
 
 1. **Identical Builder execution.** We call `Builder.build(BuildStep)`
    using `package:build` and `package:analyzer` at the versions
@@ -491,18 +508,19 @@ output and preserves ordering constraints. The argument:
    Resolver is bug-compatible with `build_resolvers` for the behaviour
    bundled builders depend on (URI canonicalisation,
    `getFragmentDeclaration`, metadata constant evaluation).
-2. **Directive-set completeness.** Every declarative field in a
-   `build.yaml` entry has a corresponding backing in the rules_dart
-   builder registry (`annotation`, `produces`, `consumes`, `runs_before`,
-   `shared_part`, `aggregate`).
+2. **Directive-set completeness.** What build.yaml states that this
+   accepts, a builder's outputs, ordering and options, has a backing in the
+   Gazelle builder registry (`produces`, `consumes`, `runs_before`,
+   `shared_part`, and `key` for the options it carries as `config`), which
+   adds the annotation that selects the builder for a source.
 3. **DAG semantics match.** `build_runner` topologically orders builders
    from declarative fields; Bazel topologically orders targets from its
    action graph. Equivalent input DAGs → equivalent execution orders.
 
 Out of scope (off-spec in `build_runner` too, or intentionally not modelled):
 
-- `BuildStep.fetchResource` cross-action state — per-request
-  `ResourceManager`.
+- `BuildStep.fetchResource` cross-action state — one `ResourceManager`
+  per request.
 - `PostProcessBuilder` — Bazel sandbox teardown replaces it.
 - Watch-mode incrementality — Bazel actions cold-start per change.
 - Builders reading files outside declared inputs — relies on CWD
@@ -532,5 +550,5 @@ Cross-cutting scenarios that aren't tied to a single builder:
 | `e2e/ext_exemplar/cascade_two_stage/`     | Multi-annotation chain on one file (freezed → json cascade); DAG topological ordering + combining integration |
 | `e2e/ext_exemplar/multi_shard_combining/` | Multiple SharedPart builders on one source (json + copy_with) merged into one `.g.dart`                       |
 | `e2e/ext_exemplar/source_tree_generated/` | A `.g.dart` checked into the source tree doesn't leak into Bazel runfiles                                    |
-| `e2e/ext_exemplar/unique_extension/`      | Custom `output_suffixes` on `dart_codegen` — the rules-layer customisation path                               |
+| `e2e/ext_exemplar/unique_extension/`      | A non-SharedPart builder (freezed's `.freezed.dart`) through a bare `dart_codegen`, with no combining step     |
 | `e2e/ext_exemplar/external_builder/`      | A builder from outside rules_dart: its shim built against its own pub resolution, its macro over `shared_part_codegen` |

@@ -188,8 +188,9 @@ dart_info_no_package = _dart_info_no_package
 # For an executable rule — a binary, a test — that also contributes packages: a
 # downstream test rule whose `srcs` are its package's `lib/` files plus an
 # entrypoint outside them, or a library whose analysis closure adds dependencies
-# its compile does not (`flutter_library`'s `sky_engine`). Takes `dart_info()`'s
-# arguments and nests its result, so the target's own `package:<self>/…` imports
+# its compile does not (`flutter_library`'s `sky_engine`). Takes the rule's
+# `label` and `dart_info()`'s `packages`, `deps`, `srcs` and `resources`, and
+# nests the `DartInfo` they make, so the target's own `package:<self>/…` imports
 # resolve under the `dart_analyze` aspect rather than reporting
 # `uri_does_not_exist`; `entry_srcs` adds the entrypoints outside every `lib/`,
 # and a `lib/` file there is refused. Deliberately not what an executable
@@ -384,7 +385,8 @@ parse_data_asset_ids = _parse_data_asset_ids
 dart_module_aspect = _dart_module_aspect
 
 # A whole program compiled from source into one kernel, for any platform: what
-# `dart_binary` and `dart_test` compile with, given the VM. A rule set with its
+# `dart_binary` compiles with, given the VM, and `dart_test` under
+# `modular_kernel=false`. A rule set with its
 # own platform, or a user with a Dart SDK or engine of their own (a fork, a
 # local build), passes that platform's `DartKernelSdkInfo`, built for the
 # `PORTABLE` host (`cfg = config.exec(PORTABLE)`), and names the runtime the

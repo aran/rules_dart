@@ -4,7 +4,7 @@ Unlike per-file `dart_codegen`, `dart_aggregate_codegen` takes ALL sources
 in a Dart package and produces one or more aggregate outputs. Used by
 any `PackageBuilder` that needs a whole-package view of metadata.
 
-The generator (`generator` binary or `generator_script`) receives:
+The generator (`generator_bin` binary or `generator_script`) receives:
 
   - `--input <path>`: the primary input (first entry in `srcs`).
   - `--input-asset <asset>`: the primary's Dart asset path.
@@ -199,8 +199,8 @@ dart_aggregate_codegen = rule(
             cfg = config.exec(PORTABLE),
         ),
         "generator_script": attr.label(
-            doc = "A `.dart` script to run via `dart run` as the " +
-                  "generator. Mutually exclusive with `generator`.",
+            doc = "A `.dart` script the SDK's `dart` runs as the " +
+                  "generator. Mutually exclusive with `generator_bin`.",
             allow_single_file = [".dart"],
         ),
         "outputs": attr.string_list(

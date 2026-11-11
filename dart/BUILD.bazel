@@ -38,7 +38,7 @@ bool_flag(
 # the ones a test reaches (the default), or compiles every test's whole program
 # from source. Turned off build-wide only, as an escape hatch:
 #   bazel test //... --@rules_dart//dart:modular_kernel=false
-# Off, a library's imports are no longer checked against its own `deps`.
+# Import checks do not depend on it: a library checks its own imports either way.
 bool_flag(
     name = "modular_kernel",
     build_setting_default = True,
@@ -99,9 +99,10 @@ config_setting(
     visibility = ["//visibility:public"],
 )
 
-# On (the default), the `dart_analyze` aspect's analyze and fix actions run in
-# persistent workers, each keeping one analysis server for the requests of a
-# build. Off, every action runs a fresh `dart analyze` or `dart fix`:
+# On (the default), analysis runs in persistent workers: the summary
+# analyzer's (summary and analyze actions, under `analysis_summaries`) and the
+# analysis server's (`dart fix`, and analysis with summaries off), each server
+# kept for the requests of a build. Off, every action starts a fresh process:
 #   bazel test //... --@rules_dart//dart:analysis_worker=false
 bool_flag(
     name = "analysis_worker",

@@ -9,9 +9,9 @@ under it (`//app:pubspec-metadata`).
   file, `NOTICES`, which wins over the `LICENSE` beside it, as
   `pub.from_lock()` and `flutter build` choose.
 - `licensed/`: `LICENSE`, with no `NOTICES`.
-- `mixed_case/`: a file named `License` is neither, by exact name; with no
-  pubspec, the license would be its only fact, so it has no metadata, and its
-  rules name none: the rules name it after its directory.
+- `mixed_case/`: a file named `License` is neither, by exact name, so it
+  states no license; with no pubspec it has no fact, so it has no metadata,
+  and its rules name none: the rules name it after its directory.
 - `unstated/`: nothing states a fact, so it has no metadata and its library
   and test name none.
 - `pubspec/`: a package named `pubspec`, whose library has that name. The

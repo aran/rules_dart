@@ -779,8 +779,9 @@ Future<void> _runWithStaging(
 
   // Route each builder-emitted asset to the declared Bazel output file
   // whose basename matches the same `input_stem + <extension>` pattern.
-  // Multi-output builders (e.g. a builder emitting both
-  // `.config.dart` and `.module.dart`) declare one `--output` per extension
+  // Multi-output builders (e.g. drift's analyzer, emitting both
+  // `.dart.drift_module.json` and `.dart.types.temp.dart`) declare one
+  // `--output` per extension
   // and the shim writes each emitted asset to the correct declared path.
   // For multi-stage pipelines we only care about the last (primary)
   // Builder's outputs; anything else is an intermediate from an earlier

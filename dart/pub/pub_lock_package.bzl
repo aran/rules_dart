@@ -124,7 +124,8 @@ _MEMBER_ATTRS = {
     ),
     "ignore_hook": attr.bool(
         doc = "Suppress the unreplaced-hook diagnostic for this package. Set by " +
-              "`pub.from_lock(ignore_hooks = [...])`; never a default.",
+              "`pub.from_lock(ignore_hooks = [...])` or " +
+              "`pub.package(ignore_hook = True)`; never a default.",
         default = False,
     ),
     "code_assets": attr.string_list(

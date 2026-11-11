@@ -118,8 +118,9 @@ structurally: consumable by whoever asks for it, invisible to whoever asks for \
 `DartInfo`.
 
 Build one with either constructor in `//dart:utils.bzl`, never by hand. \
-`dart_analyzable_info()` takes `dart_info()`'s arguments and builds the nested \
-`DartInfo` through it, for a target whose sources *are* packages: without their \
+`dart_analyzable_info()` takes the rule's `label` and `dart_info()`'s `packages`, \
+`deps`, `srcs` and `resources`, and builds the nested `DartInfo` as `dart_info()` \
+does, less a summary of its own, for a target whose sources *are* packages: without their \
 records its own `package:<self>/…` imports resolve against nothing and every \
 one of them reports `uri_does_not_exist`. `dart_analyzable_info_no_package()` \
 takes `dart_info_no_package()`'s and builds it through that, for an entrypoint \
