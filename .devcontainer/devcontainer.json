@@ -13,5 +13,5 @@
     }
   },
   // sets up the git hooks
-  "postStartCommand": "uv tool install prek && ~/.local/bin/prek install"
+  "postStartCommand": "uv tool install prek && ~/.local/bin/prek install -f && bazel run --noincompatible_auto_exec_groups @overhead//:bazel_env"
 }
