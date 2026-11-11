@@ -127,6 +127,13 @@ def _prerelease_orders_below_release_test_impl(ctx):
     asserts.equals(env, "2.0.0", s.request.version)
     return unittest.end(env)
 
+def _higher_build_raises_root_test_impl(ctx):
+    env = unittest.begin(ctx)
+    s = select_pub_version("p", [_req("0.8.12+18", is_root = True), _req("0.8.12+20")])
+    asserts.equals(env, "0.8.12+20", s.request.version)
+    _contains(env, s.warning, "Package \"p\" is built at 0.8.12+20, newer than the root module asks for")
+    return unittest.end(env)
+
 # ---- root-only statements ----
 
 def _module(name, is_root = False, settings = [], packages = [], locks = []):
@@ -191,6 +198,7 @@ _digest_conflict_is_an_error_test = unittest.make(_digest_conflict_is_an_error_t
 _digest_conflict_at_a_losing_version_is_an_error_test = unittest.make(_digest_conflict_at_a_losing_version_is_an_error_test_impl)
 _registry_conflict_is_an_error_test = unittest.make(_registry_conflict_is_an_error_test_impl)
 _prerelease_orders_below_release_test = unittest.make(_prerelease_orders_below_release_test_impl)
+_higher_build_raises_root_test = unittest.make(_higher_build_raises_root_test_impl)
 
 def pub_versions_test_suite(name):
     small_unittest_suite(
@@ -207,6 +215,7 @@ def pub_versions_test_suite(name):
         _digest_conflict_at_a_losing_version_is_an_error_test,
         _registry_conflict_is_an_error_test,
         _prerelease_orders_below_release_test,
+        _higher_build_raises_root_test,
         _settings_default_to_warning_test,
         _root_settings_apply_test,
         _dependency_settings_fail_test,

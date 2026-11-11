@@ -1,7 +1,7 @@
 """Unit tests for the semver helpers in dart/pub/private/version.bzl.
 
-Covers build-metadata (`+N`) parsing, release-version ordering, and the
-stable-vs-prerelease cross comparison.
+Covers release ordering, build metadata (`+N`), which pub_semver orders, and
+the stable-vs-prerelease cross comparison.
 """
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
@@ -19,19 +19,31 @@ def _basic_ordering_test_impl(ctx):
     asserts.false(env, semver_gt("1.0.0", "2.0.0"), "lower lt higher")
     return unittest.end(env)
 
-def _build_metadata_parses_test_impl(ctx):
+def _build_metadata_orders_test_impl(ctx):
     env = unittest.begin(ctx)
 
-    # Build metadata (`+N`) is stripped.
-    asserts.equals(env, parse_semver("2.7.1+4"), parse_semver("2.7.1"), "+4 stripped")
-    asserts.equals(env, parse_semver("2.7.1+meta.42"), parse_semver("2.7.1"), "+meta.42 stripped")
+    # pub_semver orders build metadata: no build string sorts first, then
+    # build parts compare as pre-release parts do.
+    asserts.true(env, semver_gt("2.7.1+4", "2.7.1"), "a build sorts after no build")
+    asserts.true(env, semver_gt("2.7.1+5", "2.7.1+4"), "build parts compare numerically")
+    asserts.true(env, semver_gt("0.8.12+20", "0.8.12+18"), "Flutter-style build numbers")
+    asserts.true(env, semver_gt("2.7.1+10", "2.7.1+9"), "numeric, not textual")
+    asserts.true(env, semver_gt("2.7.1+a", "2.7.1+9"), "identifier > numeric build part")
+    asserts.true(env, semver_gt("2.7.1+4.1", "2.7.1+4"), "a longer build sorts after its prefix")
+    asserts.true(env, semver_gt("2.7.2", "2.7.1+4"), "next patch beats any build")
+    asserts.true(env, semver_gt("1.0.0", "1.0.0-dev+9"), "a pre-release with a build stays below the release")
+    asserts.true(env, semver_gt("1.0.0-dev+2", "1.0.0-dev+1"), "builds order pre-releases too")
+    asserts.equals(env, parse_semver("2.7.1+01"), parse_semver("2.7.1+1"), "leading zeros in a numeric part")
     return unittest.end(env)
 
-def _build_metadata_ordering_test_impl(ctx):
+def _hyphen_in_build_test_impl(ctx):
     env = unittest.begin(ctx)
-    asserts.true(env, semver_gt("2.7.2", "2.7.1+4"), "next patch beats version with build metadata")
-    asserts.false(env, semver_gt("2.7.1+5", "2.7.1+4"), "build metadata does not affect precedence")
-    asserts.false(env, semver_gt("2.7.1+4", "2.7.1"), "build metadata not greater than no-metadata")
+
+    # The pre-release ends at `+`; a hyphen after it is part of the build.
+    asserts.true(env, semver_gt("1.0.0+hotfix-2", "1.0.0"), "hyphenated build is not a pre-release")
+    asserts.true(env, semver_gt("1.0.0+hotfix-2", "1.0.0-rc.1"), "hyphenated build beats a pre-release")
+    asserts.true(env, semver_gt("1.0.0-a-b", "1.0.0-a"), "hyphen inside a pre-release part")
+    asserts.true(env, semver_gt("1.0.0", "1.0.0-a-b+c-d"), "pre-release with hyphenated parts and build")
     return unittest.end(env)
 
 def _stable_vs_prerelease_test_impl(ctx):
@@ -55,8 +67,8 @@ def _stable_vs_prerelease_test_impl(ctx):
     return unittest.end(env)
 
 _t0_test = unittest.make(_basic_ordering_test_impl)
-_t1_test = unittest.make(_build_metadata_parses_test_impl)
-_t2_test = unittest.make(_build_metadata_ordering_test_impl)
+_t1_test = unittest.make(_build_metadata_orders_test_impl)
+_t2_test = unittest.make(_hyphen_in_build_test_impl)
 _t3_test = unittest.make(_stable_vs_prerelease_test_impl)
 
 def semver_test_suite(name):
