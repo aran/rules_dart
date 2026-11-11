@@ -20,6 +20,7 @@ load(":pub_archive_test.bzl", "pub_archive_test_suite")
 load(":pub_git_test.bzl", "pub_git_test_suite")
 load(":pub_graph_test.bzl", "pub_graph_test_suite")
 load(":pub_versions_test.bzl", "pub_versions_test_suite")
+load(":purl_test.bzl", "package_metadata_check", "purl_test_suite")
 load(":registry_test.bzl", "registry_test_suite")
 load(":repositories_reproducible_test.bzl", "repositories_reproducible_test_suite")
 load(":resources_test.bzl", "resources_test_suite")
@@ -39,6 +40,32 @@ versions_test_suite(name = "versions_test")
 toolchains_test_suite(name = "toolchains_test")
 
 repositories_reproducible_test_suite(name = "repositories_reproducible_test")
+
+purl_test_suite(name = "purl_test")
+
+# Native code built in place of a package's build hook is identified as what
+# it is built from, not as the Dart package: SQLite as the BCR module, the
+# BoringSSL webcrypto vendors as BoringSSL. webcrypto's own C glue is in its
+# pub archive, so is that package's.
+package_metadata_check(
+    name = "curated_package_metadata",
+    want = {
+        "//dart/ext/sqlite3:libsqlite3": "//dart/ext/sqlite3:sqlite3_package_metadata",
+        "//dart/ext/sqlite3:code_asset": "//:package_metadata",
+        "@webcrypto_pub_archive//:boringssl_crypto": "@webcrypto_pub_archive//:boringssl_package_metadata",
+        "@webcrypto_pub_archive//:webcrypto": "@webcrypto_pub_archive//:package_metadata",
+        "//dart/ext/webcrypto:libwebcrypto": "//:package_metadata",
+    },
+    deps = [
+        "//dart/ext/sqlite3:code_asset",
+        "//dart/ext/webcrypto:code_asset",
+    ],
+)
+
+build_test(
+    name = "curated_package_metadata_test",
+    targets = [":curated_package_metadata"],
+)
 
 resources_test_suite(name = "resources_test")
 

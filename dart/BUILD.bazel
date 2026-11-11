@@ -232,6 +232,7 @@ bzl_library(
     visibility = ["//visibility:public"],
     deps = [
         "//dart/private:dart_package_metadata",
+        "//dart/private:purl",
         "//dart/private:toolchains_repo",
         "//dart/private:versions",
         "//dart/pub:pubspec",

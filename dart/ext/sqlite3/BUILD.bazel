@@ -1,4 +1,6 @@
 load("@bazel_lib//:bzl_library.bzl", "bzl_library")
+load("@package_metadata//purl:purl.bzl", "purl")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("//dart:defs.bzl", "dart_code_asset")
 load("//tool:starlark_docs.bzl", "starlark_docs_test")
@@ -9,6 +11,14 @@ load("//tool:starlark_docs.bzl", "starlark_docs_test")
 # (native_toolchain_c over the SQLite amalgamation). We replace that hook
 # with a Bazel cc_shared_library over the BCR `sqlite3` module, and bind it
 # to sqlite3's own code-asset id so `@Native` resolves to the Bazel build.
+
+# The library is SQLite, from the BCR module, whose repository states no
+# package metadata of its own. Unversioned: the module graph chooses the
+# version, at least the one MODULE.bazel names.
+package_metadata(
+    name = "sqlite3_package_metadata",
+    purl = purl.bazel("sqlite3", ""),
+)
 
 cc_shared_library(
     name = "libsqlite3",
@@ -23,6 +33,7 @@ cc_shared_library(
         "@platforms//os:windows": ["windows_export_all_symbols"],
         "//conditions:default": [],
     }),
+    package_metadata = [":sqlite3_package_metadata"],
     # Every Apple OS links Mach-O and wants `.dylib`, not just macOS: an iOS
     # build that fell through to the `.so` default would hand Flutter's
     # native-asset bundler a Mach-O named `libsqlite3.so`, which its

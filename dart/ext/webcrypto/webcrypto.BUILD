@@ -11,7 +11,35 @@
 # define OPENSSL_NO_ASM, because Bazel's C++ rules cannot drive NASM. Both
 # choices follow BoringSSL's own Bazel build.
 
+load("@package_metadata//purl:purl.bzl", "purl")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_dart//dart/pub:pub_lock_package.bzl", "pub_hosted_purl")
+
+# The archive is the pub package, so its own C glue is the package's code:
+# the version and digest are those of the archive MODULE.bazel pins. The
+# BoringSSL it vendors is BoringSSL's, at the revision in tool/REVISION, and
+# is identified as that instead.
+package(default_package_metadata = [":package_metadata"])
+
+package_metadata(
+    name = "package_metadata",
+    purl = pub_hosted_purl(
+        "webcrypto",
+        "0.6.1",
+        "9885ed99a846191542dd6ca820c83a098117df56be57453832233a3fef68f3f2",
+    ),
+)
+
+_BORINGSSL_REVISION = "5ee9407bc28dd9086507f02851886a185088f3a0"
+
+package_metadata(
+    name = "boringssl_package_metadata",
+    purl = purl.builder().type("generic").name("boringssl").version(_BORINGSSL_REVISION).add_qualifier(
+        "vcs_url",
+        "git+https://boringssl.googlesource.com/boringssl@" + _BORINGSSL_REVISION,
+    ).build(),
+)
 
 _BORINGSSL = "third_party/boringssl/"
 
@@ -56,6 +84,7 @@ cc_library(
         ],
         "//conditions:default": ["-pthread"],
     }),
+    package_metadata = [":boringssl_package_metadata"],
 )
 
 cc_library(

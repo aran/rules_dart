@@ -722,6 +722,29 @@ or, for a package that is in a `pubspec.lock` already, from the `sha256:`
 under its `description`. A digest of any other shape fails when
 `pub.package()` is read, naming the package.
 
+### Package identity and SBOMs
+
+Every repository the `pub` extension fetches states what it holds in Bazel's
+supply-chain metadata ([`package_metadata`](https://github.com/bazel-contrib/supply-chain)),
+as rules_python's pip and Gazelle's `go_repository` do: a `package_metadata`
+target with the package's purl, attached to every target in the repository
+by its `REPO.bazel`. An SBOM tool's aspect reads it from each target's
+`package_metadata` attribute.
+
+| Source | purl |
+|---|---|
+| hosted (`pub.package()`, `pub.from_lock()`) | `pkg:pub/<name>@<version>?checksum=sha256:<hex>`, with `repository_url` for a registry other than pub.dev |
+| git | `pkg:pub/<name>@<version>?vcs_url=git+<url>@<commit>`, with `#<path>` for a package in a subdirectory |
+| path, `build_from_pubspec` | none: the package is yours, and states its own |
+
+The Dart SDK's repositories are `pkg:generic/dart-sdk@<version>`, with the
+archive's `checksum` and `download_url`: the purl spec has no type for the SDK.
+Native code rules_dart builds in place of a build hook is identified as what
+it is built from: `//dart/ext/sqlite3` as the BCR `sqlite3` module, and the
+BoringSSL webcrypto vendors as BoringSSL. No pub package states a license
+kind (pub.dev computes one on its servers), so these carry no `license`; the
+license text stays the `license_file` of the package's `dart_package_metadata`.
+
 ## BUILD file generation with Gazelle
 
 rules_dart's [Gazelle](https://github.com/bazelbuild/bazel-gazelle) plugin

@@ -1,5 +1,7 @@
+load("@git_fixture//:commits.bzl", "COMMITS")
 load("@rules_dart//dart:defs.bzl", "dart_test")
 load(":checks.bzl", "license_check")
+load(":purls.bzl", "package_metadata_files")
 
 # Property: `pub.from_lock()` fetches git packages as `dart pub get` would on a
 # host with no git configuration of its own: at the locked commit, from the
@@ -44,4 +46,33 @@ license_check(
         "@deps//:git_root",
         "@deps//:git_sub",
     ],
+)
+
+# Property: each git package says what it is, for any SBOM tool: by name and
+# version, and by the repository, commit and directory the lock pins, as the
+# lock writes the repository.
+package_metadata_files(
+    name = "package_metadata",
+    deps = [
+        "@deps//:git_cyc_a",
+        "@deps//:git_root",
+        "@deps//:git_sub",
+    ],
+)
+
+dart_test(
+    name = "purls_test",
+    size = "small",
+    data = [":package_metadata"],
+    env = {
+        "PACKAGE_METADATA": "$(rlocationpaths :package_metadata)",
+        "PURLS": " ".join([
+            "pkg:pub/git_cyc_a@1.0.0?vcs_url=git%2Bremote.git%40{}%23pkgs%2Fcyc_a".format(COMMITS["mono_v2"]),
+            "pkg:pub/git_cyc_b@1.0.0?vcs_url=git%2Bremote.git%40{}%23pkgs%2Fcyc_b".format(COMMITS["mono_v2"]),
+            "pkg:pub/git_root@1.0.0?vcs_url=git%2Broot.git%40{}".format(COMMITS["root_r1"]),
+            "pkg:pub/git_sub@1.0.0?vcs_url=git%2Bremote.git%40{}%23pkgs%2Fsub".format(COMMITS["sub_v1"]),
+        ]),
+    },
+    main = "purls_test.dart",
+    deps = ["@rules_dart//dart/runfiles"],
 )

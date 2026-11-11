@@ -5,6 +5,14 @@ load(":dart_module.bzl", "vm_kernel_sdk", "vm_program_kernel_sdk")
 load(":dart_summary.bzl", "summary_analyzer")
 load(":runtime.bzl", "target_runtime")
 
+# The `package_metadata` module's purl builder, which ships no `bzl_library`.
+# keep
+bzl_library(
+    name = "purl",
+    srcs = ["@package_metadata//purl:srcs"],
+    visibility = ["//dart:__subpackages__"],
+)
+
 bzl_library(
     name = "common",
     srcs = ["common.bzl"],

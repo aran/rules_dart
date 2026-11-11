@@ -1,6 +1,7 @@
 module(name = "pub_lock_e2e")
 
 bazel_dep(name = "rules_dart", version = "0.0.0")
+bazel_dep(name = "package_metadata", version = "0.0.15")
 bazel_dep(name = "platforms", version = "1.1.0")
 
 local_path_override(

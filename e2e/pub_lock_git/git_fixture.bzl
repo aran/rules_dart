@@ -18,7 +18,7 @@ reachable only through settings the client's environment gives git
 (`GIT_CONFIG_COUNT`, `GIT_SSH_COMMAND`), which `check_host_config.dart` sets.
 Commits are made with fixed authors and
 dates and none of the host's git configuration, so their ids are the same on
-every machine.
+every machine; `commits.bzl` names them.
 """
 
 _ENV = {
@@ -153,5 +153,12 @@ def _impl(rctx):
         _lock_entry("git_sub", where + "remote.git", sub_v1, "pkgs/sub"),
     ]) + "sdks:\n  dart: \">=3.0.0 <4.0.0\"\n", executable = False)
     rctx.file("BUILD.bazel", 'exports_files(["pubspec.lock"])\n', executable = False)
+
+    # The commits the lock pins, for checks that name them.
+    rctx.file("commits.bzl", "COMMITS = %s\n" % json.encode({
+        "mono_v2": mono_v2,
+        "root_r1": root_r1,
+        "sub_v1": sub_v1,
+    }), executable = False)
 
 git_fixture = repository_rule(implementation = _impl)

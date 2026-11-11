@@ -11,12 +11,100 @@ cannot `select()` on the runtime constraint,
 web compilers reach it.
 """
 
+load("@package_metadata//purl:purl.bzl", "purl")
+
+visibility("//dart/...")
+
+# The `package_metadata` target a fetched package's repository attaches to
+# every target in it. Not a Dart package name, so no library can be called it.
+_IDENTITY_TARGET = "package-metadata"
+
 # The `dart_package_metadata` of a fetched package, which its library names.
 # The library is called after the package, and this is not a Dart package
 # name, so the two never collide.
 _METADATA_TARGET = "pubspec-metadata"
 
-visibility("//dart/...")
+# pub.dev, by its names in locks: what a purl of type `pub` means when it
+# names no `repository_url` (the purl spec's default is the older name).
+_PUB_DEV = ["https://pub.dev", "https://pub.dartlang.org"]
+
+def pub_hosted_purl(name, version, sha256, base_url = "https://pub.dev"):
+    """The purl of a hosted pub package's archive.
+
+    `pkg:pub/<name>@<version>?checksum=sha256:<hex>`, with the registry as
+    `repository_url` when it is not pub.dev.
+
+    Args:
+        name: The pub package name.
+        version: The package version.
+        sha256: The archive's SHA-256, as pubspec.lock records it.
+        base_url: The hosted registry, as pubspec.lock's `description.url`.
+
+    Returns:
+        The purl, as the `package_metadata` module's builder writes it.
+    """
+    builder = purl.builder().type("pub").name(name).version(version)
+    builder.add_qualifier("checksum", "sha256:" + sha256)
+    registry = base_url.rstrip("/")
+    if registry not in _PUB_DEV:
+        builder.add_qualifier("repository_url", registry)
+    return builder.build()
+
+def pub_git_purl(name, version, url, resolved_ref, path = "."):
+    """The purl of a git pub package at its locked commit.
+
+    `pkg:pub/<name>@<version>?vcs_url=git+<url>@<commit>`, with `#<path>`
+    for a package in a subdirectory, as an SPDX VCS location writes it. The
+    url is the lock's, as written, relative ones too, so the purl names what
+    the lock names on every machine.
+
+    Args:
+        name: The pub package name.
+        version: The package version.
+        url: The lock entry's `description.url`.
+        resolved_ref: The locked commit: `description.resolved-ref`.
+        path: The lock entry's `description.path`.
+
+    Returns:
+        The purl, as the `package_metadata` module's builder writes it.
+    """
+    location = "git+{}@{}".format(url, resolved_ref)
+    if path != ".":
+        location += "#" + path
+    return purl.builder().type("pub").name(name).version(version).add_qualifier("vcs_url", location).build()
+
+def pub_package_identity(purl):
+    """What a fetched pub package's repository writes to say what it holds.
+
+    A `package_metadata` target with the package's purl, in the BUILD file at
+    the repository's root, and a `REPO.bazel` attaching it to every target in
+    the repository, as Bazel's supply-chain metadata expects of a repository
+    fetched from a registry. `make_dart_library_build_content(purl = ...)`
+    and `make_pub_member_build_content(purl = ...)` write the first two; a
+    rule set writing its own BUILD file puts `loads` among its loads and
+    `target` among its targets, and writes `repo_file` as `REPO.bazel`.
+
+    Args:
+        purl: The package's purl (`pub_hosted_purl`, `pub_git_purl`), or ""
+            for a package of the user's own (a path package), which states
+            its own.
+
+    Returns:
+        `struct(loads, target, repo_file)`, each "" for no purl.
+    """
+    if not purl:
+        return struct(loads = "", target = "", repo_file = "")
+    return struct(
+        loads = 'load("{}", "package_metadata")\n'.format(str(Label("@package_metadata//rules:package_metadata.bzl"))),
+        target = """
+package_metadata(
+    name = "{target}",
+    purl = "{purl}",
+    visibility = ["//visibility:public"],
+)
+""".format(target = _IDENTITY_TARGET, purl = purl),
+        repo_file = 'repo(default_package_metadata = ["//:{}"])\n'.format(_IDENTITY_TARGET),
+    )
 
 _LOAD = 'load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")\n'
 
@@ -117,7 +205,7 @@ def find_pub_license_file(rctx):
         if not p.is_dir
     ])
 
-def make_dart_library_build_content(name, deps, language_version, code_assets = [], build_hook = "", version = "", link_hook = "", license_file = ""):
+def make_dart_library_build_content(name, deps, language_version, code_assets = [], build_hook = "", version = "", link_hook = "", license_file = "", purl = ""):
     """Generate the BUILD.bazel content for a single `dart_library` spoke.
 
     The shape — a `dart_package_metadata` stating the package's facts, and a
@@ -162,6 +250,10 @@ def make_dart_library_build_content(name, deps, language_version, code_assets = 
         license_file: Package-relative path of the package's license file
             (`find_pub_license_file()`), or empty. Trailing with a default for
             the same reason as `version`.
+        purl: The package's purl (`pub_hosted_purl`, `pub_git_purl`), for a
+            `package_metadata` target, which the repository's `REPO.bazel`
+            (`pub_package_identity(purl).repo_file`) attaches to every
+            target; empty for a package of the user's own, which states none.
 
     Returns:
         BUILD.bazel content as a string.
@@ -174,7 +266,7 @@ def make_dart_library_build_content(name, deps, language_version, code_assets = 
         build_hook = build_hook,
         link_hook = link_hook,
         license_file = license_file,
-    ) + """
+    ) + pub_package_identity(purl).target + """
 dart_library(
     name = "{target}",
     srcs = glob(["lib/**/*.dart"], allow_empty = True),
@@ -195,9 +287,10 @@ dart_library(
         metadata = _METADATA_TARGET,
         visibility = "//visibility:private" if name == "test" else "//visibility:public",
     )
+    loads = _LOAD + pub_package_identity(purl).loads
     if name != "test":
-        return _LOAD + "\n" + library
-    return _LOAD + _TEST_RUNNER_LOAD + "\n" + library + "\n" + _TEST_RUNNER_BLOCK
+        return loads + "\n" + library
+    return loads + _TEST_RUNNER_LOAD + "\n" + library + "\n" + _TEST_RUNNER_BLOCK
 
 _PUB_LIBRARY_LOAD = 'load("@rules_dart//dart/pub:pub_library.bzl", "{rule}")\n'
 
@@ -209,7 +302,7 @@ def _list_block(attr, items):
 def _string_block(attr, value):
     return '    {} = "{}",\n'.format(attr, value) if value else ""
 
-def make_pub_member_build_content(name, language_version, version, code_assets = [], unreplaced_hook = "", link_hook = "", license_file = ""):
+def make_pub_member_build_content(name, language_version, version, code_assets = [], unreplaced_hook = "", link_hook = "", license_file = "", purl = ""):
     """The BUILD file of a `pub.from_lock()` package's source repository.
 
     It states what the package's own archive says — its files, language
@@ -226,11 +319,12 @@ def make_pub_member_build_content(name, language_version, version, code_assets =
         unreplaced_hook: Its unreplaced build hook's path, or "".
         link_hook: `hook/link.dart` if it has one, or "".
         license_file: Its license file (`find_pub_license_file()`), or "".
+        purl: Its purl, as for `make_dart_library_build_content`, or "".
 
     Returns:
         BUILD.bazel content.
     """
-    return 'load("@rules_dart//dart:defs.bzl", "dart_package_metadata")\n' + _PUB_LIBRARY_LOAD.format(rule = "pub_package_member") + "\n" + _metadata_block(
+    return 'load("@rules_dart//dart:defs.bzl", "dart_package_metadata")\n' + _PUB_LIBRARY_LOAD.format(rule = "pub_package_member") + pub_package_identity(purl).loads + "\n" + _metadata_block(
         name,
         language_version,
         version = version,
@@ -238,7 +332,7 @@ def make_pub_member_build_content(name, language_version, version, code_assets =
         build_hook = unreplaced_hook,
         link_hook = link_hook,
         license_file = license_file,
-    ) + """
+    ) + pub_package_identity(purl).target + """
 pub_package_member(
     name = "{name}",
     srcs = glob(["lib/**/*.dart"], allow_empty = True),

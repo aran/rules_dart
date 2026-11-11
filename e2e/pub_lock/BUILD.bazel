@@ -1,4 +1,5 @@
-load("@rules_dart//dart:defs.bzl", "dart_analysis_config", "dart_analysis_options", "dart_binary")
+load("@rules_dart//dart:defs.bzl", "dart_analysis_config", "dart_analysis_options", "dart_binary", "dart_test")
+load(":purls.bzl", "package_metadata_files")
 load(":registry_contract.bzl", "check_registry_contract")
 
 exports_files(["pubspec.lock"])
@@ -28,4 +29,32 @@ dart_analysis_options(
 dart_analysis_config(
     name = "analysis_config",
     options = [":options"],
+)
+
+# Property: each fetched package says what it is, for any SBOM tool: a
+# hosted package and a `pub.package()` by name, version and archive digest,
+# and the Dart SDK by release and archive.
+package_metadata_files(
+    name = "package_metadata",
+    deps = [
+        ":app",
+        "@very_good_analysis",
+    ],
+)
+
+dart_test(
+    name = "purls_test",
+    size = "small",
+    data = [":package_metadata"],
+    env = {
+        "PACKAGE_METADATA": "$(rlocationpaths :package_metadata)",
+        "PURLS": " ".join([
+            "pkg:pub/collection@1.19.1?checksum=sha256:2f5709ae4d3d59dd8f7cd309b4e023046b57d8a6c82130785d2b0e5868084e76",
+            "pkg:pub/path@1.9.1?checksum=sha256:75cca69d1490965be98c73ceaea117e8a04dd21217b37b292c9ddbec0d955bc5",
+            "pkg:pub/very_good_analysis@11.0.0?checksum=sha256:0bd5eb8d6be76aa0d71e70cbdae6cac8f784f761170568e3c2214a6948c7f6d3",
+        ]),
+        "SDK_PURL_PREFIX": "pkg:generic/dart-sdk@3.13.7?checksum=sha256:",
+    },
+    main = "purls_test.dart",
+    deps = ["@rules_dart//dart/runfiles"],
 )

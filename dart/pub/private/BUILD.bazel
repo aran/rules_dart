@@ -44,7 +44,10 @@ bzl_library(
     name = "build_content",
     srcs = ["build_content.bzl"],
     visibility = ["//dart/pub:__subpackages__"],
-    deps = ["//dart/private:dart_package_metadata"],
+    deps = [
+        "//dart/private:dart_package_metadata",
+        "//dart/private:purl",
+    ],
 )
 
 bzl_library(

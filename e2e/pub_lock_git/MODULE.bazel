@@ -1,6 +1,8 @@
 module(name = "pub_lock_git_e2e")
 
 bazel_dep(name = "rules_dart", version = "0.0.0")
+bazel_dep(name = "package_metadata", version = "0.0.15")
+
 local_path_override(
     module_name = "rules_dart",
     path = "../..",
