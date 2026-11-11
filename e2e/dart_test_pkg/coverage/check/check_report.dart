@@ -4,8 +4,8 @@ import 'package:runfiles/runfiles.dart';
 
 /// Checks the LCOV report `bazel coverage --combined_report=lcov` wrote for
 /// `//coverage/...` (its path is the one argument) against the fixture's
-/// sources: each line marked `// covered` has hits and each marked
-/// `// uncovered` has none, no line a `// coverage:ignore-line` or an
+/// sources, generated and hand-written: each line marked `// covered` has
+/// hits and each marked `// uncovered` has none, no line a `// coverage:ignore-line` or an
 /// `ignore-start`/`ignore-end` pair names is reported, a file marked
 /// `// coverage:ignore-file` has no line reported, and nothing else is.
 void main(List<String> args) {
@@ -18,6 +18,13 @@ void main(List<String> args) {
   final sources = {
     'coverage/lib/shapes.dart': '_main/coverage/lib/shapes.dart',
     'coverage/units/lib/units.dart': '_main/coverage/units/lib/units.dart',
+    // A test's own files, outside a package's `lib/`.
+    'coverage/test/plain_test.dart': '_main/coverage/test/plain_test.dart',
+    'coverage/test/runner_test.dart': '_main/coverage/test/runner_test.dart',
+    'coverage/test/support.dart': '_main/coverage/test/support.dart',
+    // Generated: reported under its `bazel-out/<config>/bin/` path, which
+    // `_parse` takes off.
+    _generated: '_main/$_generated',
   };
   // Carried by the tests, and left without a line in the report: Bazel
   // lists every instrumented file, the lines it has apart.
@@ -83,13 +90,22 @@ Set<int> _ignoredLines(List<String> lines) {
   return ignored;
 }
 
-/// Hits by line, by source file.
+const _generated = 'coverage/generated/lib/generated.dart';
+
+/// Hits by line, by source file; the generated file's under its path without
+/// the output directory, which only it has.
 Map<String, Map<int, int>> _parse(List<String> lcov) {
   final report = <String, Map<int, int>>{};
+  final outputDirectory = RegExp('^bazel-out/[^/]+/bin/');
   Map<int, int>? current;
   for (final line in lcov) {
     if (line.startsWith('SF:')) {
-      current = report.putIfAbsent(line.substring(3), () => {});
+      var path = line.substring(3);
+      if (outputDirectory.hasMatch(path) != path.endsWith(_generated)) {
+        throw StateError('$path is not under its expected directory');
+      }
+      path = path.replaceFirst(outputDirectory, '');
+      current = report.putIfAbsent(path, () => {});
     } else if (line.startsWith('DA:') && current != null) {
       final [number, count, ...] = line.substring(3).split(',');
       current[int.parse(number)] = int.parse(count);

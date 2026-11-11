@@ -1204,9 +1204,12 @@ is `bazel-testlogs/<package>/<name>/coverage.dat`. Any LCOV tool reads them.
 - **What is reported.** The `srcs` of every `dart_library` a test reaches
   through `deps`, for the libraries `--instrumentation_filter` selects (by
   default those in the packages named on the command line), each file under
-  its path in the workspace; a generated file is under its `bazel-out/` path.
-  A test's own `main` and `srcs` are reported only with
-  `--instrument_test_targets`, as for every Bazel language. Lines only: no
+  its path in the workspace. As for every Bazel language, a generated source
+  (a `dart_codegen` output, a `genrule`'s) is reported only with
+  `--experimental_collect_code_coverage_for_generated_files`, under its
+  `bazel-out/` path, and a test's own `main` and `srcs` only with
+  `--instrument_test_targets`; without them, those files are not in the
+  report at all. Lines only: no
   function or branch counts. A line marked `// coverage:ignore-line`, the
   lines from a `// coverage:ignore-start` to the next `// coverage:ignore-end`,
   and a file with a `// coverage:ignore-file` are left out, as `dart test

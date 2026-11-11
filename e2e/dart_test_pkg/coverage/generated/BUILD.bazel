@@ -1,0 +1,33 @@
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "generated",
+)
+
+# A library whose source a build action writes, as a code generator's is.
+genrule(
+    name = "write_generated",
+    outs = ["lib/generated.dart"],
+    cmd = "\n".join([
+        "cat > $@ <<'DART'",
+        "/// Called by the plain-`main()` test.",
+        "int one() {",
+        "  return '1'.length; // covered",
+        "}",
+        "",
+        "/// No test calls it.",
+        "int two() {",
+        "  return '22'.length; // uncovered",
+        "}",
+        "DART",
+    ]),
+    visibility = ["//coverage:__subpackages__"],
+)
+
+dart_library(
+    name = "generated",
+    srcs = [":write_generated"],
+    package = ":pubspec-metadata",
+    visibility = ["//coverage:__subpackages__"],
+)
