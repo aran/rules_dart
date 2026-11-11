@@ -11,9 +11,10 @@ Beyond the dependencies, a file may name only what the compiler can reach
 through declared inputs, judged as the compiler spells it: a `dart:` library,
 a `package:` URI that stays inside its package and that a dependency provides,
 or a file the target holds (a part) or the target or its dependencies hold (an
-import). A `file:` URI, another scheme, a relative path into a package's `lib/`
-from outside it (a second copy of the library) or out of the workspace is
-refused, with the spelling to use instead.
+import); the empty URI (`import '' as self;`) names the library itself. A
+`file:` URI, another scheme, a URI with a query or fragment or a relative path
+into a package's `lib/` from outside it (each a second copy of the library), or
+a path out of the workspace is refused, with the spelling to use instead.
 
 The checks read directives and nothing compiled, so each runs as a small
 validation action per library. A `dart_library` checks itself, in its own

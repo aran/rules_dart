@@ -7,7 +7,7 @@
 // not as our tooling canonicalises it. It must be a `dart:` library, a
 // `package:` URI that stays inside its package and that a dependency provides,
 // or a file the target (for a part) or the target or its dependencies (for an
-// import) hold. Anything else reaches a file Bazel does not track, or loads a
+// import) hold; the empty URI names the library itself. Anything else reaches a file Bazel does not track, or loads a
 // second copy of a library under a URI its module does not know.
 import 'directives.dart';
 import 'uris.dart';
@@ -49,7 +49,8 @@ class Violation {
 ///   outside every declared input (a relative path out of the workspace, a
 ///   `package:` URI climbing out of its package, any other scheme), or as a
 ///   second copy of a library (a relative path into a package's `lib/`, which
-///   the compiler loads apart from its `package:` URI);
+///   the compiler loads apart from its `package:` URI, or any URI with a query
+///   or fragment);
 /// - a part the target does not hold: a part compiles with its library;
 /// - strict deps: a package that neither [availablePackages] nor the package
 ///   config names;
@@ -166,6 +167,15 @@ List<Violation> checkPolicy({
   } on FormatException {
     return refuse('which is not a valid URI.');
   }
+  if (ref.hasQuery || ref.hasFragment) {
+    final bare = ref.removeFragment().replace(query: '').toString();
+    final hint = bare.endsWith('?') ? bare.substring(0, bare.length - 1) : bare;
+    return refuse(
+      'a URI with a query or fragment: the compiler loads it as a library '
+      "apart from the file's own URI, a second copy with its own state. "
+      "${hint.isEmpty ? 'Write the URI without it.' : "Use '$hint' instead."}",
+    );
+  }
   final relativeHint = 'a path relative to ${file.path}';
   switch (ref.scheme) {
     case 'dart':
@@ -195,6 +205,9 @@ List<Violation> checkPolicy({
         '$label.',
       );
   }
+  // An empty reference is the library itself (ffigen writes
+  // `import '' as self;`), as URI resolution makes it.
+  if (written.isEmpty) return ok(file.uri);
   if (ref.hasAuthority || ref.path.startsWith('/')) {
     return refuse(
       'an absolute path, which names a file outside what the build declares. '

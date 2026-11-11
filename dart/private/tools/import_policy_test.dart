@@ -128,6 +128,17 @@ void main() {
         "part 'a.g.dart';",
         {'app/lib/a.g.dart': "part of 'a.dart';"},
       ),
+      // ffigen writes this to name the library's own declarations.
+      "the library's own URI, written as '' (lib/)": (
+        lib,
+        "import '' as self;",
+        {},
+      ),
+      "the library's own URI, written as '' (outside lib/)": (
+        t,
+        "import '' as self;",
+        {},
+      ),
       'a conditional import whose every branch is declared': (
         lib,
         "import 'b.dart' if (dart.library.io) 'package:dep/d.dart';",
@@ -226,6 +237,17 @@ void main() {
         {},
       ),
       'a part by file: URI': (lib, "part 'file:///x/p.dart';", {}),
+      // A query or fragment makes another URI for the same file, which the
+      // compiler loads as a second copy of the library.
+      'a relative path with a query': (lib, "import 'b.dart?v=2';", {}),
+      'a relative path with a fragment': (lib, "import 'b.dart#x';", {}),
+      'a package: URI with a query': (
+        lib,
+        "import 'package:dep/d.dart?x';",
+        {},
+      ),
+      'a dart: URI with a fragment': (lib, "import 'dart:io#x';", {}),
+      'the own URI with a query': (lib, "import '?x' as self;", {}),
     };
     for (final e in bad.entries) {
       test(e.key, () async {
@@ -257,6 +279,16 @@ void main() {
       expect(err, contains('climbs out of lib/'));
       expect(err, contains("'package:app/b.dart'"));
     });
+
+    test(
+      'a query or fragment is refused as a second copy of the library',
+      () async {
+        for (final written in ['b.dart?v=2', 'package:dep/d.dart#x']) {
+          final err = await check({lib: "import '$written';"});
+          expect(err, contains('a query or fragment'), reason: written);
+        }
+      },
+    );
 
     test('a package: URI with .. is refused as leaving its package', () async {
       final err = await check({
