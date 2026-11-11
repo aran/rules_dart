@@ -1,6 +1,7 @@
-load("//dart:defs.bzl", "dart_library", "dart_package_metadata", "dart_source_set")
+load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
+load("//dart:defs.bzl", "dart_library", "dart_package_metadata")
 
-dart_source_set(
+copy_to_directory(
     name = "tree_set",
     srcs = ["lib/tree.dart"],
 )

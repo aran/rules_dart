@@ -1,4 +1,5 @@
-load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library", "dart_package_metadata", "dart_source_set", "dart_test")
+load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
+load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library", "dart_package_metadata", "dart_test")
 
 dart_package_metadata(
     name = "pubspec-metadata",
@@ -6,7 +7,7 @@ dart_package_metadata(
     language_version = "3.11",
 )
 
-# A package assembled explicitly via dart_source_set and consumed via srcs_dir
+# A package assembled explicitly via copy_to_directory and consumed via srcs_dir
 # (the pre-assembled single-directory path through the consumer's co-location).
 
 dart_codegen(
@@ -17,7 +18,7 @@ dart_codegen(
     package = ":pubspec-metadata",
 )
 
-dart_source_set(
+copy_to_directory(
     name = "srcs",
     srcs = [
         "lib/message.dart",

@@ -134,7 +134,7 @@ def library_package(ctx, srcs, resources = [], assembled_root = None):
       srcs: The target's own Dart Files.
       resources: The target's other files under `lib/`.
       assembled_root: The `short_path` of the directory a pre-assembled
-        package is (a `dart_source_set`), when the target's sources are that
+        package is (a `copy_to_directory`), when the target's sources are that
         and not files to check; they are then not looked at.
 
     Returns:
@@ -194,7 +194,7 @@ def _dart_library_impl(ctx):
             )
 
     if ctx.attr.srcs_dir:
-        # Sources arrive pre-assembled as one directory (a `dart_source_set`);
+        # Sources arrive pre-assembled as one directory (a `copy_to_directory`);
         # the directory itself is the package root.
         if ctx.files.srcs:
             fail("%s: set either `srcs` or `srcs_dir`, not both." % ctx.label)
@@ -264,7 +264,7 @@ consumer's `data`.""",
             allow_files = True,
         ),
         "srcs_dir": attr.label(
-            doc = "A pre-assembled source directory (a `dart_source_set`) to use as this library's package root, instead of `srcs`. The directory is opaque and carries the package's non-Dart files too, so `resources` is rejected alongside it. For reuse/composition; usually you just list files in `srcs`.",
+            doc = "A pre-assembled source directory (a bazel_lib `copy_to_directory`) to use as this library's package root, instead of `srcs`. The directory is opaque and carries the package's non-Dart files too, so `resources` is rejected alongside it. For reuse/composition; usually you just list files in `srcs`.",
             allow_files = True,
         ),
         "deps": attr.label_list(

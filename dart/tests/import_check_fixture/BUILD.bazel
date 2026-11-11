@@ -2,7 +2,7 @@ load("//dart:defs.bzl", "dart_library")
 
 # Each package that is not this one has its own directory, with its own
 # `dart_package_metadata`: `base/`, `user/` (depends on base), `tree/` (a
-# `dart_source_set`) and `tree_user/` (depends on tree).
+# `copy_to_directory`) and `tree_user/` (depends on tree).
 
 dart_library(
     name = "lone_lib",

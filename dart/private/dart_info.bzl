@@ -390,7 +390,7 @@ def package_info_from_metadata(label, metadata, package_root):
       metadata: The `DartPackageMetadataInfo` the target names.
       package_root: Where the package's sources are: `metadata.package_root`
         for a target of the package itself, or another directory for a rule
-        that assembles the package elsewhere (a `dart_source_set`).
+        that assembles the package elsewhere (a `copy_to_directory`).
 
     Returns:
       A `DartPackageInfo`.

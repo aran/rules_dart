@@ -11,6 +11,9 @@ local_path_override(
 # `build_test` asserts it still builds.
 bazel_dep(name = "bazel_skylib", version = "1.9.2")
 
+# For //source_set_pkg: `copy_to_directory` assembles a package's source directory.
+bazel_dep(name = "bazel_lib", version = "3.7.2")
+
 dart = use_extension("@rules_dart//dart:extensions.bzl", "dart")
 dart.toolchain(dart_version = "3.13.7")
 use_repo(dart, "dart_toolchains")

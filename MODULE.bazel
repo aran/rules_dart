@@ -116,7 +116,7 @@ register_toolchains(
     dev_dependency = True,
 )
 
-# Used by `dart_library`/`dart_source_set` to assemble generated + hand-written
+# Used by rules_dart to assemble generated + hand-written
 # sources into one directory (copy_to_directory). Regular (not dev) dep so
 # downstream modules get it; self-registers its copy toolchains.
 bazel_dep(name = "bazel_lib", version = "3.7.2")

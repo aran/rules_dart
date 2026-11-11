@@ -114,45 +114,48 @@ after step 1 does steps 6–8 for the BUILD files it writes.
     `..` segments → throws, as Bazel's runfiles libraries do.
 19. `@rules_dart//dart/ext/tools:check_dual_build_collisions` → removed; the
     build generates the code, and `build_runner` does not run beside it.
-20. Analysis now reads dependencies' analyzer summaries. If a project hits
+20. `dart_source_set` → removed; assemble the directory with bazel_lib's
+    `copy_to_directory` (same `srcs`, `root_paths`, `replace_prefixes`) and pass
+    it to `dart_library.srcs_dir`.
+21. Analysis now reads dependencies' analyzer summaries. If a project hits
     an SDK summary bug, `--@rules_dart//dart:analysis_summaries=false`.
     `--@rules_dart//dart:analysis_shutdown_workaround` → removed; analysis
     runs in persistent workers (`analysis_worker=false` for a process each).
-21. `dart_code_asset.shared_library` → `file`; `dart_code_asset.system_uri` →
+22. `dart_code_asset.shared_library` → `file`; `dart_code_asset.system_uri` →
     `uri` (upstream `CodeAsset.file` and `DynamicLoadingSystem.uri`).
 
 **Rule authors** (`@rules_dart//dart:utils.bzl` and providers)
 
-22. `DartCodeAssetInfo.dynamic_library` → `file`; `DartCodeAssetInfo.system_uri`
+23. `DartCodeAssetInfo.dynamic_library` → `file`; `DartCodeAssetInfo.system_uri`
     → `uri`.
-23. `DartPackageInfo.lib_root` → `package_root`; `derive_lib_root` →
+24. `DartPackageInfo.lib_root` → `package_root`; `derive_lib_root` →
     `derive_package_root`; `has_unreplaced_hook` → `unreplaced_hook`.
-24. `DartInfo.package_name`/`lib_root` → `DartInfo.packages` (from
+25. `DartInfo.package_name`/`lib_root` → `DartInfo.packages` (from
     `dart_package_info()`); `DartInfo.deps` values are tuples of package
     names. Build `DartInfo` with `dart_info(ctx = ctx, ...)` and merge
     `SUMMARY_ATTRS` into the rule's attributes.
-25. `dart_analyzable_info` → `dart_analyzable_info_no_package` (`srcs` →
+26. `dart_analyzable_info` → `dart_analyzable_info_no_package` (`srcs` →
     `entry_srcs`); `dart_analyzable_info_with_package` → `dart_analyzable_info`
     (takes `packages`); `DartAnalyzableInfo.srcs` → `entry_srcs`,
     `package_srcs` → `DartInfo.srcs`.
-26. `module_defines_transition` → `executable_defines_config`;
+27. `module_defines_transition` → `executable_defines_config`;
     `dart_entry_kernel_action` takes no `defines` and needs
     `MODULAR_KERNEL_ATTR`.
-27. `dart_link_hook_actions` and `collect_transitive_code_assets` take the
+28. `dart_link_hook_actions` and `collect_transitive_code_assets` take the
     program's package (see `program_packages()`); rules calling
     `dart_link_hook_actions` declare `COPY_TO_DIRECTORY_TOOLCHAINS`.
-28. `DartKernelSdkInfo.runtime` → `aot_runtime`; `platform`/`defines` →
+29. `DartKernelSdkInfo.runtime` → `aot_runtime`; `platform`/`defines` →
     `runtimes` (from `dart_kernel_runtime`).
-29. `dart_toolchain.sdk_root`, `DartSdkInfo.sdk_root`/`tool_files` →
+30. `dart_toolchain.sdk_root`, `DartSdkInfo.sdk_root`/`tool_files` →
     `dart_toolchain.sdk` takes a `dart_sdk_files`; read `DartSdkInfo.files`.
     A Dart SDK with no release tag also needs a `dart_outline_toolchain` and a
     `dart_analyzer_toolchain`, or `outline_kernel` and `analysis_summaries`
     off (see [A Dart SDK of your own](#a-dart-sdk-of-your-own)).
-30. `parse_pubspec_deps`/`parse_pubspec_sdk_constraint`/
+31. `parse_pubspec_deps`/`parse_pubspec_sdk_constraint`/
     `derive_language_version` → `read_pubspec` in `//dart/pub:pubspec.bzl`.
     `dart/pub/pub_lock_hub.bzl` → private.
-31. `colocate_entrypoint` → removed; a binary compiles its sources in place.
-32. Loads of `dart/private/**` or `dart/pub/private/**` from outside rules_dart
+32. `colocate_entrypoint` → removed; a binary compiles its sources in place.
+33. Loads of `dart/private/**` or `dart/pub/private/**` from outside rules_dart
     → fail; load the public `.bzl` files instead.
 
 ## Road to 1.0
@@ -1629,8 +1632,8 @@ the guards for generated files checked into a source tree. Two more
 library: `sqlite3` (`sqlite3_code_asset()`) and `webcrypto` (see
 [Native code assets](#native-code-assets)).
 
-`dart_source_set` assembles hand-written and generated files, from any
-targets, into one directory, which a `dart_library` takes as `srcs_dir`.
+bazel_lib's `copy_to_directory` assembles hand-written and generated files, from
+any targets, into one directory, which a `dart_library` takes as `srcs_dir`.
 
 ### A generator and its package
 
@@ -2365,7 +2368,7 @@ The [`e2e/`](e2e/) directory contains complete working examples:
 | [`pub_highest_wins`](e2e/pub_highest_wins/)                 | The highest request builds, over root and dependency `pub.package()`s, warning for the root's            |
 | [`pub_root_older_lock`](e2e/pub_root_older_lock/)           | Under `check_direct_dependencies = "error"`, a dependency raising the root's lock fails                  |
 | [`pub_root_newer`](e2e/pub_root_newer/)                     | A root lock above a dependency's `pub.package()` wins, silently                                          |
-| [`codegen`](e2e/codegen/)                                   | `dart_codegen`/`dart_aggregate_codegen` over parts, re-exports and source sets                           |
+| [`codegen`](e2e/codegen/)                                   | `dart_codegen`/`dart_aggregate_codegen` over parts, re-exports and a `srcs_dir`                          |
 | [`ext_exemplar`](e2e/ext_exemplar/)                         | One package per bundled `dart/ext` builder, plus native `code_assets`, sqlite3/webcrypto                 |
 | [`link_hook`](e2e/link_hook/)                               | `record_use`, `hook/link.dart` emitting data assets via `dart_link_hook`, declared data assets           |
 

@@ -1,4 +1,4 @@
-"""`dart_source_set` and the shared source-assembly helper.
+"""The shared source-assembly helper.
 
 The Dart toolchain resolves a `part` directive by filesystem adjacency to its
 library, and a package's `package:` imports against a single `rootUri`. So a
@@ -266,36 +266,3 @@ def colocate_packages(ctx, packages, all_srcs, members = {}):
             for f in files:
                 srcs2.append(f)
     return packages2, srcs2
-
-def _dart_source_set_impl(ctx):
-    dst = assemble_source_dir(
-        ctx,
-        name = ctx.label.name,
-        srcs = ctx.files.srcs,
-        root_paths = ctx.attr.root_paths,
-        replace_prefixes = ctx.attr.replace_prefixes,
-    )
-    return [DefaultInfo(
-        files = depset([dst]),
-        runfiles = ctx.runfiles(files = [dst]),
-    )]
-
-dart_source_set = rule(
-    implementation = _dart_source_set_impl,
-    attrs = {
-        "srcs": attr.label_list(
-            doc = "Dart files (source and/or generated, from any target) to assemble into one directory.",
-            allow_files = True,
-            mandatory = True,
-        ),
-        "root_paths": attr.string_list(
-            doc = "Paths treated as roots in the output directory (stripped). `\".\"` is this target's Bazel package. Set additional roots to flatten files from other packages.",
-            default = ["."],
-        ),
-        "replace_prefixes": attr.string_dict(
-            doc = "Map of output-path prefixes to rewrite, applied after `root_paths` stripping. Use to place cross-package inputs under `lib/`.",
-        ),
-    },
-    toolchains = COPY_TO_DIRECTORY_TOOLCHAINS,
-    doc = "Assembles Dart sources (hand-written + generated) into one tree-artifact directory. Package-agnostic; consume via `dart_library`'s `srcs_dir`.",
-)
