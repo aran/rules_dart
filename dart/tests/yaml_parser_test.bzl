@@ -90,10 +90,45 @@ def _lock_error_test_impl(ctx):
     asserts.true(env, key_twice != None and "source" in key_twice, "duplicate key: %s" % key_twice)
     return unittest.end(env)
 
+def _expect_refused(env, content, *fragments):
+    problem = lock_error(content)
+    asserts.true(env, problem != None, "accepted:\n" + content)
+    for fragment in fragments:
+        asserts.true(env, problem != None and fragment in problem, "expected {} in {}".format(repr(fragment), repr(problem)))
+
+def _lock_shape_test_impl(ctx):
+    env = unittest.begin(ctx)
+
+    # What pub reads as a lock with no packages.
+    asserts.equals(env, {}, parse_pubspec_lock("", "empty"))
+    asserts.equals(env, {}, parse_pubspec_lock("  \n", "blank"))
+    asserts.equals(env, {}, parse_pubspec_lock("sdks:\n  dart: \">=3.0.0 <4.0.0\"\n", "no packages"))
+    asserts.equals(env, {}, parse_pubspec_lock("packages: {}\n", "empty packages"))
+
+    # What pub refuses, where a lenient read gives an empty hub or skips a
+    # package.
+    _expect_refused(env, "# only a comment\n", "top level is not a mapping")
+    _expect_refused(env, "- packages\n", "top level is not a mapping")
+    _expect_refused(env, "packages:\n", "`packages` is not a mapping")
+    _expect_refused(env, "packages: [a]\n", "`packages` is not a mapping")
+    _expect_refused(env, "packages:\n  foo: 1.0.0\n", "package `foo` is not a mapping")
+
+    flutter = "    source: sdk\n    version: \"0.0.0\"\n"
+    _expect_refused(env, _SAMPLE_LOCK.replace(flutter, "    source: sdk\n"), "package `flutter` has no `version`")
+    _expect_refused(env, _SAMPLE_LOCK.replace(flutter, "    source: sdk\n    version: \"1.10\"\n"), "package `flutter` has no `version`", "1.10")
+    _expect_refused(env, _SAMPLE_LOCK.replace(flutter, "    source: sdk\n    version: 1.10\n"), "package `flutter` has no `version`")
+    _expect_refused(env, _SAMPLE_LOCK.replace(flutter, "    version: \"0.0.0\"\n"), "package `flutter` has no `source`")
+    _expect_refused(env, _SAMPLE_LOCK.replace(flutter, "    source: [sdk]\n    version: \"0.0.0\"\n"), "package `flutter` has no `source`")
+    _expect_refused(env, _SAMPLE_LOCK.replace("    source: sdk\n", "    source: svn\n"), "package `flutter` is from the source `svn`")
+    _expect_refused(env, _SAMPLE_LOCK.replace("    description: flutter\n", ""), "package `flutter` has no `description`")
+    _expect_refused(env, _SAMPLE_LOCK.replace("    dependency: transitive\n", "    dependency: [transitive]\n"), "package `meta` has a `dependency`")
+    return unittest.end(env)
+
 _t0_test = unittest.make(_parse_lock_packages_test_impl)
 _t1_test = unittest.make(_parse_lock_hosted_test_impl)
 _t2_test = unittest.make(_parse_lock_sdk_test_impl)
 _t3_test = unittest.make(_lock_error_test_impl)
+_t4_test = unittest.make(_lock_shape_test_impl)
 
 def yaml_parser_test_suite(name):
-    small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test)
+    small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test, _t4_test)

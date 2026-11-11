@@ -22,6 +22,22 @@ def _parts(text):
         parts.append((0, _number(part), "") if part.isdigit() else (1, 0, part))
     return tuple(parts)
 
+def _split(version):
+    """The release numbers and the pre-release and build parts, or None where pub_semver could not parse it."""
+    rest, has_build, build = version.partition("+")
+    release, has_pre, pre = rest.partition("-")
+    numbers = release.split(".")
+    pre_parts = _parts(pre) if has_pre else ()
+    build_parts = _parts(build) if has_build else ()
+    if (len(numbers) != 3 or not all([n.isdigit() for n in numbers]) or
+        pre_parts == None or build_parts == None):
+        return None
+    return struct(numbers = numbers, has_pre = has_pre, pre = pre_parts, build = build_parts)
+
+def is_semver(version):
+    """Whether pub_semver parses `version`: `major.minor.patch[-prerelease][+build]`."""
+    return _split(version) != None
+
 def parse_semver(version):
     """Parses a pub version into a key that orders as pub_semver's `Version.compareTo`.
 
@@ -40,17 +56,12 @@ def parse_semver(version):
         A tuple that compares with `>`, `<` and `==` to other `parse_semver`
         results. Fails on a string pub_semver could not parse.
     """
-    rest, has_build, build = version.partition("+")
-    release, has_pre, pre = rest.partition("-")
-    numbers = release.split(".")
-    pre_parts = _parts(pre) if has_pre else ()
-    build_parts = _parts(build) if has_build else ()
-    if (len(numbers) != 3 or not all([n.isdigit() for n in numbers]) or
-        pre_parts == None or build_parts == None):
+    split = _split(version)
+    if split == None:
         fail("Could not parse version \"%s\": pub versions are major.minor.patch[-prerelease][+build]." % version)
     return (
-        tuple([_number(n) for n in numbers]) +
-        (_PRERELEASE if has_pre else _STABLE, pre_parts, build_parts)
+        tuple([_number(n) for n in split.numbers]) +
+        (_PRERELEASE if split.has_pre else _STABLE, split.pre, split.build)
     )
 
 def semver_gt(a, b):

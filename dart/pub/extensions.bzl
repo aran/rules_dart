@@ -694,10 +694,9 @@ def _pub_impl(ctx):
         hub_packages.setdefault(hub_name, {})
 
         # Hosted and git packages are fetched, and path packages are mapped.
-        # Collect every other package and report once per lock file — Flutter locks routinely list many
-        # sdk-source packages, so a per-package print would drown the useful
-        # signal.
-        skipped_by_source = {}
+        # sdk packages are reported once per lock file: Flutter locks list
+        # many, so a per-package print would drown the useful signal.
+        skipped_sdk = []
 
         for name, info in lock.packages.items():
             # One `resolve` maps is that target, however the lock lists it.
@@ -708,7 +707,7 @@ def _pub_impl(ctx):
             # A `pub.package()` supplies a package the lock lists from a source
             # with no version to compare (git, sdk); a hosted entry is one more
             # request for it.
-            source = info.get("source", "unknown")
+            source = info["source"]
             if name in declared and source != "hosted":
                 hub_packages[hub_name][name] = True
                 continue
@@ -724,8 +723,8 @@ def _pub_impl(ctx):
                 hub_packages[hub_name][name] = True
                 _add_git_package(git_registry, name, info, lock_tag)
                 continue
-            if source != "hosted":
-                skipped_by_source.setdefault(source, []).append(name)
+            if source == "sdk":
+                skipped_sdk.append(name)
                 non_hosted.setdefault(name, "a `%s` package in %s" % (source, lock_tag.lock))
                 continue
 
@@ -752,27 +751,16 @@ def _pub_impl(ctx):
                 lock_file = lock_tag.lock,
             ))
 
-        if skipped_by_source:
-            details = []
-            for source in sorted(skipped_by_source.keys()):
-                if source == "sdk":
-                    remedy = "provided by the Dart/Flutter SDK, not fetched by pub"
-                else:
-                    remedy = "map it with `resolve` or declare it with pub.package()"
-                details.append("  - %s (%s): %s" % (
-                    source,
-                    remedy,
-                    ", ".join(sorted(skipped_by_source[source])),
-                ))
-
+        if skipped_sdk:
             # buildifier: disable=print
             print(
-                ("pub.from_lock(%s): %s lists non-hosted packages; no repository " +
-                 "is created for them, so `package:` imports of these packages " +
-                 "will fail to resolve unless they are provided another way:\n%s") % (
+                ("pub.from_lock(%s): %s lists packages from the Dart/Flutter SDK, which pub " +
+                 "does not fetch; no repository is created for them, so `package:` imports " +
+                 "of these packages will fail to resolve unless they are provided another " +
+                 "way (`resolve`):\n  %s") % (
                     hub_name,
                     lock_tag.lock,
-                    "\n".join(details),
+                    ", ".join(sorted(skipped_sdk)),
                 ),
             )
 

@@ -7,12 +7,79 @@ the extension needs it. A pubspec.yaml is read the way pub reads it, by
 
 load("@yaml.bzl//:yaml.bzl", "yaml")
 
+# buildifier: disable=bzl-visibility
+load("//dart/pub/private:version.bzl", "is_semver")
+
+# The sources pub has.
+_SOURCES = ("hosted", "git", "path", "sdk")
+
+def _entry(name, info):
+    """A package entry as callers read it, or a description of why pub refuses it."""
+    if type(info) != "dict":
+        return "package `{}` is not a mapping".format(name)
+    version = info.get("version")
+    if type(version) != "string" or not is_semver(version):
+        return "package `{}` has no `version` that is a version string (got {})".format(name, repr(version))
+    source = info.get("source")
+    if type(source) != "string":
+        return "package `{}` has no `source` string".format(name)
+    if source not in _SOURCES:
+        return "package `{}` is from the source `{}`, and pub has only {}".format(name, source, ", ".join(["`%s`" % s for s in _SOURCES]))
+    if info.get("description") == None:
+        return "package `{}` has no `description`".format(name)
+    if "dependency" in info and type(info["dependency"]) != "string":
+        return "package `{}` has a `dependency` that is not a string".format(name)
+    entry = {}
+    for k, v in info.items():
+        if k == "description":
+            # An inline scalar `description: flutter` is normalised to
+            # {"name": "flutter"} so callers can always treat description
+            # as a dict.
+            if type(v) == "dict":
+                entry["description"] = {sk: str(sv) for sk, sv in v.items()}
+            else:
+                entry["description"] = {"name": str(v)}
+        else:
+            entry[k] = "" if v == None else str(v)
+    return entry
+
+def _read(content):
+    """Reads a lock as pub does: `struct(problem, packages)`, one of them None."""
+
+    # pub reads a lock of only whitespace as an empty one.
+    if not content.strip():
+        return struct(problem = None, packages = {})
+    documents = yaml.parse_all(content)
+    if len(documents) > 1:
+        return struct(problem = "it holds {} YAML documents, and pub expects one".format(len(documents)), packages = None)
+    for error in yaml.get_errors(documents[0]):
+        problem = error.message if error.line == None else "line {}: {}".format(error.line, error.message)
+        return struct(problem = problem, packages = None)
+    data = yaml.get_value(documents[0])
+    if type(data) != "dict":
+        return struct(problem = "its top level is not a mapping", packages = None)
+
+    # `packages` may be left out, but not left empty: `packages:` is null.
+    if "packages" not in data:
+        return struct(problem = None, packages = {})
+    if type(data["packages"]) != "dict":
+        return struct(problem = "`packages` is not a mapping", packages = None)
+    packages = {}
+    for name, info in data["packages"].items():
+        entry = _entry(name, info)
+        if type(entry) == "string":
+            return struct(problem = entry, packages = None)
+        packages[name] = entry
+    return struct(problem = None, packages = packages)
+
 def lock_error(content):
     """Says why pub would refuse a pubspec.lock, as it does.
 
-    pub reads a lock strictly: one YAML document, no key twice. So does this,
-    where a lenient read would pick one of two entries for a package listed
-    twice, or ignore everything after a second `---`.
+    pub reads a lock strictly: one YAML document, no key twice, a mapping of
+    packages, each with a `version` string, one of pub's sources and a
+    `description`. So does this, where a lenient read would pick one of two
+    entries for a package listed twice, ignore everything after a second
+    `---`, or give no packages for a lock it cannot read.
 
     Args:
         content: String contents of a pubspec.lock file.
@@ -20,19 +87,7 @@ def lock_error(content):
     Returns:
         A description of the first problem, or None for a lock pub accepts.
     """
-    documents = yaml.parse_all(content)
-    if len(documents) > 1:
-        return "it holds {} YAML documents, and pub expects one".format(len(documents))
-    for error in yaml.get_errors(documents[0]):
-        if error.line == None:
-            return error.message
-        return "line {}: {}".format(error.line, error.message)
-    return None
-
-def _load(content):
-    """Parse YAML content into a top-level dict, or None if not a mapping."""
-    data = yaml.get_value(yaml.parse(content))
-    return data if type(data) == "dict" else None
+    return _read(content).problem
 
 def parse_pubspec_lock(content, source):
     """Parse a pubspec.lock file into a dict of package info.
@@ -51,31 +106,7 @@ def parse_pubspec_lock(content, source):
             "description": dict (keys vary by source type),
         }
     """
-    problem = lock_error(content)
-    if problem != None:
-        fail("pub would refuse the lock {}: {}".format(source, problem))
-    data = _load(content)
-    if data == None:
-        return {}
-    packages = data.get("packages")
-    if type(packages) != "dict":
-        return {}
-
-    result = {}
-    for name, info in packages.items():
-        if type(info) != "dict":
-            continue
-        entry = {}
-        for k, v in info.items():
-            if k == "description":
-                # An inline scalar `description: flutter` is normalised to
-                # {"name": "flutter"} so callers can always treat description
-                # as a dict.
-                if type(v) == "dict":
-                    entry["description"] = {sk: str(sv) for sk, sv in v.items()}
-                else:
-                    entry["description"] = {"name": str(v)}
-            else:
-                entry[k] = "" if v == None else str(v)
-        result[name] = entry
-    return result
+    read = _read(content)
+    if read.problem != None:
+        fail("pub would refuse the lock {}: {}".format(source, read.problem))
+    return read.packages
