@@ -3,6 +3,8 @@
 load("//dart/private:common.bzl", "PATH_MAPPING", "SDK_ENV")
 load("//dart/private:resources.bzl", "native_compile_resources")
 
+visibility("//dart/...")
+
 _DART_TOOLCHAIN = Label("//dart:toolchain_type")
 
 # The `dart compile` modes that tree-shake, and so can record the uses of

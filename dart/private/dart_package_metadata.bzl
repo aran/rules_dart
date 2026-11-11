@@ -4,6 +4,8 @@ load("//dart:providers.bzl", "DartCodeAssetInfo", "DartDataAssetInfo", "DartPack
 load("//dart/private:dart_info.bzl", "check_code_asset_ownership", "check_data_asset_ownership", "data_assets_of")
 load("//dart/private:package_root.bzl", "locate_package_root")
 
+visibility("//dart/...")
+
 def link_hook_error(label, package_root, link_hook):
     """Checks that a `link_hook` is the package's `hook/link.dart`.
 

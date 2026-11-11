@@ -6,6 +6,8 @@ Every repository rule that materialises a hosted pub package — `pub_lock_packa
 version is fetched and laid out the same way whichever rule asks for it.
 """
 
+visibility("//dart/...")
+
 _ARCHIVE = "_pub_archive.tar.gz"
 
 # tar.bzl's prebuilt bsdtar, one repository per host. These labels resolve in

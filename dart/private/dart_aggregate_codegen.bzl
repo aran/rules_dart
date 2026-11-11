@@ -60,6 +60,8 @@ load(
 load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS", "portable_sdk")
 load("//dart/private:runtime.bzl", "non_dart_transition")
 
+visibility("//dart/...")
+
 def _dart_aggregate_codegen_impl(ctx):
     identity = resolve_package_identity(ctx)
     dart_sdk_info = portable_sdk(ctx)

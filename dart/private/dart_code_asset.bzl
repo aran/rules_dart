@@ -22,6 +22,8 @@ load("@rules_cc//cc/common:cc_shared_library_info.bzl", "CcSharedLibraryInfo")
 load("//dart:providers.bzl", "CODE_ASSET_LINK_MODES", "DartCodeAssetInfo")
 load("//dart/private:runtime.bzl", "non_dart_transition")
 
+visibility("//dart/...")
+
 _APPLE_OSES = ["ios", "macos", "tvos", "visionos", "watchos"]
 
 def _library_extension(ctx):

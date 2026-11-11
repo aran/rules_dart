@@ -17,6 +17,8 @@ load("//dart/private:common.bzl", "launcher_executable")
 load("//dart/private:dart_analyze_aspect.bzl", "NO_ANALYZE_TAG", "NO_FORMAT_TAG", "dart_analyze")
 load("//dart/private:runtime.bzl", "web_platforms_transition")
 
+visibility("//dart/...")
+
 _CHECKS = ["dart_analyze", "dart_format"]
 
 def _dart_analysis_test_impl(ctx):

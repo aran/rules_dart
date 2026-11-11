@@ -74,6 +74,8 @@ load(
 load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS", "portable_sdk")
 load("//dart/private:runtime.bzl", "non_dart_transition")
 
+visibility("//dart/...")
+
 def compute_codegen_output_name(src_path, output_suffix):
     """Compute the output file path for a codegen source file.
 

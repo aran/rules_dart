@@ -7,6 +7,8 @@ Usage:
 
 load("//dart/private:common.bzl", "SDK_ENV", "launcher_executable", "runfiles_path")
 
+visibility("//dart/...")
+
 def _dart_sdk_binary_impl(ctx):
     dart_sdk_info = ctx.toolchains["//dart:toolchain_type"].dart_sdk_info
 

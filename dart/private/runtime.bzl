@@ -30,6 +30,8 @@ executable's environment declarations (`executable_defines_config`) fork them
 the same way, and `non_dart_transition` clears those too.
 """
 
+visibility("//dart/...")
+
 _TRACK_CREATION_LOCATIONS = str(Label("//dart:track_creation_locations"))
 _MODULE_DEFINES = str(Label("//dart/private:module_defines"))
 

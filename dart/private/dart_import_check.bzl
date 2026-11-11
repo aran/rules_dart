@@ -49,6 +49,8 @@ load(
 load("//dart/private:dart_module.bzl", "KERNEL_TOOL_ATTR", "kernel_package_config")
 load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS")
 
+visibility("//dart/...")
+
 LAYERING_CHECK_FEATURE = "dart_layering_check"
 
 _IMPORT_CHECK = str(Label("//dart/private:import_check"))

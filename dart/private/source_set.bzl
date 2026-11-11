@@ -18,6 +18,8 @@ same assembly as a standalone, package-agnostic primitive (consumed via
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory_bin_action")
 load("//dart/private:dart_info.bzl", "derived_package_info")
 
+visibility("//dart/...")
+
 # A `Label`, so a rule in another module that declares these toolchains finds
 # rules_dart's `bazel_lib` whether or not it depends on `bazel_lib` itself.
 COPY_TO_DIRECTORY_TOOLCHAINS = [Label("@bazel_lib//lib:copy_to_directory_toolchain_type")]

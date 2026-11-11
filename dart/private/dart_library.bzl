@@ -10,6 +10,8 @@ load("//dart/private:package_root.bzl", "locate_package_root")
 load("//dart/private:runtime.bzl", "RUNTIME_INDEPENDENT_ATTR", "runtime_reset_when_independent")
 load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS")
 
+visibility("//dart/...")
+
 def check_no_duplicate_srcs(label, srcs, attr_name = "srcs"):
     """Detects two entries that resolve to the same package-relative path.
 

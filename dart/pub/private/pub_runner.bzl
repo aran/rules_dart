@@ -9,6 +9,8 @@ its runfiles and runs `dart pub` at the workspace root.
 
 load("//dart:utils.bzl", "dart_compile_action", "runfiles_path")
 
+visibility("//dart/...")
+
 def _pub_runner_impl(ctx):
     sdk = ctx.toolchains["//dart:toolchain_type"].dart_sdk_info
     is_windows = ctx.target_platform_has_constraint(

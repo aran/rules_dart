@@ -17,6 +17,8 @@ This guidance tells us how to avoid that: we put the toolchain targets in the al
 with only the toolchain attribute pointing into the platform-specific repositories.
 """
 
+visibility("//dart/...")
+
 # HOST platforms: those we download an SDK for and can run a build on. Each key
 # is both the download-URL slug and the `versions.bzl` checksum key:
 # https://storage.googleapis.com/dart-archive/channels/stable/release/{version}/sdk/dartsdk-{platform}-release.zip

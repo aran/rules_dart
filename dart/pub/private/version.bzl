@@ -1,5 +1,7 @@
 """Version parsing and ordering for pub packages, as pub_semver orders them."""
 
+visibility("//dart/...")
+
 # The pre-release slot of a key: a release, `(1,)`, sorts after any
 # pre-release of it, `(0,)`.
 _STABLE = (1,)

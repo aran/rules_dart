@@ -23,6 +23,8 @@ load("//dart/private:dart_binary.bzl", "dart_binary")
 load("//dart/private:dart_module.bzl", "KERNEL_TOOL_ATTR")
 load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS")
 
+visibility("//dart/...")
+
 DartTestRunnerInfo = provider(
     doc = "The `package:test` runner built from a `package:test` library.",
     fields = {

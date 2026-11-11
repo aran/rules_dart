@@ -50,6 +50,8 @@ load("//dart/private:exec_groups.bzl", "PORTABLE_EXEC_GROUPS")
 load("//dart/private:executable_package.bzl", "EXECUTABLE_PACKAGE_ATTRS", "executable_package")
 load("//dart/private:project_staging.bzl", "test_working_directory")
 
+visibility("//dart/...")
+
 # The test's `defines` are the environment of its dependencies' modules too.
 _ENVIRONMENT = executable_defines_config()
 

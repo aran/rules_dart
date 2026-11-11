@@ -17,6 +17,8 @@ by the old one.
 load("//dart/private:toolchains_repo.bzl", "PLATFORMS")
 load("//dart/pub/private:pub_archive.bzl", "fetch_pub_archive")
 
+visibility("//dart/...")
+
 # `yaml` and its dependencies, pinned outside pub resolution:
 # name -> (version, archive sha256, languageVersion from its `environment.sdk`).
 READER_PACKAGES = {

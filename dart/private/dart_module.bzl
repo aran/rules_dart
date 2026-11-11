@@ -53,6 +53,8 @@ load(
 load("//dart/private:exec_groups.bzl", "EXEC_TOOLS_TOOLCHAIN", "PORTABLE", "PORTABLE_EXEC_GROUPS")
 load("//dart/private:resources.bzl", "kernel_resources")
 
+visibility("//dart/...")
+
 _KERNEL_TOOL = Label("//dart/private/tools:kernel_tool")
 
 # Built for the host of the `portable` actions that run it; a rule merging this

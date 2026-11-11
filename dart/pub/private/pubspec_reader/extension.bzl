@@ -2,6 +2,8 @@
 
 load(":reader.bzl", "pubspec_reader_repositories")
 
+visibility("//dart/...")
+
 def _impl(mctx):
     pubspec_reader_repositories()
     return mctx.extension_metadata(reproducible = True)

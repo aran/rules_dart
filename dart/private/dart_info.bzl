@@ -84,6 +84,8 @@ say: `language_version = ""` remains legal and keeps its meaning, which
 
 load("//dart:providers.bzl", "DartAnalyzableInfo", "DartCodeAssetInfo", "DartDataAssetInfo", "DartInfo", "DartPackageInfo")
 
+visibility("//dart/...")
+
 def package_lib_prefix(package_root):
     """Returns the short_path prefix under which a package's importable files live.
 

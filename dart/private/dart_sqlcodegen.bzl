@@ -38,6 +38,8 @@ load(
 load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS", "portable_sdk")
 load("//dart/private:runtime.bzl", "non_dart_transition")
 
+visibility("//dart/...")
+
 def _dart_sqlcodegen_impl(ctx):
     identity = resolve_package_identity(ctx)
     sdk = portable_sdk(ctx)

@@ -10,6 +10,10 @@ here, at analysis.
 load("//dart:providers.bzl", "DartInfo")
 load("//dart/private:dart_test_runner.bzl", "DartTestRunnerInfo")
 
+# Loaded by the BUILD files rules_dart writes into the repositories the `pub`
+# extension creates, which are other repositories.
+visibility("public")
+
 def _pub_resolved_package_impl(ctx):
     actual = ctx.attr.actual
     info = actual[DartInfo]

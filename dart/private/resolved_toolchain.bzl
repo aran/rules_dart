@@ -1,5 +1,7 @@
 """This module implements an alias rule to the resolved toolchain."""
 
+visibility("//dart/...")
+
 DOC = """\
 Exposes a concrete toolchain which is the result of Bazel resolving the
 toolchain for the execution or target platform.

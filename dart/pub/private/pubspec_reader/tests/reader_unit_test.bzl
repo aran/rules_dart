@@ -4,6 +4,8 @@ load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
 load("//dart/pub/private/pubspec_reader:reader.bzl", "file_uri", "host_platform")
 load("//dart/tests:small_suite.bzl", "small_unittest_suite")
 
+visibility("//dart/...")
+
 def _file_uri_test_impl(ctx):
     env = unittest.begin(ctx)
 

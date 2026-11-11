@@ -1,5 +1,7 @@
 """Picks one Dart SDK version per toolchain name from the versions modules request."""
 
+visibility("//dart/...")
+
 def _parse_version(v):
     """Splits a version string into a list of ints for comparison."""
     return [int(x) for x in v.split(".")]

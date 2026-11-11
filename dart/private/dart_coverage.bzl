@@ -14,6 +14,8 @@ test must carry: the sources Bazel instruments, in coverage builds only.
 load("//dart/private:common.bzl", "kernel_root_path", "runfiles_path")
 load("//dart/private:dart_info.bzl", "package_lib_prefix")
 
+visibility("//dart/...")
+
 # A test rule merges these into its `attrs`.
 COVERAGE_ATTRS = {
     # Run inside the test, so built for the platform the test runs on.

@@ -18,6 +18,8 @@ asks a repository to wait on itself.
 load("//dart/pub:pub_graph.bzl", "dependency_cycle", "dependency_graph", "read_pubspec_dependencies")
 load("//dart/pub/private:build_content.bzl", "make_pub_library_build_content")
 
+visibility("//dart/...")
+
 def source_repo(prefix, package):
     return "{}__{}".format(prefix, package)
 

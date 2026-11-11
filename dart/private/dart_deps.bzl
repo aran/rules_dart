@@ -14,6 +14,8 @@ provider's `exported`.
 
 load("//dart:providers.bzl", "DartInfo")
 
+visibility("//dart/...")
+
 # A rule whose `DartInfo` dependencies come from a toolchain rather than an
 # attribute (`dart_proto_library`'s protobuf runtime) names the toolchain types
 # in a private `label_list` of this name, so the aspects reach them too.

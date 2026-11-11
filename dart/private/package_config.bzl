@@ -8,6 +8,8 @@ This rule is useful for custom build scenarios.
 load("//dart:providers.bzl", "DartInfo", "DartPackageConfigInfo")
 load("//dart/private:common.bzl", "collect_packages", "collect_transitive_srcs", generate_package_config_fn = "generate_package_config")
 
+visibility("//dart/...")
+
 def _generate_package_config_impl(ctx):
     packages = collect_packages(ctx.attr.deps)
     all_srcs = collect_transitive_srcs(ctx.attr.deps).to_list()

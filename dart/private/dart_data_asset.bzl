@@ -14,6 +14,8 @@ bundler the same way.
 load("//dart:providers.bzl", "DartDataAssetInfo")
 load("//dart/private:runtime.bzl", "non_dart_transition")
 
+visibility("//dart/...")
+
 def parse_data_asset_ids(label, ids):
     """Splits data asset ids into package and name.
 

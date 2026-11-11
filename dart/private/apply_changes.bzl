@@ -8,6 +8,8 @@ the nested build finds it whatever name the user's module gives rules_dart.
 
 load("//dart/private:dart_binary.bzl", "dart_binary")
 
+visibility("//dart/...")
+
 _ASPECT = "%s%%dart_analyze" % Label("//dart:analyze.bzl")
 
 def apply_changes_binary(name, command, output_group):

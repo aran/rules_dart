@@ -5,6 +5,10 @@ locked package that depends on the package reach it, and analysing it fails
 with the reason the user gave. Nothing fails while nothing depends on it.
 """
 
+# Loaded by the BUILD files rules_dart writes into the repositories the `pub`
+# extension creates, which are other repositories.
+visibility("public")
+
 def _pub_ignored_package_impl(ctx):
     fail(("pub.from_lock(): package `%s` (in %s) is ignored: %s. Something depends on it; " +
           "remove that dependency, or build the package: name it in `resolve` or " +

@@ -33,6 +33,8 @@ load("//dart/private:project_staging.bzl", "resolve_package_exec_roots_from_outs
 load("//dart/private:resources.bzl", "analysis_resources")
 load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS", "package_record_for_index", "package_record_index")
 
+visibility("//dart/...")
+
 SUMMARIES_FLAG = "--@rules_dart//dart:analysis_summaries=false"
 
 DartSummaryAnalyzerInfo = provider(

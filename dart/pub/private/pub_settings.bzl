@@ -1,5 +1,7 @@
 """The `pub` extension's root-only statements: `pub.settings` and ignored hooks."""
 
+visibility("//dart/...")
+
 def root_only_settings(modules):
     """The root's `pub.settings` and ignored hooks, refusing either from any other module.
 

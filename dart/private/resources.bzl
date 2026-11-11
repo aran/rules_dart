@@ -21,6 +21,8 @@ peaks within 10% of it. The top tier is past what was measured; it keeps a
 larger program from taking a smaller one's share.
 """
 
+visibility("//dart/...")
+
 def analysis_resources(_os, _inputs):
     return {"cpu": 1, "memory": 700}
 

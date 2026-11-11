@@ -1,5 +1,7 @@
 """Dart SDK release versions and the SHA-256 checksums of what each fetches."""
 
+visibility("//dart/...")
+
 TOOL_VERSIONS = {
     "3.13.7": {
         "macos-arm64": "9f972ee1e1139cb4f845f35c7c77bef269dd2ec727b239fb17a2ebcb66d0fb2f",

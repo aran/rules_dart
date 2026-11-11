@@ -1,5 +1,7 @@
 """Where a Dart package is rooted, from the BUILD file of a target of it."""
 
+visibility("//dart/...")
+
 def locate_package_root(workspace_root, label_package, files = []):
     """The package root of a target, from the directory of its BUILD file.
 

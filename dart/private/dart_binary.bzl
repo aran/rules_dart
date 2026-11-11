@@ -26,6 +26,8 @@ load("//dart/private:exec_groups.bzl", "PORTABLE_EXEC_GROUPS")
 load("//dart/private:executable_package.bzl", "EXECUTABLE_PACKAGE_ATTRS", "executable_package")
 load("//dart/private:runtime.bzl", "dart_tool_reset")
 
+visibility("//dart/...")
+
 def binary_output_basename(name, compile_mode, is_windows):
     """Returns a `dart_binary`'s output filename with the platform exe extension.
 

@@ -16,6 +16,8 @@ web compilers reach it.
 # name, so the two never collide.
 _METADATA_TARGET = "pubspec-metadata"
 
+visibility("//dart/...")
+
 _LOAD = 'load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")\n'
 
 def _metadata_block(name, language_version, version = "", code_assets = [], build_hook = "", link_hook = "", license_file = ""):

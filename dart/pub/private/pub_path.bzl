@@ -23,6 +23,8 @@ The repository depends on files outside Bazel's control, so a rule calling
 this must not mark itself reproducible.
 """
 
+visibility("//dart/...")
+
 # The files that would make a directory of the repository a Bazel package or
 # a repository boundary.
 _BAZEL_FILES = ["BUILD", "BUILD.bazel", "MODULE.bazel", "REPO.bazel", "WORKSPACE", "WORKSPACE.bazel", "WORKSPACE.bzlmod"]

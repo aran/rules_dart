@@ -54,6 +54,8 @@ load(
 )
 load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS")
 
+visibility("//dart/...")
+
 def recorded_uses_file_error(label, files):
     """Checks a `recorded_uses` target without `DartRecordedUsesInfo`.
 

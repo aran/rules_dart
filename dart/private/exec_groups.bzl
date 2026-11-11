@@ -15,6 +15,8 @@ default group, keeps its toolchain under `--incompatible_auto_exec_groups`, so
 tool and SDK agree with the flag on or off.
 """
 
+visibility("//dart/...")
+
 PORTABLE = "portable"
 
 EXEC_TOOLS_TOOLCHAIN = Label("//dart:exec_tools_toolchain_type")

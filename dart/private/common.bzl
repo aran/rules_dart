@@ -7,6 +7,8 @@ load("//dart/private:package_root.bzl", "derive_package_root")
 load("//dart/private:resources.bzl", "kernel_resources")
 load("//dart/private:source_set.bzl", "needs_source_assembly", "package_for_index", "package_index")
 
+visibility("//dart/...")
+
 # Private attribute for detecting Windows at analysis time (for .exe extension).
 WINDOWS_CONSTRAINT_ATTR = {
     "_windows_constraint": attr.label(

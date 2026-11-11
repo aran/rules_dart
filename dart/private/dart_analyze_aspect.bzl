@@ -68,6 +68,8 @@ load("//dart/private:project_staging.bzl", "project_layout", "pubspec_stub", "st
 load("//dart/private:resources.bzl", "source_analysis_resources")
 load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS")
 
+visibility("//dart/...")
+
 # Analysis and formatting run on the build machine and produce nothing for the
 # target, so they run in `PORTABLE`, whose SDK is chosen by the execution
 # platform alone, as the codegen rules' is. With the target-platform type, a

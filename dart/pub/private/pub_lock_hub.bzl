@@ -5,6 +5,8 @@ Generates a BUILD file with an alias for each package a hub's locks name,
 repository, or the repository a `pub.package()` declaration made.
 """
 
+visibility("//dart/...")
+
 def _pub_lock_hub_impl(ctx):
     aliases = []
     for pkg, actual in sorted(ctx.attr.packages.items()):

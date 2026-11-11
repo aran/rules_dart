@@ -33,6 +33,8 @@ host.
 
 load("//dart/pub/private:pub_archive.bzl", "drop_escaping_links")
 
+visibility("//dart/...")
+
 # pub's own floor (`_minSupportedGitVersion`): older gits are not known to
 # behave as this asks.
 MIN_GIT_VERSION = (2, 14)

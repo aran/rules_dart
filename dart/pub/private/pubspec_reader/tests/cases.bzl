@@ -7,6 +7,8 @@ sdk_constraint, language_version, fields}}`. `reader_test.dart` checks it agains
 
 load("//dart/pub/private/pubspec_reader:reader.bzl", "run_pubspec_reader")
 
+visibility("//dart/...")
+
 def _cases_impl(rctx):
     testdata = rctx.path(Label("//dart/pub/private/pubspec_reader/tests:BUILD.bazel")).dirname.get_child("testdata")
     rctx.watch_tree(testdata)
