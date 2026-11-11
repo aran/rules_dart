@@ -33,12 +33,20 @@ import 'runner_snapshot.dart';
 /// test that hangs until Bazel kills it still leaves what it printed in
 /// test.log, and the launcher exits with the VM even if the test leaked a
 /// process that holds those streams open.
+/// The package config every VM this launcher starts is given, an empty one:
+/// without it the VM looks for one up from the program's directory, and
+/// outside a sandbox finds the workspace's own `.dart_tool`, through the exec
+/// root. A compiled program needs none, and what it would find depends on the
+/// strategy that ran it and whether `dart pub get` ever ran in the workspace.
+late final String _packagesOption;
+
 Future<void> main(List<String> args) async {
   // Beside the executable rather than in the environment, so that a test run
   // as another target's `data` runs its own kernel (`launcher_config.dart`).
   final config = readLauncherConfig('dart_test');
   final r = Runfiles.create();
   final dart = r.rlocation(config['dart'] as String);
+  _packagesOption = '--packages=${r.rlocation(config['packages'] as String)}';
   final environment = childEnvironment(Platform.environment, r.environment);
   final scratch = _Scratch(Platform.environment['TEST_TMPDIR']);
 
@@ -420,7 +428,7 @@ Future<int> _runDirectly(
   }
   final vm = await Process.start(
     dart,
-    ['--enable-asserts', dill, ...args],
+    [_packagesOption, '--enable-asserts', dill, ...args],
     workingDirectory: workingDirectory,
     environment: environment,
     includeParentEnvironment: false,
@@ -500,6 +508,7 @@ class CoverageRun {
         '--output=$_output',
         '--',
         dart,
+        _packagesOption,
         '--enable-vm-service=0',
         '--pause-isolates-on-exit',
         '--no-dds',
@@ -646,6 +655,7 @@ Future<int> _runUnderRunner({
     vm = await Process.start(
       dart,
       [
+        _packagesOption,
         '--enable-asserts',
         if (plan is StartFromSnapshot) plan.snapshot.path else runner,
         ...runnerArguments,
@@ -724,6 +734,7 @@ Future<int> _runUnderRunner({
     try {
       await plan.train(
         dart: dart,
+        vmOptions: [_packagesOption],
         runnerArguments: [
           runner,
           '--precompiled=$precompiled',
@@ -766,7 +777,7 @@ Future<int> _noteUnselected({
 }) async {
   final listing = await Process.run(
     dart,
-    [program, ...arguments],
+    [_packagesOption, program, ...arguments],
     workingDirectory: workingDirectory,
     environment: environment,
     includeParentEnvironment: false,

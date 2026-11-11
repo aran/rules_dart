@@ -1,0 +1,49 @@
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("//dart:defs.bzl", "dart_library")
+load(":rules.bzl", "downstream_launcher")
+load(":runtime_helpers_test.bzl", "runtime_helpers_split_test", "runtime_helpers_test")
+
+# A rule defined outside `dart/private` that carries the `data` of the libraries
+# it depends on, launches with the empty package config, and reads
+# `--@rules_dart//dart:split_debug_info`, over `//dart:utils.bzl` alone.
+
+dart_library(
+    name = "inner",
+    srcs = ["lib/inner.dart"],
+    data = ["data.txt"],
+    tags = ["manual"],
+)
+
+dart_library(
+    name = "outer",
+    srcs = ["lib/outer.dart"],
+    tags = ["manual"],
+    deps = [":inner"],
+)
+
+downstream_launcher(
+    name = "launcher",
+    tags = ["manual"],
+    deps = [":outer"],
+)
+
+runtime_helpers_test(
+    name = "runtime_helpers_test",
+    size = "small",
+    data_file = "dart/tests/runtime_helpers_fixture/data.txt",
+    target_under_test = ":launcher",
+)
+
+runtime_helpers_split_test(
+    name = "runtime_helpers_split_test",
+    size = "small",
+    data_file = "dart/tests/runtime_helpers_fixture/data.txt",
+    target_under_test = ":launcher",
+)
+
+bzl_library(
+    name = "rules",
+    srcs = ["rules.bzl"],
+    visibility = ["//visibility:public"],
+    deps = ["//dart:utils"],
+)

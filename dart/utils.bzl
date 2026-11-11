@@ -18,6 +18,7 @@ load(
 )
 load(
     "//dart/private:common.bzl",
+    _EMPTY_PACKAGE_CONFIG_ATTR = "EMPTY_PACKAGE_CONFIG_ATTR",
     _PATH_MAPPING = "PATH_MAPPING",
     _add_kernel_roots = "add_kernel_roots",
     _code_asset_identity = "code_asset_identity",
@@ -28,6 +29,7 @@ load(
     _collect_transitive_runfiles = "collect_transitive_runfiles",
     _collect_transitive_srcs = "collect_transitive_srcs",
     _derive_package_name = "derive_package_name",
+    _empty_package_config = "empty_package_config",
     _executable_package_record = "executable_package_record",
     _generate_dev_package_config = "generate_dev_package_config",
     _generate_package_config = "generate_package_config",
@@ -453,6 +455,13 @@ add_kernel_roots = _add_kernel_roots
 # true it declares that file, passes it to `dart_compile_action` as
 # `debug_info`, and returns it in a `debug_info` output group.
 #
+# A launcher that runs a program through the VM gives it the file
+# `empty_package_config(ctx)` as `--packages` (merge `EMPTY_PACKAGE_CONFIG_ATTR`
+# into the rule's `attrs`, add the file to the launcher's runfiles and pass its
+# `runfiles_path`), as `dart_binary` and `dart_test` do: the VM then does not
+# look for a package config up from the program, where outside a sandbox it
+# finds the workspace's own `.dart_tool` through the exec root.
+#
 # `dart compile` over a kernel, or over a script that imports only `dart:`
 # libraries and `sources` beside it, in the toolchain's SDK (a cross
 # toolchain's too): the one action `dart_binary` and the pub runner build
@@ -463,6 +472,8 @@ KERNEL_TOOL_ATTR = _KERNEL_TOOL_ATTR
 KERNEL_LIST_ATTR = _KERNEL_LIST_ATTR
 SPLIT_DEBUG_INFO_ATTR = _SPLIT_DEBUG_INFO_ATTR
 split_debug_info = _split_debug_info
+EMPTY_PACKAGE_CONFIG_ATTR = _EMPTY_PACKAGE_CONFIG_ATTR
+empty_package_config = _empty_package_config
 kernel_list = _kernel_list
 MODULAR_KERNEL_ATTR = _MODULAR_KERNEL_ATTR
 modular_kernel = _modular_kernel

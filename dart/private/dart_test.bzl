@@ -15,11 +15,13 @@ load("//dart/private:build_settings.bzl", "EXTRA_DART_DEFINES_ATTR", "KERNEL_LIS
 load(
     "//dart/private:common.bzl",
     "DART_ABI_CONSTRAINT_ATTRS",
+    "EMPTY_PACKAGE_CONFIG_ATTR",
     "check_unreplaced_hooks",
     "code_asset_entries",
     "collect_transitive_code_assets",
     "collect_transitive_resources",
     "collect_transitive_runfiles",
+    "empty_package_config",
     "generate_native_assets_yaml",
     "kernel_root_path",
     "launcher_executable",
@@ -107,6 +109,8 @@ def _dart_test_impl(ctx):
     # however it is started, as another target's `data` included.
     config = {
         "dart": runfiles_path(dart_sdk_info.dart, workspace_name),
+        # Every VM the launcher starts is given it (see `test_runner.dart`).
+        "packages": runfiles_path(empty_package_config(ctx), workspace_name),
         "dill": runfiles_path(dill, workspace_name),
         # The test runs in its package's root, as under `dart test`. The test
         # file, at its path from there, tells the launcher that a runfiles tree
@@ -122,7 +126,7 @@ def _dart_test_impl(ctx):
         # (see `_code_assets`).
         config["kernel_list"] = True
         config["code_asset_libraries"] = [runfiles_path(lib, workspace_name) for lib in runtime_libs]
-    launcher_files = [ctx.file.main]
+    launcher_files = [ctx.file.main, empty_package_config(ctx)]
     config.update(_tag_selection(ctx, runner))
     if runner:
         config["runner"] = runfiles_path(runner.runner, workspace_name)
@@ -511,7 +515,7 @@ entry does not run. A target none of whose cases remain fails. \
             executable = True,
             cfg = "target",
         ),
-    }, **dict(COVERAGE_ATTRS, **dict(DART_ABI_CONSTRAINT_ATTRS, **dict(KERNEL_LIST_ATTR, **dict(MODULAR_KERNEL_ATTR, **dict(RUNNER_SNAPSHOT_ATTR, **dict(EXTRA_DART_DEFINES_ATTR, **dict(TRACK_CREATION_LOCATIONS_ATTR, **dict(MODULE_EXECUTABLE_ATTRS, **dict(PROGRAM_KERNEL_SDK_ATTR, **dict(_ENVIRONMENT.attrs, **EXECUTABLE_PACKAGE_ATTRS))))))))))),
+    }, **dict(EMPTY_PACKAGE_CONFIG_ATTR, **dict(COVERAGE_ATTRS, **dict(DART_ABI_CONSTRAINT_ATTRS, **dict(KERNEL_LIST_ATTR, **dict(MODULAR_KERNEL_ATTR, **dict(RUNNER_SNAPSHOT_ATTR, **dict(EXTRA_DART_DEFINES_ATTR, **dict(TRACK_CREATION_LOCATIONS_ATTR, **dict(MODULE_EXECUTABLE_ATTRS, **dict(PROGRAM_KERNEL_SDK_ATTR, **dict(_ENVIRONMENT.attrs, **EXECUTABLE_PACKAGE_ATTRS)))))))))))),
     test = True,
     # The compiles are `portable`. The run is Bazel's own `test` group, which
     # puts it on a host matching the target: everything it runs, the VM and

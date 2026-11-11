@@ -1,0 +1,63 @@
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("//dart:defs.bzl", "dart_binary", "dart_test")
+load(":executable.bzl", "executable_of")
+
+# Each way rules_dart starts a program in the Dart VM gives it an empty package
+# config (`check.dart`). An `exe` is its own executable and has no launcher.
+
+dart_test(
+    name = "plain_test",
+    size = "small",
+    main = "check.dart",
+)
+
+dart_test(
+    name = "runner_test",
+    size = "small",
+    srcs = ["check.dart"],
+    main = "runner_check_test.dart",
+    deps = ["@ext_pub_deps//:test"],
+)
+
+[
+    dart_binary(
+        name = mode,
+        compile_mode = mode,
+        main = "check.dart",
+        tags = ["manual"],
+    )
+    for mode in [
+        "kernel",
+        "aot-snapshot",
+    ]
+]
+
+[
+    executable_of(
+        name = mode + "_executable",
+        actual = ":" + mode,
+        tags = ["manual"],
+    )
+    for mode in [
+        "kernel",
+        "aot-snapshot",
+    ]
+]
+
+dart_test(
+    name = "binary_test",
+    size = "small",
+    data = [
+        ":aot-snapshot_executable",
+        ":kernel_executable",
+    ],
+    env = {"PROGRAMS": "$(rlocationpath :kernel_executable) $(rlocationpath :aot-snapshot_executable)"},
+    main = "driver.dart",
+    deps = ["//dart/runfiles"],
+)
+
+bzl_library(
+    name = "executable",
+    srcs = ["executable.bzl"],
+    visibility = ["//visibility:public"],
+)

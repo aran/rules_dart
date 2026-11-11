@@ -5,11 +5,13 @@ load("//dart/private:build_settings.bzl", "EXTRA_DART_DEFINES_ATTR", "SPLIT_DEBU
 load(
     "//dart/private:common.bzl",
     "DART_ABI_CONSTRAINT_ATTRS",
+    "EMPTY_PACKAGE_CONFIG_ATTR",
     "check_unreplaced_hooks",
     "code_asset_entries",
     "collect_transitive_code_assets",
     "collect_transitive_resources",
     "collect_transitive_runfiles",
+    "empty_package_config",
     "generate_native_assets_yaml",
     "launcher_executable",
     "resolve_code_assets",
@@ -241,8 +243,13 @@ def _launcher(ctx, sdk, compile_mode, output):
         vm = dart
 
     # A kernel keeps its asserts for the VM that runs it to enable, which is
-    # this launcher; an AOT snapshot was compiled with them or without.
-    flags = get_compilation_mode_flags(ctx, "kernel") if compile_mode == "kernel" else []
+    # this launcher; an AOT snapshot was compiled with them or without. An
+    # empty package config stops the VM looking for one up from the program,
+    # where outside a sandbox it finds the workspace's own `.dart_tool`
+    # through the exec root.
+    packages = empty_package_config(ctx)
+    flags = [{"rlocation": runfiles_path(packages, ctx.workspace_name), "prefix": "--packages="}]
+    flags += get_compilation_mode_flags(ctx, "kernel") if compile_mode == "kernel" else []
     launcher = launcher_executable(ctx, ctx.attr._launcher)
     config = ctx.actions.declare_file(ctx.label.name + ".launcher.json")
     ctx.actions.write(
@@ -255,7 +262,7 @@ def _launcher(ctx, sdk, compile_mode, output):
     return struct(
         executable = launcher.executable,
         runfiles = ctx.runfiles(
-            files = [output, config],
+            files = [output, config, packages],
             transitive_files = sdk.files.aot_run if compile_mode == "aot-snapshot" else sdk.files.run,
         ).merge(launcher.runfiles),
     )
@@ -294,7 +301,7 @@ _LAUNCHER_ATTR = {
         executable = True,
         cfg = "target",
     ),
-}
+} | EMPTY_PACKAGE_CONFIG_ATTR
 
 def _dart_binary_rule(check_imports, compile_runner = True, launcher = True):
     return rule(

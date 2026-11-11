@@ -898,6 +898,30 @@ def merged_package_record(label, package_name, package_root, metadata, records):
         )
     return merge_package_records([own] + list(records))[0]
 
+EMPTY_PACKAGE_CONFIG_ATTR = {
+    "_empty_package_config": attr.label(
+        doc = "A package config naming no packages, passed to the VM as `--packages`.",
+        default = "//dart/private/tools:empty_package_config.json",
+        allow_single_file = True,
+    ),
+}
+
+def empty_package_config(ctx):
+    """The package config a launched program is given as `--packages`: one naming no package.
+
+    A launcher that passes it stops the VM looking for a package config up from
+    the program, where outside a sandbox it finds the workspace's own
+    `.dart_tool` through the exec root. Add the file to the launcher's runfiles
+    and pass its `runfiles_path`.
+
+    Args:
+      ctx: Rule context carrying `_empty_package_config`.
+
+    Returns:
+      The `File`.
+    """
+    return ctx.file._empty_package_config
+
 def launcher_executable(ctx, tool):
     """Symlinks a pre-compiled launcher as a rule's executable, `<name>[.exe]`.
 

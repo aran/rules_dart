@@ -244,13 +244,14 @@ final class TrainSnapshot extends RunnerSnapshotPlan {
   final RunnerSnapshotCache _cache;
   final File into;
 
-  /// Trains the snapshot by running [dart] with [runnerArguments] (the
-  /// runner's kernel and its arguments) and puts it in place, unless one is
-  /// there by now or another run is training it.
+  /// Trains the snapshot by running [dart] with [vmOptions], then
+  /// [runnerArguments] (the runner's kernel and its arguments), and puts it
+  /// in place, unless one is there by now or another run is training it.
   ///
   /// Throws a [RunnerSnapshotException] if the VM writes none.
   Future<void> train({
     required String dart,
+    List<String> vmOptions = const [],
     required List<String> runnerArguments,
     required String? workingDirectory,
     required Map<String, String> environment,
@@ -264,6 +265,7 @@ final class TrainSnapshot extends RunnerSnapshotPlan {
           result = await Process.run(
             dart,
             [
+              ...vmOptions,
               '--enable-asserts',
               '--snapshot-kind=app-jit',
               '--snapshot=${into.path}',

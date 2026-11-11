@@ -421,6 +421,15 @@ dart_test(
     ],
 )
 
+# The package config a compiled program run by `dart_binary`'s launcher or
+# `dart_test`'s is given: none of its packages, so the VM does not look for
+# one up from the program, where it would find the workspace's own
+# `.dart_tool` through the exec root.
+exports_files(
+    ["empty_package_config.json"],
+    visibility = ["//visibility:public"],
+)
+
 # Strips a target's kernel modules to the outlines dependents compile against
 # (`--@rules_dart//dart:outline_kernel`). Each `dart_kernel_source` repository
 # builds it on its own SDK's `pkg/kernel`, which must match the SDK whose

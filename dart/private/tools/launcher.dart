@@ -8,7 +8,8 @@
 //   executable         runfiles path of the program to start (`dart`,
 //                      `dartaotruntime`)
 //   arguments          its leading arguments, each a string or
-//                      `{"rlocation": <runfiles path>}`
+//                      `{"rlocation": <runfiles path>, "prefix": <string>}`,
+//                      the file's path after the optional prefix
 //   environment        variables to add to the caller's
 //   working_directory  `invocation` to start in the directory `bazel run`
 //                      was invoked from; otherwise the launcher's own
@@ -25,9 +26,11 @@ import 'launcher_config.dart';
 Future<void> main(List<String> args) async {
   final config = readLauncherConfig('launcher');
   final r = Runfiles.create();
-  String resolve(Object? entry) => entry is String
-      ? entry
-      : r.rlocation((entry as Map<String, dynamic>)['rlocation'] as String);
+  String resolve(Object? entry) {
+    if (entry is String) return entry;
+    final file = entry as Map<String, dynamic>;
+    return '${file['prefix'] ?? ''}${r.rlocation(file['rlocation'] as String)}';
+  }
 
   String? workingDirectory;
   if (config['working_directory'] == 'invocation') {
