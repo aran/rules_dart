@@ -54,6 +54,9 @@ void main(List<String> arguments) {
           '',
         ].join('\n'),
         'macho' => [for (final symbol in symbols) '_$symbol', ''].join('\n'),
+        // Exporting nothing, the file is empty, as `cc_binary` passes one so
+        // that the linker still writes the import library Bazel declares.
+        _ when symbols.isEmpty => '',
         _ => [
           'EXPORTS',
           for (final symbol in symbols) '    $symbol',

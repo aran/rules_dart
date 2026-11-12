@@ -471,6 +471,15 @@ def _native_link_test_impl(ctx):
     if not ctx.attr.linked:
         asserts.equals(env, [], symbols)
         asserts.equals(env, [], exports)
+
+        # A DLL exports nothing, and the linker writes no import library,
+        # unless a module-definition file lists what it exports: all of it.
+        all_exports = _actions(env, "DefParser")
+        if library.extension == "dll":
+            asserts.equals(env, 1, len(all_exports))
+            asserts.true(env, all_exports[0].outputs.to_list()[0] in links[0].inputs.to_list(), str(links[0].inputs.to_list()))
+        else:
+            asserts.equals(env, [], all_exports)
         return analysistest.end(env)
     asserts.equals(env, 1, len(symbols))
     uses = [f for f in symbols[0].inputs.to_list() if f.basename == "uses.json"]

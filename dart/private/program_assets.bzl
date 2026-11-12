@@ -38,7 +38,8 @@ file Bazel writes from mapped paths, in the line format `ProgramAssets.read`
 (`@rules_dart//dart/program_assets`) reads, and which the README documents.
 """
 
-load("@rules_cc//cc:find_cc_toolchain.bzl", "find_cc_toolchain", "use_cc_toolchain")
+load("@rules_cc//cc:action_names.bzl", "ACTION_NAMES")
+load("@rules_cc//cc:find_cc_toolchain.bzl", "CC_TOOLCHAIN_TYPE", "find_cc_toolchain", "use_cc_toolchain")
 load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
 load("//dart:providers.bzl", "DartCodeAssetInfo", "DartInfo", "DartProgramAssetsInfo", "DartRecordedUsesInfo")
 load(
@@ -309,8 +310,14 @@ def _runfiles_lines(ctx, info):
     ])
 
 # What an unlinked program's assets need beside `DART_ABI_CONSTRAINT_ATTRS`:
-# how the target's linker names a library's exports.
+# how the target's linker names a library's exports, and, for Windows, the
+# tool that lists every symbol a library's objects define, as `cc_binary`'s.
 UNLINKED_PROGRAM_ASSETS_ATTRS = {
+    "_def_parser": attr.label(
+        default = "@bazel_tools//tools/def_parser:def_parser",
+        allow_single_file = True,
+        cfg = "exec",
+    ),
     "_os_ios": attr.label(default = "@platforms//os:ios"),
 }
 
@@ -478,7 +485,11 @@ def _native_link(ctx, pkg, linked, recorded_uses, name):
     can, as upstream's `LinkerOptions.treeshake` links it: an ELF version
     script with `--gc-sections`, a Mach-O exported-symbols list with
     `-dead_strip`, or a Windows module-definition file. Unlinked, it exports
-    everything, as a build hook's library does.
+    everything, as a build hook's library does: on Windows, through a
+    module-definition file listing every symbol its own objects define, as
+    `cc_binary` writes one under `windows_export_all_symbols`. A Windows DLL is
+    always linked with a module-definition file, which makes the linker write
+    the import library Bazel declares beside it even when nothing is exported.
 
     Returns:
       The program's `DartCodeAssetInfo` for it.
@@ -491,8 +502,7 @@ def _native_link(ctx, pkg, linked, recorded_uses, name):
     feature_configuration = cc_common.configure_features(
         ctx = ctx,
         cc_toolchain = cc_toolchain,
-        # Unlinked, a Windows DLL exports nothing unless told to.
-        requested_features = ctx.features + (["windows_export_all_symbols"] if recorded_uses == None else []),
+        requested_features = ctx.features,
         unsupported_features = ctx.disabled_features,
     )
     prefix = "%s/%s/%s" % (name, pkg.package_name, linked.name)
@@ -500,8 +510,14 @@ def _native_link(ctx, pkg, linked, recorded_uses, name):
     # The library's own objects are linked whole, as a `cc_shared_library`'s
     # `deps` are; what it depends on, as the link needs.
     linker_inputs = []
+    objects = []
     for linker_input in linked.library.linking_context.linker_inputs.to_list():
         if linker_input.owner == linked.owner:
+            for library_to_link in linker_input.libraries:
+                if library_to_link.pic_static_library != None:
+                    objects.extend(library_to_link.pic_objects or [])
+                elif library_to_link.static_library != None:
+                    objects.extend(library_to_link.objects or [])
             linker_input = cc_common.create_linker_input(
                 owner = linker_input.owner,
                 libraries = depset([
@@ -521,10 +537,15 @@ def _native_link(ctx, pkg, linked, recorded_uses, name):
             )
         linker_inputs.append(linker_input)
 
+    library = ctx.actions.declare_file("%s/%s/%s" % (name, pkg.package_name, library_name % linked.name))
     user_link_flags = []
     additional_inputs = []
     variables = {}
-    if recorded_uses != None:
+    if recorded_uses == None and link_format == "def":
+        exports = _windows_export_all(ctx, cc_toolchain, feature_configuration, objects, library, prefix)
+        additional_inputs.append(exports)
+        variables["def_file_path"] = exports.path
+    elif recorded_uses != None:
         symbols = ctx.actions.declare_file(prefix + ".symbols")
         args = ctx.actions.args()
         args.add(recorded_uses.file)
@@ -561,7 +582,6 @@ def _native_link(ctx, pkg, linked, recorded_uses, name):
         else:
             variables["def_file_path"] = exports.path
             user_link_flags = ["/OPT:REF"]
-    library = ctx.actions.declare_file("%s/%s/%s" % (name, pkg.package_name, library_name % linked.name))
     cc_common.link(
         actions = ctx.actions,
         name = prefix,
@@ -580,6 +600,58 @@ def _native_link(ctx, pkg, linked, recorded_uses, name):
         file = library,
         uri = "",
     )
+
+def _windows_export_all(ctx, cc_toolchain, feature_configuration, objects, library, prefix):
+    """Writes the module-definition file exporting every symbol `objects` define.
+
+    As `cc_binary` writes one under `windows_export_all_symbols`: with the
+    toolchain's `generate-def-file` action if it has one, else Bazel's DEF
+    parser.
+
+    Returns:
+      The module-definition file.
+    """
+    exports = ctx.actions.declare_file(prefix + ".all.def")
+    args = ctx.actions.args()
+    args.add(exports)
+    args.add(library.basename)
+    objects_args = ctx.actions.args()
+    objects_args.use_param_file("@%s", use_always = True)
+    objects_args.set_param_file_format("shell")
+    objects_args.add_all(objects)
+    action = ACTION_NAMES.generate_def_file
+    if cc_common.action_is_enabled(feature_configuration = feature_configuration, action_name = action):
+        executable = cc_common.get_tool_for_action(feature_configuration = feature_configuration, action_name = action)
+        inputs = depset(objects, transitive = [cc_toolchain.all_files])
+        env = cc_common.get_environment_variables(
+            feature_configuration = feature_configuration,
+            action_name = action,
+            variables = cc_common.empty_variables(),
+        )
+        execution_requirements = {
+            requirement: ""
+            for requirement in cc_common.get_execution_requirements(feature_configuration = feature_configuration, action_name = action)
+        }
+        toolchain = CC_TOOLCHAIN_TYPE
+    else:
+        executable = ctx.file._def_parser
+        inputs = objects
+        env = {}
+        execution_requirements = {}
+        toolchain = None
+    ctx.actions.run(
+        executable = executable,
+        arguments = [args, objects_args],
+        inputs = inputs,
+        outputs = [exports],
+        env = env,
+        execution_requirements = execution_requirements,
+        use_default_shell_env = True,
+        mnemonic = "DefParser",
+        progress_message = "Listing every symbol %s exports" % library.short_path,
+        toolchain = toolchain,
+    )
+    return exports
 
 def _link_hook_actions(ctx, packages, package, hooked, data_assets, code_assets, code_config, deps, recorded_uses, name):
     """Runs the link hook of each package in `hooked` over the program's uses.
