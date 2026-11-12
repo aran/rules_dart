@@ -816,10 +816,9 @@ class TestWorkingDirectoryException implements Exception {
 ///
 /// That is the directory in [runfiles]' tree. Where there is no tree holding
 /// it (Windows by default, or `--noenable_runfiles`), the manifest is all
-/// there is, and the runfiles are laid out from it under a directory
-/// [scratch] makes, as a tree holds them, less the launcher's own files
-/// ([layout]), so that the test finds what it reads at the same paths from
-/// where it runs.
+/// there is, and the runfiles the test brings ([layout]) are laid out from it
+/// under a directory [scratch] makes, as a tree holds them, so that the test
+/// finds what it reads at the same paths from where it runs.
 String testWorkingDirectory({
   required Runfiles runfiles,
   required String directory,
@@ -865,35 +864,27 @@ String testWorkingDirectory({
 }
 
 /// Which runfiles a test's working directory holds where there is no
-/// runfiles tree: every one but the launcher's [own], except that those the
-/// test reads by its path ([readable], its `data` and its source) are there
-/// even when the launcher uses them too.
+/// runfiles tree: those the test itself brings, its source, its `data` and
+/// its libraries' resources and `data`, which `dart_test` lists beside the
+/// launcher. Not the launcher's own (the VM, the kernels, the runner), which
+/// it finds through the manifest, nor what the manifest lists for another
+/// test that runs this one as its `data`.
 class RunfilesLayout {
-  RunfilesLayout({required this.own, required this.readable});
+  RunfilesLayout(this.laidOut);
 
-  /// The two lists `dart_test` writes beside the launcher, which are the
-  /// launcher's own files too.
-  static RunfilesLayout read(Runfiles runfiles, Map<String, dynamic> config) {
-    final workspace = config['workspace'] as String;
-    Set<String> list(String key) => {
-      config[key] as String,
-      ...runfilesPaths(
-        File(runfiles.rlocation(config[key] as String)).readAsLinesSync(),
-        workspace: workspace,
-      ),
-    };
-    final readable = list('readable')..remove(config['readable']);
-    return RunfilesLayout(
-      own: {...list('own_files'), config['readable'] as String},
-      readable: readable,
-    );
-  }
+  static RunfilesLayout read(Runfiles runfiles, Map<String, dynamic> config) =>
+      RunfilesLayout(
+        runfilesPaths(
+          File(runfiles.rlocation(config['laid_out'] as String))
+              .readAsLinesSync(),
+          workspace: config['workspace'] as String,
+        ),
+      );
 
-  final Set<String> own;
-  final Set<String> readable;
+  final Set<String> laidOut;
 
   /// Whether the runfile at runfiles path [path] is laid out.
-  bool holds(String path) => readable.contains(path) || !own.contains(path);
+  bool holds(String path) => laidOut.contains(path);
 }
 
 /// The runfiles paths of the `short_path`s in [lines]: one in the main

@@ -599,35 +599,42 @@ void main(List<String> args) {
       );
     });
 
-    // The launcher's own files, its program and its kernels, are not copied.
-    test('the launcher\'s own files are not laid out', () async {
+    // Only what the test brings is laid out: not the launcher's own files,
+    // its program and its kernels, nor the rest of this test's runfiles,
+    // whose manifest the fixture is given. The fixture brings its source
+    // alone, and runs at its repository's root, where that is at its path.
+    test('only the runfiles the test brings are laid out', () async {
       final result = await runAsBazelRun(args[0], arguments: ['files']);
       expectRan(result);
       final config = configOf(runfiles.rlocation(args[0]));
-      // It runs at its repository's root, where a main-repository file is
-      // at its `short_path`.
-      final own = File(runfiles.rlocation(config['own_files'] as String))
-          .readAsLinesSync()
-          .where((p) => p.isNotEmpty && !p.startsWith('../'));
-      final laidOut = '${result.stdout}'.trim().split(RegExp(r'\r?\n'));
-      expect(own, isNotEmpty);
-      expect(laidOut, contains(config['test_path']));
-      expect(laidOut.toSet().intersection(own.toSet()), {config['test_path']});
+      expect('${result.stdout}'.trim().split(RegExp(r'\r?\n')), [
+        config['test_path'],
+      ]);
     });
 
     // A repository's files can be symlinks, as a git package's are; each is
     // laid out as what it points at, alone or inside a directory.
     test('symlinked runfiles are laid out', () async {
-      final workspace = configOf(runfiles.rlocation(args[0]))['workspace'];
+      final config = configOf(runfiles.rlocation(args[0]));
+      final workspace = config['workspace'];
       final real = File('${tmp.path}/real.txt')..writeAsStringSync('x');
       final link = Link('${tmp.path}/link.txt')..createSync('real.txt');
       final tree = Directory('${tmp.path}/tree')..createSync();
       File('${tree.path}/real.txt').writeAsStringSync('x');
       Link('${tree.path}/link.txt').createSync('real.txt');
+      // The fixture brings them, as a test brings its `data`.
+      final listed = config['laid_out'] as String;
+      final brought = File('${tmp.path}/laid_out')
+        ..writeAsStringSync(
+          '${File(runfiles.rlocation(listed)).readAsStringSync()}'
+          'linked.txt\nplain.txt\ntree\n',
+        );
       final result = await runAsBazelRun(
         args[0],
         arguments: ['files'],
+        without: listed,
         extra: [
+          '$listed ${brought.path}',
           '$workspace/linked.txt ${link.path}',
           '$workspace/plain.txt ${real.path}',
           '$workspace/tree ${tree.path}',
