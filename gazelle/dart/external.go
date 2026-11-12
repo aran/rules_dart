@@ -51,7 +51,7 @@ func rootBuilders(c *config.Config) ([]*builderInfo, error) {
 	if err != nil || f == nil {
 		return nil, err
 	}
-	where := path.Base(f.Path)
+	where := filepath.Base(f.Path)
 	taken := map[string]string{} // annotation or macro kind -> who has it
 	for _, b := range defaultBuilders() {
 		taken[b.Annotation] = "a builder rules_dart ships"
@@ -175,7 +175,7 @@ func (d *dartLang) refuseNestedBuilders(rel string, f *rule.File) {
 			d.errs.add(fmt.Sprintf(
 				"dart: %s: `# gazelle:%s` registers a builder for the whole repository, "+
 					"and Gazelle reads it only from the BUILD file at the repository's root; move it there",
-				path.Join(rel, path.Base(f.Path)), keyBuilder))
+				path.Join(rel, filepath.Base(f.Path)), keyBuilder))
 		}
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -58,7 +59,7 @@ func (d *dartLang) libDirRules(args language.GenerateArgs, root string) language
 				"`dart_library` in %s holds every file under lib/, which a BUILD "+
 				"file under lib/ would cut off, so move what it holds there and "+
 				"delete it",
-			path.Join(args.Rel, path.Base(f.Path)), strings.Join(own, ", "),
+			path.Join(args.Rel, filepath.Base(f.Path)), strings.Join(own, ", "),
 			path.Join(root, "BUILD.bazel")))
 		return language.GenerateResult{}
 	}
@@ -74,7 +75,7 @@ func (d *dartLang) libDirRules(args language.GenerateArgs, root string) language
 		d.errs.add(fmt.Sprintf(
 			"dart: %s is under the package's lib/, whose files the package's "+
 				"`dart_library` in %s holds; Gazelle deletes it when run in fix mode",
-			path.Join(args.Rel, path.Base(f.Path)), path.Join(root, "BUILD.bazel")))
+			path.Join(args.Rel, filepath.Base(f.Path)), path.Join(root, "BUILD.bazel")))
 	}
 	return res
 }

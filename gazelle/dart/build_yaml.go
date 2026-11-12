@@ -53,8 +53,8 @@ type buildYamlRead struct {
 	// and the line of their key.
 	optionsAt map[string]buildYamlPart
 	parts     []buildYamlPart
-	errors []string
-	unread bool
+	errors    []string
+	unread    bool
 }
 
 // buildYamlIgnore is one `dart_build_yaml_ignore` directive: the key path it
@@ -87,7 +87,7 @@ func (s *buildYamlState) configureIgnores(rel string, f *rule.File) {
 		}
 		s.ignores[rel] = append(s.ignores[rel], buildYamlIgnore{
 			path: strings.TrimSpace(d.Value),
-			file: path.Join(rel, path.Base(f.Path)),
+			file: path.Join(rel, filepath.Base(f.Path)),
 		})
 	}
 }

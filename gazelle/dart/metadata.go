@@ -146,7 +146,7 @@ func moveCodeAssets(r *rule.Rule, root string, f *rule.File) {
 		if existing != nil && existing.Attr("code_assets") != nil {
 			log.Printf("dart: %s: removing `code_assets` from %q, as `dart_library` "+
 				"takes none; the package's `dart_package_metadata` %q states its own, "+
-				"so add any of these it lacks there", path.Join(root, path.Base(f.Path)),
+				"so add any of these it lacks there", path.Join(root, filepath.Base(f.Path)),
 				lib.Name(), r.Name())
 			continue
 		}
