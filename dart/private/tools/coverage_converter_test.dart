@@ -38,11 +38,21 @@ void main(List<String> args) {
   void source(String name, [String content = '\n\n\n\n\n\n\n']) =>
       write('runfiles/_main/$name', content);
 
+  /// Runs the converter with [env] and none of this test's own coverage or
+  /// runfiles variables. Not an empty environment: Windows refuses to start a
+  /// process with one.
   Future<ProcessResult> run(Map<String, String> env, List<String> flags) =>
       Process.run(
         converter,
         flags,
-        environment: env,
+        environment: {
+          for (final MapEntry(:key, :value) in Platform.environment.entries)
+            if (!key.startsWith('COVERAGE_') &&
+                !key.startsWith('RUNFILES_') &&
+                key != 'JAVA_RUNFILES')
+              key: value,
+          ...env,
+        },
         includeParentEnvironment: false,
       );
 
