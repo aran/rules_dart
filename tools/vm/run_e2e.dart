@@ -40,13 +40,16 @@ Future<void> main(List<String> args) async {
   if (positional.isEmpty) {
     stderr.writeln(
       'Usage: dart run tools/vm/run_e2e.dart <vm-name> [--windows] '
-      '[--folders=a,b,c] [--keep-going]',
+      '[--folders=a,b,c] [--keep-going] [--remote-cache=<url>]',
     );
     exit(2);
   }
   final vmName = positional.first;
   final isWindows = args.contains('--windows');
   final keepGoing = args.contains('--keep-going');
+  final remoteCache = args
+      .firstWhere((a) => a.startsWith('--remote-cache='), orElse: () => '')
+      .replaceFirst('--remote-cache=', '');
   final foldersArg = args
       .firstWhere((a) => a.startsWith('--folders='), orElse: () => '')
       .replaceFirst('--folders=', '');
@@ -96,6 +99,12 @@ Future<void> main(List<String> args) async {
       "git -c user.name=e2e -c user.email=e2e@localhost commit -qm HEAD'",
     );
   }
+
+  await _writeHomeBazelrc(
+    vmName,
+    isWindows: isWindows,
+    remoteCache: remoteCache,
+  );
 
   // 3. Run each folder.
   final results = <_FolderResult>[];
@@ -159,6 +168,52 @@ Future<void> main(List<String> args) async {
     stdout.writeln(r.tail);
   }
   exit(1);
+}
+
+/// Writes the VM's home bazelrc, which every folder's Bazel reads:
+///
+/// - one disk cache for all folders, so each e2e workspace reuses the
+///   rules_dart tools (workers, analyzer, kernel tool) the first one built,
+///   bounded to fit the boot disk;
+/// - an idle timeout and a heap cap, so the server each folder leaves behind
+///   exits and none takes a quarter of the VM's memory;
+/// - `--keep_going`, so one run reports every failure in a folder rather
+///   than stopping at the first, as CI does;
+/// - with `--remote-cache=<url>`, a remote cache besides the disk cache, so
+///   VMs running different folders in parallel share what each builds.
+Future<void> _writeHomeBazelrc(
+  String vmName, {
+  required bool isWindows,
+  required String remoteCache,
+}) async {
+  // Bazel expands a leading `~/` in path options.
+  final diskCache = isWindows ? 'C:/bdc' : '~/.cache/bazel-disk';
+  final maxSize = isWindows ? '40G' : '20G';
+  final rc = [
+    'startup --max_idle_secs=900',
+    'startup --host_jvm_args=-Xmx4g',
+    'common --disk_cache=$diskCache',
+    'common --experimental_disk_cache_gc_max_size=$maxSize',
+    'common --experimental_disk_cache_gc_max_age=7d',
+    'common --keep_going',
+    // A cache several VMs share, such as a GCS bucket the VM's service
+    // account may write (create_*_vm gives it the storage-rw scope).
+    if (remoteCache.isNotEmpty) ...[
+      'common --remote_cache=$remoteCache',
+      'common --google_default_credentials',
+    ],
+  ].join('\n');
+  final local = File('${Directory.systemTemp.path}/rules_dart_vm_bazelrc')
+    ..writeAsStringSync('$rc\n');
+  if (isWindows) {
+    await scpToVm(vmName, local.path, 'C:/rd_bazelrc');
+    await sshRun(
+      vmName,
+      r'cmd /c copy /y C:\rd_bazelrc "%USERPROFILE%\.bazelrc"',
+    );
+  } else {
+    await scpToVm(vmName, local.path, '~/.bazelrc');
+  }
 }
 
 /// Runs CI's [command] in [folder]. On Linux the command is CI's own, which

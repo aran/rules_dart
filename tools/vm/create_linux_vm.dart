@@ -78,7 +78,8 @@ Future<void> main(List<String> args) async {
       '--instance-termination-action=DELETE',
       '--boot-disk-size=50GB',
       '--metadata-from-file=startup-script=${tmpStartup.path}',
-      '--scopes=default',
+      // storage-rw: run_e2e's --remote-cache, a bucket the VMs share.
+      '--scopes=default,storage-rw',
     ]);
   } finally {
     tmpDir.deleteSync(recursive: true);

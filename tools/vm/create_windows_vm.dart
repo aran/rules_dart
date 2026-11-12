@@ -101,7 +101,8 @@ Future<void> main(List<String> args) async {
       '--metadata=enable-windows-ssh=TRUE',
       '--metadata-from-file=sysprep-specialize-script-ps1=${tmpSpecialize.path},'
           'windows-startup-script-ps1=${tmpStartup.path}',
-      '--scopes=default',
+      // storage-rw: run_e2e's --remote-cache, a bucket the VMs share.
+      '--scopes=default,storage-rw',
       '--boot-disk-size=100GB',
     ]);
   } finally {
