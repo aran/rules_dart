@@ -11,7 +11,7 @@ dart_package_member(
     name = "pong_member",
     srcs = ["lib/pong.dart"],
     package = ":pubspec-metadata",
-    visibility = ["//rally:__pkg__"],
+    visibility = ["//rally:__subpackages__"],
 )
 
 alias(

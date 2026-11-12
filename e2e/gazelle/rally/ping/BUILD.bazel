@@ -11,7 +11,7 @@ dart_package_member(
     name = "ping_member",
     srcs = ["lib/ping.dart"],
     package = ":pubspec-metadata",
-    visibility = ["//rally:__pkg__"],
+    visibility = ["//rally:__subpackages__"],
 )
 
 alias(
