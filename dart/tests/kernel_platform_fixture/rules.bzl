@@ -47,11 +47,14 @@ def _alt_vm_impl(ctx):
                 found[key] = f
     alt = {}
     for key, rel in _ALT_PATHS.items():
-        alt[key] = ctx.actions.declare_file(ctx.label.name + "/" + rel)
-
         # `other` is a second platform of the SDK, the product one again
         # under another name: a compile for `alt_product` must not read it.
         source = found["product" if key == "other" else key]
+
+        # Windows starts a program only from a name ending `.exe`.
+        if source.extension == "exe":
+            rel += ".exe"
+        alt[key] = ctx.actions.declare_file(ctx.label.name + "/" + rel)
         ctx.actions.symlink(output = alt[key], target_file = source, is_executable = key == "runtime")
     return [DartKernelSdkInfo(
         target = "vm",
@@ -145,7 +148,7 @@ def _compiles_with_the_platform_given_impl(ctx):
     # The compiler, its runtime and the platform of the runtime asked for come
     # from the platform given, and nothing of the toolchain's SDK is read.
     for key in ["runtime", "frontend_server", "product"]:
-        asserts.true(env, [p for p in inputs if p.endswith(_ALT_PATHS[key])], "reads the alternative " + key)
+        asserts.true(env, [p for p in inputs if p.removesuffix(".exe").endswith(_ALT_PATHS[key])], "reads the alternative " + key)
     asserts.false(env, [p for p in inputs if p.endswith(_ALT_PATHS["other"])], "reads no other runtime's platform")
     asserts.false(env, [p for p in inputs if "/lib/_internal/" in p or "/bin/snapshots/" in p], "reads nothing of the toolchain's SDK: %s" % inputs)
     asserts.equals(env, "alt_product_platform.dill", _flag_value(argv, "--platform"))
