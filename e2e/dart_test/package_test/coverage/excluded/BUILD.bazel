@@ -9,10 +9,10 @@ dart_library(
     name = "excluded",
     srcs = ["lib/excluded.dart"],
     package = ":pubspec-metadata",
-    visibility = ["//coverage:__subpackages__"],
+    visibility = ["//package_test/coverage:__subpackages__"],
 )
 
 exports_files(
     ["lib/excluded.dart"],
-    visibility = ["//coverage:__subpackages__"],
+    visibility = ["//package_test/coverage:__subpackages__"],
 )

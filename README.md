@@ -3307,8 +3307,8 @@ or `:is_analysis_summaries` for the analyzer.
 
 ## Examples
 
-The [`e2e/`](e2e/) directory contains complete working examples. Those under
-`basics/` are fixtures of one workspace:
+The [`e2e/`](e2e/) directory contains complete working examples. A name with a
+`/` is a fixture directory inside a workspace:
 
 | Example                                                             | What it demonstrates                                                                                     |
 | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
@@ -3328,7 +3328,7 @@ The [`e2e/`](e2e/) directory contains complete working examples. Those under
 | [`pub_lock`](e2e/pub_lock/)                                         | Multiple packages from `pubspec.lock` via `pub.from_lock()`                                              |
 | [`gazelle`](e2e/gazelle/)                                           | Automatic BUILD file generation with Gazelle                                                             |
 | [`basics/cross_compile`](e2e/basics/cross_compile/)                 | Cross-compilation to other platforms via `platform_data` transition                                      |
-| [`dart_test_pkg`](e2e/dart_test_pkg/)                               | `dart_test` with pub dependencies via `pub.from_lock()`                                                  |
+| [`dart_test/package_test`](e2e/dart_test/package_test/)             | `dart_test` with pub dependencies via `pub.from_lock()`                                                  |
 | [`pub_lock_dedup`](e2e/pub_lock_dedup/)                             | Cross-lock-file package deduplication                                                                    |
 | [`pub_lock_upgrade`](e2e/pub_lock_upgrade/)                         | Locks that disagree build the highest version, rules_dart's own lock included                            |
 | [`pub_lock_conflict`](e2e/pub_lock_conflict/)                       | `check_direct_dependencies = "error"` fails a raised root lock, giving the command to raise it           |

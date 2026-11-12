@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:runfiles/runfiles.dart';
 
 /// Checks the LCOV report `bazel coverage --combined_report=lcov` wrote for
-/// `//coverage/...` (its path is the one argument) against the fixture's
+/// `//package_test/coverage/...` (its path is the one argument) against the fixture's
 /// sources, generated and hand-written: each line marked `// covered` has
 /// hits and each marked `// uncovered` has none, no line a `// coverage:ignore-line` or an
 /// `ignore-start`/`ignore-end` pair names is reported, a file marked
@@ -16,19 +16,22 @@ void main(List<String> args) {
   final report = _parse(File(args.single).readAsLinesSync());
   final runfiles = Runfiles.create();
   final sources = {
-    'coverage/lib/shapes.dart': '_main/coverage/lib/shapes.dart',
-    'coverage/units/lib/units.dart': '_main/coverage/units/lib/units.dart',
-    // A test's own files, outside a package's `lib/`.
-    'coverage/test/plain_test.dart': '_main/coverage/test/plain_test.dart',
-    'coverage/test/runner_test.dart': '_main/coverage/test/runner_test.dart',
-    'coverage/test/support.dart': '_main/coverage/test/support.dart',
-    // Generated: reported under its `bazel-out/<config>/bin/` path, which
-    // `_parse` takes off.
-    _generated: '_main/$_generated',
+    for (final path in [
+      '$_fixture/lib/shapes.dart',
+      '$_fixture/units/lib/units.dart',
+      // A test's own files, outside a package's `lib/`.
+      '$_fixture/test/plain_test.dart',
+      '$_fixture/test/runner_test.dart',
+      '$_fixture/test/support.dart',
+      // Generated: reported under its `bazel-out/<config>/bin/` path, which
+      // `_parse` takes off.
+      _generated,
+    ])
+      path: '_main/$path',
   };
   // Carried by the tests, and left without a line in the report: Bazel
   // lists every instrumented file, the lines it has apart.
-  const ignoredFile = 'coverage/excluded/lib/excluded.dart';
+  const ignoredFile = '$_fixture/excluded/lib/excluded.dart';
   final ignoredFileLines = File(runfiles.rlocation('_main/$ignoredFile'))
       .readAsLinesSync();
   final problems = <String>[];
@@ -48,7 +51,7 @@ void main(List<String> args) {
     final lines = File(runfiles.rlocation(rlocation)).readAsLinesSync();
     final hits = report[path] ?? const {};
     final ignored = _ignoredLines(lines);
-    if (ignored.isEmpty && path == 'coverage/lib/shapes.dart') {
+    if (ignored.isEmpty && path == '$_fixture/lib/shapes.dart') {
       problems.add('$path has no ignored line to check');
     }
     for (final line in ignored) {
@@ -90,7 +93,8 @@ Set<int> _ignoredLines(List<String> lines) {
   return ignored;
 }
 
-const _generated = 'coverage/generated/lib/generated.dart';
+const _fixture = 'package_test/coverage';
+const _generated = '$_fixture/generated/lib/generated.dart';
 
 /// Hits by line, by source file; the generated file's under its path without
 /// the output directory, which only it has.

@@ -22,12 +22,12 @@ genrule(
         "}",
         "DART",
     ]),
-    visibility = ["//coverage:__subpackages__"],
+    visibility = ["//package_test/coverage:__subpackages__"],
 )
 
 dart_library(
     name = "generated",
     srcs = [":write_generated"],
     package = ":pubspec-metadata",
-    visibility = ["//coverage:__subpackages__"],
+    visibility = ["//package_test/coverage:__subpackages__"],
 )

@@ -6,5 +6,5 @@ exports_files(["dart_test.yaml"])
 dart_library(
     name = "greeter",
     srcs = glob(["lib/**/*.dart"]),
-    visibility = ["//greeter:__subpackages__"],
+    visibility = ["//package_test/greeter:__subpackages__"],
 )

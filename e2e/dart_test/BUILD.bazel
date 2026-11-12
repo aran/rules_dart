@@ -5,7 +5,7 @@ dart_analysis_config(
     options = [":options"],
 )
 
-# One options target for the whole workspace, including the two subpackages.
+# One options target for the whole workspace, including its subpackages.
 # The ruleset is named here rather than in any library's `deps` because a lint
 # ruleset is not a dependency of the code it lints — listing it there would
 # carry it into the `DartInfo` of every test below.

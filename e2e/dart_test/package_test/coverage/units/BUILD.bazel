@@ -9,10 +9,10 @@ dart_library(
     name = "units",
     srcs = ["lib/units.dart"],
     package = ":pubspec-metadata",
-    visibility = ["//coverage:__subpackages__"],
+    visibility = ["//package_test/coverage:__subpackages__"],
 )
 
 exports_files(
     ["lib/units.dart"],
-    visibility = ["//coverage:__subpackages__"],
+    visibility = ["//package_test/coverage:__subpackages__"],
 )

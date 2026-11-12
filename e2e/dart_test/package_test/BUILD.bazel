@@ -1,0 +1,17 @@
+load("@rules_dart//dart:defs.bzl", "dart_test")
+
+# Tests that run under `package:test`, with pub dependencies from the lock
+# here. `//:options` governs them as it does the rest of the workspace.
+exports_files(["pubspec.lock"])
+
+# The `main` is under `test/` rather than beside `lib/`, and its only import
+# comes from a pub hub, so the aspect analyzing it shows the staged pub packages
+# and synthesized pubspec are enough for an entrypoint too: the ruleset's
+# `include:` resolves by `package:` URI against a project whose package_config
+# covers only the pub hub.
+dart_test(
+    name = "example_test",
+    size = "small",
+    main = "test/example_test.dart",
+    deps = ["@pub_deps//:test"],
+)

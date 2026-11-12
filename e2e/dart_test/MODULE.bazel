@@ -15,9 +15,19 @@ use_repo(dart, "dart_toolchains")
 register_toolchains("@dart_toolchains//:all")
 
 pub = use_extension("@rules_dart//dart/pub:extensions.bzl", "pub")
+
+# `//package_test`'s pub dependencies, `package:test` among them.
+pub.from_lock(
+    name = "pub_deps",
+    lock = "//package_test:pubspec.lock",
+)
+
+# The lint ruleset is declared with pub.package rather than added to the lock:
+# the lock is a fixture input, and a lint-only package is not a dependency of
+# the code it lints.
 pub.package(
     name = "very_good_analysis",
     sha256 = "0bd5eb8d6be76aa0d71e70cbdae6cac8f784f761170568e3c2214a6948c7f6d3",
     version = "11.0.0",
 )
-use_repo(pub, "very_good_analysis")
+use_repo(pub, "pub_deps", "very_good_analysis")

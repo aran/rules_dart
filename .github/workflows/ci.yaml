@@ -48,7 +48,6 @@ jobs:
           "e2e/basics",
           "e2e/analysis",
           "e2e/dart_test",
-          "e2e/dart_test_pkg",
           "e2e/codegen",
           "e2e/pub_deps",
           "e2e/pub_lock",
@@ -168,6 +167,8 @@ jobs:
         # Exit code 4 (no test targets) passes only for e2e/analysis, which has
         # none.
         run: bazel test --test_output=errors --@rules_dart//dart:analysis_summaries=false //... || { [ $? -eq 4 ] && [ "${{ matrix.folder }}" = e2e/analysis ]; }
+  # Without path mapping, which e2e/dart_test's .bazelrc turns on for its other
+  # tests: coverage as most builds collect it.
   coverage:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -182,10 +183,10 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: bazel coverage, combined LCOV report — ${{ matrix.name }}
-        working-directory: e2e/dart_test_pkg
+        working-directory: e2e/dart_test
         run: |
-          bazel coverage ${{ matrix.flags }} --combined_report=lcov //coverage/...
-          bazel run //coverage/check -- "$(bazel info output_path)/_coverage/_coverage_report.dat"
+          bazel coverage --experimental_output_paths=off ${{ matrix.flags }} --combined_report=lcov //package_test/coverage/...
+          bazel run --experimental_output_paths=off //package_test/coverage/check -- "$(bazel info --experimental_output_paths=off output_path)/_coverage/_coverage_report.dat"
   # The runner snapshot cache off, the default this repository's .bazelrc
   # overrides: `test_runner_test` checks that the runner then starts from its
   # kernel and no cache is touched.
