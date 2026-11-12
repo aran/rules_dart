@@ -111,6 +111,8 @@ void main(List<String> args) {
   test('arguments reach main', () async {
     // Checked indirectly elsewhere: this very test reads `args` under the
     // runner. Kept explicit so a regression names itself.
-    expect(args, ['_main/dart/tests/test_protocol_fixture/cases']);
+    // The launcher keeps its `.exe` on Windows, so `rlocationpath` names it.
+    final exe = Platform.isWindows ? '.exe' : '';
+    expect(args, ['_main/dart/tests/test_protocol_fixture/cases$exe']);
   });
 }
