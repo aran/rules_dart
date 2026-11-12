@@ -40,7 +40,9 @@ dart_binary(
 
 dart_test(
     name = "sdk_files_test",
-    size = "small",
+    # About twenty SDK compiles: 30s on an idle four-core Windows host, past a
+    # minute with other work running.
+    size = "medium",
     args = [
         "%s=$(rlocationpath :copy_%s)" % (set, set)
         for set in SDK_FILE_SETS
