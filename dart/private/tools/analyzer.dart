@@ -87,17 +87,16 @@ Future<Never> runAnalysisAction(List<String> args, Action action) async {
   exit(0);
 }
 
-/// Where a worker's servers cache, as `<this>-<n>`: beside the exec root it
-/// started in, where neither the sandbox's cleanup nor another worker reaches.
+/// Where a worker's servers cache, as `<this>-<n>`: in the system's temporary
+/// directory, where neither the sandbox's cleanup nor another worker reaches.
 ///
-/// Bazel starts a worker in the exec root
-/// (`<output base>/execroot/<main repo>`), or, sandboxed, in
-/// `<output base>/bazel-workers/<worker>/<main repo>`, whose parent it cleans
-/// for each request. Two levels up is the output base, or the `bazel-workers`
-/// directory, both Bazel's and neither cleaned under a running worker; the
-/// process id keeps workers apart.
-String workerCache(String start) =>
-    '${Directory(start).absolute.parent.parent.path}'
+/// A worker may write only in its working directory and its temporary
+/// directory. Sandboxed, Bazel cleans the working directory's parent for each
+/// request, and hardened (`--experimental_worker_sandbox_hardening`) it gives
+/// the worker a `/tmp` of its own and makes the rest read-only. The process id
+/// keeps workers that share a temporary directory apart.
+String workerCache() =>
+    '${Directory.systemTemp.absolute.path}'
     '${Platform.pathSeparator}dart_analysis_worker-$pid';
 
 /// Removes from [dir] the server caches of workers that are gone.
@@ -170,7 +169,7 @@ class _AnalysisWorker extends AsyncWorkerLoop {
       }) {
         if (host == null) return DartCli(cache: cache);
         if (_server case final server?) return server;
-        final caches = workerCache(_home);
+        final caches = workerCache();
         removeOrphanedCaches(File(caches).parent.path);
         return _server = ServerAnalyzer(
           // Its own file, not a sandbox's link to it, which the next request

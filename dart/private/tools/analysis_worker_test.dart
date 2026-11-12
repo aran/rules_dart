@@ -28,15 +28,23 @@ void main(List<String> args) {
           .createTempSync('analysis_worker_test')
           .resolveSymbolicLinksSync(),
     );
-    // Where Bazel would start it: two levels below a directory of its own.
     final execroot = Directory('${scratch.path}/output_base/execroot/_main')
       ..createSync(recursive: true);
+    // A temporary directory of its own, as a hardened sandbox gives it.
+    final tmp = Directory('${scratch.path}/tmp')..createSync();
     driver = BazelWorkerDriver(
-      () async => worker = await Process.start(runner, [
-        '--host',
-        host,
-        '--persistent_worker',
-      ], workingDirectory: execroot.path),
+      () async => worker = await Process.start(
+        runner,
+        ['--host', host, '--persistent_worker'],
+        workingDirectory: execroot.path,
+        environment: {
+          if (Platform.isWindows) ...{
+            'TEMP': tmp.path,
+            'TMP': tmp.path,
+          } else
+            'TMPDIR': tmp.path,
+        },
+      ),
     );
   });
   tearDown(() async {
@@ -59,7 +67,7 @@ void main(List<String> args) {
 
   /// Server caches the worker made.
   List<String> caches() => [
-    for (final e in Directory('${scratch.path}/output_base').listSync())
+    for (final e in Directory('${scratch.path}/tmp').listSync())
       if (e.path.contains('dart_analysis_worker-')) e.path,
   ];
 
