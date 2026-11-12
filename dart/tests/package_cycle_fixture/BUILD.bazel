@@ -7,7 +7,7 @@ are one cycle.
 """
 
 load("//dart:defs.bzl", "dart_binary", "dart_library", "dart_package_cycle", "dart_test")
-load("//dart/tests:package_cycle_test.bzl", "cycle_packages_test", "cycle_refused_test")
+load("//dart/tests:package_cycle_test.bzl", "cycle_packages_test", "cycle_refused_test", "validation_test")
 
 dart_package_cycle(
     name = "ping_pong",
@@ -99,4 +99,70 @@ cycle_refused_test(
     size = "small",
     message = "is built by targets naming different `dart_package_metadata`",
     target_under_test = ":rival",
+)
+
+# What generators write for the members' sources is the cycle's.
+dart_package_cycle(
+    name = "with_generated",
+    srcs = ["//dart/tests/package_cycle_fixture/ping:generated"],
+    members = [
+        "//dart/tests/package_cycle_fixture/ping:member",
+        "//dart/tests/package_cycle_fixture/pong:member",
+    ],
+    tags = ["manual"],
+)
+
+cycle_packages_test(
+    name = "with_generated_test",
+    size = "small",
+    srcs = [
+        "dart/tests/package_cycle_fixture/ping/lib/ping.dart",
+        "dart/tests/package_cycle_fixture/ping/lib/ping_generated.dart",
+        "dart/tests/package_cycle_fixture/pong/lib/pong.dart",
+    ],
+    packages = [
+        "ping dart/tests/package_cycle_fixture/ping 3.10",
+        "pong dart/tests/package_cycle_fixture/pong -",
+    ],
+    target_under_test = ":with_generated",
+)
+
+genrule(
+    name = "stray",
+    outs = ["stray.dart"],
+    cmd = "echo 'const stray = 1;' > $@",
+    tags = ["manual"],
+)
+
+dart_package_cycle(
+    name = "stray_generated",
+    srcs = [":stray"],
+    members = [
+        "//dart/tests/package_cycle_fixture/ping:member",
+        "//dart/tests/package_cycle_fixture/pong:member",
+    ],
+    tags = ["manual"],
+)
+
+cycle_refused_test(
+    name = "stray_generated_test",
+    size = "small",
+    message = "`srcs` holds `dart/tests/package_cycle_fixture/stray.dart`, which is under the `lib/` of no member.",
+    target_under_test = ":stray_generated",
+)
+
+# Any executable, for a generator that analysis alone never runs.
+dart_binary(
+    name = "generator",
+    main = "cycle_test.dart",
+    tags = ["manual"],
+    visibility = ["//dart/tests/package_cycle_fixture:__subpackages__"],
+    deps = [":ping_pong"],
+)
+
+validation_test(
+    name = "codegen_checks_members_test",
+    size = "small",
+    basenames = ["codegen.members.import_check"],
+    target_under_test = "//dart/tests/package_cycle_fixture/ping:codegen",
 )

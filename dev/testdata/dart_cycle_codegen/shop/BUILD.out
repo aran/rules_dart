@@ -1,0 +1,17 @@
+load("@rules_dart//dart:defs.bzl", "dart_package_cycle")
+
+# gazelle:dart_cycle customer order
+
+dart_package_cycle(
+    name = "customer_order",
+    srcs = [
+        "//shop/customer:customer_codegen",
+        "//shop/order:order_codegen",
+    ],
+    members = [
+        "//shop/customer:customer_member",
+        "//shop/order:order_member",
+    ],
+    visibility = ["//visibility:public"],
+    deps = ["@pub_deps//:json_annotation"],
+)

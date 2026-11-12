@@ -186,7 +186,7 @@ func (d *dartLang) packageLibraryRules(args language.GenerateArgs) ([]*rule.Rule
 	// What the builders generate imports their runtime libraries.
 	addRuntimeDeps(is, runtime)
 	// A package of a declared cycle is a member of it instead (cycle.go).
-	lib, libImports, replaced := d.cycleMemberRules(args, root, r, is)
+	lib, libImports, replaced := d.cycleMemberRules(args, root, r, is, genSrcs, gen, imports)
 	gen = append(gen, lib...)
 	imports = append(imports, libImports...)
 	return gen, imports, append(staleSourceLibraries(args.File, root, scan, r.Name()), replaced...)
@@ -534,6 +534,10 @@ type importSet struct {
 	// For a macro: the runtime package its annotation_dep names, and the
 	// macro's default for it ("" when a directive states the dep).
 	annotationPackage, annotationDefault string
+
+	// For a codegen rule of a member of a cycle: the cycle, whose members
+	// its generator reads (cycle.go).
+	cycle *cycleDecl
 }
 
 func collectImports(args language.GenerateArgs, files []DartFileInfo) *importSet {

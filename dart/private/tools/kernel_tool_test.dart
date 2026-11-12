@@ -527,6 +527,7 @@ import 'stub.dart' if (dart.library.io) 'src/io.dart' if (dart.library.html) 'sr
       Set<String> direct = const {},
       Set<String> depFiles = const {},
       String? own,
+      bool parts = true,
     }) {
       final checked = [
         for (final e in files.entries)
@@ -546,8 +547,20 @@ import 'stub.dart' if (dart.library.io) 'src/io.dart' if (dart.library.html) 'sr
         checkLayering: layering,
         directPackages: direct,
         ownPackages: {?own},
+        checkParts: parts,
       );
     }
+
+    test("leaves a generator's inputs' parts, which it has yet to write", () {
+      final files = {
+        'app/lib/a.dart': "import 'package:dep/d.dart';\npart 'a.g.dart';",
+      };
+      expect(check(files, available: {'dep'}), hasLength(1));
+      expect(check(files, available: {'dep'}, parts: false), isEmpty);
+      expect(check(files, parts: false).map((v) => v.message), [
+        contains('no dependency of //app:lib provides package "dep"'),
+      ]);
+    });
 
     test('reports every import of a package no dependency provides', () {
       final v = check(

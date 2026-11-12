@@ -12,12 +12,18 @@ what its members import, and that they are exactly one cycle. `pub_library`
 (`//dart/pub:pub_library.bzl`) is the same library for a pub cycle, which
 `pub.cycle()` declares and whose files are another repository's, so it checks
 neither. Both build on `package_cycle_library()`.
+
+What generators write for a member's sources is the cycle's, in its `srcs`, not
+the member's. A generator resolves what its source imports, which in a cycle is
+every member, so it reads the members' sources (`codegen_deps.bzl`); a member
+holding its generated files would depend on the generator that reads it.
 """
 
 load("//dart:providers.bzl", "DartInfo")
-load("//dart/private:common.bzl", "package_identity_attrs")
+load("//dart/private:common.bzl", "codegen_identity_error", "package_identity_attrs")
 load("//dart/private:dart_import_check.bzl", "LIBRARY_IMPORT_CHECKER_ATTRS", "dart_import_check_action")
-load("//dart/private:dart_library.bzl", "LIBRARY_SOURCE_ATTRS", "checked_package_info", "library_sources")
+load("//dart/private:dart_info.bzl", "package_lib_prefix")
+load("//dart/private:dart_library.bzl", "LIBRARY_SOURCE_ATTRS", "check_no_duplicate_srcs", "checked_package_info", "library_sources")
 load("//dart/private:dart_summary.bzl", "SUMMARY_ATTRS", "dart_info")
 load("//dart/private:exec_groups.bzl", "PORTABLE_EXEC_GROUPS")
 load("//dart/private:runtime.bzl", "RUNTIME_INDEPENDENT_ATTR", "runtime_reset_when_independent")
@@ -63,7 +69,7 @@ def dart_package_member_info(label, metadata, srcs = [], resources = []):
         resources = resources,
     )
 
-def package_cycle_library(ctx, members, deps, data = []):
+def package_cycle_library(ctx, members, deps, data = [], generated = []):
     """The library of the packages of one dependency cycle.
 
     Args:
@@ -72,11 +78,13 @@ def package_cycle_library(ctx, members, deps, data = []):
       members: The members' `DartPackageMemberInfo`.
       deps: The libraries the members depend on outside the cycle.
       data: Files the packages need at run time.
+      generated: Dart files generated for the members' sources, each under
+        one member's `lib/`.
 
     Returns:
       `struct(default_info, info)`: the library's `DefaultInfo` and `DartInfo`.
     """
-    srcs = [f for m in members for f in m.srcs]
+    srcs = [f for m in members for f in m.srcs] + generated
     resources = [f for m in members for f in m.resources]
     info = dart_info(
         ctx = ctx,
@@ -116,9 +124,41 @@ dart_package_member = rule(
     attrs = LIBRARY_SOURCE_ATTRS | package_identity_attrs(),
     doc = """One package of a dependency cycle: its files under `lib/` and the \
 `dart_package_metadata` that declares it. Not a library by itself, so nothing \
-depends on it but the `dart_package_cycle` that builds it. Its files are \
-checked as a `dart_library`'s are.""",
+depends on it but the `dart_package_cycle` that builds it, and the codegen \
+targets that read its sources. Its files are checked as a `dart_library`'s are. \
+What generators write for them goes in the cycle's `srcs`.""",
 )
+
+def _member_holding(members, f):
+    """The member whose `lib/` holds `f`, the deepest when roots nest, or None."""
+    best = None
+    for m in members:
+        if f.short_path.startswith(package_lib_prefix(m.package.package_root)):
+            if best == None or len(m.package.package_root) > len(best.package.package_root):
+                best = m
+    return best
+
+def _check_generated(ctx, members):
+    """Fails unless each of `srcs` is part of a member, as its generator says."""
+    for target in ctx.attr.srcs:
+        for f in target.files.to_list():
+            m = _member_holding(members, f)
+            if m == None:
+                fail(("%s: `srcs` holds `%s`, which is under the `lib/` of no member. " +
+                      "A generated file is part of the package whose sources it was " +
+                      "generated from: write it beside them.") % (ctx.label, f.short_path))
+            pkg = m.package
+            err = codegen_identity_error(
+                ctx.label,
+                [target],
+                pkg.package_name,
+                struct(label = pkg.metadata) if pkg.metadata != None else None,
+            )
+            if err != None:
+                fail(err)
+    err = check_no_duplicate_srcs(ctx.label, [f for m in members for f in m.srcs] + ctx.files.srcs)
+    if err != None:
+        fail(err)
 
 def _dart_package_cycle_impl(ctx):
     members = [m[DartPackageMemberInfo] for m in ctx.attr.members]
@@ -136,7 +176,8 @@ def _dart_package_cycle_impl(ctx):
     if len(members) < 2:
         fail(("%s: a dependency cycle is of several packages, and `members` names one. " +
               "Build a package that is in no cycle as a `dart_library`.") % ctx.label)
-    library = package_cycle_library(ctx, members, ctx.attr.deps, ctx.attr.data)
+    _check_generated(ctx, members)
+    library = package_cycle_library(ctx, members, ctx.attr.deps, ctx.attr.data, ctx.files.srcs)
     validation = []
     checker = ctx.attr._import_checker[DefaultInfo].files_to_run
     if checker.executable != None:
@@ -174,6 +215,13 @@ dart_package_cycle = rule(
         "deps": attr.label_list(
             providers = [DartInfo],
             doc = "The libraries the members import outside the cycle.",
+        ),
+        "srcs": attr.label_list(
+            allow_files = [".dart"],
+            doc = """What generators write for the members' sources: the codegen \
+targets whose outputs are parts of the members' libraries. Each file is part of \
+the member whose `lib/` holds it. They are the cycle's rather than the member's \
+because a generator in a cycle reads the members (`dart_codegen.deps`).""",
         ),
         "data": attr.label_list(
             allow_files = True,

@@ -18,7 +18,9 @@ import 'uris.dart';
 /// the target's own package and every package it reaches, so the files of its
 /// dependencies (`--dep-file`, a tree artifact's directory expanded) map to the
 /// URIs importers use. With `--check-cycle`, the target's packages must be
-/// one dependency cycle (`cycleError`). Writes the empty `--output` stamp when nothing is wrong;
+/// one dependency cycle (`cycleError`). With `--generator-input`, the files are
+/// what a code generator reads before it writes their parts, so their parts are
+/// not judged. Writes the empty `--output` stamp when nothing is wrong;
 /// otherwise prints every violation to [err] and returns 1.
 Future<int> runCheck(Args args, {required StringSink err}) async {
   final label = args.one('label');
@@ -53,6 +55,7 @@ Future<int> runCheck(Args args, {required StringSink err}) async {
     directPackages: args.all('direct-package').toSet(),
     ownPackages: ownPackages(args).keys.toSet(),
     suggestCycle: !args.flag('check-cycle'),
+    checkParts: !args.flag('generator-input'),
   );
   final messages = [for (final v in violations) v.message];
   if (args.flag('check-cycle')) {

@@ -58,18 +58,21 @@ reusing across requests is a silent-corruption hazard due to
 cost is amortised across the worker's lifetime.
 """
 
-load("//dart:providers.bzl", "DartInfo")
+load(
+    "//dart/private:codegen_deps.bzl",
+    "CODEGEN_DEPS_ATTRS",
+    "CODEGEN_DEP_PROVIDERS",
+    "CODEGEN_MEMBER_DEPS_DOC",
+    "codegen_deps",
+)
 load(
     "//dart/private:common.bzl",
     "PATH_MAPPING",
     "add_shim_contract_args",
     "asset_path_for",
     "codegen_identity",
-    "dart_package_root_for_package",
     "package_identity_attrs",
     "resolve_package_identity",
-    "same_package_library_dep_files",
-    "synth_package_config",
 )
 load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS", "portable_sdk")
 load("//dart/private:runtime.bzl", "non_dart_transition")
@@ -107,27 +110,8 @@ def _dart_codegen_impl(ctx):
              ctx.label)
 
     src = ctx.file.src
-    synth_pc, package_files = synth_package_config(ctx, ctx.attr.deps)
-
-    # Derive the Dart package's package_root from deps' DartInfo — works even
-    # when the codegen rule's Bazel package path doesn't match the Dart
-    # package root (e.g. `//myapp/lib:codegen` for Dart package `myapp`).
-    package_root_from_deps = dart_package_root_for_package(
-        ctx.attr.deps,
-        identity.package_name,
-    )
-    package_root = identity.package_root
-    if identity.metadata == None and package_root_from_deps != None:
-        package_root = package_root_from_deps
-
-    # Auto-stage same-package sibling files discovered in `deps` so builders
-    # (stacked, mockito, cross-file resolvers, …) see them via the Resolver /
-    # `findAssets` / `readAsString` without users hand-listing every file.
-    auto_staged, _ = same_package_library_dep_files(
-        ctx.attr.deps,
-        identity.package_name,
-        exclude_paths = [src.path],
-    )
+    inputs = codegen_deps(ctx, identity, exclude_paths = [src.path])
+    package_root = inputs.package_root
 
     # Place each output next to the source. declare_file paths are package-
     # relative, so compute a package-relative stem by stripping the Bazel
@@ -156,11 +140,9 @@ def _dart_codegen_impl(ctx):
     direct_inputs.extend(add_shim_contract_args(
         args,
         ctx,
-        synth_pc,
+        inputs,
         dart,
-        auto_stage_srcs = auto_staged,
         asset_deps = ctx.files.asset_deps,
-        package_root = package_root,
     ))
     args.add_all(ctx.attr.generator_args)
 
@@ -169,7 +151,7 @@ def _dart_codegen_impl(ctx):
         arguments = [args],
         inputs = depset(
             direct = direct_inputs,
-            transitive = _transitive(package_files) + [sdk_files],
+            transitive = _transitive(inputs.package_files) + [sdk_files],
         ),
         outputs = outputs,
         mnemonic = "DartCodegen",
@@ -191,7 +173,7 @@ def _dart_codegen_impl(ctx):
         # an older one over a generator that states none is exactly the
         # disagreement `codegen_identity_error` exists to name.
         codegen_identity(identity),
-    ]
+    ] + ([inputs.validation] if inputs.validation else [])
 
 def _transitive(d):
     """Wraps an optional depset as a single-element list for `depset(transitive=...)`.
@@ -245,8 +227,8 @@ dart_codegen = rule(
                   "synthesised `package_config.json` for the shim's " +
                   "analyzer. Any of their files under the `lib/` of " +
                   "`src`'s Dart package is also auto-staged as `--dep` so " +
-                  "the Resolver can walk siblings.",
-            providers = [DartInfo],
+                  "the Resolver can walk siblings." + CODEGEN_MEMBER_DEPS_DOC,
+            providers = CODEGEN_DEP_PROVIDERS,
         ),
         "parts": attr.label_list(
             doc = "Additional input files passed as `--part <path>` " +
@@ -291,7 +273,7 @@ dart_codegen = rule(
                   "through `package:build`), use `data`.",
             allow_files = True,
         ),
-    } | package_identity_attrs(),
+    } | package_identity_attrs() | CODEGEN_DEPS_ATTRS,
     exec_groups = PORTABLE_EXEC_GROUPS,
     doc = "Runs a per-file Dart code generator, producing one or more " +
           "sibling outputs per input.",

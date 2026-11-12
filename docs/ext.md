@@ -260,10 +260,13 @@ the next request.
 ## Rule-layer auto-staging
 
 `deps` on `dart_codegen` / `dart_sqlcodegen` / `dart_aggregate_codegen`
-accepts `dart_library`-shaped targets (anything exporting `DartInfo`).
+accepts `dart_library`-shaped targets (anything exporting `DartInfo`), and
+the `dart_package_member`s of a cycle the source's package is in, whose own
+files it reads in place of the cycle's library (`codegen_deps.bzl`).
 The rule walks each dep's `DartInfo.transitive_srcs` and
-`transitive_resources` and auto-stages every file under the `lib/` of the
-codegen target's package — i.e. same-package sibling files. Every
+`transitive_resources`, and each member's files, and auto-stages every file
+under the `lib/` of the codegen target's package — i.e. same-package sibling
+files. Every
 file of every other package in `deps`, sources and `resources` alike, is an
 input of the action, since a generator may read any of them through the
 package config.

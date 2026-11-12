@@ -26,6 +26,8 @@ dart_package_metadata(
 #   - Full annotation surface via the `json_serializable_codegen` macro
 #     (:advanced_codegen) — FieldRename.snake, @JsonKey(name:/toJson:/
 #     fromJson:), @JsonConverter, @JsonEnum, genericArgumentFactories.
+#   - Two packages that import each other (`cycle/`), each with a model whose
+#     generated code needs a type of the other.
 #
 # The package is one `dart_library`, holding every source and what the
 # generators write.

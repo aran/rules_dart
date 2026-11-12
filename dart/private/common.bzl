@@ -1374,27 +1374,26 @@ def sdk_path_from_dart(dart_file):
             return p[:-len(suffix)]
     return p
 
-def synth_package_config(ctx, library_deps):
-    """Synthesises a `package_config.json` from `dart_library` targets.
+def synth_package_config(ctx, packages, srcs, resources):
+    """Synthesises a codegen action's `package_config.json` from the packages it reads.
 
     Args:
       ctx: The rule context (used to declare the output file).
-      library_deps: List of `dart_library` targets to merge.
+      packages: The `DartPackageInfo` records of every package the
+        generator may read.
+      srcs: A depset of their Dart sources.
+      resources: A depset of their other files under `lib/`.
 
     Returns:
       `(package_config_file, package_files_depset)`, or `(None, None)`
-      when `library_deps` is empty. The depset holds every file of every
+      when `packages` is empty. The depset holds every file of every
       package the config names, sources and `resources` alike: a generator
       may read any of them through the config, so the caller adds both to
       the action's `inputs` (the depset flattens lazily at execution time).
     """
-    if not library_deps:
+    if not packages:
         return None, None
-    packages = collect_packages(library_deps)
-    transitive_srcs = collect_transitive_srcs(library_deps)
-    package_files = depset(
-        transitive = [transitive_srcs, collect_transitive_resources(library_deps)],
-    )
+    package_files = depset(transitive = [srcs, resources])
     package_config = ctx.actions.declare_file(
         ctx.label.name + ".package_config.json",
     )
@@ -1404,7 +1403,7 @@ def synth_package_config(ctx, library_deps):
     # by the dep graph size for this one target, not by the action count.
     content = generate_package_config(
         packages,
-        transitive_srcs.to_list(),
+        srcs.to_list(),
         package_config,
     )
     ctx.actions.write(output = package_config, content = content)
@@ -2089,11 +2088,10 @@ def asset_path_for(file, package_root):
         (file.path, rel, package_root),
     )
 
-def dart_package_root_for_package(deps, package_name):
-    """Looks up the Dart package's package_root from the transitive DartInfo set.
+def dart_package_root_for_package(packages, package_name):
+    """Looks up the Dart package's package_root among the packages a generator reads.
 
-    Scans every dep in `deps`; the first `DartPackageInfo` whose
-    `package_name` matches wins.
+    The first record whose `package_name` matches wins.
 
     The rule layer uses this to compute asset paths that survive the
     codegen rule living at a deeper Bazel-package path than the Dart
@@ -2101,29 +2099,29 @@ def dart_package_root_for_package(deps, package_name):
     `//myapp`).
 
     Args:
-      deps: List of targets carrying `DartInfo`.
+      packages: `DartPackageInfo` records.
       package_name: The Dart package name to look up.
 
     Returns:
       The package_root string (possibly `""` for the root workspace package),
       or `None` when no matching package is found.
     """
-    merged = depset(transitive = [dep[DartInfo].transitive_packages for dep in deps])
-    for pkg in merged.to_list():
+    for pkg in packages:
         if pkg.package_name == package_name:
             return pkg.package_root
     return None
 
-def same_package_library_dep_files(deps, package_name, exclude_paths = None):
-    """Returns same-package sibling files from `deps` plus the package's package_root.
+def same_package_library_dep_files(packages, files, package_name, exclude_paths = None):
+    """Returns the files of package `package_name` among those a generator reads.
 
-    Sources and `resources` alike: files at `<package_root>/lib/...` in any
-    transitive package whose name matches `package_name` are returned. Filenames whose exec path is in
+    Sources and `resources` alike: the files at `<package_root>/lib/...` of
+    the package named `package_name`. Files whose exec path is in
     `exclude_paths` (e.g. the action's own `src` file) are skipped so the
     input isn't staged twice.
 
     Args:
-      deps: List of targets carrying `DartInfo`.
+      packages: `DartPackageInfo` records of the packages `files` belong to.
+      files: A depset of the packages' Files.
       package_name: The Dart package name to filter on.
       exclude_paths: Optional list of exec path strings to skip.
 
@@ -2133,16 +2131,13 @@ def same_package_library_dep_files(deps, package_name, exclude_paths = None):
     """
     if exclude_paths == None:
         exclude_paths = []
-    package_root = dart_package_root_for_package(deps, package_name)
+    package_root = dart_package_root_for_package(packages, package_name)
     if package_root == None:
         return [], None
     prefix = package_lib_prefix(package_root)
     excluded = {p: True for p in exclude_paths}
     seen = {}
     out = []
-    files = depset(
-        transitive = [collect_transitive_srcs(deps), collect_transitive_resources(deps)],
-    )
     for src in files.to_list():
         if src.path in excluded:
             continue
@@ -2154,19 +2149,12 @@ def same_package_library_dep_files(deps, package_name, exclude_paths = None):
         out.append(src)
     return out, package_root
 
-def add_shim_contract_args(
-        args,
-        ctx,
-        synth_pc,
-        sdk_dart,
-        auto_stage_srcs = [],
-        asset_deps = [],
-        package_root = ""):
+def add_shim_contract_args(args, ctx, inputs, sdk_dart, asset_deps = []):
     """Appends the typed shim-contract flags to `args`.
 
     Covers `--package`, `--root-language-version`, `--dep` (repeatable —
-    `<path>|<asset_path>` form — one per entry in `auto_stage_srcs`
-    and `asset_deps`), `--part`, `--config`, `--package-config`,
+    `<path>|<asset_path>` form — one per sibling file in `inputs` and entry
+    in `asset_deps`), `--part`, `--config`, `--package-config`,
     `--sdk-path`. Callers add `--input`, `--output`, and `--input-asset`
     themselves (those are specific to the calling impl's per-src /
     per-output loop).
@@ -2174,22 +2162,14 @@ def add_shim_contract_args(
     Args:
       args: The `ctx.actions.args()` object to append flags to.
       ctx: The rule context (reads `package`, `config`, etc.).
-      synth_pc: The synthesised `package_config.json` File from
-        `synth_package_config`, or `None` for a target with no
-        `deps`.
+      inputs: What the generator reads of its `deps`, as `codegen_deps()`
+        returns it.
       sdk_dart: The `dart` executable File (from the caller's resolved
         toolchain) used to compute `--sdk-path`. Passed in so this helper
         stays agnostic of which toolchain type the caller resolves.
-      auto_stage_srcs: List of Files to emit as `--dep` with
-        automatically-computed asset paths. The rule layer calls
-        `same_package_library_dep_files` to compute this — users do not
-        hand-list sibling files.
       asset_deps: List of Files from the rule's `asset_deps` attr (non-Dart
         files the Builder's Resolver must see via `findAssets` /
-        `readAsString`). De-duplicated against `auto_stage_srcs` by exec
-        path.
-      package_root: The Dart package's package_root (used to compute asset paths
-        for `auto_stage_srcs` / `asset_deps`).
+        `readAsString`). De-duplicated against the siblings by exec path.
 
     Returns:
       A list of extra action-input Files that callers must include in
@@ -2203,7 +2183,9 @@ def add_shim_contract_args(
     language_version = codegen_language_version(ctx, identity)
     args.add("--root-language-version", language_version)
     seen = {}
-    for src in auto_stage_srcs:
+    synth_pc = inputs.package_config
+    package_root = inputs.package_root
+    for src in inputs.siblings:
         if src.path in seen:
             continue
         seen[src.path] = True
@@ -2225,7 +2207,7 @@ def add_shim_contract_args(
         ctx.actions.write(pubspec, derived_pubspec(
             identity.package_name,
             "^%s.0" % language_version,
-            collect_packages(ctx.attr.deps),
+            inputs.packages,
         ))
         args.add("--dep", pubspec, format = "%s|pubspec.yaml")
         extra_inputs.append(pubspec)

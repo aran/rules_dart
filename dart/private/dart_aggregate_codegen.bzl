@@ -44,19 +44,22 @@ protobuf, singleplex), so the generator must speak that protocol; worker
 requests go through `dart/ext/lib/worker_entry.dart`.
 """
 
-load("//dart:providers.bzl", "DartInfo")
+load(
+    "//dart/private:codegen_deps.bzl",
+    "CODEGEN_DEPS_ATTRS",
+    "CODEGEN_DEP_PROVIDERS",
+    "CODEGEN_MEMBER_DEPS_DOC",
+    "codegen_deps",
+)
 load(
     "//dart/private:common.bzl",
     "PATH_MAPPING",
     "add_shim_contract_args",
     "asset_path_for",
     "codegen_identity",
-    "dart_package_root_for_package",
     "format_literal",
     "package_identity_attrs",
     "resolve_package_identity",
-    "same_package_library_dep_files",
-    "synth_package_config",
 )
 load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS", "portable_sdk")
 load("//dart/private:runtime.bzl", "non_dart_transition")
@@ -73,22 +76,9 @@ def _dart_aggregate_codegen_impl(ctx):
         fail("%s: `srcs` cannot be empty." % ctx.label)
 
     outputs = [ctx.actions.declare_file(path) for path in ctx.attr.outputs]
-    synth_pc, package_files = synth_package_config(ctx, ctx.attr.deps)
-
-    package_root_from_deps = dart_package_root_for_package(
-        ctx.attr.deps,
-        identity.package_name,
-    )
-    package_root = identity.package_root
-    if identity.metadata == None and package_root_from_deps != None:
-        package_root = package_root_from_deps
-
     src_paths = [s.path for s in ctx.files.srcs]
-    auto_staged, _ = same_package_library_dep_files(
-        ctx.attr.deps,
-        identity.package_name,
-        exclude_paths = src_paths,
-    )
+    inputs = codegen_deps(ctx, identity, exclude_paths = src_paths)
+    package_root = inputs.package_root
 
     args = ctx.actions.args()
 
@@ -105,16 +95,14 @@ def _dart_aggregate_codegen_impl(ctx):
     extra_inputs = add_shim_contract_args(
         args,
         ctx,
-        synth_pc,
+        inputs,
         dart_sdk_info.dart,
-        auto_stage_srcs = auto_staged,
         asset_deps = ctx.files.asset_deps,
-        package_root = package_root,
     )
     args.add_all(ctx.attr.generator_args)
 
     direct_inputs = list(ctx.files.srcs) + extra_inputs
-    transitive = [package_files] if package_files != None else []
+    transitive = [inputs.package_files] if inputs.package_files != None else []
 
     # What the generator's analyzer reads of the SDK at `--sdk-path`.
     transitive.append(dart_sdk_info.files.codegen)
@@ -140,7 +128,7 @@ def _dart_aggregate_codegen_impl(ctx):
         # an older one over a generator that states none is exactly the
         # disagreement `codegen_identity_error` exists to name.
         codegen_identity(identity),
-    ]
+    ] + ([inputs.validation] if inputs.validation else [])
 
 dart_aggregate_codegen = rule(
     implementation = _dart_aggregate_codegen_impl,
@@ -166,8 +154,8 @@ dart_aggregate_codegen = rule(
                   "`DartInfo`) whose transitive sources populate a " +
                   "synthesised `package_config.json`. Same-package " +
                   "siblings not already in `srcs` are auto-staged as " +
-                  "`--dep`.",
-            providers = [DartInfo],
+                  "`--dep`." + CODEGEN_MEMBER_DEPS_DOC,
+            providers = CODEGEN_DEP_PROVIDERS,
         ),
         "generator": attr.label(
             doc = "The generator: an executable speaking the rules_dart " +
@@ -209,7 +197,7 @@ dart_aggregate_codegen = rule(
                   "`--dep <exec>|<asset>` using `asset_path_for`.",
             allow_files = True,
         ),
-    } | package_identity_attrs(),
+    } | package_identity_attrs() | CODEGEN_DEPS_ATTRS,
     exec_groups = PORTABLE_EXEC_GROUPS,
     doc = "Runs a package-level aggregate Dart code generator, producing " +
           "one or more declared outputs per target.",

@@ -22,18 +22,21 @@ Usage:
     )
 """
 
-load("//dart:providers.bzl", "DartInfo")
+load(
+    "//dart/private:codegen_deps.bzl",
+    "CODEGEN_DEPS_ATTRS",
+    "CODEGEN_DEP_PROVIDERS",
+    "CODEGEN_MEMBER_DEPS_DOC",
+    "codegen_deps",
+)
 load(
     "//dart/private:common.bzl",
     "PATH_MAPPING",
     "add_shim_contract_args",
     "asset_path_for",
     "codegen_identity",
-    "dart_package_root_for_package",
     "package_identity_attrs",
     "resolve_package_identity",
-    "same_package_library_dep_files",
-    "synth_package_config",
 )
 load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS", "portable_sdk")
 load("//dart/private:runtime.bzl", "non_dart_transition")
@@ -52,21 +55,8 @@ def _dart_sqlcodegen_impl(ctx):
              ctx.label)
 
     src = ctx.file.src
-    synth_pc, package_files = synth_package_config(ctx, ctx.attr.deps)
-
-    package_root_from_deps = dart_package_root_for_package(
-        ctx.attr.deps,
-        identity.package_name,
-    )
-    package_root = identity.package_root
-    if identity.metadata == None and package_root_from_deps != None:
-        package_root = package_root_from_deps
-
-    auto_staged, _ = same_package_library_dep_files(
-        ctx.attr.deps,
-        identity.package_name,
-        exclude_paths = [src.path],
-    )
+    inputs = codegen_deps(ctx, identity, exclude_paths = [src.path])
+    package_root = inputs.package_root
 
     # Strip the source's actual extension (may be `.drift`, `.moor`, …) and
     # append each output_suffix; place outputs next to the source.
@@ -99,15 +89,13 @@ def _dart_sqlcodegen_impl(ctx):
     direct.extend(add_shim_contract_args(
         args,
         ctx,
-        synth_pc,
+        inputs,
         sdk.dart,
-        auto_stage_srcs = auto_staged,
         asset_deps = ctx.files.asset_deps,
-        package_root = package_root,
     ))
     args.add_all(ctx.attr.generator_args)
 
-    transitive = ([package_files] if package_files != None else []) + [sdk_files]
+    transitive = ([inputs.package_files] if inputs.package_files != None else []) + [sdk_files]
 
     ctx.actions.run(
         executable = ctx.executable.generator,
@@ -130,7 +118,7 @@ def _dart_sqlcodegen_impl(ctx):
         # an older one over a generator that states none is exactly the
         # disagreement `codegen_identity_error` exists to name.
         codegen_identity(identity),
-    ]
+    ] + ([inputs.validation] if inputs.validation else [])
 
 dart_sqlcodegen = rule(
     implementation = _dart_sqlcodegen_impl,
@@ -165,8 +153,8 @@ dart_sqlcodegen = rule(
             doc = "`dart_library`-shaped targets (anything exporting " +
                   "`DartInfo`) whose transitive sources populate a " +
                   "synthesised `package_config.json`. Same-package " +
-                  "siblings are auto-staged as `--dep`.",
-            providers = [DartInfo],
+                  "siblings are auto-staged as `--dep`." + CODEGEN_MEMBER_DEPS_DOC,
+            providers = CODEGEN_DEP_PROVIDERS,
         ),
         "parts": attr.label_list(
             doc = "Additional input files passed as `--part <path>`.",
@@ -196,7 +184,7 @@ dart_sqlcodegen = rule(
                   "passed as `--dep <exec>|<asset>` using `asset_path_for`.",
             allow_files = True,
         ),
-    } | package_identity_attrs(),
+    } | package_identity_attrs() | CODEGEN_DEPS_ATTRS,
     exec_groups = PORTABLE_EXEC_GROUPS,
     doc = "Runs a Dart code generator over a non-Dart input (`.drift`, " +
           "`.moor`, …), producing one or more sibling outputs.",

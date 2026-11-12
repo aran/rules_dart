@@ -36,3 +36,20 @@ cycle_packages_test = analysistest.make(
         "srcs": attr.string_list(doc = "The short paths of the cycle's own sources."),
     },
 )
+
+def _validation_test_impl(ctx):
+    env = analysistest.begin(ctx)
+    target = analysistest.target_under_test(env)
+    groups = target[OutputGroupInfo]
+    validation = groups._validation.to_list() if hasattr(groups, "_validation") else []
+    asserts.equals(
+        env,
+        sorted(ctx.attr.basenames),
+        sorted([f.basename for f in validation]),
+    )
+    return analysistest.end(env)
+
+validation_test = analysistest.make(
+    _validation_test_impl,
+    attrs = {"basenames": attr.string_list(doc = "The basenames of the target's `_validation` files.")},
+)

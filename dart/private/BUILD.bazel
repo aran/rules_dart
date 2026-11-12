@@ -277,10 +277,10 @@ bzl_library(
     srcs = ["dart_codegen.bzl"],
     visibility = ["//dart:__subpackages__"],
     deps = [
+        ":codegen_deps",
         ":common",
         ":exec_groups",
         ":runtime",
-        "//dart:providers",
     ],
 )
 
@@ -289,10 +289,10 @@ bzl_library(
     srcs = ["dart_aggregate_codegen.bzl"],
     visibility = ["//dart:__subpackages__"],
     deps = [
+        ":codegen_deps",
         ":common",
         ":exec_groups",
         ":runtime",
-        "//dart:providers",
     ],
 )
 
@@ -454,11 +454,11 @@ bzl_library(
     srcs = ["dart_sqlcodegen.bzl"],
     visibility = ["//dart:__subpackages__"],
     deps = [
+        ":codegen_deps",
         ":common",
         ":dart_library",
         ":exec_groups",
         ":runtime",
-        "//dart:providers",
     ],
 )
 
@@ -497,6 +497,18 @@ bzl_library(
         ":exec_groups",
         ":runtime",
         ":source_set",
+        "//dart:providers",
+    ],
+)
+
+bzl_library(
+    name = "codegen_deps",
+    srcs = ["codegen_deps.bzl"],
+    visibility = ["//dart:__subpackages__"],
+    deps = [
+        ":common",
+        ":dart_import_check",
+        ":dart_package_cycle",
         "//dart:providers",
     ],
 )

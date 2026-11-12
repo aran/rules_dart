@@ -1,4 +1,4 @@
-load("//dart:defs.bzl", "dart_library", "dart_package_member", "dart_package_metadata")
+load("//dart:defs.bzl", "dart_codegen", "dart_library", "dart_package_member", "dart_package_metadata")
 
 dart_package_metadata(
     name = "ping_facts",
@@ -11,7 +11,31 @@ dart_package_member(
     name = "member",
     srcs = ["lib/ping.dart"],
     package = ":ping_facts",
+    visibility = ["//dart/tests/package_cycle_fixture:__subpackages__"],
+)
+
+# A source generated for `ping`, which the cycle holds.
+genrule(
+    name = "generated",
+    outs = ["lib/ping_generated.dart"],
+    cmd = "echo 'const generated = 1;' > $@",
+    tags = ["manual"],
     visibility = ["//dart/tests/package_cycle_fixture:__pkg__"],
+)
+
+# A generator in the cycle reads both members, and checks what they import.
+dart_codegen(
+    name = "codegen",
+    src = "lib/ping.dart",
+    generator = "//dart/tests/package_cycle_fixture:generator",
+    output_suffixes = [".g.dart"],
+    package = ":ping_facts",
+    tags = ["manual"],
+    visibility = ["//dart/tests/package_cycle_fixture:__pkg__"],
+    deps = [
+        ":member",
+        "//dart/tests/package_cycle_fixture/pong:member",
+    ],
 )
 
 # `ping` a second time, for a cycle naming it twice.

@@ -86,6 +86,12 @@ func (d *dartLang) Resolve(c *config.Config, ix *resolve.RuleIndex, rc *repo.Rem
 	if !ok || is == nil {
 		return
 	}
+	if is.cycle != nil {
+		// A generator in a cycle reads every member's sources, not the
+		// cycle's library, which holds what it generates; and what the
+		// members import from outside the cycle (cycle.go).
+		is = d.cycleCodegenImports(is, from)
+	}
 
 	pubDepsRepo := ""
 	if c.Exts != nil {

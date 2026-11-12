@@ -2171,6 +2171,67 @@ dart_library(
 files. The builder macros take `package` too, and pass it to every rule they
 write.
 
+### Generators in packages that import each other
+
+A generator resolves what its source imports. Usually that comes from the
+libraries in its `deps`. In a `dart_package_cycle` it can't. Say `order` has a
+model with a `Customer` field, and `Customer` is in `customer`. The library
+holding `customer` is the cycle. The cycle holds what the generator writes for
+`order`, so the generator can't depend on it.
+
+So in a cycle a generator reads the members instead. List every member of the
+cycle in its `deps`, and the libraries the cycle depends on. The generator then
+sees every member's own sources, each under its package's name. This is what
+build_runner does: it reads all the packages at once.
+
+The generated files then can't be in a member, because the generators depend
+on the members. They go in the cycle's `srcs`. Each file still belongs to the
+package whose `lib/` holds it.
+
+```starlark
+# order/BUILD.bazel
+dart_package_member(
+    name = "member",
+    srcs = glob(["lib/**/*.dart"]),  # the package's own files only
+    visibility = ["//:__subpackages__"],
+)
+
+json_serializable_codegen(
+    name = "codegen",
+    srcs = ["lib/order.dart"],
+    deps = [
+        "//customer:member",
+        "//order:member",
+    ],
+    visibility = ["//:__pkg__"],
+)
+```
+
+```starlark
+# BUILD.bazel
+dart_package_cycle(
+    name = "shop",
+    srcs = [
+        "//customer:codegen",
+        "//order:codegen",
+    ],
+    members = [
+        "//customer:member",
+        "//order:member",
+    ],
+    deps = ["@pub_deps//:json_annotation"],
+    visibility = ["//visibility:public"],
+)
+```
+
+Building a generator that reads members checks their imports against its
+`deps`. Leave out a member or a library that the members import, and the build
+fails and names it. So a generator can't quietly miss a type. The check skips
+the members' `part` directives, because the parts are what the generators are
+about to write.
+
+Gazelle writes all of this for a cycle that a `dart_cycle` directive declares.
+
 ### Executables in a package
 
 Dart gives every file under a package's root to that package, `bin/` and

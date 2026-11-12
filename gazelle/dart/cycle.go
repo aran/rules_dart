@@ -141,6 +141,8 @@ type cyclePackage struct {
 	member label.Label
 	is     *importSet
 	specs  []resolve.ImportSpec
+	// What its codegen targets generate, which the cycle holds.
+	generated []label.Label
 }
 
 func (s *cycleState) declared(decl *cycleDecl) {
@@ -205,7 +207,12 @@ func packageImports(is *importSet, pkg string) []string {
 // package's member, with an alias in its name for the cycle. It returns the
 // rules to write in lib's place, their imports, and the rules to delete:
 // the library a member replaces, or the member and alias a library does.
-func (d *dartLang) cycleMemberRules(args language.GenerateArgs, root string, lib *rule.Rule, is *importSet) ([]*rule.Rule, []interface{}, []*rule.Rule) {
+//
+// genSrcs are the labels in lib's srcs of what its codegen rules, codegen,
+// generate, and codegenImports those rules' imports. A member holds only its
+// package's own sources: each generator of the cycle reads every member, so
+// the cycle holds what they generate.
+func (d *dartLang) cycleMemberRules(args language.GenerateArgs, root string, lib *rule.Rule, is *importSet, genSrcs []string, codegen []*rule.Rule, codegenImports []interface{}) ([]*rule.Rule, []interface{}, []*rule.Rule) {
 	pkg := lib.Name()
 	p := &cyclePackage{root: root, imports: packageImports(is, pkg)}
 	decl := cycleOf(args.Config, pkg)
@@ -233,13 +240,35 @@ func (d *dartLang) cycleMemberRules(args language.GenerateArgs, root string, lib
 	p.specs = d.importSpecs(args.Config, lib, root)
 	d.cycles.record(pkg, p)
 
-	member := rule.NewRule("dart_package_member", memberName)
-	for _, a := range []string{"srcs", "package"} {
-		if v := lib.Attr(a); v != nil {
-			member.SetAttr(a, v)
+	generated := map[string]bool{}
+	for _, g := range genSrcs {
+		generated[g] = true
+		p.generated = append(p.generated, label.New("", root, strings.TrimPrefix(g, ":")))
+	}
+	for _, c := range codegenImports {
+		if cis, ok := c.(*importSet); ok && cis != nil {
+			cis.cycle = decl
 		}
 	}
-	member.SetAttr("visibility", []string{label.New("", decl.Dir, "__pkg__").String()})
+	for _, r := range codegen {
+		if generated[":"+r.Name()] {
+			r.SetAttr("visibility", []string{label.New("", decl.Dir, "__pkg__").String()})
+		}
+	}
+
+	member := rule.NewRule("dart_package_member", memberName)
+	var srcs []string
+	for _, s := range lib.AttrStrings("srcs") {
+		if !generated[s] {
+			srcs = append(srcs, s)
+		}
+	}
+	member.SetAttr("srcs", srcs)
+	if v := lib.Attr("package"); v != nil {
+		member.SetAttr("package", v)
+	}
+	// The cycle builds it, and the generators of every member read it.
+	member.SetAttr("visibility", []string{label.New("", decl.Dir, "__subpackages__").String()})
 	alias := rule.NewRule("alias", pkg)
 	alias.SetAttr("actual", decl.label().Rel("", root).String())
 	alias.SetAttr("visibility", []string{"//visibility:public"})
@@ -272,13 +301,16 @@ func (d *dartLang) cycleRules(args language.GenerateArgs) ([]*rule.Rule, []inter
 		d.cycles.written[decl] = true
 		d.cycles.mu.Unlock()
 		is := &importSet{packages: map[string]bool{}, uris: map[string]map[string]bool{}}
-		var members []string
+		var members, generated []string
 		for _, p := range decl.Packages {
 			m := d.cycles.lookup(p)
 			if m == nil || m.decl != decl {
 				continue
 			}
 			members = append(members, m.member.Rel("", args.Rel).String())
+			for _, g := range m.generated {
+				generated = append(generated, g.Rel("", args.Rel).String())
+			}
 			for pkg := range m.is.packages {
 				is.packages[pkg] = true
 			}
@@ -298,6 +330,10 @@ func (d *dartLang) cycleRules(args language.GenerateArgs) ([]*rule.Rule, []inter
 		r := rule.NewRule("dart_package_cycle", decl.name())
 		sort.Strings(members)
 		r.SetAttr("members", members)
+		if len(generated) > 0 {
+			sort.Strings(generated)
+			r.SetAttr("srcs", generated)
+		}
 		r.SetAttr("visibility", []string{"//visibility:public"})
 		gen = append(gen, r)
 		imports = append(imports, is)
@@ -312,6 +348,42 @@ func (d *dartLang) cycleRules(args language.GenerateArgs) ([]*rule.Rule, []inter
 		}
 	}
 	return gen, imports, empty
+}
+
+// members is the labels of the members of decl and, merged, what they import
+// from outside it.
+func (s *cycleState) members(decl *cycleDecl) ([]label.Label, *importSet) {
+	is := &importSet{packages: map[string]bool{}, uris: map[string]map[string]bool{}}
+	in := map[string]bool{}
+	for _, p := range decl.Packages {
+		in[p] = true
+	}
+	var labels []label.Label
+	for _, p := range decl.Packages {
+		m := s.lookup(p)
+		if m == nil || m.decl != decl {
+			continue
+		}
+		labels = append(labels, m.member)
+		for pkg := range m.is.packages {
+			if !in[pkg] {
+				is.packages[pkg] = true
+			}
+		}
+		for pkg, uris := range m.is.uris {
+			if in[pkg] {
+				continue
+			}
+			if is.uris[pkg] == nil {
+				is.uris[pkg] = map[string]bool{}
+			}
+			for u := range uris {
+				is.uris[pkg][u] = true
+			}
+		}
+		is.labels = append(is.labels, m.is.labels...)
+	}
+	return labels, is
 }
 
 // check records an error for each cycle of packages no directive declares,
@@ -521,4 +593,37 @@ func commonDir(dirs []string) string {
 		common = common[:n]
 	}
 	return strings.Join(common, "/")
+}
+
+// cycleCodegenImports is what is, the imports of a codegen rule of a member of
+// is.cycle, resolves as: every member of the cycle, and what the members and
+// the rule's sources import from outside it.
+func (d *dartLang) cycleCodegenImports(is *importSet, from label.Label) *importSet {
+	labels, out := d.cycles.members(is.cycle)
+	in := map[string]bool{}
+	for _, p := range is.cycle.Packages {
+		in[p] = true
+	}
+	for pkg := range is.packages {
+		if !in[pkg] {
+			out.packages[pkg] = true
+		}
+	}
+	for pkg, uris := range is.uris {
+		if in[pkg] {
+			continue
+		}
+		if out.uris[pkg] == nil {
+			out.uris[pkg] = map[string]bool{}
+		}
+		for u := range uris {
+			out.uris[pkg][u] = true
+		}
+	}
+	out.labels = append(out.labels, is.labels...)
+	for _, l := range labels {
+		out.labels = append(out.labels, l.Rel(from.Repo, from.Pkg).String())
+	}
+	out.annotationPackage, out.annotationDefault = is.annotationPackage, is.annotationDefault
+	return out
 }

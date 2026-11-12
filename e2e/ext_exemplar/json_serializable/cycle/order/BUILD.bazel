@@ -1,0 +1,21 @@
+load("@rules_dart//dart:defs.bzl", "dart_package_member")
+load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_codegen")
+
+# The package's own sources. What json_serializable writes for them is the
+# cycle's, so that the generator here can read them.
+dart_package_member(
+    name = "member",
+    srcs = glob(["lib/**/*.dart"]),
+    visibility = ["//json_serializable/cycle:__subpackages__"],
+)
+
+# The generator reads every member of the cycle and the cycle's deps.
+json_serializable_codegen(
+    name = "codegen",
+    srcs = ["lib/order.dart"],
+    visibility = ["//json_serializable/cycle:__pkg__"],
+    deps = [
+        "//json_serializable/cycle/customer:member",
+        "//json_serializable/cycle/order:member",
+    ],
+)

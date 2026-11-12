@@ -1,0 +1,33 @@
+load("@rules_dart//dart:defs.bzl", "dart_package_member", "dart_package_metadata")
+load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_codegen")
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "customer",
+    visibility = ["//shop/customer:__subpackages__"],
+)
+
+json_serializable_codegen(
+    name = "customer_codegen",
+    srcs = ["lib/customer.dart"],
+    package = ":pubspec-metadata",
+    visibility = ["//shop:__pkg__"],
+    deps = [
+        ":customer_member",
+        "//shop/order:order_member",
+        "@pub_deps//:json_annotation",
+    ],
+)
+
+dart_package_member(
+    name = "customer_member",
+    srcs = ["lib/customer.dart"],
+    package = ":pubspec-metadata",
+    visibility = ["//shop:__subpackages__"],
+)
+
+alias(
+    name = "customer",
+    actual = "//shop:customer_order",
+    visibility = ["//visibility:public"],
+)

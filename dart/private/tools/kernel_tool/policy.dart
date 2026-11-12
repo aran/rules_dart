@@ -61,7 +61,9 @@ class Violation {
 ///   dependencies provide, that is, not among [directPackages].
 ///
 /// A library's import of a package no dependency provides suggests a
-/// `dart_package_cycle` unless [suggestCycle] is false.
+/// `dart_package_cycle` unless [suggestCycle] is false. With [checkParts]
+/// false the files' parts are not judged: they are a generator's inputs, whose
+/// parts it has yet to write.
 List<Violation> checkPolicy({
   required String label,
   required List<CheckedFile> files,
@@ -72,6 +74,7 @@ List<Violation> checkPolicy({
   Set<String> directPackages = const {},
   Set<String> ownPackages = const {},
   bool suggestCycle = true,
+  bool checkParts = true,
 }) {
   final held = {for (final f in files) f.uri};
   // Unstated (an executable's own files), the packages its files sit in.
@@ -154,8 +157,10 @@ List<Violation> checkPolicy({
         judge(verb, c.uri);
       }
     }
-    for (final p in f.directives.parts) {
-      judge('has the part', p, part: true);
+    if (checkParts) {
+      for (final p in f.directives.parts) {
+        judge('has the part', p, part: true);
+      }
     }
   }
   return violations;

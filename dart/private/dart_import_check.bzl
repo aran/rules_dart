@@ -126,7 +126,7 @@ def _add_layering_args(args, deps, indirect_deps):
                 args.add("--direct-package", package)
     args.add_all(depset(transitive = facades), before_each = "--direct-package", map_each = _package_name, uniquify = True)
 
-def dart_import_check_action(ctx, kernel_tool, name, srcs, own, deps, indirect_deps = [], check_cycle = False):
+def dart_import_check_action(ctx, kernel_tool, name, srcs, own, deps, indirect_deps = [], check_cycle = False, generator_input = False):
     """Checks the imports of `srcs` against `deps`, as a validation action.
 
     Args:
@@ -140,6 +140,8 @@ def dart_import_check_action(ctx, kernel_tool, name, srcs, own, deps, indirect_d
       indirect_deps: Labels from `DartInfo.indirect_deps`.
       check_cycle: Whether `own` must be exactly one dependency cycle, judged
         from what `srcs` import, as a `dart_package_cycle`'s packages must.
+      generator_input: Whether `srcs` are what a code generator reads before it
+        writes their parts, which are then not checked.
 
     Returns:
       The result File to put in `_validation`, or `None` when there is nothing
@@ -185,6 +187,8 @@ def dart_import_check_action(ctx, kernel_tool, name, srcs, own, deps, indirect_d
         _add_layering_args(args, deps, indirect_deps)
     if check_cycle:
         args.add("--check-cycle")
+    if generator_input:
+        args.add("--generator-input")
     args.add("--output", result)
 
     ctx.actions.run(
