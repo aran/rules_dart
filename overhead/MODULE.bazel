@@ -15,6 +15,7 @@ module(name = "overhead")
 # rules_dart wins, rules_dart's own checkout included.
 bazel_dep(name = "rules_dart", version = "0.8.1")
 bazel_dep(name = "rules_multitool", version = "1.11.1")
+bazel_dep(name = "platforms", version = "1.1.0")
 
 # The commit hooks' tools, built into the consumer's `.bazel_env/bin` so the
 # hooks run without Bazel: //:bazel_env.

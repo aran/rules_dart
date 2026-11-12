@@ -18,8 +18,15 @@ exports_files(
 # It must stay in this root package: `bazel run` puts the `.bazel_env`
 # symlink in the target's package directory, which for this package is the
 # consumer's root.
+#
+# bazel_env's launchers are bash, so it does not build on Windows; there the
+# hooks run in prek's `manual` stage through `bazel run` (README.md).
 bazel_env(
     name = "bazel_env",
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
     tools = {
         "actionlint": "//lint:actionlint",
         "buildifier": TOOLS["buildifier"],
