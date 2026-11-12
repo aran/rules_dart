@@ -41,11 +41,15 @@ void main(List<String> args) {
     'DART_SUPPRESS_ANALYTICS': 'true',
   };
 
-  Future<ProcessResult> run(String executable, List<String> arguments) async {
+  Future<ProcessResult> run(
+    String executable,
+    List<String> arguments, {
+    String? workingDirectory,
+  }) async {
     final result = await Process.run(
       executable,
       arguments,
-      workingDirectory: app,
+      workingDirectory: workingDirectory ?? app,
       environment: environment,
     );
     expect(
@@ -132,23 +136,34 @@ void main(List<String> args) {
     });
 
     test('kernel_worker compiles a module', () async {
+      // Exec paths, as Bazel gives them: `kernel_worker` reads a path as a
+      // URI, so an absolute Windows one would read as a `c:` URI. The work
+      // directory stands in for the exec root.
+      const platform = 'sdk/lib/_internal/vm_platform_product.dill';
+      const librariesSpec = 'sdk/lib/libraries.json';
+      for (final path in [platform, librariesSpec]) {
+        final to = File('${work.path}/$path');
+        to.parent.createSync(recursive: true);
+        File('${sdk('kernel')}/${path.substring('sdk/'.length)}')
+            .copySync(to.path);
+      }
       await run(tool('kernel', 'dartaotruntime'), [
         snapshot('kernel', 'kernel_worker_aot.dart.snapshot'),
         '--target',
         'vm',
         '--dart-sdk-summary',
-        '${sdk('kernel')}/lib/_internal/vm_platform_product.dill',
+        platform,
         '--libraries-file',
-        '${sdk('kernel')}/lib/libraries.json',
+        librariesSpec,
         '--packages-file',
-        packages,
+        'app/.dart_tool/package_config.json',
         '--no-summary-only',
         '--exclude-non-sources',
         '--source',
         'package:app/answer.dart',
         '--output',
-        '${work.path}/module.dill',
-      ]);
+        'module.dill',
+      ], workingDirectory: work.path);
     });
 
     test('frontend_server compiles an entrypoint', () async {
