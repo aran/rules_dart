@@ -909,7 +909,8 @@ Set<String> runfilesPaths(List<String> lines, {required String workspace}) => {
 /// paths, as a runfiles tree holds them.
 ///
 /// A real path that is a directory (a tree artifact is one entry) is copied
-/// whole.
+/// whole. A symlink, as a repository's files can hold, is copied as what it
+/// points at, as a runfiles tree reads it.
 void _materialize({
   required List<String> manifest,
   required RunfilesLayout layout,
@@ -925,24 +926,30 @@ void _materialize({
     if (Directory(real).existsSync()) {
       _copyDirectory(Directory(real), Directory(destination));
     } else if (File(real).existsSync()) {
-      Directory(File(destination).parent.path).createSync(recursive: true);
-      File(real).copySync(destination);
+      _copyFile(real, destination);
     }
   }
 }
 
 void _copyDirectory(Directory from, Directory to) {
   to.createSync(recursive: true);
-  for (final entity in from.listSync(recursive: true, followLinks: false)) {
+  for (final entity in from.listSync(recursive: true)) {
     final relative = entity.path.substring(from.path.length + 1);
     final target = _join(to.path, relative.replaceAll(r'\', '/'));
     if (entity is Directory) {
       Directory(target).createSync(recursive: true);
     } else if (entity is File) {
-      Directory(File(target).parent.path).createSync(recursive: true);
-      entity.copySync(target);
+      _copyFile(entity.path, target);
     }
   }
+}
+
+/// Copies the file at [from], or the file a symlink there points at, to [to].
+///
+/// On Windows `File.copySync` refuses a symlink, as if nothing were there.
+void _copyFile(String from, String to) {
+  Directory(File(to).parent.path).createSync(recursive: true);
+  File(File(from).resolveSymbolicLinksSync()).copySync(to);
 }
 
 /// Converts `package:test`'s JSON reporter output into JUnit XML, one

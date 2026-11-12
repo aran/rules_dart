@@ -518,23 +518,26 @@ void main(List<String> args) {
     tearDown(() => tmp.deleteSync(recursive: true));
 
     /// Runs the launcher at [rlocationPath] from a manifest, leaving out the
-    /// runfiles whose paths contain [without].
+    /// runfiles whose paths contain [without] and adding the lines [extra].
     Future<ProcessResult> runAsBazelRun(
       String rlocationPath, {
       String? without,
+      List<String> extra = const [],
       List<String> arguments = const [],
       Map<String, String> environment = const {},
     }) {
       var manifest =
           Platform.environment['RUNFILES_MANIFEST_FILE'] ??
           _manifestOf(Platform.environment['RUNFILES_DIR']!, tmp.path);
-      if (without != null) {
-        final kept = File(manifest)
-            .readAsLinesSync()
-            .where((line) => !line.split(' ').first.contains(without));
+      if (without != null || extra.isNotEmpty) {
+        final kept = File(manifest).readAsLinesSync().where(
+          (line) =>
+              line.isNotEmpty &&
+              (without == null || !line.split(' ').first.contains(without)),
+        );
         manifest = (File(
-          '${tmp.path}/MANIFEST.without',
-        )..writeAsStringSync('${kept.join('\n')}\n')).path;
+          '${tmp.path}/MANIFEST.edited',
+        )..writeAsStringSync('${[...kept, ...extra].join('\n')}\n')).path;
       }
       final temp = Directory('${tmp.path}/temp')..createSync();
       return Process.run(
@@ -601,6 +604,36 @@ void main(List<String> args) {
       expect(own, isNotEmpty);
       expect(laidOut, contains(config['test_path']));
       expect(laidOut.toSet().intersection(own.toSet()), {config['test_path']});
+    });
+
+    // A repository's files can be symlinks, as a git package's are; each is
+    // laid out as what it points at, alone or inside a directory.
+    test('symlinked runfiles are laid out', () async {
+      final workspace = configOf(runfiles.rlocation(args[0]))['workspace'];
+      final real = File('${tmp.path}/real.txt')..writeAsStringSync('x');
+      final link = Link('${tmp.path}/link.txt')..createSync('real.txt');
+      final tree = Directory('${tmp.path}/tree')..createSync();
+      File('${tree.path}/real.txt').writeAsStringSync('x');
+      Link('${tree.path}/link.txt').createSync('real.txt');
+      final result = await runAsBazelRun(
+        args[0],
+        arguments: ['files'],
+        extra: [
+          '$workspace/linked.txt ${link.path}',
+          '$workspace/plain.txt ${real.path}',
+          '$workspace/tree ${tree.path}',
+        ],
+      );
+      expectRan(result);
+      expect(
+        '${result.stdout}'.trim().split(RegExp(r'\r?\n')),
+        containsAll([
+          'linked.txt',
+          'plain.txt',
+          'tree/real.txt',
+          'tree/link.txt',
+        ]),
+      );
     });
 
     test('a test under the runner', () async {
