@@ -475,19 +475,27 @@ void main() {
       // inside a runfiles directory that holds nothing else.
       late String exe;
       setUp(() {
-        exe = '${tmp.path}$sep${probe.split(sep).last}';
+        // rlocation returns the manifest's target as written, and Bazel
+        // writes those with forward slashes on Windows too.
+        exe = '${tmp.path}$sep${Uri.file(probe).pathSegments.last}';
         File(probe).copySync(exe);
       });
 
+      // Neither runfiles variable, but the rest of a normal environment:
+      // Windows refuses to start a process with an empty one.
+      final noVariable = Map.of(Platform.environment)
+        ..remove('RUNFILES_DIR')
+        ..remove('RUNFILES_MANIFEST_FILE');
+
       test('a manifest beside it is used', () async {
         write(
-          '${exe.split(sep).last}.runfiles_manifest',
+          '${Uri.file(exe).pathSegments.last}.runfiles_manifest',
           '_main/a.txt /real/a.txt\n',
         );
         final r = await Process.run(
           exe,
           ['_main/a.txt'],
-          environment: {},
+          environment: noVariable,
           includeParentEnvironment: false,
         );
         expect(r.exitCode, 0, reason: '${r.stderr}');
@@ -497,13 +505,13 @@ void main() {
       test('a MANIFEST inside the runfiles directory is used when it is all '
           'the directory holds', () async {
         write(
-          '${exe.split(sep).last}.runfiles${sep}MANIFEST',
+          '${Uri.file(exe).pathSegments.last}.runfiles${sep}MANIFEST',
           '_main/a.txt /real/a.txt\n',
         );
         final r = await Process.run(
           exe,
           ['_main/a.txt'],
-          environment: {},
+          environment: noVariable,
           includeParentEnvironment: false,
         );
         expect(r.exitCode, 0, reason: '${r.stderr}');
@@ -517,7 +525,7 @@ void main() {
           final r = await Process.run(
             exe,
             ['_main/a.txt'],
-            environment: {},
+            environment: noVariable,
             includeParentEnvironment: false,
           );
           expect(r.exitCode, 0, reason: '${r.stderr}');
@@ -532,7 +540,7 @@ void main() {
         final r = await Process.run(
           exe,
           ['_main/a.txt'],
-          environment: {},
+          environment: noVariable,
           includeParentEnvironment: false,
         );
         expect(r.exitCode, isNot(0));
