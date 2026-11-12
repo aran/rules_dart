@@ -19,27 +19,44 @@ void main(List<String> args) {
   final exe = Platform.isWindows ? '.exe' : '';
   final runtime = '$sdk/bin/dartaotruntime$exe';
   final snapshot = '$sdk/bin/snapshots/kernel_worker_aot.dart.snapshot';
-  final platform = '$sdk/lib/_internal/vm_platform_product.dill';
-  final librariesSpec = '$sdk/lib/libraries.json';
+  // Exec paths, as Bazel gives them: relative to the exec root.
+  const platform = 'sdk/lib/_internal/vm_platform_product.dill';
+  const librariesSpec = 'sdk/lib/libraries.json';
 
   late Directory execroot;
   late BazelWorkerDriver driver;
+  late List<Process> workers;
 
   setUp(() {
     execroot = Directory.systemTemp.createTempSync('module_worker_test');
+    for (final path in [platform, librariesSpec]) {
+      final to = File('${execroot.path}/$path');
+      to.parent.createSync(recursive: true);
+      File('$sdk/${path.substring('sdk/'.length)}').copySync(to.path);
+    }
+    workers = [];
     driver = BazelWorkerDriver(
-      () => Process.start(kernelTool, [
-        'module',
-        '--snapshot',
-        snapshot,
-        '--persistent_worker',
-      ], workingDirectory: execroot.path),
+      () async {
+        final worker = await Process.start(kernelTool, [
+          'module',
+          '--snapshot',
+          snapshot,
+          '--persistent_worker',
+        ], workingDirectory: execroot.path);
+        workers.add(worker);
+        return worker;
+      },
       maxWorkers: 1,
       maxRetries: 0,
     );
   });
   tearDown(() async {
-    await driver.terminateWorkers();
+    // Ended by its input, a worker stops its compiler and waits for it; a
+    // killed one leaves it running in the exec root.
+    for (final worker in workers) {
+      await worker.stdin.close();
+      await worker.exitCode;
+    }
     execroot.deleteSync(recursive: true);
   });
 

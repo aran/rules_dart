@@ -1,5 +1,6 @@
 // Running the SDK's compilers: `kernel_worker` as a persistent worker for
 // modules, `frontend_server` once for an entrypoint.
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -47,6 +48,10 @@ class KernelWorker {
 
   BazelWorkerDriver? _driver;
 
+  /// The compiler processes [_driver] started that have not yet exited, which
+  /// [close] waits out.
+  final _processes = <Process>[];
+
   /// Where the compiler process was started. Paths in a request are relative
   /// to the working directory, which a sandboxed worker has a new one of per
   /// request.
@@ -61,6 +66,8 @@ class KernelWorker {
         '--persistent_worker',
       ]);
       process.stderr.listen(stderr.add);
+      _processes.add(process);
+      unawaited(process.exitCode.then((_) => _processes.remove(process)));
       return process;
     },
     maxWorkers: 1,
@@ -99,6 +106,11 @@ class KernelWorker {
     _driver = null;
     _compiles = 0;
     await driver?.terminateWorkers();
+    // Killing is not exiting: until it has, the process holds its working
+    // directory, which Windows will not delete.
+    await Future.wait([
+      for (final p in [..._processes]) p.exitCode,
+    ]);
   }
 }
 
