@@ -3329,10 +3329,10 @@ The [`e2e/`](e2e/) directory contains complete working examples. A name with a
 | [`gazelle`](e2e/gazelle/)                                           | Automatic BUILD file generation with Gazelle                                                             |
 | [`basics/cross_compile`](e2e/basics/cross_compile/)                 | Cross-compilation to other platforms via `platform_data` transition                                      |
 | [`dart_test/package_test`](e2e/dart_test/package_test/)             | `dart_test` with pub dependencies via `pub.from_lock()`                                                  |
-| [`pub_lock_dedup`](e2e/pub_lock_dedup/)                             | Cross-lock-file package deduplication                                                                    |
+| [`pub_lock_dedup/two_hubs`](e2e/pub_lock_dedup/two_hubs/)           | Cross-lock-file package deduplication                                                                    |
 | [`pub_lock_upgrade`](e2e/pub_lock_upgrade/)                         | Locks that disagree build the highest version, rules_dart's own lock included                            |
 | [`pub_lock_conflict`](e2e/pub_lock_conflict/)                       | `check_direct_dependencies = "error"` fails a raised root lock, giving the command to raise it           |
-| [`pub_lock_cross_module`](e2e/pub_lock_cross_module/)               | `pub.from_lock()` across Bazel module boundaries                                                         |
+| [`pub_lock_dedup/cross_module`](e2e/pub_lock_dedup/cross_module/)   | `pub.from_lock()` across Bazel module boundaries                                                         |
 | [`pub_lock_cycle`](e2e/pub_lock_cycle/)                             | Packages that depend on each other: a curated cycle (`dio`), and one the root declares                   |
 | [`pub_package_cycle`](e2e/pub_package_cycle/)                       | `pub.package()` packages that depend on each other, built as one library                                 |
 | [`pub_cycle_refused`](e2e/pub_cycle_refused/)                       | An undeclared cycle, a stale declaration, part of a cycle and a cycle through a `resolve` target fail    |

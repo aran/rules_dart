@@ -1,24 +1,12 @@
-load("@rules_dart//dart:defs.bzl", "dart_analysis_config", "dart_analysis_options", "dart_binary")
+load("@rules_dart//dart:defs.bzl", "dart_analysis_config", "dart_analysis_options", "dart_test")
 
-exports_files([
-    "lock_a.lock",
-    "lock_b.lock",
-])
+# Packages that several locks list are built once: `//two_hubs` reads two locks
+# in this module, `//cross_module` locks of other modules, one of them with a
+# hub of the same name as this module's.
 
-# Uses deps from both hubs to verify deduplication works.
-# Both lock files have identical versions, so no conflict.
-dart_binary(
-    name = "app",
-    main = "main.dart",
-    deps = [
-        "@deps_a//:path",
-        "@deps_b//:collection",
-    ],
-)
-
-# The ruleset hangs off the options target, never off `app`'s deps, so a
-# lint-only package stays out of the binary's `DartInfo` and out of the
-# two-hub dedup this module exercises.
+# The ruleset hangs off the options target, never off a binary's deps, so a
+# lint-only package stays out of the binaries' `DartInfo` and out of the dedup
+# this workspace exercises.
 dart_analysis_options(
     name = "options",
     src = "analysis_options.yaml",
@@ -28,4 +16,20 @@ dart_analysis_options(
 dart_analysis_config(
     name = "analysis_config",
     options = [":options"],
+)
+
+# Both apps run, and print what each of their packages must produce.
+dart_test(
+    name = "apps_test",
+    size = "small",
+    args = [
+        "$(rlocationpath //cross_module:app)",
+        "$(rlocationpath //two_hubs:app)",
+    ],
+    data = [
+        "//cross_module:app",
+        "//two_hubs:app",
+    ],
+    main = "test/apps_test.dart",
+    deps = ["@rules_dart//dart/runfiles"],
 )
