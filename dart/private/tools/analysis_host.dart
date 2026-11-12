@@ -24,17 +24,32 @@ Future<void> main(List<String> args) async {
     exit(64);
   }
   final cache = args[0];
-  void end(int code) {
+  final exited = ReceivePort();
+  final serverDone = exited.first;
+  Isolate? server;
+  var ending = false;
+  // Stops the server before removing its cache: a server still writing into
+  // the directory can make the removal fail partway, leaving it behind.
+  Future<void> end(int code) async {
+    if (ending) return;
+    ending = true;
+    server?.kill(priority: Isolate.immediate);
+    if (server != null) {
+      await serverDone.timeout(const Duration(seconds: 5), onTimeout: () {});
+    }
+    final directory = Directory(cache);
     try {
-      Directory(cache).deleteSync(recursive: true);
-    } on FileSystemException {
-      // Already gone.
+      directory.deleteSync(recursive: true);
+    } on FileSystemException catch (e) {
+      if (directory.existsSync()) {
+        stderr.writeln('The analysis host could not remove $cache: $e');
+      }
     }
     exit(code);
   }
 
   if (!Platform.isWindows) {
-    ProcessSignal.sigterm.watch().listen((_) => end(0));
+    ProcessSignal.sigterm.watch().listen((_) => unawaited(end(0)));
   }
   final bool Function() parentGone;
   try {
@@ -43,27 +58,26 @@ Future<void> main(List<String> args) async {
     stderr.writeln('The analysis host cannot watch its parent: ${e.message}');
     exit(70);
   }
-  if (parentGone()) end(0);
+  if (parentGone()) await end(0);
   Timer.periodic(_parentPoll, (_) {
-    if (parentGone()) end(0);
+    if (parentGone()) unawaited(end(0));
   });
 
-  final exited = ReceivePort();
   final errors = ReceivePort();
   var failed = false;
   errors.listen((error) {
     failed = true;
     stderr.writeln('The analysis server failed: $error');
   });
-  await Isolate.spawnUri(
+  server = await Isolate.spawnUri(
     Uri.file(args[1]),
     ['--cache=$cache', ...args.skip(2)],
     null,
     onExit: exited.sendPort,
     onError: errors.sendPort,
   );
-  await exited.first;
-  end(failed ? 70 : 0);
+  await serverDone;
+  await end(failed ? 70 : 0);
 }
 
 /// How often the host checks that its parent is alive: how long a server can
