@@ -104,6 +104,10 @@ def _sdk_file_set_copy_impl(ctx):
         args.add(f.path[len(root) + 1:])
         args.add(f)
 
+    # The analyze set is hundreds of files, past Windows' command-line limit.
+    args.use_param_file("@%s", use_always = True)
+    args.set_param_file_format("multiline")
+
     # A copy, not a link: the `dart` launcher finds the VM and its snapshots
     # beside its own resolved path, which for a link is the whole SDK.
     ctx.actions.run(
