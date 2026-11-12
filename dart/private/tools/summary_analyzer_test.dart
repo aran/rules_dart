@@ -172,7 +172,8 @@ int use(Holder h) => h.missing;
     expect(
       result.output,
       contains(
-        "error - app/lib/app.dart:3:24 - The getter 'missing' isn't "
+        "error - ${p.join('app', 'lib', 'app.dart')}:3:24 - "
+        "The getter 'missing' isn't "
         "defined for the type 'Holder'.",
       ),
     );
@@ -198,7 +199,7 @@ class Sub extends Base {}
     expect(
       result.output,
       allOf(
-        contains('app/lib/app.dart:3:7'),
+        contains('${p.join('app', 'lib', 'app.dart')}:3:7'),
         contains(
           "The type 'Sub' must be 'base', 'final' or 'sealed' because the "
           "supertype 'Base' is 'base'. - "
@@ -282,7 +283,7 @@ int two() => one() + 1;
       result.output,
       allOf(
         contains('prefer_relative_imports'),
-        contains('sp/lib/user.dart:1:1'),
+        contains('${p.join('sp', 'lib', 'user.dart')}:1:1'),
       ),
     );
   });
