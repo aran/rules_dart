@@ -1,5 +1,5 @@
-// The command line of `bazel run @rules_dart//dart/format` and
-// `@rules_dart//dart/fix`.
+// The command line of `bazel run @rules_dart//dart/format`,
+// `@rules_dart//dart/fix` and `@rules_dart//dart/unused_deps`.
 //
 // After the tool's own `--dry-run`, the arguments are those of `bazel build`:
 // flags and target patterns, with `--` before patterns that start with `-`.
@@ -8,8 +8,10 @@
 // --config=deep //:x` would build, and Bazel rejects what it would reject. A
 // flag the tool sets is refused, since the caller's would override it.
 
-/// The binary's own options, which its BUILD target passes.
+/// The binary's own options, which its BUILD target passes; `--aspect=` only
+/// for a tool whose output group an aspect makes.
 const _internal = ['--command=', '--aspect=', '--output-group='];
+const _required = ['--command=', '--output-group='];
 
 /// The `bazel build` flags the tool sets, by name.
 const reservedFlags = [
@@ -24,7 +26,7 @@ class UsageException implements Exception {
   UsageException(this.message, [this.command]);
   final String message;
 
-  /// `format` or `fix`, once known.
+  /// `format`, `fix` or `unused_deps`, once known.
   final String? command;
 }
 
@@ -38,13 +40,14 @@ class ApplyArgs {
     required this.bazelArgs,
   });
 
-  /// `format` or `fix`.
+  /// `format`, `fix` or `unused_deps`.
   final String command;
 
-  /// The aspect, by canonical label.
-  final String aspect;
+  /// The aspect making [group], by canonical label, or `null` when the
+  /// targets make it themselves.
+  final String? aspect;
 
-  /// The aspect's output group holding the changes files.
+  /// The output group holding the files the tool reads.
   final String group;
   final bool dryRun;
 
@@ -54,10 +57,11 @@ class ApplyArgs {
   /// The `bazel build` command line, writing its events to [events].
   List<String> buildArgs(String events) => [
     'build',
-    '--aspects=$aspect',
+    if (aspect case final aspect?) '--aspects=$aspect',
     // Without a `+`, that group alone, not the targets' default outputs.
     '--output_groups=$group',
-    // Nor their validations: an import check has no say in a file's format.
+    // Nor their validations: an import check has no say in a file's format,
+    // and the unused-dependency check would fail what the tool fixes.
     '--norun_validations',
     '--build_event_json_file=$events',
     ...bazelArgs,
@@ -76,8 +80,8 @@ ApplyArgs parseArgs(List<String> args) {
     if (prefix == null || internal.containsKey(prefix)) break;
     internal[prefix] = args[i].substring(prefix.length);
   }
-  if (internal.length != _internal.length) {
-    throw UsageException('${_internal.join(', ')} are required');
+  if (!_required.every(internal.containsKey)) {
+    throw UsageException('${_required.join(', ')} are required');
   }
   final command = internal['--command=']!;
 
@@ -107,7 +111,7 @@ ApplyArgs parseArgs(List<String> args) {
   }
   return ApplyArgs(
     command: command,
-    aspect: internal['--aspect=']!,
+    aspect: internal['--aspect='],
     group: internal['--output-group=']!,
     dryRun: dryRun,
     bazelArgs: bazelArgs,

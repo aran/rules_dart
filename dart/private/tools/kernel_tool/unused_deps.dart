@@ -1,6 +1,8 @@
 // The converse of strict deps: a dependency in a target's `deps` that none of
 // its files names. Each such edge widens what a change to the dependency
 // rebuilds and reruns, and nothing the target compiles needs it.
+import 'dart:convert';
+
 import 'args.dart';
 import 'policy.dart';
 import 'uris.dart';
@@ -8,6 +10,9 @@ import 'uris.dart';
 /// The Bazel feature that turns this check off for a target, its package or
 /// the build.
 const unusedDepsFeature = 'dart_unused_deps';
+
+/// What removes the deps the check finds, run with target patterns.
+const unusedDepsFixer = 'bazel run @rules_dart//dart/unused_deps --';
 
 /// One entry of the target's `deps`, as the rule hands it to the check.
 class DeclaredDep {
@@ -124,14 +129,28 @@ List<DeclaredDep> unusedDeps({
 /// The failure for [unused], listed by [dependent], the BUILD file's entry
 /// that states them: a line for each, as that file can write it.
 String unusedDepsMessage(String dependent, List<DeclaredDep> unused) {
+  final package = dependent.substring(0, dependent.lastIndexOf(':'));
   return [
     '$dependent: no file imports or exports these deps:',
     for (final d in unused) '  ${d.display}',
-    'Remove them from deps. One used without an import is exempt when its '
-        'rule returns DartUsedWithoutImportInfo; '
+    '$unusedDepsFixer $package:all removes them. One used without an import '
+        'is exempt when its rule returns DartUsedWithoutImportInfo; '
         'features = ["-$unusedDepsFeature"] turns the check off.',
   ].join('\n');
 }
+
+/// What `--report` writes, for [unusedDepsFixer]: the target's [label], the
+/// BUILD file's entry that states its `deps` ([dependent]), and the
+/// canonical label of each of [unused].
+String unusedDepsReport(
+  String label,
+  String dependent,
+  List<DeclaredDep> unused,
+) => jsonEncode({
+  'label': label,
+  'dependent': dependent,
+  'unused': [for (final d in unused) d.label],
+});
 
 /// The `--dep` values of `check`: each `<label>\t<kind>\t<value>...`, where
 /// the kind is `file` (a path, a directory standing for its `.dart` files),

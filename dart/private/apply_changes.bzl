@@ -24,6 +24,7 @@ def apply_changes_binary(name, command, output_group):
         name = name,
         srcs = [
             Label("//dart/private/tools:apply_args.dart"),
+            Label("//dart/private/tools:build_events.dart"),
             Label("//dart/private/tools:changes.dart"),
         ],
         args = [

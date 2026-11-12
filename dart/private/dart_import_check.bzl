@@ -74,6 +74,10 @@ LAYERING_CHECK_FEATURE = "dart_layering_check"
 
 UNUSED_DEPS_FEATURE = "dart_unused_deps"
 
+# What `bazel run @rules_dart//dart/unused_deps` builds: for each checked
+# target, the deps none of its files imports, as JSON.
+UNUSED_DEPS_OUTPUT_GROUP = "dart_unused_deps"
+
 _IMPORT_CHECK = str(Label("//dart/private:import_check"))
 
 def _without_import_check_impl(_settings, _attr):
@@ -108,12 +112,13 @@ def library_import_check(ctx, own):
       own: The library's `DartPackageInfo` records (`DartInfo.packages`).
 
     Returns:
-      A list holding the `OutputGroupInfo`, or empty when nothing is checked.
+      A list holding the `OutputGroupInfo` (`_validation`, and
+      `UNUSED_DEPS_OUTPUT_GROUP`), or empty when nothing is checked.
     """
     checker = ctx.attr._import_checker[DefaultInfo].files_to_run
     if checker.executable == None:
         return []
-    result = dart_import_check_action(
+    checked = dart_import_check_action(
         ctx,
         kernel_tool = checker,
         name = ctx.label.name,
@@ -122,7 +127,12 @@ def library_import_check(ctx, own):
         deps = ctx.attr.deps,
         check_unused = True,
     )
-    return [OutputGroupInfo(_validation = depset([result]))] if result else []
+    if not checked.validation:
+        return []
+    return [OutputGroupInfo(**{
+        "_validation": depset([checked.validation]),
+        UNUSED_DEPS_OUTPUT_GROUP: depset([checked.report] if checked.report else []),
+    })]
 
 def _package_name(pkg):
     return pkg.package_name
@@ -253,15 +263,18 @@ def dart_import_check_action(ctx, kernel_tool, name, srcs, own, deps, indirect_d
         checked themselves.
 
     Returns:
-      The result File to put in `_validation`, or `None` when there is nothing
-      to check: no Dart sources, or a target of another repository.
+      A struct: `validation`, the result File to put in `_validation`, and
+      `report`, the File the unused-dependency check writes what it finds to
+      when the fixer asks (`UNUSED_DEPS_OUTPUT_GROUP`), each `None` when
+      there is nothing to check: no Dart sources, a target of another
+      repository, or for `report`, no unused check.
     """
     srcs = [f for f in srcs if f.is_directory or f.extension == "dart"]
     for f in generated:
         if f.extension != "dart":
             fail("%s: `generated` takes the Dart files the rule writes; %s is not one" % (ctx.label, f.short_path))
     if not srcs or ctx.label.workspace_name:
-        return None
+        return struct(validation = None, report = None)
     dep_infos = [dep[DartInfo] for dep in deps if DartInfo in dep]
     packages = depset(
         own,
@@ -300,7 +313,8 @@ def dart_import_check_action(ctx, kernel_tool, name, srcs, own, deps, indirect_d
     if check_cycle:
         args.add("--check-cycle")
     uses = []
-    if check_unused and UNUSED_DEPS_FEATURE not in ctx.disabled_features:
+    check_unused = check_unused and UNUSED_DEPS_FEATURE not in ctx.disabled_features
+    if check_unused:
         _add_unused_deps_args(ctx, args, deps)
 
         # A package's link hook is built from the package's dependencies, and
@@ -313,23 +327,41 @@ def dart_import_check_action(ctx, kernel_tool, name, srcs, own, deps, indirect_d
         args.add("--generator-input")
     args.add("--output", result)
 
+    # The check names a dependency's file by its path alone, so only a
+    # directory, which it lists, is an input: a body edit in a dependency
+    # does not rerun the check of everything above it.
+    inputs = depset(
+        srcs + uses + [package_config],
+        transitive = [getattr(info, "transitive_src_dirs", depset()) for info in dep_infos],
+    )
     ctx.actions.run(
         executable = kernel_tool,
         arguments = ["check", args],
-        # The check names a dependency's file by its path alone, so only a
-        # directory, which it lists, is an input: a body edit in a dependency
-        # does not rerun the check of everything above it.
-        inputs = depset(
-            srcs + uses + [package_config],
-            transitive = [getattr(info, "transitive_src_dirs", depset()) for info in dep_infos],
-        ),
+        inputs = inputs,
         outputs = [result],
         mnemonic = "DartImportCheck",
         exec_group = PORTABLE,
         progress_message = "Checking Dart imports of %{label}",
         execution_requirements = PATH_MAPPING,
     )
-    return result
+    report = None
+    if check_unused:
+        # The same check, writing the deps it finds unused instead of
+        # failing, for the fixer; built only when it asks.
+        report = ctx.actions.declare_file(name + ".unused_deps.json")
+        report_args = ctx.actions.args()
+        report_args.add("--report", report)
+        ctx.actions.run(
+            executable = kernel_tool,
+            arguments = ["check", args, report_args],
+            inputs = inputs,
+            outputs = [report],
+            mnemonic = "DartUnusedDeps",
+            exec_group = PORTABLE,
+            progress_message = "Finding unused Dart deps of %{label}",
+            execution_requirements = PATH_MAPPING,
+        )
+    return struct(validation = result, report = report)
 
 def _import_check_aspect_impl(target, ctx):
     reached = reached_targets(ctx, DartImportCheckInfo)
@@ -346,7 +378,7 @@ def _import_check_aspect_impl(target, ctx):
         groups = target[OutputGroupInfo] if OutputGroupInfo in target else None
         results = [groups._validation] if hasattr(groups, "_validation") else []
     else:
-        result = dart_import_check_action(
+        checked = dart_import_check_action(
             ctx,
             kernel_tool = ctx.executable._kernel_tool,
             name = ctx.label.name,
@@ -355,7 +387,7 @@ def _import_check_aspect_impl(target, ctx):
             deps = direct,
             indirect_deps = getattr(info, "indirect_deps", []),
         )
-        results = [depset([result])] if result else []
+        results = [depset([checked.validation])] if checked.validation else []
     return [DartImportCheckInfo(
         stamps = depset(transitive = results + [dep[DartImportCheckInfo].stamps for dep in direct]),
         exported = {},
@@ -370,8 +402,11 @@ dart_import_check_aspect = aspect(
     doc = "Checks the imports of every library an executable depends on; see `dart_import_check.bzl`.",
 )
 
-def import_check_validation(ctx, kernel_tool, srcs, own_package, deps, generated = []):
-    """The `_validation` output group of an executable: its own files' check and its libraries'.
+def import_check_output_groups(ctx, kernel_tool, srcs, own_package, deps, generated = []):
+    """An executable's import-check output groups.
+
+    `_validation` is its own files' check and its libraries';
+    `UNUSED_DEPS_OUTPUT_GROUP` what the fixer reads of its own `deps`.
 
     Args:
       ctx: The executable's rule context; its `deps` carry the aspect.
@@ -384,10 +419,22 @@ def import_check_validation(ctx, kernel_tool, srcs, own_package, deps, generated
         and they are not checked for what they import.
 
     Returns:
-      A depset of result Files.
+      A dict of output group name to depset, for `OutputGroupInfo(**groups)`.
     """
-    result = dart_import_check_action(ctx, kernel_tool, ctx.label.name, srcs, [own_package] if own_package != None else [], deps, check_unused = True, generated = generated)
-    return depset(
-        [result] if result else [],
-        transitive = [dep[DartImportCheckInfo].stamps for dep in deps if DartImportCheckInfo in dep],
+    checked = dart_import_check_action(
+        ctx,
+        kernel_tool,
+        ctx.label.name,
+        srcs,
+        [own_package] if own_package != None else [],
+        deps,
+        check_unused = True,
+        generated = generated,
     )
+    return {
+        "_validation": depset(
+            [checked.validation] if checked.validation else [],
+            transitive = [dep[DartImportCheckInfo].stamps for dep in deps if DartImportCheckInfo in dep],
+        ),
+        UNUSED_DEPS_OUTPUT_GROUP: depset([checked.report] if checked.report else []),
+    }

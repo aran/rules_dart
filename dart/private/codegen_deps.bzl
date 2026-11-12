@@ -90,7 +90,7 @@ def codegen_deps(ctx, identity, exclude_paths):
     validation = None
     checker = ctx.attr._import_checker[DefaultInfo].files_to_run
     if members and checker.executable != None:
-        result = dart_import_check_action(
+        checked = dart_import_check_action(
             ctx,
             kernel_tool = checker,
             name = ctx.label.name + ".members",
@@ -99,8 +99,8 @@ def codegen_deps(ctx, identity, exclude_paths):
             deps = libraries,
             generator_input = True,
         )
-        if result:
-            validation = OutputGroupInfo(_validation = depset([result]))
+        if checked.validation:
+            validation = OutputGroupInfo(_validation = depset([checked.validation]))
     return struct(
         packages = packages,
         package_config = package_config,

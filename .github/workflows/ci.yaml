@@ -533,6 +533,7 @@ jobs:
           check //import_check/unused:unused_lib "//import_check/unused:unused_lib: no file imports or exports these deps:"
           check //import_check/unused:unused_lib "  //import_check/mid"
           check //import_check/unused:unused_lib "  @rules_dart//dart/runfiles"
+          check //import_check/unused:unused_lib "bazel run @rules_dart//dart/unused_deps -- //import_check/unused:all removes them."
           check //import_check/unused:unused_test "//import_check/unused:unused_test: no file imports or exports these deps:"
           check //import_check/unused:unused_test "  //import_check/leaf"
           check //import_check/unused:through_exempt "//import_check/unused:through_exempt: no file imports or exports these deps:"

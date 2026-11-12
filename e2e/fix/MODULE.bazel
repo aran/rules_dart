@@ -21,4 +21,10 @@ pub.from_lock(
     name = "generator_pub_deps",
     lock = "//tools:pubspec.lock",
 )
-use_repo(pub, "generator_pub_deps")
+
+# `//unused:conformance_test`'s, `package:test` among them.
+pub.from_lock(
+    name = "test_pub_deps",
+    lock = "//unused:pubspec.lock",
+)
+use_repo(pub, "generator_pub_deps", "test_pub_deps")

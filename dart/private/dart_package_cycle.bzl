@@ -21,7 +21,7 @@ holding its generated files would depend on the generator that reads it.
 
 load("//dart:providers.bzl", "DartInfo")
 load("//dart/private:common.bzl", "codegen_identity_error", "package_identity_attrs")
-load("//dart/private:dart_import_check.bzl", "LIBRARY_IMPORT_CHECKER_ATTRS", "dart_import_check_action")
+load("//dart/private:dart_import_check.bzl", "LIBRARY_IMPORT_CHECKER_ATTRS", "UNUSED_DEPS_OUTPUT_GROUP", "dart_import_check_action")
 load("//dart/private:dart_info.bzl", "package_lib_prefix")
 load("//dart/private:dart_library.bzl", "LIBRARY_SOURCE_ATTRS", "check_no_duplicate_srcs", "checked_package_info", "library_sources")
 load("//dart/private:dart_summary.bzl", "SUMMARY_ATTRS", "dart_info")
@@ -179,9 +179,10 @@ def _dart_package_cycle_impl(ctx):
     _check_generated(ctx, members)
     library = package_cycle_library(ctx, members, ctx.attr.deps, ctx.attr.data, ctx.files.srcs)
     validation = []
+    report = []
     checker = ctx.attr._import_checker[DefaultInfo].files_to_run
     if checker.executable != None:
-        result = dart_import_check_action(
+        checked = dart_import_check_action(
             ctx,
             kernel_tool = checker,
             name = ctx.label.name,
@@ -191,8 +192,10 @@ def _dart_package_cycle_impl(ctx):
             check_cycle = True,
             check_unused = True,
         )
-        if result:
-            validation.append(result)
+        if checked.validation:
+            validation.append(checked.validation)
+        if checked.report:
+            report.append(checked.report)
     return [
         library.default_info,
         library.info,
@@ -201,7 +204,10 @@ def _dart_package_cycle_impl(ctx):
             dependency_attributes = ["members", "deps"],
             extensions = ["dart"],
         ),
-        OutputGroupInfo(_validation = depset(validation)),
+        OutputGroupInfo(**{
+            "_validation": depset(validation),
+            UNUSED_DEPS_OUTPUT_GROUP: depset(report),
+        }),
     ]
 
 dart_package_cycle = rule(

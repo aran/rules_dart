@@ -99,6 +99,11 @@ def _unused_names_test_impl(ctx):
     asserts.true(env, "--dependent %s:call " % package in argv, "the check does not name the macro's call: %s" % argv)
     asserts.true(env, "\tname\t:check_off" in argv, "a dep of the package is not named `:x`: %s" % argv)
     asserts.true(env, "\tname\t//dart/tests/import_check_fixture/base:base_lib" in argv, "a dep elsewhere is not named as written: %s" % argv)
+
+    # The fixer's report is built only when asked for, by its output group.
+    target = analysistest.target_under_test(env)
+    reports = getattr(target[OutputGroupInfo], "dart_unused_deps", depset()).to_list()
+    asserts.equals(env, ["call.program.unused_deps.json"], [f.basename for f in reports])
     return analysistest.end(env)
 
 unused_names_test = analysistest.make(_unused_names_test_impl)

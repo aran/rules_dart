@@ -30,7 +30,7 @@ const _optionsByCommand = {
     'multi-root',
     'src',
     'dep-file', 'available-package', 'direct-package', 'dep', 'use-src',
-    'dependent',
+    'dependent', 'report',
     'output', //
   },
   'digest': {'input', 'output'},

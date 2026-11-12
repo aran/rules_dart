@@ -25,8 +25,9 @@ import 'uris.dart';
 /// directive of the files or of a `--use-src`, a file built from the deps
 /// that is not judged itself: the package's link hook, or one the rule writes
 /// (`unusedDeps`); the failure names them as `--dependent`, the BUILD file's
-/// entry that states them, writes them. Writes the empty `--output` stamp when
-/// nothing is wrong;
+/// entry that states them, writes them. With `--report`, only that check
+/// runs, and what it finds is written there instead of failing
+/// (`unusedDepsReport`). Writes the empty `--output` stamp when nothing is wrong;
 /// otherwise prints every violation to [err] and returns 1.
 Future<int> runCheck(Args args, {required StringSink err}) async {
   final label = args.one('label');
@@ -68,6 +69,14 @@ Future<int> runCheck(Args args, {required StringSink err}) async {
     ownPackages: ownPackages(args).keys.toSet(),
     layered: args.flag('check-layering'),
   );
+  if (args.optional('report') case final report?) {
+    // What `unusedDepsFixer` removes; the other checks are the validation's.
+    File(report).writeAsStringSync(
+      unusedDepsReport(label, args.one('dependent'), findUnused()),
+    );
+    return 0;
+  }
+
   final violations = checkPolicy(
     label: label,
     files: files,

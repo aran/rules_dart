@@ -2,7 +2,10 @@
 // write into the workspace exactly what the `dart_analyze` aspect computed for
 // the targets they are given: every target of one run, each file as its own
 // target's check would have it, with `--dry-run` nothing, and a target a tag
-// filter leaves out only with the flags that build it.
+// filter leaves out only with the flags that build it. And
+// `@rules_dart//dart/unused_deps` removes from a BUILD file each written label
+// that stands only for unused deps, at the call that wrote it, and fails,
+// naming the place, on one it cannot reach.
 //
 // The fixtures are this workspace's own sources, so each is put back
 // afterwards, whatever happened.
@@ -20,6 +23,10 @@ const _expected = {
   // A target `.bazelrc` leaves out of the build, formatted once the run
   // passes the config that builds it.
   'deep/lib/deep.dart': 'deep/golden/deep.dart',
+  // The unused deps of `//unused:lib`, of the call `//unused:call` and of
+  // `//unused:conformance_test` removed, and the `package:test` that test's
+  // runner needs kept.
+  'unused/BUILD.bazel': 'unused/golden/BUILD.golden',
 };
 
 void main() {
@@ -80,6 +87,63 @@ void main() {
     }
     expectFiles('after format of a left-out target', originals);
 
+    final unusedDry = run('unused_deps', [
+      '--dry-run',
+      '//unused:lib',
+      '//unused:call.program',
+      '//unused:conformance_test',
+    ]);
+    if (!'${unusedDry.stdout}'.contains('|//unused:lib') ||
+        !'${unusedDry.stdout}'.contains('|//unused:call') ||
+        !'${unusedDry.stdout}'.contains('|//unused:conformance_test') ||
+        '${unusedDry.stdout}'.contains('test_pub_deps')) {
+      failures.add('unused_deps --dry-run printed:\n${unusedDry.stdout}');
+    }
+    expectFiles('after unused_deps --dry-run', originals);
+
+    // `leaf` is in a list variable, and in a call a comprehension makes,
+    // neither of which buildozer edits. A dry run keeps what the real run
+    // keeps, and both exit 1.
+    List<String> kept(ProcessResult result) => [
+      for (final line in '${result.stderr}'.split('\n'))
+        if (line.contains(': kept ')) line,
+    ];
+    const unreachable = ['//unused:shared', '//unused:generated'];
+    final keptDry = run('unused_deps', [
+      '--dry-run',
+      ...unreachable,
+    ], fails: true);
+    final keptReal = run('unused_deps', unreachable, fails: true);
+    for (final result in [keptDry, keptReal]) {
+      if (result.exitCode != 1) {
+        failures.add(
+          'unused_deps of unreachable deps exited ${result.exitCode}',
+        );
+      }
+    }
+    final keptLines = kept(keptReal);
+    if (keptLines.length != 2 ||
+        !keptLines.any(
+          (l) =>
+              l.contains('unused/BUILD.bazel:69:') &&
+              l.contains('in a variable or a comprehension'),
+        ) ||
+        !keptLines.any((l) => l.contains('finds no call named generated'))) {
+      failures.add('unused_deps of unreachable deps:\n${keptReal.stderr}');
+    }
+    if ('${kept(keptDry)}' != '$keptLines') {
+      failures.add(
+        'unused_deps --dry-run kept:\n${kept(keptDry).join('\n')}\n'
+        'but the run kept:\n${keptLines.join('\n')}',
+      );
+    }
+    expectFiles('after unused_deps of unreachable deps', originals);
+
+    run('unused_deps', [
+      '//unused:lib',
+      '//unused:call.program',
+      '//unused:conformance_test',
+    ]);
     run('fix', ['//dirty:lib', '//dirty_bin:bin']);
     run('format', ['//short_style:lib']);
     run('format', ['--config=deep', '//deep:lib']);

@@ -30,7 +30,7 @@ load(
     "target_dart_abi",
 )
 load("//dart/private:dart_coverage.bzl", "COVERAGE_ATTRS", "test_coverage")
-load("//dart/private:dart_import_check.bzl", "dart_import_check_aspect", "import_check_validation")
+load("//dart/private:dart_import_check.bzl", "dart_import_check_aspect", "import_check_output_groups")
 load(
     "//dart/private:dart_module.bzl",
     "MODULE_EXECUTABLE_ATTRS",
@@ -210,7 +210,7 @@ def _dart_test_impl(ctx):
             dependency_attributes = ["deps"],
             extensions = ["dart"],
         ),
-        OutputGroupInfo(_validation = import_check_validation(
+        OutputGroupInfo(**import_check_output_groups(
             ctx,
             ctx.executable._kernel_tool,
             [ctx.file.main] + ctx.files.srcs,

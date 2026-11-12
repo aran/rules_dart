@@ -51,7 +51,7 @@ load(
     "//dart/private:dart_import_check.bzl",
     _LIBRARY_IMPORT_CHECKER_ATTRS = "LIBRARY_IMPORT_CHECKER_ATTRS",
     _dart_import_check_aspect = "dart_import_check_aspect",
-    _import_check_validation = "import_check_validation",
+    _import_check_output_groups = "import_check_output_groups",
     _library_import_check = "library_import_check",
 )
 load(
@@ -519,19 +519,20 @@ DART_TOOLCHAIN_TYPES_ATTR = _DART_TOOLCHAIN_TYPES_ATTR
 
 # Import checks (strict deps, files of the target's own package, layering,
 # unused deps) as validation actions. An executable rule attaches
-# `dart_import_check_aspect` to its `deps` and returns `OutputGroupInfo(_validation =
-# import_check_validation(ctx, ctx.executable._kernel_tool, own_srcs,
-# own_package, ctx.attr.deps, generated = [...]))`, merging `KERNEL_TOOL_ATTR`
-# into its `attrs`. `generated` are the Dart files the rule writes and compiles
-# with the target's (a test's bootstrap): their imports use `deps`, and they
-# are not checked themselves.
+# `dart_import_check_aspect` to its `deps` and returns
+# `OutputGroupInfo(**import_check_output_groups(ctx, ctx.executable._kernel_tool,
+# own_srcs, own_package, ctx.attr.deps, generated = [...]))`, merging
+# `KERNEL_TOOL_ATTR` into its `attrs`: `_validation`, and the group
+# `bazel run @rules_dart//dart/unused_deps` reads. `generated` are the Dart
+# files the rule writes and compiles with the target's (a test's bootstrap):
+# their imports use `deps`, and they are not checked themselves.
 # A library rule whose `deps` are what its `srcs` import checks itself, as
 # `dart_library` does: it merges `LIBRARY_IMPORT_CHECKER_ATTRS` and takes
 # `PORTABLE_EXEC_GROUPS`, and adds `library_import_check(ctx, own_packages)`
 # to what it returns; the aspect then leaves it alone. A library left to the
 # aspect is checked against its `DartInfo.deps` without the unused check.
 dart_import_check_aspect = _dart_import_check_aspect
-import_check_validation = _import_check_validation
+import_check_output_groups = _import_check_output_groups
 LIBRARY_IMPORT_CHECKER_ATTRS = _LIBRARY_IMPORT_CHECKER_ATTRS
 library_import_check = _library_import_check
 

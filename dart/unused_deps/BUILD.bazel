@@ -1,0 +1,27 @@
+load("//dart/private:dart_binary.bzl", "dart_binary")
+
+# Removes the deps the unused-dependency check finds from the BUILD files that
+# state them, with buildozer:
+#   bazel run @rules_dart//dart/unused_deps -- //app/...
+#   bazel run @rules_dart//dart/unused_deps -- --dry-run //app:all
+#   bazel run @rules_dart//dart/unused_deps -- --config=deep -- //app/... -//app/gen/...
+# After `--dry-run`, the arguments are `bazel build`'s. `--dry-run` prints the
+# buildozer commands instead of running them.
+dart_binary(
+    name = "unused_deps",
+    srcs = [
+        "//dart/private/tools:apply_args.dart",
+        "//dart/private/tools:build_events.dart",
+        "//dart/private/tools:unused_deps_fix.dart",
+    ],
+    args = [
+        "--buildozer=$(rlocationpath @buildozer_binary//:buildozer.exe)",
+        "--command=unused_deps",
+        "--output-group=dart_unused_deps",
+    ],
+    compile_mode = "exe",
+    data = ["@buildozer_binary//:buildozer.exe"],
+    main = "//dart/private/tools:unused_deps_main.dart",
+    visibility = ["//visibility:public"],
+    deps = ["//dart/runfiles"],
+)

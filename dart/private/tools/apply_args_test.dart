@@ -122,8 +122,24 @@ void main() {
   test("the binary's own options are required", () {
     expect(
       () => parseArgs(['--command=fix', '//:x']),
-      _usage('--command=, --aspect=, --output-group= are required', null),
+      _usage('--command=, --output-group= are required', null),
     );
+  });
+
+  test('a group the targets make themselves is built without an aspect', () {
+    final args = parseArgs([
+      '--command=unused_deps',
+      '--output-group=dart_unused_deps',
+      '//app/...',
+    ]);
+    expect(args.aspect, isNull);
+    expect(args.buildArgs('/tmp/events.json'), [
+      'build',
+      '--output_groups=dart_unused_deps',
+      '--norun_validations',
+      '--build_event_json_file=/tmp/events.json',
+      '//app/...',
+    ]);
   });
 
   test("a caller's copy of the binary's option goes to Bazel", () {

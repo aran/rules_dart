@@ -49,6 +49,7 @@ void main() {
     List<String> extra = const [],
     bool statesPackage = true,
     Map<String, String> uses = const {},
+    bool? expectStamp,
   }) async {
     String write(String rel, [String text = '']) {
       final file = File('${dir.path}/root/$rel');
@@ -88,7 +89,7 @@ void main() {
     ];
     final err = StringBuffer();
     final code = await runCheck(Args.parse('check', args), err: err);
-    expect(File('${dir.path}/stamp').existsSync(), code == 0);
+    expect(File('${dir.path}/stamp').existsSync(), expectStamp ?? code == 0);
     return code == 0 ? '' : err.toString();
   }
 
@@ -161,12 +162,30 @@ void main() {
         '//app:macro_call: no file imports or exports these deps:\n'
         '  @b_repo//b\n'
         '  :c\n'
-        'Remove them from deps. One used without an import is exempt when its '
-        'rule returns DartUsedWithoutImportInfo; features = ["-dart_unused_deps"] '
-        'turns the check off.',
+        'bazel run @rules_dart//dart/unused_deps -- //app:all removes them. '
+        'One used without an import is exempt when its rule returns '
+        'DartUsedWithoutImportInfo; features = ["-dart_unused_deps"] turns the '
+        'check off.',
       );
     },
   );
+
+  test('--report writes the unused deps instead of failing', () async {
+    final report = '${dir.path}/report.json';
+    final out = await check(
+      // A strict-deps violation is the validation's to fail, not the report's.
+      {lib: "import 'package:a/a.dart'; import 'package:b/b.dart';"},
+      [_a, _lib('//c', 'c', [])],
+      extra: ['--report', report],
+      expectStamp: false,
+    );
+    expect(out, isEmpty);
+    expect(jsonDecode(File(report).readAsStringSync()), {
+      'label': '//app:t',
+      'dependent': '//app:t',
+      'unused': ['//c'],
+    });
+  });
 
   test('an executable stating no package uses the facade its own file '
       'resolves through', () async {

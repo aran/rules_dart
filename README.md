@@ -128,6 +128,7 @@ after step 1 does steps 6–8 and 23 for the BUILD files it writes.
 24. A dep that none of a target's files imports → fails the build; remove it
     from `deps`. A dep needed without an import → `features =
     ["-dart_unused_deps"]` on the target (see [Deps match imports](#deps-match-imports)).
+    `bazel run @rules_dart//dart/unused_deps -- //...` removes such deps.
 
 **Rule authors** (`@rules_dart//dart:utils.bzl` and providers)
 
@@ -172,11 +173,13 @@ after step 1 does steps 6–8 and 23 for the BUILD files it writes.
     code) → its rule returns `DartUsedWithoutImportInfo`. A library rule
     whose `deps` are what its `srcs` import → checks itself with
     `library_import_check` and `LIBRARY_IMPORT_CHECKER_ATTRS`, as
-    `dart_library` does; the import check aspect skips it. An executable rule
-    that writes Dart files it compiles with the target's own, such as a test's
-    bootstrap, passes them to `import_check_validation` as `generated`. Their
-    imports count as uses of `deps`. They aren't checked for what they
-    import, since the rule wrote them.
+    `dart_library` does; the import check aspect skips it.
+37. `import_check_validation` → `import_check_output_groups`, with the same
+    arguments. It returns a dict for `OutputGroupInfo(**...)`: `_validation`,
+    and `dart_unused_deps`, which the fixer reads. A rule that writes Dart
+    files it compiles with the target's own, such as a test's bootstrap,
+    passes them as `generated`. Their imports count as uses of `deps`. They
+    aren't checked for what they import, since the rule wrote them.
 
 ## Road to 1.0
 
@@ -541,7 +544,7 @@ every test above it. The error names the target and each unused dep:
 //app:app: no file imports or exports these deps:
   //net:client
   @deps//:path_provider
-Remove them from deps. One used without an import is exempt when its rule returns DartUsedWithoutImportInfo; features = ["-dart_unused_deps"] turns the check off.
+bazel run @rules_dart//dart/unused_deps -- //app:all removes them. One used without an import is exempt when its rule returns DartUsedWithoutImportInfo; features = ["-dart_unused_deps"] turns the check off.
 ```
 
 The first line names the entry in your BUILD file that lists the deps. When a
@@ -575,6 +578,31 @@ BUILD file with `package(features = ...)`, or for the whole build with
 `--features=-dart_unused_deps`.
 
 Gazelle writes `deps` from imports, so the BUILD files it writes pass.
+
+To remove the unused deps, run the fixer:
+
+```shell
+bazel run @rules_dart//dart/unused_deps -- //...
+bazel run @rules_dart//dart/unused_deps -- --dry-run //app:all
+```
+
+It takes the arguments of `@rules_dart//dart/format`: an optional `--dry-run`,
+then `bazel build` flags and patterns. It finds the labels each entry wrote, so
+it removes a dep written through an alias. It also edits the macro call that
+made a target. When a macro gives one `deps` to several targets, such as a test
+and its copy for another platform, a dep goes only if every one of them finds it
+unused. `--dry-run` prints the `buildozer` commands and changes nothing.
+
+The fixer formats every BUILD file it edits as buildifier does, so in a file not
+already in buildifier's format the diff shows reordering beyond the removals.
+Run buildifier over the files once first to keep that out of the fixer's diff.
+
+The fixer cannot edit a dep that comes from a list variable (`deps = SHARED +
+[...]`) or from a call inside a list comprehension. It prints the place in the
+BUILD file and the entry for each dep it left, and exits 1, and `--dry-run`
+reports the same deps and exits the same way. Remove those by
+hand, unless something else that uses the list needs them. Gazelle users don't
+need the fixer, as Gazelle writes `deps` from imports.
 
 ### Running the Dart SDK
 
@@ -1921,6 +1949,9 @@ checked. A target tagged `no-dart-format` is not formatted. One tagged
 `no-dart-analyze` can still be fixed. Generated files are never written: only
 files Bazel records as sources are eligible, so codegen output is never edited.
 A fix can make further fixes possible, so run `fix` until it fixes nothing.
+
+`@rules_dart//dart/unused_deps` takes the same arguments and removes deps that
+no file imports. See [Deps match imports](#deps-match-imports).
 
 Nothing is written unless everything can be. Each change records the bytes it
 was computed from. If a file changed since the build, or two targets would

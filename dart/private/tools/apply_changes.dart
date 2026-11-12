@@ -13,10 +13,10 @@
 // interface Bazel offers for "which files did this build make". Each records
 // the digest of the bytes it was computed from, and nothing is written if any
 // file no longer holds them.
-import 'dart:convert';
 import 'dart:io';
 
 import 'apply_args.dart';
+import 'build_events.dart';
 import 'changes.dart';
 
 const _usage =
@@ -82,7 +82,7 @@ Future<int> _run(
       return built;
     }
 
-    final (:configured, :files) = _groupFiles(events, group);
+    final (:configured, :files) = groupFiles(events, group);
     if (configured == 0) {
       // `bazel build` itself succeeds here, with "Found 0 targets".
       stderr.writeln(
@@ -123,81 +123,6 @@ Future<int> _run(
     stderr.writeln('$_name: ${e.message}');
     return 1;
   }
-}
-
-/// The files of the aspect's output [group], by the build event file at
-/// [events], and how many targets the build configured.
-///
-/// An aspect's completion event for a target lists its output groups by file
-/// set, file sets nest, and each file is named relative to the exec root the
-/// build's workspace event gives. The event names the aspect by the file that
-/// defines it, not the one it was requested through, so the group, which only
-/// `dart_analyze` makes, is what picks the events.
-({int configured, List<String> files}) _groupFiles(
-  String events,
-  String group,
-) {
-  final sets = <String, Map<String, dynamic>>{};
-  final roots = <String>[];
-  var configured = 0;
-  String? execRoot;
-  for (final line in File(events).readAsLinesSync()) {
-    if (line.isEmpty) continue;
-    final event = jsonDecode(line) as Map<String, dynamic>;
-    final id = event['id'] as Map<String, dynamic>;
-    if (id['namedSet'] case {'id': final String setId}) {
-      sets[setId] = event['namedSetOfFiles'] as Map<String, dynamic>;
-    } else if (event['workspaceInfo'] case {
-      'localExecRoot': final String root,
-    }) {
-      execRoot = root;
-    } else if (id.containsKey('targetConfigured')) {
-      configured++;
-    } else if (id['targetCompleted'] case {'aspect': String _}) {
-      final completed = event['completed'] as Map<String, dynamic>?;
-      for (final g in (completed?['outputGroup'] as List? ?? const [])) {
-        if (g['name'] != group) continue;
-        for (final s in (g['fileSets'] as List? ?? const [])) {
-          roots.add(s['id'] as String);
-        }
-      }
-    }
-  }
-  if (execRoot == null) {
-    throw FormatException('$events names no exec root');
-  }
-
-  final files = <String>{};
-  final seen = <String>{};
-  final pending = [...roots];
-  while (pending.isNotEmpty) {
-    final id = pending.removeLast();
-    if (!seen.add(id)) continue;
-    final set = sets[id];
-    if (set == null) throw FormatException('$events lacks file set $id');
-    for (final f in (set['files'] as List? ?? const [])) {
-      final parts = [
-        execRoot,
-        ...(f['pathPrefix'] as List? ?? const []).cast<String>(),
-        ...(f['name'] as String).split('/'),
-      ];
-      files.add(parts.join(Platform.pathSeparator));
-    }
-    for (final s in (set['fileSets'] as List? ?? const [])) {
-      pending.add(s['id'] as String);
-    }
-  }
-  for (final file in files) {
-    if (!File(file).existsSync()) {
-      // Left remote, as `--remote_download_outputs=minimal` does with
-      // every output.
-      throw FormatException(
-        'the build made $file but did not download it; pass '
-        '--remote_download_outputs=toplevel',
-      );
-    }
-  }
-  return (configured: configured, files: files.toList()..sort());
 }
 
 Never _fail(String message, int code) {

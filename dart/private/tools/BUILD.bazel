@@ -64,16 +64,21 @@ dart_binary(
     ],
 )
 
-# The main of `@rules_dart//dart/format` and `@rules_dart//dart/fix`.
+# The sources of `@rules_dart//dart/format`, `@rules_dart//dart/fix` and
+# `@rules_dart//dart/unused_deps`.
 exports_files(
     [
         "apply_args.dart",
         "apply_changes.dart",
+        "build_events.dart",
         "changes.dart",
+        "unused_deps_fix.dart",
+        "unused_deps_main.dart",
     ],
     visibility = [
         "//dart/fix:__pkg__",
         "//dart/format:__pkg__",
+        "//dart/unused_deps:__pkg__",
     ],
 )
 
@@ -97,6 +102,14 @@ dart_test(
     size = "small",
     srcs = ["apply_args.dart"],
     main = "apply_args_test.dart",
+    deps = ["@ext_pub_deps//:test"],
+)
+
+dart_test(
+    name = "unused_deps_fix_test",
+    size = "small",
+    srcs = ["unused_deps_fix.dart"],
+    main = "unused_deps_fix_test.dart",
     deps = ["@ext_pub_deps//:test"],
 )
 

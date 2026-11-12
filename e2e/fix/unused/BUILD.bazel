@@ -1,0 +1,114 @@
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata", "dart_test")
+load(":macro.bzl", "two_programs")
+
+# The fixtures of `@rules_dart//dart/unused_deps`, which //write_back runs.
+# Each target but `leaf` and `used` lists deps none of its files imports, so
+# each fails to build, and is `manual`: wildcards skip it. golden/BUILD.golden
+# is this file once the fixer has run on `lib` and `call`.
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "fix_unused",
+)
+
+dart_library(
+    name = "leaf",
+    srcs = ["lib/leaf.dart"],
+    package = ":pubspec-metadata",
+)
+
+dart_library(
+    name = "used",
+    srcs = ["lib/used.dart"],
+    package = ":pubspec-metadata",
+)
+
+# Two names for `leaf`, as two pub hubs can give one package.
+alias(
+    name = "hub_a",
+    actual = ":leaf",
+)
+
+alias(
+    name = "hub_b",
+    actual = ":leaf",
+)
+
+# Lists `leaf` twice, through the aliases, and the runfiles library by its
+# apparent name. The fixer removes all three.
+dart_library(
+    name = "lib",
+    srcs = ["lib/lib.dart"],
+    package = ":pubspec-metadata",
+    tags = ["manual"],
+    deps = [
+        ":hub_a",
+        ":hub_b",
+        ":used",
+        "@rules_dart//dart/runfiles",
+    ],
+)
+
+# Both targets of the call find `leaf` unused, so the fixer removes it from
+# the call.
+two_programs(
+    name = "call",
+    srcs = ["lib/call.dart"],
+    package = ":pubspec-metadata",
+    tags = ["manual"],
+    deps = [
+        ":leaf",
+        ":used",
+    ],
+)
+
+SHARED = [":leaf"]
+
+# `leaf` comes from a list another entry could share: the fixer leaves it,
+# says where, and fails.
+dart_library(
+    name = "shared",
+    srcs = ["lib/shared.dart"],
+    package = ":pubspec-metadata",
+    tags = ["manual"],
+    deps = SHARED + [":used"],
+)
+
+# A comprehension makes `generated`, so buildozer finds no call of that name:
+# the fixer leaves `leaf`, says where, and fails.
+[dart_library(
+    name = name,
+    srcs = ["lib/generated.dart"],
+    package = ":pubspec-metadata",
+    tags = ["manual"],
+    deps = [
+        ":leaf",
+        ":used",
+    ],
+) for name in ["generated"]]
+
+# Shared test cases, which import `package:test` themselves.
+dart_library(
+    name = "conformance",
+    testonly = True,
+    srcs = ["lib/conformance.dart"],
+    package = ":pubspec-metadata",
+    deps = ["@test_pub_deps//:test"],
+)
+
+# Imports only the shared cases and `used`. `dart_test` requires
+# `package:test` in `deps`, and its bootstrap imports it, so the fixer
+# removes `leaf` and keeps `package:test`.
+dart_test(
+    name = "conformance_test",
+    size = "small",
+    main = "test/conformance_test.dart",
+    package = ":pubspec-metadata",
+    tags = ["manual"],
+    deps = [
+        ":conformance",
+        ":leaf",
+        ":used",
+        "@test_pub_deps//:test",
+    ],
+)
