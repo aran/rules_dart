@@ -154,7 +154,11 @@ def _dart_test_impl(ctx):
     # `data`, and its libraries' resources and `data`. What only the launcher
     # uses (the VM, the kernels, the runner) it finds through the manifest, and
     # what the manifest lists for others (a test run as another's `data` gets
-    # that test's manifest) is not the test's.
+    # that test's manifest) is not the test's. Nor is the Dart SDK, which
+    # `@rules_dart//dart` in `data` brings whole (620 MB): it is found through
+    # the manifest too, as the launcher finds the VM, and a test reads it by
+    # no path of its own (another repository's runfiles are under its
+    # canonical name).
     test_runfiles = ctx.runfiles(
         files = [ctx.file.main] + ctx.files.data,
         transitive_files = collect_transitive_resources(ctx.attr.deps),
@@ -164,6 +168,8 @@ def _dart_test_impl(ctx):
     )
     laid_out = ctx.actions.declare_file(ctx.label.name + ".laid_out")
     config["laid_out"] = runfiles_path(laid_out, workspace_name)
+    sdk_files = ctx.actions.declare_file(ctx.label.name + ".sdk_files")
+    config["sdk_files"] = runfiles_path(sdk_files, workspace_name)
     config["workspace"] = workspace_name
     config_file = ctx.actions.declare_file(ctx.label.name + ".launcher.json")
     ctx.actions.write(output = config_file, content = json.encode(config))
@@ -175,13 +181,14 @@ def _dart_test_impl(ctx):
         env[key] = ctx.expand_location(value, ctx.attr.data)
     launcher = launcher_executable(ctx, ctx.attr._tool)
     _write_runfiles_paths(ctx, laid_out, test_runfiles)
+    _write_runfiles_paths(ctx, sdk_files, ctx.runfiles(transitive_files = dart_sdk_info.files.all))
 
     # A dep's `lib/**` non-Dart files are part of the package at run time under
     # pub, and the dill carries only compiled code — so they come in here (in
     # `test_runfiles`), the same way `dart_binary` stages them, and are
     # reached with `rlocation`.
     runfiles = ctx.runfiles(
-        files = [dill, config_file, laid_out] + runtime_libs + launcher_files,
+        files = [dill, config_file, laid_out, sdk_files] + runtime_libs + launcher_files,
         transitive_files = depset(
             # The VM that runs the kernel, and no more of the SDK: a test that
             # runs SDK commands itself takes `@rules_dart//dart` in `data`.

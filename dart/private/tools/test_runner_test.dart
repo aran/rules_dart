@@ -528,10 +528,10 @@ void main(List<String> args) {
     tearDown(() => tmp.deleteSync(recursive: true));
 
     /// Runs the launcher at [rlocationPath] from a manifest, leaving out the
-    /// runfiles whose paths contain [without] and adding the lines [extra].
+    /// runfiles whose paths contain any of [without] and adding the lines [extra].
     Future<ProcessResult> runAsBazelRun(
       String rlocationPath, {
-      String? without,
+      List<String> without = const [],
       List<String> extra = const [],
       List<String> arguments = const [],
       Map<String, String> environment = const {},
@@ -539,11 +539,10 @@ void main(List<String> args) {
       var manifest =
           Platform.environment['RUNFILES_MANIFEST_FILE'] ??
           _manifestOf(Platform.environment['RUNFILES_DIR']!, tmp.path);
-      if (without != null || extra.isNotEmpty) {
+      if (without.isNotEmpty || extra.isNotEmpty) {
         final kept = File(manifest).readAsLinesSync().where(
           (line) =>
-              line.isNotEmpty &&
-              (without == null || !line.split(' ').first.contains(without)),
+              line.isNotEmpty && !without.any(line.split(' ').first.contains),
         );
         manifest = (File(
           '${tmp.path}/MANIFEST.edited',
@@ -632,7 +631,7 @@ void main(List<String> args) {
       final result = await runAsBazelRun(
         args[0],
         arguments: ['files'],
-        without: listed,
+        without: [listed],
         extra: [
           '$listed ${brought.path}',
           '$workspace/linked.txt ${link.path}',
@@ -652,6 +651,37 @@ void main(List<String> args) {
       );
     });
 
+    // The Dart SDK, which `@rules_dart//dart` in `data` brings whole, is
+    // found through the manifest and never laid out, though the test brings it.
+    test('the SDK is not laid out', () async {
+      final config = configOf(runfiles.rlocation(args[0]));
+      final workspace = config['workspace'];
+      final real = File('${tmp.path}/real.txt')..writeAsStringSync('x');
+      final listed = config['laid_out'] as String;
+      final sdkListed = config['sdk_files'] as String;
+      final brought = File('${tmp.path}/laid_out')
+        ..writeAsStringSync(
+          '${File(runfiles.rlocation(listed)).readAsStringSync()}'
+          'plain.txt\nsdk.txt\n',
+        );
+      final sdk = File('${tmp.path}/sdk_files')..writeAsStringSync('sdk.txt\n');
+      final result = await runAsBazelRun(
+        args[0],
+        arguments: ['files'],
+        without: [listed, sdkListed],
+        extra: [
+          '$listed ${brought.path}',
+          '$sdkListed ${sdk.path}',
+          '$workspace/plain.txt ${real.path}',
+          '$workspace/sdk.txt ${real.path}',
+        ],
+      );
+      expectRan(result);
+      final files = '${result.stdout}'.trim().split(RegExp(r'\r?\n'));
+      expect(files, contains('plain.txt'));
+      expect(files, isNot(contains('sdk.txt')));
+    });
+
     test('a test under the runner', () async {
       final result = await runAsBazelRun(args[1]);
       expectRan(result);
@@ -665,7 +695,7 @@ void main(List<String> args) {
     // Never a quiet second way: a list that cannot be followed fails, and
     // says how to build without lists.
     test('a kernel missing from runfiles fails, naming the flag', () async {
-      final result = await runAsBazelRun(args[0], without: '.modules');
+      final result = await runAsBazelRun(args[0], without: ['.modules']);
       expect(result.exitCode, 1, reason: '${result.stdout}');
       expect(
         '${result.stderr}',

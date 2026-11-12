@@ -868,23 +868,25 @@ String testWorkingDirectory({
 /// its libraries' resources and `data`, which `dart_test` lists beside the
 /// launcher. Not the launcher's own (the VM, the kernels, the runner), which
 /// it finds through the manifest, nor what the manifest lists for another
-/// test that runs this one as its `data`.
+/// test that runs this one as its `data`, nor the Dart SDK ([sdk]), which a
+/// test that brings it (`@rules_dart//dart` in `data`) finds through the
+/// manifest as the launcher finds the VM.
 class RunfilesLayout {
-  RunfilesLayout(this.laidOut);
+  RunfilesLayout(this.laidOut, {this.sdk = const {}});
 
-  static RunfilesLayout read(Runfiles runfiles, Map<String, dynamic> config) =>
-      RunfilesLayout(
-        runfilesPaths(
-          File(runfiles.rlocation(config['laid_out'] as String))
-              .readAsLinesSync(),
-          workspace: config['workspace'] as String,
-        ),
-      );
+  static RunfilesLayout read(Runfiles runfiles, Map<String, dynamic> config) {
+    Set<String> list(String key) => runfilesPaths(
+      File(runfiles.rlocation(config[key] as String)).readAsLinesSync(),
+      workspace: config['workspace'] as String,
+    );
+    return RunfilesLayout(list('laid_out'), sdk: list('sdk_files'));
+  }
 
   final Set<String> laidOut;
+  final Set<String> sdk;
 
   /// Whether the runfile at runfiles path [path] is laid out.
-  bool holds(String path) => laidOut.contains(path);
+  bool holds(String path) => laidOut.contains(path) && !sdk.contains(path);
 }
 
 /// The runfiles paths of the `short_path`s in [lines]: one in the main
