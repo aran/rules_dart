@@ -196,7 +196,7 @@ void main() {
       final current = '${tmp.path}${sep}current';
       addTearDown(() {
         if (FileSystemEntity.isLinkSync(current)) Link(current).deleteSync();
-        tmp.deleteSync(recursive: true);
+        return _deleteRunExecutables(tmp);
       });
 
       // a/ holds the binary with its runfiles tree beside it; b/ is where
@@ -473,13 +473,27 @@ void main() {
       // What `bazel run` leaves a plain executable on Windows, whose default
       // is `--noenable_runfiles`: no variable, and a manifest beside it or
       // inside a runfiles directory that holds nothing else.
+      // One copy of the probe for every case, each putting beside it what
+      // it needs and removing it after: Windows scans a new executable when
+      // it first runs, which on a loaded machine takes seconds.
+      late Directory home;
       late String exe;
-      setUp(() {
+      setUpAll(() {
+        home = Directory.systemTemp.createTempSync('runfiles_next_to');
         // rlocation returns the manifest's target as written, and Bazel
         // writes those with forward slashes on Windows too.
-        exe = '${tmp.path}$sep${Uri.file(probe).pathSegments.last}';
+        exe = '${home.path}$sep${Uri.file(probe).pathSegments.last}';
         File(probe).copySync(exe);
       });
+      tearDown(() {
+        for (final beside in [
+          File('$exe.runfiles_manifest'),
+          Directory('$exe.runfiles'),
+        ]) {
+          if (beside.existsSync()) beside.deleteSync(recursive: true);
+        }
+      });
+      tearDownAll(() => _deleteRunExecutables(home));
 
       // Neither runfiles variable, but the rest of a normal environment:
       // Windows refuses to start a process with an empty one.
@@ -488,10 +502,8 @@ void main() {
         ..remove('RUNFILES_MANIFEST_FILE');
 
       test('a manifest beside it is used', () async {
-        write(
-          '${Uri.file(exe).pathSegments.last}.runfiles_manifest',
-          '_main/a.txt /real/a.txt\n',
-        );
+        File('$exe.runfiles_manifest')
+            .writeAsStringSync('_main/a.txt /real/a.txt\n');
         final r = await Process.run(
           exe,
           ['_main/a.txt'],
@@ -504,10 +516,9 @@ void main() {
 
       test('a MANIFEST inside the runfiles directory is used when it is all '
           'the directory holds', () async {
-        write(
-          '${Uri.file(exe).pathSegments.last}.runfiles${sep}MANIFEST',
-          '_main/a.txt /real/a.txt\n',
-        );
+        File('$exe.runfiles${sep}MANIFEST')
+          ..createSync(recursive: true)
+          ..writeAsStringSync('_main/a.txt /real/a.txt\n');
         final r = await Process.run(
           exe,
           ['_main/a.txt'],
@@ -584,5 +595,22 @@ void _pointLink(String link, String target) {
   final result = Process.runSync('cmd', ['/c', 'mklink', '/J', link, target]);
   if (result.exitCode != 0) {
     throw StateError('mklink /J $link $target failed: ${result.stderr}');
+  }
+}
+
+/// Deletes [directory], which holds a copied executable that has just run.
+///
+/// Windows can refuse for a while to delete one, though its process has
+/// exited and holds nothing: on a loaded Windows VM no process held a handle
+/// in the directory when it was refused. It is waited for.
+Future<void> _deleteRunExecutables(Directory directory) async {
+  for (var tries = 1; ; tries++) {
+    try {
+      directory.deleteSync(recursive: true);
+      return;
+    } on PathAccessException {
+      if (!Platform.isWindows || tries == 100) rethrow;
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
   }
 }
