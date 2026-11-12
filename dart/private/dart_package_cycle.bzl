@@ -189,6 +189,7 @@ def _dart_package_cycle_impl(ctx):
             own = [m.package for m in members],
             deps = ctx.attr.deps,
             check_cycle = True,
+            check_unused = True,
         )
         if result:
             validation.append(result)

@@ -9,6 +9,7 @@
 // files have to be staged into them explicitly — and this asserts they are.
 import 'dart:io';
 
+import 'package:resource_consumer/uses_suppression.dart';
 import 'package:runfiles/runfiles.dart';
 
 void main() {
@@ -33,5 +34,5 @@ void main() {
     );
   }
 
-  print('dependency resource reached runfiles ok');
+  print('dependency resource reached runfiles ok (${markerName()})');
 }

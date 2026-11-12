@@ -58,7 +58,8 @@ dart_library(
     ],
     package = ":pubspec-metadata",
     visibility = ["//visibility:public"],
-    deps = _ANN_DEPS,
+    # `freezed_annotation` re-exports `json_annotation`.
+    deps = ["@pub_deps//:freezed_annotation"],
 )
 
 dart_test(

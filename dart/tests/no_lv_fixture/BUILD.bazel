@@ -18,6 +18,9 @@ no_lv_dart_library(
 
 dart_binary(
     name = "no_lv_binary",
+    # Reaches the library for its provider, built the old way; its files
+    # import nothing of it.
+    features = ["-dart_unused_deps"],
     main = "main.dart",
     # Compiled from an old provider; analysis of what reaches it is refused
     # against summaries (`src_lib`).
@@ -28,6 +31,9 @@ dart_binary(
 dart_test(
     name = "no_lv_dart_test",
     size = "small",
+    # Reaches the library for its provider, built the old way; its files
+    # import nothing of it.
+    features = ["-dart_unused_deps"],
     main = "test.dart",
     # Compiled from an old provider; analysis of what reaches it is refused
     # against summaries (`src_lib`).

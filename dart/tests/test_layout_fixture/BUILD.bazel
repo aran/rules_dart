@@ -1,23 +1,31 @@
-load("//dart:defs.bzl", "dart_library", "dart_test")
+load("//dart:defs.bzl", "dart_library", "dart_package_metadata", "dart_test")
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "test_layout_fixture",
+)
 
 dart_library(
     name = "layout_lib",
     srcs = ["lib/layout_lib.dart"],
+    package = ":pubspec-metadata",
     resources = ["lib/resource.txt"],
 )
 
-# Reads its `data`, its library's resource and another repository's `data` by
-# their paths from its package's root, where it runs; `test_runner_test` also
-# runs it from a runfiles manifest alone, where the launcher lays them out.
+# Reads its `data`, a library's resource (in `data`, as a file read at run
+# time is) and another repository's `data` by their paths from its package's
+# root, where it runs; `test_runner_test` also runs it from a runfiles
+# manifest alone, where the launcher lays them out.
 dart_test(
     name = "layout_test",
     size = "small",
     data = [
         "data.txt",
+        ":layout_lib",
         "@bazel_skylib//:bzl_library.bzl",
     ],
     env = {"EXTERNAL_RLOCATIONPATH": "$(rlocationpath @bazel_skylib//:bzl_library.bzl)"},
     main = "layout_test.dart",
+    package = ":pubspec-metadata",
     visibility = ["//dart/private/tools:__pkg__"],
-    deps = [":layout_lib"],
 )

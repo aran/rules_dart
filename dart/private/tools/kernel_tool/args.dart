@@ -29,7 +29,9 @@ const _optionsByCommand = {
     'package-root',
     'multi-root',
     'src',
-    'dep-file', 'available-package', 'direct-package', 'output', //
+    'dep-file', 'available-package', 'direct-package', 'dep', 'use-src',
+    'dependent',
+    'output', //
   },
   'digest': {'input', 'output'},
 };
@@ -38,7 +40,7 @@ const _optionsByCommand = {
 const _flagsByCommand = {
   'module': {'track-creation-locations'},
   'entry': {'track-creation-locations'},
-  'check': {'check-layering', 'check-cycle', 'generator-input'},
+  'check': {'check-layering', 'check-cycle', 'generator-input', 'check-unused'},
 };
 
 bool isCommand(String name) => _optionsByCommand.containsKey(name);

@@ -1,0 +1,111 @@
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("//dart:defs.bzl", "dart_library", "dart_package_metadata", "dart_test")
+load(":rules.bzl", "program_macro", "used_without_import")
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "import_check_unused",
+)
+
+# Registered by native code, as a Flutter plugin is: a dependent need not
+# import it.
+used_without_import(
+    name = "plugin",
+    library = "//dart/tests/import_check_fixture/base:base_lib",
+)
+
+# Imports nothing: its one dependency is exempt.
+dart_library(
+    name = "with_plugin",
+    srcs = ["lib/with_plugin.dart"],
+    package = ":pubspec-metadata",
+    visibility = ["//dart/tests:__pkg__"],
+    deps = [":plugin"],
+)
+
+# Imports nothing, with the check turned off.
+dart_library(
+    name = "check_off",
+    srcs = ["lib/check_off.dart"],
+    features = ["-dart_unused_deps"],
+    package = ":pubspec-metadata",
+    visibility = ["//dart/tests:__pkg__"],
+    deps = ["//dart/tests/import_check_fixture/base:base_lib"],
+)
+
+# Lists the plugin through an alias, as an app lists a pub plugin through
+# its hub: the alias's target carries the exemption.
+alias(
+    name = "plugin_alias",
+    actual = ":plugin",
+)
+
+dart_library(
+    name = "through_alias",
+    srcs = ["lib/through_alias.dart"],
+    package = ":pubspec-metadata",
+    visibility = ["//dart/tests:__pkg__"],
+    deps = [":plugin_alias"],
+)
+
+# `call.program`, made by a macro: the check names the call, `:call`, and
+# each dep as this file writes it. Neither is imported, so it fails to build,
+# and wildcards skip it.
+program_macro(
+    name = "call",
+    srcs = ["lib/called.dart"],
+    package = ":pubspec-metadata",
+    tags = ["manual"],
+    visibility = ["//dart/tests:__pkg__"],
+    deps = [
+        ":check_off",
+        "//dart/tests/import_check_fixture/base:base_lib",
+    ],
+)
+
+# `dart_test` requires `package:test` in `deps` and writes the bootstrap that
+# imports it. That import uses the dep, so neither test lists an unused one:
+# the first imports nothing, the second reaches `package:test` only through a
+# helper. The first has no cases, which fails when run, so it is only built.
+dart_test(
+    name = "bare_test",
+    size = "small",
+    main = "test/bare_test.dart",
+    tags = ["manual"],
+    deps = ["@ext_pub_deps//:test"],
+)
+
+build_test(
+    name = "bare_test_builds",
+    targets = [":bare_test"],
+)
+
+dart_library(
+    name = "test_helper",
+    testonly = True,
+    srcs = ["lib/test_helper.dart"],
+    package = ":pubspec-metadata",
+    deps = ["@ext_pub_deps//:test"],
+)
+
+dart_test(
+    name = "through_helper_test",
+    size = "small",
+    main = "test/through_helper_test.dart",
+    visibility = ["//dart/tests:__pkg__"],
+    deps = [
+        ":test_helper",
+        "@ext_pub_deps//:test",
+    ],
+)
+
+bzl_library(
+    name = "rules",
+    srcs = ["rules.bzl"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//dart:defs",
+        "//dart:providers",
+    ],
+)

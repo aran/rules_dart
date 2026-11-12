@@ -266,6 +266,7 @@ _KERNEL_TOOL_SRCS = [
     "kernel_tool/module_graph.dart",
     "kernel_tool/policy.dart",
     "kernel_tool/sources.dart",
+    "kernel_tool/unused_deps.dart",
     "kernel_tool/uris.dart",
     "kernel_tool/worker_command.dart",
 ]
@@ -342,6 +343,14 @@ dart_test(
     size = "small",
     srcs = _KERNEL_TOOL_SRCS,
     main = "import_policy_test.dart",
+    deps = _KERNEL_TOOL_DEPS + ["@ext_pub_deps//:test"],
+)
+
+dart_test(
+    name = "unused_deps_test",
+    size = "small",
+    srcs = _KERNEL_TOOL_SRCS,
+    main = "unused_deps_test.dart",
     deps = _KERNEL_TOOL_DEPS + ["@ext_pub_deps//:test"],
 )
 

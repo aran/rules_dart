@@ -1,0 +1,1 @@
+int throughAlias() => 1;

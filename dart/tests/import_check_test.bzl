@@ -51,6 +51,70 @@ def _dependency_tree_test_impl(ctx):
 
 dependency_tree_test = analysistest.make(_dependency_tree_test_impl)
 
+def _check_argv(env):
+    checks = [a for a in analysistest.target_actions(env) if a.mnemonic == "DartImportCheck"]
+    asserts.equals(env, 1, len(checks))
+    return " ".join(checks[0].argv) if checks else ""
+
+def _unused_checked_test_impl(ctx):
+    # A library's own `deps` are judged by the unused check, each by what
+    # names it: its files and packages.
+    env = analysistest.begin(ctx)
+    argv = _check_argv(env)
+    asserts.true(env, "--check-unused" in argv, "the unused check is off: %s" % argv)
+    asserts.true(env, "base:base_lib\tfile\t" in argv, "the dependency is not judged by its files: %s" % argv)
+    asserts.true(env, "base:base_lib\tpackage\timport_check_base" in argv, "the dependency is not judged by its package: %s" % argv)
+    return analysistest.end(env)
+
+unused_checked_test = analysistest.make(_unused_checked_test_impl)
+
+def _used_without_import_test_impl(ctx):
+    # A dependency marked `DartUsedWithoutImportInfo` is exempt, never
+    # reported, but still listed by its files: an import of one names it, and
+    # not another dependency that reaches its package.
+    env = analysistest.begin(ctx)
+    argv = _check_argv(env)
+    asserts.true(env, "--check-unused" in argv, "the unused check is off: %s" % argv)
+    asserts.true(env, ":plugin\texempt" in argv, "a dependency used without an import is not exempt: %s" % argv)
+    asserts.true(env, ":plugin\tfile\t" in argv and "base/lib/base.dart" in argv, "an exempt dependency's files are not listed: %s" % argv)
+    return analysistest.end(env)
+
+used_without_import_test = analysistest.make(_used_without_import_test_impl)
+
+def _unused_check_off_test_impl(ctx):
+    # `features = ["-dart_unused_deps"]` turns the check off for the target.
+    env = analysistest.begin(ctx)
+    argv = _check_argv(env)
+    asserts.false(env, "--check-unused" in argv, "the unused check runs with its feature off: %s" % argv)
+    return analysistest.end(env)
+
+unused_check_off_test = analysistest.make(_unused_check_off_test_impl)
+
+def _unused_names_test_impl(ctx):
+    # A macro's target is named by the BUILD file's call, and each dep as that
+    # file writes it: `:x` in its package, `//pkg:name` elsewhere.
+    env = analysistest.begin(ctx)
+    argv = _check_argv(env)
+    package = "//dart/tests/import_check_fixture/unused"
+    asserts.true(env, "--dependent %s:call " % package in argv, "the check does not name the macro's call: %s" % argv)
+    asserts.true(env, "\tname\t:check_off" in argv, "a dep of the package is not named `:x`: %s" % argv)
+    asserts.true(env, "\tname\t//dart/tests/import_check_fixture/base:base_lib" in argv, "a dep elsewhere is not named as written: %s" % argv)
+    return analysistest.end(env)
+
+unused_names_test = analysistest.make(_unused_names_test_impl)
+
+def _generated_uses_test_impl(ctx):
+    # The bootstrap a `dart_test` writes uses what it imports, and is not
+    # checked itself: the rule's file, not the author's.
+    env = analysistest.begin(ctx)
+    argv = _check_argv(env)
+    asserts.true(env, "--use-src " in argv and ".vm_test.dart" in argv, "the bootstrap's imports are not uses: %s" % argv)
+    srcs = [a for a in argv.split("--src ")[1:] if a.split(" ")[0].endswith(".vm_test.dart")]
+    asserts.equals(env, [], srcs, "the bootstrap is checked as the test's own file")
+    return analysistest.end(env)
+
+generated_uses_test = analysistest.make(_generated_uses_test_impl)
+
 def import_check_test_suite(name):
     """Registers the tests of where the import check runs.
 
@@ -69,4 +133,38 @@ def import_check_test_suite(name):
         name = "dependency_tree_test",
         target_under_test = "//dart/tests/import_check_fixture/tree_user:tree_user_lib",
     )
-    native.test_suite(name = name, tests = [":library_checked_test", ":dependency_edit_test", ":dependency_tree_test"])
+    unused_checked_test(
+        name = "unused_checked_test",
+        target_under_test = "//dart/tests/import_check_fixture/user:user_lib",
+    )
+    used_without_import_test(
+        name = "used_without_import_test",
+        target_under_test = "//dart/tests/import_check_fixture/unused:with_plugin",
+    )
+    unused_check_off_test(
+        name = "unused_check_off_test",
+        target_under_test = "//dart/tests/import_check_fixture/unused:check_off",
+    )
+    used_without_import_test(
+        name = "used_without_import_alias_test",
+        target_under_test = "//dart/tests/import_check_fixture/unused:through_alias",
+    )
+    generated_uses_test(
+        name = "generated_uses_test",
+        target_under_test = "//dart/tests/import_check_fixture/unused:through_helper_test",
+    )
+    unused_names_test(
+        name = "unused_names_test",
+        target_under_test = "//dart/tests/import_check_fixture/unused:call.program",
+    )
+    native.test_suite(name = name, tests = [
+        ":used_without_import_alias_test",
+        ":unused_names_test",
+        ":generated_uses_test",
+        ":library_checked_test",
+        ":dependency_edit_test",
+        ":dependency_tree_test",
+        ":unused_checked_test",
+        ":used_without_import_test",
+        ":unused_check_off_test",
+    ])

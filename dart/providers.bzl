@@ -281,3 +281,16 @@ group, so building it runs every check its libraries need.""",
         "exported": "dict[Label, Target]: On a target that is not a library (a toolchain), the libraries it holds, for a library that names one in `DartInfo.deps`. Empty on a library.",
     },
 )
+
+DartUsedWithoutImportInfo = provider(
+    doc = """Marks a target that a dependent may list in `deps` without importing \
+any of its libraries.
+
+Depending on such a target does something an import does not show: a Flutter \
+plugin is registered with the app by native code, so the library that brings \
+it into the app need not import it. The rule that builds the target returns \
+this, and the unused-dependency check (`dart_unused_deps`, see \
+`dart_import_check.bzl`) does not report it, wherever it is a dependency. It \
+says nothing about which dependent needs the target.""",
+    fields = {},
+)

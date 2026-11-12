@@ -23,6 +23,7 @@ Bazel rule set for building Dart applications and libraries.
   at the risk of encountering some Dart SDK bugs. It's on by default; turn it
   off with `--@rules_dart//dart:analysis_summaries=false`. Other speed
   improvements include using persistent analysis workers.
+- **Unused dependencies check.** Helpful for optimizing builds.
 
 ### Migrating from 0.8
 
@@ -124,25 +125,28 @@ after step 1 does steps 6–8 and 23 for the BUILD files it writes.
     `dart_sqlcodegen` → `generator`. A `.dart` script as `generator` or
     `generator_script` → a `dart_binary` whose `main` calls `shimMain` with a
     `package:build` Builder (see `docs/ext.md`); its flags → `config` options.
+24. A dep that none of a target's files imports → fails the build; remove it
+    from `deps`. A dep needed without an import → `features =
+    ["-dart_unused_deps"]` on the target (see [Deps match imports](#deps-match-imports)).
 
 **Rule authors** (`@rules_dart//dart:utils.bzl` and providers)
 
-24. `DartCodeAssetInfo.dynamic_library` → `file`; `DartCodeAssetInfo.system_uri`
+25. `DartCodeAssetInfo.dynamic_library` → `file`; `DartCodeAssetInfo.system_uri`
     → `uri`.
-25. `DartPackageInfo.lib_root` → `package_root`; `derive_lib_root` →
+26. `DartPackageInfo.lib_root` → `package_root`; `derive_lib_root` →
     `derive_package_root`; `has_unreplaced_hook` → `unreplaced_hook`.
-26. `DartInfo.package_name`/`lib_root` → `DartInfo.packages` (from
+27. `DartInfo.package_name`/`lib_root` → `DartInfo.packages` (from
     `DartPackageInfo(...)`); `DartInfo.deps` values are tuples of package
     names. Build `DartInfo` with `dart_info(ctx = ctx, ...)` and merge
     `SUMMARY_ATTRS` into the rule's attributes.
-27. `dart_analyzable_info` → `dart_analyzable_info_no_package` (`srcs` →
+28. `dart_analyzable_info` → `dart_analyzable_info_no_package` (`srcs` →
     `entry_srcs`); `dart_analyzable_info_with_package` → `dart_analyzable_info`
     (takes `packages`); `DartAnalyzableInfo.srcs` → `entry_srcs`,
     `package_srcs` → `DartInfo.srcs`.
-28. `module_defines_transition` → `executable_defines_config`;
+29. `module_defines_transition` → `executable_defines_config`;
     `dart_entry_kernel_action` takes no `defines` and needs
     `MODULAR_KERNEL_ATTR`.
-29. `dart_link_hook_actions(ctx, runner, recorded_uses, deps, data_asset_ids,
+30. `dart_link_hook_actions(ctx, runner, recorded_uses, deps, data_asset_ids,
     name)` → `dart_program_assets_actions(ctx, package, deps, name,
     recorded_uses)` (a `DartRecordedUsesInfo`, or `None` not to link), whose
     `info` is a `DartProgramAssetsInfo`; `link_hook_runner_attr()` →
@@ -151,19 +155,28 @@ after step 1 does steps 6–8 and 23 for the BUILD files it writes.
     `resolve_code_assets` and `code_asset_identity` → removed; the code
     assets a program's kernel maps are `program_kernel_code_assets(info)`, with
     the rule's own as `dart_program_assets_actions()`'s `code_assets` argument.
-30. `DartKernelSdkInfo.runtime` → `aot_runtime`; `platform`/`defines` →
+31. `DartKernelSdkInfo.runtime` → `aot_runtime`; `platform`/`defines` →
     `runtimes` (from `dart_kernel_runtime`).
-31. `dart_toolchain.sdk_root`, `DartSdkInfo.sdk_root`/`tool_files` →
+32. `dart_toolchain.sdk_root`, `DartSdkInfo.sdk_root`/`tool_files` →
     `dart_toolchain.sdk` takes a `dart_sdk_files`; read `DartSdkInfo.files`.
     A Dart SDK with no release tag also needs a `dart_outline_toolchain` and a
     `dart_analyzer_toolchain`, or `outline_kernel` and `analysis_summaries`
     off (see [A Dart SDK of your own](#a-dart-sdk-of-your-own)).
-32. `parse_pubspec_deps`/`parse_pubspec_sdk_constraint`/
+33. `parse_pubspec_deps`/`parse_pubspec_sdk_constraint`/
     `derive_language_version` → `read_pubspec` in `//dart/pub:pubspec.bzl`.
     `dart/pub/pub_lock_hub.bzl` → private.
-33. `colocate_entrypoint` → removed; a binary compiles its sources in place.
-34. Loads of `dart/private/**` or `dart/pub/private/**` from outside rules_dart
+34. `colocate_entrypoint` → removed; a binary compiles its sources in place.
+35. Loads of `dart/private/**` or `dart/pub/private/**` from outside rules_dart
     → fail; load the public `.bzl` files instead.
+36. A dep that is used without an import (a plugin registered by native
+    code) → its rule returns `DartUsedWithoutImportInfo`. A library rule
+    whose `deps` are what its `srcs` import → checks itself with
+    `library_import_check` and `LIBRARY_IMPORT_CHECKER_ATTRS`, as
+    `dart_library` does; the import check aspect skips it. An executable rule
+    that writes Dart files it compiles with the target's own, such as a test's
+    bootstrap, passes them to `import_check_validation` as `generated`. Their
+    imports count as uses of `deps`. They aren't checked for what they
+    import, since the rule wrote them.
 
 ## Road to 1.0
 
@@ -511,6 +524,57 @@ package in the cycle, the one to move to `build_from_pubspec`, and the
 
 Gazelle can write these targets for you. Add a `dart_cycle` directive (see
 [Directives](#directives)).
+
+#### Deps match imports
+
+A target's `deps` should be exactly what its files import. rules_dart checks
+this in both directions, on every build.
+
+An import that no dep provides fails the build. So does an import of a package
+that only a dep's dep provides. Add the target that provides it to `deps`.
+
+A dep that none of the target's files imports fails the build too. Such a dep
+compiles nothing in. But a change to it still rebuilds the target and reruns
+every test above it. The error names the target and each unused dep:
+
+```
+//app:app: no file imports or exports these deps:
+  //net:client
+  @deps//:path_provider
+Remove them from deps. One used without an import is exempt when its rule returns DartUsedWithoutImportInfo; features = ["-dart_unused_deps"] turns the check off.
+```
+
+The first line names the entry in your BUILD file that lists the deps. When a
+macro made the target, that is the macro call. A `flutter_test` is named as
+`//app:t`, not as the `//app:t.program` it makes. Each dep is spelled as your
+BUILD file can write it: `:x` in the same package, `//pkg` when the name matches
+the package's last component, and `@rules_dart//dart/runfiles` for another
+module. A dep reached through an alias, such as `@deps//:path_provider` from a
+pub hub, is printed with its canonical label. Bazel resolves the alias before
+the rule sees it, so the rule has no name for it that your module knows.
+
+Every file of the target counts, so a library's `src/` files count. So does
+every branch of a conditional import, and an `export`. So does the package's
+`hook/link.dart`, which is built from the package's deps. A test counts the
+support files in its own `srcs`. It also counts the bootstrap the rule writes,
+which imports `package:test`. So a test that gets `package:test` through a
+helper library still lists it, and passes. If the support files are a library of their
+own, that library carries their deps, and the test doesn't list them again.
+
+Some deps do their work without an import. A Flutter plugin is registered by
+native code, so the app lists it and never imports it. A plugin's rule marks
+it as such, and the check leaves it alone wherever it's listed. A dep with no
+Dart in it at all, such as a font, isn't checked either. Nor is a dep whose
+package brings native code or data assets. A program uses those by asset id,
+not by import. A dep you need only for its `resources`, files the program
+reads by path at run time, goes in `data`, which puts them in its runfiles.
+
+For any other dep you need without importing it, turn the check off for that
+target with `features = ["-dart_unused_deps"]`. You can also turn it off for a
+BUILD file with `package(features = ...)`, or for the whole build with
+`--features=-dart_unused_deps`.
+
+Gazelle writes `deps` from imports, so the BUILD files it writes pass.
 
 ### Running the Dart SDK
 

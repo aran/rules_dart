@@ -525,6 +525,36 @@ jobs:
           check //import_check/spellings:file_uri_bin "imports 'file:///tmp/undeclared.dart', a file: URI"
           check //import_check/spellings:unheld_part "has the part 'unheld_part.g.dart'"
           echo "OK: undeclared spellings refused"
+      # A library, and a test whose support library carries the edge, each
+      # listing a dependency none of its files imports.
+      - name: analysis_failure — expect the unused-dependency check to name the edge
+        working-directory: e2e/analysis_failure
+        run: |
+          check() {
+            if bazel build "$1" 2>/dev/null; then
+              echo "ERROR: $1 should have failed the unused-dependency check"
+              exit 1
+            fi
+            bazel build "$1" 2>&1 | grep -qF -- "$2"
+          }
+          check //import_check/unused:unused_lib "//import_check/unused:unused_lib: no file imports or exports these deps:"
+          check //import_check/unused:unused_lib "  //import_check/mid"
+          check //import_check/unused:unused_lib "  @rules_dart//dart/runfiles"
+          check //import_check/unused:unused_test "//import_check/unused:unused_test: no file imports or exports these deps:"
+          check //import_check/unused:unused_test "  //import_check/leaf"
+          check //import_check/unused:through_exempt "//import_check/unused:through_exempt: no file imports or exports these deps:"
+          check //import_check/unused:through_exempt "  //import_check/mid"
+          if bazel build //import_check/unused:through_exempt 2>&1 | grep -qF -- "  :leaf_plugin"; then
+            echo "ERROR: an exempt dependency was reported"
+            exit 1
+          fi
+          check //import_check/unused:bootstrapped "//import_check/unused:bootstrapped: no file imports or exports these deps:"
+          check //import_check/unused:bootstrapped "  //import_check/mid"
+          if bazel build //import_check/unused:bootstrapped 2>&1 | grep -qF -- "  //import_check/leaf"; then
+            echo "ERROR: a dependency the rule's bootstrap imports was reported"
+            exit 1
+          fi
+          echo "OK: unused dependencies reported"
       # Each target in e2e/analysis_failure is expected red under the
       # `dart_analyze` aspect, which its `.bazelrc` applies under `bazel test`.
       # `check` builds one, expects the build to fail, and greps its output

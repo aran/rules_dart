@@ -5,6 +5,7 @@ import 'cycle.dart';
 import 'directives.dart';
 import 'policy.dart';
 import 'sources.dart';
+import 'unused_deps.dart';
 import 'uris.dart';
 
 /// `check`: that what a target's files import is what its BUILD file depends
@@ -20,7 +21,12 @@ import 'uris.dart';
 /// URIs importers use. With `--check-cycle`, the target's packages must be
 /// one dependency cycle (`cycleError`). With `--generator-input`, the files are
 /// what a code generator reads before it writes their parts, so their parts are
-/// not judged. Writes the empty `--output` stamp when nothing is wrong;
+/// not judged. With `--check-unused`, every `--dep` must be named by some
+/// directive of the files or of a `--use-src`, a file built from the deps
+/// that is not judged itself: the package's link hook, or one the rule writes
+/// (`unusedDeps`); the failure names them as `--dependent`, the BUILD file's
+/// entry that states them, writes them. Writes the empty `--output` stamp when
+/// nothing is wrong;
 /// otherwise prints every violation to [err] and returns 1.
 Future<int> runCheck(Args args, {required StringSink err}) async {
   final label = args.one('label');
@@ -43,6 +49,25 @@ Future<int> runCheck(Args args, {required StringSink err}) async {
       ),
   ];
 
+  List<DeclaredDep> findUnused() => unusedDeps(
+    label: label,
+    files: [
+      ...files,
+      // Files built from the target's deps that are not its own to check:
+      // its package's link hook, and what the rule writes (a bootstrap).
+      for (final use in readSources(args.all('use-src')))
+        CheckedFile(
+          path: use.path,
+          rootPath: rootRelative(use.path, roots),
+          uri: uriOf(use.path),
+          directives: readDirectives(use.path, use.text),
+        ),
+    ],
+    config: config,
+    deps: parseDeclaredDeps(args.all('dep'), uriOf, dartFiles),
+    ownPackages: ownPackages(args).keys.toSet(),
+    layered: args.flag('check-layering'),
+  );
   final violations = checkPolicy(
     label: label,
     files: files,
@@ -67,6 +92,12 @@ Future<int> runCheck(Args args, {required StringSink err}) async {
       availablePackages: args.all('available-package').toSet(),
     );
     if (cycle != null) messages.add(cycle);
+  }
+  if (args.flag('check-unused')) {
+    final unused = findUnused();
+    if (unused.isNotEmpty) {
+      messages.add(unusedDepsMessage(args.one('dependent'), unused));
+    }
   }
   if (messages.isNotEmpty) {
     err.writeln(messages.join('\n'));

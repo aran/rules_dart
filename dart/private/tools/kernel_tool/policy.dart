@@ -90,7 +90,7 @@ List<Violation> checkPolicy({
       void add(String message) =>
           violations.add(Violation(f.uri, '$label: ${f.path} $verb $message'));
 
-      final judged = _compiled(written, f, config, label);
+      final judged = compiledUri(written, f, config, label);
       if (judged.refusal case final refusal?) {
         add("'$written', $refusal");
         return;
@@ -167,7 +167,7 @@ List<Violation> checkPolicy({
 }
 
 /// The URI the compiler loads for [written] in [file], or why it is refused.
-({String? uri, String? refusal}) _compiled(
+({String? uri, String? refusal}) compiledUri(
   String written,
   CheckedFile file,
   PackageConfig config,

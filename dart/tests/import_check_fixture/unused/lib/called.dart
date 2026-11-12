@@ -1,0 +1,1 @@
+int called() => 1;
