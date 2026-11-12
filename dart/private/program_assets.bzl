@@ -557,6 +557,9 @@ def _native_link(ctx, pkg, linked, recorded_uses, name):
             outputs = [symbols],
             mnemonic = "DartLinkSymbols",
             progress_message = "Choosing the symbols of %s to keep for %s" % (linked.asset_id, ctx.label),
+            # The package's own tool, from its `dart_linked_code_asset`: not
+            # a toolchain's.
+            toolchain = None,
         )
         exports = ctx.actions.declare_file(prefix + "." + link_format)
         args = ctx.actions.args()
