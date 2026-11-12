@@ -1,0 +1,39 @@
+load("//:checks.bzl", "pub_graph_check")
+
+exports_files(["pubspec.lock"])
+
+# Property: a dependency cycle builds only as the root module declares it.
+# Each check below MUST FAIL TO BUILD: CI builds each package's library and
+# expects its error, which names every package of the cycle and the
+# declaration to write. `manual` keeps them out of `//...`, which the rest of
+# the workspace builds.
+
+# An undeclared cycle: `@refused_cycles//:left`.
+pub_graph_check(
+    name = "undeclared_cycle_refused",
+    tags = ["manual"],
+    target = "@refused_cycles//:left",
+)
+
+# A declaration of packages that are no cycle: `@refused_cycles//:old_a`.
+pub_graph_check(
+    name = "stale_declaration_refused",
+    tags = ["manual"],
+    target = "@refused_cycles//:old_a",
+)
+
+# A declaration of part of a cycle: `@refused_cycles//:tri_a`.
+pub_graph_check(
+    name = "partial_declaration_refused",
+    tags = ["manual"],
+    target = "@refused_cycles//:tri_a",
+)
+
+# A cycle through a package a target of yours builds (`//cycle_refused/mine`,
+# by `resolve`): `@refused_cycles//:theirs`. No declaration builds it; the
+# error names the move to `build_from_pubspec` and the declaration to add.
+pub_graph_check(
+    name = "served_cycle_refused",
+    tags = ["manual"],
+    target = "@refused_cycles//:theirs",
+)

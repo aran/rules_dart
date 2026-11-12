@@ -1,0 +1,78 @@
+load("@git_fixture//:commits.bzl", "COMMITS")
+load("@rules_dart//dart:defs.bzl", "dart_test")
+load(":checks.bzl", "license_check")
+load(":purls.bzl", "package_metadata_files")
+
+# Property: `pub.from_lock()` fetches git packages as `dart pub get` would on a
+# host with no git configuration of its own: at the locked commit, from the
+# locked subdirectory, with the repository's attributes and nothing else
+# changing a byte, and as ordinary members of a dependency cycle. The
+# workspace's `.bazelrc` sets the GIT_* variables that would change any of that, and
+# `check_host_config.dart` runs this test for a host whose git configuration
+# would, and whose protocol makes servers refuse to fetch by commit id. It also
+# runs it with the remotes reachable only through variables in the client's
+# environment (`GIT_CONFIG_COUNT`, `GIT_SSH_COMMAND`), which the fetch must see
+# and the files must not show. A dependency module's lock that lists a package
+# from pub.dev or at another commit gets the root's git package, as a root
+# `git_override` overrides a `bazel_dep`.
+dart_test(
+    name = "git_packages_test",
+    size = "small",
+    main = "git_packages_test.dart",
+    deps = [
+        "@dep_mod//:git_root",
+        "@dep_mod//:git_sub",
+        "@deps//:git_cyc_a",
+        "@deps//:git_cyc_b",
+        "@deps//:git_root",
+        "@deps//:git_sub",
+        "@rules_dart//dart/runfiles",
+    ],
+)
+
+# Property: each package names the license `flutter build` would report it
+# under: the `NOTICES` at its root over its `LICENSE`, by exact name, and none
+# when it has neither.
+license_check(
+    name = "license_files",
+    license_files = {
+        "git_cyc_a": "",
+        "git_cyc_b": "",
+        "git_root": "NOTICES",
+        "git_sub": "LICENSE",
+    },
+    deps = [
+        "@deps//:git_cyc_a",
+        "@deps//:git_root",
+        "@deps//:git_sub",
+    ],
+)
+
+# Property: each git package says what it is, for any SBOM tool: by name and
+# version, and by the repository, commit and directory the lock pins, as the
+# lock writes the repository.
+package_metadata_files(
+    name = "package_metadata",
+    deps = [
+        "@deps//:git_cyc_a",
+        "@deps//:git_root",
+        "@deps//:git_sub",
+    ],
+)
+
+dart_test(
+    name = "purls_test",
+    size = "small",
+    data = [":package_metadata"],
+    env = {
+        "PACKAGE_METADATA": "$(rlocationpaths :package_metadata)",
+        "PURLS": " ".join([
+            "pkg:pub/git_cyc_a@1.0.0?vcs_url=git%2Bremote.git%40{}%23pkgs%2Fcyc_a".format(COMMITS["mono_v2"]),
+            "pkg:pub/git_cyc_b@1.0.0?vcs_url=git%2Bremote.git%40{}%23pkgs%2Fcyc_b".format(COMMITS["mono_v2"]),
+            "pkg:pub/git_root@1.0.0?vcs_url=git%2Broot.git%40{}".format(COMMITS["root_r1"]),
+            "pkg:pub/git_sub@1.0.0?vcs_url=git%2Bremote.git%40{}%23pkgs%2Fsub".format(COMMITS["sub_v1"]),
+        ]),
+    },
+    main = "purls_test.dart",
+    deps = ["@rules_dart//dart/runfiles"],
+)

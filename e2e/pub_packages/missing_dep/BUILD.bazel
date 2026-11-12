@@ -1,0 +1,4 @@
+# Property: a `pub.package()` is built with the dependencies its archive's pubspec
+# states, and one nothing supplies fails at fetch, naming both packages.
+# Check: `bazel build @provider//:provider` fails and its output
+# contains "nothing supplies `flutter`". Nothing else here depends on it.

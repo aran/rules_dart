@@ -3333,19 +3333,19 @@ The [`e2e/`](e2e/) directory contains complete working examples. A name with a
 | [`pub_lock_upgrade`](e2e/pub_lock_upgrade/)                         | Locks that disagree build the highest version, rules_dart's own lock included                            |
 | [`pub_lock_conflict`](e2e/pub_lock_conflict/)                       | `check_direct_dependencies = "error"` fails a raised root lock, giving the command to raise it           |
 | [`pub_lock_dedup/cross_module`](e2e/pub_lock_dedup/cross_module/)   | `pub.from_lock()` across Bazel module boundaries                                                         |
-| [`pub_lock_cycle`](e2e/pub_lock_cycle/)                             | Packages that depend on each other: a curated cycle (`dio`), and one the root declares                   |
+| [`pub_packages/cycle`](e2e/pub_packages/cycle/)                     | Packages that depend on each other: a curated cycle (`dio`), and one the root declares                   |
 | [`pub_package_cycle`](e2e/pub_package_cycle/)                       | `pub.package()` packages that depend on each other, built as one library                                 |
-| [`pub_cycle_refused`](e2e/pub_cycle_refused/)                       | An undeclared cycle, a stale declaration, part of a cycle and a cycle through a `resolve` target fail    |
-| [`pub_member_kind`](e2e/pub_member_kind/)                           | Another rule set's own pub package kind, in a cycle, over the public pub surface                         |
+| [`pub_packages/cycle_refused`](e2e/pub_packages/cycle_refused/)     | An undeclared cycle, a stale declaration, part of a cycle and a cycle through a `resolve` target fail    |
+| [`pub_packages/member_kind`](e2e/pub_packages/member_kind/)         | Another rule set's own pub package kind, in a cycle, over the public pub surface                         |
 | [`toolchain_pin_conflict`](e2e/toolchain_pin_conflict/)             | A root `dart.toolchain` pin below a dependency's request fails, naming the dependency                    |
-| [`pub_lock_unsupplied`](e2e/pub_lock_unsupplied/)                   | A hosted package depending on an unsupplied sdk package fails, naming it                                 |
+| [`pub_packages/unsupplied`](e2e/pub_packages/unsupplied/)           | A hosted package depending on an unsupplied sdk package fails, naming it                                 |
 | [`pub_lock_resolve`](e2e/pub_lock_resolve/)                         | `resolve` serving a `path` package and replacing a hosted one for the whole graph                        |
 | [`pub_lock_resolve_invalid`](e2e/pub_lock_resolve_invalid/)         | Unnamed, twice-named and wrongly named `path` packages and a stale `resolve` key fail                    |
-| [`pub_lock_path`](e2e/pub_lock_path/)                               | `path` packages built from their pubspec, ignored, or refused for having a BUILD file                    |
-| [`pub_lock_git`](e2e/pub_lock_git/)                                 | Git packages at the locked commit and subdirectory, whatever the host's git configuration                |
+| [`pub_packages/path`](e2e/pub_packages/path/)                       | `path` packages built from their pubspec, ignored, or refused for having a BUILD file                    |
+| [`pub_packages/git`](e2e/pub_packages/git/)                         | Git packages at the locked commit and subdirectory, whatever the host's git configuration                |
 | [`pub_lock_refused`](e2e/pub_lock_refused/)                         | Unpinned packages and locks disagreeing on a package fail, each named, in one failure                    |
 | [`pub_hub_surface`](e2e/pub_hub_surface/)                           | Every locked package in its hub, including one declared with `pub.package()`                             |
-| [`pub_package_missing_dep`](e2e/pub_package_missing_dep/)           | A `pub.package()` whose pubspec depends on an unsupplied package fails, naming both                      |
+| [`pub_packages/missing_dep`](e2e/pub_packages/missing_dep/)         | A `pub.package()` whose pubspec depends on an unsupplied package fails, naming both                      |
 | [`pub_package_padded`](e2e/pub_package_padded/)                     | An archive with bytes after its gzip stream fetches through `pub.package()` as through a lock            |
 | [`pub_archive_links`](e2e/pub_archive_links/)                       | Nothing in a fetched pub archive can refer outside the package                                           |
 | [`basics/kernel_source_refused`](e2e/basics/kernel_source_refused/) | A `dart_kernel_source` with both or neither of `dart_version` and `path`, or no checkout, fails          |

@@ -1,0 +1,11 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+# In a cycle with `theirs`, so it fails to build; `manual` keeps it out of
+# `//...`, and CI builds it by name.
+dart_library(
+    name = "mine",
+    srcs = glob(["lib/**/*.dart"]),
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+    deps = ["@refused_cycles//:theirs"],
+)

@@ -5,7 +5,7 @@ what a spoke states, when two records of one package disagree, and that a
 merge or a copy keeps the license. The analysis tests, which read records off
 real targets, are declared beside their fixtures in
 `//dart/tests/license_file_fixture`. That `pub.from_lock()` finds the file on
-disk is `e2e/pub_lock_git`'s to show.
+disk is `e2e/pub_packages/git`'s to show.
 """
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts", "unittest")
