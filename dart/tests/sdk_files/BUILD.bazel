@@ -22,7 +22,10 @@ dart_binary(
     name = "analyzer_errors",
     compile_mode = "exe",
     main = "analyzer_errors.dart",
-    deps = ["@ext_pub_deps//:analyzer"],
+    deps = [
+        "@ext_pub_deps//:analyzer",
+        "@ext_pub_deps//:path",
+    ],
 )
 
 [

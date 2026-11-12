@@ -7,10 +7,13 @@ import 'dart:io';
 
 import 'package:analyzer/dart/analysis/analysis_context_collection.dart';
 import 'package:analyzer/dart/analysis/results.dart';
+import 'package:path/path.dart' as p;
 
 Future<void> main(List<String> args) async {
-  final sdk = Directory(args[0]).absolute.path;
-  final file = File(args[1]).absolute.path;
+  // The analyzer takes only absolute, normalized paths: on Windows, `\` alone
+  // as the separator.
+  final sdk = p.normalize(p.absolute(args[0]));
+  final file = p.normalize(p.absolute(args[1]));
   final contexts = AnalysisContextCollection(
     includedPaths: [file],
     sdkPath: sdk,
