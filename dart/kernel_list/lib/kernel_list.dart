@@ -57,17 +57,20 @@ bool isKernelList(String path) {
 }
 
 /// The kernels the program at [path] is made of: those a kernel list names, in
-/// order, each relative one resolved against the directory of [path] as the VM
-/// does; or [path] itself when it is a kernel.
+/// order; or [path] itself when it is a kernel.
+///
+/// Each line is resolved as the VM resolves it: one the platform takes as
+/// absolute stands, and any other is appended to [path] up to its last
+/// [Platform.pathSeparator] (on Windows a `/` does not end the directory).
 List<String> kernelsAt(String path) {
   if (!isKernelList(path)) return [path];
-  final directory = File(path).parent.path;
+  final directory = path.substring(
+    0,
+    path.lastIndexOf(Platform.pathSeparator) + 1,
+  );
   return [
     for (final line in _lines(path))
-      _isAbsolute(line)
-          ? line
-          : '$directory${Platform.pathSeparator}'
-                '${line.replaceAll('/', Platform.pathSeparator)}',
+      _vmAbsolute(line) ? line : '$directory$line',
   ];
 }
 
@@ -202,6 +205,11 @@ Iterable<String> _lines(String path) => const LineSplitter()
     .where((line) => line.isNotEmpty);
 
 final _windowsAbsolute = RegExp(r'^[A-Za-z]:[\\/]');
+
+/// Whether the VM takes kernel-list line [path] as absolute.
+bool _vmAbsolute(String path) => Platform.isWindows
+    ? path.startsWith(r'\\') || _windowsAbsolute.hasMatch(path)
+    : path.startsWith('/');
 
 bool _isAbsolute(String path) =>
     path.startsWith('/') ||

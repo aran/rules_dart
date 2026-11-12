@@ -49,18 +49,26 @@ void main(List<String> args) {
     expect('${result.stdout}'.trim(), expected);
   });
 
-  test('kernelsAt resolves relative lines against the list', () {
-    final kernels = kernelsInRunfiles(runfiles, program);
-    Directory('${tmp.path}/sub').createSync();
-    File('${tmp.path}/sub/entry.dill').writeAsBytesSync([1]);
-    final list = '${tmp.path}/sub/program.dill';
-    writeKernelList(list, ['entry.dill', kernels[1]]);
-    expect(kernelsAt(list), [
-      '${tmp.path}/sub/entry.dill'.replaceAll('/', Platform.pathSeparator),
-      kernels[1],
-    ]);
-    expect(kernelsAt(kernels[1]), [kernels[1]]);
-  }, skip: severalKernels);
+  test(
+    'kernelsAt resolves relative lines against the list as the VM does',
+    () async {
+      final kernels = kernelsInRunfiles(runfiles, program);
+      final sep = Platform.pathSeparator;
+      final sub = Directory('${tmp.path}${sep}sub')..createSync();
+      File(kernels.first).copySync('${sub.path}${sep}entry.dill');
+      final list = '${sub.path}${sep}program.dill';
+      writeKernelList(list, ['entry.dill', ...kernels.skip(1)]);
+      expect(kernelsAt(list), [
+        '${sub.path}${sep}entry.dill',
+        ...kernels.skip(1),
+      ]);
+      final result = await run(list);
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect('${result.stdout}'.trim(), expected);
+      expect(kernelsAt(kernels[1]), [kernels[1]]);
+    },
+    skip: severalKernels,
+  );
 
   test('joinKernels makes one program of them, in order', () async {
     final kernels = kernelsInRunfiles(runfiles, program);
