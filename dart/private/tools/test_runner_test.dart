@@ -31,6 +31,16 @@ void main(List<String> args) {
     Map<String, String> environment = const {},
   ]) => Process.start(launcher, fixtureArgs, environment: environment);
 
+  // The runner snapshot cache the cases share that are not about the cache:
+  // the first run trains it and the rest start from it, as runs on one machine
+  // do, rather than each training its own. Not this machine's cache, which
+  // this test has no need to fill.
+  late Directory runnerCache;
+  setUpAll(
+    () => runnerCache = Directory.systemTemp.createTempSync('runner_cache.'),
+  );
+  tearDownAll(() => runnerCache.deleteSync(recursive: true));
+
   StreamIterator<String> lines(Stream<List<int>> stream) => StreamIterator(
     stream.transform(utf8.decoder).transform(const LineSplitter()),
   );
@@ -145,7 +155,7 @@ void main(List<String> args) {
               (manifest == null || !key.startsWith('RUNFILES_')))
             key: value,
         'XML_OUTPUT_FILE': '${tmp.path}/test.xml',
-        'RULES_DART_RUNNER_SNAPSHOT_DIR': '${tmp.path}/cache',
+        'RULES_DART_RUNNER_SNAPSHOT_DIR': runnerCache.path,
         'RUNFILES_MANIFEST_FILE': ?manifest,
         ...environment,
       },
@@ -551,8 +561,7 @@ void main(List<String> args) {
                 key != 'XML_OUTPUT_FILE')
               key: value,
           'RUNFILES_MANIFEST_FILE': manifest,
-          // Not this machine's cache, which this test has no need to fill.
-          'RULES_DART_RUNNER_SNAPSHOT_DIR': '${tmp.path}/cache',
+          'RULES_DART_RUNNER_SNAPSHOT_DIR': runnerCache.path,
           // Where the launcher's own directories go, to see them removed.
           'TMPDIR': temp.path,
           'TEMP': temp.path,
