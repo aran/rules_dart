@@ -36,7 +36,7 @@ _ANALYZER_SRCS = [
     "server_analyzer.dart",
 ]
 
-# Run from source by the SDK's own `dart`, which is what hosts the analysis
+# Run from source by the SDK's own VM, `dartvm`, which is what hosts the analysis
 # server: the runners are AOT-compiled and cannot load its JIT snapshot.
 exports_files(
     ["analysis_host.dart"],
@@ -393,11 +393,11 @@ dart_test(
     size = "small",
     args = [
         "$(rlocationpath :analysis_host.dart)",
-        "$(rlocationpath //dart/tests/sdk_files:copy_analyze)",
+        "$(rlocationpath //dart/tests/sdk_files:copy_run)",
     ],
     data = [
         ":analysis_host.dart",
-        "//dart/tests/sdk_files:copy_analyze",
+        "//dart/tests/sdk_files:copy_run",
     ],
     main = "analysis_host_test.dart",
     deps = [

@@ -9,14 +9,17 @@ import 'package:test/test.dart';
 /// that started it is gone: macOS and Linux notice a change of parent, Windows
 /// holds a handle to the parent it started under.
 ///
-/// The host runs as the runner starts it, with `dart`, but over a server that
-/// only reports it is up. Its parent is an intermediary that is killed, as an
-/// abruptly killed runner is. Arguments are the runfiles paths of
-/// `analysis_host.dart` and a copy of the SDK's `analyze` file set.
+/// The host runs as the runner starts it, with `dartvm`, but over a server
+/// that only reports it is up. Its parent is an intermediary that is killed,
+/// as an abruptly killed runner is. Arguments are the runfiles paths of
+/// `analysis_host.dart` and a copy of the SDK's `run` file set: the VM the
+/// host runs on and no more, since a test lays out each of its files.
 void main(List<String> args) {
   final runfiles = Runfiles.create();
-  final dart =
-      '${runfiles.rlocation(args[1])}/bin/dart'
+  // The VM itself, as a runner is one process: not the `dart` launcher, which
+  // on Windows runs the VM as its child.
+  final dartvm =
+      '${runfiles.rlocation(args[1])}/bin/dartvm'
       '${Platform.isWindows ? '.exe' : ''}';
   final host = File(runfiles.rlocation(args[0])).resolveSymbolicLinksSync();
 
@@ -62,9 +65,9 @@ Future<void> main(List<String> args) async {
   test('ends and removes its cache when its parent is killed', () async {
     final cache = Directory('${scratch.path}/cache')..createSync();
     final ready = File('${scratch.path}/ready');
-    final intermediary = await Process.start(dart, [
+    final intermediary = await Process.start(dartvm, [
       '${scratch.path}/intermediary.dart',
-      dart,
+      dartvm,
       host,
       cache.path,
       '${scratch.path}/server.dart',

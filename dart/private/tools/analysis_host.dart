@@ -1,9 +1,9 @@
 // Hosts the SDK's analysis server for the analyze and fix runners: run by the
-// SDK's `dart` from source, it runs the server's JIT snapshot as an isolate of
+// SDK's VM (`dartvm`) from source, it runs the server's JIT snapshot as an isolate of
 // this one process, so ending the process ends the server, with nothing left
 // to orphan.
 //
-//   dart analysis_host.dart <cache> <server snapshot> <server arguments>...
+//   dartvm analysis_host.dart <cache> <server snapshot> <server arguments>...
 //
 // The server reads requests from this process's stdin and writes to its
 // stdout. It does not exit when stdin closes, so this process ends itself:
@@ -19,7 +19,7 @@ import 'dart:isolate';
 Future<void> main(List<String> args) async {
   if (args.length < 2) {
     stderr.writeln(
-      'usage: dart analysis_host.dart <cache> <server snapshot> <arguments>...',
+      'usage: dartvm analysis_host.dart <cache> <server snapshot> <arguments>...',
     );
     exit(64);
   }

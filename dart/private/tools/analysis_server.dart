@@ -2,9 +2,12 @@
 // `dart fix`.
 //
 // The server runs from the SDK's JIT snapshot inside `analysis_host.dart`, one
-// process started with the SDK's `dart`, which ends itself when the process
-// that started it is gone. Ending that process ends the server: it is never
-// asked to shut down, so nothing waits on a shutdown.
+// process started with the SDK's VM, `dartvm`, which ends itself when the
+// process that started it is gone. Ending that process ends the server: it is
+// never asked to shut down, so nothing waits on a shutdown. Not the `dart`
+// launcher, which on Windows runs the VM as a child process: killing the
+// launcher leaves the VM to end later, still holding the cache, and the host's
+// parent would be the launcher, not this process.
 //
 // Its cache is a directory the caller names, not its default
 // `$HOME/.dartServer`, which every process with that home shares.
@@ -60,7 +63,7 @@ class AnalysisServer {
     final cacheDir = Directory(cache).absolute;
     if (cacheDir.existsSync()) cacheDir.deleteSync(recursive: true);
     cacheDir.createSync(recursive: true);
-    final process = await Process.start(dart, [
+    final process = await Process.start(vm(dart), [
       host,
       cacheDir.path,
       '$sdk/bin/snapshots/analysis_server.dart.snapshot',
@@ -261,6 +264,11 @@ class AnalysisServer {
 /// How long [AnalysisServer.kill] lets the host take to end on SIGTERM,
 /// which takes it milliseconds.
 const _hostExit = Duration(seconds: 5);
+
+/// The VM, `dartvm`, of the SDK whose `dart` is [dart].
+String vm(String dart) =>
+    '${File(dart).absolute.parent.path}${Platform.pathSeparator}dartvm'
+    '${Platform.isWindows ? '.exe' : ''}';
 
 /// The directory [path] as the server takes it: absolute, without symlinks or
 /// a trailing separator.
