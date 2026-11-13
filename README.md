@@ -3371,7 +3371,7 @@ The [`e2e/`](e2e/) directory contains complete working examples. A name with a
 | [`toolchain_pin_conflict`](e2e/failures/toolchain_pin_conflict/)             | A root `dart.toolchain` pin below a dependency's request fails, naming the dependency                    |
 | [`pub_packages/unsupplied`](e2e/pub_packages/unsupplied/)           | A hosted package depending on an unsupplied sdk package fails, naming it                                 |
 | [`pub_lock_resolve`](e2e/pub_lock_resolve/)                         | `resolve` serving a `path` package and replacing a hosted one for the whole graph                        |
-| [`pub_lock_resolve_invalid`](e2e/pub_lock_resolve_invalid/)         | Unnamed, twice-named and wrongly named `path` packages and a stale `resolve` key fail                    |
+| [`pub_lock_resolve_invalid`](e2e/failures/pub_lock_resolve_invalid/)         | Unnamed, twice-named and wrongly named `path` packages and a stale `resolve` key fail                    |
 | [`pub_packages/path`](e2e/pub_packages/path/)                       | `path` packages built from their pubspec, ignored, or refused for having a BUILD file                    |
 | [`pub_packages/git`](e2e/pub_packages/git/)                         | Git packages at the locked commit and subdirectory, whatever the host's git configuration                |
 | [`pub_lock_refused`](e2e/failures/pub_lock_refused/)                         | Unpinned packages and locks disagreeing on a package fail, each named, in one failure                    |

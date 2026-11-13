@@ -386,7 +386,7 @@ jobs:
           echo "$out" | grep -q "nothing supplies \`petitparser\`"
           echo "OK: expected unsupplied dependency detected"
       - name: pub_lock_resolve_invalid — expect unnamed, twice-named and wrongly named packages, and path packages no lock can hold, to fail, naming each
-        working-directory: e2e/pub_lock_resolve_invalid
+        working-directory: e2e/failures/pub_lock_resolve_invalid
         run: |
           if out=$(bazel build @pub//:path 2>&1); then
             echo "ERROR: build should have failed: models named nowhere, utils twice, http not locked, path not a path package, far absolute, outside outside the workspace"
