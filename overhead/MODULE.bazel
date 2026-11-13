@@ -1,6 +1,6 @@
 """Development tooling shared by rules_dart, rules_dart_proto, rules_flutter
-and frustrate: the commit policy, release notes, tool pins, lock checks and
-bazelrc preset. Its reusable workflows are in rules_dart's
+and frustrate: the commit policy, release notes, tool pins, lock checks,
+bazelrc preset and test VMs. Its reusable workflows are in rules_dart's
 .github/workflows. Not published to the Bazel Central Registry; REPO.bazel
 keeps it out of rules_dart's packages.
 

@@ -344,7 +344,7 @@ updates (both through `bazel run @rules_dart//dart/pub`).
 **Files**:
 
 - `.github/workflows/ci.yaml` — `folders` array in the test job.
-  `tools/vm/run_e2e.dart` reads it from there.
+  `tools/vm/e2e_items.dart` reads it from there.
 
 **Procedure**:
 

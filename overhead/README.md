@@ -2,7 +2,7 @@
 
 Development tooling shared by rules_dart, rules_dart_proto, rules_flutter and
 frustrate: the commit policy, release notes, tool pins, lock checks, bazelrc
-preset and commit hooks. Its reusable workflows are in rules_dart's `.github/workflows`, each
+preset, commit hooks and test VMs. Its reusable workflows are in rules_dart's `.github/workflows`, each
 with its use in its header.
 
 ## Taking it
@@ -113,3 +113,28 @@ import %workspace%/tools/preset.bazelrc
 The file is checked in. Bumping overhead's pin or the repository's
 `.bazelversion` can change it, so CI runs the check, and a bump runs the tool.
 A repository takes no `bazel_dep` on bazelrc-preset.bzl of its own.
+
+## Test VMs
+
+Throwaway SPOT VMs on Google Cloud, to run a repository's e2e suites on Linux
+or Windows, from `gcloud`'s project and zone (`CLOUDSDK_COMPUTE_ZONE` wins):
+
+```shell
+bazel run @overhead//vm:create_linux_vm -- <vm-name> [--machine-type=..] [--disk-size=..]
+bazel run @overhead//vm:create_windows_vm -- <vm-name> [--machine-type=..] [--disk-size=..]
+gcloud compute instances delete <vm-name> --quiet
+```
+
+Each has a C/C++ toolchain, git and bazelisk, and returns once the VM's
+startup script has finished. A repository that needs more on its VMs calls
+`createLinuxVm` or `createWindowsVm` (`vm/lib/create_vm.dart`) from a
+`dart_binary` of its own, with its packages and startup steps.
+
+What runs on a VM is the repository's to say: its own `dart_binary`, over
+`@overhead//vm`, passes `runE2e` (`vm/lib/e2e.dart`) a list of `E2eItem`s,
+each Bazel or a script in a folder with the exit codes that pass, read from
+whatever says what its CI runs; and, if it needs them, setup steps and
+options of its own. The runner copies the committed HEAD over, writes the
+VM's home bazelrc (one disk cache, idle exit, heap cap, `--keep_going`, and
+with `--remote-cache=<url>` a cache the VMs share), runs the items, and
+summarises. rules_dart's `tools/vm` is the example.

@@ -1,0 +1,55 @@
+load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_library", "dart_package_metadata", "dart_test")
+
+# The test VMs: creating them, and running a repository's e2e suites on one.
+# A repository runs the suites from a dart_binary of its own over :vm, which
+# says what to run; one that needs more on its VMs than the build basics
+# creates them from a dart_binary of its own too. See lib/e2e.dart and
+# lib/create_vm.dart.
+
+dart_package_metadata(
+    name = "package",
+    package_name = "overhead_vm",
+)
+
+dart_library(
+    name = "vm",
+    srcs = glob(["lib/*.dart"]),
+    package = ":package",
+    visibility = ["//visibility:public"],
+)
+
+# bazel run @overhead//vm:create_linux_vm -- [vm-name] [--machine-type=..] [--disk-size=..]
+dart_binary(
+    name = "create_linux_vm",
+    main = "create_linux_vm.dart",
+    visibility = ["//visibility:public"],
+    deps = [":vm"],
+)
+
+# bazel run @overhead//vm:create_windows_vm -- [vm-name] [--machine-type=..] [--disk-size=..]
+dart_binary(
+    name = "create_windows_vm",
+    main = "create_windows_vm.dart",
+    visibility = ["//visibility:public"],
+    deps = [":vm"],
+)
+
+dart_test(
+    name = "e2e_test",
+    size = "small",
+    main = "test/e2e_test.dart",
+    deps = [
+        ":vm",
+        "@overhead_dev_deps//:test",
+    ],
+)
+
+dart_test(
+    name = "create_vm_test",
+    size = "small",
+    main = "test/create_vm_test.dart",
+    deps = [
+        ":vm",
+        "@overhead_dev_deps//:test",
+    ],
+)
