@@ -10,7 +10,7 @@ exports_files([
 dart_binary(
     name = "app",
     main = "main.dart",
-    visibility = ["//:__pkg__"],
+    visibility = ["//fixtures/pub_dedup:__pkg__"],
     deps = [
         "@two_hubs_a//:path",
         "@two_hubs_b//:collection",

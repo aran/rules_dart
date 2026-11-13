@@ -382,6 +382,35 @@ fancy.cycle(packages = [
 ])
 use_repo(fancy, "fancy__alpha", "fancy__beta", "fancy__gamma")
 
+# fixtures/pub_dedup: packages that several locks list are built once, from
+# two locks of this module and from the locks of two dependency modules, one
+# with a hub named as one of this module's.
+pub.from_lock(
+    name = "two_hubs_a",
+    lock = "//fixtures/pub_dedup/two_hubs:lock_a.lock",
+)
+pub.from_lock(
+    name = "two_hubs_b",
+    lock = "//fixtures/pub_dedup/two_hubs:lock_b.lock",
+)
+pub.from_lock(
+    name = "deps_a",
+    lock = "//fixtures/pub_dedup/cross_module:lock_a.lock",
+)
+use_repo(pub, "deps_a", "two_hubs_a", "two_hubs_b")
+
+bazel_dep(name = "module_b", version = "0.0.0")
+local_path_override(
+    module_name = "module_b",
+    path = "fixtures/pub_dedup/cross_module/module_b",
+)
+
+bazel_dep(name = "module_c", version = "0.0.0")
+local_path_override(
+    module_name = "module_c",
+    path = "fixtures/pub_dedup/cross_module/module_c",
+)
+
 # fixtures/kernel_source_refused: each repository is declared wrongly in its
 # own way, and fails only when it is fetched. `/usr` is a directory that is
 # not a Dart SDK checkout.

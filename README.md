@@ -3360,10 +3360,10 @@ The [`e2e/`](e2e/) directory contains complete working examples. A name with a
 | [`examples/gazelle`](e2e/examples/gazelle/)                                           | Automatic BUILD file generation with Gazelle                                                             |
 | [`examples/cross_compile`](e2e/examples/cross_compile/)                 | Cross-compilation to other platforms via `platform_data` transition                                      |
 | [`examples/tests/package_test`](e2e/examples/tests/package_test/)             | `dart_test` with pub dependencies via `pub.from_lock()`                                                  |
-| [`pub_lock_dedup/two_hubs`](e2e/pub_lock_dedup/two_hubs/)           | Cross-lock-file package deduplication                                                                    |
+| [`examples/fixtures/pub_dedup/two_hubs`](e2e/examples/fixtures/pub_dedup/two_hubs/)           | Cross-lock-file package deduplication                                                                    |
 | [`root_settings/pub_versions/lock_upgrade`](e2e/root_settings/pub_versions/lock_upgrade/)                         | Locks that disagree build the highest version, rules_dart's own lock included                            |
 | [`pub_lock_conflict`](e2e/failures/pub_lock_conflict/)                       | `check_direct_dependencies = "error"` fails a root lock raised by another lock or by a dependency module, giving the commands to raise them |
-| [`pub_lock_dedup/cross_module`](e2e/pub_lock_dedup/cross_module/)   | `pub.from_lock()` across Bazel module boundaries                                                         |
+| [`examples/fixtures/pub_dedup/cross_module`](e2e/examples/fixtures/pub_dedup/cross_module/)   | `pub.from_lock()` across Bazel module boundaries                                                         |
 | [`examples/pub/cycle`](e2e/examples/pub/cycle/)                     | Packages that depend on each other: a curated cycle (`dio`), and one the root declares                   |
 | [`root_settings/pub_package_cycle`](e2e/root_settings/pub_package_cycle/)                       | `pub.package()` packages that depend on each other, built as one library                                 |
 | [`examples/fixtures/pub_cycle_refused`](e2e/examples/fixtures/pub_cycle_refused/)     | An undeclared cycle, a stale declaration, part of a cycle and a cycle through a `resolve` target fail    |

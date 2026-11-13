@@ -156,7 +156,7 @@ results in the output base, not the lock, and editing them changes no lock.
 **Workspaces**: every directory with a tracked `MODULE.bazel`, found by
 `bazel run @overhead//locks:check`, except a module nested in another
 workspace with no tracked `MODULE.bazel.lock` of its own
-(`e2e/pub_lock_dedup/cross_module/module_b`, say), which resolves as part of it, and
+(`e2e/examples/fixtures/pub_dedup/cross_module/module_b`, say), which resolves as part of it, and
 a module the root's own `local_path_override` names without a `.bazelversion`
 of its own, which resolves as part of the root. A nested module with a lock of
 its own is a workspace.

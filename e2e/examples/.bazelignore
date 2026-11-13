@@ -1,3 +1,5 @@
 fixtures/modules/ext_hook
+fixtures/pub_dedup/cross_module/module_b
+fixtures/pub_dedup/cross_module/module_c
 fixtures/modules/lint_rules
 pub/git/dep_mod

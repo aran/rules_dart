@@ -49,7 +49,6 @@ jobs:
           ".",
           "e2e/smoke",
           "e2e/examples",
-          "e2e/pub_lock_dedup",
           "e2e/root_settings",
           "e2e/pub_package_padded",
           "overhead",

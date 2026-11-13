@@ -1,0 +1,21 @@
+load("@rules_dart//dart:defs.bzl", "dart_test")
+
+# Packages that several locks list are built once: `two_hubs` reads two locks
+# in this module, `cross_module` locks of other modules, one of them with a
+# hub of the same name as this module's.
+
+# Both apps run, and print what each of their packages must produce.
+dart_test(
+    name = "apps_test",
+    size = "small",
+    args = [
+        "$(rlocationpath //fixtures/pub_dedup/cross_module:app)",
+        "$(rlocationpath //fixtures/pub_dedup/two_hubs:app)",
+    ],
+    data = [
+        "//fixtures/pub_dedup/cross_module:app",
+        "//fixtures/pub_dedup/two_hubs:app",
+    ],
+    main = "test/apps_test.dart",
+    deps = ["@rules_dart//dart/runfiles"],
+)
