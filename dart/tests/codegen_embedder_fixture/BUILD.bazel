@@ -1,4 +1,18 @@
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+
 # A codegen action whose dependencies reach Flutter's `sky_engine` the way a
 # Flutter app's do: through a `flutter_library` that names it in
 # `analysis_deps`, which nothing compiles.
 exports_files(["rules.bzl"])
+
+bzl_library(
+    name = "rules",
+    srcs = ["rules.bzl"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//dart:providers",
+        "//dart:utils",
+        "//dart/private:common",
+        "//dart/private:exec_groups",
+    ],
+)
