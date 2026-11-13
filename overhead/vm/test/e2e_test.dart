@@ -119,18 +119,20 @@ common --keep_going
       final c = windowsCommand(
         E2eItem.bazel('e2e/x', ['test', '//...']),
         r'C:\src\r',
+        'C:/b/3',
       );
       expect(
         c,
         'cmd /v:on /c "cd /d C:\\src\\r\\e2e\\x && '
-        'bazel --output_base=C:/b/${folderHash('e2e/x')} test //... & '
+        'bazel --output_base=C:/b/3 test //... & '
         'echo E2E_EXIT=!errorlevel!"',
       );
     });
 
     test('refuses a script', () {
       expect(
-        () => windowsCommand(E2eItem.script('.', 'true'), r'C:\src\r'),
+        () =>
+            windowsCommand(E2eItem.script('.', 'true'), r'C:\src\r', 'C:/b/0'),
         throwsArgumentError,
       );
     });
@@ -142,10 +144,10 @@ common --keep_going
         stopCommand(
           E2eItem.bazel('e2e/x', ['test']),
           r'C:\src\r',
-          windows: true,
+          windowsOutputBase: 'C:/b/3',
         ),
-        'cmd /c "if exist C:\\b\\${folderHash('e2e/x')}\\server\\server.pid.txt '
-        'for /f %p in (C:\\b\\${folderHash('e2e/x')}\\server\\server.pid.txt) '
+        'cmd /c "if exist C:\\b\\3\\server\\server.pid.txt '
+        'for /f %p in (C:\\b\\3\\server\\server.pid.txt) '
         'do taskkill /f /t /pid %p"',
       );
     });
@@ -156,7 +158,7 @@ common --keep_going
         final c = stopCommand(
           E2eItem.bazel('e2e/x', ['test']),
           r'$HOME/src/r',
-          windows: false,
+          windowsOutputBase: null,
         );
         final script = utf8.decode(
           base64.decode(RegExp(r'echo (\S+) \| base64').firstMatch(c)![1]!),
@@ -177,10 +179,41 @@ common --keep_going
     );
   });
 
-  test('folderHash is short, stable and tells folders apart', () {
-    expect(folderHash('.'), hasLength(8));
-    expect(folderHash('e2e/a'), folderHash('e2e/a'));
-    expect(folderHash('e2e/a'), isNot(folderHash('e2e/b')));
+  group('windowsOutputBase', () {
+    final workspaces = [
+      '.',
+      for (var i = 1; i < 40; i++) 'e2e/w${i.toString().padLeft(2, '0')}',
+    ];
+
+    test("is the place of the folder's workspace, in base 36", () {
+      expect(windowsOutputBase('.', workspaces), 'C:/b/0');
+      expect(windowsOutputBase('e2e/w01', workspaces), 'C:/b/1');
+      expect(windowsOutputBase('e2e/w35', workspaces), 'C:/b/z');
+      expect(windowsOutputBase('e2e/w36', workspaces), 'C:/b/10');
+    });
+
+    test('a folder inside a workspace shares its base', () {
+      expect(windowsOutputBase('e2e/w01/sub/dir', workspaces), 'C:/b/1');
+      expect(windowsOutputBase('docs', workspaces), 'C:/b/0');
+    });
+
+    test('a folder in no workspace is an error', () {
+      expect(() => windowsOutputBase('e2e/x', ['e2e/y']), throwsArgumentError);
+    });
+  });
+
+  test('workspacesIn lists the folders with a MODULE.bazel, sorted', () {
+    expect(
+      workspacesIn([
+        'e2e/b/MODULE.bazel',
+        'README.md',
+        'MODULE.bazel',
+        'e2e/a/MODULE.bazel',
+        'e2e/a/pub.MODULE.bazel',
+        'e2e/a/MODULE.bazel.lock',
+      ]),
+      ['.', 'e2e/a', 'e2e/b'],
+    );
   });
 
   test('parseExit takes the last mark, and says when there is none', () {

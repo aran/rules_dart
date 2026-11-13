@@ -25,8 +25,8 @@ import 'gcloud.dart';
 /// One thing to run on the VM: Bazel or a script in a folder of the checkout,
 /// and the exit codes that pass.
 final class E2eItem {
-  /// `bazel <args>` in [folder]. On Windows it gets an output base of its own
-  /// under `C:/b`, short enough for MAX_PATH.
+  /// `bazel <args>` in [folder]. On Windows it gets its workspace's output
+  /// base under `C:/b`, short enough for MAX_PATH ([windowsOutputBase]).
   E2eItem.bazel(
     this.folder,
     List<String> this.bazelArgs, {
@@ -241,14 +241,16 @@ Future<Never> runE2e(
   }
   if (setup != null) await setup(vm, parsed);
 
+  final workspaces = vm.windows ? committedWorkspaces(root) : const <String>[];
   final results = <_Result>[];
   String? stopped;
   for (final item in toRun) {
     stdout.writeln('\n=== ${item.name} ===');
+    final base = vm.windows ? windowsOutputBase(item.folder, workspaces) : null;
     final r = await ssh(
       vm.name,
-      vm.windows
-          ? windowsCommand(item, vm.checkout)
+      base != null
+          ? windowsCommand(item, vm.checkout, base)
           : linuxCommand(item, vm.checkout),
       timeout: item.timeout,
     );
@@ -256,7 +258,7 @@ Future<Never> runE2e(
       // The SSH client is gone, but the build goes on: stop it, or it
       // competes with the next item for the VM.
       final stop = await vm.exec(
-        stopCommand(item, vm.checkout, windows: vm.windows),
+        stopCommand(item, vm.checkout, windowsOutputBase: base),
         timeout: const Duration(minutes: 2),
       );
       stdout.writeln(
@@ -370,14 +372,11 @@ String linuxCommand(E2eItem item, String checkout) {
 }
 
 /// The command that runs [item], which must be Bazel, on a Windows VM whose
-/// checkout is at [checkout].
+/// checkout is at [checkout], with [outputBase] ([windowsOutputBase]).
 ///
 /// `/v:on` makes `!errorlevel!` Bazel's exit, not its value when cmd parsed
-/// the line. Each folder's output base is `C:/b/<hash of the folder>`: short,
-/// so runfiles and generated paths stay under MAX_PATH (`--output_user_root`
-/// would add a 32-character directory), and the same on the next run, so a
-/// rerun is incremental.
-String windowsCommand(E2eItem item, String checkout) {
+/// the line.
+String windowsCommand(E2eItem item, String checkout, String outputBase) {
   final args = item.bazelArgs;
   if (args == null) {
     throw ArgumentError('${item.name}: scripts run on Linux only');
@@ -386,7 +385,7 @@ String windowsCommand(E2eItem item, String checkout) {
       ? checkout
       : '$checkout\\${item.folder.replaceAll('/', '\\')}';
   return 'cmd /v:on /c "cd /d $dir && '
-      'bazel --output_base=C:/b/${folderHash(item.folder)} ${args.join(' ')} & '
+      'bazel --output_base=$outputBase ${args.join(' ')} & '
       'echo $_exitMark!errorlevel!"';
 }
 
@@ -394,13 +393,18 @@ String windowsCommand(E2eItem item, String checkout) {
 /// workers, on a VM whose checkout is at [checkout]: after a timeout, the
 /// build goes on without the SSH session that started it.
 ///
-/// It finds the server by its output base's pid file: `C:/b/<hash>` on
-/// Windows ([windowsCommand]), and Bazel's default on Linux, named for the
-/// workspace's path. A script that runs Bazel in other folders leaves those
-/// servers running. Nothing to stop is not an error.
-String stopCommand(E2eItem item, String checkout, {required bool windows}) {
-  if (windows) {
-    final pidFile = 'C:\\b\\${folderHash(item.folder)}\\server\\server.pid.txt';
+/// It finds the server by its output base's pid file: [windowsOutputBase] on
+/// Windows, and Bazel's default on Linux (null), named for the workspace's
+/// path. A script that runs Bazel in other folders leaves those servers
+/// running. Nothing to stop is not an error.
+String stopCommand(
+  E2eItem item,
+  String checkout, {
+  required String? windowsOutputBase,
+}) {
+  if (windowsOutputBase != null) {
+    final pidFile =
+        '${windowsOutputBase.replaceAll('/', '\\')}\\server\\server.pid.txt';
     return 'cmd /c "if exist $pidFile '
         'for /f %p in ($pidFile) do taskkill /f /t /pid %p"';
   }
@@ -418,14 +422,54 @@ String stopCommand(E2eItem item, String checkout, {required bool windows}) {
   return "bash -c 'echo ${base64Word(script)} | base64 -d | bash'";
 }
 
-/// Eight hex digits of [folder]'s FNV-1a hash.
-String folderHash(String folder) {
-  var h = 0x811c9dc5;
-  for (final unit in folder.codeUnits) {
-    h = ((h ^ unit) * 0x01000193) & 0xffffffff;
+/// The output base on a Windows VM of a Bazel item in [folder]:
+/// `C:/b/<n>`, where `<n>` is the place, in base 36, of [folder]'s workspace
+/// (the nearest folder at or above it with a `MODULE.bazel`) among
+/// [workspaces] ([committedWorkspaces]).
+///
+/// One or two characters keep runfiles and generated paths under MAX_PATH:
+/// a hash would cost several more, and `--output_user_root` a 32-character
+/// directory. A workspace keeps its base from run to run while the
+/// checkout's set of workspaces stays the same, so a rerun is incremental;
+/// items in one workspace share its server.
+String windowsOutputBase(String folder, List<String> workspaces) {
+  for (var dir = folder; ; dir = _parent(dir)) {
+    final i = workspaces.indexOf(dir);
+    if (i >= 0) return 'C:/b/${i.toRadixString(36)}';
+    if (dir == '.') {
+      throw ArgumentError('$folder: no MODULE.bazel at or above it');
+    }
   }
-  return h.toRadixString(16).padLeft(8, '0');
 }
+
+String _parent(String folder) {
+  final slash = folder.lastIndexOf('/');
+  return slash < 0 ? '.' : folder.substring(0, slash);
+}
+
+/// The folders of [root]'s HEAD commit that hold a `MODULE.bazel`
+/// ([workspacesIn]).
+List<String> committedWorkspaces(String root) => workspacesIn(
+  _run('git', [
+    '-C',
+    root,
+    'ls-tree',
+    '-r',
+    '-z',
+    '--name-only',
+    'HEAD',
+  ]).split('\x00'),
+);
+
+/// The folders, relative to the checkout (`.` for its root), that hold a
+/// `MODULE.bazel` among [files], sorted.
+List<String> workspacesIn(Iterable<String> files) => [
+  for (final f in files)
+    if (f == 'MODULE.bazel')
+      '.'
+    else if (f.endsWith('/MODULE.bazel'))
+      f.substring(0, f.length - '/MODULE.bazel'.length),
+]..sort();
 
 /// [arg] as one bash word.
 String shellQuote(String arg) => RegExp(r'^[\w@%+=:,./-]+$').hasMatch(arg)
