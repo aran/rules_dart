@@ -5,13 +5,10 @@ load("//dart:defs.bzl", "dart_binary", "dart_test")
 # `create_windows_vm`. See run_e2e.dart.
 dart_binary(
     name = "run_e2e",
-    srcs = [
-        "e2e_items.dart",
-        "//tool:ci_workflow.dart",
-    ],
+    srcs = ["e2e_items.dart"],
     main = "run_e2e.dart",
     deps = [
-        "@ext_pub_deps//:yaml",
+        "@overhead//ci",
         "@overhead//vm",
     ],
 )
@@ -19,14 +16,11 @@ dart_binary(
 dart_test(
     name = "e2e_items_test",
     size = "small",
-    srcs = [
-        "e2e_items.dart",
-        "//tool:ci_workflow.dart",
-    ],
+    srcs = ["e2e_items.dart"],
     main = "e2e_items_test.dart",
     deps = [
         "@ext_pub_deps//:test",
-        "@ext_pub_deps//:yaml",
+        "@overhead//ci",
         "@overhead//vm",
     ],
 )

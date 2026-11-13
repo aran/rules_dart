@@ -1,0 +1,8 @@
+# What @overhead//ci reads ci.yaml with, resolved into the non-dev hub
+# @overhead_ci_deps, which every repository that takes overhead fetches from.
+name: overhead_ci
+publish_to: none
+environment:
+  sdk: ^3.11.0
+dependencies:
+  yaml: ^3.1.0

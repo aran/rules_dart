@@ -13,9 +13,9 @@ library;
 
 import 'dart:io';
 
+import 'package:overhead_ci/ci_workflow.dart';
 import 'package:overhead_vm/e2e.dart';
 
-import '../../tool/ci_workflow.dart';
 import 'e2e_items.dart';
 
 Future<void> main(List<String> args) => runE2e(

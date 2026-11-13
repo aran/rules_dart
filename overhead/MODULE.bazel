@@ -1,7 +1,7 @@
 """Development tooling shared by rules_dart, rules_dart_proto, rules_flutter
-and frustrate: the commit policy, release notes, tool pins, lock checks,
-bazelrc preset and test VMs. Its reusable workflows are in rules_dart's
-.github/workflows. Not published to the Bazel Central Registry; REPO.bazel
+and frustrate: the commit policy, release notes, tool pins, lock checks, CI
+workflow check, bazelrc preset and test VMs. Its reusable workflows are in
+rules_dart's .github/workflows. Not published to the Bazel Central Registry; REPO.bazel
 keeps it out of rules_dart's packages.
 
 A repository takes it as a dev dependency, pinned to a rules_dart commit (see
@@ -24,6 +24,16 @@ bazel_dep(name = "bazel_env.bzl", version = "0.10.0")
 # The generator of the bazelrc preset each consumer's .bazelrc imports:
 # //preset.
 bazel_dep(name = "bazelrc-preset.bzl", version = "1.10.0")
+
+# package:yaml, which //ci reads ci.yaml with: the one pub dependency of a
+# tool, pinned by ci/pubspec.lock. Its versions are requests in the consumer's
+# build, as any module's lock entries are (highest wins).
+ci_pub = use_extension("@rules_dart//dart/pub:extensions.bzl", "pub")
+ci_pub.from_lock(
+    name = "overhead_ci_deps",
+    lock = "//ci:pubspec.lock",
+)
+use_repo(ci_pub, "overhead_ci_deps")
 
 # Building overhead on its own (`bazel test //...` in this directory) uses the
 # rules_dart around it. An override in a dependency is ignored, so consumers

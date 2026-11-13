@@ -1,5 +1,5 @@
-# Only for overhead's own tests; the tools use nothing beyond dart:io and
-# rules_dart's runfiles library.
+# Only for overhead's own tests. The tools' one pub dependency, package:yaml
+# for //ci, is ci/pubspec.yaml's.
 name: overhead
 publish_to: none
 environment:

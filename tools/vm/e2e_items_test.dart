@@ -1,7 +1,7 @@
+import 'package:overhead_ci/ci_workflow.dart';
 import 'package:overhead_vm/e2e.dart';
 import 'package:test/test.dart';
 
-import '../../tool/ci_workflow.dart';
 import 'e2e_items.dart';
 
 const _workflow = r'''
@@ -32,9 +32,9 @@ void main() {
 
   test('Linux runs every test folder, then the expected failures', () {
     expect(described(e2eItems(ci, E2eOptions(vm: 'v'))), [
-      '. @ .: ${ci.testCommand} {0}',
-      'e2e/a @ e2e/a: ${ci.testCommand} {0}',
-      'e2e/b @ e2e/b: ${ci.testCommand} {0}',
+      '. @ .: ${ci.job(testJob).bazelTestCommand} {0}',
+      'e2e/a @ e2e/a: ${ci.job(testJob).bazelTestCommand} {0}',
+      'e2e/b @ e2e/b: ${ci.job(testJob).bazelTestCommand} {0}',
       'e2e/c: c fails @ e2e/c: ! bazel build //...\n {0}',
     ]);
   });
@@ -43,8 +43,8 @@ void main() {
     expect(
       described(e2eItems(ci, E2eOptions(vm: 'v', folders: ['e2e/b', 'e2e/z']))),
       [
-        'e2e/b @ e2e/b: ${ci.testCommand} {0}',
-        'e2e/z @ e2e/z: ${ci.testCommand} {0}',
+        'e2e/b @ e2e/b: ${ci.job(testJob).bazelTestCommand} {0}',
+        'e2e/z @ e2e/z: ${ci.job(testJob).bazelTestCommand} {0}',
       ],
     );
   });

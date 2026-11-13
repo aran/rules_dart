@@ -1,8 +1,8 @@
 # overhead
 
 Development tooling shared by rules_dart, rules_dart_proto, rules_flutter and
-frustrate: the commit policy, release notes, tool pins, lock checks, bazelrc
-preset, commit hooks and test VMs. Its reusable workflows are in rules_dart's `.github/workflows`, each
+frustrate: the commit policy, release notes, tool pins, lock checks, CI
+workflow check, bazelrc preset, commit hooks and test VMs. Its reusable workflows are in rules_dart's `.github/workflows`, each
 with its use in its header.
 
 ## Taking it
@@ -93,6 +93,24 @@ The tool is built in the root workspace, so a refresh builds it with
 flags in `.bazelrc.user` cannot leak into the root lock, which the tool then
 rewrites itself. A check needs no flag.
 `locks/locks_cli.dart` says more.
+
+## CI workflow
+
+```shell
+bazel run @overhead//ci:check
+```
+
+checks `.github/workflows/ci.yaml` against the repository: a `conclusion` job,
+the one branch protection requires, needs every job but those with
+`continue-on-error: true`, and none of those; and some job runs in every
+workspace the lock check knows. A job runs in each folder of its `folders`
+input (bazel-contrib's `bazel.yaml`) and in each of its steps' directories:
+`working-directory`, or for a `run` step the job's or the workflow's
+`defaults.run.working-directory`, with `${{ matrix.<key> }}` expanded over a
+matrix the file lists. A directory it cannot read, such as a matrix computed by
+another job, is an error. A repository's own tools that mirror CI read the
+workflow through the `@overhead//ci` library (`ci/lib/ci_workflow.dart`), as
+rules_dart's `tools/vm` does.
 
 ## Bazelrc preset
 

@@ -1,9 +1,11 @@
 /// What rules_dart runs on a test VM: what `.github/workflows/ci.yaml` runs.
 library;
 
+import 'package:overhead_ci/ci_workflow.dart';
 import 'package:overhead_vm/e2e.dart';
 
-import '../../tool/ci_workflow.dart';
+/// The job that runs bazel-contrib's `bazel.yaml` in each of its `folders`.
+const testJob = 'test';
 
 /// The job whose steps each check a failure rules_dart must report.
 const expectedFailureJob = 'expected-failure';
@@ -18,9 +20,10 @@ const expectedFailureJob = 'expected-failure';
 ///
 /// `--folders` runs the test command in each folder it names, CI's or not.
 List<E2eItem> e2eItems(CiWorkflow workflow, E2eOptions options) {
-  final folders = options.folders ?? workflow.testFolders;
+  final test = workflow.job(testJob);
+  final folders = options.folders ?? test.folders;
   if (options.windows) {
-    final noTests = workflow.noTestFolders;
+    final noTests = test.noTestFolders;
     return [
       for (final folder in folders)
         E2eItem.bazel(folder, const [
@@ -31,7 +34,7 @@ List<E2eItem> e2eItems(CiWorkflow workflow, E2eOptions options) {
     ];
   }
   return [
-    for (final folder in folders) E2eItem.script(folder, workflow.testCommand),
+    for (final folder in folders) E2eItem.script(folder, test.bazelTestCommand),
     if (options.folders == null)
       for (final step in workflow.job(expectedFailureJob).steps)
         if (step.run case final script?)

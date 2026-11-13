@@ -958,7 +958,7 @@ jobs:
       - name: bazelrc preset
         run: bazel run @overhead//preset -- --check
   # The jobs below `conclusion` needs are every job that must pass, and some
-  # job runs in every e2e workspace.
+  # job runs in every workspace.
   ci-config:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -969,7 +969,7 @@ jobs:
           cache-version: ${{ env.CACHE_VERSION }}
           bazelisk-cache: true
           repository-cache: true
-      - run: bazel run //tool:ci_check
+      - run: bazel run @overhead//ci:check
   # Every hook in .pre-commit-config.yaml, with the prek overhead pins, as a
   # commit runs them: one build puts overhead's tools in .bazel_env, then the
   # hooks run them without Bazel.
@@ -987,7 +987,7 @@ jobs:
       - run: bazel run --noincompatible_auto_exec_groups @overhead//lint:prek -- run --all-files --show-diff-on-failure
   # For branch protection settings, this job provides a "stable" name that can be used to gate PR merges
   # on "all matrix jobs were successful". It needs every job but those with
-  # `continue-on-error`; `bazel run //tool:ci_check` checks that it does.
+  # `continue-on-error`; `bazel run @overhead//ci:check` checks that it does.
   conclusion:
     needs:
       - test

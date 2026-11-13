@@ -1,6 +1,8 @@
-/// What `.github/workflows/ci.yaml` says CI runs: the `test` job's folders and
-/// command, each job's steps, and the directories its steps run in. CI's file
-/// is the one place these are written; tools that mirror CI read them here.
+/// What a repository's `.github/workflows/ci.yaml` says CI runs: each job's
+/// steps and the directories they run in, the folders and command of a job
+/// that calls bazel-contrib's `bazel.yaml`, and which jobs gate a merge. CI's
+/// file is the one place these are written; tools that mirror CI read them
+/// here.
 library;
 
 import 'dart:convert';
@@ -10,9 +12,6 @@ import 'package:yaml/yaml.dart';
 /// The job branch protection gates on: it needs every job that must pass.
 const conclusionJob = 'conclusion';
 
-/// The job that runs `bazel test //...` in each of its `folders`.
-const testJob = 'test';
-
 /// One step of a job.
 final class CiStep {
   CiStep(this.name, this.workingDirectory, this.run);
@@ -20,8 +19,9 @@ final class CiStep {
   /// The step's `name`, or its command when it has none.
   final String name;
 
-  /// The step's `working-directory`, relative to the checkout; `.` when it
-  /// gives none.
+  /// The directory the step runs in, relative to the checkout: its
+  /// `working-directory`, or for a `run` step the job's or the workflow's
+  /// `defaults.run.working-directory`; `.` when none applies.
   final String workingDirectory;
 
   /// The step's `run` script, or null for a step that `uses` an action.
@@ -30,10 +30,13 @@ final class CiStep {
 
 /// One job of the workflow.
 final class CiJob {
-  CiJob(this.name, this._job);
+  CiJob(this.name, this._job, this._workflowDefault);
 
   final String name;
   final YamlMap _job;
+
+  /// The workflow's `defaults.run.working-directory`, or null.
+  final String? _workflowDefault;
 
   /// The jobs this one `needs`.
   List<String> get needs => switch (_job['needs']) {
@@ -62,8 +65,47 @@ final class CiJob {
   /// The `with:` inputs a job that calls a reusable workflow passes.
   YamlMap get inputs => (_job['with'] as YamlMap?) ?? YamlMap();
 
+  /// The folders a job calling bazel-contrib's `bazel.yaml` runs its command
+  /// in: its `folders` input, a JSON list. Empty for a job without one.
+  List<String> get folders => switch (inputs['folders']) {
+    null => const [],
+    final String json => [
+      for (final folder in jsonDecode(json) as List<Object?>)
+        _normalize(folder as String),
+    ],
+    final other => throw FormatException('job `$name`: `folders` is $other'),
+  };
+
+  /// The command a job calling bazel-contrib's `bazel.yaml` runs in each of
+  /// its [folders]: its `bazel_test_command` input.
+  String get bazelTestCommand => switch (inputs['bazel_test_command']) {
+    final String command => command,
+    _ => throw FormatException('job `$name` has no `bazel_test_command`'),
+  };
+
+  /// The [folders] where [bazelTestCommand] passes when Bazel finds no test
+  /// target (exit code 4): those its `case $PWD in */<folder>|...)` names.
+  Set<String> get noTestFolders {
+    final cases = RegExp(r'case \$PWD in ([^)]*)\)')
+        .firstMatch(bazelTestCommand);
+    if (cases == null) return const {};
+    return {
+      for (final pattern in cases[1]!.split('|'))
+        if (pattern.startsWith('*/'))
+          _normalize(pattern.substring(2))
+        else
+          throw FormatException(
+            'job `$name`: cannot read the folder pattern `$pattern`',
+          ),
+    };
+  }
+
   List<String> _workingDirectories(YamlMap step) {
-    final dir = step['working-directory'] as String?;
+    final dir =
+        step['working-directory'] as String? ??
+        (step.containsKey('run')
+            ? _defaultDirectory(_job, 'job `$name`') ?? _workflowDefault
+            : null);
     if (dir == null) return const ['.'];
     final expression = RegExp(r'\$\{\{\s*matrix\.([\w-]+)\s*\}\}');
     final match = expression.firstMatch(dir);
@@ -75,8 +117,8 @@ final class CiJob {
       }
       return [_normalize(dir)];
     }
-    final values =
-        ((_job['strategy'] as YamlMap?)?['matrix'] as YamlMap?)?[match[1]];
+    final matrix = (_job['strategy'] as YamlMap?)?['matrix'];
+    final values = matrix is YamlMap ? matrix[match[1]] : null;
     if (values is! YamlList) {
       throw FormatException(
         'job `$name`: `$dir` names `matrix.${match[1]}`, which is not a list '
@@ -99,7 +141,11 @@ final class CiWorkflow {
   /// Every job, in the order the file lists them.
   List<CiJob> get jobs => [
     for (final MapEntry(:key, :value) in (_root['jobs'] as YamlMap).entries)
-      CiJob(key as String, value as YamlMap),
+      CiJob(
+        key as String,
+        value as YamlMap,
+        _defaultDirectory(_root, 'the workflow'),
+      ),
   ];
 
   /// The job called [name].
@@ -108,43 +154,25 @@ final class CiWorkflow {
     orElse: () => throw StateError('ci.yaml has no `$name` job'),
   );
 
-  /// The folders the `test` job runs its command in.
-  List<String> get testFolders => [
-    for (final folder in jsonDecode(
-      job(testJob).inputs['folders'] as String,
-    ) as List<Object?>)
-      _normalize(folder as String),
-  ];
-
-  /// The command the `test` job runs in each folder.
-  String get testCommand => job(testJob).inputs['bazel_test_command'] as String;
-
-  /// The folders where [testCommand] passes when Bazel finds no test target
-  /// (exit code 4): those its `case $PWD in */<folder>|...)` names.
-  Set<String> get noTestFolders {
-    final cases = RegExp(r'case \$PWD in ([^)]*)\)').firstMatch(testCommand);
-    if (cases == null) return const {};
-    return {
-      for (final pattern in cases[1]!.split('|'))
-        if (pattern.startsWith('*/'))
-          _normalize(pattern.substring(2))
-        else
-          throw FormatException('cannot read the folder pattern `$pattern`'),
-    };
-  }
-
-  /// Every directory some job runs Bazel or a step in: the `test` job's
-  /// folders and every step's working directory.
+  /// Every directory some job runs Bazel or a step in: each job's
+  /// [CiJob.folders] and every step's working directory.
   Set<String> get directories => {
-    ...testFolders,
-    for (final job in jobs)
+    for (final job in jobs) ...[
+      ...job.folders,
       for (final step in job.steps) step.workingDirectory,
+    ],
   };
 
   /// What is wrong with how the jobs gate a merge: [conclusionJob] must need
   /// every job that a failure should block, and no job whose failure is
   /// allowed.
   List<String> gateProblems() {
+    if (!jobs.any((j) => j.name == conclusionJob)) {
+      return [
+        'no `$conclusionJob` job: add one that `needs` every job a failure '
+            'should block, for branch protection to require',
+      ];
+    }
     final others = [
       for (final job in jobs)
         if (job.name != conclusionJob) job,
@@ -165,29 +193,24 @@ final class CiWorkflow {
     ];
   }
 
-  /// The e2e workspaces among [trackedFiles] (the checkout's tracked paths)
-  /// that no job runs in. A workspace is a directory under `e2e/` with a
-  /// `MODULE.bazel`; one inside another with no `MODULE.bazel.lock` of its
-  /// own is a module that workspace depends on, not a workspace.
-  List<String> unrunWorkspaces(Iterable<String> trackedFiles) {
-    final tracked = trackedFiles.toSet();
-    final modules = [
-      for (final path in tracked)
-        if (path.startsWith('e2e/') && path.endsWith('/MODULE.bazel'))
-          path.substring(0, path.length - '/MODULE.bazel'.length),
-    ]..sort();
-    final workspaces = <String>[];
-    for (final dir in modules) {
-      final nested = workspaces.any((w) => dir.startsWith('$w/'));
-      if (nested && !tracked.contains('$dir/MODULE.bazel.lock')) continue;
-      workspaces.add(dir);
-    }
+  /// The [workspaces] (directories relative to the checkout root) that no job
+  /// runs in.
+  List<String> unrunWorkspaces(Iterable<String> workspaces) {
     final run = directories;
     return [
       for (final dir in workspaces)
         if (!run.contains(dir)) dir,
     ];
   }
+}
+
+/// The `defaults.run.working-directory` of a workflow or job [node], or null.
+String? _defaultDirectory(YamlMap node, String where) {
+  final defaults = node['defaults'];
+  if (defaults == null) return null;
+  final dir = ((defaults as YamlMap)['run'] as YamlMap?)?['working-directory'];
+  if (dir == null || dir is String) return dir as String?;
+  throw FormatException('$where: `defaults.run.working-directory` is $dir');
 }
 
 String _normalize(String dir) {

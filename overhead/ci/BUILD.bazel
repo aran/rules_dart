@@ -1,0 +1,38 @@
+load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_library", "dart_package_metadata", "dart_test")
+
+# Reading a repository's .github/workflows/ci.yaml, and checking it against the
+# repository: `bazel run @overhead//ci:check`. A repository's own tools that
+# mirror CI (rules_dart's tools/vm) read the workflow through :ci.
+
+dart_package_metadata(
+    name = "package",
+    package_name = "overhead_ci",
+)
+
+dart_library(
+    name = "ci",
+    srcs = glob(["lib/*.dart"]),
+    package = ":package",
+    visibility = ["//visibility:public"],
+    deps = ["@overhead_ci_deps//:yaml"],
+)
+
+# Checks that ci.yaml's `conclusion` job gates on every job that must pass,
+# and that some job runs in every workspace. See check.dart.
+dart_binary(
+    name = "check",
+    srcs = ["//locks:lock_workspaces.dart"],
+    main = "check.dart",
+    visibility = ["//visibility:public"],
+    deps = [":ci"],
+)
+
+dart_test(
+    name = "ci_workflow_test",
+    size = "small",
+    main = "test/ci_workflow_test.dart",
+    deps = [
+        ":ci",
+        "@overhead_dev_deps//:test",
+    ],
+)
