@@ -1,9 +1,9 @@
 # Reusable: cuts a GitHub release of a tag with bazel-contrib's
 # release_ruleset, which runs the caller's `.github/workflows/release_prep.sh
 # <tag>` (a stub calling `bazel run @overhead//release:prep -- <tag>`) and
-# uploads the source archive it writes, once the CI workflow has passed on the
-# tagged commit. A caller turns that check off with `require_ci: false` where
-# a person, not a schedule, decided the commit is ready.
+# uploads the source archive it writes. With `require_ci: true`, it first
+# requires the CI workflow to have passed on the tagged commit: for a tag a
+# schedule made, where no person judged the commit.
 # The caller chains publishing:
 #
 #   jobs:
@@ -12,6 +12,8 @@
 #       with:
 #         release_files: <module>-*.tar.gz
 #         tag_name: ${{ inputs.tag_name || github.ref_name }}
+#         # Only where a schedule tags (the caller's tag.yaml calls it):
+#         require_ci: ${{ github.event_name != 'push' }}
 #       permissions:
 #         actions: read
 #         contents: write
@@ -39,7 +41,7 @@ on:
       require_ci:
         description: Refuse to release unless ci_workflow passed on the tagged commit
         type: boolean
-        default: true
+        default: false
 permissions:
   actions: read
   id-token: write
@@ -69,7 +71,7 @@ jobs:
           fi
   release:
     needs: require-ci
-    # Skipped when the caller passes require_ci: false.
+    # require-ci is skipped unless the caller passes require_ci: true.
     if: ${{ !cancelled() && contains(fromJSON('["success", "skipped"]'), needs.require-ci.result) }}
     # By tag, not commit: BCR checks the release's attestations with the SLSA
     # verifier, which accepts only a tag ref for the workflow that made them.
