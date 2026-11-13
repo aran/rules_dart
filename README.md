@@ -3352,7 +3352,7 @@ The [`e2e/`](e2e/) directory contains complete working examples. A name with a
 | [`examples/fixtures/analysis_failure`](e2e/examples/fixtures/analysis_failure/)                         | Targets the `dart_analyze` aspect fails, each with a diagnostic of its own                               |
 | [`examples/fix`](e2e/examples/fix/)                                                   | `@rules_dart//dart/fix` and `format` write-back, and that generated files are never rewritten            |
 | [`examples/shared_lint_rules`](e2e/examples/shared_lint_rules/)                   | A lint ruleset and page width shared from another Bazel module                                           |
-| [`external_module`](e2e/external_module/)                           | A module building its own rules on rules_dart's exported helpers                                         |
+| [`examples/custom_rules`](e2e/examples/custom_rules/)                           | A module building its own rules on rules_dart's exported helpers                                         |
 | [`examples/web/app`](e2e/examples/web/app/)                             | JavaScript and WebAssembly compilation with library deps                                                 |
 | [`examples/web/per_compiler`](e2e/examples/web/per_compiler/)                                 | Per-compiler code by `select()`, and the resets other modules' rules use                                 |
 | [`pub_deps`](e2e/pub_deps/)                                         | Single pub.dev package via `pub.package()`                                                               |

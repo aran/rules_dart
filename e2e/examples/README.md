@@ -22,6 +22,7 @@ section for each directory that needs more.
 | [`native_assets`](native_assets/) | Native code assets: SQLite and webcrypto built by Bazel                   |
 | [`native_hooks`](native_hooks/)   | `record_use`, `hook/link.dart` and data assets via `dart_program_assets`  |
 | [`gazelle`](gazelle/)             | BUILD files Gazelle generates with the rules_dart plugin                  |
+| [`custom_rules`](custom_rules/)   | Your own rules on rules_dart's exported helpers                           |
 | [`fix`](fix/)                     | `@rules_dart//dart/fix`, `format` and `unused_deps` write-back            |
 | [`web/app`](web/app/)             | JavaScript and WebAssembly compilation with library and pub deps          |
 | [`web/per_compiler`](web/per_compiler/) | Per-compiler code by `select()`, and the resets other modules' rules use |
