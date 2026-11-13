@@ -126,11 +126,18 @@ SUMMARY_ATTRS = {
 }
 
 def _analyzer_execution(ctx, args):
-    """`execution_requirements` for a summary analyzer action; sets `args` up for a worker when one runs it."""
+    """`execution_requirements` for a summary analyzer action; puts `args` in a param file.
+
+    A worker takes its arguments from one always. Without one, they move to
+    a param file when they outgrow the command line, as they do with the
+    summary of every library a deep graph reaches (Windows allows 32,767
+    characters).
+    """
+    args.set_param_file_format("multiline")
     if not ctx.attr._analysis_worker[BuildSettingInfo].value:
+        args.use_param_file("@%s")
         return PATH_MAPPING
     args.use_param_file("@%s", use_always = True)
-    args.set_param_file_format("multiline")
     return PATH_MAPPING | {
         "requires-worker-protocol": "proto",
         "supports-workers": "1",
