@@ -3375,7 +3375,7 @@ The [`e2e/`](e2e/) directory contains complete working examples. A name with a
 | [`pub_packages/path`](e2e/pub_packages/path/)                       | `path` packages built from their pubspec, ignored, or refused for having a BUILD file                    |
 | [`pub_packages/git`](e2e/pub_packages/git/)                         | Git packages at the locked commit and subdirectory, whatever the host's git configuration                |
 | [`pub_lock_refused`](e2e/failures/pub_lock_refused/)                         | Unpinned packages and locks disagreeing on a package fail, each named, in one failure                    |
-| [`pub_hub_surface`](e2e/pub_hub_surface/)                           | Every locked package in its hub, including one declared with `pub.package()`                             |
+| [`root_settings/pub_versions/hub_surface`](e2e/root_settings/pub_versions/hub_surface/)                           | Every locked package in its hub, including one declared with `pub.package()`                             |
 | [`pub_packages/missing_dep`](e2e/pub_packages/missing_dep/)         | A `pub.package()` whose pubspec depends on an unsupplied package fails, naming both                      |
 | [`pub_package_padded`](e2e/pub_package_padded/)                     | An archive with bytes after its gzip stream fetches through `pub.package()` as through a lock            |
 | [`pub_archive_links`](e2e/failures/pub_archive_links/)                       | Nothing in a fetched pub archive can refer outside the package                                           |

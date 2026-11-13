@@ -1,7 +1,8 @@
 """Analysis-time assertions about the package graph a pub hub exposes.
 
 `pub_graph_check` fails analysis (so `bazel build //...` fails) when the target
-it names does not carry the stated package, version or direct dependencies.
+it names does not carry the stated package, version, license file or direct
+dependencies.
 Building it is the test.
 """
 
@@ -12,8 +13,12 @@ def _impl(ctx):
     label = str(ctx.attr.target.label)
     direct = {name: True for names in info.deps.values() for name in names}
     versions = {}
+    licenses = {}
     for pkg in info.transitive_packages.to_list():
         versions.setdefault(pkg.package_name, {})[pkg.version] = True
+        f = pkg.license_file
+        if f != None and f.short_path.startswith(pkg.package_root + "/"):
+            licenses[pkg.package_name] = f.short_path[len(pkg.package_root) + 1:]
 
     problems = []
     for dep in ctx.attr.direct_deps:
@@ -23,6 +28,10 @@ def _impl(ctx):
         got = sorted(versions.get(name, {}).keys())
         if got != [want]:
             problems.append("%s resolves package `%s` at %s, expected only [%s]" % (label, name, got, want))
+    for name, want in ctx.attr.license_files.items():
+        got = licenses.get(name, "")
+        if got != want:
+            problems.append("%s names `%s` as package `%s`'s license file at its root, expected `%s`" % (label, got, name, want))
     if problems:
         fail("\n".join(problems))
 
@@ -36,5 +45,6 @@ pub_graph_check = rule(
         "target": attr.label(mandatory = True, providers = [DartInfo]),
         "direct_deps": attr.string_list(doc = "Package names the target must depend on directly."),
         "versions": attr.string_dict(doc = "package name -> the one version it must resolve to in the target's closure."),
+        "license_files": attr.string_dict(doc = "package name -> the license file its record must name, relative to its root."),
     },
 )

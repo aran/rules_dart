@@ -91,3 +91,16 @@ pub.from_lock(
     lock = "//pub_versions/lock_upgrade:lock_newer.lock",
 )
 use_repo(pub, "deps_a", "deps_b", "deps_newer")
+
+# pub_versions/hub_surface: the lock has `collection` 1.19.0 and the root's
+# `pub.package()` asks for 1.19.1, which wins; the hub still exposes it.
+pub.from_lock(
+    name = "surface",
+    lock = "//pub_versions/hub_surface:pubspec.lock",
+)
+pub.package(
+    name = "collection",
+    sha256 = "2f5709ae4d3d59dd8f7cd309b4e023046b57d8a6c82130785d2b0e5868084e76",
+    version = "1.19.1",
+)
+use_repo(pub, "collection", "surface")
