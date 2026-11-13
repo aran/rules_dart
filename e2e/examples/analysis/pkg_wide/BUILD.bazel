@@ -8,7 +8,7 @@ dart_analysis_options(
     name = "options",
     src = "analysis_options.yaml",
     visibility = ["//:__pkg__"],
-    deps = ["//fmt_ruleset"],
+    deps = ["//analysis/fmt_ruleset"],
 )
 
 dart_library(

@@ -12,5 +12,5 @@ pkg_executable(
     package_name = "analysis_exec",
     srcs = glob(["lib/**/*.dart"]),
     entry_srcs = ["main.dart"],
-    deps = ["//mylib"],
+    deps = ["//analysis/mylib"],
 )

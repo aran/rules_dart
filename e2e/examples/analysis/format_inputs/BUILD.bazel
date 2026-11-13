@@ -1,6 +1,6 @@
 load("@rules_dart//dart:defs.bzl", "dart_binary")
 
-# `bazel run //format_inputs` asserts that the `dart_analyze` aspect's
+# `bazel run //analysis/format_inputs` asserts that the `dart_analyze` aspect's
 # format check takes the same inputs whether a target has dependencies or not.
 # It reads the action graph with `bazel aquery`, which an analysis test cannot:
 # the aspect's actions are not visible to one.

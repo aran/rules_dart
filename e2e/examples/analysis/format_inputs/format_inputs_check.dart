@@ -10,19 +10,19 @@
 // project is a tree artifact another action assembles, so its direct inputs
 // alone say nothing about the sources behind it.
 //
-// Run from the workspace: `bazel run //format_inputs`.
+// Run from the workspace: `bazel run //analysis/format_inputs`.
 import 'dart:convert';
 import 'dart:io';
 
-const _top = '//format_chain/top:top';
-const _dep = '//format_chain/dep:dep';
-const _topSrc = 'format_chain/top/lib/top.dart';
-const _depSrc = 'format_chain/dep/lib/dep.dart';
+const _top = '//analysis/format_chain/top:top';
+const _dep = '//analysis/format_chain/dep:dep';
+const _topSrc = 'analysis/format_chain/top/lib/top.dart';
+const _depSrc = 'analysis/format_chain/dep/lib/dep.dart';
 
 void main() {
   final workspace = Platform.environment['BUILD_WORKSPACE_DIRECTORY'];
   if (workspace == null) {
-    stderr.writeln('run with `bazel run //format_inputs`');
+    stderr.writeln('run with `bazel run //analysis/format_inputs`');
     exit(2);
   }
   final top = _formatSources(workspace, _top);

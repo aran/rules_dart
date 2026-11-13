@@ -43,13 +43,12 @@ jobs:
       # default shell (PowerShell on Windows), where this is invalid. Inner
       # single quotes keep the outer shell from expanding it; `case $PWD`
       # needs no quotes, which PowerShell would mangle.
-      bazel_test_command: "bash -c 'bazel test --test_output=errors //...; s=$?; [ $s -eq 4 ] && case $PWD in */e2e/analysis|*/e2e/analyze_composition/dep_module|*/e2e/pub_deps|*/e2e/pub_lock|*/e2e/pub_package_padded) exit 0;; esac; exit $s'"
+      bazel_test_command: "bash -c 'bazel test --test_output=errors //...; s=$?; [ $s -eq 4 ] && case $PWD in */e2e/analyze_composition/dep_module|*/e2e/pub_deps|*/e2e/pub_lock|*/e2e/pub_package_padded) exit 0;; esac; exit $s'"
       folders: |
         [
           ".",
           "e2e/smoke",
           "e2e/examples",
-          "e2e/analysis",
           "e2e/codegen",
           "e2e/pub_deps",
           "e2e/pub_lock",
@@ -81,24 +80,27 @@ jobs:
   # `e2e/analysis_failure`'s root analysis_options.yaml — deliberately left out
   # of its `analysis_config` — carries an absurd `page_width: 20` canary so this
   # job can prove it: `//:clean_lib` there is formatted at the stock 80, so if
-  # the walk ever escapes it reaches the canary and turns red. `e2e/analysis`
-  # runs its whole suite beside it, so its configured widths, `package:`
-  # includes and language versions must agree across all four cells too.
+  # the walk ever escapes it reaches the canary and turns red. The analysis
+  # example in `e2e/examples` runs beside it, so its configured widths,
+  # `package:` includes and language versions must agree across all four cells
+  # too.
   format-hermeticity:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
+      # A path-mapped action runs only sandboxed, so the local cells turn off
+      # the path mapping e2e/examples' .bazelrc turns on.
       matrix:
         include:
           - name: forest runfiles, sandboxed
             flags: ""
           - name: forest runfiles, local
-            flags: "--spawn_strategy=standalone"
+            flags: "--spawn_strategy=standalone --experimental_output_paths=off"
           - name: manifest runfiles, sandboxed
             flags: "--noenable_runfiles"
           - name: manifest runfiles, local
-            flags: "--noenable_runfiles --spawn_strategy=standalone"
+            flags: "--noenable_runfiles --spawn_strategy=standalone --experimental_output_paths=off"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: bazel-contrib/setup-bazel@104e3eea9447cdaa4b00d0fb46191a3985d26ab3 # 0.19.1
@@ -108,28 +110,28 @@ jobs:
           disk-cache: ${{ github.job }}-${{ strategy.job-index }}
           repository-cache: true
       - name: analysis — ${{ matrix.name }}
-        working-directory: e2e/analysis
-        # Exit code 4: the workspace has no test targets, only the aspect's
+        working-directory: e2e/examples
+        # Exit code 4: the directory has no test targets, only the aspect's
         # checks, which `bazel test` builds.
-        run: bazel test ${{ matrix.flags }} --test_output=errors //... || [ $? -eq 4 ]
+        run: bazel test ${{ matrix.flags }} --test_output=errors //analysis/... || [ $? -eq 4 ]
       # The format check must take only what `dart format` reads, so editing a
       # dependency cannot re-run it above. Read from the action graph, which a
       # test cannot see.
       - name: analysis — format check inputs, ${{ matrix.name }}
-        working-directory: e2e/analysis
-        run: bazel run ${{ matrix.flags }} //format_inputs
+        working-directory: e2e/examples
+        run: bazel run ${{ matrix.flags }} //analysis/format_inputs
       # A body edit leaves a library's summary unchanged, so the library above
       # it is not analyzed again: only the edited library's own summary and
       # analysis run.
       - name: analysis — a body edit re-analyzes only its own library, ${{ matrix.name }}
-        working-directory: e2e/analysis
+        working-directory: e2e/examples
         run: |
-          sed -i 's/  return a + b;/  final sum = a + b;\n  return sum;/' mylib/lib/mylib.dart
-          bazel test ${{ matrix.flags }} --explain=explain.txt //... || [ $? -eq 4 ]
-          git checkout mylib/lib/mylib.dart
-          grep -q "Analyzing Dart sources of //mylib:mylib" explain.txt
-          if grep -q "Analyzing Dart sources of //:good_lib" explain.txt; then
-            echo "ERROR: //:good_lib was analyzed again after a body edit in //mylib"
+          sed -i 's/  return a + b;/  final sum = a + b;\n  return sum;/' analysis/mylib/lib/mylib.dart
+          bazel test ${{ matrix.flags }} --explain=explain.txt //analysis/... || [ $? -eq 4 ]
+          git checkout analysis/mylib/lib/mylib.dart
+          grep -q "Analyzing Dart sources of //analysis/mylib:mylib" explain.txt
+          if grep -q "Analyzing Dart sources of //analysis:good_lib" explain.txt; then
+            echo "ERROR: //analysis:good_lib was analyzed again after a body edit in //analysis/mylib"
             exit 1
           fi
           echo "OK: analysis cut off above the edited library"
@@ -168,7 +170,7 @@ jobs:
     timeout-minutes: 60
     strategy:
       matrix:
-        folder: [".", "e2e/analysis"]
+        folder: [".", "e2e/examples"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: bazel-contrib/setup-bazel@104e3eea9447cdaa4b00d0fb46191a3985d26ab3 # 0.19.1
@@ -179,9 +181,14 @@ jobs:
           repository-cache: true
       - name: analysis from source — ${{ matrix.folder }}
         working-directory: ${{ matrix.folder }}
-        # Exit code 4 (no test targets) passes only for e2e/analysis, which has
-        # none.
-        run: bazel test --test_output=errors --@rules_dart//dart:analysis_summaries=false //... || { [ $? -eq 4 ] && [ "${{ matrix.folder }}" = e2e/analysis ]; }
+        # In e2e/examples, the analysis example, which has no test targets:
+        # exit code 4 passes there only.
+        run: |
+          if [ "${{ matrix.folder }}" = e2e/examples ]; then
+            bazel test --test_output=errors --@rules_dart//dart:analysis_summaries=false //analysis/... || [ $? -eq 4 ]
+          else
+            bazel test --test_output=errors --@rules_dart//dart:analysis_summaries=false //...
+          fi
   # Without path mapping, which e2e/examples' .bazelrc turns on for its other
   # tests: coverage as most builds collect it.
   coverage:
@@ -235,7 +242,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        folder: [".", "e2e/codegen", "e2e/analysis"]
+        folder: [".", "e2e/codegen", "e2e/examples"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: bazel-contrib/setup-bazel@104e3eea9447cdaa4b00d0fb46191a3985d26ab3 # 0.19.1
@@ -247,9 +254,14 @@ jobs:
       - run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: sandboxed workers — ${{ matrix.folder }}
         working-directory: ${{ matrix.folder }}
-        # Exit code 4 (no test targets) passes only for e2e/analysis, which has
-        # none.
-        run: bazel test --test_output=errors --worker_sandboxing --experimental_worker_sandbox_hardening //... || { [ $? -eq 4 ] && [ "${{ matrix.folder }}" = e2e/analysis ]; }
+        # In e2e/examples, the examples whose actions run in workers. The
+        # analysis example has no test targets: exit code 4 passes there only.
+        run: |
+          if [ "${{ matrix.folder }}" = e2e/examples ]; then
+            bazel test --test_output=errors --worker_sandboxing --experimental_worker_sandbox_hardening //analysis/... || [ $? -eq 4 ]
+          else
+            bazel test --test_output=errors --worker_sandboxing --experimental_worker_sandbox_hardening //...
+          fi
   # MODULE.bazel's `bazel_compatibility` promises the oldest Bazel it names;
   # this runs on that one. The lock files are written by .bazelversion's.
   bazel-floor:

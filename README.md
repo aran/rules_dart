@@ -3348,7 +3348,7 @@ The [`e2e/`](e2e/) directory contains complete working examples. A name with a
 | [`examples/fixtures/no_pubspec`](e2e/examples/fixtures/no_pubspec/)                       | No `pubspec.yaml` in it or above it: codegen, analysis, format, fix, tests, every binary                 |
 | [`examples/library_deps`](e2e/examples/library_deps/)                   | Transitive `dart_library` dependencies, `srcs` attribute, a `dart_package_cycle`                         |
 | [`examples/tests`](e2e/examples/tests/)                                       | Tests with and without deps, `srcs` for test helpers                                                     |
-| [`analysis`](e2e/analysis/)                                         | The `dart_analyze` aspect's checks with `package:`-included options                                      |
+| [`examples/analysis`](e2e/examples/analysis/)                                         | The `dart_analyze` aspect's checks with `package:`-included options                                      |
 | [`analysis_failure`](e2e/analysis_failure/)                         | Targets the `dart_analyze` aspect fails, each with a diagnostic of its own                               |
 | [`fix`](e2e/fix/)                                                   | `@rules_dart//dart/fix` and `format` write-back, and that generated files are never rewritten            |
 | [`analyze_composition`](e2e/analyze_composition/)                   | A lint ruleset and page width shared from another Bazel module                                           |

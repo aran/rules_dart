@@ -4,5 +4,5 @@ dart_library(
     name = "top",
     srcs = ["lib/top.dart"],
     visibility = ["//visibility:public"],
-    deps = ["//format_chain/dep"],
+    deps = ["//analysis/format_chain/dep"],
 )

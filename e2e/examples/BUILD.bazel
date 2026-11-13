@@ -13,6 +13,9 @@ dart_analysis_config(
     name = "analysis_config",
     options = [
         ":options",
+        "//analysis:options",
+        "//analysis/pkg_wide:options",
+        "//analysis/wide:options",
         "//fixtures/no_pubspec:options",
     ],
 )
