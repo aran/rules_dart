@@ -3378,7 +3378,7 @@ The [`e2e/`](e2e/) directory contains complete working examples. A name with a
 | [`pub_hub_surface`](e2e/pub_hub_surface/)                           | Every locked package in its hub, including one declared with `pub.package()`                             |
 | [`pub_packages/missing_dep`](e2e/pub_packages/missing_dep/)         | A `pub.package()` whose pubspec depends on an unsupplied package fails, naming both                      |
 | [`pub_package_padded`](e2e/pub_package_padded/)                     | An archive with bytes after its gzip stream fetches through `pub.package()` as through a lock            |
-| [`pub_archive_links`](e2e/pub_archive_links/)                       | Nothing in a fetched pub archive can refer outside the package                                           |
+| [`pub_archive_links`](e2e/failures/pub_archive_links/)                       | Nothing in a fetched pub archive can refer outside the package                                           |
 | [`basics/kernel_source_refused`](e2e/basics/kernel_source_refused/) | A `dart_kernel_source` with both or neither of `dart_version` and `path`, or no checkout, fails          |
 | [`pub_override_root_lock`](e2e/pub_override_root_lock/)             | A higher root lock serves a dependency module's `pub.package()` repository and the lock's own dependents |
 | [`pub_highest_wins`](e2e/pub_highest_wins/)                         | The highest request builds, over root and dependency `pub.package()`s, warning for the root's            |

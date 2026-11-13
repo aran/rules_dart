@@ -163,7 +163,7 @@ its own (`e2e/analyze_composition/dep_module`) is a workspace.
 
 A workspace that fails on purpose holds a `lock_expected_failure.txt` naming
 what its failure prints (`git ls-files '*lock_expected_failure.txt'` lists
-them; `e2e/pub_archive_links` is one because its pub lock only exists while
+them; `e2e/failures/pub_archive_links` is one because its pub lock only exists while
 its `check.dart` runs). The tool passes a step that fails with that text and
 still refreshes the rest of the lock.
 
@@ -353,7 +353,7 @@ updates (both through `bazel run @rules_dart//dart/pub`).
    it instead, and stays out of `folders`: `e2e/analysis_failure`
    (`format-hermeticity`, `expected-failure`), each workspace with a
    `lock_expected_failure.txt` (`expected-failure`, or `pub-archive-links`
-   for `e2e/pub_archive_links`)
+   for `e2e/failures/pub_archive_links`)
 2. Add/remove entries to match
 
 **Verification**: CI workflow runs all e2e workspaces.

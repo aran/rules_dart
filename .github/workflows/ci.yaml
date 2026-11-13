@@ -847,7 +847,7 @@ jobs:
           repository-cache: true
       - uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1
       - name: pub_archive_links — expect no fetched archive to reach outside its package
-        working-directory: e2e/pub_archive_links
+        working-directory: e2e/failures/pub_archive_links
         run: dart check.dart
       - name: pub_packages/git — expect host git config to reach only the fetch, by-id refusal included
         working-directory: e2e/pub_packages
