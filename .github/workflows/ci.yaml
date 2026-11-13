@@ -43,13 +43,12 @@ jobs:
       # default shell (PowerShell on Windows), where this is invalid. Inner
       # single quotes keep the outer shell from expanding it; `case $PWD`
       # needs no quotes, which PowerShell would mangle.
-      bazel_test_command: "bash -c 'bazel test --test_output=errors //...; s=$?; [ $s -eq 4 ] && case $PWD in */e2e/pub_lock|*/e2e/pub_package_padded) exit 0;; esac; exit $s'"
+      bazel_test_command: "bash -c 'bazel test --test_output=errors //...; s=$?; [ $s -eq 4 ] && case $PWD in */e2e/pub_package_padded) exit 0;; esac; exit $s'"
       folders: |
         [
           ".",
           "e2e/smoke",
           "e2e/examples",
-          "e2e/pub_lock",
           "e2e/pub_lock_dedup",
           "e2e/pub_lock_resolve",
           "e2e/pub_packages",

@@ -3356,7 +3356,7 @@ The [`e2e/`](e2e/) directory contains complete working examples. A name with a
 | [`examples/web/app`](e2e/examples/web/app/)                             | JavaScript and WebAssembly compilation with library deps                                                 |
 | [`examples/web/per_compiler`](e2e/examples/web/per_compiler/)                                 | Per-compiler code by `select()`, and the resets other modules' rules use                                 |
 | [`examples/pub/package`](e2e/examples/pub/package/)                                         | Single pub.dev package via `pub.package()`                                                               |
-| [`pub_lock`](e2e/pub_lock/)                                         | Multiple packages from `pubspec.lock` via `pub.from_lock()`                                              |
+| [`examples/pub/lock`](e2e/examples/pub/lock/)                                         | Multiple packages from `pubspec.lock` via `pub.from_lock()`                                              |
 | [`examples/gazelle`](e2e/examples/gazelle/)                                           | Automatic BUILD file generation with Gazelle                                                             |
 | [`examples/cross_compile`](e2e/examples/cross_compile/)                 | Cross-compilation to other platforms via `platform_data` transition                                      |
 | [`examples/tests/package_test`](e2e/examples/tests/package_test/)             | `dart_test` with pub dependencies via `pub.from_lock()`                                                  |

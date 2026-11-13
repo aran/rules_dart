@@ -155,6 +155,18 @@ pub.package(
 )
 use_repo(pub, "path")
 
+# pub/lock: the packages of a pubspec.lock, through a dev-only use of the pub
+# extension, as a module whose dependents need none of them would declare
+# them; and the package metadata every fetched package carries.
+bazel_dep(name = "package_metadata", version = "0.0.15")
+
+pub_dev = use_extension("@rules_dart//dart/pub:extensions.bzl", "pub", dev_dependency = True)
+pub_dev.from_lock(
+    name = "lock_deps",
+    lock = "//pub/lock:pubspec.lock",
+)
+use_repo(pub_dev, "lock_deps")
+
 # codegen: copy_to_directory for a package assembled by hand
 # (codegen/source_set_pkg), and the fixture packages' pub dependencies.
 bazel_dep(name = "bazel_lib", version = "3.7.2")

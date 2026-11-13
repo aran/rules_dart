@@ -275,14 +275,14 @@ for the byte-level architecture check.
   root and its `dep_mod` or `mod_b` (`e2e/root_settings/pub_versions/highest_wins`,
   `e2e/root_settings/pub_versions/override_root_lock`,
   `e2e/failures/pub_lock_conflict`), or a fixture that fails on purpose
-- `e2e/pub_lock/pubspec.lock` — regenerate from `pubspec.yaml`. The other e2e
+- `e2e/examples/pub/lock/pubspec.lock` — regenerate from `pubspec.yaml`. The other e2e
   `pubspec.lock` files are fixtures, read as they are
 
 **Procedure**:
 
 1. Check pub.dev for latest versions of the packages above
 2. Update `pub.package()` calls with new version and sha256
-3. For `pub_lock`, run `bazel run @rules_dart//dart/pub -- get --directory=e2e/pub_lock`
+3. For `examples/pub/lock`, run `bazel run @rules_dart//dart/pub -- get --directory=e2e/examples/pub/lock`
    to refresh the lock file
 4. Regenerate Bazel lock files:
    `bazel run --lockfile_mode=off @overhead//locks:refresh`
