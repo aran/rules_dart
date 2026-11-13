@@ -70,3 +70,8 @@ jobs:
       release_files: ${{ inputs.release_files }}
       prerelease: false
       tag_name: ${{ inputs.tag_name }}
+      # require-ci has already seen the CI workflow pass on this commit, so the
+      # release only checks that the tagged tree resolves and analyses on a
+      # clean runner, quietly: the reusable workflow's default runs every test
+      # again, printing progress about once a second into the log.
+      bazel_test_command: bazel build --nobuild --curses=no --noshow_progress //...
