@@ -3338,54 +3338,19 @@ or `:is_analysis_summaries` for the analyzer.
 
 ## Examples
 
-The [`e2e/`](e2e/) directory contains complete working examples. A name with a
-`/` is a fixture directory inside a workspace:
+[`e2e/examples`](e2e/examples/) is one Bazel workspace with a small working
+example of each feature: hello world, library deps, tests, analysis, fixes,
+codegen and the bundled builders, native assets and link hooks, web
+compilation, cross-compilation, Gazelle, your own rules, and pub packages from
+`pub.package()`, a lock, `resolve`, `path` and git. Its
+[README](e2e/examples/README.md) lists where each is. Run them all with
+`bazel test //...` in that directory.
 
-| Example                                                             | What it demonstrates                                                                                     |
-| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| [`smoke`](e2e/smoke/)                                               | The install instructions, used from an outside module, as the Bazel Central Registry checks them         |
-| [`examples/hello_world`](e2e/examples/hello_world/)                     | Minimal binary + all compile modes (`exe`, `aot-snapshot`, `kernel`)                                     |
-| [`examples/fixtures/no_pubspec`](e2e/examples/fixtures/no_pubspec/)                       | No `pubspec.yaml` in it or above it: codegen, analysis, format, fix, tests, every binary                 |
-| [`examples/library_deps`](e2e/examples/library_deps/)                   | Transitive `dart_library` dependencies, `srcs` attribute, a `dart_package_cycle`                         |
-| [`examples/tests`](e2e/examples/tests/)                                       | Tests with and without deps, `srcs` for test helpers                                                     |
-| [`examples/analysis`](e2e/examples/analysis/)                                         | The `dart_analyze` aspect's checks with `package:`-included options                                      |
-| [`examples/fixtures/analysis_failure`](e2e/examples/fixtures/analysis_failure/)                         | Targets the `dart_analyze` aspect fails, each with a diagnostic of its own                               |
-| [`examples/fix`](e2e/examples/fix/)                                                   | `@rules_dart//dart/fix` and `format` write-back, and that generated files are never rewritten            |
-| [`examples/shared_lint_rules`](e2e/examples/shared_lint_rules/)                   | A lint ruleset and page width shared from another Bazel module                                           |
-| [`examples/custom_rules`](e2e/examples/custom_rules/)                           | A module building its own rules on rules_dart's exported helpers                                         |
-| [`examples/web/app`](e2e/examples/web/app/)                             | JavaScript and WebAssembly compilation with library deps                                                 |
-| [`examples/web/per_compiler`](e2e/examples/web/per_compiler/)                                 | Per-compiler code by `select()`, and the resets other modules' rules use                                 |
-| [`examples/pub/package`](e2e/examples/pub/package/)                                         | Single pub.dev package via `pub.package()`                                                               |
-| [`examples/pub/lock`](e2e/examples/pub/lock/)                                         | Multiple packages from `pubspec.lock` via `pub.from_lock()`                                              |
-| [`examples/gazelle`](e2e/examples/gazelle/)                                           | Automatic BUILD file generation with Gazelle                                                             |
-| [`examples/cross_compile`](e2e/examples/cross_compile/)                 | Cross-compilation to other platforms via `platform_data` transition                                      |
-| [`examples/tests/package_test`](e2e/examples/tests/package_test/)             | `dart_test` with pub dependencies via `pub.from_lock()`                                                  |
-| [`examples/fixtures/pub_dedup/two_hubs`](e2e/examples/fixtures/pub_dedup/two_hubs/)           | Cross-lock-file package deduplication                                                                    |
-| [`root_settings/pub_versions/lock_upgrade`](e2e/root_settings/pub_versions/lock_upgrade/)                         | Locks that disagree build the highest version, rules_dart's own lock included                            |
-| [`pub_lock_conflict`](e2e/failures/pub_lock_conflict/)                       | `check_direct_dependencies = "error"` fails a root lock raised by another lock or by a dependency module, giving the commands to raise them |
-| [`examples/fixtures/pub_dedup/cross_module`](e2e/examples/fixtures/pub_dedup/cross_module/)   | `pub.from_lock()` across Bazel module boundaries                                                         |
-| [`examples/pub/cycle`](e2e/examples/pub/cycle/)                     | Packages that depend on each other: a curated cycle (`dio`), and one the root declares                   |
-| [`root_settings/pub_package_cycle`](e2e/root_settings/pub_package_cycle/)                       | `pub.package()` packages that depend on each other, built as one library                                 |
-| [`examples/fixtures/pub_cycle_refused`](e2e/examples/fixtures/pub_cycle_refused/)     | An undeclared cycle, a stale declaration, part of a cycle and a cycle through a `resolve` target fail    |
-| [`examples/fixtures/pub_member_kind`](e2e/examples/fixtures/pub_member_kind/)         | Another rule set's own pub package kind, in a cycle, over the public pub surface                         |
-| [`toolchain_pin_conflict`](e2e/failures/toolchain_pin_conflict/)             | A root `dart.toolchain` pin below a dependency's request fails, naming the dependency                    |
-| [`root_settings/pub_unsupplied`](e2e/root_settings/pub_unsupplied/)           | A hosted package depending on an unsupplied sdk package fails, naming it                                 |
-| [`examples/pub/resolve`](e2e/examples/pub/resolve/)                         | `resolve` serving a `path` package and replacing a hosted one for the whole graph                        |
-| [`root_settings/pub_resolve_wrong_package`](e2e/root_settings/pub_resolve_wrong_package/) | `resolve` mapping a package to a target that builds another is refused |
-| [`pub_lock_resolve_invalid`](e2e/failures/pub_lock_resolve_invalid/)         | Unnamed, twice-named and wrongly named `path` packages and a stale `resolve` key fail                    |
-| [`examples/pub/path`](e2e/examples/pub/path/)                       | `path` packages built from their pubspec, ignored, or refused for having a BUILD file                    |
-| [`examples/pub/git`](e2e/examples/pub/git/)                         | Git packages at the locked commit and subdirectory, whatever the host's git configuration                |
-| [`pub_lock_refused`](e2e/failures/pub_lock_refused/)                         | Unpinned packages and locks disagreeing on a package fail, each named, in one failure                    |
-| [`root_settings/pub_versions/hub_surface`](e2e/root_settings/pub_versions/hub_surface/)                           | Every locked package in its hub, including one declared with `pub.package()`                             |
-| [`examples/fixtures/pub_missing_dep`](e2e/examples/fixtures/pub_missing_dep/)         | A `pub.package()` whose pubspec depends on an unsupplied package fails, naming both                      |
-| [`root_settings/pub_package_padded`](e2e/root_settings/pub_package_padded/)                     | An archive with bytes after its gzip stream fetches through `pub.package()` as through a lock            |
-| [`pub_archive_links`](e2e/failures/pub_archive_links/)                       | Nothing in a fetched pub archive can refer outside the package                                           |
-| [`examples/fixtures/kernel_source_refused`](e2e/examples/fixtures/kernel_source_refused/) | A `dart_kernel_source` with both or neither of `dart_version` and `path`, or no checkout, fails          |
-| [`root_settings/pub_versions/override_root_lock`](e2e/root_settings/pub_versions/override_root_lock/)             | A higher root lock serves a dependency module's `pub.package()` repository and the lock's own dependents, silently |
-| [`root_settings/pub_versions/highest_wins`](e2e/root_settings/pub_versions/highest_wins/)                         | The highest request builds, over root and dependency `pub.package()`s, warning for the root's            |
-| [`examples/codegen`](e2e/examples/codegen/)                                           | `dart_codegen`/`dart_aggregate_codegen` over parts, re-exports and a `srcs_dir`                          |
-| [`examples/builders`](e2e/examples/builders/)                                 | One package per bundled `dart/ext` builder, plus native `code_assets`, sqlite3/webcrypto                 |
-| [`examples/native_hooks`](e2e/examples/native_hooks/)                                       | `record_use`, `hook/link.dart` emitting data assets via `dart_program_assets`, declared data assets      |
+[`e2e/smoke`](e2e/smoke/) is the install instructions, used from an outside
+module as the Bazel Central Registry checks them. The rest of `e2e/` is tests:
+`e2e/examples/fixtures` holds the examples' edge cases, `e2e/root_settings`
+the cases that need a root-level setting of their own, and `e2e/failures` the
+workspaces that must fail to resolve, each with the error it must give.
 
 > **Note**: Only the `exe` and `aot-snapshot` compile modes cross-compile with
 > `--platforms`. `kernel` is a VM format and ignores target flags.

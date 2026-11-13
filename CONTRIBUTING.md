@@ -95,30 +95,22 @@ BUILD file.
 
 ### End-to-end tests (separate Bazel workspaces)
 
-Each directory under `e2e/` is a self-contained Bazel workspace that tests rules_dart
-as an external dependency. Some contain `bazel test` targets, others verify that
-`bazel build` succeeds.
+The workspaces under `e2e/` use rules_dart as an external dependency:
 
 ```shell
-# Toolchain resolution
+# The install instructions, as the Bazel Central Registry checks them
 cd e2e/smoke && bazel test //...
 
-# Binaries in every compile mode, library deps, web compilation, a workspace
-# without pubspecs, cross-compilation and the architecture of each output
+# One example per feature, and fixtures/ for their edge cases
 cd e2e/examples && bazel test //...
 
-# The dart_analyze aspect: analysis and the format check
-cd e2e/examples && bazel test //analysis/...
-
-# dart_test (Dart VM test execution), with and without package:test
-cd e2e/examples && bazel test //tests/...
-
-# External pub.dev packages
-cd e2e/examples && bazel build //pub/package/...
-
-# pubspec.lock integration
-cd e2e/examples && bazel test //pub/lock/...
+# Fixtures that need a root-level setting e2e/examples cannot share
+cd e2e/root_settings && bazel test //...
 ```
+
+Each workspace under `e2e/failures` must fail to resolve; CI's
+`expected-failure` job runs each and checks the error. Fixtures elsewhere that
+must fail are `manual`, and the same job builds each by name.
 
 ## Updating BUILD files
 
