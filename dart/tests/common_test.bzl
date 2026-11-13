@@ -443,6 +443,15 @@ def _hooks_offender_test_impl(ctx):
     asserts.true(env, "ignore_hook = True" in err)
     asserts.true(env, "build_hook" in err)
     asserts.true(env, "fine" not in err)
+
+    # webcrypto is curated at other versions: say which, and that pinning
+    # one of them is the fix.
+    asserts.true(env, "rules_dart builds pub's `webcrypto` at >=" in err)
+    asserts.true(env, "pin it to one of those versions" in err)
+    err = check_unreplaced_hooks("//app:bin", [
+        struct(package_name = "uncurated", unreplaced_hook = "hook/build.dart"),
+    ])
+    asserts.true(env, "rules_dart builds" not in err)
     return unittest.end(env)
 
 # --- asset_path_for tests ---

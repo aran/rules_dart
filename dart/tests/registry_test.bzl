@@ -1,7 +1,7 @@
 """Unit tests for the curated code-asset registry."""
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
-load("//dart/ext:registry.bzl", "curated_code_assets", "curated_packages")
+load("//dart/ext:registry.bzl", "curated_code_assets", "curated_packages", "curated_versions")
 load(":small_suite.bzl", "small_unittest_suite")
 
 def _known_package_in_range_test_impl(ctx):
@@ -33,12 +33,15 @@ def _prerelease_in_range_test_impl(ctx):
     return unittest.end(env)
 
 def _single_version_entry_test_impl(ctx):
-    # `//dart/ext/webcrypto` compiles the 0.6.1 archive, whose symbol table the
-    # Dart side indexes by position: neighbouring versions get nothing.
+    # `//dart/ext/webcrypto` compiles the 0.6.2 archive, whose BoringSSL build
+    # the Dart bindings name: neighbouring versions get nothing.
     env = unittest.begin(ctx)
-    asserts.equals(env, ["@rules_dart//dart/ext/webcrypto:code_asset"], curated_code_assets("webcrypto", "0.6.1"))
-    asserts.equals(env, [], curated_code_assets("webcrypto", "0.6.0"))
-    asserts.equals(env, [], curated_code_assets("webcrypto", "0.6.2"))
+    asserts.equals(env, ["@rules_dart//dart/ext/webcrypto:code_asset"], curated_code_assets("webcrypto", "0.6.2"))
+    asserts.equals(env, [], curated_code_assets("webcrypto", "0.6.1"))
+    asserts.equals(env, [], curated_code_assets("webcrypto", "0.6.3"))
+    asserts.equals(env, [">=0.6.2 <0.6.3"], curated_versions("webcrypto"))
+    asserts.equals(env, [">=2.0.0"], curated_versions("sqlite3"))
+    asserts.equals(env, [], curated_versions("uncurated"))
     return unittest.end(env)
 
 def _curated_packages_test_impl(ctx):

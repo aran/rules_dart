@@ -24,6 +24,7 @@ bzl_library(
         ":resources",
         ":source_set",
         "//dart:providers",
+        "//dart/ext:registry",
     ],
 )
 

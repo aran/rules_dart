@@ -78,8 +78,8 @@ use_repo(pub, "builder_pub_deps")
 # no lock here lists.
 pub.package(
     name = "webcrypto",
-    sha256 = "9885ed99a846191542dd6ca820c83a098117df56be57453832233a3fef68f3f2",
-    version = "0.6.1",
+    sha256 = "bdfa2b11696f2bac02834649d9e07d24a5154e527feec21ed1bdf81b31f982df",
+    version = "0.6.2",
 )
 pub.package(
     name = "native_toolchain_cmake",

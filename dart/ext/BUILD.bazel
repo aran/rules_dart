@@ -29,7 +29,7 @@ bzl_library(
 
 # The curated-registry resolver is supported API for other rule sets:
 # rules_flutter generates its own pub spokes and so cannot reach the registry
-# through `pub_lock_package`. Only the two functions are supported; `_ENTRIES`
+# through `pub_lock_package`. Only its functions are supported; `_ENTRIES`
 # stays private (see registry.bzl).
 bzl_library(
     name = "registry",

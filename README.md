@@ -2655,7 +2655,7 @@ because the package would then depend on itself.
 
 - `package:sqlite3` 2.0.0 and later: `sqlite3_code_asset()` from
   `@rules_dart//dart/ext/sqlite3:defs.bzl`.
-- `package:webcrypto` 0.6.1: `@rules_dart//dart/ext/webcrypto:code_asset`.
+- `package:webcrypto` 0.6.2: `@rules_dart//dart/ext/webcrypto:code_asset`.
 
 You don't have to name them. When a pub package resolves to one of these
 versions, from a lock or a `pub.package()`, rules_dart attaches its replacement.

@@ -55,8 +55,8 @@ http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "ht
 http_archive(
     name = "webcrypto_pub_archive",
     build_file = "//dart/ext/webcrypto:webcrypto.BUILD",
-    sha256 = "9885ed99a846191542dd6ca820c83a098117df56be57453832233a3fef68f3f2",
-    urls = ["https://pub.dev/api/archives/webcrypto-0.6.1.tar.gz"],
+    sha256 = "bdfa2b11696f2bac02834649d9e07d24a5154e527feec21ed1bdf81b31f982df",
+    urls = ["https://pub.dev/api/archives/webcrypto-0.6.2.tar.gz"],
 )
 
 # The open-source codebase //tools/bench builds: dart-lang/pub at a fixed

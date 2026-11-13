@@ -18,7 +18,7 @@ do not (a newer release that dropped the edge, say), so it needs no version
 bounds.
 
 **Supported API for other rule sets.** `curated_code_assets()`,
-`curated_packages()` and `curated_cycles()` are loadable as `@rules_dart//dart/ext:registry.bzl` and
+`curated_packages()`, `curated_versions()` and `curated_cycles()` are loadable as `@rules_dart//dart/ext:registry.bzl` and
 are covered by this repo's compatibility expectations. rules_flutter calls
 them from its own pub-spoke generator, which cannot route through
 `pub_lock_package` because Flutter spokes carry plugin metadata and
@@ -50,12 +50,12 @@ _ENTRIES = {
             labels = ["@rules_dart//dart/ext/sqlite3:code_asset"],
         ),
     ],
-    # The native library is built from the 0.6.1 archive itself, and its symbol
-    # table must match the Dart side index for index: one version only.
+    # The native library is built from the 0.6.2 archive itself, whose BoringSSL
+    # revision and symbol prefix the Dart bindings name: one version only.
     "webcrypto": [
         struct(
-            min_version = "0.6.1",
-            max_version = "0.6.2",
+            min_version = "0.6.2",
+            max_version = "0.6.3",
             labels = ["@rules_dart//dart/ext/webcrypto:code_asset"],
         ),
     ],
@@ -84,6 +84,27 @@ def curated_code_assets(package_name, version):
             continue
         return list(entry.labels)
     return []
+
+def curated_versions(package_name):
+    """Describes the versions of a pub package rules_dart curates assets for.
+
+    For the error a build gives when a package's hook has no replacement, so
+    that it names the versions that would get one.
+
+    Args:
+      package_name: The pub package name.
+
+    Returns:
+      List of pub version constraints, such as `>=0.6.2 <0.6.3`; empty when
+      rules_dart curates nothing for this package.
+    """
+    return [
+        " ".join([b for b in [
+            ">=" + entry.min_version if entry.min_version else "",
+            "<" + entry.max_version if entry.max_version else "",
+        ] if b]) or "any"
+        for entry in _ENTRIES.get(package_name, [])
+    ]
 
 def curated_packages():
     """Returns the pub package names rules_dart curates assets for.

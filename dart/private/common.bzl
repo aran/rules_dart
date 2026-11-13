@@ -1,6 +1,7 @@
 """Shared utilities for Dart rules."""
 
 load("//dart:providers.bzl", "CODE_ASSET_LINK_MODES", "DartCodeAssetInfo", "DartInfo", "DartPackageInfo", "DartPackageMetadataInfo")
+load("//dart/ext:registry.bzl", "curated_versions")
 load("//dart/private:dart_info.bzl", "derived_package_info", "package_info_from_metadata", "package_lib_prefix")
 load("//dart/private:exec_groups.bzl", "PORTABLE", "portable_sdk")
 load("//dart/private:package_root.bzl", "derive_package_root")
@@ -1541,10 +1542,15 @@ def check_unreplaced_hooks(label, packages):
     ]
     if not offenders:
         return None
-    lines = [
-        "  - %s (%s)" % (pkg.package_name, pkg.unreplaced_hook)
-        for pkg in offenders
-    ]
+    lines = []
+    curated = False
+    for pkg in offenders:
+        line = "  - %s (%s)" % (pkg.package_name, pkg.unreplaced_hook)
+        versions = curated_versions(pkg.package_name)
+        if versions:
+            curated = True
+            line += "; rules_dart builds pub's `%s` at %s" % (pkg.package_name, " or ".join(versions))
+        lines.append(line)
     return (
         ("%s depends on package(s) that build assets with a hook " +
          "rules_dart does not run:\n%s\n\n" +
@@ -1560,8 +1566,12 @@ def check_unreplaced_hooks(label, packages):
          "it in `pub.from_lock(ignore_hooks = [...])` or set " +
          "`pub.package(ignore_hook = True)`; otherwise map it with " +
          "`pub.from_lock(resolve = {...})` to a `dart_library` of the package " +
-         "whose `dart_package_metadata` names its `code_assets`.") %
-        (label, "\n".join(lines))
+         "whose `dart_package_metadata` names its `code_assets`.%s") %
+        (label, "\n".join(lines), (
+            "\n  - For a pub package rules_dart builds at other versions " +
+            "(noted above): pin it to one of those versions in your lock or " +
+            "`pub.package()`, and rules_dart attaches its replacement."
+        ) if curated else "")
     )
 
 def code_asset_identity(asset):

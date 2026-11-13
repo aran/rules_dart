@@ -1,7 +1,7 @@
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("//dart:defs.bzl", "dart_code_asset")
 
-# rules_dart-provided code asset for `package:webcrypto` 0.6.1. Its
+# rules_dart-provided code asset for `package:webcrypto` 0.6.2. Its
 # hook/build.dart runs CMake over the package's C glue and its vendored
 # BoringSSL; this builds the same sources from the same pub archive
 # (`@webcrypto_pub_archive`, see webcrypto.BUILD) and binds the library to
@@ -9,9 +9,10 @@ load("//dart:defs.bzl", "dart_code_asset")
 
 cc_shared_library(
     name = "libwebcrypto",
-    # The two entry points Dart calls are marked __declspec(dllexport) in
-    # src/webcrypto.h, so a Windows DLL exports them without
-    # `windows_export_all_symbols`, and BoringSSL stays unexported.
+    # Dart binds BoringSSL's public API and webcrypto_get_CBB_size by name.
+    # Both are marked for export (OPENSSL_EXPORT, WEBCRYPTO_EXPORT; see
+    # webcrypto.BUILD), so a Windows DLL exports them without
+    # `windows_export_all_symbols`, and BoringSSL's internals stay hidden.
     shared_lib_name = select({
         "@platforms//os:ios": "libwebcrypto.dylib",
         "@platforms//os:macos": "libwebcrypto.dylib",
@@ -27,8 +28,9 @@ cc_shared_library(
 
 dart_code_asset(
     name = "code_asset",
-    # lib/src/boringssl/lookup/lookup.dart binds its `@Native` functions to
-    # this id; the hook registers its library under the same name.
+    # The generated bindings (lib/src/third_party/boringssl/generated_bindings.dart,
+    # lib/src/boringssl/bindings/generated_bindings.dart) bind their `@Native`
+    # functions to this id; the hook registers its library under the same name.
     asset_id = "package:webcrypto/webcrypto.dart",
     file = ":libwebcrypto",
     visibility = ["//visibility:public"],

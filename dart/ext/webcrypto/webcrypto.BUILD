@@ -1,8 +1,9 @@
 # BUILD file for the `package:webcrypto` pub archive, overlaid by the
 # `http_archive` in rules_dart's MODULE.bazel. It compiles what the package's
 # hook/build.dart compiles through src/CMakeLists.txt: the package's own C
-# glue over the BoringSSL revision vendored in third_party/boringssl. The Dart
-# bindings are generated against those exact headers, so no other BoringSSL
+# glue over the BoringSSL revision vendored in third_party/boringssl, with
+# every symbol prefixed `webcrypto_`. The Dart bindings are generated against
+# those exact headers and name the prefixed symbols, so no other BoringSSL
 # would do.
 #
 # The vendored tree holds exactly the files sources.cmake lists, so globs
@@ -26,8 +27,8 @@ package_metadata(
     name = "package_metadata",
     purl = pub_hosted_purl(
         "webcrypto",
-        "0.6.1",
-        "9885ed99a846191542dd6ca820c83a098117df56be57453832233a3fef68f3f2",
+        "0.6.2",
+        "bdfa2b11696f2bac02834649d9e07d24a5154e527feec21ed1bdf81b31f982df",
     ),
 )
 
@@ -43,7 +44,14 @@ package_metadata(
 
 _BORINGSSL = "third_party/boringssl/"
 
-_COPTS = ["-DOPENSSL_SMALL"] + select({
+# BORINGSSL_SHARED_LIBRARY and BORINGSSL_IMPLEMENTATION make OPENSSL_EXPORT
+# export BoringSSL's public API, which Dart calls, from the shared library.
+_COPTS = [
+    "-DOPENSSL_SMALL",
+    "-DBORINGSSL_PREFIX=webcrypto",
+    "-DBORINGSSL_SHARED_LIBRARY",
+    "-DBORINGSSL_IMPLEMENTATION",
+] + select({
     "@platforms//os:windows": [
         "-DOPENSSL_NO_ASM",
         "-DWIN32_LEAN_AND_MEAN",
@@ -52,8 +60,8 @@ _COPTS = ["-DOPENSSL_SMALL"] + select({
         "-D_CRT_SECURE_NO_WARNINGS",
         "-utf-8",
     ],
-    # Only webcrypto_lookup_symbol and webcrypto_get_CBB_size are called from
-    # Dart (they carry explicit default visibility); BoringSSL stays internal.
+    # Only what is marked for export is visible: BoringSSL's public API and
+    # webcrypto_get_CBB_size, which Dart calls by name.
     "//conditions:default": ["-fvisibility=hidden"],
 }) + select({
     # glibc hides pthread rwlocks without this; it must not be set on Apple.
@@ -85,20 +93,21 @@ cc_library(
         "//conditions:default": ["-pthread"],
     }),
     package_metadata = [":boringssl_package_metadata"],
+    # Dart calls BoringSSL directly and nothing in the shared library calls
+    # most of it, so keep every object file at link time, as the hook does.
+    alwayslink = True,
 )
 
 cc_library(
     name = "webcrypto",
     srcs = [
-        "src/symbols.generated.c",
-        "src/symbols.h",
         "src/webcrypto.c",
         "src/webcrypto.h",
     ],
     copts = _COPTS,
     visibility = ["@rules_dart//dart/ext/webcrypto:__pkg__"],
     deps = [":boringssl_crypto"],
-    # Nothing in the shared library references the two exported entry points,
-    # so keep their object file from being dropped at link time.
+    # Nothing in the shared library references webcrypto_get_CBB_size, so keep
+    # its object file from being dropped at link time.
     alwayslink = True,
 )
