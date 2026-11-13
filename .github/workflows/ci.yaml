@@ -312,7 +312,7 @@ jobs:
           disk-cache: ${{ github.job }}-${{ strategy.job-index }}
           repository-cache: true
       - name: pub_lock_conflict — expect a raised root lock to fail under check_direct_dependencies = "error", and its command to resolve it
-        working-directory: e2e/pub_lock_conflict
+        working-directory: e2e/failures/pub_lock_conflict
         run: |
           if out=$(bazel build //:app 2>&1); then
             echo "ERROR: build should have failed: b's lock is raised and the root makes that an error"

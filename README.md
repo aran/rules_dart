@@ -3362,7 +3362,7 @@ The [`e2e/`](e2e/) directory contains complete working examples. A name with a
 | [`dart_test/package_test`](e2e/dart_test/package_test/)             | `dart_test` with pub dependencies via `pub.from_lock()`                                                  |
 | [`pub_lock_dedup/two_hubs`](e2e/pub_lock_dedup/two_hubs/)           | Cross-lock-file package deduplication                                                                    |
 | [`pub_lock_upgrade`](e2e/pub_lock_upgrade/)                         | Locks that disagree build the highest version, rules_dart's own lock included                            |
-| [`pub_lock_conflict`](e2e/pub_lock_conflict/)                       | `check_direct_dependencies = "error"` fails a raised root lock, giving the command to raise it           |
+| [`pub_lock_conflict`](e2e/failures/pub_lock_conflict/)                       | `check_direct_dependencies = "error"` fails a raised root lock, giving the command to raise it           |
 | [`pub_lock_dedup/cross_module`](e2e/pub_lock_dedup/cross_module/)   | `pub.from_lock()` across Bazel module boundaries                                                         |
 | [`pub_packages/cycle`](e2e/pub_packages/cycle/)                     | Packages that depend on each other: a curated cycle (`dio`), and one the root declares                   |
 | [`pub_package_cycle`](e2e/pub_package_cycle/)                       | `pub.package()` packages that depend on each other, built as one library                                 |
