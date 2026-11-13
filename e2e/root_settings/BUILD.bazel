@@ -1,0 +1,2 @@
+# Fixtures that clash with e2e/examples over something only a root module or
+# a workspace's root sets, each in a directory of its own (see MODULE.bazel).

@@ -1,0 +1,52 @@
+# Fixtures that cannot live in e2e/examples because they clash with an example
+# there over a root-level setting or a version every module shares. Each
+# section below belongs to one directory.
+module(name = "root_settings_e2e")
+
+bazel_dep(name = "rules_dart", version = "0.0.0")
+bazel_dep(name = "platforms", version = "1.1.0")
+
+local_path_override(
+    module_name = "rules_dart",
+    path = "../..",
+)
+
+dart = use_extension("@rules_dart//dart:extensions.bzl", "dart")
+dart.toolchain(dart_version = "3.13.7")
+use_repo(dart, "dart_toolchains")
+
+register_toolchains("@dart_toolchains//:all")
+
+pub = use_extension("@rules_dart//dart/pub:extensions.bzl", "pub")
+
+# pub_versions/: every statement of a package's version is a request, the
+# highest is built for the whole build, and raising one of the root's own
+# requests prints a warning. CI greps a build's output for those warnings, and
+# for their absence, so every root request here is one a fixture states on
+# purpose; in e2e/examples they would print on every build.
+
+# pub_versions/highest_wins: the root's `pub.package()` asks for `tuple` 2.0.1
+# and mod_c's lock raises it to 2.0.2; mod_b asks for `path` 1.9.0 and mod_c's
+# lock raises it to 1.9.1, which prints nothing.
+bazel_dep(name = "mod_b", version = "0.0.0")
+local_path_override(
+    module_name = "mod_b",
+    path = "pub_versions/highest_wins/mod_b",
+)
+
+bazel_dep(name = "mod_c", version = "0.0.0")
+local_path_override(
+    module_name = "mod_c",
+    path = "pub_versions/highest_wins/mod_c",
+)
+
+pub.package(
+    name = "tuple",
+    sha256 = "0ea99cd2f9352b2586583ab2ce6489d1f95a5f6de6fb9492faaf97ae2060f0aa",
+    version = "2.0.1",
+)
+pub.from_lock(
+    name = "pkgconf",
+    lock = "//pub_versions/highest_wins:pubspec.lock",
+)
+use_repo(pub, "pkgconf", "tuple")
