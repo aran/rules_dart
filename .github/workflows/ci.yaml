@@ -16,7 +16,7 @@ env:
   # hit is never saved again, so it freezes at whatever the first run put in
   # it; bump this number to start the caches afresh. The Commit messages
   # workflow (commit-messages.yaml) passes its own: bump that one too.
-  CACHE_VERSION: "1"
+  CACHE_VERSION: &cache_version "1"
 concurrency:
   # Cancel previous actions from the same PR or branch except 'main' branch.
   # See https://docs.github.com/en/actions/using-jobs/using-concurrency and https://docs.github.com/en/actions/learn-github-actions/contexts for more info.
@@ -32,6 +32,9 @@ jobs:
     uses: bazel-contrib/.github/.github/workflows/bazel.yaml@1d798ff015ed0696433e01e2c3ccbb2abefadad7 # v7.7.0
     with:
       bazel_versions: '["9.3.0"]'
+      # The reusable workflow's own setup-bazel takes the same version, or
+      # bumping CACHE_VERSION would never reach this job's caches.
+      cache_version: *cache_version
       # Exit code 4 means "build succeeded but no test targets found". It
       # passes only in the folders listed here, which build but hold no test;
       # anywhere else it fails, so a folder whose tests vanish goes red. A
