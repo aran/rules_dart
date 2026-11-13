@@ -17,6 +17,7 @@ section for each directory that needs more.
 | [`tests`](tests/)                 | `dart_test` with and without deps, helpers, `package:test`, coverage      |
 | [`analysis`](analysis/)           | The `dart_analyze` aspect: lints, `package:`-included options, page widths |
 | [`shared_lint_rules`](shared_lint_rules/) | A lint ruleset and page width shared from another Bazel module   |
+| [`codegen`](codegen/)             | `dart_codegen` / `dart_aggregate_codegen`: parts, re-exports, `srcs_dir`  |
 | [`fix`](fix/)                     | `@rules_dart//dart/fix`, `format` and `unused_deps` write-back            |
 | [`web/app`](web/app/)             | JavaScript and WebAssembly compilation with library and pub deps          |
 | [`cross_compile`](cross_compile/) | Binaries for other platforms, through a `platform_data` transition        |

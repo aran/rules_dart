@@ -47,6 +47,15 @@ local_path_override(
     path = "fixtures/modules/lint_rules",
 )
 
+# codegen: copy_to_directory for a package assembled by hand
+# (codegen/source_set_pkg), and the fixture packages' pub dependencies.
+bazel_dep(name = "bazel_lib", version = "3.7.2")
+
+pub.from_lock(
+    name = "pub_deps",
+    lock = "//codegen:pubspec.lock",
+)
+
 # fix: the fixture generator's own pub resolution (fix/tools), and
 # fix/unused's conformance test's, `package:test` among them.
 pub.from_lock(

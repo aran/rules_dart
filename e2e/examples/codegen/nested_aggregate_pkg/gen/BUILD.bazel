@@ -1,0 +1,40 @@
+load("@rules_dart//dart:defs.bzl", "dart_aggregate_codegen", "dart_codegen", "dart_test")
+
+# Codegen targets in a Bazel package NESTED below the Dart package root.
+# The shard generated here has short_path
+# `nested_aggregate_pkg/gen/nested_aggregate_pkg/lib/item.shard.json`
+# (declare_file paths are owner-package-relative); the aggregate stage must
+# still derive the in-package asset path `lib/item.shard.json` for it.
+
+dart_codegen(
+    name = "item_shard",
+    src = "//codegen/nested_aggregate_pkg:lib/item.dart",
+    generator = "//codegen/tools:shard_gen",
+    output_suffixes = [".shard.json"],
+    package = "//codegen/nested_aggregate_pkg:pubspec-metadata",
+    deps = ["//codegen/nested_aggregate_pkg:item_lib"],
+)
+
+dart_aggregate_codegen(
+    name = "aggregate",
+    srcs = [
+        # do not sort: the first entry is the primary `--input`.
+        "//codegen/nested_aggregate_pkg:lib/item.dart",
+        ":item_shard",
+    ],
+    generator = "//codegen/tools:aggregate_gen",
+    outputs = ["lib/item.agg.dart"],
+    package = "//codegen/nested_aggregate_pkg:pubspec-metadata",
+    deps = ["//codegen/nested_aggregate_pkg:item_lib"],
+)
+
+dart_test(
+    name = "aggregate_content_test",
+    size = "small",
+    data = [":aggregate"],
+    main = "test/aggregate_content_test.dart",
+    deps = [
+        "@pub_deps//:test",
+        "@rules_dart//dart/runfiles",
+    ],
+)

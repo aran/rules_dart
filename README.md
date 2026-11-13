@@ -3382,7 +3382,7 @@ The [`e2e/`](e2e/) directory contains complete working examples. A name with a
 | [`examples/fixtures/kernel_source_refused`](e2e/examples/fixtures/kernel_source_refused/) | A `dart_kernel_source` with both or neither of `dart_version` and `path`, or no checkout, fails          |
 | [`root_settings/pub_versions/override_root_lock`](e2e/root_settings/pub_versions/override_root_lock/)             | A higher root lock serves a dependency module's `pub.package()` repository and the lock's own dependents, silently |
 | [`root_settings/pub_versions/highest_wins`](e2e/root_settings/pub_versions/highest_wins/)                         | The highest request builds, over root and dependency `pub.package()`s, warning for the root's            |
-| [`codegen`](e2e/codegen/)                                           | `dart_codegen`/`dart_aggregate_codegen` over parts, re-exports and a `srcs_dir`                          |
+| [`examples/codegen`](e2e/examples/codegen/)                                           | `dart_codegen`/`dart_aggregate_codegen` over parts, re-exports and a `srcs_dir`                          |
 | [`ext_exemplar`](e2e/ext_exemplar/)                                 | One package per bundled `dart/ext` builder, plus native `code_assets`, sqlite3/webcrypto                 |
 | [`link_hook`](e2e/link_hook/)                                       | `record_use`, `hook/link.dart` emitting data assets via `dart_program_assets`, declared data assets      |
 

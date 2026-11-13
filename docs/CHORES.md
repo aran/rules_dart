@@ -315,14 +315,14 @@ Maintenance includes:
   consumer's lock warns them, naming `ext_pub_deps`. The graph rides the
   newest analyzer line every builder accepts, and the `build` major that
   every generator accepts (`source_gen` aside, they cap it below 5).
-  `e2e/codegen`,
+  `e2e/examples/codegen`,
   `e2e/examples/tests/package_test`, and rules_dart_proto's `dart_proto` set floors on
   `analyzer`/`package_config` in their pubspecs to keep their locks no older
   than this one. To bump:
   `bazel run @rules_dart//dart/pub -- upgrade --directory=dart/ext`, then
   the same `upgrade` with each pinned workspace's `--directory`, refresh the touched
   `MODULE.bazel.lock`s, and verify with `//dart/ext/...`,
-  `e2e/codegen`, and a consuming app. A shim needs changing only when a
+  `e2e/examples/codegen`, and a consuming app. A shim needs changing only when a
   builder's entrypoint signature changes, so builder majors are usually cheap.
 
 - **Lock file**: `pubspec.lock` is refreshed by

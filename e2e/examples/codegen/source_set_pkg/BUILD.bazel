@@ -1,0 +1,44 @@
+load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
+load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library", "dart_package_metadata", "dart_test")
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "source_set_fixture",
+    language_version = "3.11",
+)
+
+# A package assembled explicitly via copy_to_directory and consumed via srcs_dir
+# (the pre-assembled single-directory path through the consumer's co-location).
+
+dart_codegen(
+    name = "message_part",
+    src = "lib/message.dart",
+    generator = "//codegen/tools:part_gen",
+    output_suffixes = [".g.dart"],
+    package = ":pubspec-metadata",
+)
+
+copy_to_directory(
+    name = "srcs",
+    srcs = [
+        "lib/message.dart",
+        ":message_part",
+    ],
+)
+
+dart_library(
+    name = "source_set_fixture",
+    package = ":pubspec-metadata",
+    srcs_dir = ":srcs",
+    visibility = ["//visibility:public"],
+)
+
+dart_test(
+    name = "lib_test",
+    size = "small",
+    main = "test/lib_test.dart",
+    deps = [
+        ":source_set_fixture",
+        "@pub_deps//:test",
+    ],
+)

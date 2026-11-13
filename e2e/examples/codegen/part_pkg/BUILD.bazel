@@ -1,0 +1,68 @@
+load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_codegen", "dart_library", "dart_package_metadata", "dart_test")
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "part_pkg_fixture",
+    language_version = "3.11",
+)
+
+# A Bazel-generated `part` file feeding a runnable program and a test.
+
+dart_codegen(
+    name = "message_part",
+    src = "lib/message.dart",
+    generator = "//codegen/tools:part_gen",
+    output_suffixes = [".g.dart"],
+    package = ":pubspec-metadata",
+)
+
+dart_library(
+    name = "part_pkg_fixture",
+    srcs = [
+        "lib/message.dart",
+        ":message_part",
+    ],
+    package = ":pubspec-metadata",
+    visibility = ["//visibility:public"],
+)
+
+dart_binary(
+    name = "app",
+    main = "bin/main.dart",
+    deps = [":part_pkg_fixture"],
+)
+
+dart_test(
+    name = "lib_test",
+    size = "small",
+    main = "test/lib_test.dart",
+    deps = [
+        ":part_pkg_fixture",
+        "@pub_deps//:test",
+    ],
+)
+
+dart_test(
+    name = "app_run_test",
+    size = "small",
+    data = [":app"],
+    main = "test/run_test.dart",
+    deps = [
+        "@pub_deps//:test",
+        "@rules_dart//dart/runfiles",
+    ],
+)
+
+# The same test as a member of the package it tests. The package's files are
+# assembled with its generated part, so the test's entrypoint is assembled with
+# them and sits inside the package root its `package_config.json` names.
+dart_test(
+    name = "member_lib_test",
+    size = "small",
+    main = "test/lib_test.dart",
+    package = ":pubspec-metadata",
+    deps = [
+        ":part_pkg_fixture",
+        "@pub_deps//:test",
+    ],
+)
