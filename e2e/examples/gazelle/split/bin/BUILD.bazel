@@ -3,6 +3,6 @@ load("@rules_dart//dart:defs.bzl", "dart_binary")
 dart_binary(
     name = "describe",
     main = "describe.dart",
-    package = "//split:pubspec-metadata",
-    deps = ["//split"],
+    package = "//gazelle/split:pubspec-metadata",
+    deps = ["//gazelle/split"],
 )

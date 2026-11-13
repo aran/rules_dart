@@ -3,6 +3,6 @@ load("@rules_dart//dart:defs.bzl", "dart_test")
 dart_test(
     name = "ping_test",
     main = "ping_test.dart",
-    package = "//rally/ping:pubspec-metadata",
-    deps = ["//rally:ping_pong"],
+    package = "//gazelle/rally/ping:pubspec-metadata",
+    deps = ["//gazelle/rally:ping_pong"],
 )

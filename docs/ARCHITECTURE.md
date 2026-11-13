@@ -271,7 +271,7 @@ The transform changes a tracked class's constructor signatures, so a program wor
 | --------------------- | ---------------------------------------- | --------------------------------------------------------------------- |
 | Starlark tests        | `dart/tests/`                            | Analysis tests of the rules and unit tests of the Starlark helpers    |
 | Pubspec reader        | `dart/pub/private/pubspec_reader/tests/` | `testdata/` read by a repository rule, checked against `package:yaml` |
-| Gazelle tests         | `gazelle/dart/`, `dev/`, `e2e/gazelle/`  | Go unit tests; `gazelle_generation_test` and `gazelle_test`; e2e      |
+| Gazelle tests         | `gazelle/dart/`, `dev/`, `e2e/examples/gazelle/` | Go unit tests; `gazelle_generation_test` and `gazelle_test`; e2e |
 | E2e integration tests | `e2e/*/`                                 | Full build scenarios in isolated workspaces                           |
 | CI                    | `.github/workflows/ci.yaml`              | All e2e folders on Bazel 9.x                                          |
 | BCR presubmit         | `.bcr/presubmit.yml`, `.bcr/gazelle/`    | Multi-platform × Bazel 9.x, for each module                           |

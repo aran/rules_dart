@@ -130,6 +130,22 @@ local_path_override(
     path = "fixtures/modules/ext_hook",
 )
 
+# gazelle: Gazelle with the rules_dart plugin, which writes the BUILD files
+# under gazelle/, and the runtime packages of gazelle/codegen. Building the Go
+# binaries goes through the C++ toolchain, apple_support's on macOS (the
+# builders section).
+bazel_dep(name = "gazelle", version = "0.54.0")
+bazel_dep(name = "rules_dart_gazelle_plugin", version = "0.0.0")
+local_path_override(
+    module_name = "rules_dart_gazelle_plugin",
+    path = "../../gazelle",
+)
+
+pub.from_lock(
+    name = "pub_deps",
+    lock = "//gazelle/codegen:pubspec.lock",
+)
+
 # codegen: copy_to_directory for a package assembled by hand
 # (codegen/source_set_pkg), and the fixture packages' pub dependencies.
 bazel_dep(name = "bazel_lib", version = "3.7.2")

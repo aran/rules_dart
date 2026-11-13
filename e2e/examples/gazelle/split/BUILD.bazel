@@ -4,7 +4,7 @@ dart_package_metadata(
     name = "pubspec-metadata",
     package_name = "split",
     language_version = "3.11",
-    visibility = ["//split:__subpackages__"],
+    visibility = ["//gazelle/split:__subpackages__"],
 )
 
 dart_library(

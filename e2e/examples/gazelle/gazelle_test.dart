@@ -86,8 +86,12 @@ void main(List<String> args) {
   // ---- Basic generation from the sample sources -------------------------
   var w = Workspace();
   for (final rlocation in samples) {
-    // `_main/lib/greeter.dart` -> `lib/greeter.dart`.
-    final rel = rlocation.substring(rlocation.indexOf('/') + 1);
+    // `_main/gazelle/lib/greeter.dart` -> `lib/greeter.dart`.
+    const prefix = '_main/gazelle/';
+    if (!rlocation.startsWith(prefix)) {
+      throw StateError('$rlocation is not under $prefix');
+    }
+    final rel = rlocation.substring(prefix.length);
     w.write(rel, File(runfiles.rlocation(rlocation)).readAsStringSync());
   }
   w.markRoot();

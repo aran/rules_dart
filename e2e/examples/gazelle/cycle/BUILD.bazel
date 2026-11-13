@@ -3,11 +3,11 @@ load("@rules_dart//dart:defs.bzl", "dart_code_asset", "dart_library", "dart_pack
 dart_package_metadata(
     name = "pubspec-metadata",
     package_name = "cycle",
-    build_hook = "//cycle/hook:build",
+    build_hook = "//gazelle/cycle/hook:build",
     code_assets = [":native"],
     language_version = "3.11",
-    link_hook = "//cycle/hook:link",
-    visibility = ["//cycle:__subpackages__"],
+    link_hook = "//gazelle/cycle/hook:link",
+    visibility = ["//gazelle/cycle:__subpackages__"],
 )
 
 # What hook/build.dart would build, written by hand: Gazelle states the hook as

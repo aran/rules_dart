@@ -4,18 +4,18 @@ dart_package_metadata(
     name = "pubspec-metadata",
     package_name = "ping",
     language_version = "3.11",
-    visibility = ["//rally/ping:__subpackages__"],
+    visibility = ["//gazelle/rally/ping:__subpackages__"],
 )
 
 dart_package_member(
     name = "ping_member",
     srcs = ["lib/ping.dart"],
     package = ":pubspec-metadata",
-    visibility = ["//rally:__subpackages__"],
+    visibility = ["//gazelle/rally:__subpackages__"],
 )
 
 alias(
     name = "ping",
-    actual = "//rally:ping_pong",
+    actual = "//gazelle/rally:ping_pong",
     visibility = ["//visibility:public"],
 )

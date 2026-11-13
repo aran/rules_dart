@@ -7,8 +7,8 @@ load("@rules_dart//dart:defs.bzl", "dart_package_cycle")
 dart_package_cycle(
     name = "ping_pong",
     members = [
-        "//rally/ping:ping_member",
-        "//rally/pong:pong_member",
+        "//gazelle/rally/ping:ping_member",
+        "//gazelle/rally/pong:pong_member",
     ],
     visibility = ["//visibility:public"],
 )

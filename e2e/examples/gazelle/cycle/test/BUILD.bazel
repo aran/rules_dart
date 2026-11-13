@@ -1,0 +1,9 @@
+load("@rules_dart//dart:defs.bzl", "dart_test")
+
+dart_test(
+    name = "cycle_test",
+    srcs = ["//gazelle/cycle/test/support"],
+    main = "cycle_test.dart",
+    package = "//gazelle/cycle:pubspec-metadata",
+    deps = ["//gazelle/cycle"],
+)

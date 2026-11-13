@@ -7,7 +7,7 @@ dart_package_metadata(
     name = "pubspec-metadata",
     package_name = "codegen",
     language_version = "3.11",
-    visibility = ["//codegen:__subpackages__"],
+    visibility = ["//gazelle/codegen:__subpackages__"],
 )
 
 dart_codegen(
