@@ -7,7 +7,7 @@ files the repository rules write. That the targets of a real repository carry
 them is the e2e workspaces' to show (and, for the native code rules_dart
 builds in place of a package's build hook, `package_metadata_check`):
 `e2e/examples/pub/lock` (hosted, `pub.package()` and the SDK) and
-`e2e/pub_packages/git` (git).
+`e2e/examples/pub/git` (git).
 """
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")

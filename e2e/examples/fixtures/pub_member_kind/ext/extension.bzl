@@ -18,7 +18,7 @@ def _source(name):
 def _library(name):
     return "fancy__" + name
 
-_RULES = str(Label("//member_kind/ext:rules.bzl"))
+_RULES = str(Label("//fixtures/pub_member_kind/ext:rules.bzl"))
 
 # The package's `dart_package_metadata`. Not a Dart package name, so never the
 # name of the member beside it, which is named for its package.

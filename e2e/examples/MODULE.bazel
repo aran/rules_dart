@@ -181,6 +181,72 @@ pub.from_lock(
 )
 use_repo(pub, "resolve_deps")
 
+# pub/path: the lock lists three `path` packages, as `dart pub get` writes
+# them. No Bazel target builds `local_greeting`, so it is built from its
+# directory as a hosted package is from its archive, `meta` from the lock among
+# its deps. `editor_only` is for the editor alone: its hub label exists, and
+# depending on it fails analysis with the reason
+# (`//pub/path:ignored_package_refused`).
+pub.from_lock(
+    name = "path_deps",
+    build_from_pubspec = ["local_greeting"],
+    ignored = {"editor_only": "only the editor reads it"},
+    lock = "//pub/path:pubspec.lock",
+)
+
+# `has_build` has a BUILD file of its own, so building it from its pubspec is
+# refused when its repository is fetched; CI builds `@refused//:has_build` and
+# expects the error.
+pub.from_lock(
+    name = "refused",
+    build_from_pubspec = ["has_build"],
+    lock = "//pub/path/refused:pubspec.lock",
+)
+use_repo(pub, "path_deps", "refused")
+
+# pub/git: git repositories made on the spot, beside the lock `dart pub get`
+# writes for them: no network, and every commit id is the same on every
+# machine. `git_cyc_a` and `git_cyc_b` depend on each other. dep_mod is a
+# dependency module whose own lock lists `git_root` from pub.dev and `git_sub`
+# at another commit.
+git_fixture = use_repo_rule("//pub/git:git_fixture.bzl", "git_fixture")
+
+git_fixture(name = "git_fixture")
+
+pub.from_lock(
+    name = "deps",
+    lock = "@git_fixture//:pubspec.lock",
+)
+pub.cycle(packages = [
+    "git_cyc_a",
+    "git_cyc_b",
+])
+use_repo(pub, "deps")
+
+bazel_dep(name = "dep_mod", version = "0.0.0")
+local_path_override(
+    module_name = "dep_mod",
+    path = "pub/git/dep_mod",
+)
+
+# pub/cycle: `dio` and `dio_web_adapter` depend on each other; rules_dart's
+# curated cycles declare that one, so nothing here does. `ping` and `pong`,
+# packages of this workspace, depend on each other too, which the root
+# declares.
+pub.from_lock(
+    name = "cyc",
+    build_from_pubspec = [
+        "ping",
+        "pong",
+    ],
+    lock = "//pub/cycle:pubspec.lock",
+)
+pub.cycle(packages = [
+    "ping",
+    "pong",
+])
+use_repo(pub, "cyc")
+
 # codegen: copy_to_directory for a package assembled by hand
 # (codegen/source_set_pkg), and the fixture packages' pub dependencies.
 bazel_dep(name = "bazel_lib", version = "3.7.2")
@@ -239,6 +305,82 @@ pub.package(
     version = "1.19.0",
 )
 use_repo(pub, "change_case", "json_annotation", "meta", "native_toolchain_cmake")
+
+# fixtures/pub_cycle_refused: packages that depend on each other build as one
+# library only where the root declares the cycle, exactly. Each case fails
+# when its library repository is fetched, and nothing else here depends on
+# them.
+pub.from_lock(
+    name = "refused_cycles",
+    build_from_pubspec = [
+        "left",
+        "old_a",
+        "old_b",
+        "right",
+        "theirs",
+        "tri_a",
+        "tri_b",
+        "tri_c",
+    ],
+    lock = "//fixtures/pub_cycle_refused:pubspec.lock",
+    resolve = {"mine": "//fixtures/pub_cycle_refused/mine"},
+)
+
+# `left` and `right` depend on each other, and nothing declares it.
+
+# `mine`, which a target of this workspace builds, and `theirs`, built from
+# its pubspec, depend on each other: no declaration can build that.
+
+# `old_a` depends on `old_b`, but not the other way round: a stale declaration.
+pub.cycle(packages = [
+    "old_a",
+    "old_b",
+])
+
+# `tri_a`, `tri_b` and `tri_c` are one cycle, of which this declares only part.
+pub.cycle(packages = [
+    "tri_a",
+    "tri_b",
+])
+use_repo(pub, "refused_cycles")
+
+# fixtures/pub_missing_dep: `provider`'s pubspec depends on `flutter`, which
+# nothing here supplies: no `pub.package()` and no lock. The fetch must name
+# both, not leave the compile to find `package:flutter` missing.
+pub.package(
+    name = "provider",
+    sha256 = "4abbd070a04e9ddc287673bf5a030c7ca8b685ff70218720abab8b092f53dd84",
+    version = "6.1.5",
+)
+use_repo(pub, "provider")
+
+# fixtures/pub_member_kind: a rule set of its own building pub packages the
+# way `pub.from_lock()` does, over rules_dart's public pub surface only: its
+# own member kind, carrying data rules_dart knows nothing about, its own
+# library rule and repositories, and a dependency cycle (alpha <-> beta)
+# mixing its members with rules_dart's.
+fancy = use_extension("//fixtures/pub_member_kind/ext:extension.bzl", "fancy")
+fancy.package(
+    name = "alpha",
+    greeting = "hello from alpha",
+    pubspec = "//fixtures/pub_member_kind/pkgs/alpha:pubspec.yaml",
+)
+
+# rules_dart's own member kind, in the same cycle as alpha.
+fancy.package(
+    name = "beta",
+    pubspec = "//fixtures/pub_member_kind/pkgs/beta:pubspec.yaml",
+)
+fancy.package(
+    name = "gamma",
+    greeting = "hello from gamma",
+    pubspec = "//fixtures/pub_member_kind/pkgs/gamma:pubspec.yaml",
+)
+fancy.cycle(packages = [
+    "alpha",
+    "beta",
+])
+use_repo(fancy, "fancy__alpha", "fancy__beta", "fancy__gamma")
 
 # fixtures/kernel_source_refused: each repository is declared wrongly in its
 # own way, and fails only when it is fetched. `/usr` is a directory that is

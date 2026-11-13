@@ -9,12 +9,12 @@ dart_test(
     name = "path_packages_test",
     size = "small",
     main = "path_packages_test.dart",
-    deps = ["@pub//:local_greeting"],
+    deps = ["@path_deps//:local_greeting"],
 )
 
 # `editor_only` is ignored: its hub label exists, and analysing it fails with
 # the reason the lock's `pub.from_lock()` gives.
 ignored_package_refused_test(
     name = "ignored_package_refused",
-    target_under_test = "@pub//:editor_only",
+    target_under_test = "@path_deps//:editor_only",
 )

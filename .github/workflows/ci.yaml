@@ -50,7 +50,6 @@ jobs:
           "e2e/smoke",
           "e2e/examples",
           "e2e/pub_lock_dedup",
-          "e2e/pub_packages",
           "e2e/root_settings",
           "e2e/pub_package_padded",
           "overhead",
@@ -367,10 +366,10 @@ jobs:
           echo "$out" | grep -q "newer_dep requests 99.0.0"
           echo "$out" | grep -q "allow_upgrade_by_dependencies = True"
           echo "OK: expected toolchain upgrade refusal detected"
-      - name: pub_packages/unsupplied — expect a dependency on an unsupplied sdk package to fail
-        working-directory: e2e/pub_packages
+      - name: root_settings/pub_unsupplied — expect a dependency on an unsupplied sdk package to fail
+        working-directory: e2e/root_settings
         run: |
-          if out=$(bazel build //unsupplied:hosted_package_keeps_unsupplied_dependency 2>&1); then
+          if out=$(bazel build //pub_unsupplied:hosted_package_keeps_unsupplied_dependency 2>&1); then
             echo "ERROR: build should have failed: xml depends on the sdk package petitparser"
             exit 1
           fi
@@ -391,8 +390,8 @@ jobs:
           echo "$out" | grep -qF "\`build_from_pubspec\` names \`far\` (/opt/far), whose directory the lock gives by an absolute path"
           echo "$out" | grep -qF "\`build_from_pubspec\` names \`outside\` (../outside), whose directory is outside the repository"
           echo "OK: expected resolve errors detected"
-      - name: pub_packages/path — expect a path package with a BUILD file of its own to be refused
-        working-directory: e2e/pub_packages
+      - name: pub/path — expect a path package with a BUILD file of its own to be refused
+        working-directory: e2e/examples
         run: |
           if out=$(bazel build @refused//:has_build 2>&1); then
             echo "ERROR: build should have refused has_build, which has a BUILD file"
@@ -418,8 +417,8 @@ jobs:
           echo "$out" | grep -qF 'Git package "bar" is locked differently across lock files'
           echo "$out" | grep -qF 'Package "baz" is a git package in'
           echo "OK: every refusal named in one failure"
-      - name: pub_packages/missing_dep — expect a pub.package() whose pubspec depends on an unsupplied package to be refused
-        working-directory: e2e/pub_packages
+      - name: fixtures/pub_missing_dep — expect a pub.package() whose pubspec depends on an unsupplied package to be refused
+        working-directory: e2e/examples
         run: |
           if bazel build @provider//:provider 2>/dev/null; then
             echo "ERROR: build should have refused provider's dependency on flutter"
@@ -427,8 +426,8 @@ jobs:
           fi
           bazel build @provider//:provider 2>&1 | grep -q "nothing supplies \`flutter\`"
           echo "OK: unsupplied pub.package() dependency refused"
-      - name: pub_packages/cycle_refused — expect an undeclared cycle, a stale declaration, part of a cycle and a cycle through a resolve target to be refused
-        working-directory: e2e/pub_packages
+      - name: fixtures/pub_cycle_refused — expect an undeclared cycle, a stale declaration, part of a cycle and a cycle through a resolve target to be refused
+        working-directory: e2e/examples
         run: |
           for target in left old_a tri_a theirs; do
             if bazel build @refused_cycles//:$target 2>/dev/null; then
@@ -440,7 +439,7 @@ jobs:
           bazel build @refused_cycles//:old_a 2>&1 | grep -qF "\`old_a\` is in no cycle"
           bazel build @refused_cycles//:tri_a 2>&1 | grep -qF 'pub.cycle(packages = ["tri_a", "tri_b", "tri_c"])'
           bazel build @refused_cycles//:theirs 2>&1 | grep -qF "move it from \`resolve\` to \`build_from_pubspec\`"
-          bazel build //cycle_refused/mine 2>&1 | grep -qF 'pub.cycle(packages = ["mine", "theirs"])'
+          bazel build //fixtures/pub_cycle_refused/mine 2>&1 | grep -qF 'pub.cycle(packages = ["mine", "theirs"])'
           echo "OK: undeclared and misdeclared cycles refused"
       - name: kernel_source_refused — expect a dart_kernel_source naming both or neither of dart_version and path, or a path that is no checkout, to be refused
         working-directory: e2e/examples
@@ -843,9 +842,9 @@ jobs:
       - name: pub_archive_links — expect no fetched archive to reach outside its package
         working-directory: e2e/failures/pub_archive_links
         run: dart check.dart
-      - name: pub_packages/git — expect host git config to reach only the fetch, by-id refusal included
-        working-directory: e2e/pub_packages
-        run: dart git/check_host_config.dart
+      - name: pub/git — expect host git config to reach only the fetch, by-id refusal included
+        working-directory: e2e/examples
+        run: dart pub/git/check_host_config.dart
   # `dart compile kernel` rejects `--enable-asserts`, so dbg-mode flags are
   # chosen per compile mode. examples' hello_world builds all four dart_binary
   # modes; dart_test exercises the kernel test path end-to-end.

@@ -1,7 +1,7 @@
-// Run from the workspace root: `dart git/check_host_config.dart`.
+// Run from the workspace root: `dart pub/git/check_host_config.dart`.
 //
 // Property: the host's git configuration reaches the fetch and nothing else.
-// Each scenario runs `//git:git_packages_test` in a fresh output base, with
+// Each scenario runs `//pub/git:git_packages_test` in a fresh output base, with
 // every repository fetched anew, for a host whose global config
 //   * speaks protocol v0, whose servers refuse to fetch a commit no ref
 //     advertises, so the two packages locked below a branch tip are reached
@@ -91,7 +91,7 @@ void main() {
         final test = Process.runSync('bazel', [
           ...startup,
           'test',
-          '//git:git_packages_test',
+          '//pub/git:git_packages_test',
           '--repo_env=HOME=$home',
           '--repo_contents_cache=',
           '--test_output=errors',

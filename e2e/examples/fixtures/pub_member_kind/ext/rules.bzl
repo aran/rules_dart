@@ -95,7 +95,7 @@ fancy_library = rule(
     attrs = {
         "members": attr.label_list(providers = [DartPackageMemberInfo], mandatory = True),
         "deps": attr.label_list(providers = [DartInfo]),
-        "_engine": attr.label(default = Label("//member_kind/engine"), providers = [DartInfo]),
+        "_engine": attr.label(default = Label("//fixtures/pub_member_kind/engine"), providers = [DartInfo]),
     } | SUMMARY_ATTRS,
     exec_groups = PORTABLE_EXEC_GROUPS,
     toolchains = COPY_TO_DIRECTORY_TOOLCHAINS,

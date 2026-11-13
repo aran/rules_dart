@@ -2,9 +2,9 @@
 // out on a host with no git configuration of its own.
 import 'dart:io';
 
-import 'package:git_root/git_root.dart' as root;
 import 'package:git_cyc_a/git_cyc_a.dart';
 import 'package:git_cyc_b/git_cyc_b.dart';
+import 'package:git_root/git_root.dart' as root;
 import 'package:git_sub/git_sub.dart' as sub;
 import 'package:runfiles/runfiles.dart';
 
@@ -26,9 +26,8 @@ void main() {
   _expect('git_cyc_b reaches git_cyc_a', viaA(), 'a');
 
   final runfiles = Runfiles.create();
-  File file(String name) => File(
-    runfiles.rlocation('rules_dart++pub+dart_pub__git_sub/lib/$name'),
-  );
+  File file(String name) =>
+      File(runfiles.rlocation('rules_dart++pub+dart_pub__git_sub/lib/$name'));
   List<int>? bytes(String name) =>
       file(name).existsSync() ? file(name).readAsBytesSync() : null;
   const lf = [120, 10, 121, 10];

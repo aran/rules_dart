@@ -6,7 +6,7 @@ test.
 """
 
 load("@rules_dart//dart:providers.bzl", "DartAnalyzableInfo", "DartInfo")
-load("//member_kind/ext:rules.bzl", "FancyInfo")
+load("//fixtures/pub_member_kind/ext:rules.bzl", "FancyInfo")
 
 def _names(packages):
     return sorted([p.package_name for p in packages])

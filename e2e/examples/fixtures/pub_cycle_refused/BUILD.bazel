@@ -1,4 +1,4 @@
-load("//:checks.bzl", "pub_graph_check")
+load("//pub:checks.bzl", "pub_graph_check")
 
 exports_files(["pubspec.lock"])
 
@@ -29,7 +29,7 @@ pub_graph_check(
     target = "@refused_cycles//:tri_a",
 )
 
-# A cycle through a package a target of yours builds (`//cycle_refused/mine`,
+# A cycle through a package a target of yours builds (`//fixtures/pub_cycle_refused/mine`,
 # by `resolve`): `@refused_cycles//:theirs`. No declaration builds it; the
 # error names the move to `build_from_pubspec` and the declaration to add.
 pub_graph_check(

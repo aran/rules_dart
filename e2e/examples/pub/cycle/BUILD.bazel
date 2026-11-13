@@ -1,5 +1,5 @@
 load("@rules_dart//dart:defs.bzl", "dart_js_binary", "dart_test")
-load("//:checks.bzl", "pub_graph_check")
+load("//pub:checks.bzl", "pub_graph_check")
 
 exports_files(["pubspec.lock"])
 

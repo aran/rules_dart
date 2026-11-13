@@ -142,3 +142,13 @@ pub.from_lock(
     resolve = {"characters": "//pub_resolve_wrong_package/not_characters"},
 )
 use_repo(pub, "wrong_package_deps")
+
+# pub_unsupplied: `xml` depends on `petitparser`, which the lock lists as an
+# `sdk` package that nothing fetches; `@ovr//:xml` fails when it is fetched.
+# e2e/examples' pub/resolve maps `petitparser` for the whole build, which
+# would supply it.
+pub.from_lock(
+    name = "ovr",
+    lock = "//pub_unsupplied:pubspec.lock",
+)
+use_repo(pub, "ovr")

@@ -1,2 +1,3 @@
 fixtures/modules/ext_hook
 fixtures/modules/lint_rules
+pub/git/dep_mod

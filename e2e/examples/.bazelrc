@@ -32,6 +32,17 @@ build --@rules_dart//dart:extra_dart_defines=E2E_WINNER=flag
 coverage --experimental_collect_code_coverage_for_generated_files
 coverage --instrument_test_targets
 
+# pub/git: the client's GIT_* variables reach repository rules. These would
+# relocate or reconfigure git, or are values git refuses outright; a git
+# package must fetch the same bytes with them set. No other repository here
+# runs git.
+common --repo_env=GIT_DIR=/nonexistent/git-dir
+common --repo_env=GIT_WORK_TREE=/nonexistent/work-tree
+common --repo_env=GIT_INDEX_FILE=/nonexistent/index
+common --repo_env=GIT_OBJECT_DIRECTORY=/nonexistent/objects
+common "--repo_env=GIT_CONFIG_PARAMETERS='core.autocrlf'='true'"
+common --repo_env=GIT_ATTR_SOURCE=
+
 # fix/deep: targets tagged `deep` are left out of building, not only of
 # testing, unless `--config=deep` is passed.
 build --build_tag_filters=-deep

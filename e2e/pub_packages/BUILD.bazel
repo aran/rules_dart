@@ -1,4 +1,0 @@
-# Each directory is a fixture of `pub.from_lock()`, `pub.package()` or the pub
-# graph helpers another rule set builds on: `path` and `git` packages, cycles
-# built as one library or refused, a dependency nothing supplies, and another
-# rule set's member kind. `checks.bzl` holds the assertion several share.

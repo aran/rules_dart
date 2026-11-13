@@ -26,6 +26,9 @@ section for each directory that needs more.
 | [`pub/package`](pub/package/)     | One pub.dev package with `pub.package()`                                  |
 | [`pub/lock`](pub/lock/)           | The packages of a `pubspec.lock` with `pub.from_lock()`, and their purls  |
 | [`pub/resolve`](pub/resolve/)     | `resolve`: a `path` package served by a target, a hosted one replaced     |
+| [`pub/path`](pub/path/)           | `path` packages: built from their pubspec, ignored, or refused            |
+| [`pub/git`](pub/git/)             | Git packages at the locked commit and subdirectory                        |
+| [`pub/cycle`](pub/cycle/)         | Pub packages that depend on each other, built as one library              |
 | [`fix`](fix/)                     | `@rules_dart//dart/fix`, `format` and `unused_deps` write-back            |
 | [`web/app`](web/app/)             | JavaScript and WebAssembly compilation with library and pub deps          |
 | [`web/per_compiler`](web/per_compiler/) | Per-compiler code by `select()`, and the resets other modules' rules use |
