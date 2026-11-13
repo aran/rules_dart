@@ -1,5 +1,5 @@
 load("@bazel_skylib//rules:write_file.bzl", "write_file")
-load("//rules:defs.bzl", "module_library", "native_module")
+load("//web/per_compiler/rules:defs.bzl", "module_library", "native_module")
 
 # Says it is the same under every compiler, so it is built once.
 write_file(

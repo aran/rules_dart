@@ -5,9 +5,10 @@ import 'package:runfiles/runfiles.dart';
 /// Each web binary compiled its own compiler's variant, and only that one.
 void main() {
   final r = Runfiles.create();
-  final js = File(r.rlocation('_main/app_js.js')).readAsStringSync();
+  final js = File(r.rlocation('_main/web/per_compiler/app_js.js'))
+      .readAsStringSync();
   final wasm = String.fromCharCodes(
-    File(r.rlocation('_main/app_wasm.wasm')).readAsBytesSync(),
+    File(r.rlocation('_main/web/per_compiler/app_wasm.wasm')).readAsBytesSync(),
   );
 
   void expect(bool ok, String what) {

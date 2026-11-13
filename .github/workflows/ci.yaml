@@ -51,7 +51,6 @@ jobs:
           "e2e/examples",
           "e2e/pub_deps",
           "e2e/pub_lock",
-          "e2e/web_compiler",
           "e2e/gazelle",
           "e2e/pub_lock_dedup",
           "e2e/pub_lock_resolve",
@@ -514,14 +513,14 @@ jobs:
           echo "OK: faulty link-hook outputs reported"
       # A VM program reaching web-only code, which `//...` skips, is refused
       # by name, with the chain to the incompatible library.
-      - name: web_compiler — expect a VM program reaching web-only code to be refused
-        working-directory: e2e/web_compiler
+      - name: web/per_compiler — expect a VM program reaching web-only code to be refused
+        working-directory: e2e/examples
         run: |
-          if bazel build //web_only:vm_reaching_web_only 2>/dev/null; then
-            echo "ERROR: build should have failed: //web_only:web_only is incompatible with the host"
+          if bazel build //web/per_compiler/web_only:vm_reaching_web_only 2>/dev/null; then
+            echo "ERROR: build should have failed: //web/per_compiler/web_only:web_only is incompatible with the host"
             exit 1
           fi
-          bazel build //web_only:vm_reaching_web_only 2>&1 | grep -q "//web_only:web_only .*didn't satisfy constraint @@platforms//:incompatible"
+          bazel build //web/per_compiler/web_only:vm_reaching_web_only 2>&1 | grep -q "//web/per_compiler/web_only:web_only .*didn't satisfy constraint @@platforms//:incompatible"
           echo "OK: incompatible web-only code reported"
       # A library importing a package only its dependency's dependency
       # provides fails every executable that reaches it, through the import

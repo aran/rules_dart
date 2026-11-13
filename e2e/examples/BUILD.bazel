@@ -27,6 +27,7 @@ dart_analysis_config(
         "//fixtures/analysis_failure:options",
         "//fixtures/no_pubspec:options",
         "//shared_lint_rules:options",
+        "//web/per_compiler:options",
     ],
 )
 

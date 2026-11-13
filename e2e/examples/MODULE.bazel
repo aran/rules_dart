@@ -76,6 +76,17 @@ pub.from_lock(
     lock = "//tests/package_test:pubspec.lock",
 )
 
+# web/per_compiler: its fixtures' pub dependencies, and the fixture generator's
+# own pub resolution, apart from the fixtures' code.
+pub.from_lock(
+    name = "pub_deps",
+    lock = "//web/per_compiler:pubspec.lock",
+)
+pub.from_lock(
+    name = "generator_pub_deps",
+    lock = "//web/per_compiler/tools:pubspec.lock",
+)
+
 # cross_compile: the platforms it builds for.
 bazel_dep(name = "rules_platform", version = "0.1.0")
 

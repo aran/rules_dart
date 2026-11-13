@@ -20,5 +20,6 @@ section for each directory that needs more.
 | [`codegen`](codegen/)             | `dart_codegen` / `dart_aggregate_codegen`: parts, re-exports, `srcs_dir`  |
 | [`fix`](fix/)                     | `@rules_dart//dart/fix`, `format` and `unused_deps` write-back            |
 | [`web/app`](web/app/)             | JavaScript and WebAssembly compilation with library and pub deps          |
+| [`web/per_compiler`](web/per_compiler/) | Per-compiler code by `select()`, and the resets other modules' rules use |
 | [`cross_compile`](cross_compile/) | Binaries for other platforms, through a `platform_data` transition        |
 | [`fixtures`](fixtures/)           | Edge cases and regression tests of the examples; not meant as reading     |

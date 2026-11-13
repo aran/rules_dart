@@ -1,5 +1,5 @@
 load("@bazel_skylib//rules:write_file.bzl", "write_file")
-load("//rules:defs.bzl", "module_library", "native_module")
+load("//web/per_compiler/rules:defs.bzl", "module_library", "native_module")
 
 # The control: unmarked first-party code, configured once per compiler.
 write_file(

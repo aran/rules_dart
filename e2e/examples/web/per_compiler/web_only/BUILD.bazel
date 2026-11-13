@@ -17,8 +17,8 @@ dart_library(
         "//conditions:default": [],
     }),
     deps = select({
-        "@rules_dart//dart/constraints:js": ["//i64/js:i64"],
-        "@rules_dart//dart/constraints:wasm": ["//i64/typed:i64"],
+        "@rules_dart//dart/constraints:js": ["//web/per_compiler/i64/js:i64"],
+        "@rules_dart//dart/constraints:wasm": ["//web/per_compiler/i64/typed:i64"],
     }),
 )
 

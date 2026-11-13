@@ -1,7 +1,0 @@
-# Analyze and format-check every Dart target a test run names, with the SDK's
-# default options.
-test --aspects=@rules_dart//dart:analyze.bzl%dart_analyze
-test --output_groups=+dart_analyze
-test --output_groups=+dart_format
-
-try-import %workspace%/.bazelrc.user

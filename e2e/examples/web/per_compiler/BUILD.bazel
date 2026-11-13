@@ -1,5 +1,6 @@
 load(
     "@rules_dart//dart:defs.bzl",
+    "dart_analysis_options",
     "dart_binary",
     "dart_js_binary",
     "dart_library",
@@ -7,8 +8,16 @@ load(
     "dart_test",
     "dart_wasm_binary",
 )
-load("//rules:defs.bzl", "branch_sources", "web_bundle")
-load("//rules:tests.bzl", "compiler_roots", "shared_test", "variant_test")
+load("//web/per_compiler/rules:defs.bzl", "branch_sources", "web_bundle")
+load("//web/per_compiler/rules:tests.bzl", "compiler_roots", "shared_test", "variant_test")
+
+# The SDK's default options govern everything here; the workspace's
+# `analysis_config` lists them.
+dart_analysis_options(
+    name = "options",
+    src = "analysis_options.yaml",
+    visibility = ["//:__pkg__"],
+)
 
 dart_package_metadata(
     name = "pubspec-metadata",
@@ -26,9 +35,9 @@ dart_library(
     deps = [
         "@pub_deps//:characters",
     ] + select({
-        "@rules_dart//dart/constraints:js": ["//i64/js:i64"],
-        "@rules_dart//dart/constraints:wasm": ["//i64/typed:i64"],
-        "@rules_dart//dart/constraints:vm": ["//i64/typed:i64"],
+        "@rules_dart//dart/constraints:js": ["//web/per_compiler/i64/js:i64"],
+        "@rules_dart//dart/constraints:wasm": ["//web/per_compiler/i64/typed:i64"],
+        "@rules_dart//dart/constraints:vm": ["//web/per_compiler/i64/typed:i64"],
     }),
 )
 
@@ -71,23 +80,23 @@ dart_test(
 variant_test(
     name = "js_variant_test",
     size = "small",
-    not_picked = "i64/typed/lib/i64.g.dart",
-    picked = "i64/js/lib/i64.g.dart",
+    not_picked = "web/per_compiler/i64/typed/lib/i64.g.dart",
+    picked = "web/per_compiler/i64/js/lib/i64.g.dart",
     target_under_test = ":app_js",
 )
 
 variant_test(
     name = "wasm_variant_test",
     size = "small",
-    not_picked = "i64/js/lib/i64.g.dart",
-    picked = "i64/typed/lib/i64.g.dart",
+    not_picked = "web/per_compiler/i64/js/lib/i64.g.dart",
+    picked = "web/per_compiler/i64/typed/lib/i64.g.dart",
     target_under_test = ":app_wasm",
 )
 
 compiler_roots(
     name = "everything_roots",
-    lib = "//everything",
-    plain = "//everything",
+    lib = "//web/per_compiler/everything",
+    plain = "//web/per_compiler/everything",
     tags = ["manual"],
 )
 
@@ -98,13 +107,13 @@ compiler_roots(
 shared_test(
     name = "shared_test",
     size = "small",
-    forked = ["forked/lib/forked.dart"],
+    forked = ["web/per_compiler/forked/lib/forked.dart"],
     shared = [
-        "i64/js/lib/i64.g.dart",
-        "i64/typed/lib/i64.g.dart",
-        "independent/lib/independent.dart",
-        "independent/module.bin",
-        "forked/module.bin",
+        "web/per_compiler/i64/js/lib/i64.g.dart",
+        "web/per_compiler/i64/typed/lib/i64.g.dart",
+        "web/per_compiler/independent/lib/independent.dart",
+        "web/per_compiler/independent/module.bin",
+        "web/per_compiler/forked/module.bin",
     ],
     target_under_test = ":everything_roots",
 )

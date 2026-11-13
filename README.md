@@ -3354,7 +3354,7 @@ The [`e2e/`](e2e/) directory contains complete working examples. A name with a
 | [`examples/shared_lint_rules`](e2e/examples/shared_lint_rules/)                   | A lint ruleset and page width shared from another Bazel module                                           |
 | [`external_module`](e2e/external_module/)                           | A module building its own rules on rules_dart's exported helpers                                         |
 | [`examples/web/app`](e2e/examples/web/app/)                             | JavaScript and WebAssembly compilation with library deps                                                 |
-| [`web_compiler`](e2e/web_compiler/)                                 | Per-compiler code by `select()`, and the resets other modules' rules use                                 |
+| [`examples/web/per_compiler`](e2e/examples/web/per_compiler/)                                 | Per-compiler code by `select()`, and the resets other modules' rules use                                 |
 | [`pub_deps`](e2e/pub_deps/)                                         | Single pub.dev package via `pub.package()`                                                               |
 | [`pub_lock`](e2e/pub_lock/)                                         | Multiple packages from `pubspec.lock` via `pub.from_lock()`                                              |
 | [`gazelle`](e2e/gazelle/)                                           | Automatic BUILD file generation with Gazelle                                                             |

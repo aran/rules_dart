@@ -12,10 +12,10 @@ dart_library(
     srcs = [],
     package = ":pubspec-metadata",
     tags = ["manual"],
-    visibility = ["//:__pkg__"],
+    visibility = ["//web/per_compiler:__pkg__"],
     deps = [
-        "//:vec",
-        "//forked",
-        "//independent",
+        "//web/per_compiler:vec",
+        "//web/per_compiler/forked",
+        "//web/per_compiler/independent",
     ],
 )
