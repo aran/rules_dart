@@ -469,7 +469,11 @@ pinned to something else in this repo:
 
 1. For each `uses:` reference, check the repo's tags/releases for newer versions
 2. Update the commit SHA and the trailing version comment together
-   (`uses: owner/repo@<sha> # v1.2.3`); references are always SHA-pinned
+   (`uses: owner/repo@<sha> # v1.2.3`); references are SHA-pinned, except
+   the two reusable workflows that make the release's attestations
+   (`bazel-contrib/.github`'s `release_ruleset.yaml` and
+   `bazel-contrib/publish-to-bcr`), which stay on a tag: BCR checks the
+   attestations with the SLSA verifier, which refuses a commit ref
 3. For reusable workflows, review changelogs for new inputs or breaking changes
 4. Keep `actions/checkout` version consistent across all workflows
 
