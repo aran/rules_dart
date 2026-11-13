@@ -403,8 +403,9 @@ def _pub_impl(ctx):
     # Git packages, each with the one commit every lock that lists it pins.
     git_registry = {}
 
-    # Packages a lock lists that no repository is fetched for (SDK sources,
-    # unless mapped), with how the first such lock lists each.
+    # Packages a lock lists that no repository is fetched for (SDK sources and
+    # those pub does not know, unless mapped), with how the first such lock
+    # lists each.
     non_hosted = {}
 
     for lock in locks:
@@ -452,8 +453,9 @@ def _pub_impl(ctx):
                     if disagreement:
                         errors.append(disagreement)
                 continue
-            if source == "sdk":
-                skipped_sdk.append(name)
+            if source != "hosted":
+                if source == "sdk":
+                    skipped_sdk.append(name)
                 non_hosted.setdefault(name, "a `%s` package in %s" % (source, lock_tag.lock))
                 continue
 

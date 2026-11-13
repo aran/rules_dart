@@ -10,9 +10,6 @@ load("@yaml.bzl//:yaml.bzl", "yaml")
 # buildifier: disable=bzl-visibility
 load("//dart/pub/private:version.bzl", "is_semver")
 
-# The sources pub has.
-_SOURCES = ("hosted", "git", "path", "sdk")
-
 def _entry(name, info):
     """A package entry as callers read it, or a description of why pub refuses it."""
     if type(info) != "dict":
@@ -23,8 +20,6 @@ def _entry(name, info):
     source = info.get("source")
     if type(source) != "string":
         return "package `{}` has no `source` string".format(name)
-    if source not in _SOURCES:
-        return "package `{}` is from the source `{}`, and pub has only {}".format(name, source, ", ".join(["`%s`" % s for s in _SOURCES]))
     if info.get("description") == None:
         return "package `{}` has no `description`".format(name)
     if "dependency" in info and type(info["dependency"]) != "string":
@@ -76,8 +71,8 @@ def lock_error(content):
     """Says why pub would refuse a pubspec.lock, as it does.
 
     pub reads a lock strictly: one YAML document, no key twice, a mapping of
-    packages, each with a `version` string, one of pub's sources and a
-    `description`. So does this, where a lenient read would pick one of two
+    packages, each with a `version` string, a `source` string and a
+    `description`. A source pub does not know is no reason to refuse. So does this, where a lenient read would pick one of two
     entries for a package listed twice, ignore everything after a second
     `---`, or give no packages for a lock it cannot read.
 

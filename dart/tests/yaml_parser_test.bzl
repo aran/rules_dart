@@ -119,7 +119,10 @@ def _lock_shape_test_impl(ctx):
     _expect_refused(env, _SAMPLE_LOCK.replace(flutter, "    source: sdk\n    version: 1.10\n"), "package `flutter` has no `version`")
     _expect_refused(env, _SAMPLE_LOCK.replace(flutter, "    version: \"0.0.0\"\n"), "package `flutter` has no `source`")
     _expect_refused(env, _SAMPLE_LOCK.replace(flutter, "    source: [sdk]\n    version: \"0.0.0\"\n"), "package `flutter` has no `source`")
-    _expect_refused(env, _SAMPLE_LOCK.replace("    source: sdk\n", "    source: svn\n"), "package `flutter` is from the source `svn`")
+
+    # pub reads an entry from a source it does not know, and fails only for
+    # what needs it.
+    asserts.equals(env, "svn", parse_pubspec_lock(_SAMPLE_LOCK.replace("    source: sdk\n", "    source: svn\n"), "unknown source")["flutter"]["source"])
     _expect_refused(env, _SAMPLE_LOCK.replace("    description: flutter\n", ""), "package `flutter` has no `description`")
     _expect_refused(env, _SAMPLE_LOCK.replace("    dependency: transitive\n", "    dependency: [transitive]\n"), "package `meta` has a `dependency`")
     return unittest.end(env)

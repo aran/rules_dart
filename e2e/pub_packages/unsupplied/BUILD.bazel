@@ -10,6 +10,9 @@ exports_files(["pubspec.lock"])
 # `manual` keeps it out of `//...`, which the rest of the workspace builds.
 # Losing the edge quietly would break `package:petitparser` imports in `xml` far
 # from the cause.
+#
+# The lock also lists `from_elsewhere` from a source pub does not know. pub reads
+# such a lock, so the hub loads it too; only depending on it fails.
 
 pub_graph_check(
     name = "hosted_package_keeps_unsupplied_dependency",
