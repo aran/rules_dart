@@ -5,7 +5,6 @@ target it names does not depend directly on the stated packages, or reaches a
 stated package anywhere but at the stated `package_root`. Building it is the test.
 """
 
-load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts")
 load("@rules_dart//dart:providers.bzl", "DartInfo")
 
 def _resolved_graph_check_impl(ctx):
@@ -39,10 +38,3 @@ resolved_graph_check = rule(
         "package_roots": attr.string_dict(doc = "package name -> the one `package_root` it must have in the target's closure."),
     },
 )
-
-def _wrong_package_refused_impl(ctx):
-    env = analysistest.begin(ctx)
-    asserts.expect_failure(env, "maps package `characters` to @@//not_characters:not_characters, which is the Dart package `not_characters`")
-    return analysistest.end(env)
-
-wrong_package_refused_test = analysistest.make(_wrong_package_refused_impl, expect_failure = True)

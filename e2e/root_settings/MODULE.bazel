@@ -4,6 +4,7 @@
 module(name = "root_settings_e2e")
 
 bazel_dep(name = "rules_dart", version = "0.0.0")
+bazel_dep(name = "bazel_skylib", version = "1.9.2")
 bazel_dep(name = "platforms", version = "1.1.0")
 
 local_path_override(
@@ -131,3 +132,13 @@ pub.cycle(packages = [
     "dio_web_adapter",
 ])
 use_repo(pub, "deps", "dio", "dio_web_adapter")
+
+# pub_resolve_wrong_package: a `resolve` mapping `characters` to a target that
+# builds a different package, which analysis refuses. A mapping replaces the
+# package for every module, and e2e/examples' web examples use `characters`.
+pub.from_lock(
+    name = "wrong_package_deps",
+    lock = "//pub_resolve_wrong_package:pubspec.lock",
+    resolve = {"characters": "//pub_resolve_wrong_package/not_characters"},
+)
+use_repo(pub, "wrong_package_deps")

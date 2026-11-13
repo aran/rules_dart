@@ -1,0 +1,10 @@
+load(":checks.bzl", "wrong_package_refused_test")
+
+exports_files(["pubspec.lock"])
+
+# `resolve` maps `characters` to a target that builds package `not_characters`
+# (MODULE.bazel), which analysis refuses.
+wrong_package_refused_test(
+    name = "wrong_package_refused",
+    target_under_test = "@wrong_package_deps//:characters",
+)

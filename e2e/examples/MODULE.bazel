@@ -167,6 +167,20 @@ pub_dev.from_lock(
 )
 use_repo(pub_dev, "lock_deps")
 
+# pub/resolve: the lock lists `shared_models` as a `path` package, which must
+# be mapped, and `petitparser` as a hosted one, mapped here to a fork that
+# `xml` must then get. A mapping replaces the package for every module,
+# rules_dart's own tools included, so no other lock here may list either.
+pub.from_lock(
+    name = "resolve_deps",
+    lock = "//pub/resolve:pubspec.lock",
+    resolve = {
+        "petitparser": "//pub/resolve/third_party/petitparser",
+        "shared_models": "//pub/resolve/shared_models",
+    },
+)
+use_repo(pub, "resolve_deps")
+
 # codegen: copy_to_directory for a package assembled by hand
 # (codegen/source_set_pkg), and the fixture packages' pub dependencies.
 bazel_dep(name = "bazel_lib", version = "3.7.2")

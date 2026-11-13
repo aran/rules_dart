@@ -6,5 +6,5 @@ dart_library(
     name = "shared_models",
     srcs = ["lib/shared_models.dart"],
     visibility = ["//visibility:public"],
-    deps = ["@pub//:petitparser"],
+    deps = ["@resolve_deps//:petitparser"],
 )

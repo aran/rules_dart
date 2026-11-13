@@ -1,5 +1,5 @@
 load("@rules_dart//dart:defs.bzl", "dart_binary")
-load(":checks.bzl", "resolved_graph_check", "wrong_package_refused_test")
+load(":checks.bzl", "resolved_graph_check")
 
 exports_files(["pubspec.lock"])
 
@@ -8,7 +8,7 @@ exports_files(["pubspec.lock"])
 dart_binary(
     name = "app",
     main = "main.dart",
-    deps = ["@pub//:shared_models"],
+    deps = ["@resolve_deps//:shared_models"],
 )
 
 # `xml` is locked and depends on `petitparser`, which `resolve` maps: it gets
@@ -16,22 +16,16 @@ dart_binary(
 resolved_graph_check(
     name = "locked_package_gets_the_mapped_target",
     direct_deps = ["petitparser"],
-    package_roots = {"petitparser": "third_party/petitparser"},
-    target = "@pub//:xml",
+    package_roots = {"petitparser": "pub/resolve/third_party/petitparser"},
+    target = "@resolve_deps//:xml",
 )
 
 # The hub's label for the `path` package is the workspace target.
 resolved_graph_check(
     name = "hub_label_is_the_mapped_target",
     package_roots = {
-        "petitparser": "third_party/petitparser",
-        "shared_models": "shared_models",
+        "petitparser": "pub/resolve/third_party/petitparser",
+        "shared_models": "pub/resolve/shared_models",
     },
-    target = "@pub//:shared_models",
-)
-
-# `resolve` maps `characters` to a target that builds package `not_characters`.
-wrong_package_refused_test(
-    name = "wrong_package_refused",
-    target_under_test = "@bad//:characters",
+    target = "@resolve_deps//:shared_models",
 )

@@ -50,7 +50,6 @@ jobs:
           "e2e/smoke",
           "e2e/examples",
           "e2e/pub_lock_dedup",
-          "e2e/pub_lock_resolve",
           "e2e/pub_packages",
           "e2e/root_settings",
           "e2e/pub_package_padded",

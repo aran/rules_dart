@@ -3370,7 +3370,8 @@ The [`e2e/`](e2e/) directory contains complete working examples. A name with a
 | [`pub_packages/member_kind`](e2e/pub_packages/member_kind/)         | Another rule set's own pub package kind, in a cycle, over the public pub surface                         |
 | [`toolchain_pin_conflict`](e2e/failures/toolchain_pin_conflict/)             | A root `dart.toolchain` pin below a dependency's request fails, naming the dependency                    |
 | [`pub_packages/unsupplied`](e2e/pub_packages/unsupplied/)           | A hosted package depending on an unsupplied sdk package fails, naming it                                 |
-| [`pub_lock_resolve`](e2e/pub_lock_resolve/)                         | `resolve` serving a `path` package and replacing a hosted one for the whole graph                        |
+| [`examples/pub/resolve`](e2e/examples/pub/resolve/)                         | `resolve` serving a `path` package and replacing a hosted one for the whole graph                        |
+| [`root_settings/pub_resolve_wrong_package`](e2e/root_settings/pub_resolve_wrong_package/) | `resolve` mapping a package to a target that builds another is refused |
 | [`pub_lock_resolve_invalid`](e2e/failures/pub_lock_resolve_invalid/)         | Unnamed, twice-named and wrongly named `path` packages and a stale `resolve` key fail                    |
 | [`pub_packages/path`](e2e/pub_packages/path/)                       | `path` packages built from their pubspec, ignored, or refused for having a BUILD file                    |
 | [`pub_packages/git`](e2e/pub_packages/git/)                         | Git packages at the locked commit and subdirectory, whatever the host's git configuration                |
