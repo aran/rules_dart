@@ -1359,8 +1359,8 @@ def collect_transitive_resources(deps):
 def sdk_path_from_dart(dart_file):
     """Returns the SDK installation root by stripping `/bin/dart` from a dart File path.
 
-    AOT-compiled shims pass this via `--sdk-path` so the analyzer's
-    `AnalysisContextCollection` can locate the SDK's libraries.
+    What a codegen generator is given as `--sdk-path`, and the SDK summary
+    actions as `--sdk`.
 
     Args:
       dart_file: The toolchain's `dart` executable File.
@@ -2149,24 +2149,21 @@ def same_package_library_dep_files(packages, files, package_name, exclude_paths 
         out.append(src)
     return out, package_root
 
-def add_shim_contract_args(args, ctx, inputs, sdk_dart, asset_deps = []):
+def add_shim_contract_args(args, ctx, inputs, asset_deps = []):
     """Appends the typed shim-contract flags to `args`.
 
     Covers `--package`, `--root-language-version`, `--dep` (repeatable —
     `<path>|<asset_path>` form — one per sibling file in `inputs` and entry
-    in `asset_deps`), `--part`, `--config`, `--package-config`,
-    `--sdk-path`. Callers add `--input`, `--output`, and `--input-asset`
-    themselves (those are specific to the calling impl's per-src /
-    per-output loop).
+    in `asset_deps`), `--part`, `--config`, `--package-config`. Callers add
+    `--input`, `--output`, and `--input-asset` themselves (those are specific
+    to the calling impl's per-src / per-output loop), and the SDK with
+    `codegen_sdk_args()`.
 
     Args:
       args: The `ctx.actions.args()` object to append flags to.
       ctx: The rule context (reads `package`, `config`, etc.).
       inputs: What the generator reads of its `deps`, as `codegen_deps()`
         returns it.
-      sdk_dart: The `dart` executable File (from the caller's resolved
-        toolchain) used to compute `--sdk-path`. Passed in so this helper
-        stays agnostic of which toolchain type the caller resolves.
       asset_deps: List of Files from the rule's `asset_deps` attr (non-Dart
         files the Builder's Resolver must see via `findAssets` /
         `readAsString`). De-duplicated against the siblings by exec path.
@@ -2222,7 +2219,6 @@ def add_shim_contract_args(args, ctx, inputs, sdk_dart, asset_deps = []):
     elif synth_pc != None:
         args.add("--package-config", synth_pc)
         extra_inputs.append(synth_pc)
-    args.add_all([sdk_dart], before_each = "--sdk-path", map_each = sdk_path_from_dart)
     return extra_inputs
 
 def format_literal(text):

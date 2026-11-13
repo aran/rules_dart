@@ -29,6 +29,7 @@ load(
     "CODEGEN_MEMBER_DEPS_DOC",
     "codegen_deps",
 )
+load("//dart/private:codegen_sdk_summary.bzl", "codegen_sdk_args", "codegen_sdk_summary_aspect")
 load(
     "//dart/private:common.bzl",
     "PATH_MAPPING",
@@ -38,17 +39,13 @@ load(
     "package_identity_attrs",
     "resolve_package_identity",
 )
-load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS", "portable_sdk")
+load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS")
 load("//dart/private:runtime.bzl", "non_dart_transition")
 
 visibility("//dart/...")
 
 def _dart_sqlcodegen_impl(ctx):
     identity = resolve_package_identity(ctx)
-    sdk = portable_sdk(ctx)
-
-    # What the generator's analyzer reads of the SDK at `--sdk-path`.
-    sdk_files = sdk.files.codegen
 
     if not ctx.attr.output_suffixes:
         fail("%s: `output_suffixes` must contain at least one suffix." %
@@ -90,9 +87,9 @@ def _dart_sqlcodegen_impl(ctx):
         args,
         ctx,
         inputs,
-        sdk.dart,
         asset_deps = ctx.files.asset_deps,
     ))
+    sdk_files = codegen_sdk_args(args, ctx, inputs.packages)
     args.add_all(ctx.attr.generator_args)
 
     transitive = ([inputs.package_files] if inputs.package_files != None else []) + [sdk_files]
@@ -139,6 +136,7 @@ dart_sqlcodegen = rule(
                   "platform.",
             executable = True,
             cfg = config.exec(PORTABLE),
+            aspects = [codegen_sdk_summary_aspect],
             mandatory = True,
         ),
         "output_suffixes": attr.string_list(

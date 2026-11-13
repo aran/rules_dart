@@ -19,7 +19,7 @@ The generator receives:
   - `--config <json>`: builder options as a JSON object string.
   - `--package-config <path>`: synthesised from `deps`.
   - `--root-language-version <major.minor>`.
-  - `--sdk-path <path>`.
+  - `--sdk-summary <path>` or `--sdk-path <path>`, as `dart_codegen`.
 
 Usage:
 
@@ -51,6 +51,7 @@ load(
     "CODEGEN_MEMBER_DEPS_DOC",
     "codegen_deps",
 )
+load("//dart/private:codegen_sdk_summary.bzl", "codegen_sdk_args", "codegen_sdk_summary_aspect")
 load(
     "//dart/private:common.bzl",
     "PATH_MAPPING",
@@ -61,14 +62,13 @@ load(
     "package_identity_attrs",
     "resolve_package_identity",
 )
-load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS", "portable_sdk")
+load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS")
 load("//dart/private:runtime.bzl", "non_dart_transition")
 
 visibility("//dart/...")
 
 def _dart_aggregate_codegen_impl(ctx):
     identity = resolve_package_identity(ctx)
-    dart_sdk_info = portable_sdk(ctx)
 
     if not ctx.attr.outputs:
         fail("%s: `outputs` must contain at least one path." % ctx.label)
@@ -96,7 +96,6 @@ def _dart_aggregate_codegen_impl(ctx):
         args,
         ctx,
         inputs,
-        dart_sdk_info.dart,
         asset_deps = ctx.files.asset_deps,
     )
     args.add_all(ctx.attr.generator_args)
@@ -104,8 +103,7 @@ def _dart_aggregate_codegen_impl(ctx):
     direct_inputs = list(ctx.files.srcs) + extra_inputs
     transitive = [inputs.package_files] if inputs.package_files != None else []
 
-    # What the generator's analyzer reads of the SDK at `--sdk-path`.
-    transitive.append(dart_sdk_info.files.codegen)
+    transitive.append(codegen_sdk_args(args, ctx, inputs.packages))
 
     ctx.actions.run(
         executable = ctx.executable.generator,
@@ -165,6 +163,7 @@ dart_aggregate_codegen = rule(
             mandatory = True,
             executable = True,
             cfg = config.exec(PORTABLE),
+            aspects = [codegen_sdk_summary_aspect],
         ),
         "outputs": attr.string_list(
             doc = "Output file paths (package-relative). One entry per " +

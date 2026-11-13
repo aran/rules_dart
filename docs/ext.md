@@ -83,9 +83,17 @@ All shim CLIs share this contract (`dart/ext/lib/builder_shim.dart:ShimArgs.pars
 --config <json-string>                   Builder options.
 --package-config <path>                  Synthesised package_config.json of
                                          every package `deps` reach.
---sdk-path <dir>                         Dart SDK root for the analyzer.
+--sdk-summary <path>                     Summary of the Dart SDK the analyzer
+                                         reads, which this shim wrote.
+--sdk-path <dir>                         Dart SDK root, read from source:
+                                         only when a `sky_engine` is among
+                                         the packages. Exclusive with
+                                         --sdk-summary.
 [--persistent_worker]                    Switches to bazel_worker protocol.
 ```
+
+`sdk-summary --sdk <dir> --out <file>` instead writes the summary of the SDK
+at `<dir>` that `--sdk-summary` reads (`shimMain` runs it one-shot).
 
 Rule layer: `dart_codegen`, `dart_aggregate_codegen`, `dart_sqlcodegen`
 in `dart/private/`. All three drive the same shim contract; they differ
@@ -190,6 +198,27 @@ request, as each request's isolate starts with none. The collection is
 driver threads or file-watching handles. Dart-VM startup is
 amortised across the worker's lifetime — that's the latency win from
 worker mode, not analyzer-context reuse.
+
+### The SDK, from a summary
+
+The analyzer reads the Dart SDK from a summary rather than from its
+sources, as `build_resolvers` does for build_runner: one input in place of
+some 470 files, and no SDK library parsed and linked again by each action.
+The analyzer's summaries carry no format version, and one written by another
+version of the analyzer is misread rather than refused, so a generator reads
+only a summary it wrote itself. An aspect on the codegen rules' `generator`
+runs each generator once per SDK as `<generator> sdk-summary`, and every action
+running that generator reads the summary it wrote: a generator built against
+another `analyzer` (one from another rule set's pub hub) is another binary,
+with a summary of its own.
+
+The aspect recognises a generator by the shim runner (`rules_dart_ext`)
+among the packages it links. One that does not link it, such as the
+combining shim, runs no analyzer and is given no SDK at all. A `sky_engine`
+among an action's packages adds libraries to the SDK through its
+`_embedder.yaml` (Flutter's `dart:ui`), which the analyzer reads only from
+the SDK's sources: such an action is given the SDK's sources and
+`--sdk-path` instead.
 
 ### Analyzing generators
 

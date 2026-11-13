@@ -86,8 +86,7 @@ Future<void> _runOnce(
     ..addOption('package-config', defaultsTo: '')
     ..addMultiOption('dep')
     ..addOption('config', defaultsTo: '')
-    ..addOption('root-language-version', defaultsTo: '')
-    ..addOption('sdk-path', defaultsTo: '');
+    ..addOption('root-language-version', defaultsTo: '');
 
   final ArgResults args;
   try {

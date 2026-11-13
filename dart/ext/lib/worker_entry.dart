@@ -107,12 +107,20 @@ Future<(int, String)> _performRequest(
 /// entry (when the rule declares `use_param_file`); we expand it inline.
 /// In worker mode Bazel expands the flagfile itself before putting args
 /// into `WorkRequest.arguments`, so no expansion is needed there.
+///
+/// `sdk-summary --sdk <dir> --out <file>` writes the summary of the SDK at
+/// `<dir>` that `--sdk-summary` reads ([writeSdkSummary]).
 Future<void> shimMain(List<String> args, Object factoryOrFactories) async {
   if (args.contains('--persistent_worker')) {
     await runShimAsWorker(factoryOrFactories);
     return;
   }
-  await runShim(expandFlagFiles(args), factoryOrFactories);
+  final expanded = expandFlagFiles(args);
+  if (expanded.firstOrNull == 'sdk-summary') {
+    await writeSdkSummary(expanded.sublist(1));
+    return;
+  }
+  await runShim(expanded, factoryOrFactories);
 }
 
 /// Expand any `@<path>` argument by reading the file and splitting on

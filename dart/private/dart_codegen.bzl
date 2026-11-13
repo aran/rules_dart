@@ -22,8 +22,10 @@ The generator receives:
     `package_config` attr when set.
   - `--root-language-version <major.minor>`: the consuming package's Dart
     language version (propagated through the synthesised PackageConfig).
-  - `--sdk-path <path>`: the Dart SDK root (the analyzer's AOT shim can't
-    auto-detect it).
+  - `--sdk-summary <path>`: the summary of the Dart SDK the generator wrote
+    itself, for a generator built on the shim runner; or `--sdk-path <path>`,
+    the SDK's root, when a `sky_engine` is among the packages (see
+    `docs/ext.md`). A generator not built on the shim runner gets neither.
   - Anything in `generator_args` (escape hatch — prefer the typed attrs).
 
 Usage:
@@ -65,6 +67,7 @@ load(
     "CODEGEN_MEMBER_DEPS_DOC",
     "codegen_deps",
 )
+load("//dart/private:codegen_sdk_summary.bzl", "codegen_sdk_args", "codegen_sdk_summary_aspect")
 load(
     "//dart/private:common.bzl",
     "PATH_MAPPING",
@@ -74,7 +77,7 @@ load(
     "package_identity_attrs",
     "resolve_package_identity",
 )
-load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS", "portable_sdk")
+load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS")
 load("//dart/private:runtime.bzl", "non_dart_transition")
 
 visibility("//dart/...")
@@ -99,11 +102,6 @@ def compute_codegen_output_name(src_path, output_suffix):
 
 def _dart_codegen_impl(ctx):
     identity = resolve_package_identity(ctx)
-    sdk = portable_sdk(ctx)
-    dart = sdk.dart
-
-    # What a generator's analyzer reads of the SDK at `--sdk-path`.
-    sdk_files = sdk.files.codegen
 
     if not ctx.attr.output_suffixes:
         fail("%s: `output_suffixes` must contain at least one suffix." %
@@ -141,9 +139,9 @@ def _dart_codegen_impl(ctx):
         args,
         ctx,
         inputs,
-        dart,
         asset_deps = ctx.files.asset_deps,
     ))
+    sdk_files = codegen_sdk_args(args, ctx, inputs.packages)
     args.add_all(ctx.attr.generator_args)
 
     ctx.actions.run(
@@ -211,6 +209,7 @@ dart_codegen = rule(
             mandatory = True,
             executable = True,
             cfg = config.exec(PORTABLE),
+            aspects = [codegen_sdk_summary_aspect],
         ),
         "output_suffixes": attr.string_list(
             doc = "One or more suffixes appended to the input stem to " +

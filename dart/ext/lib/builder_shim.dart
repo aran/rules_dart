@@ -23,9 +23,13 @@ import 'package:analyzer/dart/analysis/session.dart';
 import 'package:analyzer/dart/analysis/utilities.dart';
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/element/element.dart';
+import 'package:analyzer/dart/sdk/build_sdk_summary.dart';
 import 'package:analyzer/error/error.dart' show DiagnosticType;
 import 'package:analyzer/file_system/file_system.dart' as fs;
 import 'package:analyzer/file_system/physical_file_system.dart';
+// ignore: implementation_imports
+import 'package:analyzer/src/dart/analysis/analysis_context_collection.dart'
+    show AnalysisContextCollectionImpl;
 import 'package:args/args.dart';
 import 'package:build/build.dart';
 import 'package:crypto/crypto.dart';
@@ -50,6 +54,7 @@ class ShimArgs {
     required this.rootLanguageVersion,
     this.packageConfigUri,
     this.sdkPath,
+    this.sdkSummaryPath,
   });
 
   final String inputPath;
@@ -75,6 +80,10 @@ class ShimArgs {
 
   /// Dart SDK root — AOT shims can't auto-detect this.
   final String? sdkPath;
+
+  /// The SDK's summary, written by [writeSdkSummary] of this same shim, read
+  /// in place of the SDK's sources at [sdkPath].
+  final String? sdkSummaryPath;
 
   final LanguageVersion rootLanguageVersion;
 
@@ -147,7 +156,16 @@ class ShimArgs {
             'containing `lib/_internal/libraries.dart`). Required when '
             "the shim runs as an AOT-compiled binary so the analyzer's "
             "context collection can locate the SDK's libraries. The "
-            "rules_dart codegen rules pass this from the toolchain.",
+            "rules_dart codegen rules pass this when a package adds "
+            "libraries to the SDK (`sky_engine`'s `_embedder.yaml`).",
+        defaultsTo: '',
+      )
+      ..addOption(
+        'sdk-summary',
+        help:
+            'Path to the summary of the Dart SDK that this shim wrote '
+            '(`sdk-summary`), which the analyzer reads in place of the '
+            "SDK's sources. Exclusive with `--sdk-path`.",
         defaultsTo: '',
       );
 
@@ -210,6 +228,12 @@ class ShimArgs {
     final configJson = parsed['config'] as String;
     final pkgConfig = parsed['package-config'] as String;
     final sdkPath = parsed['sdk-path'] as String;
+    final sdkSummary = parsed['sdk-summary'] as String;
+    if (sdkPath.isNotEmpty && sdkSummary.isNotEmpty) {
+      throw FormatException(
+        'Pass one of --sdk-path and --sdk-summary, not both.\n${parser.usage}',
+      );
+    }
     final rootLvParts = rootLvRaw.split('.');
     if (rootLvParts.length != 2) {
       throw FormatException(
@@ -260,6 +284,7 @@ class ShimArgs {
       config: config,
       packageConfigUri: pkgConfig.isEmpty ? null : pkgConfig,
       sdkPath: sdkPath.isEmpty ? null : sdkPath,
+      sdkSummaryPath: sdkSummary.isEmpty ? null : sdkSummary,
       rootLanguageVersion: rootLv,
     );
   }
@@ -516,6 +541,9 @@ ShimArgs _absoluteArgs(ShimArgs a) => ShimArgs(
       ? _absAndNormalize(a.packageConfigUri!)
       : null,
   sdkPath: a.sdkPath != null ? _absAndNormalize(a.sdkPath!) : null,
+  sdkSummaryPath: a.sdkSummaryPath != null
+      ? _absAndNormalize(a.sdkSummaryPath!)
+      : null,
   rootLanguageVersion: a.rootLanguageVersion,
 );
 
@@ -533,24 +561,52 @@ String? extractShimFlag(List<String> argv, String flag) {
 }
 
 /// Signature of a function that returns an [AnalysisContextCollection]
-/// for the given inclusion + SDK settings. Tests can inject a stub; the
-/// shim's default is [_defaultBuildAnalysisContext].
+/// for the given inclusion + SDK settings: the SDK's summary when
+/// [sdkSummaryPath] is given, else its sources at [sdkPath]. Tests can inject
+/// a stub; the shim's default is [_defaultBuildAnalysisContext].
 typedef AnalysisContextBuilder =
     Future<AnalysisContextCollection> Function({
       required List<String> includedPaths,
       required String sdkPath,
+      required String? sdkSummaryPath,
       required fs.ResourceProvider resourceProvider,
     });
 
+// The public constructor takes no SDK summary; `build_resolvers` reads one
+// through the same `src/` API.
 Future<AnalysisContextCollection> _defaultBuildAnalysisContext({
   required List<String> includedPaths,
   required String sdkPath,
+  required String? sdkSummaryPath,
   required fs.ResourceProvider resourceProvider,
-}) async => AnalysisContextCollection(
+}) async => AnalysisContextCollectionImpl(
   includedPaths: includedPaths,
   sdkPath: sdkPath,
+  sdkSummaryPath: sdkSummaryPath,
+  // The SDK summary reaches the element model only through the summary
+  // store, which the analyzer makes only when given library summaries.
+  librarySummaryPaths: sdkSummaryPath != null ? const [] : null,
   resourceProvider: resourceProvider,
 );
+
+/// Writes the summary of the Dart SDK at `--sdk` to `--out`: what
+/// `--sdk-summary` reads.
+///
+/// The analyzer has no format version in a summary and reads one written by
+/// another version of itself wrongly rather than refusing it, so a shim reads
+/// only a summary it wrote itself: the codegen rules have each generator
+/// write its own.
+Future<void> writeSdkSummary(List<String> argv) async {
+  final parser = ArgParser()
+    ..addOption('sdk', mandatory: true)
+    ..addOption('out', mandatory: true);
+  final parsed = parser.parse(argv);
+  final bytes = await buildSdkSummary(
+    resourceProvider: PhysicalResourceProvider.INSTANCE,
+    sdkPath: _absAndNormalize(parsed.option('sdk')!),
+  );
+  await File(parsed.option('out')!).writeAsBytes(bytes);
+}
 
 Future<void> _runWithStaging(
   ShimArgs args,
@@ -626,11 +682,12 @@ Future<void> _runWithStaging(
   // there however the system temp dir is placed.
   final sdkPath =
       args.sdkPath ?? p.dirname(p.dirname(Platform.resolvedExecutable));
+  final sdkSummaryPath = args.sdkSummaryPath;
   final provider = DeclaredResourceProvider(
     PhysicalResourceProvider.INSTANCE,
     roots: [
       stagingPath,
-      sdkPath,
+      sdkSummaryPath ?? sdkPath,
       if (declaredInputs == null)
         for (final pkg in packageConfig.packages) ...[
           p.fromUri(pkg.root),
@@ -659,6 +716,7 @@ Future<void> _runWithStaging(
   final collection = await contextBuilder(
     includedPaths: [stagingPath],
     sdkPath: sdkPath,
+    sdkSummaryPath: sdkSummaryPath,
     resourceProvider: provider,
   );
 

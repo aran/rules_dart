@@ -417,6 +417,51 @@ void main() {
     });
   });
 
+  group('the SDK from a summary', () {
+    late Directory tmp;
+
+    setUp(() async {
+      tmp = await Directory.systemTemp.createTemp('shim_sdk_summary_');
+    });
+
+    tearDown(() async {
+      await tmp.delete(recursive: true);
+    });
+
+    test('resolves the SDK from the summary the shim wrote', () async {
+      final summary = p.join(tmp.path, 'sdk.sum');
+      await writeSdkSummary([
+        '--sdk',
+        p.dirname(p.dirname(Platform.resolvedExecutable)),
+        '--out',
+        summary,
+      ]);
+      final input = File(p.join(tmp.path, 'a.dart'))
+        ..writeAsStringSync(
+          'abstract class Foo extends Iterable<Future<int>> {}',
+        );
+      final out = p.join(tmp.path, 'a.g.dart');
+      final stage = await Directory(p.join(tmp.path, 'stage')).create();
+      final captured = <String>[];
+      await runShim(
+        [
+          ..._baseArgs(removed: ['--input', '--output']),
+          '--input',
+          input.path,
+          '--output',
+          out,
+          '--sdk-summary',
+          summary,
+        ],
+        (_) => _SupertypeBuilder(),
+        stagingRoot: stage,
+        writeDiagnostic: captured.add,
+      );
+      expect(exitCode, 0, reason: captured.join('\n'));
+      expect(File(out).readAsStringSync(), 'Iterable<Future<int>>');
+    });
+  });
+
   group('ShimArgs.parse', () {
     test('parses the minimal required arg set', () {
       final args = ShimArgs.parse(_baseArgs());
@@ -438,6 +483,19 @@ void main() {
         'a.module.dart',
       ]);
       expect(args.outputPaths, ['a.config.dart', 'a.module.dart']);
+    });
+
+    test('--sdk-path and --sdk-summary are exclusive', () {
+      expect(
+        () => ShimArgs.parse([
+          ..._baseArgs(),
+          '--sdk-path',
+          'sdk',
+          '--sdk-summary',
+          'sdk.sum',
+        ]),
+        throwsA(isA<FormatException>()),
+      );
     });
 
     test('--package is required (no silent basename fallback)', () {
@@ -1067,6 +1125,7 @@ void main() {
             ({
               required List<String> includedPaths,
               required String sdkPath,
+              required String? sdkSummaryPath,
               required ResourceProvider resourceProvider,
             }) async {
               final collection = AnalysisContextCollection(
@@ -1116,6 +1175,7 @@ void main() {
               ({
                 required List<String> includedPaths,
                 required String sdkPath,
+                required String? sdkSummaryPath,
                 required ResourceProvider resourceProvider,
               }) async => _DisposeThrowsCollection(),
         );
@@ -2009,6 +2069,24 @@ class _NoopBuilder implements Builder {
 
   @override
   Future<void> build(BuildStep step) async {}
+}
+
+/// Writes the supertype of the input's first class, which only a resolved
+/// SDK names.
+class _SupertypeBuilder implements Builder {
+  @override
+  Map<String, List<String>> get buildExtensions => const {
+    '.dart': ['.g.dart'],
+  };
+
+  @override
+  Future<void> build(BuildStep step) async {
+    final library = await step.inputLibrary;
+    await step.writeAsString(
+      step.allowedOutputs.single,
+      library.classes.first.supertype!.getDisplayString(),
+    );
+  }
 }
 
 class _FixedOutputBuilder implements Builder {

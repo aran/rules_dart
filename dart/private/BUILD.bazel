@@ -278,6 +278,7 @@ bzl_library(
     visibility = ["//dart:__subpackages__"],
     deps = [
         ":codegen_deps",
+        ":codegen_sdk_summary",
         ":common",
         ":exec_groups",
         ":runtime",
@@ -290,6 +291,7 @@ bzl_library(
     visibility = ["//dart:__subpackages__"],
     deps = [
         ":codegen_deps",
+        ":codegen_sdk_summary",
         ":common",
         ":exec_groups",
         ":runtime",
@@ -455,6 +457,7 @@ bzl_library(
     visibility = ["//dart:__subpackages__"],
     deps = [
         ":codegen_deps",
+        ":codegen_sdk_summary",
         ":common",
         ":dart_library",
         ":exec_groups",
@@ -497,6 +500,17 @@ bzl_library(
         ":exec_groups",
         ":runtime",
         ":source_set",
+        "//dart:providers",
+    ],
+)
+
+bzl_library(
+    name = "codegen_sdk_summary",
+    srcs = ["codegen_sdk_summary.bzl"],
+    visibility = ["//dart:__subpackages__"],
+    deps = [
+        ":common",
+        ":exec_groups",
         "//dart:providers",
     ],
 )

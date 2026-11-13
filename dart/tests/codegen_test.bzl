@@ -85,3 +85,37 @@ codegen_language_version_test = analysistest.make(
     _codegen_language_version_test_impl,
     attrs = {"_toolchain": attr.label(default = "//dart:resolved_toolchain")},
 )
+
+# --- what a codegen action reads of the Dart SDK ---
+
+def _codegen_sdk_test_impl(ctx):
+    # A generator built on the shim runner reads the summary of the SDK it
+    # wrote itself, and none of the SDK's sources; with a `sky_engine` among
+    # its packages, the SDK's sources, as only they hold what its
+    # `_embedder.yaml` adds; any other generator, neither.
+    env = analysistest.begin(ctx)
+    actions = [a for a in analysistest.target_actions(env) if a.mnemonic in ["DartCodegen", "DartAggregateCodegen", "DartSqlCodegen"]]
+    asserts.true(env, actions, "no codegen action")
+    for action in actions:
+        argv = action.argv
+        inputs = [f.path for f in action.inputs.to_list()]
+        summaries = [p for p in inputs if p.endswith(".codegen_sdk.sum")]
+        sdk_sources = [p for p in inputs if p.endswith("/lib/core/core.dart")]
+        if ctx.attr.sdk == "summary":
+            asserts.equals(env, 1, len(summaries), "one SDK summary among %s" % inputs)
+            asserts.equals(env, [], sdk_sources, "SDK sources are inputs")
+            asserts.true(env, "--sdk-summary" in argv and "--sdk-path" not in argv, "argv: %s" % argv)
+            asserts.equals(env, summaries[0], argv[argv.index("--sdk-summary") + 1])
+        elif ctx.attr.sdk == "source":
+            asserts.equals(env, [], summaries, "an SDK summary is an input")
+            asserts.true(env, sdk_sources, "no SDK sources among %s" % inputs)
+            asserts.true(env, "--sdk-path" in argv and "--sdk-summary" not in argv, "argv: %s" % argv)
+        else:
+            asserts.equals(env, [], summaries + sdk_sources, "SDK files are inputs")
+            asserts.true(env, "--sdk-path" not in argv and "--sdk-summary" not in argv, "argv: %s" % argv)
+    return analysistest.end(env)
+
+codegen_sdk_test = analysistest.make(
+    _codegen_sdk_test_impl,
+    attrs = {"sdk": attr.string(values = ["summary", "source", "none"], mandatory = True)},
+)
