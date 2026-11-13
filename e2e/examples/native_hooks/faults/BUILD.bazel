@@ -2,7 +2,7 @@ load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
 
 # A package whose link hook breaks one rule of what a hook may emit, chosen by
 # the `Fault` the program uses: each JSON file in `uses/` is the recorded uses
-# of a program using one. Every program over it fails; see `//:faults_*`.
+# of a program using one. Every program over it fails; see `//native_hooks:faults_*`.
 dart_package_metadata(
     name = "pubspec-metadata",
     package_name = "faults",

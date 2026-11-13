@@ -2,7 +2,7 @@
 
 Nothing here is built — every target an assertion reads is tagged `manual` —
 so the hook is never run and no binary is compiled. The behaviour the hooks
-produce is `e2e/link_hook`'s to show.
+produce is `e2e/examples/native_hooks`'s to show.
 """
 
 load("//dart:defs.bzl", "dart_binary", "dart_code_asset", "dart_data_asset", "dart_library", "dart_package_metadata", "dart_program_assets")

@@ -12,7 +12,9 @@ build --sandbox_default_allow_network=false
 
 # Path mapping, as a downstream that shares results across configurations
 # builds: every action that supports it sees `bazel-out/cfg/...` for each
-# output directory and runs sandboxed, persistent workers included. Windows has
+# output directory and runs sandboxed, persistent workers included;
+# native_hooks' `read_assets` opens every file a program's manifest names that
+# way. Windows has
 # no sandbox, so there Bazel would fail a path-mapped action.
 common --enable_platform_specific_config
 common:linux --experimental_output_paths=strip

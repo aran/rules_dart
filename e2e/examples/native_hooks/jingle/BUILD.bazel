@@ -36,7 +36,7 @@ dart_binary(
     record_use = True,
     visibility = ["//visibility:public"],
     deps = [
-        "//sounds",
+        "//native_hooks/sounds",
         # The imports of the package's hooks.
         "@pub_deps//:data_assets",
         "@pub_deps//:hooks",

@@ -94,7 +94,7 @@ read_assets = rule(
         "code": attr.string(default = "libraries"),
         "data": attr.bool(default = True),
         "_reader": attr.label(
-            default = "//:read_assets",
+            default = "//native_hooks:read_assets",
             executable = True,
             cfg = config.exec(PORTABLE),
         ),

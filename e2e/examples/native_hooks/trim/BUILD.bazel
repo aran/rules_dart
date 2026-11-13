@@ -3,7 +3,7 @@ load("@rules_dart//dart:defs.bzl", "dart_library", "dart_linked_code_asset", "da
 
 # A package whose native library is linked into each program exporting only
 # the operations the program uses, as a link hook tree-shaking it with
-# `LinkerOptions.treeshake` would: `//trim_symbols` maps the program's
+# `LinkerOptions.treeshake` would: `//native_hooks/trim_symbols` maps the program's
 # recorded uses of `TrimOp` to the symbols to keep. It is no library of this
 # package, which names it.
 cc_library(
@@ -15,7 +15,7 @@ dart_linked_code_asset(
     name = "ops",
     asset_id = "package:trim/ops",
     library = ":ops_cc",
-    symbols = "//trim_symbols",
+    symbols = "//native_hooks/trim_symbols",
 )
 
 dart_package_metadata(

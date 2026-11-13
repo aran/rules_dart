@@ -1,11 +1,11 @@
 load("@rules_dart//dart:defs.bzl", "dart_binary")
 
-# The tool `//trim:ops` runs over a program's recorded uses. A package's
+# The tool `//native_hooks/trim:ops` runs over a program's recorded uses. A package's
 # `linked_code_assets` cannot name a library of the package itself, which
 # depends on them, so what the tool knows of the package is its own.
 dart_binary(
     name = "trim_symbols",
     main = "symbols.dart",
-    visibility = ["//trim:__pkg__"],
+    visibility = ["//native_hooks/trim:__pkg__"],
     deps = ["@pub_deps//:record_use"],
 )

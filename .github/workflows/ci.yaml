@@ -57,7 +57,6 @@ jobs:
           "e2e/pub_packages",
           "e2e/root_settings",
           "e2e/pub_package_padded",
-          "e2e/link_hook",
           "e2e/external_module",
           "overhead",
           "dev"
@@ -463,50 +462,50 @@ jobs:
           echo "OK: dart_kernel_source misuse refused"
       # A link hook that refuses the program's recorded uses fails the build,
       # and its own message reaches the user.
-      - name: link_hook — expect a hook's refusal to fail the build, with its message
-        working-directory: e2e/link_hook
+      - name: native_hooks — expect a hook's refusal to fail the build, with its message
+        working-directory: e2e/examples
         run: |
-          if bazel build //:dynamic_app_assets 2>/dev/null; then
+          if bazel build //native_hooks:dynamic_app_assets 2>/dev/null; then
             echo "ERROR: build should have failed in glyphs' link hook"
             exit 1
           fi
-          bazel build //:dynamic_app_assets 2>&1 | grep -q "a Glyph is constructed at run time"
+          bazel build //native_hooks:dynamic_app_assets 2>&1 | grep -q "a Glyph is constructed at run time"
           echo "OK: link hook failure reported"
       # A link hook runs against its package as Bazel declared it: a file of
       # the package that no target lists is not there to import, even when the
       # action runs where it is on disk. Running there is `no-sandbox`, which
       # path mapping, on in this workspace, does not allow.
-      - name: link_hook — expect a hook to find only its package's declared files
-        working-directory: e2e/link_hook
+      - name: native_hooks — expect a hook to find only its package's declared files
+        working-directory: e2e/examples
         run: |
-          if bazel build --experimental_output_paths=off //:undeclared_assets 2>/dev/null; then
+          if bazel build --experimental_output_paths=off //native_hooks:undeclared_assets 2>/dev/null; then
             echo "ERROR: build should have failed: the hook imports an undeclared file"
             exit 1
           fi
-          bazel build --experimental_output_paths=off //:undeclared_assets 2>&1 | grep -q "package:undeclared_hook/extra.dart"
+          bazel build --experimental_output_paths=off //native_hooks:undeclared_assets 2>&1 | grep -q "package:undeclared_hook/extra.dart"
           echo "OK: undeclared file not found by the hook"
       # A link hook breaking a rule of what it may emit fails the build, naming
       # what it did and what to change.
-      - name: link_hook — expect each faulty output of a hook to fail the build, with what to change
-        working-directory: e2e/link_hook
+      - name: native_hooks — expect each faulty output of a hook to fail the build, with what to change
+        working-directory: e2e/examples
         run: |
           expect() {
-            if bazel build "//:$1" 2>/dev/null; then
-              echo "ERROR: //:$1 should have failed"
+            if bazel build "//native_hooks:$1" 2>/dev/null; then
+              echo "ERROR: //native_hooks:$1 should have failed"
               exit 1
             fi
-            bazel build "//:$1" 2>&1 | grep -qF "$2"
+            bazel build "//native_hooks:$1" 2>&1 | grep -qF "$2"
           }
           expect faults_foreign "emitted \`package:glyphs/foreign.txt\`, a data asset of another package"
           expect faults_twice "emitted \`package:faults/twice.txt\` more than once"
           expect faults_escape "emitted \`package:faults/../escape.txt\`, whose name is not a relative path"
-          expect faults_unpromised "did not emit \`package:faults/promised.txt\`, which the \`link_hook_assets\` of \`@@//faults:pubspec-metadata\` promise"
+          expect faults_unpromised "did not emit \`package:faults/promised.txt\`, which the \`link_hook_assets\` of \`@@//native_hooks/faults:pubspec-metadata\` promise"
           expect faults_route "routed assets or metadata to the link hooks of glyphs"
           expect faults_case "emitted \`package:faults/Case.txt\` and \`package:faults/case.txt\`, whose names differ only in case"
           expect faults_prefix "emitted \`package:faults/dir\` and \`package:faults/dir/inner.txt\`: a name cannot be both a file and a directory of another"
-          expect trim_bad_assets "//trim_symbols:trim_symbols wrote \"trim_bad name\", which is not a symbol name. It writes one native symbol name per line."
+          expect trim_bad_assets "//native_hooks/trim_symbols:trim_symbols wrote \"trim_bad name\", which is not a symbol name. It writes one native symbol name per line."
           expect pick_built_assets "emitted code asset \`package:pick/built\`, whose file"
-          expect pick_built_assets "is none of the code assets its package declares (\`package:pick/add\`, \`package:pick/mul\`). A link hook selects among those, and builds no native code: native code linked for each program is a \`dart_linked_code_asset\` in the \`linked_code_assets\` of \`@@//pick:pubspec-metadata\`"
+          expect pick_built_assets "is none of the code assets its package declares (\`package:pick/add\`, \`package:pick/mul\`). A link hook selects among those, and builds no native code: native code linked for each program is a \`dart_linked_code_asset\` in the \`linked_code_assets\` of \`@@//native_hooks/pick:pubspec-metadata\`"
           expect pick_renamed_assets "emitted code asset \`package:pick/add\` as \`package:pick/renamed\`. A link hook keeps a code asset under the id its package declares"
           expect pick_relinked_assets "emitted code asset \`package:pick/add\` with link mode \`dynamic_loading_process\`, but its package declares it with \`dynamic_loading_bundle\`"
           echo "OK: faulty link-hook outputs reported"

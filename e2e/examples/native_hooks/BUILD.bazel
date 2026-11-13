@@ -1,4 +1,4 @@
-load("@rules_dart//dart:defs.bzl", "dart_analysis_config", "dart_analysis_options", "dart_binary", "dart_program_assets", "dart_test")
+load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_program_assets", "dart_test")
 load(":in_rule.bzl", "assets_test", "in_rule_assets", "known_asset")
 
 exports_files(["pubspec.lock"])
@@ -12,13 +12,13 @@ dart_binary(
     name = "app",
     main = "app.dart",
     record_use = True,
-    deps = ["//glyphs"],
+    deps = ["//native_hooks/glyphs"],
 )
 
 dart_program_assets(
     name = "app_assets",
     recorded_uses = ":app",
-    deps = ["//glyphs"],
+    deps = ["//native_hooks/glyphs"],
 )
 
 dart_binary(
@@ -26,13 +26,13 @@ dart_binary(
     compile_mode = "aot-snapshot",
     main = "app.dart",
     record_use = True,
-    deps = ["//glyphs"],
+    deps = ["//native_hooks/glyphs"],
 )
 
 dart_program_assets(
     name = "app_aot_assets",
     recorded_uses = ":app_aot",
-    deps = ["//glyphs"],
+    deps = ["//native_hooks/glyphs"],
 )
 
 # A kernel is not tree-shaken, so nothing is recorded: the hook sees no uses.
@@ -41,20 +41,20 @@ dart_binary(
     compile_mode = "kernel",
     main = "app.dart",
     record_use = True,
-    deps = ["//glyphs"],
+    deps = ["//native_hooks/glyphs"],
 )
 
 dart_program_assets(
     name = "app_kernel_assets",
     recorded_uses = ":app_kernel",
-    deps = ["//glyphs"],
+    deps = ["//native_hooks/glyphs"],
 )
 
 # Recorded uses from anywhere, as a plain JSON file.
 dart_program_assets(
     name = "file_assets",
     recorded_uses = "recorded_uses.json",
-    deps = ["//glyphs"],
+    deps = ["//native_hooks/glyphs"],
 )
 
 # A hook whose package has a part written by a generator: the package is split
@@ -63,7 +63,7 @@ dart_program_assets(
 dart_program_assets(
     name = "generated_assets",
     recorded_uses = "recorded_uses.json",
-    deps = ["//generated"],
+    deps = ["//native_hooks/generated"],
 )
 
 # A hook of a package in an external repository, whose imports come from the
@@ -82,7 +82,7 @@ dart_program_assets(
 in_rule_assets(
     name = "in_rule_assets",
     recorded_uses = ":app",
-    deps = ["//glyphs"],
+    deps = ["//native_hooks/glyphs"],
 )
 
 # The index each hook promises, named at analysis time.
@@ -162,8 +162,8 @@ dart_binary(
     main = "sounds_app.dart",
     record_use = True,
     deps = [
-        "//banner",
-        "//sounds",
+        "//native_hooks/banner",
+        "//native_hooks/sounds",
     ],
 )
 
@@ -171,8 +171,8 @@ dart_program_assets(
     name = "sounds_app_assets",
     recorded_uses = ":sounds_app",
     deps = [
-        "//banner",
-        "//sounds",
+        "//native_hooks/banner",
+        "//native_hooks/sounds",
     ],
 )
 
@@ -180,8 +180,8 @@ dart_program_assets(
 dart_program_assets(
     name = "sounds_app_unlinked_assets",
     deps = [
-        "//banner",
-        "//sounds",
+        "//native_hooks/banner",
+        "//native_hooks/sounds",
     ],
 )
 
@@ -251,13 +251,13 @@ dart_binary(
     name = "bell_app",
     main = "bell_app.dart",
     record_use = True,
-    deps = ["//sounds"],
+    deps = ["//native_hooks/sounds"],
 )
 
 dart_program_assets(
     name = "bell_app_assets",
     recorded_uses = ":bell_app",
-    deps = ["//sounds"],
+    deps = ["//native_hooks/sounds"],
 )
 
 assets_test(
@@ -283,13 +283,13 @@ assets_test(
 # not linked, a program ships both.
 dart_program_assets(
     name = "pick_add_assets",
-    recorded_uses = "//pick:uses/add.json",
-    deps = ["//pick"],
+    recorded_uses = "//native_hooks/pick:uses/add.json",
+    deps = ["//native_hooks/pick"],
 )
 
 dart_program_assets(
     name = "pick_unlinked_assets",
-    deps = ["//pick"],
+    deps = ["//native_hooks/pick"],
 )
 
 assets_test(
@@ -331,20 +331,20 @@ assets_test(
 # unlinked one.
 dart_program_assets(
     name = "trim_add_assets",
-    recorded_uses = "//trim:uses/add.json",
-    deps = ["//trim"],
+    recorded_uses = "//native_hooks/trim:uses/add.json",
+    deps = ["//native_hooks/trim"],
 )
 
 dart_program_assets(
     name = "trim_unlinked_assets",
-    deps = ["//trim"],
+    deps = ["//native_hooks/trim"],
 )
 
 # A program using none of the operations ships a library exporting none.
 dart_program_assets(
     name = "trim_none_assets",
     recorded_uses = "recorded_uses.json",
-    deps = ["//trim"],
+    deps = ["//native_hooks/trim"],
 )
 
 [
@@ -421,13 +421,13 @@ dart_test(
     name = "trim_native_test",
     size = "small",
     main = "trim_native_test.dart",
-    deps = ["//trim"],
+    deps = ["//native_hooks/trim"],
 )
 
 dart_binary(
     name = "trim_app",
     main = "trim_app.dart",
-    deps = ["//trim"],
+    deps = ["//native_hooks/trim"],
 )
 
 dart_test(
@@ -446,28 +446,28 @@ dart_test(
 # and no library of it is in `deps`: linked, its hook keeps the tune; not
 # linked, the program ships both of its sounds.
 _JINGLE_DEPS = [
-    "//sounds",
+    "//native_hooks/sounds",
     "@pub_deps//:data_assets",
     "@pub_deps//:hooks",
 ]
 
 dart_program_assets(
     name = "jingle_assets",
-    package = "//jingle:pubspec-metadata",
-    recorded_uses = "//jingle:app",
+    package = "//native_hooks/jingle:pubspec-metadata",
+    recorded_uses = "//native_hooks/jingle:app",
     deps = _JINGLE_DEPS,
 )
 
 in_rule_assets(
     name = "jingle_in_rule_assets",
-    package = "//jingle:pubspec-metadata",
-    recorded_uses = "//jingle:app",
+    package = "//native_hooks/jingle:pubspec-metadata",
+    recorded_uses = "//native_hooks/jingle:app",
     deps = _JINGLE_DEPS,
 )
 
 dart_program_assets(
     name = "jingle_unlinked_assets",
-    package = "//jingle:pubspec-metadata",
+    package = "//native_hooks/jingle:pubspec-metadata",
     deps = _JINGLE_DEPS,
 )
 
@@ -505,14 +505,14 @@ dart_binary(
     main = "dynamic_app.dart",
     record_use = True,
     tags = ["manual"],
-    deps = ["//glyphs"],
+    deps = ["//native_hooks/glyphs"],
 )
 
 dart_program_assets(
     name = "dynamic_app_assets",
     recorded_uses = ":dynamic_app",
     tags = ["manual"],
-    deps = ["//glyphs"],
+    deps = ["//native_hooks/glyphs"],
 )
 
 # Expected to fail: `faults`' hook does what the recorded uses of each JSON
@@ -522,9 +522,9 @@ dart_program_assets(
 [
     dart_program_assets(
         name = "faults_" + fault,
-        recorded_uses = "//faults:uses/%s.json" % fault,
+        recorded_uses = "//native_hooks/faults:uses/%s.json" % fault,
         tags = ["manual"],
-        deps = ["//faults"],
+        deps = ["//native_hooks/faults"],
     )
     for fault in [
         "foreign",
@@ -541,9 +541,9 @@ dart_program_assets(
 # Tagged manual; CI's expected-failure job builds it.
 dart_program_assets(
     name = "trim_bad_assets",
-    recorded_uses = "//trim:uses/bad.json",
+    recorded_uses = "//native_hooks/trim:uses/bad.json",
     tags = ["manual"],
-    deps = ["//trim"],
+    deps = ["//native_hooks/trim"],
 )
 
 # Expected to fail: `pick`'s hook emits a library it built rather than one its
@@ -552,9 +552,9 @@ dart_program_assets(
 [
     dart_program_assets(
         name = "pick_%s_assets" % fault,
-        recorded_uses = "//pick:uses/%s.json" % fault,
+        recorded_uses = "//native_hooks/pick:uses/%s.json" % fault,
         tags = ["manual"],
-        deps = ["//pick"],
+        deps = ["//native_hooks/pick"],
     )
     for fault in [
         "built",
@@ -574,18 +574,7 @@ dart_program_assets(
         "manual",
         "no-sandbox",
     ],
-    deps = ["//undeclared"],
-)
-
-dart_analysis_options(
-    name = "options",
-    src = "analysis_options.yaml",
-    deps = ["@very_good_analysis"],
-)
-
-dart_analysis_config(
-    name = "analysis_config",
-    options = [":options"],
+    deps = ["//native_hooks/undeclared"],
 )
 
 # What a consumer of what a program ships does: opens every file it ships,

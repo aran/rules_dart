@@ -116,6 +116,20 @@ register_toolchains(
     dev_dependency = True,
 )
 
+# native_hooks: its packages' pub dependencies, and a package with a link hook
+# that comes from another module, as a pub package's does. Its code assets are
+# built by the C toolchain the builders section sets up.
+pub.from_lock(
+    name = "pub_deps",
+    lock = "//native_hooks:pubspec.lock",
+)
+
+bazel_dep(name = "ext_hook", version = "0.0.0")
+local_path_override(
+    module_name = "ext_hook",
+    path = "fixtures/modules/ext_hook",
+)
+
 # codegen: copy_to_directory for a package assembled by hand
 # (codegen/source_set_pkg), and the fixture packages' pub dependencies.
 bazel_dep(name = "bazel_lib", version = "3.7.2")
