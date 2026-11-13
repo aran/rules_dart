@@ -413,7 +413,7 @@ jobs:
       # or a `pub.package()` without a digest, a git entry without a commit, or
       # two locks disagreeing on a package fails, and one failure names each.
       - name: pub_lock_refused — expect every unpinned package and every disagreement between locks to be refused in one failure
-        working-directory: e2e/pub_lock_refused
+        working-directory: e2e/failures/pub_lock_refused
         run: |
           if out=$(bazel build @one//:meta 2>&1); then
             echo "ERROR: build should have refused path's and meta's missing sha256, foo's abbreviated resolved-ref, and the locks' disagreements on tuple, bar and baz"
