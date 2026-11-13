@@ -2660,7 +2660,7 @@ because the package would then depend on itself.
 You don't have to name them. When a pub package resolves to one of these
 versions, from a lock or a `pub.package()`, rules_dart attaches its replacement.
 A program using `package:sqlite3` needs nothing more than the dependency. Naming
-one yourself, as the [`sqlite3_binary`](e2e/ext_exemplar/sqlite3_binary/)
+one yourself, as the [`sqlite3_binary`](e2e/examples/native_assets/sqlite3_binary/)
 exemplar does, builds the same library for that target:
 
 ```starlark
@@ -3383,7 +3383,7 @@ The [`e2e/`](e2e/) directory contains complete working examples. A name with a
 | [`root_settings/pub_versions/override_root_lock`](e2e/root_settings/pub_versions/override_root_lock/)             | A higher root lock serves a dependency module's `pub.package()` repository and the lock's own dependents, silently |
 | [`root_settings/pub_versions/highest_wins`](e2e/root_settings/pub_versions/highest_wins/)                         | The highest request builds, over root and dependency `pub.package()`s, warning for the root's            |
 | [`examples/codegen`](e2e/examples/codegen/)                                           | `dart_codegen`/`dart_aggregate_codegen` over parts, re-exports and a `srcs_dir`                          |
-| [`ext_exemplar`](e2e/ext_exemplar/)                                 | One package per bundled `dart/ext` builder, plus native `code_assets`, sqlite3/webcrypto                 |
+| [`examples/builders`](e2e/examples/builders/)                                 | One package per bundled `dart/ext` builder, plus native `code_assets`, sqlite3/webcrypto                 |
 | [`link_hook`](e2e/link_hook/)                                       | `record_use`, `hook/link.dart` emitting data assets via `dart_program_assets`, declared data assets      |
 
 > **Note**: Only the `exe` and `aot-snapshot` compile modes cross-compile with

@@ -177,7 +177,7 @@ Future<void> _run(
       await setUpPub(sources, pub.workspace, pub);
     }
     if (options.chosen.any((s) => s.usesCodegen)) {
-      stderr.writeln('bench: setting up e2e/ext_exemplar');
+      stderr.writeln('bench: setting up e2e/examples');
       await setUpCodegen(sources, codegen.workspace);
     }
     for (final scenario in options.chosen) {

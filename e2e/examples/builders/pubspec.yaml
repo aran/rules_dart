@@ -11,4 +11,3 @@ dependencies:
   mockito: ^5.6.0
   stacked_shared: ^1.4.0
   test: ^1.25.0
-  webcrypto: ^0.6.1

@@ -18,7 +18,7 @@ void main() {
 
   setUpAll(() {
     final r = Runfiles.create();
-    generated = File(r.rlocation('_main/stacked/lib/app.logger.dart'))
+    generated = File(r.rlocation('_main/builders/stacked/lib/app.logger.dart'))
         .readAsStringSync();
   });
 

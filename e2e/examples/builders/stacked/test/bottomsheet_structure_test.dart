@@ -12,8 +12,9 @@ void main() {
 
   setUpAll(() {
     final r = Runfiles.create();
-    generated = File(r.rlocation('_main/stacked/lib/app.bottomsheets.dart'))
-        .readAsStringSync();
+    generated = File(
+      r.rlocation('_main/builders/stacked/lib/app.bottomsheets.dart'),
+    ).readAsStringSync();
   });
 
   test('emits the StackedBottomsheetGenerator header + stacked imports', () {

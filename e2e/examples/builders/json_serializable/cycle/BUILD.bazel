@@ -6,12 +6,12 @@ load("@rules_dart//dart:defs.bzl", "dart_package_cycle", "dart_test")
 dart_package_cycle(
     name = "shop",
     srcs = [
-        "//json_serializable/cycle/customer:codegen",
-        "//json_serializable/cycle/order:codegen",
+        "//builders/json_serializable/cycle/customer:codegen",
+        "//builders/json_serializable/cycle/order:codegen",
     ],
     members = [
-        "//json_serializable/cycle/customer:member",
-        "//json_serializable/cycle/order:member",
+        "//builders/json_serializable/cycle/customer:member",
+        "//builders/json_serializable/cycle/order:member",
     ],
     visibility = ["//visibility:public"],
     deps = ["@pub_deps//:json_annotation"],

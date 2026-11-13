@@ -7,7 +7,7 @@ def greeting_codegen(
         srcs,
         deps = [],
         asset_deps = [],
-        annotation_dep = Label("//external_builder/annotation:greeting"),
+        annotation_dep = Label("//builders/external_builder/annotation:greeting"),
         config = "",
         **kwargs):
     """The greeting builder's `<src>.g.dart` for each of `srcs`, for their library's `srcs`.
@@ -25,7 +25,7 @@ def greeting_codegen(
     shared_part_codegen(
         name = name,
         srcs = srcs,
-        shim = Label("//external_builder/builder:shim"),
+        shim = Label("//builders/external_builder/builder:shim"),
         part_suffix = ".greeting.g.part",
         annotation_dep = annotation_dep,
         deps = deps,

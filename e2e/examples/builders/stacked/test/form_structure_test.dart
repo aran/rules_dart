@@ -23,7 +23,7 @@ void main() {
 
   setUpAll(() {
     final r = Runfiles.create();
-    final path = r.rlocation('_main/stacked/lib/login_view.form.dart');
+    final path = r.rlocation('_main/builders/stacked/lib/login_view.form.dart');
     generatedSource = File(path).readAsStringSync();
   });
 

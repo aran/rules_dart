@@ -304,7 +304,7 @@ func TestParseDartCodegenTriggers(t *testing.T) {
 		want  []string
 	}{
 		{
-			// Mirrors e2e/ext_exemplar/built_value/lib/user.dart: idiomatic
+			// Mirrors e2e/examples/builders/built_value/lib/user.dart: idiomatic
 			// built_value carries NO annotation — the trigger is the
 			// `implements Built<T, TBuilder>` clause.
 			name: "BuiltInterfaceImplements",

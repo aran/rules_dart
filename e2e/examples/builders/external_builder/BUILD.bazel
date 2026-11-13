@@ -3,7 +3,7 @@
 # source as rules_dart's own builders are.
 
 load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata", "dart_test")
-load("//external_builder/builder:defs.bzl", "greeting_codegen")
+load("//builders/external_builder/builder:defs.bzl", "greeting_codegen")
 
 dart_package_metadata(
     name = "pubspec-metadata",
@@ -23,7 +23,7 @@ dart_library(
         ":person_greeting",
     ],
     package = ":pubspec-metadata",
-    deps = ["//external_builder/annotation:greeting"],
+    deps = ["//builders/external_builder/annotation:greeting"],
 )
 
 dart_test(

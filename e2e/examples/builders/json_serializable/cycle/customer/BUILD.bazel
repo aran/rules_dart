@@ -6,16 +6,16 @@ load("@rules_dart//dart/ext/json_serializable:defs.bzl", "json_serializable_code
 dart_package_member(
     name = "member",
     srcs = glob(["lib/**/*.dart"]),
-    visibility = ["//json_serializable/cycle:__subpackages__"],
+    visibility = ["//builders/json_serializable/cycle:__subpackages__"],
 )
 
 # The generator reads every member of the cycle and the cycle's deps.
 json_serializable_codegen(
     name = "codegen",
     srcs = ["lib/customer.dart"],
-    visibility = ["//json_serializable/cycle:__pkg__"],
+    visibility = ["//builders/json_serializable/cycle:__pkg__"],
     deps = [
-        "//json_serializable/cycle/customer:member",
-        "//json_serializable/cycle/order:member",
+        "//builders/json_serializable/cycle/customer:member",
+        "//builders/json_serializable/cycle/order:member",
     ],
 )

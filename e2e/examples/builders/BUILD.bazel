@@ -6,24 +6,20 @@
 # macros; Gazelle's output for annotated sources is pinned by the plugin's
 # golden tests in dev/testdata.
 #
-# Run:      bazel test //...
+# Run:      bazel test //builders/...
 
-load("@rules_dart//dart:defs.bzl", "dart_analysis_config", "dart_analysis_options")
+load("@rules_dart//dart:defs.bzl", "dart_analysis_options")
 
 exports_files(["pubspec.lock"])
 
-# One ruleset shared by every subpackage, which the analyze aspect applies under
-# `//:analysis_config`. The ruleset is named here rather than in any `dart_library`'s `deps`: it is a lint-time
-# input, and listing it as a dependency would carry it into the `DartInfo` of
-# every binary and test downstream.
+# One ruleset shared by every subpackage, which the workspace's
+# `analysis_config` lists. The ruleset is named here rather than in any
+# `dart_library`'s `deps`: it is a lint-time input, and listing it as a
+# dependency would carry it into the `DartInfo` of every binary and test
+# downstream.
 dart_analysis_options(
     name = "options",
     src = "analysis_options.yaml",
     visibility = ["//visibility:public"],
     deps = ["@very_good_analysis"],
-)
-
-dart_analysis_config(
-    name = "analysis_config",
-    options = [":options"],
 )

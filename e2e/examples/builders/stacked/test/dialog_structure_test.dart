@@ -14,7 +14,7 @@ void main() {
 
   setUpAll(() {
     final r = Runfiles.create();
-    generated = File(r.rlocation('_main/stacked/lib/app.dialogs.dart'))
+    generated = File(r.rlocation('_main/builders/stacked/lib/app.dialogs.dart'))
         .readAsStringSync();
   });
 

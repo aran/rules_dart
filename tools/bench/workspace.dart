@@ -1,5 +1,6 @@
 /// Sets up the bench's two workspaces in its scratch directory: dart-lang/pub
-/// with BUILD files Gazelle writes, and a copy of `e2e/ext_exemplar`.
+/// with BUILD files Gazelle writes, and a copy of `e2e/examples`, whose
+/// `builders` it measures.
 library;
 
 import 'dart:io';
@@ -54,9 +55,9 @@ void _allowDeprecatedUses(String path) {
   );
 }
 
-/// Copies `e2e/ext_exemplar` to [dir], pointed at the rules_dart checkout.
+/// Copies `e2e/examples` to [dir], pointed at the rules_dart checkout.
 Future<void> setUpCodegen(Sources sources, String dir) async {
-  final from = '${sources.rulesDart}/e2e/ext_exemplar';
+  final from = '${sources.rulesDart}/e2e/examples';
   _copyTree(
     from,
     dir,

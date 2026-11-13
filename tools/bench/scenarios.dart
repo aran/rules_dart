@@ -40,14 +40,15 @@ class Bench {
 
   List<String>? _codegenTargets;
 
-  /// The libraries, tests and binaries of `e2e/ext_exemplar` that consume
-  /// generated code, and so build every codegen action behind them; less those
-  /// that build C (SQLite), which is not rules_dart's work.
+  /// The libraries, tests and binaries of `e2e/examples`' builders that
+  /// consume generated code, and so build every codegen action behind them;
+  /// less those that build C (SQLite), which is not rules_dart's work.
   Future<List<String>> codegenTargets() async =>
       _codegenTargets ??= (await codegen.run('query', [
         'kind("dart_(library|test|binary) rule", '
-            'rdeps(//..., kind("codegen rule", //...))) '
-            'except rdeps(//..., kind("cc_.* rule", deps(//...)))',
+            'rdeps(//builders/..., kind("codegen rule", //builders/...))) '
+            'except rdeps(//builders/..., '
+            'kind("cc_.* rule", deps(//builders/...)))',
       ])).split('\n').where((l) => l.trim().isNotEmpty).toList();
 
   Future<Run> _measure(
@@ -211,7 +212,7 @@ final scenarios = [
   ),
   Scenario(
     'codegen_cold_build',
-    'build e2e/ext_exemplar\'s targets that consume generated code, cold',
+    'build e2e/examples\' builders that consume generated code, cold',
     (b) async =>
         b.cold(b.codegen, 'codegen_cold_build', await b.codegenTargets()),
   ),
@@ -220,7 +221,7 @@ final scenarios = [
     'rebuild after adding a @JsonSerializable class to an annotated library',
     (b) async {
       final user = EditedFile(
-        '${b.codegenDir}/json_serializable/lib/user.dart',
+        '${b.codegenDir}/builders/json_serializable/lib/user.dart',
       );
       return b.edited(
         b.codegen,

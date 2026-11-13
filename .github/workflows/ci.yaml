@@ -57,7 +57,6 @@ jobs:
           "e2e/pub_packages",
           "e2e/root_settings",
           "e2e/pub_package_padded",
-          "e2e/ext_exemplar",
           "e2e/link_hook",
           "e2e/external_module",
           "overhead",

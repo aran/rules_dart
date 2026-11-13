@@ -11,7 +11,7 @@ void main() {
   test('sqlite3 dart_binary runs with the Bazel-bundled libsqlite3', () {
     final r = Runfiles.create();
     final exeName = Platform.isWindows ? 'app.exe' : 'app';
-    final exe = r.rlocation('_main/sqlite3_binary/$exeName');
+    final exe = r.rlocation('_main/native_assets/sqlite3_binary/$exeName');
     final result = Process.runSync(exe, []);
     expect(
       result.exitCode,
@@ -24,7 +24,7 @@ void main() {
   test('a `defines` entry survives the code-asset compile pipeline', () {
     final r = Runfiles.create();
     final exeName = Platform.isWindows ? 'app.exe' : 'app';
-    final exe = r.rlocation('_main/sqlite3_binary/$exeName');
+    final exe = r.rlocation('_main/native_assets/sqlite3_binary/$exeName');
     final result = Process.runSync(exe, []);
     // `defines` must reach the front end: `dart compile` on a kernel accepts
     // `-D` and ignores it, which would print `channel: UNSET` with no
@@ -35,7 +35,9 @@ void main() {
   test('the binary runs when copied out with its `.native` directory', () {
     final r = Runfiles.create();
     final exeName = Platform.isWindows ? 'app.exe' : 'app';
-    final exe = File(r.rlocation('_main/sqlite3_binary/$exeName'));
+    final exe = File(
+      r.rlocation('_main/native_assets/sqlite3_binary/$exeName'),
+    );
     // What an install copies: the executable and the directory of libraries
     // beside it, links resolved. libsqlite3 comes from another repository,
     // so a path that held only in bazel-out or runfiles would fail here.

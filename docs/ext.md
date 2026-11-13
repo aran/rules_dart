@@ -352,7 +352,7 @@ from `@rules_dart//dart/ext:defs.bzl`:
   `library_builder_codegen` (a builder writing its own files) with that
   shim, its output extension and its runtime library.
 
-`e2e/ext_exemplar/external_builder/` is such a builder, its shim resolved
+`e2e/examples/builders/external_builder/` is such a builder, its shim resolved
 from a lock of its own.
 
 ## Gazelle synthesis
@@ -515,7 +515,7 @@ build. Each has a dedicated test.
 - **Runfiles layout favours the declared output.** Even when a checked-in
   `lib/user.g.dart` lives next to its source, the `dart_test`'s
   runfiles tree gets the `bazel-out/` version, not the source-tree
-  copy. Pinned by `e2e/ext_exemplar/source_tree_generated/`: its checked-in
+  copy. Pinned by `e2e/examples/builders/source_tree_generated/`: its checked-in
   `lib/user.g.dart` returns intentionally-wrong values (`STALE_NAME`,
   `-999`), so the JSON round-trip assertions in `user_test.dart` would
   fail if that file ever leaked into runfiles.
@@ -555,26 +555,26 @@ Out of scope (off-spec in `build_runner` too, or intentionally not modelled):
 ## End-to-end examples
 
 Each supported builder has a dedicated e2e exemplar under
-`e2e/ext_exemplar/` covering its full feature surface. Read the
+`e2e/examples/builders/` covering its full feature surface. Read the
 `BUILD.bazel` + `lib/` + `test/` triple to see a working realistic
 configuration.
 
 | Builder                                          | Exemplar                              | What it covers                                                                                                                                                         |
 | ------------------------------------------------ | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `json_serializable` / `json_annotation`          | `e2e/ext_exemplar/json_serializable/` | Basic + primitives form, `FieldRename.snake`, `@JsonKey(name:/toJson:/fromJson:)`, `@JsonEnum`, `@JsonConverter`, `genericArgumentFactories`, cross-file Resolver      |
-| `freezed` / `freezed_annotation`                 | `e2e/ext_exemplar/freezed/`           | Value class, sealed unions (`when`/`map`/`maybeWhen`), `copyWith`, `@Default`, equality                                                                                |
-| `built_value` / `built_value_generator`          | `e2e/ext_exemplar/built_value/`       | `Built<T,TBuilder>` + `rebuild`, `Serializer<T>`, `@SerializersFor`, `BuiltList`, nullable fields, `StandardJsonPlugin`                                                |
-| `mockito`                                        | `e2e/ext_exemplar/mockito/`           | `@GenerateMocks` (cross-file), `@GenerateNiceMocks`, `MockSpec(as:)`, `OnMissingStub.returnDefault`                                                                    |
-| `copy_with_extension_gen`                        | `e2e/ext_exemplar/copy_with/`         | `@CopyWith()`, per-field shortcuts, `copyWithNull`, `@CopyWithField(immutable:)`                                                                                       |
-| `drift` / `drift_dev`                            | `e2e/ext_exemplar/drift/`             | `@DriftDatabase(include: {'…drift'})`, Dart-only tables with FK, `@DriftAccessor` DAO, `TypeConverter`, multi-table joins via both Dart DSL and `.drift` named queries |
-| `stacked` / `stacked_generator` (6 sub-builders) | `e2e/ext_exemplar/stacked/`           | `@StackedApp` → locator (behavioral) + router/dialog/bottomsheet/logger (structural); `@FormView` → form (structural)                                                  |
+| `json_serializable` / `json_annotation`          | `e2e/examples/builders/json_serializable/` | Basic + primitives form, `FieldRename.snake`, `@JsonKey(name:/toJson:/fromJson:)`, `@JsonEnum`, `@JsonConverter`, `genericArgumentFactories`, cross-file Resolver      |
+| `freezed` / `freezed_annotation`                 | `e2e/examples/builders/freezed/`           | Value class, sealed unions (`when`/`map`/`maybeWhen`), `copyWith`, `@Default`, equality                                                                                |
+| `built_value` / `built_value_generator`          | `e2e/examples/builders/built_value/`       | `Built<T,TBuilder>` + `rebuild`, `Serializer<T>`, `@SerializersFor`, `BuiltList`, nullable fields, `StandardJsonPlugin`                                                |
+| `mockito`                                        | `e2e/examples/builders/mockito/`           | `@GenerateMocks` (cross-file), `@GenerateNiceMocks`, `MockSpec(as:)`, `OnMissingStub.returnDefault`                                                                    |
+| `copy_with_extension_gen`                        | `e2e/examples/builders/copy_with/`         | `@CopyWith()`, per-field shortcuts, `copyWithNull`, `@CopyWithField(immutable:)`                                                                                       |
+| `drift` / `drift_dev`                            | `e2e/examples/builders/drift/`             | `@DriftDatabase(include: {'…drift'})`, Dart-only tables with FK, `@DriftAccessor` DAO, `TypeConverter`, multi-table joins via both Dart DSL and `.drift` named queries |
+| `stacked` / `stacked_generator` (6 sub-builders) | `e2e/examples/builders/stacked/`           | `@StackedApp` → locator (behavioral) + router/dialog/bottomsheet/logger (structural); `@FormView` → form (structural)                                                  |
 
 Cross-cutting scenarios that aren't tied to a single builder:
 
 | Exemplar                                  | What it demonstrates                                                                                          |
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `e2e/ext_exemplar/cascade_two_stage/`     | Multi-annotation chain on one file (freezed → json cascade); DAG topological ordering + combining integration |
-| `e2e/ext_exemplar/multi_shard_combining/` | Multiple SharedPart builders on one source (json + copy_with) merged into one `.g.dart`                       |
-| `e2e/ext_exemplar/source_tree_generated/` | A `.g.dart` checked into the source tree doesn't leak into Bazel runfiles                                    |
-| `e2e/ext_exemplar/unique_extension/`      | A non-SharedPart builder (freezed's `.freezed.dart`) through a bare `dart_codegen`, with no combining step     |
-| `e2e/ext_exemplar/external_builder/`      | A builder from outside rules_dart: its shim built against its own pub resolution, its macro over `shared_part_codegen` |
+| `e2e/examples/builders/cascade_two_stage/`     | Multi-annotation chain on one file (freezed → json cascade); DAG topological ordering + combining integration |
+| `e2e/examples/builders/multi_shard_combining/` | Multiple SharedPart builders on one source (json + copy_with) merged into one `.g.dart`                       |
+| `e2e/examples/builders/source_tree_generated/` | A `.g.dart` checked into the source tree doesn't leak into Bazel runfiles                                    |
+| `e2e/examples/builders/unique_extension/`      | A non-SharedPart builder (freezed's `.freezed.dart`) through a bare `dart_codegen`, with no combining step     |
+| `e2e/examples/builders/external_builder/`      | A builder from outside rules_dart: its shim built against its own pub resolution, its macro over `shared_part_codegen` |

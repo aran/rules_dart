@@ -16,6 +16,7 @@ dart_analysis_config(
         "//analysis/pkg_wide:options",
         "//analysis/wide:options",
         "//analysis:options",
+        "//builders:options",
         "//codegen:options",
         "//fix:options",
         "//fixtures/analysis_failure/fmt_unresolved:options",

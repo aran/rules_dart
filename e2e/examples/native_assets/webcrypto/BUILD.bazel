@@ -1,0 +1,16 @@
+load("@rules_dart//dart:defs.bzl", "dart_test")
+
+# Exemplar of a curated code asset attached to a `pub.package()` declaration
+# alone (MODULE.bazel): no `code_assets` here. `package:webcrypto`'s hook
+# builds BoringSSL with CMake; rules_dart's registry swaps in
+# `//dart/ext/webcrypto`, a Bazel build of the same sources, and every call
+# below runs through that native library.
+dart_test(
+    name = "webcrypto_test",
+    size = "small",
+    main = "test/webcrypto_test.dart",
+    deps = [
+        "@pub_deps//:test",
+        "@webcrypto",
+    ],
+)

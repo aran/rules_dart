@@ -10,5 +10,5 @@ dart_library(
     name = "greeting",
     srcs = ["lib/greeting.dart"],
     package = ":pubspec-metadata",
-    visibility = ["//external_builder:__subpackages__"],
+    visibility = ["//builders/external_builder:__subpackages__"],
 )

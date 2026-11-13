@@ -124,7 +124,7 @@ passes under `--config=deep`; at least one e2e workspace builds.
   `webcrypto` bound in `dart/ext/registry.bzl` to that exact version
 - E2e workspaces that declare the same deps:
   `git grep -n 'bazel_dep(' -- 'e2e/*MODULE.bazel'`
-- `e2e/ext_exemplar/sqlite3_binary/test/direct_test.dart` — asserts the exact
+- `e2e/examples/native_assets/sqlite3_binary/test/direct_test.dart` — asserts the exact
   `sqlite3.version.libVersion` string, so a `sqlite3` bump fails this test until
   the literal is updated to match
 
@@ -498,7 +498,7 @@ base, from the checkout `bazel run` is started in:
 
 - dart-lang/pub at a fixed commit, with BUILD files the Gazelle plugin
   writes when the bench sets it up;
-- a copy of `e2e/ext_exemplar`, for codegen.
+- a copy of `e2e/examples`, for codegen (its `builders`).
 
 | Scenario             | What it measures                                                                     |
 | -------------------- | ------------------------------------------------------------------------------------ |
@@ -508,7 +508,7 @@ base, from the checkout `bazel run` is started in:
 | `pub_test`           | `bazel test` of the pub tests in `tools/bench/pub_tests.txt`, warm, uncached results |
 | `pub_analysis_cold`  | the `dart_analyze` aspect over pub after `clean` and `shutdown` (no workers)         |
 | `pub_analysis_warm`  | the aspect after a body-only edit, workers warm                                      |
-| `codegen_cold_build` | ext_exemplar's targets that consume generated code, cold (none that build C)         |
+| `codegen_cold_build` | `e2e/examples` builders that consume generated code, cold (no C)                    |
 | `codegen_edit`       | rebuild after adding a `@JsonSerializable` class                                     |
 
 A cold build keeps the fetched repositories and turns the disk cache off;

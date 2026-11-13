@@ -47,6 +47,75 @@ local_path_override(
     path = "fixtures/modules/lint_rules",
 )
 
+# builders, native_assets: SQLite, built from its C amalgamation (the BCR
+# sqlite3 module) and wrapped in a cc_shared_library, for the drift exemplar's
+# database test and native_assets/sqlite3_binary: the Bazel sandbox has no
+# system libsqlite3 on Linux or Windows. rules_cc is needed for the
+# cc_shared_library load.
+bazel_dep(name = "sqlite3", version = "3.53.4")
+bazel_dep(name = "rules_cc", version = "0.2.28")
+
+# On macOS, rules_cc leaves C++ to apple_support's toolchain. 2.9.0 builds that
+# toolchain's helper tools for macOS 11, the oldest Xcode 27's libc++ accepts
+# without a warning.
+bazel_dep(name = "apple_support", version = "2.10.1")
+
+# builders: the exemplars' pub dependencies, and the external-builder
+# fixture's own resolution of build, source_gen and analyzer, apart from
+# `pub_deps`, as a builder from another rule set has.
+pub.from_lock(
+    name = "pub_deps",
+    lock = "//builders:pubspec.lock",
+)
+pub.from_lock(
+    name = "builder_pub_deps",
+    lock = "//builders/external_builder/builder:pubspec.lock",
+)
+use_repo(pub, "builder_pub_deps")
+
+# native_assets/webcrypto: `webcrypto`, declared on its own at the version
+# rules_dart curates a code asset for, and the packages its pubspec names that
+# no lock here lists.
+pub.package(
+    name = "webcrypto",
+    sha256 = "9885ed99a846191542dd6ca820c83a098117df56be57453832233a3fef68f3f2",
+    version = "0.6.1",
+)
+pub.package(
+    name = "native_toolchain_cmake",
+    sha256 = "8ba223410102665483e873b83d2156720233a6a0181c07f9dc41cb2e961336b0",
+    version = "0.3.2",
+)
+pub.package(
+    name = "change_case",
+    sha256 = "e41ef3df58521194ef8d7649928954805aeb08061917cf658322305e61568003",
+    version = "2.2.0",
+)
+use_repo(pub, "webcrypto")
+
+# A C++ toolchain for Linux arm64 execution platforms, so a C++ library built
+# for the host that runs a test (or for a code generator) compiles on a Linux
+# arm64 worker. hermetic-llvm's toolchain is one static binary with its own C
+# library, so the worker needs no headers or shared libraries. Only the
+# Linux-exec, Linux-target toolchain is registered: Mac builds keep the host's.
+bazel_dep(name = "llvm", version = "0.8.26", dev_dependency = True)
+
+llvm_tc = use_extension("@llvm//extensions:toolchain.bzl", "toolchain", dev_dependency = True)
+llvm_tc.exec(
+    arch = "aarch64",
+    os = "linux",
+)
+llvm_tc.target(
+    arch = "aarch64",
+    os = "linux",
+)
+use_repo(llvm_tc, "llvm_toolchains")
+
+register_toolchains(
+    "@llvm_toolchains//:all",
+    dev_dependency = True,
+)
+
 # codegen: copy_to_directory for a package assembled by hand
 # (codegen/source_set_pkg), and the fixture packages' pub dependencies.
 bazel_dep(name = "bazel_lib", version = "3.7.2")
@@ -104,7 +173,7 @@ pub.package(
     sha256 = "307249ce4ff29d58a18e97f6345f539382eb9c9c29ecda628900f31de0443dd9",
     version = "1.19.0",
 )
-use_repo(pub, "json_annotation", "meta")
+use_repo(pub, "change_case", "json_annotation", "meta", "native_toolchain_cmake")
 
 # fixtures/kernel_source_refused: each repository is declared wrongly in its
 # own way, and fails only when it is fetched. `/usr` is a directory that is
