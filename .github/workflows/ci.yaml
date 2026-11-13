@@ -43,7 +43,7 @@ jobs:
       # default shell (PowerShell on Windows), where this is invalid. Inner
       # single quotes keep the outer shell from expanding it; `case $PWD`
       # needs no quotes, which PowerShell would mangle.
-      bazel_test_command: "bash -c 'bazel test --test_output=errors //...; s=$?; [ $s -eq 4 ] && case $PWD in */e2e/analysis|*/e2e/analyze_composition/dep_module|*/e2e/pub_deps|*/e2e/pub_lock|*/e2e/pub_lock_upgrade|*/e2e/pub_hub_surface|*/e2e/root_settings|*/e2e/pub_root_newer|*/e2e/pub_package_padded) exit 0;; esac; exit $s'"
+      bazel_test_command: "bash -c 'bazel test --test_output=errors //...; s=$?; [ $s -eq 4 ] && case $PWD in */e2e/analysis|*/e2e/analyze_composition/dep_module|*/e2e/pub_deps|*/e2e/pub_lock|*/e2e/pub_lock_upgrade|*/e2e/pub_hub_surface|*/e2e/root_settings|*/e2e/pub_package_padded) exit 0;; esac; exit $s'"
       folders: |
         [
           ".",
@@ -63,7 +63,6 @@ jobs:
           "e2e/pub_lock_resolve",
           "e2e/pub_packages",
           "e2e/root_settings",
-          "e2e/pub_root_newer",
           "e2e/pub_package_padded",
           "e2e/ext_exemplar",
           "e2e/fix",
@@ -349,14 +348,14 @@ jobs:
             exit 1
           fi
           echo "OK: highest request built, the root's raised request reported"
-      - name: pub_root_newer — expect a root lock above a dependency's pub.package() to build silently
-        working-directory: e2e/pub_root_newer
+      - name: override_root_lock — expect a root lock above a dependency's pub.package() to build silently
+        working-directory: e2e/root_settings
         run: |
           # The lock would replay the extension without running it.
-          out=$(bazel build --lockfile_mode=off //... 2>&1) || { echo "$out"; exit 1; }
+          out=$(bazel build --lockfile_mode=off //pub_versions/override_root_lock/... 2>&1) || { echo "$out"; exit 1; }
           # Raising a dependency's request says nothing, as in Bazel.
-          if echo "$out" | grep -q "Package \"tuple\""; then
-            echo "ERROR: raising dep_mod's request of tuple printed a message"
+          if echo "$out" | grep -q "Package \"path\""; then
+            echo "ERROR: raising dep_mod's request of path printed a message"
             exit 1
           fi
           echo "OK: root lock built, nothing printed"

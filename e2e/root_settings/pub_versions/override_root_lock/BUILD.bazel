@@ -5,7 +5,8 @@ exports_files(["pubspec.lock"])
 # Property: one version per package across modules, the highest requested.
 # The root module's lock asks for `path` 1.9.1 and a dependency module's
 # `pub.package()` for 1.9.0: `path` resolves to 1.9.1 everywhere, including
-# through the repository the dependency's own declaration names.
+# through the repository the dependency's own declaration names. Raising a
+# dependency's request says nothing, as in Bazel (CI checks that).
 
 pub_graph_check(
     name = "root_lock_version_is_not_overridden_by_dependency",
