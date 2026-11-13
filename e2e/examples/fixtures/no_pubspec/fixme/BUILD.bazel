@@ -1,6 +1,6 @@
 load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
 load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
-load("//no_pubspec:checks.bzl", "fix_changes")
+load("//fixtures/no_pubspec:checks.bzl", "fix_changes")
 
 dart_package_metadata(
     name = "pubspec-metadata",

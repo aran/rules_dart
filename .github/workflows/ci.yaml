@@ -48,7 +48,7 @@ jobs:
         [
           ".",
           "e2e/smoke",
-          "e2e/basics",
+          "e2e/examples",
           "e2e/analysis",
           "e2e/dart_test",
           "e2e/codegen",
@@ -442,7 +442,7 @@ jobs:
           bazel build //cycle_refused/mine 2>&1 | grep -qF 'pub.cycle(packages = ["mine", "theirs"])'
           echo "OK: undeclared and misdeclared cycles refused"
       - name: kernel_source_refused — expect a dart_kernel_source naming both or neither of dart_version and path, or a path that is no checkout, to be refused
-        working-directory: e2e/basics
+        working-directory: e2e/examples
         run: |
           for repo in both neither not_a_checkout; do
             if bazel build @$repo//:outline_tool 2>/dev/null; then
@@ -843,7 +843,7 @@ jobs:
         working-directory: e2e/pub_packages
         run: dart git/check_host_config.dart
   # `dart compile kernel` rejects `--enable-asserts`, so dbg-mode flags are
-  # chosen per compile mode. basics' hello_world builds all four dart_binary
+  # chosen per compile mode. examples' hello_world builds all four dart_binary
   # modes; dart_test exercises the kernel test path end-to-end.
   dbg-mode:
     runs-on: ubuntu-latest
@@ -857,7 +857,7 @@ jobs:
           disk-cache: ${{ github.job }}-${{ strategy.job-index }}
           repository-cache: true
       - name: hello_world — build all compile modes under -c dbg
-        working-directory: e2e/basics
+        working-directory: e2e/examples
         run: bazel build -c dbg //hello_world/...
       - name: dart_test — run tests under -c dbg
         working-directory: e2e/dart_test

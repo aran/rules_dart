@@ -38,7 +38,7 @@ dart_library(
     ],
     package = ":pubspec-metadata",
     deps = [
-        "//no_pubspec/greet",
+        "//fixtures/no_pubspec/greet",
         "@json_annotation",
     ],
 )

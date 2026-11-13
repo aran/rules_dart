@@ -213,8 +213,8 @@ cannot, it is a cross-only target and costs no checksums.
 
 - `dart/private/toolchains_repo.bzl` — add to `TARGET_ONLY_PLATFORMS`, then add
   it to each `CROSS_TARGETS` value it is reachable from
-- `e2e/basics/cross_compile/BUILD.bazel` — add to `_TARGETS`
-- `e2e/basics/cross_compile/cross_compile_test.dart` — add its expected `EI_CLASS`
+- `e2e/examples/cross_compile/BUILD.bazel` — add to `_TARGETS`
+- `e2e/examples/cross_compile/cross_compile_test.dart` — add its expected `EI_CLASS`
   and `e_machine` to the table; the suite asserts the architectures are pairwise
   distinct, so a new target must bring a new `e_machine`
 - `dart/tests/cross_fixture/BUILD.bazel` — a `platform()` plus flag/ABI tests
@@ -254,7 +254,7 @@ file /tmp/x /tmp/x.aot
 
 **Verification**: `bazel test //dart/tests/...` — `toolchains_test.bzl` asserts
 the table invariants, including that every pinned version's checksum set matches
-`PLATFORMS` exactly. Then `cd e2e/basics && bazel test //cross_compile/...`
+`PLATFORMS` exactly. Then `cd e2e/examples && bazel test //cross_compile/...`
 for the byte-level architecture check.
 
 **Automation**: Manual — too rare and requires design decisions.

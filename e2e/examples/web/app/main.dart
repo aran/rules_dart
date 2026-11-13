@@ -1,7 +1,7 @@
 import 'dart:js_interop';
 
-import 'package:basics/root_greet.dart';
 import 'package:characters/characters.dart';
+import 'package:examples/root_greet.dart';
 import 'package:greet/greet.dart';
 
 import 'config.dart';

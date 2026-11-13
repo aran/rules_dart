@@ -13,7 +13,7 @@ dart_js_binary(
     main = "main.dart",
     deps = [
         "//:rootlib",
-        "//web_app/greet",
+        "//web/app/greet",
         "@pub_deps//:characters",
     ],
 )
@@ -25,7 +25,7 @@ dart_wasm_binary(
     main = "main.dart",
     deps = [
         "//:rootlib",
-        "//web_app/greet",
+        "//web/app/greet",
         "@pub_deps//:characters",
     ],
 )
@@ -67,7 +67,7 @@ dart_test(
         ":app_wasm",
         ":app_wasm_mjs",
         "//:lib/root_greet.dart",
-        "//web_app/greet",
+        "//web/app/greet",
         "@pub_deps//:characters",
     ],
     main = "test/wasm_output_test.dart",

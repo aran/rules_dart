@@ -9,7 +9,7 @@ import 'package:runfiles/runfiles.dart';
 /// through the `source_map` output group, and names no absolute path.
 void main(List<String> args) {
   final r = Runfiles.create();
-  final js = File(r.rlocation('_main/web_app/app.js')).readAsStringSync();
+  final js = File(r.rlocation('_main/web/app/app.js')).readAsStringSync();
 
   void expectContains(String needle, String why) {
     if (!js.contains(needle)) {
@@ -27,11 +27,11 @@ void main(List<String> args) {
   if (!js.contains('sourceMappingURL=app.js.map')) {
     throw StateError('app.js does not point at app.js.map');
   }
-  final mapFile = File(r.rlocation('_main/web_app/app.js.map'));
+  final mapFile = File(r.rlocation('_main/web/app/app.js.map'));
   if (!mapFile.existsSync()) {
     throw StateError('app.js.map is not an output of app');
   }
-  if (args.single != '_main/web_app/app.js.map') {
+  if (args.single != '_main/web/app/app.js.map') {
     throw StateError('source_map output group gave ${args.single}');
   }
   final map = mapFile.readAsStringSync();

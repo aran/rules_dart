@@ -1,8 +1,8 @@
 {
-  "target": "//no_pubspec/fixme:fixme",
+  "target": "//fixtures/no_pubspec/fixme:fixme",
   "changes": [
     {
-      "path": "no_pubspec/fixme/lib/fixme.dart",
+      "path": "fixtures/no_pubspec/fixme/lib/fixme.dart",
       "sha256": "49bc0296d75e1b771709ba7d3959e6f448fb8e12c939e58d18c29fa7ef4e1354",
       "content": "/// A library `dart fix` has work in.\nlibrary;\n\n/// The sum of [values].\nint total(List<int> values) {\n  var sum = 0;\n  for (final v in values) {\n    sum += v;\n  }\n  final result = sum;\n  return result;\n}\n"
     }
