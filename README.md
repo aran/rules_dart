@@ -3380,7 +3380,7 @@ The [`e2e/`](e2e/) directory contains complete working examples. A name with a
 | [`pub_package_padded`](e2e/pub_package_padded/)                     | An archive with bytes after its gzip stream fetches through `pub.package()` as through a lock            |
 | [`pub_archive_links`](e2e/failures/pub_archive_links/)                       | Nothing in a fetched pub archive can refer outside the package                                           |
 | [`basics/kernel_source_refused`](e2e/basics/kernel_source_refused/) | A `dart_kernel_source` with both or neither of `dart_version` and `path`, or no checkout, fails          |
-| [`pub_override_root_lock`](e2e/pub_override_root_lock/)             | A higher root lock serves a dependency module's `pub.package()` repository and the lock's own dependents |
+| [`root_settings/pub_versions/override_root_lock`](e2e/root_settings/pub_versions/override_root_lock/)             | A higher root lock serves a dependency module's `pub.package()` repository and the lock's own dependents |
 | [`root_settings/pub_versions/highest_wins`](e2e/root_settings/pub_versions/highest_wins/)                         | The highest request builds, over root and dependency `pub.package()`s, warning for the root's            |
 | [`pub_root_newer`](e2e/pub_root_newer/)                             | A root lock above a dependency's `pub.package()` wins, silently                                          |
 | [`codegen`](e2e/codegen/)                                           | `dart_codegen`/`dart_aggregate_codegen` over parts, re-exports and a `srcs_dir`                          |
