@@ -16,6 +16,13 @@ dart_analysis_config(
         "//analysis:options",
         "//analysis/pkg_wide:options",
         "//analysis/wide:options",
+        "//fixtures/analysis_failure:options",
+        "//fixtures/analysis_failure/fmt_unresolved:options",
+        "//fixtures/analysis_failure/nested:loud_options",
+        "//fixtures/analysis_failure/nested:options",
+        "//fixtures/analysis_failure/undeclared_include:options",
+        "//fixtures/analysis_failure/unresolved_ruleset:options",
+        "//fixtures/analysis_failure/vga:options",
         "//fixtures/no_pubspec:options",
     ],
 )

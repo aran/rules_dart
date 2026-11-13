@@ -8,7 +8,7 @@ load(
 
 # The `dart_analyze` aspect's format check, under the root `//:analysis_config`,
 # which lists `lib/wide/analysis_options.yaml`. Its red paths are in
-# `e2e/analysis_failure`, where CI expects each build to fail.
+# `e2e/examples/fixtures/analysis_failure`, where CI expects each build to fail.
 
 # Reaches `format_fixture_rules` by `package:` URI, so its `deps` must be
 # staged with it for the page width to apply.

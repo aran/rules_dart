@@ -1,0 +1,8 @@
+load("@rules_dart//dart:defs.bzl", "dart_package_member")
+
+dart_package_member(
+    name = "member",
+    srcs = ["lib/stale_a.dart"],
+    tags = ["manual"],
+    visibility = ["//fixtures/analysis_failure/import_check/cycle:__pkg__"],
+)

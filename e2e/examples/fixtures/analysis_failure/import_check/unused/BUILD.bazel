@@ -1,0 +1,81 @@
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata", "dart_test")
+load(":rules.bzl", "bootstrapped", "used_without_import")
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "import_check_unused",
+    language_version = "3.11",
+    tags = ["manual"],
+)
+
+# Expected red: each target lists a dependency none of its files imports, so
+# the unused-dependency check must name it and say how to remove it.
+
+# `lib/unused.dart` imports `leaf`, and nothing of `mid` or of the runfiles
+# library, which the error names as written here.
+dart_library(
+    name = "unused_lib",
+    srcs = ["lib/unused.dart"],
+    package = ":pubspec-metadata",
+    tags = ["manual"],
+    deps = [
+        "//fixtures/analysis_failure/import_check/leaf",
+        "//fixtures/analysis_failure/import_check/mid",
+        "@rules_dart//dart/runfiles",
+    ],
+)
+
+# Shared test support, which imports `leaf` itself.
+dart_library(
+    name = "support",
+    testonly = True,
+    srcs = ["lib/src/support.dart"],
+    package = ":pubspec-metadata",
+    tags = ["manual"],
+    deps = ["//fixtures/analysis_failure/import_check/leaf"],
+)
+
+# The test imports only the support library, so its own edge to `leaf` is
+# unused: the support library carries it.
+dart_test(
+    name = "unused_test",
+    main = "test/unused_test.dart",
+    package = ":pubspec-metadata",
+    tags = ["manual"],
+    deps = [
+        ":support",
+        "//fixtures/analysis_failure/import_check/leaf",
+    ],
+)
+
+# `leaf`, exempt as a plugin is.
+used_without_import(
+    name = "leaf_plugin",
+    library = "//fixtures/analysis_failure/import_check/leaf",
+    tags = ["manual"],
+)
+
+# Imports a file the exempt dependency holds, which names it alone: `mid`,
+# which only reaches that package, is unused, and the exempt one is not named.
+dart_library(
+    name = "through_exempt",
+    srcs = ["lib/through_exempt.dart"],
+    package = ":pubspec-metadata",
+    tags = ["manual"],
+    deps = [
+        ":leaf_plugin",
+        "//fixtures/analysis_failure/import_check/mid",
+    ],
+)
+
+# The bootstrap its rule writes imports `leaf`, which uses that dep, so only
+# `mid` is unused.
+bootstrapped(
+    name = "bootstrapped",
+    srcs = ["bin/bootstrapped.dart"],
+    tags = ["manual"],
+    deps = [
+        "//fixtures/analysis_failure/import_check/leaf",
+        "//fixtures/analysis_failure/import_check/mid",
+    ],
+)

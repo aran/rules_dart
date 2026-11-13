@@ -3349,7 +3349,7 @@ The [`e2e/`](e2e/) directory contains complete working examples. A name with a
 | [`examples/library_deps`](e2e/examples/library_deps/)                   | Transitive `dart_library` dependencies, `srcs` attribute, a `dart_package_cycle`                         |
 | [`examples/tests`](e2e/examples/tests/)                                       | Tests with and without deps, `srcs` for test helpers                                                     |
 | [`examples/analysis`](e2e/examples/analysis/)                                         | The `dart_analyze` aspect's checks with `package:`-included options                                      |
-| [`analysis_failure`](e2e/analysis_failure/)                         | Targets the `dart_analyze` aspect fails, each with a diagnostic of its own                               |
+| [`examples/fixtures/analysis_failure`](e2e/examples/fixtures/analysis_failure/)                         | Targets the `dart_analyze` aspect fails, each with a diagnostic of its own                               |
 | [`fix`](e2e/fix/)                                                   | `@rules_dart//dart/fix` and `format` write-back, and that generated files are never rewritten            |
 | [`analyze_composition`](e2e/analyze_composition/)                   | A lint ruleset and page width shared from another Bazel module                                           |
 | [`external_module`](e2e/external_module/)                           | A module building its own rules on rules_dart's exported helpers                                         |

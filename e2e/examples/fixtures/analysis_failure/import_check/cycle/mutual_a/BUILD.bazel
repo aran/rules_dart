@@ -1,0 +1,12 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+# Expected red: `mutual_a` and `mutual_b` import each other and depend on each
+# other as two libraries, which Bazel refuses as a cycle of targets. Bazel
+# refuses it while analysing, so both are `manual`: a `//...` that analyses the
+# workspace (the lock check) skips them, and CI builds this one by name.
+dart_library(
+    name = "mutual_a",
+    srcs = ["lib/mutual_a.dart"],
+    tags = ["manual"],
+    deps = ["//fixtures/analysis_failure/import_check/cycle/mutual_b"],
+)

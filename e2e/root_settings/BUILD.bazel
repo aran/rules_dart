@@ -3,7 +3,8 @@ load("@rules_dart//dart:defs.bzl", "dart_analysis_config")
 # Fixtures that clash with e2e/examples over something only a root module or
 # a workspace's root sets, each in a directory of its own (see MODULE.bazel).
 
-# Every options file the `dart_analyze` aspect applies here (`.bazelrc`).
+# Every options file the `dart_analyze` aspect applies here (`.bazelrc`). Not
+# the root's analysis_options.yaml: that is a canary (analysis_canary/).
 dart_analysis_config(
     name = "analysis_config",
     options = ["//pub_versions/lock_upgrade:options"],

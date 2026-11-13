@@ -1,0 +1,9 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+dart_library(
+    name = "mutual_b",
+    srcs = ["lib/mutual_b.dart"],
+    tags = ["manual"],
+    visibility = ["//fixtures/analysis_failure/import_check/cycle:__subpackages__"],
+    deps = ["//fixtures/analysis_failure/import_check/cycle/mutual_a"],
+)

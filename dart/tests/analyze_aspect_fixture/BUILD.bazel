@@ -9,7 +9,7 @@ load(
 
 # The `dart_analyze` aspect's green paths, under the root `//:analysis_config`,
 # which lists this fixture's three options files. Their red halves are in
-# `e2e/analysis_failure`, where CI expects each build to fail.
+# `e2e/examples/fixtures/analysis_failure`, where CI expects each build to fail.
 
 dart_analysis_options(
     name = "options",

@@ -350,10 +350,9 @@ updates (both through `bazel run @rules_dart//dart/pub`).
 
 1. Compare `e2e/*/MODULE.bazel` against the `folders` array in `ci.yaml`.
    A workspace the `test` job cannot run as it is runs in the job made for
-   it instead, and stays out of `folders`: `e2e/analysis_failure`
-   (`format-hermeticity`, `expected-failure`), each workspace with a
-   `lock_expected_failure.txt` (`expected-failure`, or `pub-archive-links`
-   for `e2e/failures/pub_archive_links`)
+   it instead, and stays out of `folders`: each one under `e2e/failures`,
+   which has a `lock_expected_failure.txt` (`expected-failure`, or
+   `pub-archive-links` for `e2e/failures/pub_archive_links`)
 2. Add/remove entries to match
 
 **Verification**: CI workflow runs all e2e workspaces.

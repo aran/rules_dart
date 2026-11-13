@@ -1,0 +1,24 @@
+load("@rules_dart//dart:defs.bzl", "dart_package_cycle")
+
+# Expected red: `stale_a` imports `stale_b`, and `stale_b` imports nothing, so
+# the two are no cycle. The cycle's own check refuses it, naming what to do.
+dart_package_cycle(
+    name = "stale",
+    members = [
+        "//fixtures/analysis_failure/import_check/cycle/stale_a:member",
+        "//fixtures/analysis_failure/import_check/cycle/stale_b:member",
+    ],
+    tags = ["manual"],
+)
+
+# Expected red: `part_a`, `part_b` and `part_c` are one cycle, and this names
+# only two of them. `part_c` cannot be a dependency, which would make a cycle
+# of targets, so the check names it as the member to add.
+dart_package_cycle(
+    name = "partial",
+    members = [
+        "//fixtures/analysis_failure/import_check/cycle/part_a:member",
+        "//fixtures/analysis_failure/import_check/cycle/part_b:member",
+    ],
+    tags = ["manual"],
+)

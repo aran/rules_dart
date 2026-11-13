@@ -3,8 +3,8 @@
 The aspect's verdicts are checked by building it: `analyzed_test` and
 `formatted_test` apply it to one target and pass only if that target's analysis
 or format check ran and came back clean. Its red paths live in
-`e2e/analysis_failure`, where CI asserts each build fails with the expected
-diagnostic. The analysis tests here pin which targets the aspect takes on at
+`e2e/examples/fixtures/analysis_failure`, where CI asserts each build fails
+with the expected diagnostic. The analysis tests here pin which targets the aspect takes on at
 all.
 
 The rest of this file covers an executable. A `dart_binary`/`dart_test`

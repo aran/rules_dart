@@ -1,0 +1,13 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+# Formatted at the stock 80 columns, which is right only while the options walk
+# stays inside the staged project — see the unlisted canary
+# `analysis_options.yaml` at the root of this workspace, which a walk that
+# escaped would reach. It must be the workspace's root options file, so it
+# lives here rather than in e2e/examples, whose readers would get its page
+# width in their editors. CI builds this under every spawn strategy and
+# runfiles mode.
+dart_library(
+    name = "clean_lib",
+    srcs = ["lib/clean.dart"],
+)

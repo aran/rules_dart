@@ -77,9 +77,10 @@ jobs:
   # passes or fails depending on the flags.
   #
   # The `dart_analyze` aspect's staged project bounds the walk, and
-  # `e2e/analysis_failure`'s root analysis_options.yaml — deliberately left out
-  # of its `analysis_config` — carries an absurd `page_width: 20` canary so this
-  # job can prove it: `//:clean_lib` there is formatted at the stock 80, so if
+  # `e2e/root_settings`' root analysis_options.yaml — deliberately left out of
+  # its `analysis_config` — carries an absurd `page_width: 20` canary so this
+  # job can prove it: `//analysis_canary:clean_lib` there is formatted at the
+  # stock 80, so if
   # the walk ever escapes it reaches the canary and turns red. The analysis
   # example in `e2e/examples` runs beside it, so its configured widths,
   # `package:` includes and language versions must agree across all four cells
@@ -135,9 +136,9 @@ jobs:
             exit 1
           fi
           echo "OK: analysis cut off above the edited library"
-      - name: analysis_failure canary — ${{ matrix.name }}
-        working-directory: e2e/analysis_failure
-        run: bazel test ${{ matrix.flags }} //:clean_lib || [ $? -eq 4 ]
+      - name: analysis canary — ${{ matrix.name }}
+        working-directory: e2e/root_settings
+        run: bazel test ${{ matrix.flags }} //analysis_canary:clean_lib || [ $? -eq 4 ]
   # The build-wide escape hatch: every dart_test compiled whole-program. Run
   # over the workspaces whose tests cover codegen, generated parts and the
   # package:test runner, so the path the flag falls back to cannot rot.
@@ -533,13 +534,13 @@ jobs:
       # provides fails every executable that reaches it, through the import
       # check's validation action, with no per-library compile involved.
       - name: analysis_failure — expect the layering check to fail a binary's build
-        working-directory: e2e/analysis_failure
+        working-directory: e2e/examples
         run: |
-          if bazel build //import_check/user:layering_bin 2>/dev/null; then
+          if bazel build //fixtures/analysis_failure/import_check/user:layering_bin 2>/dev/null; then
             echo "ERROR: build should have failed the layering check"
             exit 1
           fi
-          bazel build //import_check/user:layering_bin 2>&1 | grep -q 'package "import_check_leaf" is not a direct dependency'
+          bazel build //fixtures/analysis_failure/import_check/user:layering_bin 2>&1 | grep -q 'package "import_check_leaf" is not a direct dependency'
           echo "OK: layering violation reported"
       # Packages that import each other build only as one `dart_package_cycle`
       # naming exactly their cycle. Two libraries depending on each other are
@@ -547,7 +548,7 @@ jobs:
       # `dart_package_cycle`; a cycle target whose members are no cycle, or
       # only part of one, is refused, naming what to change.
       - name: analysis_failure — expect undeclared, stale and partial package cycles to be refused
-        working-directory: e2e/analysis_failure
+        working-directory: e2e/examples
         run: |
           check() {
             if bazel build "$1" 2>/dev/null; then
@@ -556,10 +557,10 @@ jobs:
             fi
             bazel build "$1" 2>&1 | grep -qF -- "$2"
           }
-          check //import_check/cycle/mutual_a "cycle in dependency graph"
-          check //import_check/cycle/one_way_b "If package \"one_way_b\" imports this one in turn, the two are a dependency cycle: build them as one \`dart_package_cycle\`."
-          check //import_check/cycle:stale "\`stale_a\` and \`stale_b\` are in no cycle. Build each package as its own \`dart_library\`"
-          check //import_check/cycle:partial "\`part_b\` imports \`part_c\`, which no dependency provides: if it imports the members in turn, add it to \`members\`."
+          check //fixtures/analysis_failure/import_check/cycle/mutual_a "cycle in dependency graph"
+          check //fixtures/analysis_failure/import_check/cycle/one_way_b "If package \"one_way_b\" imports this one in turn, the two are a dependency cycle: build them as one \`dart_package_cycle\`."
+          check //fixtures/analysis_failure/import_check/cycle:stale "\`stale_a\` and \`stale_b\` are in no cycle. Build each package as its own \`dart_library\`"
+          check //fixtures/analysis_failure/import_check/cycle:partial "\`part_b\` imports \`part_c\`, which no dependency provides: if it imports the members in turn, add it to \`members\`."
           echo "OK: undeclared and misdeclared package cycles refused"
       # Every import, export and part must be a `dart:` library, a `package:`
       # URI a dependency provides, or a file the target holds. Each target
@@ -567,7 +568,7 @@ jobs:
       # the spelling to use; the last is a library nothing executable reaches,
       # which checks itself.
       - name: analysis_failure — expect the import check to refuse undeclared spellings
-        working-directory: e2e/analysis_failure
+        working-directory: e2e/examples
         run: |
           check() {
             if bazel build "$1" 2>/dev/null; then
@@ -576,14 +577,14 @@ jobs:
             fi
             bazel build "$1" 2>&1 | grep -qF -- "$2"
           }
-          check //import_check/spellings:relative_lib_test "Use 'package:import_check_spellings/x.dart' instead"
-          check //import_check/spellings:file_uri_bin "imports 'file:///tmp/undeclared.dart', a file: URI"
-          check //import_check/spellings:unheld_part "has the part 'unheld_part.g.dart'"
+          check //fixtures/analysis_failure/import_check/spellings:relative_lib_test "Use 'package:import_check_spellings/x.dart' instead"
+          check //fixtures/analysis_failure/import_check/spellings:file_uri_bin "imports 'file:///tmp/undeclared.dart', a file: URI"
+          check //fixtures/analysis_failure/import_check/spellings:unheld_part "has the part 'unheld_part.g.dart'"
           echo "OK: undeclared spellings refused"
       # A library, and a test whose support library carries the edge, each
       # listing a dependency none of its files imports.
       - name: analysis_failure — expect the unused-dependency check to name the edge
-        working-directory: e2e/analysis_failure
+        working-directory: e2e/examples
         run: |
           check() {
             if bazel build "$1" 2>/dev/null; then
@@ -592,106 +593,107 @@ jobs:
             fi
             bazel build "$1" 2>&1 | grep -qF -- "$2"
           }
-          check //import_check/unused:unused_lib "//import_check/unused:unused_lib: no file imports or exports these deps:"
-          check //import_check/unused:unused_lib "  //import_check/mid"
-          check //import_check/unused:unused_lib "  @rules_dart//dart/runfiles"
-          check //import_check/unused:unused_lib "bazel run @rules_dart//dart/unused_deps -- //import_check/unused:all removes them."
-          check //import_check/unused:unused_test "//import_check/unused:unused_test: no file imports or exports these deps:"
-          check //import_check/unused:unused_test "  //import_check/leaf"
-          check //import_check/unused:through_exempt "//import_check/unused:through_exempt: no file imports or exports these deps:"
-          check //import_check/unused:through_exempt "  //import_check/mid"
-          if bazel build //import_check/unused:through_exempt 2>&1 | grep -qF -- "  :leaf_plugin"; then
+          check //fixtures/analysis_failure/import_check/unused:unused_lib "//fixtures/analysis_failure/import_check/unused:unused_lib: no file imports or exports these deps:"
+          check //fixtures/analysis_failure/import_check/unused:unused_lib "  //fixtures/analysis_failure/import_check/mid"
+          check //fixtures/analysis_failure/import_check/unused:unused_lib "  @rules_dart//dart/runfiles"
+          check //fixtures/analysis_failure/import_check/unused:unused_lib "bazel run @rules_dart//dart/unused_deps -- //fixtures/analysis_failure/import_check/unused:all removes them."
+          check //fixtures/analysis_failure/import_check/unused:unused_test "//fixtures/analysis_failure/import_check/unused:unused_test: no file imports or exports these deps:"
+          check //fixtures/analysis_failure/import_check/unused:unused_test "  //fixtures/analysis_failure/import_check/leaf"
+          check //fixtures/analysis_failure/import_check/unused:through_exempt "//fixtures/analysis_failure/import_check/unused:through_exempt: no file imports or exports these deps:"
+          check //fixtures/analysis_failure/import_check/unused:through_exempt "  //fixtures/analysis_failure/import_check/mid"
+          if bazel build //fixtures/analysis_failure/import_check/unused:through_exempt 2>&1 | grep -qF -- "  :leaf_plugin"; then
             echo "ERROR: an exempt dependency was reported"
             exit 1
           fi
-          check //import_check/unused:bootstrapped "//import_check/unused:bootstrapped: no file imports or exports these deps:"
-          check //import_check/unused:bootstrapped "  //import_check/mid"
-          if bazel build //import_check/unused:bootstrapped 2>&1 | grep -qF -- "  //import_check/leaf"; then
+          check //fixtures/analysis_failure/import_check/unused:bootstrapped "//fixtures/analysis_failure/import_check/unused:bootstrapped: no file imports or exports these deps:"
+          check //fixtures/analysis_failure/import_check/unused:bootstrapped "  //fixtures/analysis_failure/import_check/mid"
+          if bazel build //fixtures/analysis_failure/import_check/unused:bootstrapped 2>&1 | grep -qF -- "  //fixtures/analysis_failure/import_check/leaf"; then
             echo "ERROR: a dependency the rule's bootstrap imports was reported"
             exit 1
           fi
           echo "OK: unused dependencies reported"
-      # Each target in e2e/analysis_failure is expected red under the
-      # `dart_analyze` aspect, which its `.bazelrc` applies under `bazel test`.
+      # Each target in e2e/examples/fixtures/analysis_failure is expected red
+      # under the `dart_analyze` aspect, which `.bazelrc` applies under `bazel
+      # test`.
       # `check` builds one, expects the build to fail, and greps its output
       # for the one diagnostic only that target produces.
       - name: analysis_failure — expect analyzer diagnostics to fail the build, at workspace paths
-        working-directory: e2e/analysis_failure
+        working-directory: e2e/examples
         run: |
-          if bazel test //:bad_lib 2>/dev/null; then
+          if bazel test //fixtures/analysis_failure:bad_lib 2>/dev/null; then
             echo "ERROR: build should have failed with analyzer diagnostics"
             exit 1
           fi
-          out=$(bazel test //:bad_lib 2>&1 || true)
+          out=$(bazel test //fixtures/analysis_failure:bad_lib 2>&1 || true)
           echo "$out" | grep -q "unused_local_variable"
           # Named as the user's file, not as the staged copy under `src/`.
-          echo "$out" | grep -q -- "- lib/bad.dart:4:7 -"
+          echo "$out" | grep -q -- "- fixtures/analysis_failure/lib/bad.dart:4:7 -"
           echo "OK: expected analyzer failure detected, at the workspace path"
       - name: analysis_failure — expect a diagnostic's related location at its workspace path
-        working-directory: e2e/analysis_failure
+        working-directory: e2e/examples
         run: |
-          out=$(bazel test //context 2>&1 || true)
+          out=$(bazel test //fixtures/analysis_failure/context 2>&1 || true)
           echo "$out" | grep -q "referenced_before_declaration"
-          echo "$out" | grep -q -- " - The declaration of 'x' is here at context/lib/context.dart:3:7"
+          echo "$out" | grep -q -- " - The declaration of 'x' is here at fixtures/analysis_failure/context/lib/context.dart:3:7"
           echo "OK: related location named at the workspace path"
       - name: analysis_failure — expect a binary's entrypoint to be analyzed too
-        working-directory: e2e/analysis_failure
+        working-directory: e2e/examples
         run: |
-          if bazel test //:bad_bin 2>/dev/null; then
+          if bazel test //fixtures/analysis_failure:bad_bin 2>/dev/null; then
             echo "ERROR: build should have failed with analyzer diagnostics"
             exit 1
           fi
-          bazel test //:bad_bin 2>&1 | grep -q "unused_import"
+          bazel test //fixtures/analysis_failure:bad_bin 2>&1 | grep -q "unused_import"
           echo "OK: expected analyzer failure detected"
       # Analysis against summaries refuses where the stock analyzer drops an
       # error it reports from source: here a subtype of a dependency's `base`
       # class. It fails with the analyzer's own error and the flag that turns
       # summaries off; with the flag off, `dart analyze` reports the error.
       - name: analysis_failure — expect analysis against summaries to fail loudly where the analyzer drops an error
-        working-directory: e2e/analysis_failure
+        working-directory: e2e/examples
         run: |
-          if bazel test //summaries/user 2>/dev/null; then
+          if bazel test //fixtures/analysis_failure/summaries/user 2>/dev/null; then
             echo "ERROR: build should have failed: Sub is not base"
             exit 1
           fi
-          out=$(bazel test //summaries/user 2>&1 || true)
-          echo "$out" | grep -q "summaries/user/lib/user.dart:4:7: The type 'Sub' must be 'base', 'final' or 'sealed'"
+          out=$(bazel test //fixtures/analysis_failure/summaries/user 2>&1 || true)
+          echo "$out" | grep -q "fixtures/analysis_failure/summaries/user/lib/user.dart:4:7: The type 'Sub' must be 'base', 'final' or 'sealed'"
           echo "$out" | grep -q -- "--@rules_dart//dart:analysis_summaries=false"
-          out=$(bazel test --@rules_dart//dart:analysis_summaries=false //summaries/user 2>&1 || true)
-          echo "$out" | grep -q -- "- summaries/user/lib/user.dart:4:7 - The type 'Sub' must be 'base'"
+          out=$(bazel test --@rules_dart//dart:analysis_summaries=false //fixtures/analysis_failure/summaries/user 2>&1 || true)
+          echo "$out" | grep -q -- "- fixtures/analysis_failure/summaries/user/lib/user.dart:4:7 - The type 'Sub' must be 'base'"
           echo "OK: dropped error refused against summaries, reported from source"
       # A `flutter_library` lists its files in `DefaultInfo` and leaves
       # `DartAnalyzableInfo.entry_srcs` empty; they are its own files all the same.
       - name: analysis_failure — expect a flutter_library-shaped target to be analyzed
-        working-directory: e2e/analysis_failure
+        working-directory: e2e/examples
         run: |
-          if bazel test //flutter_shaped 2>/dev/null; then
+          if bazel test //fixtures/analysis_failure/flutter_shaped 2>/dev/null; then
             echo "ERROR: build should have failed with unused_element"
             exit 1
           fi
-          bazel test //flutter_shaped 2>&1 | grep -q "unused_element"
+          bazel test //fixtures/analysis_failure/flutter_shaped 2>&1 | grep -q "unused_element"
           echo "OK: package-only target analyzed"
       - name: analysis_failure — expect a bundle-shaped target's package sources to be analyzed
-        working-directory: e2e/analysis_failure
+        working-directory: e2e/examples
         run: |
-          if bazel test //bundle_shaped 2>/dev/null; then
+          if bazel test //fixtures/analysis_failure/bundle_shaped 2>/dev/null; then
             echo "ERROR: build should have failed with unused_element"
             exit 1
           fi
-          bazel test //bundle_shaped 2>&1 | grep -q "bundle_shaped/lib/bundle.dart.*unused_element"
+          bazel test //fixtures/analysis_failure/bundle_shaped 2>&1 | grep -q "fixtures/analysis_failure/bundle_shaped/lib/bundle.dart.*unused_element"
           echo "OK: package sources analyzed though DefaultInfo is a bundle"
       # Each file is judged by the nearest options file above it, as in the
       # IDE: `nested/lib/quiet.dart` breaks `nested/`'s `avoid_print`, and
       # `nested/lib/loud/loud.dart` prints under nearer options that allow it.
       - name: analysis_failure — expect the nearest options file to govern each file
-        working-directory: e2e/analysis_failure
+        working-directory: e2e/examples
         run: |
-          if bazel test //nested 2>/dev/null; then
+          if bazel test //fixtures/analysis_failure/nested 2>/dev/null; then
             echo "ERROR: build should have failed with avoid_print"
             exit 1
           fi
-          out=$(bazel test //nested 2>&1 || true)
-          echo "$out" | grep -q "nested/lib/quiet.dart:5:3 .* avoid_print"
+          out=$(bazel test //fixtures/analysis_failure/nested 2>&1 || true)
+          echo "$out" | grep -q "fixtures/analysis_failure/nested/lib/quiet.dart:5:3 .* avoid_print"
           if echo "$out" | grep -q "loud.dart"; then
             echo "ERROR: loud.dart was judged by options other than its nearest"
             exit 1
@@ -703,35 +705,35 @@ jobs:
       # include is reported, and a working one really does bring its lints to
       # bear. Both are SDK behaviour that nothing else here asserts.
       - name: analysis_failure — expect an unresolvable ruleset include to fail
-        working-directory: e2e/analysis_failure
+        working-directory: e2e/examples
         run: |
-          if bazel test //unresolved_ruleset:clean_lib 2>/dev/null; then
+          if bazel test //fixtures/analysis_failure/unresolved_ruleset:clean_lib 2>/dev/null; then
             echo "ERROR: build should have failed with an unresolved include"
             exit 1
           fi
-          bazel test //unresolved_ruleset:clean_lib 2>&1 | grep -q "include_file_not_found"
+          bazel test //fixtures/analysis_failure/unresolved_ruleset:clean_lib 2>&1 | grep -q "include_file_not_found"
           echo "OK: expected unresolved include detected"
       - name: analysis_failure — expect an included ruleset's lints to be applied
-        working-directory: e2e/analysis_failure
+        working-directory: e2e/examples
         run: |
-          if bazel test //vga:double_quoted_lib 2>/dev/null; then
+          if bazel test //fixtures/analysis_failure/vga:double_quoted_lib 2>/dev/null; then
             echo "ERROR: build should have failed with a very_good_analysis lint"
             exit 1
           fi
-          bazel test //vga:double_quoted_lib 2>&1 | grep -q "prefer_single_quotes"
+          bazel test //fixtures/analysis_failure/vga:double_quoted_lib 2>&1 | grep -q "prefer_single_quotes"
           echo "OK: included ruleset's lints reached the code"
       # The layout-gated half: `public_member_api_docs` only fires when the
       # nearest-pubspec walk roots the file's package at its true package_root,
       # which the per-package stub pubspecs staged by `stage_dart_project`
       # provide. If they go missing this build silently turns green.
       - name: analysis_failure — expect package-root-gated lints to be applied
-        working-directory: e2e/analysis_failure
+        working-directory: e2e/examples
         run: |
-          if bazel test //vga:undocumented_lib 2>/dev/null; then
+          if bazel test //fixtures/analysis_failure/vga:undocumented_lib 2>/dev/null; then
             echo "ERROR: build should have failed with public_member_api_docs"
             exit 1
           fi
-          bazel test //vga:undocumented_lib 2>&1 | grep -q "public_member_api_docs"
+          bazel test //fixtures/analysis_failure/vga:undocumented_lib 2>&1 | grep -q "public_member_api_docs"
           echo "OK: package-root-gated lint reached the code"
       # A ruleset shared by another Bazel module is included from an options
       # file of this one; the module's own options file cannot govern here.
@@ -762,22 +764,22 @@ jobs:
       # matches on. Each target is tagged `no-dart-analyze`, so the format check
       # is the only thing that can fail it.
       - name: analysis_failure — expect a formatting violation to fail
-        working-directory: e2e/analysis_failure
+        working-directory: e2e/examples
         run: |
-          if bazel test //fmt 2>/dev/null; then
+          if bazel test //fixtures/analysis_failure/fmt 2>/dev/null; then
             echo "ERROR: build should have failed with a formatting violation"
             exit 1
           fi
-          bazel test //fmt 2>&1 | grep -q "Not formatted: fmt/lib/misformatted.dart"
+          bazel test //fixtures/analysis_failure/fmt 2>&1 | grep -q "Not formatted: fixtures/analysis_failure/fmt/lib/misformatted.dart"
           echo "OK: expected formatting failure detected, at the workspace path"
       - name: analysis_failure — expect an unresolvable format ruleset to fail
-        working-directory: e2e/analysis_failure
+        working-directory: e2e/examples
         run: |
-          if bazel test //fmt_unresolved 2>/dev/null; then
+          if bazel test //fixtures/analysis_failure/fmt_unresolved 2>/dev/null; then
             echo "ERROR: build should have failed with an unresolved include"
             exit 1
           fi
-          bazel test //fmt_unresolved 2>&1 | grep -q "Failed to resolve package URI"
+          bazel test //fixtures/analysis_failure/fmt_unresolved 2>&1 | grep -q "Failed to resolve package URI"
           echo "OK: silently-degraded format options rejected"
       # A relative `include:` of a yaml no target declares. The file exists in
       # the workspace, so a check that read outside its staged project — as an
@@ -785,19 +787,21 @@ jobs:
       # checks must fail on the unreadable include, naming it at its workspace
       # path, under the sandbox and without one alike.
       - name: analysis_failure — expect an undeclared relative include to fail both checks
-        working-directory: e2e/analysis_failure
+        working-directory: e2e/examples
         run: |
+          # A path-mapped action runs only sandboxed, so both runs turn off the
+          # path mapping `.bazelrc` turns on.
           for strategy in "" "--spawn_strategy=standalone"; do
             for group in dart_analyze dart_format; do
-              flags=(${strategy:+"$strategy"} "--output_groups=-dart_analyze,-dart_format,+$group")
-              if bazel test "${flags[@]}" //undeclared_include 2>/dev/null; then
+              flags=(${strategy:+"$strategy"} --experimental_output_paths=off "--output_groups=-dart_analyze,-dart_format,+$group")
+              if bazel test "${flags[@]}" //fixtures/analysis_failure/undeclared_include 2>/dev/null; then
                 echo "ERROR: $group [$strategy] should have failed on the undeclared include"
                 exit 1
               fi
-              out=$(bazel test "${flags[@]}" //undeclared_include 2>&1 || true)
+              out=$(bazel test "${flags[@]}" //fixtures/analysis_failure/undeclared_include 2>&1 || true)
               case $group in
-                dart_analyze) echo "$out" | grep -q "The URI 'shared.yaml' included in 'undeclared_include/analysis_options.yaml' can't be found" ;;
-                dart_format) echo "$out" | grep -q "Couldn't read file \"undeclared_include/shared.yaml\"" ;;
+                dart_analyze) echo "$out" | grep -q "The URI 'shared.yaml' included in 'fixtures/analysis_failure/undeclared_include/analysis_options.yaml' can't be found" ;;
+                dart_format) echo "$out" | grep -q "Couldn't read file \"fixtures/analysis_failure/undeclared_include/shared.yaml\"" ;;
               esac
             done
           done
@@ -806,22 +810,22 @@ jobs:
       # `dart_format` removed from the groups `.bazelrc` requests, the
       # misformatted target builds green.
       - name: analysis_failure — expect the format check to run only when requested
-        working-directory: e2e/analysis_failure
+        working-directory: e2e/examples
         run: |
-          bazel test --output_groups=-dart_format //fmt || [ $? -eq 4 ]
+          bazel test --output_groups=-dart_format //fixtures/analysis_failure/fmt || [ $? -eq 4 ]
           echo "OK: format check skipped when its output group is not requested"
       # A `manual` target is out of `//...`'s reach; `dart_analysis_test` names
       # it and must fail to build on its violation, whatever output groups the
       # command line asks for.
       - name: analysis_failure — expect dart_analysis_test to fail on a manual target's violation
-        working-directory: e2e/analysis_failure
+        working-directory: e2e/examples
         run: |
           flags="--output_groups=-dart_analyze,-dart_format"
-          if bazel test $flags //manual:manual_analysis_test 2>/dev/null; then
+          if bazel test $flags //fixtures/analysis_failure/manual:manual_analysis_test 2>/dev/null; then
             echo "ERROR: build should have failed with dead_code"
             exit 1
           fi
-          bazel test $flags //manual:manual_analysis_test 2>&1 | grep -q "manual/lib/manual_bad.dart:4:3 - Dead code"
+          bazel test $flags //fixtures/analysis_failure/manual:manual_analysis_test 2>&1 | grep -q "fixtures/analysis_failure/manual/lib/manual_bad.dart:4:3 - Dead code"
           echo "OK: dart_analysis_test checked the manual target"
       # A hung test is diagnosed from what it printed before Bazel killed it, so
       # that output has to be in test.log rather than held back by the launcher.

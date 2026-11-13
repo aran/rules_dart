@@ -1,0 +1,8 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+dart_library(
+    name = "one_way_b",
+    srcs = ["lib/one_way_b.dart"],
+    tags = ["manual"],
+    deps = ["//fixtures/analysis_failure/import_check/cycle/one_way_a"],
+)

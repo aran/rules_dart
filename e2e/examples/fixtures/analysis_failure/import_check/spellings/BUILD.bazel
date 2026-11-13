@@ -1,0 +1,43 @@
+load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_library", "dart_package_metadata", "dart_test")
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "import_check_spellings",
+    language_version = "3.11",
+    tags = ["manual"],
+)
+
+# Expected red: each target names a file by a spelling its declared inputs do
+# not provide, so the import check must refuse it, saying what to write instead.
+
+dart_library(
+    name = "x",
+    srcs = ["lib/x.dart"],
+    package = ":pubspec-metadata",
+    tags = ["manual"],
+)
+
+# `../lib/x.dart` is a different library to the compiler from the
+# `package:import_check_spellings/x.dart` its dependency `:x` compiled.
+dart_test(
+    name = "relative_lib_test",
+    main = "test/rel_test.dart",
+    tags = ["manual"],
+    deps = [":x"],
+)
+
+# A `file:` URI is read off the host, declared or not.
+dart_binary(
+    name = "file_uri_bin",
+    compile_mode = "kernel",
+    main = "bin/file_uri.dart",
+    tags = ["manual"],
+)
+
+# A library nothing executable reaches checks itself: a build of it alone fails.
+dart_library(
+    name = "unheld_part",
+    srcs = ["lib/unheld_part.dart"],
+    package = ":pubspec-metadata",
+    tags = ["manual"],
+)

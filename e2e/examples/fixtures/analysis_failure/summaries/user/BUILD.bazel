@@ -1,0 +1,20 @@
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "summaries_user",
+    language_version = "3.11",
+    tags = ["manual"],
+)
+
+# `Sub` subtypes a dependency's `base` class without being `base` itself. The
+# stock analyzer drops that error when it reads `Base` from a summary, so
+# analysis against summaries must fail here with the error it would have
+# reported, naming the flag; with the flag off, `dart analyze` reports it.
+dart_library(
+    name = "user",
+    srcs = ["lib/user.dart"],
+    package = ":pubspec-metadata",
+    tags = ["manual"],
+    deps = ["//fixtures/analysis_failure/summaries/base"],
+)

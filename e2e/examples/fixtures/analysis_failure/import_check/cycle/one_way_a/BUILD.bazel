@@ -1,0 +1,11 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+# Expected red: `one_way_a` and `one_way_b` import each other, and only
+# `one_way_b` depends on `one_way_a`. The import check refuses `one_way_a`'s
+# import, pointing at `dart_package_cycle`.
+dart_library(
+    name = "one_way_a",
+    srcs = ["lib/one_way_a.dart"],
+    tags = ["manual"],
+    visibility = ["//fixtures/analysis_failure/import_check/cycle:__subpackages__"],
+)

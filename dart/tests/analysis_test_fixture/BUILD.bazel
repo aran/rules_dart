@@ -3,7 +3,7 @@ load("//dart/tests:analyze_test.bzl", "config_refused_test")
 
 # Targets `bazel test //...` never builds, checked by naming them. The red path —
 # a violation in a listed target failing the test's build — is in
-# `e2e/analysis_failure`, where CI expects it.
+# `e2e/examples/fixtures/analysis_failure`, where CI expects it.
 
 dart_library(
     name = "manual_lib",

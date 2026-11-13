@@ -1,0 +1,28 @@
+load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_library", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "import_check_user",
+    language_version = "3.11",
+    tags = ["manual"],
+)
+
+# Expected red: `user.dart` imports `package:import_check_leaf`, which only its
+# dependency `mid` depends on. The layering check, a validation action of any
+# executable reaching the library, must fail the build of `layering_bin` even
+# though nothing is compiled per library for a `dart_binary`.
+dart_library(
+    name = "user",
+    srcs = ["lib/user.dart"],
+    package = ":pubspec-metadata",
+    tags = ["manual"],
+    deps = ["//fixtures/analysis_failure/import_check/mid"],
+)
+
+dart_binary(
+    name = "layering_bin",
+    compile_mode = "kernel",
+    main = "bin/main.dart",
+    tags = ["manual"],
+    deps = [":user"],
+)

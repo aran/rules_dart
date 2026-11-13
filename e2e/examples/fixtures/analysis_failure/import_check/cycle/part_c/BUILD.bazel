@@ -1,0 +1,9 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+# Imports `part_a`, of the cycle `//fixtures/analysis_failure/import_check/cycle:partial` leaves it out
+# of; it is no dependency of that cycle.
+dart_library(
+    name = "part_c",
+    srcs = ["lib/part_c.dart"],
+    tags = ["manual"],
+)
