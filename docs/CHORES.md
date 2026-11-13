@@ -18,7 +18,7 @@ as the repo evolves.
 - every other `MODULE.bazel` that pins one, the same
   `dart.toolchain(dart_version = "...")`
   (`git grep -l 'dart_version = "' -- '*MODULE.bazel'`), except the two in
-  `e2e/toolchain_pin_conflict`, whose versions are what that fixture tests
+  `e2e/failures/toolchain_pin_conflict`, whose versions are what that fixture tests
 - `README.md` — `dart.toolchain(dart_version = "...")` in installation snippet
   (not the measurements that name the SDK they were taken on)
 - `dart/tests/versions_test.bzl` — asserted version key in `_smoke_test_impl`

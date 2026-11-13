@@ -367,7 +367,7 @@ jobs:
           echo "$out" | grep -qF "bazel run @rules_dart//dart/pub -- upgrade tuple"
           echo "OK: expected downgrade refusal detected"
       - name: toolchain_pin_conflict — expect a root pin below a dependency's request to fail, naming it
-        working-directory: e2e/toolchain_pin_conflict
+        working-directory: e2e/failures/toolchain_pin_conflict
         run: |
           if out=$(bazel build @dart_toolchains//:all 2>&1); then
             echo "ERROR: build should have failed: newer_dep requests a newer Dart SDK than the root pins"

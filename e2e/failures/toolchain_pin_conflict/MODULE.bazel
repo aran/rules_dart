@@ -3,7 +3,7 @@ module(name = "toolchain_pin_conflict_e2e")
 bazel_dep(name = "rules_dart", version = "0.0.0")
 local_path_override(
     module_name = "rules_dart",
-    path = "../..",
+    path = "../../..",
 )
 
 # A dependency that requests a Dart SDK newer than the root's pin below.

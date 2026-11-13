@@ -3368,7 +3368,7 @@ The [`e2e/`](e2e/) directory contains complete working examples. A name with a
 | [`pub_package_cycle`](e2e/pub_package_cycle/)                       | `pub.package()` packages that depend on each other, built as one library                                 |
 | [`pub_packages/cycle_refused`](e2e/pub_packages/cycle_refused/)     | An undeclared cycle, a stale declaration, part of a cycle and a cycle through a `resolve` target fail    |
 | [`pub_packages/member_kind`](e2e/pub_packages/member_kind/)         | Another rule set's own pub package kind, in a cycle, over the public pub surface                         |
-| [`toolchain_pin_conflict`](e2e/toolchain_pin_conflict/)             | A root `dart.toolchain` pin below a dependency's request fails, naming the dependency                    |
+| [`toolchain_pin_conflict`](e2e/failures/toolchain_pin_conflict/)             | A root `dart.toolchain` pin below a dependency's request fails, naming the dependency                    |
 | [`pub_packages/unsupplied`](e2e/pub_packages/unsupplied/)           | A hosted package depending on an unsupplied sdk package fails, naming it                                 |
 | [`pub_lock_resolve`](e2e/pub_lock_resolve/)                         | `resolve` serving a `path` package and replacing a hosted one for the whole graph                        |
 | [`pub_lock_resolve_invalid`](e2e/pub_lock_resolve_invalid/)         | Unnamed, twice-named and wrongly named `path` packages and a stale `resolve` key fail                    |
