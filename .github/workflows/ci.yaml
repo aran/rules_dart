@@ -211,8 +211,8 @@ jobs:
           bazel coverage --experimental_output_paths=off ${{ matrix.flags }} --combined_report=lcov //package_test/coverage/...
           bazel run --experimental_output_paths=off //package_test/coverage/check -- "$(bazel info --experimental_output_paths=off output_path)/_coverage/_coverage_report.dat"
   # The runner snapshot cache off, the default this repository's .bazelrc
-  # overrides: `test_runner_test` checks that the runner then starts from its
-  # kernel and no cache is touched.
+  # overrides: `runner_snapshot_cache_test` checks that the runner then starts
+  # from its kernel and no cache is touched.
   runner-snapshot-off:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -225,7 +225,7 @@ jobs:
           disk-cache: ${{ github.job }}-${{ strategy.job-index }}
           repository-cache: true
       - name: dart_test without the runner snapshot cache
-        run: bazel test --test_output=errors --@rules_dart//dart:runner_snapshot=false //dart/private/tools:test_runner_test
+        run: bazel test --test_output=errors --@rules_dart//dart:runner_snapshot=false //dart/private/tools:runner_snapshot_cache_test
   # Bazel runs persistent workers in the exec root unless it sandboxes them, so
   # a worker action that reads a file it never declared passes everywhere else
   # here and fails only under remote or dynamic execution. Sandboxed, each

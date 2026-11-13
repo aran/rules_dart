@@ -159,8 +159,8 @@ dart_test(
     main = "test_runner_fixture.dart",
 )
 
-# What `test_runner_test` runs through its launcher under `package:test`'s
-# runner. Run on its own, it passes.
+# What `test_runner_test` and `runner_snapshot_cache_test` run through their
+# launcher under `package:test`'s runner. Run on its own, it passes.
 dart_test(
     name = "test_runner_runner_fixture",
     size = "small",
@@ -190,9 +190,28 @@ dart_test(
     deps = ["@ext_pub_deps//:test"],
 )
 
+# The launcher's pure functions, in process.
+dart_test(
+    name = "test_runner_unit_test",
+    size = "small",
+    srcs = [
+        "launcher_config.dart",
+        "runner_snapshot.dart",
+        "test_runner.dart",
+    ],
+    main = "test_runner_unit_test.dart",
+    deps = [
+        "//dart/kernel_list",
+        "//dart/runfiles",
+        "@ext_pub_deps//:ffi",
+        "@ext_pub_deps//:test",
+    ],
+)
+
+# The launcher as a process: what its functions cannot show.
 dart_test(
     name = "test_runner_test",
-    size = "medium",
+    size = "small",
     args = [
         "$(rlocationpath :test_runner_fixture)",
         "$(rlocationpath :test_runner_runner_fixture)",
@@ -212,6 +231,19 @@ dart_test(
         "@bazel_skylib//:bzl_library.bzl",
     ],
     main = "test_runner_test.dart",
+    deps = [
+        "//dart/runfiles",
+        "@ext_pub_deps//:test",
+    ],
+)
+
+# The runner snapshot cache through the launcher, which trains real snapshots.
+dart_test(
+    name = "runner_snapshot_cache_test",
+    size = "medium",
+    args = ["$(rlocationpath :test_runner_runner_fixture)"],
+    data = [":test_runner_runner_fixture"],
+    main = "runner_snapshot_cache_test.dart",
     deps = [
         "//dart/runfiles",
         "@ext_pub_deps//:test",

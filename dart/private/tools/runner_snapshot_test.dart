@@ -4,9 +4,9 @@ import 'package:test/test.dart';
 
 import 'runner_snapshot.dart';
 
-/// The parts of the runner snapshot cache `test_runner_test` cannot reach by
-/// running a launcher: the Linux cache's private directory, made here in a
-/// directory of the test's own, and the key.
+/// The parts of the runner snapshot cache `runner_snapshot_cache_test` cannot
+/// reach by running a launcher: the Linux cache's private directory, made here
+/// in a directory of the test's own, and the key.
 void main() {
   group('createPrivateDirectory', () {
     late Directory shared;
