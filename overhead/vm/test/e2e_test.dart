@@ -136,6 +136,47 @@ common --keep_going
     });
   });
 
+  group('stopCommand', () {
+    test("Windows: ends the folder's server tree by its pid file", () {
+      expect(
+        stopCommand(
+          E2eItem.bazel('e2e/x', ['test']),
+          r'C:\src\r',
+          windows: true,
+        ),
+        'cmd /c "if exist C:\\b\\${folderHash('e2e/x')}\\server\\server.pid.txt '
+        'for /f %p in (C:\\b\\${folderHash('e2e/x')}\\server\\server.pid.txt) '
+        'do taskkill /f /t /pid %p"',
+      );
+    });
+
+    test(
+      "Linux: kills the server's process group in its default output base",
+      () {
+        final c = stopCommand(
+          E2eItem.bazel('e2e/x', ['test']),
+          r'$HOME/src/r',
+          windows: false,
+        );
+        final script = utf8.decode(
+          base64.decode(RegExp(r'echo (\S+) \| base64').firstMatch(c)![1]!),
+        );
+        expect(script, contains(r'ws=$(cd "$HOME/src/r/e2e/x" && pwd -P)'));
+        expect(script, contains(r'md5sum | cut -c1-32'));
+        expect(script, contains(r'kill -9 -- "-$pid"'));
+        expect(script, endsWith('! kill -0 "\$pid" 2>/dev/null\n'));
+      },
+    );
+  });
+
+  test('an item times out after 30 minutes unless it says otherwise', () {
+    expect(E2eItem.bazel('.', ['test']).timeout, const Duration(minutes: 30));
+    expect(
+      E2eItem.script('.', 'x', timeout: const Duration(hours: 2)).timeout,
+      const Duration(hours: 2),
+    );
+  });
+
   test('folderHash is short, stable and tells folders apart', () {
     expect(folderHash('.'), hasLength(8));
     expect(folderHash('e2e/a'), folderHash('e2e/a'));

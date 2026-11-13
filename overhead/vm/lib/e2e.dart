@@ -32,6 +32,7 @@ final class E2eItem {
     List<String> this.bazelArgs, {
     String? name,
     this.passExitCodes = const {0},
+    this.timeout = defaultItemTimeout,
   }) : script = null,
        name = name ?? folder;
 
@@ -42,6 +43,7 @@ final class E2eItem {
     String this.script, {
     String? name,
     this.passExitCodes = const {0},
+    this.timeout = defaultItemTimeout,
   }) : bazelArgs = null,
        name = name ?? folder;
 
@@ -56,6 +58,10 @@ final class E2eItem {
 
   /// The exit codes that pass: `{0, 4}` where finding no test target is fine.
   final Set<int> passExitCodes;
+
+  /// How long it may run before it fails as timed out and its folder's Bazel
+  /// server is stopped ([stopCommand]).
+  final Duration timeout;
 }
 
 /// The runner's command line.
@@ -170,9 +176,9 @@ final class E2eVm {
       scpFromVm(name, remote, local, compress: compress);
 }
 
-/// How long one item may run. The first item in a fresh VM pays for
-/// fetching every toolchain and dependency.
-const itemTimeout = Duration(minutes: 30);
+/// How long an item may run unless it says otherwise. The first item in a
+/// fresh VM pays for fetching every toolchain and dependency.
+const defaultItemTimeout = Duration(minutes: 30);
 
 /// Runs the e2e suites on the VM [args] names, and exits.
 ///
@@ -244,8 +250,21 @@ Future<Never> runE2e(
       vm.windows
           ? windowsCommand(item, vm.checkout)
           : linuxCommand(item, vm.checkout),
-      timeout: itemTimeout,
+      timeout: item.timeout,
     );
+    if (r.exitCode == sshTimedOut) {
+      // The SSH client is gone, but the build goes on: stop it, or it
+      // competes with the next item for the VM.
+      final stop = await vm.exec(
+        stopCommand(item, vm.checkout, windows: vm.windows),
+        timeout: const Duration(minutes: 2),
+      );
+      stdout.writeln(
+        stop.exitCode == 0
+            ? 'Stopped ${item.name}\'s Bazel server.'
+            : 'Could not stop ${item.name}\'s Bazel server: ${stop.stderr}',
+      );
+    }
     final code = r.exitCode == sshTimedOut
         ? sshTimedOut
         : parseExit('${r.stdout}');
@@ -254,7 +273,7 @@ Future<Never> runE2e(
       code,
       item.passExitCodes.contains(code),
       code == sshTimedOut
-          ? 'TIMEOUT after $itemTimeout'
+          ? 'TIMEOUT after ${item.timeout}'
           : tail('${r.stdout}\n${r.stderr}'),
     );
     results.add(result);
@@ -369,6 +388,34 @@ String windowsCommand(E2eItem item, String checkout) {
   return 'cmd /v:on /c "cd /d $dir && '
       'bazel --output_base=C:/b/${folderHash(item.folder)} ${args.join(' ')} & '
       'echo $_exitMark!errorlevel!"';
+}
+
+/// The command that stops the Bazel server of [item]'s folder, and its
+/// workers, on a VM whose checkout is at [checkout]: after a timeout, the
+/// build goes on without the SSH session that started it.
+///
+/// It finds the server by its output base's pid file: `C:/b/<hash>` on
+/// Windows ([windowsCommand]), and Bazel's default on Linux, named for the
+/// workspace's path. A script that runs Bazel in other folders leaves those
+/// servers running. Nothing to stop is not an error.
+String stopCommand(E2eItem item, String checkout, {required bool windows}) {
+  if (windows) {
+    final pidFile = 'C:\\b\\${folderHash(item.folder)}\\server\\server.pid.txt';
+    return 'cmd /c "if exist $pidFile '
+        'for /f %p in ($pidFile) do taskkill /f /t /pid %p"';
+  }
+  final dir = item.folder == '.' ? checkout : '$checkout/${item.folder}';
+  // The server leads its own process group; its persistent workers exit
+  // when it does.
+  final script =
+      'ws=\$(cd "$dir" && pwd -P)\n'
+      'base="\$HOME/.cache/bazel/_bazel_\$USER/'
+      '\$(printf %s "\$ws" | md5sum | cut -c1-32)"\n'
+      'pid=\$(cat "\$base/server/server.pid.txt" 2>/dev/null) || exit 0\n'
+      'kill -9 -- "-\$pid" 2>/dev/null\n'
+      'sleep 1\n'
+      '! kill -0 "\$pid" 2>/dev/null\n';
+  return "bash -c 'echo ${base64Word(script)} | base64 -d | bash'";
 }
 
 /// Eight hex digits of [folder]'s FNV-1a hash.
