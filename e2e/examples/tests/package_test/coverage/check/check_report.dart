@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:runfiles/runfiles.dart';
 
 /// Checks the LCOV report `bazel coverage --combined_report=lcov` wrote for
-/// `//package_test/coverage/...` (its path is the one argument) against the fixture's
+/// `//tests/package_test/coverage/...` (its path is the one argument) against the fixture's
 /// sources, generated and hand-written: each line marked `// covered` has
 /// hits and each marked `// uncovered` has none, no line a `// coverage:ignore-line` or an
 /// `ignore-start`/`ignore-end` pair names is reported, a file marked
@@ -93,7 +93,7 @@ Set<int> _ignoredLines(List<String> lines) {
   return ignored;
 }
 
-const _fixture = 'package_test/coverage';
+const _fixture = 'tests/package_test/coverage';
 const _generated = '$_fixture/generated/lib/generated.dart';
 
 /// Hits by line, by source file; the generated file's under its path without

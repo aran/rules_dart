@@ -11,8 +11,8 @@ references/
 # local path deps (no pub packages). These pubspec.yaml files exist solely to
 # satisfy the Dart analyzer in the IDE; the locks are trivial and not used by
 # Bazel. The locks pub.from_lock() reads at build time (e2e/pub_lock/,
-# e2e/dart_test/package_test/, e2e/examples/web/app/ and others) ARE tracked.
-e2e/dart_test/pubspec.lock
+# e2e/examples/tests/package_test/, e2e/examples/web/app/ and others) ARE tracked.
+e2e/examples/tests/pubspec.lock
 e2e/examples/library_deps/pubspec.lock
 e2e/gazelle/pubspec.lock
 e2e/pub_deps/pubspec.lock

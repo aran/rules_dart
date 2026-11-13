@@ -50,7 +50,6 @@ jobs:
           "e2e/smoke",
           "e2e/examples",
           "e2e/analysis",
-          "e2e/dart_test",
           "e2e/codegen",
           "e2e/pub_deps",
           "e2e/pub_lock",
@@ -145,7 +144,7 @@ jobs:
     timeout-minutes: 60
     strategy:
       matrix:
-        folder: [".", "e2e/dart_test", "e2e/codegen"]
+        folder: [".", "e2e/examples", "e2e/codegen"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: bazel-contrib/setup-bazel@104e3eea9447cdaa4b00d0fb46191a3985d26ab3 # 0.19.1
@@ -156,7 +155,11 @@ jobs:
           repository-cache: true
       - name: dart_test whole-program — ${{ matrix.folder }}
         working-directory: ${{ matrix.folder }}
-        run: bazel test --test_output=errors --@rules_dart//dart:modular_kernel=false //...
+        # In e2e/examples, the examples whose tests a compile mode changes.
+        run: |
+          targets=//...
+          [ "${{ matrix.folder }}" = e2e/examples ] && targets=//tests/...
+          bazel test --test_output=errors --@rules_dart//dart:modular_kernel=false $targets
   # Analysis from source: every target analyzed by the SDK's own `dart
   # analyze` against its dependencies' source, the path the summaries flag
   # turns back to, so it cannot rot.
@@ -179,7 +182,7 @@ jobs:
         # Exit code 4 (no test targets) passes only for e2e/analysis, which has
         # none.
         run: bazel test --test_output=errors --@rules_dart//dart:analysis_summaries=false //... || { [ $? -eq 4 ] && [ "${{ matrix.folder }}" = e2e/analysis ]; }
-  # Without path mapping, which e2e/dart_test's .bazelrc turns on for its other
+  # Without path mapping, which e2e/examples' .bazelrc turns on for its other
   # tests: coverage as most builds collect it.
   coverage:
     runs-on: ubuntu-latest
@@ -201,10 +204,10 @@ jobs:
           disk-cache: ${{ github.job }}-${{ strategy.job-index }}
           repository-cache: true
       - name: bazel coverage, combined LCOV report — ${{ matrix.name }}
-        working-directory: e2e/dart_test
+        working-directory: e2e/examples
         run: |
-          bazel coverage --experimental_output_paths=off ${{ matrix.flags }} --combined_report=lcov //package_test/coverage/...
-          bazel run --experimental_output_paths=off //package_test/coverage/check -- "$(bazel info --experimental_output_paths=off output_path)/_coverage/_coverage_report.dat"
+          bazel coverage --experimental_output_paths=off ${{ matrix.flags }} --combined_report=lcov //tests/package_test/coverage/...
+          bazel run --experimental_output_paths=off //tests/package_test/coverage/check -- "$(bazel info --experimental_output_paths=off output_path)/_coverage/_coverage_report.dat"
   # The runner snapshot cache off, the default this repository's .bazelrc
   # overrides: `runner_snapshot_cache_test` checks that the runner then starts
   # from its kernel and no cache is touched.
@@ -811,13 +814,13 @@ jobs:
       # A hung test is diagnosed from what it printed before Bazel killed it, so
       # that output has to be in test.log rather than held back by the launcher.
       - name: dart_test — expect a timed-out test's output in its log
-        working-directory: e2e/dart_test
+        working-directory: e2e/examples
         run: |
-          if bazel test --test_timeout=5 //:hangs_until_killed_test; then
+          if bazel test --test_timeout=5 //tests:hangs_until_killed_test; then
             echo "ERROR: test should have timed out"
             exit 1
           fi
-          log=bazel-testlogs/hangs_until_killed_test/test.log
+          log=bazel-testlogs/tests/hangs_until_killed_test/test.log
           grep -q "Test timed out" "$log"
           grep -q "printed before hanging" "$log"
           grep -q "written to stderr before hanging" "$log"
@@ -860,8 +863,8 @@ jobs:
         working-directory: e2e/examples
         run: bazel build -c dbg //hello_world/...
       - name: dart_test — run tests under -c dbg
-        working-directory: e2e/dart_test
-        run: bazel test -c dbg --test_output=errors //...
+        working-directory: e2e/examples
+        run: bazel test -c dbg --test_output=errors //tests/...
   # The Gazelle plugin is a module of its own, and its golden-file tests live in
   # the nested `dev/` module; `//...` in the root module reaches neither.
   dev-tests:

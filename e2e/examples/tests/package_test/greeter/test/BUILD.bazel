@@ -8,11 +8,11 @@ dart_test(
     size = "small",
     data = [
         "fixtures/greeting.txt",
-        "//package_test/greeter:dart_test.yaml",
+        "//tests/package_test/greeter:dart_test.yaml",
     ],
     main = "greeter_test.dart",
     deps = [
-        "//package_test/greeter",
+        "//tests/package_test/greeter",
         "@pub_deps//:test",
     ],
 )

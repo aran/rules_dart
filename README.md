@@ -3347,7 +3347,7 @@ The [`e2e/`](e2e/) directory contains complete working examples. A name with a
 | [`examples/hello_world`](e2e/examples/hello_world/)                     | Minimal binary + all compile modes (`exe`, `aot-snapshot`, `kernel`)                                     |
 | [`examples/fixtures/no_pubspec`](e2e/examples/fixtures/no_pubspec/)                       | No `pubspec.yaml` in it or above it: codegen, analysis, format, fix, tests, every binary                 |
 | [`examples/library_deps`](e2e/examples/library_deps/)                   | Transitive `dart_library` dependencies, `srcs` attribute, a `dart_package_cycle`                         |
-| [`dart_test`](e2e/dart_test/)                                       | Tests with and without deps, `srcs` for test helpers                                                     |
+| [`examples/tests`](e2e/examples/tests/)                                       | Tests with and without deps, `srcs` for test helpers                                                     |
 | [`analysis`](e2e/analysis/)                                         | The `dart_analyze` aspect's checks with `package:`-included options                                      |
 | [`analysis_failure`](e2e/analysis_failure/)                         | Targets the `dart_analyze` aspect fails, each with a diagnostic of its own                               |
 | [`fix`](e2e/fix/)                                                   | `@rules_dart//dart/fix` and `format` write-back, and that generated files are never rewritten            |
@@ -3359,7 +3359,7 @@ The [`e2e/`](e2e/) directory contains complete working examples. A name with a
 | [`pub_lock`](e2e/pub_lock/)                                         | Multiple packages from `pubspec.lock` via `pub.from_lock()`                                              |
 | [`gazelle`](e2e/gazelle/)                                           | Automatic BUILD file generation with Gazelle                                                             |
 | [`examples/cross_compile`](e2e/examples/cross_compile/)                 | Cross-compilation to other platforms via `platform_data` transition                                      |
-| [`dart_test/package_test`](e2e/dart_test/package_test/)             | `dart_test` with pub dependencies via `pub.from_lock()`                                                  |
+| [`examples/tests/package_test`](e2e/examples/tests/package_test/)             | `dart_test` with pub dependencies via `pub.from_lock()`                                                  |
 | [`pub_lock_dedup/two_hubs`](e2e/pub_lock_dedup/two_hubs/)           | Cross-lock-file package deduplication                                                                    |
 | [`root_settings/pub_versions/lock_upgrade`](e2e/root_settings/pub_versions/lock_upgrade/)                         | Locks that disagree build the highest version, rules_dart's own lock included                            |
 | [`pub_lock_conflict`](e2e/failures/pub_lock_conflict/)                       | `check_direct_dependencies = "error"` fails a root lock raised by another lock or by a dependency module, giving the commands to raise them |

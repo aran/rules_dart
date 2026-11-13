@@ -8,5 +8,5 @@ dart_test(
     size = "small",
     data = ["fixtures/greeting.txt"],
     main = "working_dir_test.dart",
-    deps = ["//working_dir"],
+    deps = ["//tests/working_dir"],
 )

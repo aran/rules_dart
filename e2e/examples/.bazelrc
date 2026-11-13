@@ -10,4 +10,24 @@ common --@rules_dart//dart:analysis_config=//:analysis_config
 # the cross toolchains supply them. Nothing here needs the network.
 build --sandbox_default_allow_network=false
 
+# Path mapping, as a downstream that shares results across configurations
+# builds: every action that supports it sees `bazel-out/cfg/...` for each
+# output directory and runs sandboxed, persistent workers included. Windows has
+# no sandbox, so there Bazel would fail a path-mapped action.
+common --enable_platform_specific_config
+common:linux --experimental_output_paths=strip
+common:macos --experimental_output_paths=strip
+
+# tests: the `--@rules_dart//dart:extra_dart_defines` command-line channel, the
+# way a real config group would use it: one define this build sets only from
+# the flag, and one that collides with a target's own `defines` so the
+# precedence is observable. See `//tests:defines_test`.
+build --@rules_dart//dart:extra_dart_defines=E2E_FLAG=from_flag
+build --@rules_dart//dart:extra_dart_defines=E2E_WINNER=flag
+
+# tests/package_test/coverage: `check` checks that a generated source and a
+# test's own files are reported, which Bazel instruments only when asked.
+coverage --experimental_collect_code_coverage_for_generated_files
+coverage --instrument_test_targets
+
 try-import %workspace%/.bazelrc.user

@@ -3,5 +3,5 @@ load("@rules_dart//dart:defs.bzl", "dart_library")
 dart_library(
     name = "working_dir",
     srcs = glob(["lib/**/*.dart"]),
-    visibility = ["//working_dir:__subpackages__"],
+    visibility = ["//tests/working_dir:__subpackages__"],
 )

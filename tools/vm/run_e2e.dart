@@ -3,7 +3,7 @@
 ///
 ///     bazel run @overhead//vm:create_linux_vm -- <vm-name>
 ///     bazel run //tools/vm:run_e2e -- <vm-name> [--windows] \
-///         [--folders=e2e/smoke,e2e/dart_test] [--keep-going] \
+///         [--folders=e2e/smoke,e2e/examples] [--keep-going] \
 ///         [--remote-cache=https://storage.googleapis.com/<bucket>]
 ///     gcloud compute instances delete <vm-name> --quiet
 ///

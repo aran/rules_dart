@@ -1,19 +1,4 @@
-load("@rules_dart//dart:defs.bzl", "dart_analysis_config", "dart_analysis_options", "dart_test")
-
-dart_analysis_config(
-    name = "analysis_config",
-    options = [":options"],
-)
-
-# One options target for the whole workspace, including its subpackages.
-# The ruleset is named here rather than in any library's `deps` because a lint
-# ruleset is not a dependency of the code it lints — listing it there would
-# carry it into the `DartInfo` of every test below.
-dart_analysis_options(
-    name = "options",
-    src = "analysis_options.yaml",
-    deps = ["@very_good_analysis"],
-)
+load("@rules_dart//dart:defs.bzl", "dart_test")
 
 # Each test's `main` lives outside any package's `lib/`; the aspect analyzes the
 # test targets themselves, so every entrypoint is covered.
@@ -21,7 +6,7 @@ dart_test(
     name = "mathlib_test",
     size = "small",
     main = "mathlib_test.dart",
-    deps = ["//mathlib"],
+    deps = ["//tests/mathlib"],
 )
 
 dart_test(
@@ -34,7 +19,7 @@ dart_test(
     name = "utils_test",
     size = "small",
     main = "test/utils_test.dart",
-    deps = ["//utils"],
+    deps = ["//tests/utils"],
 )
 
 # Demonstrates the srcs attribute — test_helpers.dart is a local
@@ -89,5 +74,5 @@ dart_test(
     name = "sub/nested_test",
     size = "small",
     main = "test/sub/nested_test.dart",
-    deps = ["//utils"],
+    deps = ["//tests/utils"],
 )

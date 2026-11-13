@@ -39,6 +39,14 @@ pub.from_lock(
 )
 use_repo(pub, "pub_deps")
 
+# tests/package_test: tests under `package:test`, with pub dependencies from
+# the lock beside its pubspec. Each lock that names the hub `pub_deps` adds
+# its packages to it.
+pub.from_lock(
+    name = "pub_deps",
+    lock = "//tests/package_test:pubspec.lock",
+)
+
 # cross_compile: the platforms it builds for.
 bazel_dep(name = "rules_platform", version = "0.1.0")
 

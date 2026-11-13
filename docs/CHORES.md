@@ -316,7 +316,7 @@ Maintenance includes:
   newest analyzer line every builder accepts, and the `build` major that
   every generator accepts (`source_gen` aside, they cap it below 5).
   `e2e/codegen`,
-  `e2e/dart_test/package_test`, and rules_dart_proto's `dart_proto` set floors on
+  `e2e/examples/tests/package_test`, and rules_dart_proto's `dart_proto` set floors on
   `analyzer`/`package_config` in their pubspecs to keep their locks no older
   than this one. To bump:
   `bazel run @rules_dart//dart/pub -- upgrade --directory=dart/ext`, then
