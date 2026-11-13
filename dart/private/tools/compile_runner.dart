@@ -15,7 +15,7 @@
 // changed are recomputed: the embedded snapshot's own, then the executable's.
 //
 // This works around a gen_snapshot bug, fixed upstream by dart-lang/sdk
-// e2c6325 ("[vm] Fix stripping of Mach-O snapshots"), which 3.13.7 predates.
+// e2c6325 ("[vm] Fix stripping of Mach-O snapshots"), which 3.14.1 predates.
 // Once a stable SDK carries it, gen_snapshot's `--strip` should leave no path
 // behind; then this runner and `dart_bootstrap_binary` are deleted and the
 // compile passes `--strip` instead (docs/CHORES.md, Dart SDK Version Bump).

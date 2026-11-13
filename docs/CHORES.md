@@ -22,6 +22,11 @@ as the repo evolves.
 - `README.md` — `dart.toolchain(dart_version = "...")` in installation snippet
   (not the measurements that name the SDK they were taken on)
 - `dart/tests/versions_test.bzl` — asserted version key in `_smoke_test_impl`
+- `dart/tests/kernel_checkout.bzl` (`_VERSION`),
+  `dart/tests/outline_toolchain_fixture/BUILD.bazel` (both `version`s) and
+  `e2e/examples/pub/lock/BUILD.bazel` (`SDK_PURL_PREFIX`), which name the
+  pinned release; `git grep` the old version for any others, leaving test
+  inputs whose version is an arbitrary value
 - `dart/runfiles/pubspec.yaml` — `environment.sdk` constraint (published to
   pub.dev; keep the lower bound as low as stays compatible rather than tracking
   the newest SDK)
@@ -41,7 +46,8 @@ as the repo evolves.
 6. Regenerate lock files: `bazel run --lockfile_mode=off @overhead//locks:refresh`,
    then check that the `pubspec.lock` files still resolve on the new SDK:
    `bazel run //tool:pub_locks`
-7. Run `bazel test //dart/tests/...` to verify unit tests pass. A failure in
+7. Run `bazel test //...` to verify the tests pass: the analyzer and compiler
+   tests under `//dart/private/tools` run the new SDK's tools. A failure in
    `//dart/tests/sdk_files` means the SDK moved or added a file one of its
    uses reads: update that use's entry in `SDK_FILE_SETS`
    (`dart/toolchain.bzl`) and its pin in `sdk_files_test.bzl`
@@ -68,7 +74,7 @@ as the repo evolves.
     stack traces still say enough; if not, keep the debugging info with
     `--save-debugging-info` beside the output. Then delete this step
 
-**Verification**: `bazel test //dart/tests/...` passes; the outline guard
+**Verification**: `bazel test //...` passes; the outline guard
 passes under `--config=deep`; at least one e2e workspace builds.
 
 ---

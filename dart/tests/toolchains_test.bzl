@@ -176,8 +176,7 @@ def _sources_cover_every_version_test_impl(ctx):
     env = unittest.begin(ctx)
 
     # Every toolchain registers the outline stripper of its own version, and
-    # `dart_kernel_source` does SOURCE_VERSIONS[version], which hard errors on
-    # a miss.
+    # and gives no `sha256`, so `dart_kernel_source` needs the version pinned.
     asserts.equals(
         env,
         sorted(TOOL_VERSIONS.keys()),

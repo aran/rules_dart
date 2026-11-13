@@ -576,6 +576,7 @@ dart_binary(
     for name, tool, extra in [
         ("summary_analyzer_test", ":summary_analyzer", []),
         ("summary_analyzer_checkout_test", "@analyzer_checkout_source//:summary_analyzer", []),
+        ("summary_analyzer_unserved_test", "@analyzer_unserved_source//:summary_analyzer", []),
         (
             "summary_analyzer_prefixed_test",
             "@analyzer_prefixed_source//analyzer_source:summary_analyzer",
@@ -605,6 +606,7 @@ dart_binary(
     for name, tool, extra in [
         ("kernel_outline_test", "@dart_kernel_source//:outline_tool", []),
         ("kernel_outline_checkout_test", "@kernel_checkout_source//:outline_tool", []),
+        ("kernel_outline_unserved_test", "@kernel_unserved_source//:outline_tool", []),
         (
             "kernel_outline_prefixed_test",
             "@kernel_prefixed_source//kernel_source:outline_tool",

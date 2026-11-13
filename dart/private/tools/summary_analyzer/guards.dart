@@ -5,14 +5,9 @@
 // positions, doc comments. The analyzer reads them from source alone, and a
 // few of its checks give up, silently, without them. Each guard here detects
 // the case one of those checks gives up on, from data a summary does hold.
-import 'dart:io';
-
 import 'package:analyzer/dart/analysis/analysis_context.dart';
 import 'package:analyzer/dart/analysis/features.dart';
 import 'package:analyzer/dart/analysis/results.dart';
-import 'package:analyzer/dart/analysis/session.dart';
-import 'package:analyzer/dart/ast/ast.dart';
-import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:analyzer/instrumentation/noop_service.dart';
@@ -20,8 +15,6 @@ import 'package:analyzer/instrumentation/plugin_data.dart';
 import 'package:analyzer/instrumentation/service.dart';
 import 'package:analyzer/utilities/extensions/uri.dart';
 import 'package:path/path.dart' as p;
-
-import 'report.dart';
 
 /// Records the exceptions the analyzer catches and goes on from.
 ///
@@ -67,7 +60,6 @@ bool fromSummary(LibraryElement library) =>
 Future<List<String>> summaryLosses(
   AnalysisContext context,
   List<String> libraries,
-  List<Reported> diagnostics,
 ) async {
   final session = context.currentSession;
   final refusals = <String>[];
@@ -79,9 +71,6 @@ Future<List<String>> summaryLosses(
     final library = result.element;
     refusals.addAll(lostClassModifierErrors(library));
     refusals.addAll(lostRelativeImports(context, path, library));
-    refusals.addAll(
-      await falseCommentReferences(session, library, diagnostics),
-    );
   }
   return refusals;
 }
@@ -313,88 +302,4 @@ List<String> lostRelativeImports(
     }
   }
   return lost;
-}
-
-// --- comment_references ------------------------------------------------------
-//
-// The analyzer resolves a doc comment's references against the libraries its
-// `@docImport`s name only when they come from source (`LibraryAnalyzer`
-// keeps `LibraryImportWithFile` alone). A name a doc import of a summary
-// library brings in is reported as not in scope.
-
-/// The `comment_references` diagnostics in [library] that are false: each
-/// names something a doc import read from a summary provides.
-Future<List<String>> falseCommentReferences(
-  AnalysisSession session,
-  LibraryElement library,
-  List<Reported> diagnostics,
-) async {
-  final units = {for (final f in library.fragments) f.source.fullName};
-  final reported = [
-    for (final d in diagnostics)
-      if (d.code == 'comment_references' && units.contains(d.file)) d,
-  ];
-  if (reported.isEmpty) return const [];
-
-  // What the doc imports read from summaries make visible, by prefix (''
-  // for none).
-  final visible = <String, List<LibraryElement>>{};
-  final names = <String, String>{};
-  for (final unitPath in units) {
-    final parsed = session.getParsedUnit(unitPath);
-    if (parsed is! ParsedUnitResult) continue;
-    final collector = _DocImports();
-    parsed.unit.accept(collector);
-    for (final directive in collector.imports) {
-      final text = directive.uri.stringValue;
-      if (text == null) continue;
-      final uri = library.uri.resolve(text);
-      final result = await session.getLibraryByUri('$uri');
-      if (result is! LibraryElementResult || !fromSummary(result.element)) {
-        continue;
-      }
-      final prefix = directive.prefix?.name ?? '';
-      visible.putIfAbsent(prefix, () => []).add(result.element);
-      names[prefix] = text;
-    }
-  }
-  if (visible.isEmpty) return const [];
-
-  final falsePositives = <String>[];
-  for (final d in reported) {
-    final content = File(d.file).readAsStringSync();
-    if (d.offset + d.length > content.length) continue;
-    final reference = content.substring(d.offset, d.offset + d.length);
-    final parts = reference.split('.');
-    String? from;
-    if (parts.length > 1 && visible.containsKey(parts.first)) {
-      from = names[parts.first];
-    } else {
-      for (final l in visible[''] ?? const <LibraryElement>[]) {
-        if (l.exportNamespace.get2(parts.first) != null) {
-          from = l.uri.toString();
-          break;
-        }
-      }
-    }
-    if (from == null) continue;
-    falsePositives.add(
-      '${d.file}:${d.line}:${d.column}: this `comment_references` is false: '
-      "'$reference' comes from the doc import of '$from', which the analyzer "
-      'ignores when that library is read from a summary (Dart SDK bug).',
-    );
-  }
-  return falsePositives;
-}
-
-class _DocImports extends RecursiveAstVisitor<void> {
-  final imports = <ImportDirective>[];
-
-  @override
-  void visitComment(Comment node) {
-    for (final d in node.docImports) {
-      imports.add(d.import);
-    }
-    super.visitComment(node);
-  }
 }

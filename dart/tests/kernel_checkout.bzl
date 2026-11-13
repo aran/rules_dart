@@ -15,7 +15,11 @@ a repository rule that has a root `BUILD.bazel` of its own, as rules_flutter's
 load("//dart:repositories.bzl", "dart_analyzer_source", "dart_kernel_source", "fetch_dart_analyzer_source", "fetch_dart_kernel_source")
 load("//dart/private:versions.bzl", "SOURCE_VERSIONS")
 
-_VERSION = "3.13.7"
+_VERSION = "3.14.1"
+
+# A release rules_dart does not serve, whose source a caller pins itself.
+_UNSERVED_VERSION = "3.14.0"
+_UNSERVED_SHA256 = "f9cdd43f4c05d7f8cbd1caea31e3505d1f81c489d008c063c7bc028364844f65"
 
 def _files_impl(rctx):
     archive = "sdk.tar.gz"
@@ -65,6 +69,8 @@ def _impl(ctx):
     kernel_prefixed_source(name = "kernel_prefixed_source", path = str(root))
     dart_analyzer_source(name = "analyzer_checkout_source", path = str(root))
     analyzer_prefixed_source(name = "analyzer_prefixed_source", path = str(root))
+    dart_kernel_source(name = "kernel_unserved_source", dart_version = _UNSERVED_VERSION, sha256 = _UNSERVED_SHA256)
+    dart_analyzer_source(name = "analyzer_unserved_source", dart_version = _UNSERVED_VERSION, sha256 = _UNSERVED_SHA256)
     return ctx.extension_metadata(reproducible = True)
 
 kernel_checkout = module_extension(_impl)

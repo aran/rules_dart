@@ -39,7 +39,7 @@ dart_test(
             "pkg:pub/path@1.9.1?checksum=sha256:75cca69d1490965be98c73ceaea117e8a04dd21217b37b292c9ddbec0d955bc5",
             "pkg:pub/very_good_analysis@11.0.0?checksum=sha256:0bd5eb8d6be76aa0d71e70cbdae6cac8f784f761170568e3c2214a6948c7f6d3",
         ]),
-        "SDK_PURL_PREFIX": "pkg:generic/dart-sdk@3.13.7?checksum=sha256:",
+        "SDK_PURL_PREFIX": "pkg:generic/dart-sdk@3.14.1?checksum=sha256:",
     },
     main = "purls_test.dart",
     deps = ["@rules_dart//dart/runfiles"],

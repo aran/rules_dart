@@ -231,30 +231,6 @@ int use(Holder h) {
     expect(result.output, allOf(contains('crashed'), contains(flag)));
   });
 
-  test('says which comment_references are false', () async {
-    final summary = await dep();
-    final app = project(
-      'app',
-      {
-        'app/lib/app.dart': '''
-/// @docImport 'package:dep/dep.dart';
-/// @docImport 'dart:async';
-library;
-
-/// See [Thing], [Completer] and [Nowhere].
-class A {}
-''',
-      },
-      packages: ['app'],
-      options: 'linter:\n  rules:\n    - comment_references\n',
-    );
-    final result = await analyze(app, [summary]);
-    expect(result.exitCode, isNot(0));
-    expect(result.output, contains("'Thing' comes from the doc import of"));
-    expect(result.output, contains("'Completer' comes from the doc import of"));
-    expect(result.output, isNot(contains("'Nowhere' comes from")));
-  });
-
   test('refuses a package split across targets under '
       'prefer_relative_imports', () async {
     final impl = await summarize(

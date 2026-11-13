@@ -150,7 +150,7 @@ DartSdkInfo = provider(
     doc = "Information about the Dart SDK provided by the toolchain.",
     fields = {
         "dart": "File: The `dart` executable.",
-        "version": "str: The SDK version string (e.g. `3.13.7`).",
+        "version": "str: The SDK version string (e.g. `3.14.1`).",
         "files": "DartSdkFilesInfo: The SDK's files by the use that reads them.",
         "target_os": "str: Cross-compilation target OS (`macos`, `linux`, `windows`), or empty for native.",
         "target_arch": "str: Cross-compilation target architecture (`x64`, `arm64`, `riscv64`, `arm`), or empty for native.",
@@ -230,7 +230,7 @@ dart_toolchain = rule(
             allow_files = True,
         ),
         "version": attr.string(
-            doc = "The SDK version string (e.g. `3.13.7`).",
+            doc = "The SDK version string (e.g. `3.14.1`).",
             mandatory = True,
         ),
         "target_os": attr.string(

@@ -167,7 +167,7 @@ local_path_override(
 )
 
 dart = use_extension("//dart:extensions.bzl", "dart")
-dart.toolchain(dart_version = "3.13.7")
+dart.toolchain(dart_version = "3.14.1")
 use_repo(
     dart,
     # The pinned SDK's summary analyzer and outline stripper, for their own
@@ -193,7 +193,7 @@ kernel_checkout_files = use_repo_rule("//dart/tests:kernel_checkout.bzl", "kerne
 kernel_checkout_files(name = "kernel_checkout_files")
 
 kernel_checkout = use_extension("//dart/tests:kernel_checkout.bzl", "kernel_checkout", dev_dependency = True)
-use_repo(kernel_checkout, "analyzer_checkout_source", "analyzer_prefixed_source", "kernel_checkout_source", "kernel_prefixed_source")
+use_repo(kernel_checkout, "analyzer_checkout_source", "analyzer_prefixed_source", "analyzer_unserved_source", "kernel_checkout_source", "kernel_prefixed_source", "kernel_unserved_source")
 
 register_toolchains("@dart_toolchains//:all")
 

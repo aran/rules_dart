@@ -64,7 +64,7 @@ package_metadata(
 _DOC = "Fetch the Dart SDK for a given version and platform"
 _ATTRS = {
     "dart_version": attr.string(
-        doc = "The Dart SDK version to download (e.g. `3.13.7`). Must be a version listed in `versions.bzl`.",
+        doc = "The Dart SDK version to download (e.g. `3.14.1`). Must be a version listed in `versions.bzl`.",
         mandatory = True,
         values = TOOL_VERSIONS.keys(),
     ),
@@ -265,11 +265,20 @@ def _check_prefix(caller, prefix):
 def _fetch_release(repository_ctx, packages):
     """Extracts `packages` from the source archive of `dart_version`'s release tag."""
     version = repository_ctx.attr.dart_version
+    url = "https://github.com/dart-lang/sdk/archive/refs/tags/%s.tar.gz" % version
+    sha256 = repository_ctx.attr.sha256 or SOURCE_VERSIONS.get(version)
+    if not sha256:
+        fail("%s(name = \"%s\"): rules_dart pins no source archive for Dart %s. Give `sha256`, that of %s." % (
+            repository_ctx.attr._rule,
+            repository_ctx.original_name,
+            version,
+            url,
+        ))
     archive = "sdk.tar.gz"
     repository_ctx.download(
-        url = "https://github.com/dart-lang/sdk/archive/refs/tags/%s.tar.gz" % version,
+        url = url,
         output = archive,
-        sha256 = SOURCE_VERSIONS[version],
+        sha256 = sha256,
     )
     for package in packages:
         repository_ctx.extract(
@@ -400,6 +409,11 @@ def _check_version_or_path(repository_ctx):
             repository_ctx.original_name,
             "both were given" if version else "neither was",
         ))
+    if path and repository_ctx.attr.sha256:
+        fail("%s(name = \"%s\"): `sha256` pins a release's source archive, and `path` fetches none." % (
+            repository_ctx.attr._rule,
+            repository_ctx.original_name,
+        ))
     return version, path
 
 def _dart_kernel_source_impl(repository_ctx):
@@ -430,7 +444,8 @@ from it unmodified, and declares `:outline_tool`, the stripper built on them.
 
 The `dart` extension makes one for each toolchain it registers. A rule set whose
 platform bundles a released Dart SDK (Flutter) declares one for that SDK's
-version and sets its `:outline_tool` as its `DartKernelSdkInfo.outline_tool`.
+version, with the `sha256` of its source archive when rules_dart does not pin
+it, and sets its `:outline_tool` as its `DartKernelSdkInfo.outline_tool`.
 
 A Dart SDK built from source has no release to pin: name its checkout with
 `path` instead. The repository links the checkout's two packages and watches
@@ -438,8 +453,10 @@ them, so an edit there refetches it; it is not reproducible, so Bazel does not
 share it between output bases.""",
     attrs = {
         "dart_version": attr.string(
-            doc = "The Dart SDK release whose `pkg/kernel` the stripper is built on. Must be a version listed in `versions.bzl`. Exactly one of `dart_version` and `path` is given.",
-            values = SOURCE_VERSIONS.keys() + [""],
+            doc = "The Dart SDK release whose `pkg/kernel` the stripper is built on. A version `versions.bzl` does not pin also needs `sha256`. Exactly one of `dart_version` and `path` is given.",
+        ),
+        "sha256": attr.string(
+            doc = "The SHA-256 of the GitHub source archive of `dart_version`'s tag. Needed for a release `versions.bzl` does not pin, which rules_dart need not serve.",
         ),
         "path": attr.string(
             doc = "The absolute path of a Dart SDK source checkout's root, the directory holding `pkg/kernel`, whose `pkg/kernel` and `pkg/_fe_analyzer_shared` the stripper is built on; for a Flutter engine checkout that is `third_party/dart`. Exactly one of `dart_version` and `path` is given. `pkg/kernel` reads only the kernel format of the SDK it ships in, so the checkout must be the source of the compiler whose kernels the stripper reads: that is yours to keep, and a stripper from one checkout fails on the kernels of another's compiler.",
@@ -548,15 +565,18 @@ repository fetches the source archive of the release's tag (pinned in
 
 The `dart` extension makes one for each toolchain it registers. A rule set whose
 platform bundles a released Dart SDK (Flutter) declares one for that SDK's
-version and registers a `dart_analyzer_toolchain` with its `:summary_analyzer`.
+version, with the `sha256` of its source archive when rules_dart does not pin
+it, and registers a `dart_analyzer_toolchain` with its `:summary_analyzer`.
 
 A Dart SDK built from source has no release to pin: name its checkout with
 `path` instead. The repository links the checkout's packages and watches them;
 it is not reproducible, so Bazel does not share it between output bases.""",
     attrs = {
         "dart_version": attr.string(
-            doc = "The Dart SDK release whose `pkg/analyzer` and `pkg/linter` the analyzer is built on. Must be a version listed in `versions.bzl`. Exactly one of `dart_version` and `path` is given.",
-            values = SOURCE_VERSIONS.keys() + [""],
+            doc = "The Dart SDK release whose `pkg/analyzer` and `pkg/linter` the analyzer is built on. A version `versions.bzl` does not pin also needs `sha256`. Exactly one of `dart_version` and `path` is given.",
+        ),
+        "sha256": attr.string(
+            doc = "The SHA-256 of the GitHub source archive of `dart_version`'s tag. Needed for a release `versions.bzl` does not pin, which rules_dart need not serve.",
         ),
         "path": attr.string(
             doc = "The absolute path of a Dart SDK source checkout's root, the directory holding `pkg/analyzer`; for a Flutter engine checkout that is `third_party/dart`. Exactly one of `dart_version` and `path` is given. It must be the source of the SDK whose analysis the analyzer stands in for: that is yours to keep.",

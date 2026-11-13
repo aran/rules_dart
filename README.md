@@ -74,7 +74,7 @@ bazel_dep(name = "rules_dart", version = "<the latest release>")  # https://gith
 bazel_dep(name = "rules_dart_gazelle_plugin", version = "<the same version>")  # optional, see Gazelle
 
 dart = use_extension("@rules_dart//dart:extensions.bzl", "dart")
-dart.toolchain(dart_version = "3.13.7")
+dart.toolchain(dart_version = "3.14.1")
 use_repo(dart, "dart_toolchains")
 
 register_toolchains("@dart_toolchains//:all")
@@ -1887,10 +1887,6 @@ reason and the flag that turns summaries off:
 - **`prefer_relative_imports` in a package split across targets.** The lint
   doesn't fire for a `package:` import of the same package's file in another
   target. With the lint on, the summary analyzer finds those imports and fails.
-- **`comment_references` from doc imports.** A name that an `@docImport` brings
-  in from a dependency or from the SDK is reported as not in scope. The
-  diagnostic fails the analysis anyway, and the summary analyzer says which ones
-  are false.
 - **Context messages.** A diagnostic's context message that points into a
   dependency ("'x' refers to a public property", "the error is in the field
   initializer of 'E'") loses its location or is left out. The diagnostic itself
@@ -3152,6 +3148,11 @@ Each Dart toolchain registers two tools beside the compiler: the outline
 stripper (see [Tests](#tests)) and the summary analyzer (see
 [Analysis against summaries](#analysis-against-summaries)). Both are built from
 the source of the same SDK release.
+
+A platform can bundle a Dart release that rules_dart doesn't serve, as a Flutter
+engine does. Build its tools with `dart_kernel_source` and `dart_analyzer_source`,
+giving `dart_version` and `sha256`, the checksum of that tag's source archive on
+GitHub.
 
 A Dart SDK with no release tag has no such source to fetch. That includes a
 fork, a local build, and Flutter's beta and main channels. It needs its own

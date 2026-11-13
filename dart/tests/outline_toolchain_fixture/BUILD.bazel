@@ -54,7 +54,7 @@ refuses_no_tool_test(
 dart_outline_toolchain(
     name = "checkout",
     tool = "@kernel_checkout_source//:outline_tool",
-    version = "3.13.7",
+    version = "3.14.1",
 )
 
 toolchain(
@@ -69,7 +69,7 @@ toolchain(
 dart_outline_toolchain(
     name = "prefixed",
     tool = "@kernel_prefixed_source//kernel_source:outline_tool",
-    version = "3.13.7",
+    version = "3.14.1",
 )
 
 toolchain(
