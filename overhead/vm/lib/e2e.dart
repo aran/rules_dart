@@ -450,9 +450,15 @@ String checkoutRoot() {
 /// Packs the files of [root]'s HEAD commit into a `.tar` in [tmp], and
 /// returns its path. Changes not committed are not in it; it warns of any.
 ///
-/// Not `git archive`, which leaves out what `.gitattributes` marks
-/// `export-ignore` (a repository's `e2e/`, `examples/`): the files are checked
-/// out through a temporary index into a directory of their own.
+/// `git archive` writes it, so no host `tar` is needed (Windows' crashes on a
+/// name that is not ASCII), but from a scratch repository that borrows
+/// [root]'s objects: there, `info/attributes` turns off what `.gitattributes`
+/// and the host's configuration would do to an archive. Nothing marked
+/// `export-ignore` (a repository's `e2e/`, `examples/`) is left out, and every
+/// file is as committed: no `export-subst`, filter or line-ending conversion
+/// (which Git for Windows turns on).
+/// Not gzipped: the copy compresses in transit, and Git's tar on a Windows VM
+/// finds no gzip to call.
 String packageCommittedTree(String root, String tmp) {
   final dirty = Process.runSync('git', [
     '-C',
@@ -467,27 +473,28 @@ String packageCommittedTree(String root, String tmp) {
       'Commit first to test them.',
     );
   }
-  final tree = '$tmp/tree';
-  final env = {'GIT_INDEX_FILE': '$tmp/index'};
-  _run('git', ['-C', root, 'read-tree', 'HEAD'], environment: env);
-  _run('git', [
+  String git(List<String> args) => _run('git', args).trim();
+  final head = git(['-C', root, 'rev-parse', 'HEAD']);
+  final objects = git([
     '-C',
     root,
-    'checkout-index',
-    '--all',
-    '--prefix=$tree/',
-  ], environment: env);
+    'rev-parse',
+    '--path-format=absolute',
+    '--git-path',
+    'objects',
+  ]);
+  final scratch = '$tmp/archive.git';
+  git(['init', '--quiet', '--bare', scratch]);
+  File('$scratch/objects/info/alternates').writeAsStringSync('$objects\n');
+  File('$scratch/info/attributes')
+    ..parent.createSync(recursive: true)
+    ..writeAsStringSync(
+      '* -export-ignore -export-subst -text -filter -ident '
+      '-working-tree-encoding\n',
+    );
   final tar = '$tmp/src.tar';
   stdout.writeln('Packaging HEAD -> $tar');
-  // COPYFILE_DISABLE: macOS tar would add AppleDouble `._name` files beside
-  // the sources, which a glob reads as sources. --no-xattrs keeps macOS
-  // attributes out of the headers. Not gzipped: the copy compresses in
-  // transit, and Git's tar on Windows finds no gzip to call.
-  _run(
-    'tar',
-    ['--no-xattrs', '-cf', tar, '-C', tree, '.'],
-    environment: {'COPYFILE_DISABLE': '1'},
-  );
+  git(['--git-dir=$scratch', 'archive', '--format=tar', '--output=$tar', head]);
   return tar;
 }
 
@@ -576,11 +583,17 @@ String _normalize(String dir) {
   return d.isEmpty ? '.' : d;
 }
 
-void _run(String exe, List<String> args, {Map<String, String>? environment}) {
+/// Runs [exe] and returns its stdout; throws, with its exit code and output,
+/// when it fails.
+String _run(String exe, List<String> args, {Map<String, String>? environment}) {
   final r = Process.runSync(exe, args, environment: environment);
   if (r.exitCode != 0) {
-    throw Exception('$exe ${args.join(' ')} failed:\n${r.stderr}');
+    throw Exception(
+      '$exe ${args.join(' ')} failed (exit ${r.exitCode}):\n'
+      '${r.stdout}${r.stderr}',
+    );
   }
+  return '${r.stdout}';
 }
 
 final class _Result {

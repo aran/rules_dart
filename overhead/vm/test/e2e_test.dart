@@ -197,38 +197,69 @@ common --keep_going
     });
   });
 
-  test('packageCommittedTree packs HEAD, export-ignore and all', () {
-    final dir = Directory.systemTemp.createTempSync('pack_');
-    addTearDown(() => dir.deleteSync(recursive: true));
-    final repo = '${dir.path}/repo';
-    Directory('$repo/e2e').createSync(recursive: true);
-    void git(List<String> args) {
-      final r = Process.runSync('git', ['-C', repo, ...args]);
-      expect(r.exitCode, 0, reason: '${r.stderr}');
+  test(
+    'packageCommittedTree packs HEAD as committed, export-ignore and all',
+    () {
+      final dir = Directory.systemTemp.createTempSync('pack_');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final repo = '${dir.path}/repo';
+      Directory('$repo/e2e').createSync(recursive: true);
+      void git(List<String> args) {
+        final r = Process.runSync('git', ['-C', repo, ...args]);
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+      }
+
+      git(['init', '-q']);
+      File('$repo/.gitattributes')
+          .writeAsStringSync('e2e export-ignore\nsubst.txt export-subst\n');
+      File('$repo/subst.txt').writeAsStringSync(r'$Format:%H$');
+      File('$repo/e2e/日本語.txt').writeAsStringSync('committed');
+      File('$repo/a.txt').writeAsStringSync('committed');
+      File('$repo/lf.txt').writeAsStringSync('a\nb\n');
+      git(['add', '-A']);
+      git(['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'c']);
+      File('$repo/a.txt').writeAsStringSync('changed');
+      File('$repo/untracked.txt').writeAsStringSync('x');
+
+      final out = '${dir.path}/out';
+      Directory(out).createSync();
+      expect(readTar(File(packageCommittedTree(repo, out))), {
+        '.gitattributes': 'e2e export-ignore\nsubst.txt export-subst\n',
+        'a.txt': 'committed',
+        'lf.txt': 'a\nb\n',
+        'e2e/日本語.txt': 'committed',
+        'subst.txt': r'$Format:%H$',
+      });
+    },
+  );
+}
+
+/// The regular files of the tar at [file], by path, as UTF-8 text: read here
+/// rather than by a host `tar`, which on Windows reads names in the ANSI code
+/// page.
+Map<String, String> readTar(File file) {
+  final bytes = file.readAsBytesSync();
+  String field(int at, int length) {
+    final f = bytes.sublist(at, at + length);
+    final end = f.indexOf(0);
+    return utf8.decode(end < 0 ? f : f.sublist(0, end));
+  }
+
+  final files = <String, String>{};
+  String? paxPath;
+  for (var at = 0; at + 512 <= bytes.length && bytes[at] != 0;) {
+    final size = int.parse(field(at + 124, 12).trim(), radix: 8);
+    final type = field(at + 156, 1);
+    final prefix = field(at + 345, 155);
+    final name = paxPath ?? (prefix.isEmpty ? '' : '$prefix/') + field(at, 100);
+    final body = bytes.sublist(at + 512, at + 512 + size);
+    paxPath = null;
+    if (type == 'x') {
+      paxPath = RegExp(r'\d+ path=(.*)\n').firstMatch(utf8.decode(body))?[1];
+    } else if (type == '0' || type == '') {
+      files[name] = utf8.decode(body);
     }
-
-    git(['init', '-q']);
-    File('$repo/.gitattributes').writeAsStringSync('e2e export-ignore\n');
-    File('$repo/e2e/日本語.txt').writeAsStringSync('committed');
-    File('$repo/a.txt').writeAsStringSync('committed');
-    git(['add', '-A']);
-    git(['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'c']);
-    File('$repo/a.txt').writeAsStringSync('changed');
-    File('$repo/untracked.txt').writeAsStringSync('x');
-
-    final out = '${dir.path}/out';
-    Directory(out).createSync();
-    final tar = packageCommittedTree(repo, out);
-    final unpacked = Directory('${dir.path}/unpacked')..createSync();
-    expect(
-      Process.runSync('tar', ['-xf', tar, '-C', unpacked.path]).exitCode,
-      0,
-    );
-    expect(
-      File('${unpacked.path}/e2e/日本語.txt').readAsStringSync(),
-      'committed',
-    );
-    expect(File('${unpacked.path}/a.txt').readAsStringSync(), 'committed');
-    expect(File('${unpacked.path}/untracked.txt').existsSync(), isFalse);
-  });
+    at += 512 + (size + 511) ~/ 512 * 512;
+  }
+  return files;
 }
