@@ -104,3 +104,30 @@ pub.package(
     version = "1.19.1",
 )
 use_repo(pub, "collection", "surface")
+
+# pub_package_cycle: `dio` and `dio_web_adapter`, which depend on each other,
+# declared with `pub.package()` rather than locked; the lock supplies what they
+# depend on. e2e/examples' pub/cycle builds the same two from a lock, with no
+# declaration, which these would replace for the whole build.
+pub.package(
+    name = "dio",
+    sha256 = "852ec3b48cc431ac04fff978413c541502b67ffc3e26921e74e3d994694192c1",
+    version = "5.11.1",
+)
+pub.package(
+    name = "dio_web_adapter",
+    sha256 = "3a1b2cd7be71086f38504956e3ebcd2837288d231ff454bafa78021244102bfc",
+    version = "2.2.2",
+)
+pub.from_lock(
+    name = "deps",
+    lock = "//pub_package_cycle:pubspec.lock",
+)
+
+# rules_dart's curated cycles declare this one already; the root's declaration
+# of the same packages agrees with it.
+pub.cycle(packages = [
+    "dio",
+    "dio_web_adapter",
+])
+use_repo(pub, "deps", "dio", "dio_web_adapter")

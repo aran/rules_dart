@@ -3365,7 +3365,7 @@ The [`e2e/`](e2e/) directory contains complete working examples. A name with a
 | [`pub_lock_conflict`](e2e/failures/pub_lock_conflict/)                       | `check_direct_dependencies = "error"` fails a root lock raised by another lock or by a dependency module, giving the commands to raise them |
 | [`pub_lock_dedup/cross_module`](e2e/pub_lock_dedup/cross_module/)   | `pub.from_lock()` across Bazel module boundaries                                                         |
 | [`pub_packages/cycle`](e2e/pub_packages/cycle/)                     | Packages that depend on each other: a curated cycle (`dio`), and one the root declares                   |
-| [`pub_package_cycle`](e2e/pub_package_cycle/)                       | `pub.package()` packages that depend on each other, built as one library                                 |
+| [`root_settings/pub_package_cycle`](e2e/root_settings/pub_package_cycle/)                       | `pub.package()` packages that depend on each other, built as one library                                 |
 | [`pub_packages/cycle_refused`](e2e/pub_packages/cycle_refused/)     | An undeclared cycle, a stale declaration, part of a cycle and a cycle through a `resolve` target fail    |
 | [`pub_packages/member_kind`](e2e/pub_packages/member_kind/)         | Another rule set's own pub package kind, in a cycle, over the public pub surface                         |
 | [`toolchain_pin_conflict`](e2e/failures/toolchain_pin_conflict/)             | A root `dart.toolchain` pin below a dependency's request fails, naming the dependency                    |
