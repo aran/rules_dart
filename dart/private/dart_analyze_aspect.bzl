@@ -62,6 +62,7 @@ never see different projects.
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("//dart:providers.bzl", "DartAnalysisOptionsInfo", "DartAnalyzableInfo", "DartInfo")
 load("//dart/private:common.bzl", "PATH_MAPPING", "SDK_ENV", "default_language_version", "merge_package_records", "own_packages")
+load("//dart/private:dart_info.bzl", "analyzed_closure")
 load("//dart/private:dart_summary.bzl", "DartSummaryAnalyzerInfo", "SUMMARIES_FLAG", "summary_analyzer_action")
 load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS", "portable_sdk")
 load("//dart/private:project_staging.bzl", "project_layout", "pubspec_stub", "stage_dart_project", "staged_pubspec_paths")
@@ -498,7 +499,11 @@ def _dart_analyze_aspect_impl(target, ctx):
 
     name = ctx.label.name + ".dart_analyze"
     config = ctx.attr._config[DartAnalysisConfigInfo]
-    srcs = info.transitive_srcs.to_list()
+
+    # From source, the analyzer reads what compiles the target and what only
+    # it reads: a `sky_engine` named in a dependency's `analysis_deps`.
+    closure = analyzed_closure([info])
+    srcs = closure.srcs.to_list()
 
     # What analyzing the whole program reserves (resources.bzl), by how many
     # Dart files it can see.
@@ -510,8 +515,8 @@ def _dart_analyze_aspect_impl(target, ctx):
     staged = stage_config_project(
         ctx,
         config,
-        info.transitive_packages.to_list(),
-        srcs + info.transitive_resources.to_list() + entry + own.values(),
+        closure.packages.to_list(),
+        srcs + closure.resources.to_list() + entry + own.values(),
         own.values(),
         name,
         portable_sdk(ctx),

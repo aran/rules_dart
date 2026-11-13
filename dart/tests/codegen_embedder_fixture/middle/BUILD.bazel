@@ -1,0 +1,15 @@
+load("//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "fake_app",
+)
+
+# A library above the one that names the engine, which knows nothing of it.
+dart_library(
+    name = "middle",
+    srcs = ["lib/middle.dart"],
+    package = ":pubspec-metadata",
+    visibility = ["//dart/tests/codegen_embedder_fixture:__subpackages__"],
+    deps = ["//dart/tests/codegen_embedder_fixture/widgets"],
+)

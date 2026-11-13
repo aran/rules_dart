@@ -369,7 +369,9 @@ def dart_info(
         the compiler does not, whose summaries this library's summary is read
         against and hands on: Flutter's `sky_engine`, whose `_embedder.yaml`
         gives the analyzer `dart:ui`, which the compiler takes from its SDK.
-        Nothing else of them joins this `DartInfo`.
+        Their closures join `DartInfo.analysis_only`, which whatever analyzes
+        or generates code from source above this library stages, and nothing
+        compiles.
       data: Targets whose files and runfiles the library needs at run time,
         as `py_library`'s `data`: never compile inputs, they join the
         runfiles of every executable that reaches the library
@@ -385,6 +387,7 @@ def dart_info(
         srcs = srcs,
         resources = resources,
         indirect_deps = indirect_deps,
+        analysis_deps = analysis_deps,
         summaries = _own_summaries(ctx, packages, srcs, resources, deps + analysis_deps),
         runfiles = _data_runfiles(ctx, data) if data else None,
     )

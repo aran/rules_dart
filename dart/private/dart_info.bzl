@@ -118,7 +118,8 @@ def dart_info_with_summaries(
         resources,
         indirect_deps,
         summaries,
-        runfiles = None):
+        runfiles = None,
+        analysis_deps = []):
     """`dart_info()` (`dart_summary.bzl`) once the library's summaries are known.
 
     `dart_info()` declares the summary action, which needs the staging this
@@ -133,6 +134,7 @@ def dart_info_with_summaries(
       indirect_deps: As `dart_info()`'s.
       summaries: The value of `DartInfo.summaries`, from `summaries_info()`.
       runfiles: This target's own runfiles (its `data`), or None.
+      analysis_deps: As `dart_info()`'s.
 
     Returns:
       A `DartInfo`.
@@ -159,6 +161,46 @@ def dart_info_with_summaries(
         packages = packages,
         summaries = summaries,
         runfiles = runfiles,
+        analysis_infos = [dep[DartInfo] for dep in analysis_deps],
+    )
+
+def analysis_only_closure(infos):
+    """The packages and files the analyzer reads of `infos` beyond their compile closure, merged.
+
+    Args:
+      infos: `DartInfo`s.
+
+    Returns:
+      `struct(packages, srcs, resources)` of depsets, as `DartInfo.analysis_only`.
+    """
+
+    # `getattr`: a `DartInfo` built by hand names no analysis-only dependency.
+    only = [i.analysis_only for i in infos if getattr(i, "analysis_only", None) != None]
+    return struct(
+        packages = depset(transitive = [o.packages for o in only]),
+        srcs = depset(transitive = [o.srcs for o in only]),
+        resources = depset(transitive = [o.resources for o in only]),
+    )
+
+def analyzed_closure(infos):
+    """Everything the analyzer reads of `infos` from source: their compile closure and what only it reads.
+
+    What the `dart_analyze` aspect stages for a target analyzed from source,
+    and what a codegen action stages of its `deps`, so the two resolve a
+    library alike: `dart:ui` through a `sky_engine` that a `flutter_library`
+    below names in `analysis_deps` and nothing compiles.
+
+    Args:
+      infos: `DartInfo`s.
+
+    Returns:
+      `struct(packages, srcs, resources)` of depsets.
+    """
+    only = analysis_only_closure(infos)
+    return struct(
+        packages = depset(transitive = [i.transitive_packages for i in infos] + [only.packages]),
+        srcs = depset(transitive = [i.transitive_srcs for i in infos] + [only.srcs]),
+        resources = depset(transitive = [i.transitive_resources for i in infos] + [only.resources]),
     )
 
 def dep_summaries(label, deps):
@@ -504,7 +546,8 @@ def _merged_dart_info(
         resources,
         packages,
         summaries,
-        runfiles = None):
+        runfiles = None,
+        analysis_infos = []):
     """Merges a target's own contributions with its dependencies' closures.
 
     The single place `DartInfo`'s fields are enumerated. Every public
@@ -520,10 +563,12 @@ def _merged_dart_info(
       packages: This target's own `DartPackageInfo` records.
       summaries: Value for `DartInfo.summaries`, from `summaries_info()`.
       runfiles: This target's own runfiles (its `data`), or None.
+      analysis_infos: The `DartInfo` of each of the target's `analysis_deps`.
 
     Returns:
       A `DartInfo`.
     """
+    analysis_only = analysis_only_closure(dep_infos + analysis_infos)
 
     # `getattr`: a provider built before the field existed has none.
     all_runfiles = ([runfiles] if runfiles != None else []) + [
@@ -534,6 +579,11 @@ def _merged_dart_info(
     return DartInfo(
         runfiles = all_runfiles[0].merge_all(all_runfiles[1:]) if all_runfiles else None,
         summaries = summaries,
+        analysis_only = struct(
+            packages = depset(transitive = [i.transitive_packages for i in analysis_infos] + [analysis_only.packages]),
+            srcs = depset(transitive = [i.transitive_srcs for i in analysis_infos] + [analysis_only.srcs]),
+            resources = depset(transitive = [i.transitive_resources for i in analysis_infos] + [analysis_only.resources]),
+        ),
         packages = tuple(packages),
         srcs = list(srcs),
         deps = dict(dep_packages),

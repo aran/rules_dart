@@ -215,10 +215,14 @@ with a summary of its own.
 The aspect recognises a generator by the shim runner (`rules_dart_ext`)
 among the packages it links. One that does not link it, such as the
 combining shim, runs no analyzer and is given no SDK at all. A `sky_engine`
-among an action's packages adds libraries to the SDK through its
-`_embedder.yaml` (Flutter's `dart:ui`), which the analyzer reads only from
-the SDK's sources: such an action is given the SDK's sources and
-`--sdk-path` instead.
+adds libraries to the SDK through its `_embedder.yaml` (Flutter's `dart:ui`),
+which the analyzer reads only from the SDK's sources: an action whose packages
+include one is given the SDK's sources and `--sdk-path` instead. Flutter
+supplies `sky_engine` for analysis alone (a `flutter_library` names it in
+`dart_info()`'s `analysis_deps`, and nothing compiles it), so an action
+stages what its `deps` are analyzed with, `DartInfo.analysis_only` beside
+their compile closure, as the `dart_analyze` aspect does for a target analyzed
+from source: a library above a `flutter_library` resolves `dart:ui` in either.
 
 ### Analyzing generators
 

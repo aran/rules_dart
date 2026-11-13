@@ -1,0 +1,23 @@
+load("//dart:defs.bzl", "dart_package_metadata")
+load("//dart/tests/codegen_embedder_fixture:rules.bzl", "sdk_embedder_engine")
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "sky_engine",
+)
+
+# Flutter's `sky_engine`: the analyzer reads the SDK from its `_embedder.yaml`,
+# which maps the SDK's libraries as the engine carries them and `dart:ui`. Its
+# own files are SDK libraries, which no analysis checks, as nothing checks
+# Flutter's.
+sdk_embedder_engine(
+    name = "engine",
+    srcs = [
+        "lib/_empty.dart",
+        "lib/ui/ui.dart",
+    ],
+    package = ":pubspec-metadata",
+    resources = ["lib/_embedder.yaml"],
+    tags = ["no-dart-analyze"],
+    visibility = ["//dart/tests/codegen_embedder_fixture:__subpackages__"],
+)

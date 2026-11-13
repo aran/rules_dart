@@ -1,7 +1,8 @@
 """What a codegen action reads of its `deps`: libraries, and members of a cycle.
 
 A generator resolves what its source imports, so its target depends on the
-libraries that hold it. Inside a `dart_package_cycle` it cannot: the cycle's
+libraries that hold it, and sees what their analysis sees: their compile
+closure and `DartInfo.analysis_only` (Flutter's `sky_engine`). Inside a `dart_package_cycle` it cannot: the cycle's
 library holds what the generator writes. So it reads the members' sources
 instead, as build_runner reads a whole package graph, and a member holds only
 its hand-written files. A codegen target that names members checks their
@@ -12,14 +13,13 @@ every package their sources reach.
 load("//dart:providers.bzl", "DartInfo")
 load(
     "//dart/private:common.bzl",
-    "collect_packages",
-    "collect_transitive_resources",
-    "collect_transitive_srcs",
     "dart_package_root_for_package",
+    "merge_package_records",
     "same_package_library_dep_files",
     "synth_package_config",
 )
 load("//dart/private:dart_import_check.bzl", "LIBRARY_IMPORT_CHECKER_ATTRS", "dart_import_check_action")
+load("//dart/private:dart_info.bzl", "analyzed_closure")
 load("//dart/private:dart_package_cycle.bzl", "DartPackageMemberInfo")
 
 visibility("//dart/...")
@@ -58,14 +58,19 @@ def codegen_deps(ctx, identity, exclude_paths):
     """
     libraries = [d for d in ctx.attr.deps if DartInfo in d]
     members = [d[DartPackageMemberInfo] for d in ctx.attr.deps if DartPackageMemberInfo in d]
-    packages = collect_packages(libraries) + [m.package for m in members]
+
+    # What their analysis reads, not only what compiles them: a generator
+    # resolves `dart:ui` as the analyzer does, through the `sky_engine` a
+    # `flutter_library` below names for analysis alone.
+    closure = analyzed_closure([d[DartInfo] for d in libraries])
+    packages = merge_package_records(closure.packages.to_list()) + [m.package for m in members]
     srcs = depset(
         [f for m in members for f in m.srcs],
-        transitive = [collect_transitive_srcs(libraries)],
+        transitive = [closure.srcs],
     )
     resources = depset(
         [f for m in members for f in m.resources],
-        transitive = [collect_transitive_resources(libraries)],
+        transitive = [closure.resources],
     )
     package_config, package_files = synth_package_config(ctx, packages, srcs, resources)
 

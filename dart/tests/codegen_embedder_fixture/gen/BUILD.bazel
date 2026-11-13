@@ -1,0 +1,35 @@
+load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
+load("//dart:defs.bzl", "dart_codegen", "dart_package_metadata")
+load("//dart/tests:codegen_test.bzl", "codegen_sdk_test")
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "fake_gen",
+)
+
+# Its dependency reaches the engine only through a `flutter_library` below,
+# which names it for analysis alone, as every Flutter app's libraries do.
+dart_codegen(
+    name = "swatch_types",
+    src = "lib/swatch.dart",
+    generator = "//dart/tests/codegen_embedder_fixture/generator",
+    output_suffixes = [".types.txt"],
+    package = ":pubspec-metadata",
+    deps = ["//dart/tests/codegen_embedder_fixture/middle"],
+)
+
+# The generator resolves `Color` from `dart:ui`.
+diff_test(
+    name = "swatch_types_test",
+    size = "small",
+    file1 = ":swatch_types",
+    file2 = "swatch.types.expected",
+)
+
+# Only the SDK's sources, with the engine's `_embedder.yaml`, hold `dart:ui`.
+codegen_sdk_test(
+    name = "swatch_types_sdk_test",
+    size = "small",
+    sdk = "source",
+    target_under_test = ":swatch_types",
+)

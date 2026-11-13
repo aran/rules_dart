@@ -21,8 +21,5 @@ dart_library(
         "//dart:is_analysis_summaries": [],
         "//conditions:default": ["@platforms//:incompatible"],
     }),
-    visibility = [
-        "//dart/tests/codegen_fixture:__pkg__",
-        "//dart/tests/embedder_fixture:__subpackages__",
-    ],
+    visibility = ["//dart/tests/embedder_fixture:__subpackages__"],
 )

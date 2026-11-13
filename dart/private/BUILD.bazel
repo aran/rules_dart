@@ -232,6 +232,7 @@ bzl_library(
     visibility = ["//dart:__subpackages__"],
     deps = [
         ":common",
+        ":dart_info",
         ":dart_summary",
         ":exec_groups",
         ":project_staging",
@@ -522,6 +523,7 @@ bzl_library(
     deps = [
         ":common",
         ":dart_import_check",
+        ":dart_info",
         ":dart_package_cycle",
         "//dart:providers",
     ],

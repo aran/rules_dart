@@ -1,0 +1,17 @@
+load("//dart:defs.bzl", "dart_package_metadata")
+load("//dart/tests/summaries_fixture:rules.bzl", "analysis_only_library")
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "fake_flutter",
+)
+
+# A `flutter_library`: the engine is its analyzer's (`analysis_deps`) and not
+# its compiler's.
+analysis_only_library(
+    name = "widgets",
+    srcs = ["lib/widgets.dart"],
+    engine = "//dart/tests/codegen_embedder_fixture/engine",
+    package = ":pubspec-metadata",
+    visibility = ["//dart/tests/codegen_embedder_fixture:__subpackages__"],
+)

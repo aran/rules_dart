@@ -3,12 +3,6 @@
 load("//dart:defs.bzl", "dart_aggregate_codegen", "dart_codegen", "dart_library", "dart_sqlcodegen")
 load("//dart/tests:codegen_test.bzl", "codegen_inputs_test", "codegen_language_version_test", "codegen_sdk_test")
 
-# The embedder fixture is built only with analysis against summaries.
-_SUMMARIES_ONLY = select({
-    "//dart:is_analysis_summaries": [],
-    "//conditions:default": ["@platforms//:incompatible"],
-})
-
 dart_library(
     name = "lib",
     srcs = ["lib/b.dart"],
@@ -95,25 +89,6 @@ codegen_inputs_test(
         "sql",
     ]
 ]
-
-# Only the SDK's sources hold what a `sky_engine`'s `_embedder.yaml` adds.
-dart_codegen(
-    name = "embedder",
-    src = "lib/a.dart",
-    generator = "//dart/tests/fixture_generator:generator",
-    output_suffixes = [".e.dart"],
-    tags = ["manual"],
-    target_compatible_with = _SUMMARIES_ONLY,
-    deps = ["//dart/tests/embedder_fixture/engine"],
-)
-
-codegen_sdk_test(
-    name = "embedder_sdk_test",
-    size = "small",
-    sdk = "source",
-    target_compatible_with = _SUMMARIES_ONLY,
-    target_under_test = ":embedder",
-)
 
 # A generator not built on the shim runner runs no analyzer.
 dart_codegen(

@@ -1,0 +1,15 @@
+load("//dart:defs.bzl", "dart_binary")
+
+# Writes the type of each field the input declares, and the library that
+# declares that type: what a builder reading a `dart:ui` type sees of it.
+dart_binary(
+    name = "generator",
+    srcs = ["generator.dart"],
+    code_assets_from_packages = False,
+    main = "generator.dart",
+    visibility = ["//dart/tests/codegen_embedder_fixture:__subpackages__"],
+    deps = [
+        "//dart/ext:builder_shim",
+        "@ext_pub_deps//:build",
+    ],
+)
