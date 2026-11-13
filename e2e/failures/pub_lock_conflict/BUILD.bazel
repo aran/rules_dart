@@ -1,8 +1,9 @@
 load("@rules_dart//dart:defs.bzl", "dart_binary")
 
-# This workspace should FAIL to build: a/pubspec.lock has path 1.9.1,
-# b/pubspec.lock has path 1.9.0, and the root sets
-# `pub.settings(check_direct_dependencies = "error")`, so raising b's is an error.
+# This workspace should FAIL to build: the root sets
+# `pub.settings(check_direct_dependencies = "error")`, and two of its requests
+# are raised (MODULE.bazel). Once both commands the error gives have run, it
+# builds.
 dart_binary(
     name = "app",
     main = "main.dart",

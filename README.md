@@ -3362,7 +3362,7 @@ The [`e2e/`](e2e/) directory contains complete working examples. A name with a
 | [`dart_test/package_test`](e2e/dart_test/package_test/)             | `dart_test` with pub dependencies via `pub.from_lock()`                                                  |
 | [`pub_lock_dedup/two_hubs`](e2e/pub_lock_dedup/two_hubs/)           | Cross-lock-file package deduplication                                                                    |
 | [`pub_lock_upgrade`](e2e/pub_lock_upgrade/)                         | Locks that disagree build the highest version, rules_dart's own lock included                            |
-| [`pub_lock_conflict`](e2e/failures/pub_lock_conflict/)                       | `check_direct_dependencies = "error"` fails a raised root lock, giving the command to raise it           |
+| [`pub_lock_conflict`](e2e/failures/pub_lock_conflict/)                       | `check_direct_dependencies = "error"` fails a root lock raised by another lock or by a dependency module, giving the commands to raise them |
 | [`pub_lock_dedup/cross_module`](e2e/pub_lock_dedup/cross_module/)   | `pub.from_lock()` across Bazel module boundaries                                                         |
 | [`pub_packages/cycle`](e2e/pub_packages/cycle/)                     | Packages that depend on each other: a curated cycle (`dio`), and one the root declares                   |
 | [`pub_package_cycle`](e2e/pub_package_cycle/)                       | `pub.package()` packages that depend on each other, built as one library                                 |
@@ -3382,7 +3382,6 @@ The [`e2e/`](e2e/) directory contains complete working examples. A name with a
 | [`basics/kernel_source_refused`](e2e/basics/kernel_source_refused/) | A `dart_kernel_source` with both or neither of `dart_version` and `path`, or no checkout, fails          |
 | [`pub_override_root_lock`](e2e/pub_override_root_lock/)             | A higher root lock serves a dependency module's `pub.package()` repository and the lock's own dependents |
 | [`pub_highest_wins`](e2e/pub_highest_wins/)                         | The highest request builds, over root and dependency `pub.package()`s, warning for the root's            |
-| [`pub_root_older_lock`](e2e/pub_root_older_lock/)                   | Under `check_direct_dependencies = "error"`, a dependency raising the root's lock fails                  |
 | [`pub_root_newer`](e2e/pub_root_newer/)                             | A root lock above a dependency's `pub.package()` wins, silently                                          |
 | [`codegen`](e2e/codegen/)                                           | `dart_codegen`/`dart_aggregate_codegen` over parts, re-exports and a `srcs_dir`                          |
 | [`ext_exemplar`](e2e/ext_exemplar/)                                 | One package per bundled `dart/ext` builder, plus native `code_assets`, sqlite3/webcrypto                 |

@@ -273,8 +273,8 @@ for the byte-level architecture check.
   all of them together, as does `e2e/pub_deps`'s `path`. A pin whose version
   is what its fixture tests stays put: two versions of one package across a
   root and its `dep_mod` or `mod_b` (`e2e/pub_highest_wins`,
-  `e2e/pub_root_newer`, `e2e/pub_root_older_lock`,
-  `e2e/pub_override_root_lock`), or a fixture that fails on purpose
+  `e2e/pub_root_newer`, `e2e/pub_override_root_lock`,
+  `e2e/failures/pub_lock_conflict`), or a fixture that fails on purpose
 - `e2e/pub_lock/pubspec.lock` — regenerate from `pubspec.yaml`. The other e2e
   `pubspec.lock` files are fixtures, read as they are
 

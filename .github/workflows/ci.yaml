@@ -311,24 +311,30 @@ jobs:
           bazelisk-cache: true
           disk-cache: ${{ github.job }}-${{ strategy.job-index }}
           repository-cache: true
-      - name: pub_lock_conflict — expect a raised root lock to fail under check_direct_dependencies = "error", and its command to resolve it
+      - name: pub_lock_conflict — expect raised root requests to fail under check_direct_dependencies = "error", naming each, and their commands to resolve them
         working-directory: e2e/failures/pub_lock_conflict
         run: |
           if out=$(bazel build //:app 2>&1); then
-            echo "ERROR: build should have failed: b's lock is raised and the root makes that an error"
+            echo "ERROR: build should have failed: b's and older's locks are raised and the root makes that an error"
             exit 1
           fi
           echo "$out" | grep -q "newer than the root module asks for"
+          # A root lock raised by another root lock.
           echo "$out" | grep -qF "1.9.0, from the lock \`//b:pubspec.lock\`"
           echo "$out" | grep -qF "bazel run @rules_dart//dart/pub -- upgrade --directory=b path"
-          # The command the error gives runs while the pub extension refuses
-          # the locks, and once it has, the build succeeds. Without a
-          # runfiles tree, as on Windows by default, it finds the SDK through
+          # A root lock raised by a dependency module's `pub.package()`.
+          echo "$out" | grep -qF "2.0.1, from the lock \`//older:pubspec.lock\`"
+          echo "$out" | grep -qF "2.0.2, from \`pub.package()\` in module \`dep_mod\`"
+          echo "$out" | grep -qF "bazel run @rules_dart//dart/pub -- upgrade --directory=older tuple"
+          # The commands the error gives run while the pub extension refuses
+          # the locks, and once they have, the build succeeds. Without a
+          # runfiles tree, as on Windows by default, they find the SDK through
           # the manifest.
           bazel run --noenable_runfiles --nobuild_runfile_links @rules_dart//dart/pub -- upgrade --directory=b path
+          bazel run --noenable_runfiles --nobuild_runfile_links @rules_dart//dart/pub -- upgrade --directory=older tuple
           bazel build //:app
-          git checkout -- b/pubspec.lock
-          echo "OK: expected conflict error detected; its command resolves it"
+          git checkout -- b/pubspec.lock older/pubspec.lock
+          echo "OK: expected conflicts detected; their commands resolve them"
       - name: pub_highest_wins — expect the highest request to build, warning that the root's was raised
         working-directory: e2e/pub_highest_wins
         run: |
@@ -355,17 +361,6 @@ jobs:
             exit 1
           fi
           echo "OK: root lock built, nothing printed"
-      - name: pub_root_older_lock — expect a root lock below a dependency's pub.package() to fail under check_direct_dependencies = "error", naming both
-        working-directory: e2e/pub_root_older_lock
-        run: |
-          if out=$(bazel build //... 2>&1); then
-            echo "ERROR: build should have failed: dep_mod asks for tuple 2.0.2, the root lock pins 2.0.1, and the root makes that an error"
-            exit 1
-          fi
-          echo "$out" | grep -qF "2.0.1, from the lock \`//:pubspec.lock\`"
-          echo "$out" | grep -qF "2.0.2, from \`pub.package()\` in module \`dep_mod\`"
-          echo "$out" | grep -qF "bazel run @rules_dart//dart/pub -- upgrade tuple"
-          echo "OK: expected downgrade refusal detected"
       - name: toolchain_pin_conflict — expect a root pin below a dependency's request to fail, naming it
         working-directory: e2e/failures/toolchain_pin_conflict
         run: |

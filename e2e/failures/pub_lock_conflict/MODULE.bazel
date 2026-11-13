@@ -12,11 +12,21 @@ use_repo(dart, "dart_toolchains")
 
 register_toolchains("@dart_toolchains//:all")
 
-# a's lock has path 1.9.1 and b's has path 1.9.0. The highest request wins,
-# so b's, a request of the root's own, is raised, and the root makes that an
-# error. Both are pub packages, so the command the error gives for b runs in
-# that state:
+bazel_dep(name = "dep_mod", version = "0.0.0")
+local_path_override(
+    module_name = "dep_mod",
+    path = "dep_mod",
+)
+
+# The highest request for a package wins, and the root makes raising one of
+# its own requests an error. Two are raised, and one failure names both:
+#   - a's lock has path 1.9.1 and b's has 1.9.0, so b's is raised;
+#   - older's lock has tuple 2.0.1, below the 2.0.2 dep_mod's `pub.package()`
+#     asks for, so another module raises it.
+# Each is a pub package, so the command the error gives for it runs in that
+# state:
 #   bazel run @rules_dart//dart/pub -- upgrade --directory=b path
+#   bazel run @rules_dart//dart/pub -- upgrade --directory=older tuple
 pub = use_extension("@rules_dart//dart/pub:extensions.bzl", "pub")
 pub.settings(check_direct_dependencies = "error")
 pub.from_lock(
@@ -27,4 +37,8 @@ pub.from_lock(
     name = "deps_b",
     lock = "//b:pubspec.lock",
 )
-use_repo(pub, "deps_a", "deps_b")
+pub.from_lock(
+    name = "older_deps",
+    lock = "//older:pubspec.lock",
+)
+use_repo(pub, "deps_a", "deps_b", "older_deps")
