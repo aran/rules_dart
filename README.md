@@ -3355,7 +3355,7 @@ The [`e2e/`](e2e/) directory contains complete working examples. A name with a
 | [`examples/custom_rules`](e2e/examples/custom_rules/)                           | A module building its own rules on rules_dart's exported helpers                                         |
 | [`examples/web/app`](e2e/examples/web/app/)                             | JavaScript and WebAssembly compilation with library deps                                                 |
 | [`examples/web/per_compiler`](e2e/examples/web/per_compiler/)                                 | Per-compiler code by `select()`, and the resets other modules' rules use                                 |
-| [`pub_deps`](e2e/pub_deps/)                                         | Single pub.dev package via `pub.package()`                                                               |
+| [`examples/pub/package`](e2e/examples/pub/package/)                                         | Single pub.dev package via `pub.package()`                                                               |
 | [`pub_lock`](e2e/pub_lock/)                                         | Multiple packages from `pubspec.lock` via `pub.from_lock()`                                              |
 | [`examples/gazelle`](e2e/examples/gazelle/)                                           | Automatic BUILD file generation with Gazelle                                                             |
 | [`examples/cross_compile`](e2e/examples/cross_compile/)                 | Cross-compilation to other platforms via `platform_data` transition                                      |

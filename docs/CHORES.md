@@ -270,7 +270,7 @@ for the byte-level architecture check.
 - the e2e `pub.package()` calls
   (`git grep -n 'pub.package(' -- 'e2e/*MODULE.bazel'`): version and sha256.
   `very_good_analysis`, the lint set most workspaces analyze under, moves in
-  all of them together, as does `e2e/pub_deps`'s `path`. A pin whose version
+  all of them together, as does `e2e/examples/pub/package`'s `path`. A pin whose version
   is what its fixture tests stays put: two versions of one package across a
   root and its `dep_mod` or `mod_b` (`e2e/root_settings/pub_versions/highest_wins`,
   `e2e/root_settings/pub_versions/override_root_lock`,

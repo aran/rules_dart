@@ -15,4 +15,4 @@ references/
 e2e/examples/tests/pubspec.lock
 e2e/examples/library_deps/pubspec.lock
 e2e/examples/gazelle/pubspec.lock
-e2e/pub_deps/pubspec.lock
+e2e/examples/pub/package/pubspec.lock

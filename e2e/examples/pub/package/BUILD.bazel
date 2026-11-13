@@ -1,0 +1,9 @@
+load("@rules_dart//dart:defs.bzl", "dart_binary")
+
+# A pub.dev package declared on its own, with `pub.package()` in MODULE.bazel,
+# and no lock: `@path` is its library.
+dart_binary(
+    name = "app",
+    main = "main.dart",
+    deps = ["@path"],
+)
