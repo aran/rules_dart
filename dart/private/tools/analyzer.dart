@@ -7,6 +7,7 @@
 // second when their arguments name the server's host (`--host`), which the
 // `dart_analyze` aspect does unless `--@rules_dart//dart:analysis_worker` is
 // off; see `runAnalysisAction` for how a runner serves a worker.
+import 'dart:ffi';
 import 'dart:io';
 
 import 'package:bazel_worker/bazel_worker.dart';
@@ -103,10 +104,10 @@ String workerCache() =>
 ///
 /// A server removes its cache when it ends, but nothing does when its
 /// worker and it are killed together, as Bazel's process group is when its
-/// server is. A worker clears such leftovers when it starts. Not on Windows,
-/// where a killed worker's server lives on and may still be using its cache.
+/// server is, or its job object on Windows. A worker clears such leftovers
+/// when it starts. A server whose worker alone is killed ends within a second
+/// or so and removes its own (`analysis_host.dart`).
 void removeOrphanedCaches(String dir) {
-  if (Platform.isWindows) return;
   final List<FileSystemEntity> entries;
   try {
     entries = Directory(dir).listSync();
@@ -119,16 +120,45 @@ void removeOrphanedCaches(String dir) {
     );
     if (entry is! Directory || owner == null) continue;
     final worker = int.parse(owner[1]!);
-    // `kill -0` succeeds for a process that exists.
-    if (worker == pid ||
-        Process.runSync('kill', ['-0', '$worker']).exitCode == 0) {
-      continue;
-    }
+    if (worker == pid || _running(worker)) continue;
     try {
       entry.deleteSync(recursive: true);
     } on FileSystemException {
-      // Gone already: its server removed it as it ended.
+      // Gone already, or held open by a server still ending, which removes it
+      // as it ends.
     }
+  }
+}
+
+/// Whether process [id] is running. An id handed on to a new process keeps
+/// an orphaned cache until that process ends too.
+bool _running(int id) {
+  // `kill -0` succeeds for a process that exists.
+  if (!Platform.isWindows) {
+    return Process.runSync('kill', ['-0', '$id']).exitCode == 0;
+  }
+  final kernel32 = DynamicLibrary.open('kernel32.dll');
+  final openProcess = kernel32
+      .lookupFunction<
+        IntPtr Function(Uint32, Int32, Uint32),
+        int Function(int, int, int)
+      >('OpenProcess');
+  final waitFor = kernel32
+      .lookupFunction<Uint32 Function(IntPtr, Uint32), int Function(int, int)>(
+        'WaitForSingleObject',
+      );
+  final closeHandle = kernel32
+      .lookupFunction<Int32 Function(IntPtr), int Function(int)>('CloseHandle');
+  const synchronize = 0x00100000; // SYNCHRONIZE
+  const waitTimeout = 0x102; // WAIT_TIMEOUT
+  final process = openProcess(synchronize, 0, id);
+  // No such process.
+  if (process == 0) return false;
+  try {
+    // An ended process stays open while a handle to it is held, signalled.
+    return waitFor(process, 0) == waitTimeout;
+  } finally {
+    closeHandle(process);
   }
 }
 

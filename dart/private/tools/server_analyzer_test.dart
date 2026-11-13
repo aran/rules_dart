@@ -223,20 +223,27 @@ void main(List<String> args) {
   test('removes the caches of workers that are gone, and only those', () async {
     final gone = await Process.start(dart, ['--version']);
     await gone.exitCode;
+    // A worker that is still running, other than the one asking.
+    final script = File('${scratch.path}/running.dart')
+      ..writeAsStringSync("import 'dart:io';\nvoid main() => stdin.drain();\n");
+    final running = await Process.start(dart, [script.path]);
+    addTearDown(() async {
+      running.kill(ProcessSignal.sigkill);
+      await running.exitCode;
+    });
     String cache(int owner, int n) => (Directory(
       '${scratch.path}/dart_analysis_worker-$owner-$n',
     )..createSync()).path;
     final orphans = [cache(gone.pid, 1), cache(gone.pid, 2)];
     final kept = [
       cache(pid, 1),
-      // A process that is alive: this test's.
       cache(pid, 7),
+      cache(running.pid, 1),
       (Directory('${scratch.path}/other')..createSync()).path,
     ];
     removeOrphanedCaches(scratch.path);
     for (final dir in orphans) {
-      // On Windows a killed worker's server lives on, using its cache.
-      expect(Directory(dir).existsSync(), Platform.isWindows, reason: dir);
+      expect(Directory(dir).existsSync(), isFalse, reason: dir);
     }
     for (final dir in kept) {
       expect(Directory(dir).existsSync(), isTrue, reason: dir);
