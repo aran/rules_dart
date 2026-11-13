@@ -1,0 +1,5 @@
+# A module that shares a lint ruleset (dep_rules) and a library its own
+# options allow (dep_lib), for //shared_lint_rules.
+module(name = "lint_rules")
+
+bazel_dep(name = "rules_dart", version = "0.0.0")

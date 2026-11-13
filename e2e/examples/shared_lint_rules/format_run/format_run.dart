@@ -6,16 +6,16 @@
 // The fixture is this workspace's own source, so it is put back afterwards,
 // whatever happened.
 //
-// Run from the workspace: `bazel run //format_run`.
+// Run from the workspace: `bazel run //shared_lint_rules/format_run`.
 import 'dart:io';
 
-const _fixture = 'wide/lib/wide.dart';
-const _golden = 'wide/golden/wide.dart';
+const _fixture = 'shared_lint_rules/wide/lib/wide.dart';
+const _golden = 'shared_lint_rules/wide/golden/wide.dart';
 
 void main() {
   final workspace = Platform.environment['BUILD_WORKSPACE_DIRECTORY'];
   if (workspace == null) {
-    stderr.writeln('run with `bazel run //format_run`');
+    stderr.writeln('run with `bazel run //shared_lint_rules/format_run`');
     exit(2);
   }
   final fixture = File('$workspace/$_fixture');
@@ -32,7 +32,7 @@ void main() {
       'run',
       '@rules_dart//dart/format',
       '--',
-      '//wide',
+      '//shared_lint_rules/wide',
     ], workingDirectory: workspace);
     if (result.exitCode != 0) {
       failure = 'format exited ${result.exitCode}:\n${result.stdout}${result.stderr}';

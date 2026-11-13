@@ -159,7 +159,7 @@ workspace with no tracked `MODULE.bazel.lock` of its own
 (`e2e/pub_lock_dedup/cross_module/module_b`, say), which resolves as part of it, and
 a module the root's own `local_path_override` names without a `.bazelversion`
 of its own, which resolves as part of the root. A nested module with a lock of
-its own (`e2e/analyze_composition/dep_module`) is a workspace.
+its own is a workspace.
 
 A workspace that fails on purpose holds a `lock_expected_failure.txt` naming
 what its failure prints (`git ls-files '*lock_expected_failure.txt'` lists

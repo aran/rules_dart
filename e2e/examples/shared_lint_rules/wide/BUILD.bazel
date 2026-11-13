@@ -2,7 +2,8 @@ load("@rules_dart//dart:defs.bzl", "dart_library")
 
 # A file the format check would reject: wrapped for no page width, where the
 # ruleset another module shares sets 100. `manual`, so `bazel test //...` does
-# not check it; `bazel run //format_run` formats it and puts it back.
+# not check it; `bazel run //shared_lint_rules/format_run` formats it and puts it
+# back.
 dart_library(
     name = "wide",
     srcs = ["lib/wide.dart"],

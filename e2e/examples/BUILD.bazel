@@ -24,6 +24,7 @@ dart_analysis_config(
         "//fixtures/analysis_failure/unresolved_ruleset:options",
         "//fixtures/analysis_failure/vga:options",
         "//fixtures/no_pubspec:options",
+        "//shared_lint_rules:options",
     ],
 )
 

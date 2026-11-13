@@ -1,0 +1,9 @@
+load("@rules_dart//dart:defs.bzl", "dart_binary")
+
+# Runs `@rules_dart//dart/format` over `//shared_lint_rules/wide` and checks
+# what it writes. Run from the workspace, outside any test, since it runs
+# Bazel: `bazel run //shared_lint_rules/format_run`.
+dart_binary(
+    name = "format_run",
+    main = "format_run.dart",
+)

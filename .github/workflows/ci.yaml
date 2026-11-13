@@ -43,7 +43,7 @@ jobs:
       # default shell (PowerShell on Windows), where this is invalid. Inner
       # single quotes keep the outer shell from expanding it; `case $PWD`
       # needs no quotes, which PowerShell would mangle.
-      bazel_test_command: "bash -c 'bazel test --test_output=errors //...; s=$?; [ $s -eq 4 ] && case $PWD in */e2e/analyze_composition/dep_module|*/e2e/pub_deps|*/e2e/pub_lock|*/e2e/pub_package_padded) exit 0;; esac; exit $s'"
+      bazel_test_command: "bash -c 'bazel test --test_output=errors //...; s=$?; [ $s -eq 4 ] && case $PWD in */e2e/pub_deps|*/e2e/pub_lock|*/e2e/pub_package_padded) exit 0;; esac; exit $s'"
       folders: |
         [
           ".",
@@ -61,8 +61,6 @@ jobs:
           "e2e/pub_package_padded",
           "e2e/ext_exemplar",
           "e2e/fix",
-          "e2e/analyze_composition",
-          "e2e/analyze_composition/dep_module",
           "e2e/link_hook",
           "e2e/external_module",
           "overhead",
@@ -737,23 +735,23 @@ jobs:
           echo "OK: package-root-gated lint reached the code"
       # A ruleset shared by another Bazel module is included from an options
       # file of this one; the module's own options file cannot govern here.
-      - name: analyze_composition — expect another module's ruleset to apply
-        working-directory: e2e/analyze_composition
+      - name: shared_lint_rules — expect another module's ruleset to apply
+        working-directory: e2e/examples
         run: |
-          if bazel test //bad 2>/dev/null; then
+          if bazel test //shared_lint_rules/bad 2>/dev/null; then
             echo "ERROR: build should have failed with avoid_print"
             exit 1
           fi
-          bazel test //bad 2>&1 | grep -q "avoid_print"
+          bazel test //shared_lint_rules/bad 2>&1 | grep -q "avoid_print"
           echo "OK: included ruleset from another module applied"
-      - name: analyze_composition — expect another repository's options to be refused
-        working-directory: e2e/analyze_composition
+      - name: shared_lint_rules — expect another repository's options to be refused
+        working-directory: e2e/examples
         run: |
-          if bazel build //:cross_repo_config 2>/dev/null; then
+          if bazel build //shared_lint_rules:cross_repo_config 2>/dev/null; then
             echo "ERROR: build should have refused an options file from another repository"
             exit 1
           fi
-          bazel build //:cross_repo_config 2>&1 | grep -q "is in another repository"
+          bazel build //shared_lint_rules:cross_repo_config 2>&1 | grep -q "is in another repository"
           echo "OK: cross-repository options refused"
       # The format check's red paths, under the aspect's `dart_format` output
       # group. The first is the obvious one; the other two exist because
@@ -943,9 +941,9 @@ jobs:
       - name: fix — fix two targets in one run, format a 3.6 package
         working-directory: e2e/fix
         run: bazel run //write_back
-      - name: analyze_composition — format under another module's ruleset
-        working-directory: e2e/analyze_composition
-        run: bazel run //format_run
+      - name: shared_lint_rules — format under another module's ruleset
+        working-directory: e2e/examples
+        run: bazel run //shared_lint_rules/format_run
   # Every workspace's MODULE.bazel.lock is complete without anyone's
   # .bazelrc.user, the workspaces that fail on purpose included; so is every
   # pubspec.lock outside e2e/; and the bazelrc preset is the one overhead

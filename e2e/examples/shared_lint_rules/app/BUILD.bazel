@@ -5,7 +5,7 @@ load("@rules_dart//dart:defs.bzl", "dart_library", "dart_test")
 dart_library(
     name = "app",
     srcs = ["lib/app.dart"],
-    deps = ["@dep_module//dep_lib"],
+    deps = ["@lint_rules//dep_lib"],
 )
 
 # An entrypoint, reached through DartAnalyzableInfo rather than DartInfo.

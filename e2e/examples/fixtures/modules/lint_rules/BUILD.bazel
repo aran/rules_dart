@@ -1,0 +1,9 @@
+load("@rules_dart//dart:defs.bzl", "dart_analysis_options")
+
+# This module's own options, which govern nothing in a module that depends on
+# it (//shared_lint_rules:cross_repo_config).
+dart_analysis_options(
+    name = "options",
+    src = "analysis_options.yaml",
+    visibility = ["//visibility:public"],
+)
