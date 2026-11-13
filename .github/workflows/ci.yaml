@@ -60,7 +60,6 @@ jobs:
           "e2e/root_settings",
           "e2e/pub_package_padded",
           "e2e/ext_exemplar",
-          "e2e/fix",
           "e2e/link_hook",
           "e2e/external_module",
           "overhead",
@@ -939,8 +938,8 @@ jobs:
           bazelisk-cache: true
           repository-cache: true
       - name: fix — fix two targets in one run, format a 3.6 package
-        working-directory: e2e/fix
-        run: bazel run //write_back
+        working-directory: e2e/examples
+        run: bazel run //fix/write_back
       - name: shared_lint_rules — format under another module's ruleset
         working-directory: e2e/examples
         run: bazel run //shared_lint_rules/format_run

@@ -1,0 +1,10 @@
+load("@rules_dart//dart:defs.bzl", "dart_analysis_options")
+
+# The options the fixes and the `dart_analyze` aspect's checks share, through
+# the workspace's `analysis_config`: fixes are driven by whatever lints are
+# enabled, so only shared options let a fix turn an analysis green.
+dart_analysis_options(
+    name = "options",
+    src = "analysis_options.yaml",
+    visibility = ["//:__pkg__"],
+)

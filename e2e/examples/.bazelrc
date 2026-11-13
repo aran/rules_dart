@@ -30,4 +30,9 @@ build --@rules_dart//dart:extra_dart_defines=E2E_WINNER=flag
 coverage --experimental_collect_code_coverage_for_generated_files
 coverage --instrument_test_targets
 
+# fix/deep: targets tagged `deep` are left out of building, not only of
+# testing, unless `--config=deep` is passed.
+build --build_tag_filters=-deep
+build:deep --build_tag_filters=
+
 try-import %workspace%/.bazelrc.user

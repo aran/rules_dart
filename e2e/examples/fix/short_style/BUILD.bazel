@@ -1,7 +1,7 @@
 load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
 load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
 load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
-load("//tools:changes.bzl", "dart_changes")
+load("//fix/tools:changes.bzl", "dart_changes")
 
 dart_package_metadata(
     name = "pubspec-metadata",
@@ -11,7 +11,7 @@ dart_package_metadata(
 
 # A package on 3.6, whose short style no later version produces, with a file
 # its format check would reject. `manual`, so `bazel test //...` does not
-# check it; `bazel run //write_back` formats it and puts it back.
+# check it; `bazel run //fix/write_back` formats it and puts it back.
 dart_library(
     name = "lib",
     srcs = ["lib/short.dart"],
@@ -35,11 +35,11 @@ run_binary(
         "--out",
         "$(execpath short_formatted.dart)",
         "--content",
-        "short_style/lib/short.dart",
+        "fix/short_style/lib/short.dart",
         "--path",
-        "short_style/lib/short.dart",
+        "fix/short_style/lib/short.dart",
     ],
-    tool = "//tools:check_changes",
+    tool = "//fix/tools:check_changes",
 )
 
 # The rewrite is in the short style: at the SDK's newest version the call

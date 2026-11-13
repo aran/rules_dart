@@ -7,7 +7,7 @@ dart_package_metadata(
 
 # In the `deep` tier, which `.bazelrc` leaves out of every build unless
 # `--config=deep` is passed, with a file its format check would reject.
-# `manual`, so `bazel test //...` does not check it; `bazel run //write_back`
+# `manual`, so `bazel test //...` does not check it; `bazel run //fix/write_back`
 # formats it and puts it back.
 dart_library(
     name = "lib",

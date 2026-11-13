@@ -3,7 +3,7 @@ load("@rules_dart//dart:defs.bzl", "dart_binary")
 # Runs `@rules_dart//dart/fix` and `@rules_dart//dart/format` over this
 # workspace's fixtures, as a user would, and checks what they write. Run from
 # the workspace, outside any test, since it runs Bazel: `bazel run
-# //write_back`.
+# //fix/write_back`.
 dart_binary(
     name = "write_back",
     main = "write_back.dart",

@@ -1,7 +1,7 @@
 load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
 load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
 load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
-load("//tools:changes.bzl", "dart_changes")
+load("//fix/tools:changes.bzl", "dart_changes")
 
 dart_package_metadata(
     name = "pubspec-metadata",
@@ -43,11 +43,11 @@ run_binary(
         "--out",
         "$(execpath thing_fixed.dart)",
         "--content",
-        "suffixes/lib/thing.freezed.dart",
+        "fix/suffixes/lib/thing.freezed.dart",
         "--path",
-        "suffixes/lib/thing.freezed.dart",
+        "fix/suffixes/lib/thing.freezed.dart",
     ],
-    tool = "//tools:check_changes",
+    tool = "//fix/tools:check_changes",
 )
 
 diff_test(

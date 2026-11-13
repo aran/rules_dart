@@ -1,21 +1,21 @@
 load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
 load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
 load("@rules_dart//dart:defs.bzl", "dart_binary", "dart_library", "dart_package_metadata")
-load("//tools:changes.bzl", "dart_changes")
+load("//fix/tools:changes.bzl", "dart_changes")
 
 dart_package_metadata(
     name = "pubspec-metadata",
     package_name = "fix_bin_dep",
 )
 
-# The entrypoint counterpart of //dirty. A `dart_binary`'s `main` is under no
+# The entrypoint counterpart of //fix/dirty. A `dart_binary`'s `main` is under no
 # package's `lib/`, so it reaches the fixes through `DartAnalyzableInfo` rather
 # than through any `DartInfo` — and it is `is_source`, which is what makes it
 # write-back eligible once it is staged at all. Both halves have to hold: staged
 # but ineligible would compute the fix and drop it; eligible but unstaged would
 # never compute one.
 #
-# The violations are load-bearing: `bazel run //write_back` fixes them and
+# The violations are load-bearing: `bazel run //fix/write_back` fixes them and
 # puts them back.
 
 dart_library(
@@ -51,11 +51,11 @@ run_binary(
         "--out",
         "$(execpath main_fixed.dart)",
         "--content",
-        "dirty_bin/main.dart",
+        "fix/dirty_bin/main.dart",
         "--path",
-        "dirty_bin/main.dart",
+        "fix/dirty_bin/main.dart",
     ],
-    tool = "//tools:check_changes",
+    tool = "//fix/tools:check_changes",
 )
 
 diff_test(

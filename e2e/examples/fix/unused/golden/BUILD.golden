@@ -1,7 +1,7 @@
 load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata", "dart_test")
 load(":macro.bzl", "two_programs")
 
-# The fixtures of `@rules_dart//dart/unused_deps`, which //write_back runs.
+# The fixtures of `@rules_dart//dart/unused_deps`, which //fix/write_back runs.
 # Each target but `leaf` and `used` lists deps none of its files imports, so
 # each fails to build, and is `manual`: wildcards skip it. golden/BUILD.golden
 # is this file once the fixer has run on `lib` and `call`.
@@ -41,12 +41,7 @@ dart_library(
     srcs = ["lib/lib.dart"],
     package = ":pubspec-metadata",
     tags = ["manual"],
-    deps = [
-        ":hub_a",
-        ":hub_b",
-        ":used",
-        "@rules_dart//dart/runfiles",
-    ],
+    deps = [":used"],
 )
 
 # Both targets of the call find `leaf` unused, so the fixer removes it from
@@ -56,10 +51,7 @@ two_programs(
     srcs = ["lib/call.dart"],
     package = ":pubspec-metadata",
     tags = ["manual"],
-    deps = [
-        ":leaf",
-        ":used",
-    ],
+    deps = [":used"],
 )
 
 SHARED = [":leaf"]
@@ -107,7 +99,6 @@ dart_test(
     tags = ["manual"],
     deps = [
         ":conformance",
-        ":leaf",
         ":used",
         "@test_pub_deps//:test",
     ],

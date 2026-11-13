@@ -10,29 +10,29 @@
 // The fixtures are this workspace's own sources, so each is put back
 // afterwards, whatever happened.
 //
-// Run from the workspace: `bazel run //write_back`.
+// Run from the workspace: `bazel run //fix/write_back`.
 import 'dart:io';
 
 /// Each fixture, and the file holding what the run must leave in it.
 const _expected = {
   // Two targets fixed in one run: a library and a binary's entrypoint.
-  'dirty/lib/model.dart': 'clean/lib/model.dart',
-  'dirty_bin/main.dart': 'dirty_bin/golden/main.dart',
+  'fix/dirty/lib/model.dart': 'fix/clean/lib/model.dart',
+  'fix/dirty_bin/main.dart': 'fix/dirty_bin/golden/main.dart',
   // A 3.6 package, formatted in the short style.
-  'short_style/lib/short.dart': 'short_style/golden/short.dart',
+  'fix/short_style/lib/short.dart': 'fix/short_style/golden/short.dart',
   // A target `.bazelrc` leaves out of the build, formatted once the run
   // passes the config that builds it.
-  'deep/lib/deep.dart': 'deep/golden/deep.dart',
-  // The unused deps of `//unused:lib`, of the call `//unused:call` and of
-  // `//unused:conformance_test` removed, and the `package:test` that test's
+  'fix/deep/lib/deep.dart': 'fix/deep/golden/deep.dart',
+  // The unused deps of `//fix/unused:lib`, of the call `//fix/unused:call` and of
+  // `//fix/unused:conformance_test` removed, and the `package:test` that test's
   // runner needs kept.
-  'unused/BUILD.bazel': 'unused/golden/BUILD.golden',
+  'fix/unused/BUILD.bazel': 'fix/unused/golden/BUILD.golden',
 };
 
 void main() {
   final workspace = Platform.environment['BUILD_WORKSPACE_DIRECTORY'];
   if (workspace == null) {
-    stderr.writeln('run with `bazel run //write_back`');
+    stderr.writeln('run with `bazel run //fix/write_back`');
     exit(2);
   }
   File file(String path) => File('$workspace/$path');
@@ -73,15 +73,19 @@ void main() {
   }
 
   try {
-    final dry = run('fix', ['--dry-run', '//dirty:lib', '//dirty_bin:bin']);
-    if (!'${dry.stdout}'.contains('--- a/dirty/lib/model.dart')) {
+    final dry = run('fix', [
+      '--dry-run',
+      '//fix/dirty:lib',
+      '//fix/dirty_bin:bin',
+    ]);
+    if (!'${dry.stdout}'.contains('--- a/fix/dirty/lib/model.dart')) {
       failures.add('fix --dry-run printed no diff:\n${dry.stdout}');
     }
     expectFiles('after fix --dry-run', originals);
 
-    // As `bazel build //deep:lib` builds nothing, so the run writes nothing,
+    // As `bazel build //fix/deep:lib` builds nothing, so the run writes nothing,
     // and says why.
-    final filtered = run('format', ['//deep:lib'], fails: true);
+    final filtered = run('format', ['//fix/deep:lib'], fails: true);
     if (!'${filtered.stderr}'.contains('left out every target')) {
       failures.add('format of a left-out target:\n${filtered.stderr}');
     }
@@ -89,13 +93,13 @@ void main() {
 
     final unusedDry = run('unused_deps', [
       '--dry-run',
-      '//unused:lib',
-      '//unused:call.program',
-      '//unused:conformance_test',
+      '//fix/unused:lib',
+      '//fix/unused:call.program',
+      '//fix/unused:conformance_test',
     ]);
-    if (!'${unusedDry.stdout}'.contains('|//unused:lib') ||
-        !'${unusedDry.stdout}'.contains('|//unused:call') ||
-        !'${unusedDry.stdout}'.contains('|//unused:conformance_test') ||
+    if (!'${unusedDry.stdout}'.contains('|//fix/unused:lib') ||
+        !'${unusedDry.stdout}'.contains('|//fix/unused:call') ||
+        !'${unusedDry.stdout}'.contains('|//fix/unused:conformance_test') ||
         '${unusedDry.stdout}'.contains('test_pub_deps')) {
       failures.add('unused_deps --dry-run printed:\n${unusedDry.stdout}');
     }
@@ -108,7 +112,7 @@ void main() {
       for (final line in '${result.stderr}'.split('\n'))
         if (line.contains(': kept ')) line,
     ];
-    const unreachable = ['//unused:shared', '//unused:generated'];
+    const unreachable = ['//fix/unused:shared', '//fix/unused:generated'];
     final keptDry = run('unused_deps', [
       '--dry-run',
       ...unreachable,
@@ -125,7 +129,7 @@ void main() {
     if (keptLines.length != 2 ||
         !keptLines.any(
           (l) =>
-              l.contains('unused/BUILD.bazel:69:') &&
+              l.contains('fix/unused/BUILD.bazel:69:') &&
               l.contains('in a variable or a comprehension'),
         ) ||
         !keptLines.any((l) => l.contains('finds no call named generated'))) {
@@ -140,13 +144,13 @@ void main() {
     expectFiles('after unused_deps of unreachable deps', originals);
 
     run('unused_deps', [
-      '//unused:lib',
-      '//unused:call.program',
-      '//unused:conformance_test',
+      '//fix/unused:lib',
+      '//fix/unused:call.program',
+      '//fix/unused:conformance_test',
     ]);
-    run('fix', ['//dirty:lib', '//dirty_bin:bin']);
-    run('format', ['//short_style:lib']);
-    run('format', ['--config=deep', '//deep:lib']);
+    run('fix', ['//fix/dirty:lib', '//fix/dirty_bin:bin']);
+    run('format', ['//fix/short_style:lib']);
+    run('format', ['--config=deep', '//fix/deep:lib']);
     expectFiles('after fix and format', {
       for (final MapEntry(key: path, value: golden) in _expected.entries)
         path: file(golden).readAsStringSync(),
@@ -154,7 +158,7 @@ void main() {
 
     // What a fix wrote is what its target's analysis passes, so there is
     // nothing left to do.
-    final again = run('fix', ['//dirty:lib', '//dirty_bin:bin']);
+    final again = run('fix', ['//fix/dirty:lib', '//fix/dirty_bin:bin']);
     if (!'${again.stdout}'.contains('0 files fixed.')) {
       failures.add('a second fix wrote again:\n${again.stdout}');
     }

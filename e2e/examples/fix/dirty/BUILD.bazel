@@ -1,7 +1,7 @@
 load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
 load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
 load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library", "dart_package_metadata")
-load("//tools:changes.bzl", "dart_changes")
+load("//fix/tools:changes.bzl", "dart_changes")
 
 dart_package_metadata(
     name = "pubspec-metadata",
@@ -19,12 +19,12 @@ dart_package_metadata(
 #
 # The hand-written violation is load-bearing, so this library opts out of the
 # `dart_analyze` aspect's check; `@rules_dart//dart/fix` still fixes it.
-# //clean is the analyzed half.
+# //fix/clean is the analyzed half.
 dart_codegen(
     name = "model_g",
     src = "lib/model.dart",
     config = json.encode({"violation": True}),
-    generator = "//tools:part_gen",
+    generator = "//fix/tools:part_gen",
     output_suffixes = [".g.dart"],
     package = ":pubspec-metadata",
 )
@@ -33,7 +33,7 @@ dart_codegen(
     name = "model_freezed",
     src = "lib/model.dart",
     config = json.encode({"violation": True}),
-    generator = "//tools:part_gen",
+    generator = "//fix/tools:part_gen",
     output_suffixes = [".freezed.dart"],
     package = ":pubspec-metadata",
 )
@@ -69,14 +69,14 @@ run_binary(
         "--out",
         "$(execpath model_fixed.dart)",
         "--content",
-        "dirty/lib/model.dart",
+        "fix/dirty/lib/model.dart",
         "--path",
-        "dirty/lib/model.dart",
+        "fix/dirty/lib/model.dart",
     ],
-    tool = "//tools:check_changes",
+    tool = "//fix/tools:check_changes",
 )
 
-# The golden is //clean's source rather than a checked-in copy, so this asserts
+# The golden is //fix/clean's source rather than a checked-in copy, so this asserts
 # the two things that matter at once: the fix output is byte-correct, and what
 # it is byte-correct against is a library the `dart_analyze` aspect passes.
 # The `@override` in it is also the proof that the excluded parts still
@@ -85,5 +85,5 @@ diff_test(
     name = "model_fixed_test",
     size = "small",
     file1 = ":model_fixed.dart",
-    file2 = "//clean:lib/model.dart",
+    file2 = "//fix/clean:lib/model.dart",
 )

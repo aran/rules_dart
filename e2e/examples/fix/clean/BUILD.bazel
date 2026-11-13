@@ -1,16 +1,16 @@
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
 load("@rules_dart//dart:defs.bzl", "dart_codegen", "dart_library", "dart_package_metadata")
-load("//tools:changes.bzl", "dart_changes")
+load("//fix/tools:changes.bzl", "dart_changes")
 
 dart_package_metadata(
     name = "pubspec-metadata",
     package_name = "fix_clean",
 )
 
-# The green end of the red/green pair. //dirty holds the same library with two
+# The green end of the red/green pair. //fix/dirty holds the same library with two
 # violations in it; this one is what `bazel run @rules_dart//dart/fix --
-# //dirty:lib` must produce, and
+# //fix/dirty:lib` must produce, and
 # `:lib` passing the `dart_analyze` aspect under `bazel test` is the proof that
 # what it produces passes the analyzer.
 exports_files(["lib/model.dart"])
@@ -18,7 +18,7 @@ exports_files(["lib/model.dart"])
 dart_codegen(
     name = "model_g",
     src = "lib/model.dart",
-    generator = "//tools:part_gen",
+    generator = "//fix/tools:part_gen",
     output_suffixes = [".g.dart"],
     package = ":pubspec-metadata",
 )
@@ -26,7 +26,7 @@ dart_codegen(
 dart_codegen(
     name = "model_freezed",
     src = "lib/model.dart",
-    generator = "//tools:part_gen",
+    generator = "//fix/tools:part_gen",
     output_suffixes = [".freezed.dart"],
     package = ":pubspec-metadata",
 )
@@ -63,7 +63,7 @@ run_binary(
         "--out",
         "$(execpath no_fixes.stamp)",
     ],
-    tool = "//tools:check_changes",
+    tool = "//fix/tools:check_changes",
 )
 
 build_test(
