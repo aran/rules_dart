@@ -19,6 +19,14 @@ register_toolchains("@dart_toolchains//:all")
 
 pub = use_extension("@rules_dart//dart/pub:extensions.bzl", "pub")
 
+# The lint ruleset the `dart_analyze` aspect applies (BUILD.bazel).
+pub.package(
+    name = "very_good_analysis",
+    sha256 = "0bd5eb8d6be76aa0d71e70cbdae6cac8f784f761170568e3c2214a6948c7f6d3",
+    version = "11.0.0",
+)
+use_repo(pub, "very_good_analysis")
+
 # pub_versions/: every statement of a package's version is a request, the
 # highest is built for the whole build, and raising one of the root's own
 # requests prints a warning. CI greps a build's output for those warnings, and
@@ -65,3 +73,21 @@ pub.from_lock(
     lock = "//pub_versions/override_root_lock:pubspec.lock",
 )
 use_repo(pub, "rootlock")
+
+# pub_versions/lock_upgrade: lock_a has `equatable` 2.0.8 and lock_b 2.0.7, a
+# package nothing else in the build asks for, so lock_b's request is raised by
+# lock_a's alone and the build warns of it; lock_newer has get_it newer than
+# rules_dart's own tool lock, whose request is raised silently.
+pub.from_lock(
+    name = "deps_a",
+    lock = "//pub_versions/lock_upgrade:lock_a.lock",
+)
+pub.from_lock(
+    name = "deps_b",
+    lock = "//pub_versions/lock_upgrade:lock_b.lock",
+)
+pub.from_lock(
+    name = "deps_newer",
+    lock = "//pub_versions/lock_upgrade:lock_newer.lock",
+)
+use_repo(pub, "deps_a", "deps_b", "deps_newer")

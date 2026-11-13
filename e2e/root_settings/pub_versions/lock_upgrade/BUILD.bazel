@@ -1,4 +1,5 @@
-load("@rules_dart//dart:defs.bzl", "dart_analysis_config", "dart_analysis_options", "dart_binary")
+load("@rules_dart//dart:defs.bzl", "dart_analysis_options", "dart_binary")
+load("//:checks.bzl", "pub_graph_check")
 
 exports_files([
     "lock_a.lock",
@@ -6,7 +7,7 @@ exports_files([
     "lock_newer.lock",
 ])
 
-# lock_b has path 1.9.0 and lock_a 1.9.1; the higher is built for both hubs.
+# Both hubs build, each over packages the other's lock also lists.
 dart_binary(
     name = "app",
     main = "main.dart",
@@ -14,6 +15,14 @@ dart_binary(
         "@deps_a//:path",
         "@deps_b//:collection",
     ],
+)
+
+# lock_b has `equatable` 2.0.7 and lock_a 2.0.8, and nothing else in the build
+# asks for `equatable`: lock against lock, the higher is built for both hubs.
+pub_graph_check(
+    name = "lower_lock_gets_the_higher_version",
+    target = "@deps_b//:equatable",
+    versions = {"equatable": "2.0.8"},
 )
 
 # lock_newer has get_it 9.3.0, newer than rules_dart's own tool lock, so this
@@ -30,10 +39,6 @@ dart_binary(
 dart_analysis_options(
     name = "options",
     src = "analysis_options.yaml",
+    visibility = ["//:__pkg__"],
     deps = ["@very_good_analysis"],
-)
-
-dart_analysis_config(
-    name = "analysis_config",
-    options = [":options"],
 )
