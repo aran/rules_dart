@@ -14,9 +14,9 @@ const expectedFailureJob = 'expected-failure';
 ///
 /// On Linux, the `test` job's command in each of its folders, then, when
 /// `--folders` names none, every step of the expected-failure job in its
-/// working directory. On Windows, where the command is bash, `bazel test
-/// //...` in each folder, which also passes on exit 4 (no test target) where
-/// the command does.
+/// working directory. On Windows, `bazel test //...` in each folder, which
+/// also passes on exit 4 (no test target) where the command's `case $PWD`
+/// names the folder.
 ///
 /// `--folders` runs the test command in each folder it names, CI's or not.
 List<E2eItem> e2eItems(CiWorkflow workflow, E2eOptions options) {

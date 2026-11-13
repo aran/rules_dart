@@ -1,2 +1,0 @@
-# A nested workspace reads only its own rc files: import its untracked per-user overrides.
-try-import %workspace%/.bazelrc.user

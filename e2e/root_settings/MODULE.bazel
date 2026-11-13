@@ -152,3 +152,21 @@ pub.from_lock(
     lock = "//pub_unsupplied:pubspec.lock",
 )
 use_repo(pub, "ovr")
+
+# pub_package_padded: pub.dev serves nested 1.0.0 with bytes after the end of
+# its gzip stream. Whichever way a package is declared, pub.dev's archives
+# must fetch. Its pubspec depends on `flutter`, which the lock lists as an SDK
+# package and `resolve` maps to a stand-in, so the dependency is supplied. A
+# mapping replaces the package for every module, and e2e/examples'
+# fixtures/pub_missing_dep needs nothing to supply `flutter`.
+pub.from_lock(
+    name = "sdk",
+    lock = "//pub_package_padded:pubspec.lock",
+    resolve = {"flutter": "//pub_package_padded/flutter"},
+)
+pub.package(
+    name = "nested",
+    sha256 = "03bac4c528c64c95c722ec99280375a6f2fc708eec17c7b3f07253b626cd2a20",
+    version = "1.0.0",
+)
+use_repo(pub, "nested", "sdk")

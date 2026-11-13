@@ -35,22 +35,15 @@ jobs:
       # The reusable workflow's own setup-bazel takes the same version, or
       # bumping CACHE_VERSION would never reach this job's caches.
       cache_version: *cache_version
-      # Exit code 4 means "build succeeded but no test targets found". It
-      # passes only in the folders listed here, which build but hold no test;
-      # anywhere else it fails, so a folder whose tests vanish goes red. A
-      # folder that gains a test leaves the list.
-      # Wrapped in bash -c because the reusable workflow uses the runner's
-      # default shell (PowerShell on Windows), where this is invalid. Inner
-      # single quotes keep the outer shell from expanding it; `case $PWD`
-      # needs no quotes, which PowerShell would mangle.
-      bazel_test_command: "bash -c 'bazel test --test_output=errors //...; s=$?; [ $s -eq 4 ] && case $PWD in */e2e/pub_package_padded) exit 0;; esac; exit $s'"
+      # Every folder holds tests, so exit code 4 ("build succeeded but no test
+      # targets found") fails, and a folder whose tests vanish goes red.
+      bazel_test_command: "bazel test --test_output=errors //..."
       folders: |
         [
           ".",
           "e2e/smoke",
           "e2e/examples",
           "e2e/root_settings",
-          "e2e/pub_package_padded",
           "overhead",
           "dev"
         ]

@@ -3378,7 +3378,7 @@ The [`e2e/`](e2e/) directory contains complete working examples. A name with a
 | [`pub_lock_refused`](e2e/failures/pub_lock_refused/)                         | Unpinned packages and locks disagreeing on a package fail, each named, in one failure                    |
 | [`root_settings/pub_versions/hub_surface`](e2e/root_settings/pub_versions/hub_surface/)                           | Every locked package in its hub, including one declared with `pub.package()`                             |
 | [`examples/fixtures/pub_missing_dep`](e2e/examples/fixtures/pub_missing_dep/)         | A `pub.package()` whose pubspec depends on an unsupplied package fails, naming both                      |
-| [`pub_package_padded`](e2e/pub_package_padded/)                     | An archive with bytes after its gzip stream fetches through `pub.package()` as through a lock            |
+| [`root_settings/pub_package_padded`](e2e/root_settings/pub_package_padded/)                     | An archive with bytes after its gzip stream fetches through `pub.package()` as through a lock            |
 | [`pub_archive_links`](e2e/failures/pub_archive_links/)                       | Nothing in a fetched pub archive can refer outside the package                                           |
 | [`examples/fixtures/kernel_source_refused`](e2e/examples/fixtures/kernel_source_refused/) | A `dart_kernel_source` with both or neither of `dart_version` and `path`, or no checkout, fails          |
 | [`root_settings/pub_versions/override_root_lock`](e2e/root_settings/pub_versions/override_root_lock/)             | A higher root lock serves a dependency module's `pub.package()` repository and the lock's own dependents, silently |
