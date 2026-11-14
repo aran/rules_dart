@@ -89,9 +89,8 @@ bazel run --lockfile_mode=off @overhead//locks:refresh      # rewrite
 ```
 
 The tool is built in the root workspace, so a refresh builds it with
-`--lockfile_mode=off`: a stale root lock cannot stop it, and `--override_module`
-flags in `.bazelrc.user` cannot leak into the root lock, which the tool then
-rewrites itself. A check needs no flag.
+`--lockfile_mode=off`: a stale root lock cannot stop it, and the tool then
+rewrites the root lock itself. A check needs no flag.
 `locks/locks_cli.dart` says more.
 
 ## CI workflow

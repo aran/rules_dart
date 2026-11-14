@@ -7,7 +7,8 @@ exports_files(
 )
 
 # `:check` checks and `:refresh` rewrites every workspace's MODULE.bazel.lock,
-# without the developer's `.bazelrc.user`. See locks_cli.dart.
+# reading the rc files Bazel reads there, the developer's `.bazelrc.user`
+# included. See locks_cli.dart.
 dart_binary(
     name = "check",
     srcs = [

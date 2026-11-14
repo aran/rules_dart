@@ -1,5 +1,4 @@
-/// Which Bazel workspaces of a repository have a lock file to keep current,
-/// and how to run Bazel in them without the developer's own settings.
+/// Which Bazel workspaces of a repository have a lock file to keep current.
 library;
 
 /// The file that marks a workspace as one that fails on purpose. Each line
@@ -179,25 +178,6 @@ RegExp? _rootPattern(String root) {
   );
 }
 
-/// The workspace `.bazelrc` without the line that imports the developer's
-/// gitignored `.bazelrc.user`, which can override modules, inject
-/// repositories and turn the lock check off: what a lock must not record.
-/// The `startup` lines of [userRc] are kept: they size the Bazel server and
-/// cannot reach the lock.
-String withoutUserRc(String bazelrc, {String userRc = ''}) {
-  final kept = bazelrc
-      .split('\n')
-      .where((line) => !_userRcImport.hasMatch(line))
-      .join('\n');
-  final startup = [
-    for (final line in userRc.split('\n'))
-      if (line.trimLeft().startsWith('startup ')) line,
-  ];
-  return startup.isEmpty ? kept : '$kept\n${startup.join('\n')}\n';
-}
-
-final _userRcImport = RegExp(r'^\s*(try-)?import\s+\S*\.bazelrc\.user\s*$');
-
 /// One Bazel step of a lock check or refresh.
 class LockStep {
   const LockStep(this.args, this.lockfileMode);
@@ -232,21 +212,8 @@ final refreshSteps = [
   for (final args in _graphAndExtensions) LockStep(args, 'update'),
 ];
 
-/// The startup options that give Bazel [rcFile] as the only rc file, if there
-/// is one: no `/etc/bazel.bazelrc`, no `~/.bazelrc` and no workspace
-/// `.bazelrc`, so that a lock depends on the checkout alone and not on the
-/// machine that wrote it.
-List<String> rcArgs(String? rcFile) => [
-  '--nosystem_rc',
-  '--nohome_rc',
-  '--noworkspace_rc',
-  if (rcFile != null) '--bazelrc=$rcFile',
-];
-
-/// The arguments to run [step] with [rcFile] as the only rc file, if there
-/// is one.
-List<String> bazelArgs(LockStep step, {String? rcFile}) => [
-  ...rcArgs(rcFile),
+/// The arguments to run [step] with.
+List<String> bazelArgs(LockStep step) => [
   step.args.first,
   '--lockfile_mode=${step.lockfileMode}',
   '--noshow_progress',

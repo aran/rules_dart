@@ -10,17 +10,12 @@
 //                                                         rewrite some
 //
 // A refresh builds the tool with `--lockfile_mode=off`, which neither reads
-// nor writes the root lock: a stale root lock cannot stop the tool, and local
-// `--override_module` flags in `.bazelrc.user` cannot leak into that lock. The
-// tool then rewrites the root lock itself, without `.bazelrc.user`. A check
-// needs no flag.
+// nor writes the root lock, so a stale root lock cannot stop the tool. The
+// tool then rewrites the root lock itself. A check needs no flag.
 //
 // A check runs `bazel mod deps` and `bazel build --nobuild //...` with
 // `--lockfile_mode=error`; a refresh runs `bazel mod tidy` and then the same
-// two with `--lockfile_mode=update`. Bazel reads each workspace's committed
-// `.bazelrc` but not its `.bazelrc.user`, whose overrides would otherwise end
-// up in the lock (lock_workspaces.dart, `withoutUserRc`), nor the system's or
-// the home's.
+// two with `--lockfile_mode=update`. Bazel reads the rc files it always reads.
 //
 // A workspace that fails on purpose holds a `lock_expected_failure.txt`
 // listing what its failure prints; a step that fails printing all of it
@@ -66,14 +61,9 @@ Future<void> runLocks({
   final targets = named.isEmpty ? workspaces : named;
   final steps = refresh ? refreshSteps : checkSteps;
 
-  final scratch = await Directory.systemTemp.createTemp('locks');
   final failed = <String>[];
-  try {
-    for (final workspace in targets) {
-      if (!await _run(workspace, steps, scratch)) failed.add(workspace);
-    }
-  } finally {
-    await scratch.delete(recursive: true);
+  for (final workspace in targets) {
+    if (!await _run(workspace, steps)) failed.add(workspace);
   }
 
   final verb = refresh ? 'refreshed' : 'checked';
@@ -97,11 +87,7 @@ Future<void> runLocks({
 
 /// Runs [steps] in [workspace]; prints each outcome and returns whether all
 /// passed.
-Future<bool> _run(
-  String workspace,
-  List<LockStep> steps,
-  Directory scratch,
-) async {
+Future<bool> _run(String workspace, List<LockStep> steps) async {
   final dir = workspace == '.' ? _repo : '$_repo/$workspace';
   final marker = File('$dir/$expectedFailureFile');
   final expected = marker.existsSync()
@@ -114,8 +100,6 @@ Future<bool> _run(
     );
     return false;
   }
-  final rcFile = _writeRc(dir, workspace, scratch);
-
   // An extension that fails keeps whatever entry the lock had for it, stale
   // or not, so a workspace that fails on purpose is rewritten from nothing.
   final lock = File('$dir/MODULE.bazel.lock');
@@ -124,15 +108,12 @@ Future<bool> _run(
   }
 
   try {
-    return await _runSteps(workspace, dir, steps, rcFile, expected) &&
-        await _holdsNoHostPath(workspace, lock, rcFile);
+    return await _runSteps(workspace, dir, steps, expected) &&
+        await _holdsNoHostPath(workspace, lock);
   } finally {
     // Each workspace starts its own Bazel server; walking every workspace of
     // a repository would otherwise leave dozens of idle servers holding memory.
-    await Process.run('bazel', [
-      ...rcArgs(rcFile),
-      'shutdown',
-    ], workingDirectory: dir);
+    await Process.run('bazel', ['shutdown'], workingDirectory: dir);
   }
 }
 
@@ -140,7 +121,6 @@ Future<bool> _runSteps(
   String workspace,
   String dir,
   List<LockStep> steps,
-  String? rcFile,
   List<String>? expected,
 ) async {
   var afterExpectedFailure = false;
@@ -148,7 +128,7 @@ Future<bool> _runSteps(
     final watch = Stopwatch()..start();
     final result = await Process.run(
       'bazel',
-      bazelArgs(step, rcFile: rcFile),
+      bazelArgs(step),
       workingDirectory: dir,
     );
     final seconds = (watch.elapsedMilliseconds / 1000).toStringAsFixed(1);
@@ -181,14 +161,9 @@ Future<bool> _runSteps(
 
 /// Whether [lock] holds no path of this machine: the checkout, Bazel's output
 /// root or the home directory. Prints each line that does.
-Future<bool> _holdsNoHostPath(
-  String workspace,
-  File lock,
-  String? rcFile,
-) async {
+Future<bool> _holdsNoHostPath(String workspace, File lock) async {
   if (!lock.existsSync()) return true;
   final info = await Process.run('bazel', [
-    ...rcArgs(rcFile),
     'info',
     '--lockfile_mode=off',
     'output_base',
@@ -223,24 +198,6 @@ Future<bool> _holdsNoHostPath(
     stderr.writeln('    $name:${at.line}: ${at.path} (under ${at.root})');
   }
   return false;
-}
-
-/// A copy of the workspace's `.bazelrc` without its `.bazelrc.user`, or null
-/// when it has none.
-String? _writeRc(String dir, String workspace, Directory scratch) {
-  final committed = File('$dir/.bazelrc');
-  if (!committed.existsSync()) return null;
-  final user = File('$dir/.bazelrc.user');
-  final copy = File(
-    '${scratch.path}/${workspace.replaceAll('/', '_')}.bazelrc',
-  );
-  copy.writeAsStringSync(
-    withoutUserRc(
-      committed.readAsStringSync(),
-      userRc: user.existsSync() ? user.readAsStringSync() : '',
-    ),
-  );
-  return copy.path;
 }
 
 /// The last lines of Bazel's output, where it says what is wrong.

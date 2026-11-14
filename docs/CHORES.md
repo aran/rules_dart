@@ -184,15 +184,14 @@ bazel run //tool:pub_locks -- --refresh  # pubspec.lock outside e2e/
 
 The first two run `bazel mod tidy --lockfile_mode=refresh`, then `bazel mod deps`
 and `bazel build --nobuild //...` with `--lockfile_mode=update`, in each
-workspace, reading its committed `.bazelrc` but not its `.bazelrc.user`.
+workspace.
 `bazel run @overhead//locks:check` checks instead (`--lockfile_mode=error`), and
 `pub_locks` without `--refresh` runs `pub get --enforce-lockfile` on the pinned SDK; CI's
 `lockfiles` job runs both.
 
 The lock tool is built in the root workspace, so a refresh builds it with
 `--lockfile_mode=off`, which neither reads nor writes the root lock: a stale
-root lock cannot stop it, and `--override_module` flags in `.bazelrc.user`
-cannot leak into that lock. The tool then rewrites the root lock itself. A
+root lock cannot stop it. The tool then rewrites the root lock itself. A
 check needs no flag: a stale root lock fails it at Bazel's own "no longer
 up-to-date" error.
 

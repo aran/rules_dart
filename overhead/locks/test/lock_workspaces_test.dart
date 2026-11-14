@@ -220,36 +220,6 @@ git_override(module_name = "d", remote = "x", commit = "y")
     });
   });
 
-  group('withoutUserRc', () {
-    test('drops every import of .bazelrc.user, and only that', () {
-      const rc =
-          'common --foo\n'
-          'try-import %workspace%/.bazelrc.user\n'
-          'import %workspace%/preset.bazelrc\n'
-          '  import %workspace%/e2e/.bazelrc.user  \n'
-          'build --bar\n';
-      expect(
-        withoutUserRc(rc),
-        'common --foo\nimport %workspace%/preset.bazelrc\nbuild --bar\n',
-      );
-    });
-
-    test('a rc holding only the import becomes empty', () {
-      expect(withoutUserRc('try-import %workspace%/.bazelrc.user\n'), '');
-    });
-
-    test('keeps the user rc\'s startup lines and nothing else of it', () {
-      const user =
-          'startup --host_jvm_args=-Xmx6g\n'
-          'common --override_module=rules_dart=../rules_dart\n'
-          'common --lockfile_mode=off\n';
-      final out = withoutUserRc('common --foo\n', userRc: user);
-      expect(out, contains('startup --host_jvm_args=-Xmx6g'));
-      expect(out, isNot(contains('override_module')));
-      expect(out, isNot(contains('lockfile_mode')));
-    });
-  });
-
   group('unfetchablePin', () {
     // What Bazel 9.3 prints when a git_override names a commit the remote
     // does not have.
@@ -297,15 +267,9 @@ git_override(module_name = "d", remote = "x", commit = "y")
     );
   });
 
-  test('bazelArgs reads only the given rc file', () {
-    final args = bazelArgs(checkSteps.first, rcFile: '/tmp/x.bazelrc');
-    expect(args.take(5), [
-      '--nosystem_rc',
-      '--nohome_rc',
-      '--noworkspace_rc',
-      '--bazelrc=/tmp/x.bazelrc',
-      'mod',
-    ]);
+  test('bazelArgs runs the step with its lockfile mode', () {
+    final args = bazelArgs(checkSteps.first);
+    expect(args.first, 'mod');
     expect(args, contains('--lockfile_mode=error'));
   });
 }
