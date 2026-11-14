@@ -1,12 +1,11 @@
 load("//dart:defs.bzl", "dart_binary", "dart_test")
 
-_SRCS = [
-    "bazel.dart",
+# What the bench's test covers: the reading of Bazel's events, the machine's
+# load and its reports.
+_TESTED_SRCS = [
     "load.dart",
     "metrics.dart",
     "report.dart",
-    "scenarios.dart",
-    "workspace.dart",
 ]
 
 # The build benchmark, run by hand (docs/CHORES.md, "Build Benchmark").
@@ -14,7 +13,11 @@ _SRCS = [
 # source it carries.
 dart_binary(
     name = "bench",
-    srcs = _SRCS,
+    srcs = _TESTED_SRCS + [
+        "bazel.dart",
+        "scenarios.dart",
+        "workspace.dart",
+    ],
     args = [
         "$(rlocationpath @bench_pub_source//:pubspec.yaml)",
         "$(rlocationpath workspace/bazelrc)",
@@ -38,7 +41,7 @@ dart_binary(
 dart_test(
     name = "bench_test",
     size = "small",
-    srcs = _SRCS,
+    srcs = _TESTED_SRCS,
     main = "test/bench_test.dart",
     deps = ["@ext_pub_deps//:test"],
 )

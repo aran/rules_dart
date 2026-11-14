@@ -54,7 +54,8 @@ class DeclaredDep {
 /// The [deps] that no directive of [files] names, in the order of [deps].
 ///
 /// Every `import` and `export`, on every branch of a conditional one, counts
-/// as a use, as every one of them has to be declared. A URI names the
+/// as a use, as every one of them has to be declared. A doc import does not:
+/// it loads nothing, and analysis needs nothing of it. A URI names the
 /// dependency that holds that file. One no dependency holds (a package whose
 /// files are not listed, or one a dependency passes on) names each
 /// dependency that contributes the package, or failing that, each that
@@ -68,10 +69,12 @@ List<DeclaredDep> unusedDeps({
   required String label,
   required List<CheckedFile> files,
   required PackageConfig config,
+  LoadedUri? loaded,
   required List<DeclaredDep> deps,
   Set<String> ownPackages = const {},
   bool layered = true,
 }) {
+  final resolve = loaded ?? judgedUri(config, label);
   // A file of the target in a package it states names no dependency; one in
   // a package only a dependency contributes (an executable's `srcs` under a
   // façade's package) names that dependency, through which it resolves.
@@ -114,7 +117,7 @@ List<DeclaredDep> unusedDeps({
   for (final f in files) {
     for (final d in f.directives.directives) {
       for (final written in [d.uri, for (final c in d.configurations) c.uri]) {
-        if (compiledUri(written, f, config, label).uri case final uri?) {
+        if (resolve(written, f) case final uri?) {
           use(uri);
         }
       }
@@ -140,16 +143,31 @@ String unusedDepsMessage(String dependent, List<DeclaredDep> unused) {
 }
 
 /// What `--report` writes, for [unusedDepsFixer]: the target's [label], the
-/// BUILD file's entry that states its `deps` ([dependent]), and the
-/// canonical label of each of [unused].
+/// BUILD file's entry that states its `deps` ([dependent]), the canonical
+/// label of each of [unused], what of its `srcs` main never reaches and the
+/// BUILD file can drop ([UnreachedSrcs.named]), the canonical label of each
+/// of [unreachedOnly], the deps only those files import, the exec path of
+/// each file the program does not load though its `srcs` entry stays
+/// ([UnreachedSrcs.notLoaded]), and each import, export or part of the
+/// target's files that the check refuses ([refused]), whose uses are not
+/// known.
 String unusedDepsReport(
   String label,
   String dependent,
-  List<DeclaredDep> unused,
-) => jsonEncode({
+  List<DeclaredDep> unused, {
+  UnreachedSrcs unreached = const UnreachedSrcs(),
+  List<DeclaredDep> unreachedOnly = const [],
+  List<({String path, String uri})> refused = const [],
+}) => jsonEncode({
   'label': label,
   'dependent': dependent,
   'unused': [for (final d in unused) d.label],
+  'unreached': unreached.named,
+  'unreachedOnly': [for (final d in unreachedOnly) d.label],
+  'notLoaded': [for (final f in unreached.notLoaded) f.path],
+  'refused': [
+    for (final r in refused) {'path': r.path, 'uri': r.uri},
+  ],
 });
 
 /// The `--dep` values of `check`: each `<label>\t<kind>\t<value>...`, where
@@ -207,4 +225,166 @@ List<DeclaredDep> parseDeclaredDeps(
         exempt: exempt.contains(label),
       ),
   ];
+}
+
+/// One entry of an executable's `srcs` that is not simply a file: a filegroup,
+/// a rule's outputs, a tree artifact. The BUILD file can drop it, but not one
+/// of its files.
+class SrcEntry {
+  const SrcEntry(this.label, this.paths);
+
+  /// The entry as the BUILD file writes it.
+  final String label;
+
+  /// The exec paths of its Dart files.
+  final Set<String> paths;
+}
+
+/// The fields of a `--src-entry` value, `<label>\t<path>...`: the label, then
+/// the paths, a directory standing for its `.dart` files.
+List<String> srcEntryFields(String value) {
+  final fields = value.split('\t');
+  if (fields.length < 2) {
+    throw UsageException('kernel_tool check: malformed --src-entry $value');
+  }
+  return fields;
+}
+
+/// What an executable's `srcs` hold that its program does not load.
+class UnreachedSrcs {
+  const UnreachedSrcs({
+    this.files = const [],
+    this.entries = const [],
+    this.notLoaded = const [],
+  });
+
+  /// Files listed by themselves: each can leave `srcs`.
+  final List<CheckedFile> files;
+
+  /// Entries none of whose files is reached: each can leave `srcs`.
+  final List<({SrcEntry entry, List<CheckedFile> files})> entries;
+
+  /// The unreached files of entries that stay, because another of their files
+  /// is reached. They are no part of this program: what they import is neither
+  /// a use of its deps nor something its deps must provide.
+  final List<CheckedFile> notLoaded;
+
+  /// What holds with the `dart_unused_deps` feature off, which turns off the
+  /// failure and leaves what the program loads as it is: nothing is reported,
+  /// and an entry none of whose files is reached stays, so its files are like
+  /// the [notLoaded] ones. A file listed by itself stays judged and analyzed:
+  /// it belongs to this target alone, so no other program answers for it.
+  UnreachedSrcs get unenforced => UnreachedSrcs(
+    notLoaded: [...notLoaded, for (final e in entries) ...e.files],
+  );
+
+  /// The files to report: those of [files] and of [entries].
+  Iterable<CheckedFile> get reported => [
+    ...files,
+    for (final e in entries) ...e.files,
+  ];
+
+  bool get isEmpty => files.isEmpty && entries.isEmpty;
+
+  /// What to remove from `srcs`, each as the failure names it.
+  List<String> get named => [
+    for (final f in files) f.path,
+    for (final e in entries)
+      '${e.entry.label} (${e.files.map((f) => f.path).join(', ')})',
+  ];
+}
+
+/// What of [files] no file of [entries] reaches through `import`, `export` and
+/// `part` directives, on every branch of a conditional one, sorted by what the
+/// BUILD file can do about it ([srcEntries]). An unreached file is compiled
+/// into nothing the program loads, so its imports must not count as uses of
+/// the program's deps. A doc import reaches nothing, as it loads nothing.
+UnreachedSrcs unreachedSrcs({
+  required String label,
+  required List<CheckedFile> files,
+  required List<CheckedFile> entries,
+  required PackageConfig config,
+  LoadedUri? loaded,
+  List<SrcEntry> srcEntries = const [],
+}) {
+  final resolve = loaded ?? judgedUri(config, label);
+  final byUri = {for (final f in files) f.uri: f};
+  final reached = <String>{};
+  final pending = [...entries];
+  for (final e in entries) {
+    reached.add(e.uri);
+  }
+  while (pending.isNotEmpty) {
+    final f = pending.removeLast();
+    final written = [
+      for (final d in f.directives.directives) ...[
+        d.uri,
+        for (final c in d.configurations) c.uri,
+      ],
+      ...f.directives.parts,
+    ];
+    for (final w in written) {
+      final uri = resolve(w, f);
+      if (uri == null || !reached.add(uri)) continue;
+      if (byUri[uri] case final next?) pending.add(next);
+    }
+  }
+  final unreached = [
+    for (final f in files)
+      if (!reached.contains(f.uri)) f,
+  ];
+  final unreachedPaths = {for (final f in unreached) f.path};
+  final held = {for (final f in files) f.path};
+  final dropped = <({SrcEntry entry, List<CheckedFile> files})>[];
+  final kept = <String>{};
+  for (final entry in srcEntries) {
+    final members = entry.paths.where(held.contains).toSet();
+    if (members.isEmpty) continue;
+    if (members.every(unreachedPaths.contains)) {
+      dropped.add((
+        entry: entry,
+        files: [
+          for (final f in unreached)
+            if (members.contains(f.path)) f,
+        ],
+      ));
+    } else {
+      kept.addAll(members.where(unreachedPaths.contains));
+    }
+  }
+  final inEntry = {for (final e in srcEntries) ...e.paths};
+  return UnreachedSrcs(
+    files: [
+      for (final f in unreached)
+        if (!inEntry.contains(f.path)) f,
+    ],
+    entries: dropped,
+    notLoaded: [
+      for (final f in unreached)
+        if (kept.contains(f.path)) f,
+    ],
+  );
+}
+
+/// The failure for [unreached], what [dependent]'s `srcs` hold that its `main`
+/// never loads.
+String unreachedFilesMessage(String dependent, UnreachedSrcs unreached) => [
+  '$dependent: main never imports, exports or includes as a part these '
+      'srcs, so the program never loads them, while what they import '
+      'counts as used:',
+  for (final n in unreached.named) '  $n',
+  'Remove them from srcs; a file read at run time belongs in data. '
+      'features = ["-$unusedDepsFeature"] turns the check off.',
+].join('\n');
+
+/// The analysis project's `analysis_options.yaml`, [options], also excluding
+/// each of [paths]: exec paths of source files, staged under `src/`.
+String optionsExcluding(String options, List<String> paths) {
+  if (paths.isEmpty) return options;
+  final lines = [for (final p in paths) '    - "src/$p"'].join('\n');
+  const section = 'analyzer:\n  exclude:\n';
+  final at = options.indexOf(section);
+  if (at < 0) return '$options$section$lines\n';
+  final end = at + section.length;
+  return '${options.substring(0, end)}$lines\n${options.substring(end)}';
 }

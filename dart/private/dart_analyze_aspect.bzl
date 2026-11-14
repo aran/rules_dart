@@ -62,7 +62,9 @@ never see different projects.
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("//dart:providers.bzl", "DartAnalysisOptionsInfo", "DartAnalyzableInfo", "DartInfo")
 load("//dart/private:common.bzl", "PATH_MAPPING", "SDK_ENV", "default_language_version", "merge_package_records", "own_packages")
+load("//dart/private:dart_import_check.bzl", "unloaded_srcs_report")
 load("//dart/private:dart_info.bzl", "analyzed_closure")
+load("//dart/private:dart_module.bzl", "KERNEL_TOOL_ATTR")
 load("//dart/private:dart_summary.bzl", "DartSummaryAnalyzerInfo", "SUMMARIES_FLAG", "summary_analyzer_action")
 load("//dart/private:exec_groups.bzl", "PORTABLE", "PORTABLE_EXEC_GROUPS", "portable_sdk")
 load("//dart/private:project_staging.bzl", "project_layout", "pubspec_stub", "stage_dart_project", "staged_pubspec_paths")
@@ -179,7 +181,27 @@ def _wrapper_options(excluded):
             lines.append('    - "%s"' % path)
     return "\n".join(lines) + "\n"
 
-def stage_config_project(ctx, config, packages, files, own, name, dart_sdk_info):
+def _write_options_excluding_unloaded(ctx, options, report, name, output):
+    """Writes the project's options, `options`, leaving out what `report` says the program does not load."""
+    base = ctx.actions.declare_file(name + ".unloaded_excluded_from")
+    ctx.actions.write(base, options)
+    args = ctx.actions.args()
+    args.add("exclude-unloaded")
+    args.add("--report", report)
+    args.add("--options", base)
+    args.add("--output", output)
+    ctx.actions.run(
+        executable = ctx.executable._kernel_tool,
+        arguments = [args],
+        inputs = [report, base],
+        outputs = [output],
+        mnemonic = "DartAnalysisOptions",
+        exec_group = PORTABLE,
+        progress_message = "Leaving out what the program of %{label} does not load",
+        execution_requirements = PATH_MAPPING,
+    )
+
+def stage_config_project(ctx, config, packages, files, own, name, dart_sdk_info, unloaded_report = None):
     """Stages a project holding every options file `config` lists.
 
     The one place a project is laid out for options to be found in: the
@@ -200,6 +222,9 @@ def stage_config_project(ctx, config, packages, files, own, name, dart_sdk_info)
         analysis, but for the options files above one of them.
       name: Prefix for the staged paths.
       dart_sdk_info: The toolchain's `DartSdkInfo` (see `pubspec_stub`).
+      unloaded_report: The `unloaded_srcs_report` of an executable: those of
+        `own` its program does not load are excluded too, since what they
+        import need not resolve here. `None` excludes none.
 
     Returns:
       The `stage_dart_project` struct.
@@ -224,6 +249,7 @@ def stage_config_project(ctx, config, packages, files, own, name, dart_sdk_info)
             continue
         excluded["src/" + f.short_path] = True
     excluded = sorted(excluded.keys()) + staged_pubspec_paths(layout)
+    options = _wrapper_options(excluded)
 
     return stage_dart_project(
         ctx,
@@ -231,7 +257,16 @@ def stage_config_project(ctx, config, packages, files, own, name, dart_sdk_info)
         dart_sdk_info,
         extra_proj_files = {
             "pubspec.yaml": pubspec_stub(packages, dart_sdk_info),
-            _OPTIONS_BASENAME: _wrapper_options(excluded),
+            # A fetched package is staged whole, so analysis can tell a file
+            # missing from it (`doc_imports.dart`).
+            "fetched_packages.txt": "".join(sorted([
+                pkg.package_name + "\n"
+                for pkg in packages
+                if pkg.fetched_identity != None
+            ])),
+            _OPTIONS_BASENAME: options if unloaded_report == None else (
+                lambda output: _write_options_excluding_unloaded(ctx, options, unloaded_report, name, output)
+            ),
         },
         name = name,
     )
@@ -299,7 +334,7 @@ def _analyze(ctx, name, staged, sdk_inputs, resource_set):
     )
     return stamp
 
-def _analyze_against_summaries(ctx, name, config, info, entry, own, analyzer, summaries):
+def _analyze_against_summaries(ctx, name, config, info, entry, own, analyzer, summaries, unloaded_report):
     """Declares the analysis of `own` against the summaries of what it depends on; returns the stamp it writes on success.
 
     The staged project holds the target's own files, generated ones among
@@ -316,6 +351,7 @@ def _analyze_against_summaries(ctx, name, config, info, entry, own, analyzer, su
         own,
         name + ".summaries",
         portable_sdk(ctx),
+        unloaded_report = unloaded_report,
     )
     stamp = ctx.actions.declare_file(name + ".analyzed")
     args = ctx.actions.args()
@@ -512,6 +548,7 @@ def _dart_analyze_aspect_impl(target, ctx):
         for f in srcs + entry + own.values()
         if f.extension == "dart"
     }))
+    unloaded_report = unloaded_srcs_report(target)
     staged = stage_config_project(
         ctx,
         config,
@@ -520,6 +557,7 @@ def _dart_analyze_aspect_impl(target, ctx):
         own.values(),
         name,
         portable_sdk(ctx),
+        unloaded_report = unloaded_report,
     )
 
     dart_sdk_info = portable_sdk(ctx)
@@ -530,7 +568,7 @@ def _dart_analyze_aspect_impl(target, ctx):
     analyzer = ctx.attr._summary_analyzer[DartSummaryAnalyzerInfo]
     if NO_ANALYZE_TAG not in tags:
         if analyzer.enabled:
-            stamp = _analyze_against_summaries(ctx, name, config, info, entry, own.values(), analyzer, _summaries(ctx, analyzer, info))
+            stamp = _analyze_against_summaries(ctx, name, config, info, entry, own.values(), analyzer, _summaries(ctx, analyzer, info), unloaded_report)
         else:
             stamp = _analyze(ctx, name, staged, sdk_inputs, resource_set)
         groups["dart_analyze"] = depset([stamp])
@@ -588,7 +626,7 @@ def _dart_analyze_aspect_impl(target, ctx):
 
 dart_analyze = aspect(
     implementation = _dart_analyze_aspect_impl,
-    attrs = {
+    attrs = KERNEL_TOOL_ATTR | {
         "_summary_analyzer": attr.label(
             default = "//dart/private:summary_analyzer",
             providers = [DartSummaryAnalyzerInfo],

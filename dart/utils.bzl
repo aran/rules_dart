@@ -521,9 +521,11 @@ DART_TOOLCHAIN_TYPES_ATTR = _DART_TOOLCHAIN_TYPES_ATTR
 # unused deps) as validation actions. An executable rule attaches
 # `dart_import_check_aspect` to its `deps` and returns
 # `OutputGroupInfo(**import_check_output_groups(ctx, ctx.executable._kernel_tool,
-# own_srcs, own_package, ctx.attr.deps, generated = [...]))`, merging
-# `KERNEL_TOOL_ATTR` into its `attrs`: `_validation`, and the group
-# `bazel run @rules_dart//dart/unused_deps` reads. `generated` are the Dart
+# own_srcs, own_package, ctx.attr.deps, main = ctx.file.main, generated = [...]))`, merging
+# `KERNEL_TOOL_ATTR` into its `attrs`: `_validation`, the group
+# `bazel run @rules_dart//dart/unused_deps` reads, and the group telling the
+# `dart_analyze` aspect what the program does not load. Every one of `own_srcs`
+# must be reached from `main`, the entry point among them. `generated` are the Dart
 # files the rule writes and compiles with the target's (a test's bootstrap):
 # their imports use `deps`, and they are not checked themselves.
 # A library rule whose `deps` are what its `srcs` import checks itself, as

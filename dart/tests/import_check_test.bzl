@@ -90,6 +90,21 @@ def _unused_check_off_test_impl(ctx):
 
 unused_check_off_test = analysistest.make(_unused_check_off_test_impl)
 
+def _reach_without_unused_check_test_impl(ctx):
+    # With the check off the program's reach is still worked out, for what its
+    # analysis leaves out, and the fixer is given nothing to act on.
+    env = analysistest.begin(ctx)
+    argv = _check_argv(env)
+    asserts.false(env, "--check-unused" in argv, "the unused check runs with its feature off: %s" % argv)
+    asserts.true(env, "--entry " in argv, "what the program loads is not worked out: %s" % argv)
+    asserts.true(env, "--src-entry " in argv, "the filegroup is not known as an entry: %s" % argv)
+    groups = analysistest.target_under_test(env)[OutputGroupInfo]
+    asserts.equals(env, [], groups.dart_unused_deps.to_list(), "the fixer is given a target that opted out")
+    asserts.equals(env, 1, len(groups.dart_unloaded_srcs.to_list()), "analysis cannot tell what the program does not load")
+    return analysistest.end(env)
+
+reach_without_unused_check_test = analysistest.make(_reach_without_unused_check_test_impl)
+
 def _unused_names_test_impl(ctx):
     # A macro's target is named by the BUILD file's call, and each dep as that
     # file writes it: `:x` in its package, `//pkg:name` elsewhere.
@@ -150,6 +165,10 @@ def import_check_test_suite(name):
         name = "unused_check_off_test",
         target_under_test = "//dart/tests/import_check_fixture/unused:check_off",
     )
+    reach_without_unused_check_test(
+        name = "reach_without_unused_check_test",
+        target_under_test = "//dart/tests/grouped_srcs_fixture:loads_shared_check_off",
+    )
     used_without_import_test(
         name = "used_without_import_alias_test",
         target_under_test = "//dart/tests/import_check_fixture/unused:through_alias",
@@ -172,4 +191,5 @@ def import_check_test_suite(name):
         ":unused_checked_test",
         ":used_without_import_test",
         ":unused_check_off_test",
+        ":reach_without_unused_check_test",
     ])

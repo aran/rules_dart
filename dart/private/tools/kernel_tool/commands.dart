@@ -16,6 +16,9 @@ import 'worker_command.dart';
 //             a manifest saying what each holds and whether it can be used
 //   check     what a target's files import against what it depends on, with no
 //             compiler, so that a library nothing compiles is checked too
+//   exclude-unloaded
+//             an analysis project's options, leaving out the `srcs` the
+//             target's program does not load
 //   entry     a test's main file to a kernel file, with `frontend_server`,
 //             against the modules its imports reach
 //   link      those modules and the entry joined into one file the VM can run
@@ -31,7 +34,7 @@ Future<int> runKernelTool(List<String> argv) async {
   if (argv.contains('--persistent_worker')) return runWorker(argv);
   if (argv.isEmpty || !isCommand(argv.first)) {
     stderr.writeln(
-      'usage: kernel_tool <module|check|entry|frontend|link|digest> @paramsfile',
+      'usage: kernel_tool <module|check|exclude-unloaded|entry|frontend|link|digest> @paramsfile',
     );
     return 64;
   }
@@ -43,6 +46,8 @@ Future<int> runKernelTool(List<String> argv) async {
         return await runModule(args, err: stderr);
       case 'check':
         return await runCheck(args, err: stderr);
+      case 'exclude-unloaded':
+        return runExcludeUnloaded(args);
       case 'entry':
         return await runEntry(args);
       case 'frontend':

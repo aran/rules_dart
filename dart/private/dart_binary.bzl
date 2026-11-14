@@ -288,6 +288,7 @@ def _import_checks(ctx, own):
         [ctx.file.main] + ctx.files.srcs,
         own.record,
         ctx.attr.deps,
+        main = ctx.file.main,
     )
 
 _COMPILE_RUNNER_ATTR = {

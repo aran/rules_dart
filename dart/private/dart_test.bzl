@@ -220,6 +220,7 @@ def _dart_test_impl(ctx):
             [ctx.file.main] + ctx.files.srcs,
             own.record,
             ctx.attr.deps,
+            main = ctx.file.main,
             # The bootstrap imports `package:test`, which `deps` must list.
             generated = [main],
         )),

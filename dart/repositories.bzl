@@ -470,6 +470,7 @@ _SUMMARY_ANALYZER_SRCS = [
     "analyze.dart",
     "args.dart",
     "context.dart",
+    "doc_imports.dart",
     "guards.dart",
     "report.dart",
     "summarize.dart",

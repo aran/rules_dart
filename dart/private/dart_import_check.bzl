@@ -30,17 +30,31 @@ The converse check, unless the `dart_unused_deps` feature is off: every entry
 of a target's `deps` must be named by an `import` or `export` of one of its
 files, on any branch, of its package's link hook, which is built from the
 package's dependencies, or of a file the rule writes and compiles with them (a
-test's bootstrap), which is not checked itself. An unused edge compiles nothing
-in, but a change to the dependency still rebuilds and reruns everything above
-it. A dependency whose rule returns `DartUsedWithoutImportInfo` (a Flutter plugin, registered by
+test's bootstrap), which is not checked itself. A doc import names no
+dependency: it loads nothing, and often points up the graph, where no edge can
+go. An unused edge compiles
+nothing in, but a change to the dependency still rebuilds and reruns everything
+above it. A dependency whose rule returns `DartUsedWithoutImportInfo` (a Flutter plugin, registered by
 native code) is exempt wherever it is listed. So is one whose own package
 brings native code or data assets or a hook to the program, which a program
 gets whether or not it imports the package (`@Native` names an asset by id),
 and one that carries no Dart at all (a font), which has nothing to import. A
 dependency needed only for its `resources`, read by path at run time, belongs
-in `data`. Only a rule whose `deps` are its sources' imports is checked this
-way: the rules that check
-themselves (those with `LIBRARY_IMPORT_CHECKER_ATTRS`) and the executables.
+in `data`. An executable's file that its `main` never reaches through
+`import`, `export` and `part` (on every branch), nor a file the rule writes or
+its package's link hook reaches, is an error under the same feature: the
+program never loads it, but its imports would count as uses. A `srcs` entry
+holding several files (a filegroup, a generator's outputs, a tree artifact) can
+be dropped only whole, so it is an error only when none of its files is
+reached. When some are, the others are no part of the program: their imports
+are neither uses of its `deps` nor need them, and its analysis leaves them out.
+What a program loads does not depend on the feature. Off, nothing fails for
+being unreached, and the files of an entry none of whose files is reached are no
+part of the program either; a file listed by itself is still checked and
+analyzed, as it belongs to this target alone.
+Only a rule whose `deps` are its sources' imports is checked this way: the
+rules that check themselves (those with `LIBRARY_IMPORT_CHECKER_ATTRS`) and the
+executables.
 A rule reached only by the aspect states its dependencies for its own reasons:
 a `dart_proto_library`'s follow its `.proto` imports, some of them options its
 generated Dart never names.
@@ -77,6 +91,11 @@ UNUSED_DEPS_FEATURE = "dart_unused_deps"
 # What `bazel run @rules_dart//dart/unused_deps` builds: for each checked
 # target, the deps none of its files imports, as JSON.
 UNUSED_DEPS_OUTPUT_GROUP = "dart_unused_deps"
+
+# What the `dart_analyze` aspect builds to learn which files of an executable's
+# `srcs` entries its program does not load; there whether or not unused deps
+# are enforced, and left out of what the fixer reads.
+UNLOADED_SRCS_OUTPUT_GROUP = "dart_unloaded_srcs"
 
 _IMPORT_CHECK = str(Label("//dart/private:import_check"))
 
@@ -223,7 +242,6 @@ def _add_unused_deps_args(ctx, args, deps):
     package.
     """
     args.add("--check-unused")
-    args.add("--dependent", _dependent_label(ctx))
     for dep in deps:
         if DartInfo not in dep:
             continue
@@ -239,7 +257,7 @@ def _add_unused_deps_args(ctx, args, deps):
         args.add_joined("--dep", own_packages(info), join_with = "\t", map_each = _package_name, format_joined = label + "\tpackage\t%s", omit_if_empty = False)
         args.add_joined("--dep", info.transitive_packages, join_with = "\t", map_each = _package_name, uniquify = True, format_joined = label + "\treach\t%s", omit_if_empty = False)
 
-def dart_import_check_action(ctx, kernel_tool, name, srcs, own, deps, indirect_deps = [], check_cycle = False, check_unused = False, generator_input = False, generated = []):
+def dart_import_check_action(ctx, kernel_tool, name, srcs, own, deps, indirect_deps = [], check_cycle = False, check_unused = False, generator_input = False, generated = [], main = None, grouped = []):
     """Checks the imports of `srcs` against `deps`, as a validation action.
 
     Args:
@@ -261,20 +279,29 @@ def dart_import_check_action(ctx, kernel_tool, name, srcs, own, deps, indirect_d
       generated: Dart Files the rule writes and compiles with `srcs` (a
         test's bootstrap): what they import uses `deps`, and they are not
         checked themselves.
+      main: An executable's entry point, one of `srcs`, from which, from
+        `generated` and from its package's link hook what the program loads is
+        worked out. With the unused check, every one of `srcs` must be reached.
+      grouped: The entries of the rule's `srcs` that are not simply a file
+        (`grouped_srcs`), which the BUILD file can drop only whole. With the
+        unused check, each must have a file reached from `main`. Those of
+        their files the program does not load are no part of it.
 
     Returns:
-      A struct: `validation`, the result File to put in `_validation`, and
-      `report`, the File the unused-dependency check writes what it finds to
-      when the fixer asks (`UNUSED_DEPS_OUTPUT_GROUP`), each `None` when
-      there is nothing to check: no Dart sources, a target of another
-      repository, or for `report`, no unused check.
+      A struct, each field `None` when there is nothing to check (no Dart
+      sources, a target of another repository): `validation`, the result File
+      to put in `_validation`; `report`, the File the unused-dependency check
+      writes what it finds to when the fixer asks (`UNUSED_DEPS_OUTPUT_GROUP`),
+      `None` too without that check; and `unloaded`, the File saying which
+      files of `grouped` the program does not load
+      (`UNLOADED_SRCS_OUTPUT_GROUP`), `None` too without `main` or `grouped`.
     """
     srcs = [f for f in srcs if f.is_directory or f.extension == "dart"]
     for f in generated:
         if f.extension != "dart":
             fail("%s: `generated` takes the Dart files the rule writes; %s is not one" % (ctx.label, f.short_path))
     if not srcs or ctx.label.workspace_name:
-        return struct(validation = None, report = None)
+        return struct(validation = None, report = None, unloaded = None)
     dep_infos = [dep[DartInfo] for dep in deps if DartInfo in dep]
     packages = depset(
         own,
@@ -316,13 +343,29 @@ def dart_import_check_action(ctx, kernel_tool, name, srcs, own, deps, indirect_d
     check_unused = check_unused and UNUSED_DEPS_FEATURE not in ctx.disabled_features
     if check_unused:
         _add_unused_deps_args(ctx, args, deps)
+    if check_unused or main != None:
+        args.add("--dependent", _dependent_label(ctx))
 
         # A package's link hook is built from the package's dependencies, and
         # what the rule writes from the target's, so what they import is a
-        # use of them; neither is the target's own to check.
+        # use of them, and a program starts from them too; neither is the
+        # target's own to check.
         hooks = [pkg.link_hook for pkg in own if getattr(pkg, "link_hook", None)]
         uses = hooks + generated
         args.add_all(uses, before_each = "--use-src")
+    if main != None:
+        # What the program loads, which does not depend on whether unused
+        # deps are enforced.
+        args.add("--entry", main)
+        for entry in grouped:
+            args.add_joined(
+                "--src-entry",
+                entry.files,
+                join_with = "\t",
+                map_each = _path,
+                format_joined = _display_label(ctx, entry.label).replace("%", "%%") + "\t%s",
+                expand_directories = False,
+            )
     if generator_input:
         args.add("--generator-input")
     args.add("--output", result)
@@ -345,9 +388,10 @@ def dart_import_check_action(ctx, kernel_tool, name, srcs, own, deps, indirect_d
         execution_requirements = PATH_MAPPING,
     )
     report = None
-    if check_unused:
-        # The same check, writing the deps it finds unused instead of
-        # failing, for the fixer; built only when it asks.
+    unloaded = main != None and bool(grouped)
+    if check_unused or unloaded:
+        # The same check, writing what it finds instead of failing, for the
+        # fixer and for analysis; built only when one of them asks.
         report = ctx.actions.declare_file(name + ".unused_deps.json")
         report_args = ctx.actions.args()
         report_args.add("--report", report)
@@ -361,7 +405,11 @@ def dart_import_check_action(ctx, kernel_tool, name, srcs, own, deps, indirect_d
             progress_message = "Finding unused Dart deps of %{label}",
             execution_requirements = PATH_MAPPING,
         )
-    return struct(validation = result, report = report)
+    return struct(
+        validation = result,
+        report = report if check_unused else None,
+        unloaded = report if unloaded else None,
+    )
 
 def _import_check_aspect_impl(target, ctx):
     reached = reached_targets(ctx, DartImportCheckInfo)
@@ -402,11 +450,54 @@ dart_import_check_aspect = aspect(
     doc = "Checks the imports of every library an executable depends on; see `dart_import_check.bzl`.",
 )
 
-def import_check_output_groups(ctx, kernel_tool, srcs, own_package, deps, generated = []):
+def grouped_srcs(srcs):
+    """The entries of an executable's `srcs` that are not simply a file.
+
+    A filegroup, a rule's outputs, a tree artifact: the BUILD file can drop
+    one only whole, and it names what the check has to report.
+
+    Args:
+      srcs: The targets of the rule's `srcs` attribute.
+
+    Returns:
+      A list of `struct(label, files)`, `files` the entry's Dart Files and
+      directories.
+    """
+    grouped = []
+    for src in srcs:
+        files = [f for f in src[DefaultInfo].files.to_list() if f.is_directory or f.extension == "dart"]
+        if not files or (len(files) == 1 and not files[0].is_directory and files[0].owner == src.label):
+            continue
+        grouped.append(struct(label = src.label, files = files))
+    return grouped
+
+def unloaded_srcs_report(target):
+    """The report saying which of an executable's `srcs` its program does not load.
+
+    Args:
+      target: The target, in an aspect.
+
+    Returns:
+      The File, or `None` when no file can be in that position: every entry
+      of its `srcs` is a file, which stays part of its analysis.
+    """
+    if OutputGroupInfo not in target:
+        return None
+    reports = getattr(target[OutputGroupInfo], UNLOADED_SRCS_OUTPUT_GROUP, depset()).to_list()
+    return reports[0] if reports else None
+
+def import_check_output_groups(ctx, kernel_tool, srcs, own_package, deps, *, main, generated = []):
     """An executable's import-check output groups.
 
     `_validation` is its own files' check and its libraries';
-    `UNUSED_DEPS_OUTPUT_GROUP` what the fixer reads of its own `deps`.
+    `UNUSED_DEPS_OUTPUT_GROUP` what the fixer reads of its own `deps`;
+    `UNLOADED_SRCS_OUTPUT_GROUP` what its analysis leaves out.
+
+    An entry of the rule's `srcs` attribute holding several files, a filegroup
+    or a code generator's outputs say, can be dropped only whole, so it fails
+    only when `main` reaches none of them (`grouped_srcs`). Those of its files
+    the program does not load are no part of it, whether or not the
+    `dart_unused_deps` feature is on.
 
     Args:
       ctx: The executable's rule context; its `deps` carry the aspect.
@@ -414,6 +505,10 @@ def import_check_output_groups(ctx, kernel_tool, srcs, own_package, deps, genera
       srcs: The executable's own source Files.
       own_package: The `DartPackageInfo` it states, or `None`.
       deps: Its `deps`.
+      main: Its entry point, one of `srcs`. Each of `srcs` must be reached
+        from it, from `generated` or from its package's link hook, through
+        `import`, `export` and `part`,
+        unless the `dart_unused_deps` feature is off.
       generated: The Dart Files the rule writes and compiles with `srcs`, a
         test's bootstrap say. What they import counts as a use of `deps`,
         and they are not checked for what they import.
@@ -430,6 +525,8 @@ def import_check_output_groups(ctx, kernel_tool, srcs, own_package, deps, genera
         deps,
         check_unused = True,
         generated = generated,
+        main = main,
+        grouped = grouped_srcs(getattr(ctx.attr, "srcs", [])),
     )
     return {
         "_validation": depset(
@@ -437,4 +534,5 @@ def import_check_output_groups(ctx, kernel_tool, srcs, own_package, deps, genera
             transitive = [dep[DartImportCheckInfo].stamps for dep in deps if DartImportCheckInfo in dep],
         ),
         UNUSED_DEPS_OUTPUT_GROUP: depset([checked.report] if checked.report else []),
+        UNLOADED_SRCS_OUTPUT_GROUP: depset([checked.unloaded] if checked.unloaded else []),
     }

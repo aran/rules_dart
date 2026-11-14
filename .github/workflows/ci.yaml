@@ -557,8 +557,18 @@ jobs:
           check //fixtures/analysis_failure/import_check/spellings:file_uri_bin "imports 'file:///tmp/undeclared.dart', a file: URI"
           check //fixtures/analysis_failure/import_check/spellings:unheld_part "has the part 'unheld_part.g.dart'"
           echo "OK: undeclared spellings refused"
+      - name: analysis_failure/doc_import — expect a doc import of a file a fetched package lacks to be reported
+        working-directory: e2e/examples
+        run: |
+          if out=$(bazel test //fixtures/analysis_failure/doc_import 2>&1); then
+            echo "ERROR: build should have failed: the doc import names no file of the package"
+            exit 1
+          fi
+          echo "$out" | grep -qF "Target of URI doesn't exist: 'package:path/misspelt.dart'" || { echo "$out"; exit 1; }
+          echo "OK: the misspelt doc import reported"
       # A library, and a test whose support library carries the edge, each
-      # listing a dependency none of its files imports.
+      # listing a dependency none of its files imports; and a test listing a
+      # source its main never loads.
       - name: analysis_failure — expect the unused-dependency check to name the edge
         working-directory: e2e/examples
         run: |
@@ -587,6 +597,9 @@ jobs:
             echo "ERROR: a dependency the rule's bootstrap imports was reported"
             exit 1
           fi
+          check //fixtures/analysis_failure/import_check/unused:unreached_test "//fixtures/analysis_failure/import_check/unused:unreached_test: main never imports, exports or includes as a part these srcs"
+          check //fixtures/analysis_failure/import_check/unused:unreached_test "  fixtures/analysis_failure/import_check/unused/test/unreached_support.dart"
+          check //fixtures/analysis_failure/import_check/unused:unreached_group_test "  :unreached_group (fixtures/analysis_failure/import_check/unused/test/unreached_group_a.dart, fixtures/analysis_failure/import_check/unused/test/unreached_support.dart)"
           echo "OK: unused dependencies reported"
       # Each target in e2e/examples/fixtures/analysis_failure is expected red
       # under the `dart_analyze` aspect, which `.bazelrc` applies under `bazel

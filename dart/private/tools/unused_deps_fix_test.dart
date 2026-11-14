@@ -88,10 +88,111 @@ void main() {
         'label': '@@//app:lib',
         'dependent': '//app:lib',
         'unused': ['@@//b:b'],
+        'unreached': ['app/bin/stray.dart'],
+        'unreachedOnly': ['@@//c:c'],
+        'refused': [
+          {'path': 'app/lib/a.dart', 'uri': 'file:///x.dart'},
+        ],
       }),
     );
     expect(report.label, '@@//app:lib');
     expect(report.unused, {'@@//b:b'});
+    expect(report.unreached, ['app/bin/stray.dart']);
+    expect(report.unreachedOnly, {'@@//c:c'});
+    expect(report.refused, [(path: 'app/lib/a.dart', uri: 'file:///x.dart')]);
+  });
+
+  test('a target with a refused import keeps every dep, and names the '
+      'import', () {
+    final removals = _find(
+      [
+        UnusedReport(
+          '@@//app:t.program',
+          '//app:t',
+          {'@@//app:gone'},
+          refused: [(path: 'app/bin/main.dart', uri: 'file:///x/gone.dart')],
+        ),
+        // Its sibling has no refusal of its own to say so, yet shares the
+        // entry's srcs.
+        UnusedReport('@@//app:t', '//app:t', {'@@//app:gone'}),
+      ],
+      [
+        _rule('//app:t', ['//app:gone', '//app:used'], generator: 't'),
+        _rule('//app:t.program', ['//app:gone', '//app:used'], generator: 't'),
+      ],
+    );
+    expect(removals.remove, isEmpty);
+    expect(removals.refused.map((r) => r.toString()), [
+      "app/BUILD.bazel:9:1: //app:t: app/bin/main.dart names "
+          "'file:///x/gone.dart', which the import check refuses (the build "
+          'says why). Fix it, then run the fixer again: until then it cannot '
+          'tell which deps the target uses',
+    ]);
+    expect(removals.kept.map((k) => k.toString()), [
+      'app/BUILD.bazel:9:1: //app:t: kept //app:gone: no file imports it, but '
+          'the target has refused imports, so what it uses is not known; fix '
+          'them and run the fixer again',
+    ]);
+  });
+
+  test('a src main never reaches is named, and a dep only such srcs import '
+      'is kept', () {
+    final removals = _find(
+      [
+        for (final label in ['@@//app:t', '@@//app:t.program'])
+          UnusedReport(
+            label,
+            '//app:t',
+            {'@@//app:gone'},
+            unreached: ['app/bin/stray.dart'],
+            unreachedOnly: {'@@//app:x'},
+          ),
+      ],
+      [
+        _rule('//app:t', [
+          '//app:gone',
+          '//app:x',
+          '//app:used',
+        ], generator: 't'),
+        _rule('//app:t.program', [
+          '//app:gone',
+          '//app:x',
+          '//app:used',
+        ], generator: 't'),
+      ],
+    );
+    expect(removals.remove, {
+      '//app:t': ['//app:gone'],
+    });
+    expect(removals.unreached.map((u) => u.toString()), [
+      'app/BUILD.bazel:9:1: //app:t: main never loads app/bin/stray.dart, one '
+          'of its srcs. Remove it from srcs, or import it from a file main '
+          'loads: the fixer cannot tell which is meant, and the build fails '
+          'until one is done',
+    ]);
+    expect(removals.kept.map((k) => k.toString()), [
+      'app/BUILD.bazel:9:1: //app:t: kept //app:x: only srcs main never loads '
+          'import it (app/bin/stray.dart); it goes once they leave srcs',
+    ]);
+  });
+
+  test('a report of nothing but an unreached src is acted on', () {
+    final removals = _find(
+      [
+        UnusedReport(
+          '@@//app:t',
+          '//app:t',
+          {},
+          unreached: ['app/bin/stray.dart'],
+        ),
+      ],
+      [
+        _rule('//app:t', ['//app:used']),
+      ],
+    );
+    expect(removals.remove, isEmpty);
+    expect(removals.unreached.map((u) => u.path), ['app/bin/stray.dart']);
+    expect(removals.kept, isEmpty);
   });
 
   test('the written labels of the unused deps are removed, as written', () {

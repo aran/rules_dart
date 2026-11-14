@@ -11,6 +11,7 @@ import 'dart:io';
 
 import 'analysis_server.dart';
 import 'analyzer.dart';
+import 'summary_analyzer/doc_imports.dart';
 
 /// Asks the SDK's analysis server for what `dart analyze` and `dart fix`
 /// would.
@@ -176,13 +177,21 @@ Output outputOf(
   String project, {
   required bool fatalInfos,
 }) {
-  final diagnostics = [
-    for (final errors in server.errors.values)
-      // `dart analyze` leaves out TODO comments, which the server reports
-      // as infos.
-      for (final error in errors)
-        if (error.type != 'TODO' || error.severity != 'INFO') error,
-  ];
+  final diagnostics = withoutUnresolvedDocImports(
+    [
+      for (final errors in server.errors.values)
+        // `dart analyze` leaves out TODO comments, which the server reports
+        // as infos.
+        for (final error in errors)
+          if (error.type != 'TODO' || error.severity != 'INFO') error,
+    ],
+    project: project,
+    code: (d) => d.code,
+    file: (d) => d.file,
+    message: (d) => d.message,
+    line: (d) => d.line,
+    column: (d) => d.column,
+  );
   final code = _exitCode(diagnostics, fatalInfos: fatalInfos);
   return (
     exitCode: server.serverError ? 4 : code,

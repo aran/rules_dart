@@ -166,6 +166,103 @@ List<Violation> checkPolicy({
   return violations;
 }
 
+/// The URI the compile loads for what [file] writes, or null when it loads
+/// nothing the build declares.
+typedef LoadedUri = String? Function(String written, CheckedFile file);
+
+/// [LoadedUri] for files whose directives are judged: what [compiledUri]
+/// accepts.
+LoadedUri judgedUri(PackageConfig config, String label) =>
+    (written, file) => compiledUri(written, file, config, label).uri;
+
+/// [LoadedUri] that also follows, from the files of [unjudged] (a target's
+/// `--use-src`: what its rule writes, and its package's link hook), URIs the
+/// compile resolves that [compiledUri] refuses in a source: a URI in the
+/// compile's multi-root scheme, whatever the rule names it
+/// (`<scheme>:///<root-relative path>`), and a relative path that climbs
+/// from the file's output directory to the exec root and down.
+LoadedUri unjudgedUri(
+  PackageConfig config,
+  String label,
+  List<String> roots,
+  Set<String> unjudged,
+) {
+  final judged = judgedUri(config, label);
+  return (written, file) =>
+      judged(written, file) ??
+      (unjudged.contains(file.path)
+          ? switch (Uri.tryParse(written)) {
+              final ref? => _mountedUri(ref, file.path, roots, config),
+              null => null,
+            }
+          : null);
+}
+
+/// [LoadedUri] following, from any file, every URI [unjudgedUri] would
+/// follow from the files the rule writes, a query or fragment dropped:
+/// where a source's refused URI would load from once it is fixed. A URI it
+/// cannot follow (an absolute path, a `file:` URI) answers null.
+LoadedUri anyLoadedUri(PackageConfig config, String label, List<String> roots) {
+  final judged = judgedUri(config, label);
+  return (written, file) {
+    if (judged(written, file) case final uri?) return uri;
+    final ref = Uri.tryParse(written);
+    if (ref == null) return null;
+    return _mountedUri(_withoutQuery(ref), file.path, roots, config);
+  };
+}
+
+/// [ref] without its query and fragment.
+Uri _withoutQuery(Uri ref) => Uri(
+  scheme: ref.scheme,
+  userInfo: ref.userInfo,
+  host: ref.hasAuthority ? ref.host : null,
+  port: ref.hasPort ? ref.port : null,
+  path: ref.path,
+);
+
+/// What [ref], written in the file at [execPath], loads when the compile
+/// resolves it against its roots: a path relative to the file, or a URI in
+/// its multi-root scheme, `<scheme>:///<root-relative path>`. The rule names
+/// the compile's scheme (`filesystem_scheme`), so any scheme of that shape
+/// is taken as it; a URI without the empty authority is not one.
+String? _mountedUri(
+  Uri ref,
+  String execPath,
+  List<String> roots,
+  PackageConfig config,
+) {
+  if (ref.hasQuery || ref.hasFragment || ref.authority.isNotEmpty) {
+    return null;
+  }
+  switch (ref.scheme) {
+    case 'dart' || 'package' || 'file' || 'data':
+      return null;
+    case '':
+      if (ref.hasAuthority || ref.path.startsWith('/')) return null;
+      final from = execPath.replaceAll(r'\', '/');
+      final absolute = from.startsWith('/');
+      // The compile reads the path from the file's directory; one climbing
+      // above where that path starts names nothing it can load.
+      final resolved = from.split('/')
+        ..removeLast()
+        ..removeWhere((segment) => segment.isEmpty);
+      for (final segment in ref.pathSegments) {
+        if (segment == '..') {
+          if (resolved.isEmpty) return null;
+          resolved.removeLast();
+        } else if (segment.isNotEmpty && segment != '.') {
+          resolved.add(segment);
+        }
+      }
+      final path = resolved.join('/');
+      return config.uriFor(rootRelative(absolute ? '/$path' : path, roots));
+    default:
+      if (!ref.hasAuthority) return null;
+      return config.uriFor(ref.pathSegments.join('/'));
+  }
+}
+
 /// The URI the compiler loads for [written] in [file], or why it is refused.
 ({String? uri, String? refusal}) compiledUri(
   String written,
@@ -184,8 +281,7 @@ List<Violation> checkPolicy({
     return refuse('which is not a valid URI.');
   }
   if (ref.hasQuery || ref.hasFragment) {
-    final bare = ref.removeFragment().replace(query: '').toString();
-    final hint = bare.endsWith('?') ? bare.substring(0, bare.length - 1) : bare;
+    final hint = _withoutQuery(ref).toString();
     return refuse(
       'a URI with a query or fragment: the compiler loads it as a library '
       "apart from the file's own URI, a second copy with its own state. "

@@ -22,6 +22,7 @@ def _bootstrapped_impl(ctx):
         ctx.files.srcs,
         None,
         ctx.attr.deps,
+        main = ctx.files.srcs[0],
         generated = [bootstrap],
     ))]
 

@@ -388,7 +388,8 @@ def stage_dart_project(ctx, layout, dart_sdk_info, extra_proj_files = {}, name =
       dart_sdk_info: The toolchain's `DartSdkInfo` (see `pubspec_stub`).
       extra_proj_files: Dict of `<filename> -> content string` written as
         declared files directly under `<name>.proj/` (e.g. a `pubspec.yaml`
-        stub for `dart analyze`).
+        stub for `dart analyze`), or `<filename> -> function` given the
+        declared File, for one an action has to write.
       name: Prefix for the staged paths; defaults to the target's name. An
         aspect passes its own, so it cannot collide with the target's outputs.
 
@@ -456,7 +457,10 @@ def stage_dart_project(ctx, layout, dart_sdk_info, extra_proj_files = {}, name =
     proj_files = {}
     for filename, content in extra_proj_files.items():
         extra = ctx.actions.declare_file(name + ".proj/" + filename)
-        ctx.actions.write(output = extra, content = content)
+        if type(content) == "string":
+            ctx.actions.write(output = extra, content = content)
+        else:
+            content(extra)
         inputs.append(extra)
         proj_files[filename] = extra
 

@@ -11,12 +11,19 @@ import 'dart:io';
 
 import 'package:runfiles/runfiles.dart';
 
-const _entrypoint =
-    'org-dartlang-root:///dart/tests/kernel_uri_fixture/bin/probe.dart';
+const _bin = 'org-dartlang-root:///dart/tests/kernel_uri_fixture/bin';
+const _entrypoint = '$_bin/probe.dart';
+
+/// Each binary, by the URI of its entrypoint.
+const _probes = {
+  'probe': _entrypoint,
+  'probe_with_asset': _entrypoint,
+  'probe_beside_generated': '$_bin/beside.dart',
+};
 
 void main() {
   final runfiles = Runfiles.create();
-  for (final name in ['probe', 'probe_with_asset', 'probe_beside_generated']) {
+  for (final MapEntry(key: name, value: entrypoint) in _probes.entries) {
     final exe = runfiles.rlocation(
       '_main/dart/tests/kernel_uri_fixture/$name${Platform.isWindows ? '.exe' : ''}',
     );
@@ -31,9 +38,9 @@ void main() {
         '`dart compile exe` from source does. Output:\n$out',
       );
     }
-    if (!out.contains('($_entrypoint:') || out.contains('file://')) {
+    if (!out.contains('($entrypoint:') || out.contains('file://')) {
       throw StateError(
-        '$name: the entrypoint must be named $_entrypoint, not by a path '
+        '$name: the entrypoint must be named $entrypoint, not by a path '
         'that depends on where it was built. Output:\n$out',
       );
     }

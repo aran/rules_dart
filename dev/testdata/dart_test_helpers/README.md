@@ -6,4 +6,5 @@ relative imports, directly or through another helper, and its imports in that
 test's `deps`. It is never a `dart_test` of its own: the `dart_test`s of
 `fixtures.dart` and `names.dart` are deleted. A test in another
 directory (`sub/` importing `../fixtures.dart`) lists the filegroup in which
-`test/` lends its helpers.
+`test/` lends its helpers, and gets the deps of the helpers it reaches:
+`nested_test` does not get `extra.dart`'s `@args`.

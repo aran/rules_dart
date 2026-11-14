@@ -1,5 +1,7 @@
 load("@rules_dart//dart:defs.bzl", "dart_test")
 
+# What Gazelle wrote when a filegroup's every file counted: it loses `@args`,
+# which only a helper this test does not load imports.
 dart_test(
     name = "nested_test",
     srcs = ["//test"],
@@ -8,6 +10,17 @@ dart_test(
     deps = [
         "//:helpers_fixture",
         "@meta",
+        "@test",
+    ],
+)
+
+dart_test(
+    name = "extra_test",
+    srcs = ["//test"],
+    main = "extra_test.dart",
+    package = "//:pubspec-metadata",
+    deps = [
+        "@args",
         "@test",
     ],
 )

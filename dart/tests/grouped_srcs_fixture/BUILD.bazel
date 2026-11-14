@@ -1,0 +1,135 @@
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("//dart:defs.bzl", "dart_binary", "dart_package_metadata", "dart_test")
+
+# One `srcs` entry supplying two files, as a code generator's outputs are.
+# `main` loads only one of them; the entry stays for that one, so the other is
+# simply no part of the program, and the build passes.
+genrule(
+    name = "generated",
+    outs = [
+        "bin/loaded.dart",
+        "bin/not_loaded.dart",
+    ],
+    cmd = "echo 'const loaded = true;' > $(execpath bin/loaded.dart) && " +
+          "echo 'const notLoaded = true;' > $(execpath bin/not_loaded.dart)",
+)
+
+dart_binary(
+    name = "grouped",
+    srcs = [":generated"],
+    main = "bin/main.dart",
+)
+
+# Helpers two programs share through one filegroup. `loads_shared` never loads
+# `shared_other.dart`, so what that file imports is none of its business: it
+# neither needs `collection` nor may list it, and is analyzed without it.
+filegroup(
+    name = "shared",
+    srcs = [
+        "bin/shared_loaded.dart",
+        "bin/shared_other.dart",
+    ],
+)
+
+dart_binary(
+    name = "loads_shared",
+    srcs = [":shared"],
+    main = "bin/loads_shared.dart",
+)
+
+dart_binary(
+    name = "loads_other",
+    srcs = [":shared"],
+    main = "bin/loads_other.dart",
+    deps = ["@ext_pub_deps//:collection"],
+)
+
+build_test(
+    name = "shared_filegroup_test",
+    size = "small",
+    targets = [
+        ":loads_other",
+        ":loads_shared",
+    ],
+)
+
+# A test takes a shared filegroup as a program does: it loads one file of
+# `:shared`, so `shared_other.dart`'s import of `collection` is none of its
+# business, whether or not its package is declared.
+dart_test(
+    name = "loads_shared_test",
+    size = "small",
+    srcs = [":shared"],
+    main = "test/loads_shared_test.dart",
+    deps = ["@ext_pub_deps//:test"],
+)
+
+dart_package_metadata(
+    name = "declared",
+    package_name = "grouped_srcs_fixture",
+)
+
+dart_test(
+    name = "declared_loads_shared_test",
+    size = "small",
+    srcs = [":shared"],
+    main = "test/loads_shared_test.dart",
+    package = ":declared",
+    deps = ["@ext_pub_deps//:test"],
+)
+
+# What a program loads does not depend on whether unused deps are enforced:
+# with the check off, `shared_other.dart` still needs no `collection` here, and
+# analysis still skips it.
+dart_binary(
+    name = "loads_shared_check_off",
+    srcs = [":shared"],
+    features = ["-dart_unused_deps"],
+    main = "bin/loads_shared.dart",
+    visibility = ["//dart/tests:__pkg__"],
+)
+
+# The check off lets an entry `main` loads nothing of stay, and none of its
+# files is then part of the program.
+dart_binary(
+    name = "loads_none_check_off",
+    srcs = [":shared"],
+    features = ["-dart_unused_deps"],
+    main = "bin/loads_none.dart",
+)
+
+# A doc import needs no dep, and fails no analysis for lacking one: it may name
+# what depends on this target, where a dep would be a cycle.
+dart_binary(
+    name = "doc_imports_package",
+    srcs = ["bin/doc_imports_package.dart"],
+    main = "bin/doc_imports_package.dart",
+)
+
+# Nor does the file it names belong in `srcs`, as `main` never loads it.
+dart_binary(
+    name = "doc_imports_file",
+    srcs = ["bin/doc_imports_file.dart"],
+    main = "bin/doc_imports_file.dart",
+)
+
+# Analysis has all of a fetched package, its private files too, so a doc import
+# of one resolves.
+dart_binary(
+    name = "doc_imports_fetched_private",
+    srcs = ["bin/doc_imports_fetched_private.dart"],
+    main = "bin/doc_imports_fetched_private.dart",
+    deps = ["@ext_pub_deps//:collection"],
+)
+
+build_test(
+    name = "check_off_and_doc_imports_test",
+    size = "small",
+    targets = [
+        ":doc_imports_fetched_private",
+        ":doc_imports_file",
+        ":doc_imports_package",
+        ":loads_none_check_off",
+        ":loads_shared_check_off",
+    ],
+)

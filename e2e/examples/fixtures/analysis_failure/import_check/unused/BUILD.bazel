@@ -48,6 +48,37 @@ dart_test(
     ],
 )
 
+# Lists a support file its main never loads, whose import of `leaf` would
+# otherwise count as the test's use of it.
+dart_test(
+    name = "unreached_test",
+    srcs = ["test/unreached_support.dart"],
+    main = "test/unreached_test.dart",
+    package = ":pubspec-metadata",
+    tags = ["manual"],
+    deps = ["//fixtures/analysis_failure/import_check/leaf"],
+)
+
+# A filegroup of which the test's main loads nothing: the entry can go whole,
+# so the failure names it.
+filegroup(
+    name = "unreached_group",
+    srcs = [
+        "test/unreached_group_a.dart",
+        "test/unreached_support.dart",
+    ],
+    tags = ["manual"],
+)
+
+dart_test(
+    name = "unreached_group_test",
+    srcs = [":unreached_group"],
+    main = "test/unreached_test.dart",
+    package = ":pubspec-metadata",
+    tags = ["manual"],
+    deps = ["//fixtures/analysis_failure/import_check/leaf"],
+)
+
 # `leaf`, exempt as a plugin is.
 used_without_import(
     name = "leaf_plugin",

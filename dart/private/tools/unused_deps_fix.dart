@@ -14,10 +14,20 @@ import 'dart:convert';
 import 'package:diffutil_dart/diffutil.dart';
 
 /// One target's report: its canonical [label], the BUILD file entry that
-/// states its `deps` ([dependent]), and the canonical labels of the [unused]
-/// ones.
+/// states its `deps` ([dependent]), the canonical labels of the [unused]
+/// ones, the exec paths of the files of its `srcs` its main never reaches
+/// ([unreached]), the canonical labels of the deps only those import
+/// ([unreachedOnly]), and the imports, exports and parts of its files that the
+/// import check refuses ([refused]).
 class UnusedReport {
-  UnusedReport(this.label, this.dependent, this.unused);
+  UnusedReport(
+    this.label,
+    this.dependent,
+    this.unused, {
+    this.unreached = const [],
+    this.unreachedOnly = const {},
+    this.refused = const [],
+  });
 
   factory UnusedReport.parse(String json) {
     final value = jsonDecode(json) as Map<String, dynamic>;
@@ -25,12 +35,26 @@ class UnusedReport {
       value['label'] as String,
       value['dependent'] as String,
       (value['unused'] as List).cast<String>().toSet(),
+      unreached: (value['unreached'] as List).cast<String>(),
+      unreachedOnly: (value['unreachedOnly'] as List).cast<String>().toSet(),
+      refused: [
+        for (final r in (value['refused'] as List).cast<Map<String, dynamic>>())
+          (path: r['path'] as String, uri: r['uri'] as String),
+      ],
     );
   }
 
   final String label;
   final String dependent;
   final Set<String> unused;
+  final List<String> unreached;
+  final Set<String> unreachedOnly;
+
+  /// Each refused URI, as written, and the exec path of the file writing it.
+  final List<({String path, String uri})> refused;
+
+  /// Whether it asks nothing of the fixer or the user.
+  bool get isClean => unused.isEmpty && unreached.isEmpty && refused.isEmpty;
 }
 
 /// A rule as `bazel query --output=streamed_jsonproto` gives it, its labels
@@ -173,14 +197,57 @@ class Kept {
   String toString() => '$location: $entry: kept $dep: $reason';
 }
 
+/// A file of an entry's `srcs` its main never reaches, which the fixer
+/// leaves: whether it goes, or main imports it, is the user's to say.
+class Unreached {
+  Unreached(this.entry, this.location, this.path);
+
+  final String entry;
+  final String location;
+  final String path;
+
+  @override
+  String toString() =>
+      '$location: $entry: main never loads $path, one of its srcs. Remove it '
+      'from srcs, or import it from a file main loads: the fixer cannot tell '
+      'which is meant, and the build fails until one is done';
+}
+
+/// An import, export or part of an entry's files that the import check
+/// refuses.
+/// It may name a dep's file, so what the entry uses is not known, and the
+/// fixer removes none of its deps until it is fixed.
+class Refused {
+  Refused(this.entry, this.location, this.path, this.uri);
+
+  final String entry;
+  final String location;
+  final String path;
+  final String uri;
+
+  @override
+  String toString() =>
+      "$location: $entry: $path names '$uri', which the import check "
+      'refuses (the build says why). Fix it, then run the fixer again: until '
+      'then it cannot tell which deps the target uses';
+}
+
 /// What to remove: for each BUILD file entry, the deps as it writes them,
-/// and what is left alone.
+/// what is left alone, the files main never reaches, and the refused
+/// imports that hold an entry's deps back.
 class Removals {
-  Removals(this.remove, this.kept);
+  Removals(
+    this.remove,
+    this.kept, {
+    this.unreached = const [],
+    this.refused = const [],
+  });
 
   /// Entry label to the deps to remove from it, as `bazel query` prints them.
   final Map<String, List<String>> remove;
   final List<Kept> kept;
+  final List<Unreached> unreached;
+  final List<Refused> refused;
 }
 
 /// The written deps to remove, by the BUILD file entry that states them.
@@ -191,7 +258,10 @@ class Removals {
 /// unused. Every target its entry makes that lists it must say so: an
 /// entry's `deps` reach each target it makes (a test's `.program`, its copy
 /// for another platform), and a target that is not checked, or that uses the
-/// dep, keeps it.
+/// dep, keeps it. A report's unreached files are named, and a dep only they
+/// import is kept: removing it is wrong once main imports them. A report's
+/// refused imports are named, and its entry keeps every dep: a refused URI
+/// may name a dep's file, so what the entry uses is not known.
 Removals findRemovals({
   required List<UnusedReport> reports,
   required List<QueriedRule> rules,
@@ -216,13 +286,67 @@ Removals findRemovals({
 
   final remove = <String, List<String>>{};
   final kept = <Kept>[];
+  final unreached = <Unreached>[];
+  final refused = <Refused>[];
+  // An entry's targets share its srcs and deps: each finding once.
+  final named = <String>{};
+  final heldBack = {
+    for (final report in reports)
+      if (report.refused.isNotEmpty)
+        if (byLabel[report.label] case final rule?) rule.entry,
+  };
   for (final report in reports) {
-    if (report.unused.isEmpty) continue;
+    if (report.isClean) continue;
     final rule = byLabel[report.label];
     if (rule == null) {
       throw FormatException('bazel query did not return ${report.label}');
     }
     final entry = rule.entry;
+    for (final (:path, :uri) in report.refused) {
+      if (named.add('$entry\n$path\n$uri')) {
+        refused.add(Refused(entry, rule.entryLocation, path, uri));
+      }
+    }
+    if (heldBack.contains(entry)) {
+      for (final written in rule.deps) {
+        if (unusedBy(rule, written) && named.add('$entry\n$written')) {
+          kept.add(
+            Kept(
+              entry,
+              rule.entryLocation,
+              written,
+              'no file imports it, but the target has refused imports, so '
+              'what it uses is not known; fix them and run the fixer again',
+            ),
+          );
+        }
+      }
+      continue;
+    }
+    for (final path in report.unreached) {
+      if (named.add('$entry\n$path')) {
+        unreached.add(Unreached(entry, rule.entryLocation, path));
+      }
+    }
+    for (final written in rule.deps) {
+      final targets = resolveAliases(canonical(written), aliases);
+      if (targets.any(report.unreachedOnly.contains) &&
+          targets.every(
+            (t) =>
+                report.unused.contains(t) || report.unreachedOnly.contains(t),
+          ) &&
+          named.add('$entry\n$written')) {
+        kept.add(
+          Kept(
+            entry,
+            rule.entryLocation,
+            written,
+            'only srcs main never loads import it '
+            '(${report.unreached.join(', ')}); it goes once they leave srcs',
+          ),
+        );
+      }
+    }
     if (remove.containsKey(entry)) continue;
     final removed = <String>[];
     for (final written in rule.deps) {
@@ -250,7 +374,7 @@ Removals findRemovals({
     }
     if (removed.isNotEmpty) remove[entry] = removed;
   }
-  return Removals(remove, kept);
+  return Removals(remove, kept, unreached: unreached, refused: refused);
 }
 
 /// What a dep the fixer cannot reach asks of the user.
@@ -308,7 +432,12 @@ Future<Removals> editEach(
       kept.add(Kept(entry, locations[entry] ?? '', dep, reason));
     }
   }
-  return Removals(remove, kept);
+  return Removals(
+    remove,
+    kept,
+    unreached: removals.unreached,
+    refused: removals.refused,
+  );
 }
 
 /// The deps of [removals] Bazel still finds once buildozer has removed them,

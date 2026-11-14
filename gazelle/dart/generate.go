@@ -352,8 +352,10 @@ func ruleNamed(rules []*rule.Rule, name string) *rule.Rule {
 // those of the files it reaches: the `srcs` of its dart_test, sorted -- each
 // file of its own directory, and the filegroup of each other test-tree
 // directory of its package it reaches a file of (package_scan.go) -- and
-// every file those hold, the test first, repo-relative. A relative import of
-// a file in another directory that no rule holds is logged.
+// those files, the test first, repo-relative, whose imports are its deps. The
+// other files of a filegroup are in `srcs` but not in its program, so they
+// add no dep. A relative import of a file in another directory that no rule
+// holds is logged.
 func (d *dartLang) testHelpers(args language.GenerateArgs, test DartFileInfo) ([]string, []DartFileInfo) {
 	root, _ := packageRootOf(args.Config, args.Rel)
 	scan := d.scan.scanOf(args.Config, root)
@@ -385,14 +387,12 @@ func (d *dartLang) testHelpers(args language.GenerateArgs, test DartFileInfo) ([
 						add(h)
 					}
 				}
-			case ok:
+			case ok && lentFile(scan.lent[dir], target) != nil:
 				if !seen["//"+dir] {
 					seen["//"+dir] = true
 					lent = append(lent, dirLabel(dir, args.Rel))
-					for _, h := range scan.lent[dir] {
-						add(h)
-					}
 				}
+				add(*lentFile(scan.lent[dir], target))
 			case importedURI(self, root, f.Path, imp) != "":
 			case path.Dir(target) != path.Dir(f.Path):
 				log.Printf("dart: %s imports %s, which is in no rule; add a "+
@@ -405,6 +405,16 @@ func (d *dartLang) testHelpers(args language.GenerateArgs, test DartFileInfo) ([
 	sort.Strings(own)
 	sort.Strings(lent)
 	return append(own, lent...), files
+}
+
+// lentFile is the file at path among those a directory lends, or nil.
+func lentFile(lent []DartFileInfo, path string) *DartFileInfo {
+	for i := range lent {
+		if lent[i].Path == path {
+			return &lent[i]
+		}
+	}
+	return nil
 }
 
 // helperTests returns empty-rule markers for each existing dart_test whose

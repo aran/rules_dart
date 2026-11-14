@@ -1,0 +1,10 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+# A doc import of a file a fetched package does not have: analysis has all of
+# that package, so the file is misspelt, not out of its sight.
+dart_library(
+    name = "doc_import",
+    srcs = ["lib/doc_import.dart"],
+    tags = ["manual"],
+    deps = ["@path"],
+)

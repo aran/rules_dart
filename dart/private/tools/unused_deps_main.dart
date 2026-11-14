@@ -11,7 +11,9 @@
 // has buildozer remove them from a copy of their BUILD files, which a real
 // run writes back. `--dry-run` prints the edits as a diff instead. A dep
 // buildozer cannot reach (one in a list variable or a comprehension) or that
-// the entry must keep is reported with its place, and the tool exits 1.
+// the entry must keep is reported with its place, as is a file of an
+// executable's srcs its main never loads, and an import the import check
+// refuses (which holds back the entry's deps), and the tool exits 1.
 import 'dart:convert';
 import 'dart:io';
 
@@ -104,7 +106,7 @@ class _Fixer {
         'repository.',
       );
     }
-    if (reports.every((r) => r.unused.isEmpty)) {
+    if (reports.every((r) => r.isClean)) {
       stdout.writeln('$_name: no unused deps');
       return 0;
     }
@@ -115,7 +117,7 @@ class _Fixer {
     String canonical(String label) => canonicalLabel(label, mapping);
     final packages = {
       for (final r in reports)
-        if (r.unused.isNotEmpty) r.label.substring(0, r.label.indexOf(':')),
+        if (!r.isClean) r.label.substring(0, r.label.indexOf(':')),
     };
     final rules = await _rules(packages);
 
@@ -123,9 +125,7 @@ class _Fixer {
     final reported = {for (final r in reports) r.label};
     final entries = {
       for (final r in rules)
-        if (reports.any(
-          (p) => p.unused.isNotEmpty && p.label == canonical(r.label),
-        ))
+        if (reports.any((p) => !p.isClean && p.label == canonical(r.label)))
           r.entry,
     };
     final siblings = [
@@ -169,7 +169,7 @@ class _Fixer {
         final (:path, :before, :after) = mirror.change(package);
         stdout.write(unifiedDiff(path, before, after));
       }
-      return _reportKept(made.kept);
+      return _reportKept(made, made.kept);
     }
     final left = <Kept>[];
     if (made.remove.isNotEmpty) {
@@ -181,12 +181,14 @@ class _Fixer {
       '$_name: removed $count deps from ${made.remove.length} BUILD file '
       'entries',
     );
-    return _reportKept([...made.kept, ...left]);
+    return _reportKept(made, [...made.kept, ...left]);
   }
 
-  int _reportKept(List<Kept> kept) {
-    kept.forEach(stderr.writeln);
-    return kept.isEmpty ? 0 : 1;
+  /// Prints what the fixer leaves to the user, failing when there is any.
+  int _reportKept(Removals made, List<Kept> kept) {
+    final left = [...made.refused, ...made.unreached, ...kept];
+    left.forEach(stderr.writeln);
+    return left.isEmpty ? 0 : 1;
   }
 
   /// The reports the build makes of the caller's targets, and of [targets],

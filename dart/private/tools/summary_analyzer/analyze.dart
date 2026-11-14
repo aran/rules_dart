@@ -23,6 +23,7 @@ import 'package:yaml/yaml.dart';
 
 import 'args.dart';
 import 'context.dart';
+import 'doc_imports.dart';
 import 'guards.dart';
 import 'report.dart';
 
@@ -57,7 +58,20 @@ Future<Result> analyze(Args args) async {
 
   final src = p.join(project, 'src');
   final out = StringBuffer();
-  final code = report(out, diagnostics, src, fatalInfos: fatalInfos);
+  final code = report(
+    out,
+    withoutUnresolvedDocImports(
+      diagnostics,
+      project: project,
+      code: (d) => d.code,
+      file: (d) => d.file,
+      message: (d) => d.message,
+      line: (d) => d.line,
+      column: (d) => d.column,
+    ),
+    src,
+    fatalInfos: fatalInfos,
+  );
   if (refusals.isNotEmpty) {
     out.writeln();
     for (final r in refusals) {

@@ -407,6 +407,39 @@ which imports `package:test`. So a test that gets `package:test` through a
 helper library still lists it, and passes. If the support files are a library of their
 own, that library carries their deps, and the test doesn't list them again.
 
+A test or binary must load every file in its `srcs`, through imports, exports
+and parts starting from `main` (or from the package's `hook/link.dart`). A file it never loads fails the build: its
+imports would count as uses of deps the program never loads, and the test
+would rerun when they change. The error names the files to drop from `srcs`:
+
+```
+//app:t: main never imports, exports or includes as a part these srcs, so the program never loads them, while what they import counts as used:
+  app/test/other_support.dart
+Remove them from srcs; a file read at run time belongs in data. features = ["-dart_unused_deps"] turns the check off.
+```
+
+A `srcs` entry holding several files (a `filegroup`, a code generator's outputs,
+a directory a rule generates) can only be dropped whole, so it fails only when
+the program loads none of its files, and the error names the entry. Several
+tests can share one `filegroup` of helpers this way. Files of it that a given
+test doesn't load are no part of that test: what they import doesn't count as
+used, the test needn't list it, and its analysis skips them. The check waits
+until no import is refused, since a refused import loads nothing it could
+follow.
+
+A `@docImport` is for documentation and needs nothing from the build. It often
+names something above the library in the dependency graph, where a dep would be
+a cycle. So it neither needs a dep nor counts as using one, and a file only a
+doc import names doesn't belong in `srcs`. When what it names isn't among the
+target's dependencies, analysis doesn't report the doc import, or the
+`comment_references` in that library it could have supplied (its `show` and `as`
+narrow those down). It does report one naming a file a fetched package doesn't
+have, as it sees all of such a package. A file of a package built in your
+workspace may be in a target this one can't see, and which `dart:` libraries
+exist depends on the platform, so a misspelled path there, a relative one or a
+`dart:` library this SDK lacks goes unreported; your IDE, which sees the whole
+package, still shows a misspelling.
+
 Some deps do their work without an import. A Flutter plugin is registered by
 native code, so the app lists it and never imports it. A plugin's rule marks
 it as such, and the check leaves it alone wherever it's listed. A dep with no
@@ -419,6 +452,13 @@ For any other dep you need without importing it, turn the check off for that
 target with `features = ["-dart_unused_deps"]`. You can also turn it off for a
 BUILD file with `package(features = ...)`, or for the whole build with
 `--features=-dart_unused_deps`.
+
+With the check off, neither an unused dep nor a file the program never loads
+fails the build, and the fixer leaves the target alone. What the program loads
+stays the same: files of a `srcs` entry that it doesn't load still need no
+`deps`, whether it loads some of the entry or none, and its analysis skips them.
+A file listed in `srcs` by itself is still checked and analyzed, since no other
+target answers for it.
 
 Gazelle writes `deps` from imports, so the BUILD files it writes pass.
 
@@ -1069,9 +1109,10 @@ Gazelle treats `test/` as `package:test` does. It makes a test of each
 the helper imports goes in that test's `deps`. A test lists a helper in its own
 directory by file name. When tests import helpers from another directory under
 `test/`, Gazelle gives that directory a `filegroup` named after it, holding its
-helpers, and the tests list the filegroup. That filegroup is visible to the
-package's whole `test/` tree. It also holds any test file that a file elsewhere
-imports.
+helpers, and the tests list the filegroup. A test's `deps` still come only from
+the helpers it reaches, not from the rest of the filegroup. That filegroup is
+visible to the package's whole `test/` tree. It also holds any test file that a
+file elsewhere imports.
 
 When a run finds problems like these, Gazelle reports every one of them and
 then fails, before it writes any BUILD file.

@@ -30,9 +30,10 @@ const _optionsByCommand = {
     'multi-root',
     'src',
     'dep-file', 'available-package', 'direct-package', 'dep', 'use-src',
-    'dependent', 'report',
+    'dependent', 'report', 'entry', 'src-entry',
     'output', //
   },
+  'exclude-unloaded': {'report', 'options', 'output'},
   'digest': {'input', 'output'},
 };
 

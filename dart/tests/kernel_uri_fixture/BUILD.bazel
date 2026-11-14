@@ -36,8 +36,8 @@ dart_binary(
     deps = [":where"],
 )
 
-# A generated file among the binary's own `srcs`, beside the entrypoint: the
-# entrypoint keeps its URI.
+# A generated file among the binary's own `srcs`, beside the entrypoint, which
+# imports it by a relative path: the entrypoint keeps its URI.
 write_file(
     name = "generated",
     out = "bin/generated.dart",
@@ -47,7 +47,7 @@ write_file(
 dart_binary(
     name = "probe_beside_generated",
     srcs = [":generated"],
-    main = "bin/probe.dart",
+    main = "bin/beside.dart",
     deps = [":where"],
 )
 
