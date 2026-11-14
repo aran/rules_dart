@@ -434,17 +434,21 @@ then `bazel build` flags and patterns. It finds the labels each entry wrote, so
 it removes a dep written through an alias. It also edits the macro call that
 made a target. When a macro gives one `deps` to several targets, such as a test
 and its copy for another platform, a dep goes only if every one of them finds it
-unused. `--dry-run` prints the `buildozer` commands and changes nothing.
+unused. `--dry-run` prints the edits as a diff and changes nothing.
 
 The fixer formats every BUILD file it edits as buildifier does, so in a file not
 already in buildifier's format the diff shows reordering beyond the removals.
 Run buildifier over the files once first to keep that out of the fixer's diff.
 
-The fixer cannot edit a dep that comes from a list variable (`deps = SHARED +
-[...]`) or from a call inside a list comprehension. It prints the place in the
-BUILD file and the entry for each dep it left, and exits 1, and `--dry-run`
-reports the same deps and exits the same way. Remove those by
-hand, unless something else that uses the list needs them. Gazelle users don't
+The fixer edits BUILD files written the way Gazelle and buildozer write them:
+each target is its own call, with its deps listed in it. It leaves a dep that
+comes from a list variable (`deps = SHARED + [...]`) or from a call inside a
+list comprehension, prints the place in the BUILD file and the entry for each,
+and exits 1. `--dry-run` reports the same deps and exits the same way. A list
+several targets share gives each of them what any of them imports, so the check
+reports it on the rest: list each target's deps on the target instead. A BUILD
+file that builds its deps another way on purpose can turn the check off for its
+targets with `package(features = ["-dart_unused_deps"])`. Gazelle users don't
 need the fixer, as Gazelle writes `deps` from imports.
 
 ### Running the Dart SDK

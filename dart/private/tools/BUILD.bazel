@@ -110,7 +110,10 @@ dart_test(
     size = "small",
     srcs = ["unused_deps_fix.dart"],
     main = "unused_deps_fix_test.dart",
-    deps = ["@ext_pub_deps//:test"],
+    deps = [
+        "@ext_pub_deps//:diffutil_dart",
+        "@ext_pub_deps//:test",
+    ],
 )
 
 dart_test(

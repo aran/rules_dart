@@ -9,7 +9,7 @@
 // over the patterns, works out from `bazel query` which written labels they
 // mean and which BUILD file entry states them (`unused_deps_fix.dart`), and
 // has buildozer remove them from a copy of their BUILD files, which a real
-// run writes back. `--dry-run` prints the buildozer commands instead. A dep
+// run writes back. `--dry-run` prints the edits as a diff instead. A dep
 // buildozer cannot reach (one in a list variable or a comprehension) or that
 // the entry must keep is reported with its place, and the tool exits 1.
 import 'dart:convert';
@@ -165,7 +165,10 @@ class _Fixer {
     final made = await editEach(removals, rules, mirror.remove);
 
     if (args.dryRun) {
-      made.commands.forEach(stdout.writeln);
+      for (final package in {for (final e in made.remove.keys) _package(e)}) {
+        final (:path, :before, :after) = mirror.change(package);
+        stdout.write(unifiedDiff(path, before, after));
+      }
       return _reportKept(made.kept);
     }
     final left = <Kept>[];
@@ -208,7 +211,11 @@ class _Fixer {
     );
     final built = await build.exitCode;
     if (built != 0) {
-      throw _Failure('the build failed, so nothing was removed', built);
+      throw _Failure(
+        '`bazel build` exited $built (${_exitMeaning[built] ?? 'see its '
+                'output above'}), so nothing was removed',
+        built,
+      );
     }
     final (:configured, :files) = groupFiles(events, args.group);
     if (configured == 0) {
@@ -331,9 +338,22 @@ class _Mirror {
   /// Each package's BUILD file, by workspace path.
   final Map<String, String> files;
 
-  /// Removes [dep] from [entry] in the copy, answering buildozer's exit code.
-  Future<int> remove(String entry, String dep) =>
-      _run(['remove deps $dep', entry], {0, 2, 3});
+  /// Removes [dep] from [entry] in the copy, answering buildozer's exit code
+  /// and what it printed.
+  Future<({int code, String output})> remove(String entry, String dep) async {
+    final result = await _run(['remove deps $dep', entry], {0, 2, 3});
+    return (code: result.exitCode, output: '${result.stdout}${result.stderr}');
+  }
+
+  /// The BUILD file of [package], by workspace path, as it is and as edited.
+  ({String path, String before, String after}) change(String package) {
+    final path = files[package]!;
+    return (
+      path: path,
+      before: File('$workspace/$path').readAsStringSync(),
+      after: File('$root/$path').readAsStringSync(),
+    );
+  }
 
   /// Copies the BUILD files of [packages] back into the workspace.
   void writeBack(Set<String> packages) {
@@ -344,7 +364,7 @@ class _Mirror {
     }
   }
 
-  Future<int> _run(List<String> arguments, Set<int> expected) async {
+  Future<ProcessResult> _run(List<String> arguments, Set<int> expected) async {
     final result = await Process.run(
       buildozer,
       arguments,
@@ -356,9 +376,27 @@ class _Mirror {
         '${result.stdout}${result.stderr}',
       );
     }
-    return result.exitCode;
+    return result;
   }
 }
+
+/// What the exit codes of `bazel build` mean, as Bazel's `ExitCode` names
+/// them.
+const _exitMeaning = {
+  1: 'the build failed; its errors are above',
+  2: 'Bazel rejected the command line or its options; the reason is above',
+  8: 'the build was interrupted',
+  9: 'another command holds the output base, and --noblock_for_lock is set',
+  32: 'something off this machine failed the build',
+  33: 'Bazel ran out of memory',
+  34: 'remote execution or caching failed',
+  36: 'the local environment failed the build, a full disk say',
+  37: 'Bazel crashed',
+  38: 'uploading the build events failed',
+  39: 'the remote cache evicted outputs the build needed; build again',
+  45: 'uploading the build events failed, and retrying will not help',
+  48: 'fetching an external repository failed',
+};
 
 Never _fail(String message, int code) {
   stderr.writeln('$_name: $message');

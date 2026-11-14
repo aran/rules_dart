@@ -97,10 +97,15 @@ void main() {
       '//fix/unused:call.program',
       '//fix/unused:conformance_test',
     ]);
-    if (!'${unusedDry.stdout}'.contains('|//fix/unused:lib') ||
-        !'${unusedDry.stdout}'.contains('|//fix/unused:call') ||
-        !'${unusedDry.stdout}'.contains('|//fix/unused:conformance_test') ||
-        '${unusedDry.stdout}'.contains('test_pub_deps')) {
+    final removed = [
+      for (final line in '${unusedDry.stdout}'.split('\n'))
+        if (line.startsWith('-') && !line.startsWith('---'))
+          line.substring(1).trim(),
+    ];
+    if (!'${unusedDry.stdout}'.contains('--- a/fix/unused/BUILD.bazel') ||
+        !removed.contains('"@rules_dart//dart/runfiles",') ||
+        !removed.contains('":leaf",') ||
+        removed.any((l) => l.contains('test_pub_deps'))) {
       failures.add('unused_deps --dry-run printed:\n${unusedDry.stdout}');
     }
     expectFiles('after unused_deps --dry-run', originals);
@@ -130,9 +135,14 @@ void main() {
         !keptLines.any(
           (l) =>
               l.contains('fix/unused/BUILD.bazel:69:') &&
-              l.contains('in a variable or a comprehension'),
+              l.contains('in a list variable or a comprehension') &&
+              l.contains('package(features = ["-dart_unused_deps"])'),
         ) ||
-        !keptLines.any((l) => l.contains('finds no call named generated'))) {
+        !keptLines.any(
+          (l) => l.contains(
+            'a loop or a comprehension may make the target, or a variable name it',
+          ),
+        )) {
       failures.add('unused_deps of unreachable deps:\n${keptReal.stderr}');
     }
     if ('${kept(keptDry)}' != '$keptLines') {
