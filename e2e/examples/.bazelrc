@@ -48,4 +48,9 @@ common --repo_env=GIT_ATTR_SOURCE=
 build --build_tag_filters=-deep
 build:deep --build_tag_filters=
 
+# Builds tools without the target configuration's Starlark flags, as a
+# downstream workspace may: the flags rules_dart's tools need are
+# `scope = "universal"`.
+common --incompatible_exclude_starlark_flags_from_exec_config
+
 try-import %workspace%/.bazelrc.user

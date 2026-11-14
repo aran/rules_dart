@@ -49,6 +49,11 @@ test:deep --test_tag_filters=
 # workspace runs with them on and the e2e workspaces with Bazel's default.
 common --incompatible_auto_exec_groups
 
+# Builds tools without the target configuration's Starlark flags, as a
+# downstream workspace may: the flags rules_dart's tools need are
+# `scope = "universal"`.
+common --incompatible_exclude_starlark_flags_from_exec_config
+
 # Load any settings specific to the current user.
 # .bazelrc.user should appear in .gitignore so that settings are not shared with team members
 # This needs to be last statement in this

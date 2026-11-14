@@ -318,10 +318,12 @@ string_list_setting(
 
 # Whether a `dart_library` checks its own imports. Not a flag: only
 # `without_import_check` turns it off, for the libraries `kernel_tool`, which
-# runs the check, is built from.
+# runs the check, is built from. `scope = "universal"`: those libraries'
+# own checker is resolved in the exec configuration, where it must stay off.
 bool_setting(
     name = "import_check",
     build_setting_default = True,
+    scope = "universal",
 )
 
 config_setting(

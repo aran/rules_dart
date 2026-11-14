@@ -8,5 +8,10 @@ test --output_groups=+dart_analyze
 test --output_groups=+dart_format
 common --@rules_dart//dart:analysis_config=//:analysis_config
 
+# Builds tools without the target configuration's Starlark flags, as a
+# downstream workspace may: the flags rules_dart's tools need are
+# `scope = "universal"`.
+common --incompatible_exclude_starlark_flags_from_exec_config
+
 # A nested workspace reads only its own rc files: import its untracked per-user overrides.
 try-import %workspace%/.bazelrc.user

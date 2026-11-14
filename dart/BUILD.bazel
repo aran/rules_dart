@@ -64,6 +64,9 @@ bool_flag(
 bool_flag(
     name = "modular_kernel",
     build_setting_default = True,
+    # The tools a build compiles follow it too, so `scope = "universal"` keeps
+    # it in the exec configuration.
+    scope = "universal",
     visibility = ["//visibility:public"],
 )
 
@@ -109,6 +112,9 @@ bool_flag(
 bool_flag(
     name = "outline_kernel",
     build_setting_default = True,
+    # `scope = "universal"`, as `analysis_summaries`: the outline tool is
+    # resolved in the exec configuration of the module actions.
+    scope = "universal",
     visibility = ["//visibility:public"],
 )
 
@@ -144,12 +150,15 @@ bool_flag(
 # "Analysis against summaries" says what it cannot do. Off, every target is
 # analyzed with its dependencies' source, by the SDK's own `dart analyze`:
 #   bazel test //... --@rules_dart//dart:analysis_summaries=false
-# It keeps Bazel's default scope, as `outline_kernel` does: the summary
-# analyzer is resolved in the exec configuration of the analysis actions, and
-# with the flag off its SDK source must not be fetched there either.
+# The summary analyzer is resolved in the exec configuration of the analysis
+# actions, and with the flag off its SDK source must not be fetched there
+# either.
 bool_flag(
     name = "analysis_summaries",
     build_setting_default = True,
+    # `scope = "universal"` keeps it there, also under
+    # `--incompatible_exclude_starlark_flags_from_exec_config`.
+    scope = "universal",
     visibility = ["//visibility:public"],
 )
 
