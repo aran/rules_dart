@@ -10,7 +10,9 @@ Which version is installed depends on the root module:
   its version. The root either raises its pin to at least that version or sets
   `allow_upgrade_by_dependencies = True` on its `dart.toolchain`, which lets the
   highest of all requests, the root's included, win.
-* If the root module requests none, the highest requested version is used.
+* If the root module requests none, the newest version rules_dart serves is
+  used, and a dependency's older request is raised to it. rules_dart requests no version of its own as a dependency: it serves
+  every version in `versions.bzl`.
 * The root module may request one version per name; two requests for a name fail.
 
 Additionally, the root module can define arbitrarily many more toolchain versions under different
@@ -18,7 +20,8 @@ names (each selected by the same rules) and can register them as it sees fit,
 effectively overriding the default named toolchain due to toolchain resolution precedence.
 """
 
-load("//dart/private:toolchain_selection.bzl", "select_toolchain_version")
+load("//dart/private:toolchain_selection.bzl", "newest_version", "select_toolchain_version")
+load("//dart/private:versions.bzl", "TOOL_VERSIONS")
 load(":repositories.bzl", "dart_register_toolchains")
 
 _DEFAULT_NAME = "dart"
@@ -45,7 +48,8 @@ failing the build. Only the root module may set it.
 )
 
 def _toolchain_extension(module_ctx):
-    registrations = {}
+    # The default name is registered whether or not any module requests it.
+    registrations = {_DEFAULT_NAME: []}
     for mod in module_ctx.modules:
         for toolchain in mod.tags.toolchain:
             if toolchain.name != _DEFAULT_NAME and not mod.is_root:
@@ -61,8 +65,9 @@ def _toolchain_extension(module_ctx):
                 module = mod.name,
                 allow_upgrade = toolchain.allow_upgrade_by_dependencies,
             ))
+    newest = newest_version(TOOL_VERSIONS.keys())
     for name, requests in registrations.items():
-        selection = select_toolchain_version(name, requests)
+        selection = select_toolchain_version(name, requests, newest)
         if selection.error:
             fail(selection.error)
 

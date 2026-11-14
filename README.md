@@ -846,7 +846,9 @@ Only the root module may use `pub.settings`, `ignore_hooks` or `ignore_hook`.
 The Dart SDK version isn't a request. The root's `dart.toolchain` version is
 used exactly, and a module asking for a newer SDK fails the build, with an error
 that names the fix. To take the highest request instead, the root sets
-`allow_upgrade_by_dependencies = True` on its `dart.toolchain`.
+`allow_upgrade_by_dependencies = True` on its `dart.toolchain`. A root without a
+`dart.toolchain` gets the newest SDK rules_dart supports. rules_dart asks for no
+version of its own, so the root can pin any version it supports.
 
 ### Adding a dependency
 

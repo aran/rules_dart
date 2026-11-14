@@ -3,7 +3,7 @@
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
 
 # buildifier: disable=bzl-visibility
-load("//dart/private:toolchain_selection.bzl", "select_toolchain_version")
+load("//dart/private:toolchain_selection.bzl", "newest_version", "select_toolchain_version")
 load(":small_suite.bzl", "small_unittest_suite")
 
 def _root(version, allow_upgrade = False, module = "root"):
@@ -16,23 +16,32 @@ def _contains(env, text, *fragments):
     for fragment in fragments:
         asserts.true(env, fragment in text, "expected {} in:\n{}".format(repr(fragment), text))
 
+_NEWEST = "3.14.1"
+
 def _select(requests):
-    return select_toolchain_version("dart", requests)
+    return select_toolchain_version("dart", requests, _NEWEST)
 
-# ---- no root request: the highest request wins ----
+# ---- no root request: the newest version rules_dart serves ----
 
-def _no_root_highest_wins_test_impl(ctx):
+def _no_root_newest_wins_test_impl(ctx):
     env = unittest.begin(ctx)
     selection = _select([_dep("3.9.0", "a"), _dep("3.13.4", "b"), _dep("3.10.1", "c")])
-    asserts.equals(env, "3.13.4", selection.version)
+    asserts.equals(env, _NEWEST, selection.version)
     asserts.equals(env, None, selection.error)
     return unittest.end(env)
 
-def _no_root_single_request_test_impl(ctx):
+def _no_request_newest_wins_test_impl(ctx):
     env = unittest.begin(ctx)
-    selection = _select([_dep("3.13.4")])
-    asserts.equals(env, "3.13.4", selection.version)
+    selection = _select([])
+    asserts.equals(env, _NEWEST, selection.version)
     asserts.equals(env, None, selection.error)
+    return unittest.end(env)
+
+def _newest_version_ignores_order_test_impl(ctx):
+    env = unittest.begin(ctx)
+    for versions in [["3.14.0", "3.13.4", "3.9.0"], ["3.9.0", "3.14.0", "3.13.4"], ["3.13.4", "3.9.0", "3.14.0"]]:
+        asserts.equals(env, "3.14.0", newest_version(versions), str(versions))
+    asserts.equals(env, "3.10.0", newest_version(["3.9.9", "3.10.0"]))
     return unittest.end(env)
 
 # ---- a root request, flag off (the default): used exactly ----
@@ -126,8 +135,8 @@ def _allowed_root_equal_to_dependencies_test_impl(ctx):
 
 def _allowed_root_above_dependencies_test_impl(ctx):
     env = unittest.begin(ctx)
-    selection = _select([_root("3.14.0", allow_upgrade = True), _dep("3.13.4")])
-    asserts.equals(env, "3.14.0", selection.version)
+    selection = _select([_root("3.14.1", allow_upgrade = True), _dep("3.13.4")])
+    asserts.equals(env, "3.14.1", selection.version)
     asserts.equals(env, None, selection.error)
     return unittest.end(env)
 
@@ -178,8 +187,9 @@ def _dependency_setting_the_flag_fails_test_impl(ctx):
         )
     return unittest.end(env)
 
-_no_root_highest_wins_test = unittest.make(_no_root_highest_wins_test_impl)
-_no_root_single_request_test = unittest.make(_no_root_single_request_test_impl)
+_no_root_newest_wins_test = unittest.make(_no_root_newest_wins_test_impl)
+_no_request_newest_wins_test = unittest.make(_no_request_newest_wins_test_impl)
+_newest_version_ignores_order_test = unittest.make(_newest_version_ignores_order_test_impl)
 _root_alone_test = unittest.make(_root_alone_test_impl)
 _root_equal_to_dependencies_test = unittest.make(_root_equal_to_dependencies_test_impl)
 _root_above_dependencies_test = unittest.make(_root_above_dependencies_test_impl)
@@ -197,8 +207,9 @@ _dependency_setting_the_flag_fails_test = unittest.make(_dependency_setting_the_
 def toolchain_selection_test_suite(name):
     small_unittest_suite(
         name,
-        _no_root_highest_wins_test,
-        _no_root_single_request_test,
+        _no_root_newest_wins_test,
+        _no_request_newest_wins_test,
+        _newest_version_ignores_order_test,
         _root_alone_test,
         _root_equal_to_dependencies_test,
         _root_above_dependencies_test,

@@ -9,16 +9,29 @@ def _parse_version(v):
 def _newer(a, b):
     return _parse_version(a) > _parse_version(b)
 
+def newest_version(versions):
+    """The newest of Dart SDK versions, compared numerically, whatever their order.
+
+    Args:
+      versions: Version strings, `major.minor.patch`.
+
+    Returns:
+      The newest one.
+    """
+    return sorted(versions, key = _parse_version)[-1]
+
 def _failure(error):
     return struct(version = None, error = error)
 
-def select_toolchain_version(name, requests):
+def select_toolchain_version(name, requests, newest):
     """Selects the Dart SDK version for one toolchain name.
 
     Every request is a minimum: no rule here gives a module an SDK older than
     the one it requested.
 
-    * With no request from the root module, the highest request wins.
+    * With no request from the root module, `newest` is used, or a
+      dependency's request if it is newer still. A dependency's request is a
+      minimum, so it is raised to `newest` without a word.
     * With a root request, it is used exactly, and a dependency requesting a
       newer version is an error, unless the root allows the upgrade, in which
       case the highest of all requests wins, the root's included.
@@ -27,8 +40,9 @@ def select_toolchain_version(name, requests):
 
     Args:
       name: The toolchain name, used in error text.
-      requests: Non-empty list of
-        `struct(module, version, is_root, allow_upgrade)`, one per tag.
+      requests: List of `struct(module, version, is_root, allow_upgrade)`,
+        one per tag; empty when no module requests the name.
+      newest: The newest Dart SDK version rules_dart serves.
 
     Returns:
       `struct(version, error)`. `error` is a message for the user when the
@@ -56,22 +70,18 @@ dart.toolchain(...) tag for it, or give each its own name.""".format(
             versions = ", ".join([r.version for r in roots]),
         ))
 
-    if not roots or roots[0].allow_upgrade:
-        selected = requests[0].version
-        for request in requests[1:]:
-            if _newer(request.version, selected):
-                selected = request.version
-        return struct(version = selected, error = None)
+    if not roots:
+        return struct(version = newest_version([newest] + [r.version for r in requests]), error = None)
+
+    if roots[0].allow_upgrade:
+        return struct(version = newest_version([r.version for r in requests]), error = None)
 
     pinned = roots[0].version
     newer = [d for d in dependencies if _newer(d.version, pinned)]
     if not newer:
         return struct(version = pinned, error = None)
 
-    highest = newer[0].version
-    for request in newer[1:]:
-        if _newer(request.version, highest):
-            highest = request.version
+    highest = newest_version([d.version for d in newer])
     return _failure("""\
 Dart toolchain "{name}": the root module pins {pinned}, but these modules request a newer Dart SDK:
 {requests}
