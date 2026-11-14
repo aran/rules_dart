@@ -8,17 +8,15 @@ load(":track_creation.bzl", "track_creation_locations_run_test")
 # program whether to expect locations, and a transition builds it with the flag
 # on or off, so the suite needs no command-line flag.
 
-_DEPS = [
-    "//dart/tests/track_creation_fixture/maker",
-    "//dart/tests/track_creation_fixture/marked",
-]
-
 dart_test(
     name = "tracked_dart_test",
     defines = ["TRACKED=true"],
     main = "main.dart",
     tags = ["manual"],
-    deps = _DEPS,
+    deps = [
+        "//dart/tests/track_creation_fixture/maker",
+        "//dart/tests/track_creation_fixture/marked",
+    ],
 )
 
 dart_test(
@@ -26,7 +24,10 @@ dart_test(
     defines = ["TRACKED=false"],
     main = "main.dart",
     tags = ["manual"],
-    deps = _DEPS,
+    deps = [
+        "//dart/tests/track_creation_fixture/maker",
+        "//dart/tests/track_creation_fixture/marked",
+    ],
 )
 
 dart_binary(
@@ -34,7 +35,10 @@ dart_binary(
     defines = ["TRACKED=true"],
     main = "main.dart",
     tags = ["manual"],
-    deps = _DEPS,
+    deps = [
+        "//dart/tests/track_creation_fixture/maker",
+        "//dart/tests/track_creation_fixture/marked",
+    ],
 )
 
 dart_binary(
@@ -42,7 +46,10 @@ dart_binary(
     defines = ["TRACKED=false"],
     main = "main.dart",
     tags = ["manual"],
-    deps = _DEPS,
+    deps = [
+        "//dart/tests/track_creation_fixture/maker",
+        "//dart/tests/track_creation_fixture/marked",
+    ],
 )
 
 # `dart_test` takes the modular path: a module per library, then the entry.

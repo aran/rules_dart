@@ -443,32 +443,38 @@ dart_test(
 )
 
 # The program's own package, `jingle`, declares data assets and a link hook,
-# and no library of it is in `deps`: linked, its hook keeps the tune; not
-# linked, the program ships both of its sounds.
-_JINGLE_DEPS = [
-    "//native_hooks/sounds",
-    "@pub_deps//:data_assets",
-    "@pub_deps//:hooks",
-]
-
+# and no library of it is in the `deps` below: linked, its hook keeps the tune;
+# not linked, the program ships both of its sounds.
 dart_program_assets(
     name = "jingle_assets",
     package = "//native_hooks/jingle:pubspec-metadata",
     recorded_uses = "//native_hooks/jingle:app",
-    deps = _JINGLE_DEPS,
+    deps = [
+        "//native_hooks/sounds",
+        "@pub_deps//:data_assets",
+        "@pub_deps//:hooks",
+    ],
 )
 
 in_rule_assets(
     name = "jingle_in_rule_assets",
     package = "//native_hooks/jingle:pubspec-metadata",
     recorded_uses = "//native_hooks/jingle:app",
-    deps = _JINGLE_DEPS,
+    deps = [
+        "//native_hooks/sounds",
+        "@pub_deps//:data_assets",
+        "@pub_deps//:hooks",
+    ],
 )
 
 dart_program_assets(
     name = "jingle_unlinked_assets",
     package = "//native_hooks/jingle:pubspec-metadata",
-    deps = _JINGLE_DEPS,
+    deps = [
+        "//native_hooks/sounds",
+        "@pub_deps//:data_assets",
+        "@pub_deps//:hooks",
+    ],
 )
 
 [

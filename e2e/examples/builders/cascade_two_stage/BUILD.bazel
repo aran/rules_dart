@@ -16,18 +16,16 @@ dart_package_metadata(
     package_name = "cascade_two_stage",
 )
 
-_ANN_DEPS = [
-    "@pub_deps//:freezed_annotation",
-    "@pub_deps//:json_annotation",
-]
-
 dart_codegen(
     name = "_event_freezed",
     src = "lib/event.dart",
     generator = "@rules_dart//dart/ext/freezed:shim",
     output_suffixes = [".freezed.dart"],
     package = ":pubspec-metadata",
-    deps = _ANN_DEPS,
+    deps = [
+        "@pub_deps//:freezed_annotation",
+        "@pub_deps//:json_annotation",
+    ],
 )
 
 dart_codegen(
@@ -37,7 +35,10 @@ dart_codegen(
     generator = "@rules_dart//dart/ext/json_serializable:shim",
     output_suffixes = [".json_serializable.g.part"],
     package = ":pubspec-metadata",
-    deps = _ANN_DEPS,
+    deps = [
+        "@pub_deps//:freezed_annotation",
+        "@pub_deps//:json_annotation",
+    ],
 )
 
 dart_codegen(

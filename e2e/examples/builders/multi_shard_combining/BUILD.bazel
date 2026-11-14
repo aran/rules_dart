@@ -13,18 +13,16 @@ dart_package_metadata(
     package_name = "multi_shard_combining",
 )
 
-_ANN_DEPS = [
-    "@pub_deps//:copy_with_extension",
-    "@pub_deps//:json_annotation",
-]
-
 dart_codegen(
     name = "_user_json_part",
     src = "lib/user.dart",
     generator = "@rules_dart//dart/ext/json_serializable:shim",
     output_suffixes = [".json_serializable.g.part"],
     package = ":pubspec-metadata",
-    deps = _ANN_DEPS,
+    deps = [
+        "@pub_deps//:copy_with_extension",
+        "@pub_deps//:json_annotation",
+    ],
 )
 
 dart_codegen(
@@ -33,7 +31,10 @@ dart_codegen(
     generator = "@rules_dart//dart/ext/copy_with_extension_gen:shim",
     output_suffixes = [".copy_with_extension_gen.g.part"],
     package = ":pubspec-metadata",
-    deps = _ANN_DEPS,
+    deps = [
+        "@pub_deps//:copy_with_extension",
+        "@pub_deps//:json_annotation",
+    ],
 )
 
 dart_codegen(
@@ -56,7 +57,10 @@ dart_library(
     ],
     package = ":pubspec-metadata",
     visibility = ["//visibility:public"],
-    deps = _ANN_DEPS,
+    deps = [
+        "@pub_deps//:copy_with_extension",
+        "@pub_deps//:json_annotation",
+    ],
 )
 
 dart_test(

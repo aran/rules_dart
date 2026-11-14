@@ -8,21 +8,19 @@ dart_library(
     srcs = ["lib/b.dart"],
 )
 
-# What each generator resolves against: the library, and a dependency whose
+# Each generator below resolves against the library, and a dependency whose
 # resource a generator reads. A codegen rule's `deps` are not judged by the
 # unused check, and a file read at build time reaches it only through them.
-_DEPS = [
-    ":lib",
-    "//dart/tests/codegen_fixture/dep",
-]
-
 dart_codegen(
     name = "per_file",
     src = "lib/a.dart",
     generator = "//dart/tests/fixture_generator:generator",
     output_suffixes = [".g.dart"],
     tags = ["manual"],
-    deps = _DEPS,
+    deps = [
+        ":lib",
+        "//dart/tests/codegen_fixture/dep",
+    ],
 )
 
 codegen_inputs_test(
@@ -37,7 +35,10 @@ dart_aggregate_codegen(
     generator = "//dart/tests/fixture_generator:generator",
     outputs = ["lib/a.agg.dart"],
     tags = ["manual"],
-    deps = _DEPS,
+    deps = [
+        ":lib",
+        "//dart/tests/codegen_fixture/dep",
+    ],
 )
 
 codegen_inputs_test(
@@ -52,7 +53,10 @@ dart_sqlcodegen(
     generator = "//dart/tests/fixture_generator:generator",
     output_suffixes = [".sql.json"],
     tags = ["manual"],
-    deps = _DEPS,
+    deps = [
+        ":lib",
+        "//dart/tests/codegen_fixture/dep",
+    ],
 )
 
 codegen_inputs_test(
