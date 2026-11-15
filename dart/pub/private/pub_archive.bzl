@@ -1,9 +1,9 @@
 """Fetches a hosted pub package's archive into a repository.
 
-Every repository rule that materialises a hosted pub package — `pub_lock_package`
-(`pub.from_lock()`), `pub_package` (`pub.package()`) and rules_flutter's
-`flutter_pub_package` — fetches through `fetch_pub_archive`, so one package
-version is fetched and laid out the same way whichever rule asks for it.
+Every repository that materialises a hosted pub package fetches through
+`fetch_pub_archive` (`pub_archive_files`, for `pub.from_lock()` and
+`pub.package()`; rules_flutter's `flutter_pub_package`), so one package version
+is fetched and laid out the same way whichever rule asks for it.
 """
 
 visibility("//dart/...")

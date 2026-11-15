@@ -23,6 +23,9 @@ visibility("//dart/...")
 def source_repo(prefix, package):
     return "{}__{}".format(prefix, package)
 
+def files_repo(prefix, package):
+    return "{}_files__{}".format(prefix, package)
+
 def library_repo(prefix, package):
     return "{}_lib__{}".format(prefix, package)
 

@@ -2,13 +2,13 @@
 
 load("//dart/ext:registry.bzl", "curated_code_assets", "curated_cycles")
 load("//dart/pub:pub_graph.bzl", "cycle_declaration", "cycle_declarations_error")
-load("//dart/pub:pub_lock_package.bzl", "pub_lock_git_package", "pub_lock_package", "pub_lock_path_package", "pub_lock_resolved_pubspec")
+load("//dart/pub:pub_lock_package.bzl", "pub_archive_files", "pub_files_label", "pub_git_files", "pub_lock_git_package", "pub_lock_package", "pub_lock_path_package", "pub_lock_resolved_pubspec")
 load("//dart/pub:pub_versions.bzl", "CHECK_LEVELS", "pub_version_request", "select_pub_version")
 load("//dart/pub:yaml_parser.bzl", "parse_pubspec_lock")
 load("//dart/pub/private:pub_archive.bzl", "pub_archive_sha256_error")
 load("//dart/pub/private:pub_lock_checks.bzl", "git_disagreement_error", "git_lock_package", "lock_mapping_error", "path_packages", "pub_command", "resolved_packages", "resolved_pubspecs", "source_disagreement_errors")
 load("//dart/pub/private:pub_lock_hub.bzl", "pub_lock_hub")
-load("//dart/pub/private:pub_lock_library.bzl", "index_repo", "library_repo", "pub_lock_ignored", "pub_lock_index", "pub_lock_library", "pub_lock_resolved", "source_repo")
+load("//dart/pub/private:pub_lock_library.bzl", "files_repo", "index_repo", "library_repo", "pub_lock_ignored", "pub_lock_index", "pub_lock_library", "pub_lock_resolved", "source_repo")
 load("//dart/pub/private:pub_settings.bzl", "root_only_settings")
 
 _SPOKE_PREFIX = "dart_pub"
@@ -536,8 +536,16 @@ def _pub_impl(ctx):
     # so it is planned with the others and can be in a cycle with them. Its
     # library repository is named for it.
     for name, pkg in explicit.items():
+        pub_archive_files(
+            name = files_repo(_SPOKE_PREFIX, name),
+            package_name = name,
+            version = pkg.version,
+            sha256 = pkg.sha256,
+            base_url = pkg.url,
+        )
         pub_lock_package(
             name = source_repo(_SPOKE_PREFIX, name),
+            files = pub_files_label(files_repo(_SPOKE_PREFIX, name)),
             package_name = name,
             version = pkg.version,
             sha256 = pkg.sha256,
@@ -576,14 +584,23 @@ def _pub_impl(ctx):
         served = {name: str(pkg.target) for name, pkg in readable.items()},
     )
     for name, pkg in git_registry.items():
-        pub_lock_git_package(
-            name = source_repo(_SPOKE_PREFIX, name),
+        pub_git_files(
+            name = files_repo(_SPOKE_PREFIX, name),
             package_name = name,
             version = pkg.version,
             url = pkg.url,
             resolved_ref = pkg.resolved_ref,
             path = pkg.path,
             lock = pkg.lock,
+        )
+        pub_lock_git_package(
+            name = source_repo(_SPOKE_PREFIX, name),
+            files = pub_files_label(files_repo(_SPOKE_PREFIX, name)),
+            package_name = name,
+            version = pkg.version,
+            url = pkg.url,
+            resolved_ref = pkg.resolved_ref,
+            path = pkg.path,
             code_assets = curated_code_assets(name, pkg.version),
             ignore_hook = name in ignore_hooks,
         )
@@ -593,8 +610,16 @@ def _pub_impl(ctx):
             spoke_prefix = _SPOKE_PREFIX,
         )
     for name, pkg in resolved.items():
+        pub_archive_files(
+            name = files_repo(_SPOKE_PREFIX, name),
+            package_name = name,
+            version = pkg.version,
+            sha256 = pkg.sha256,
+            base_url = pkg.url,
+        )
         pub_lock_package(
             name = source_repo(_SPOKE_PREFIX, name),
+            files = pub_files_label(files_repo(_SPOKE_PREFIX, name)),
             package_name = name,
             version = pkg.version,
             sha256 = pkg.sha256,

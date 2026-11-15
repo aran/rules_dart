@@ -15,7 +15,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-const _repoPrefix = 'rules_dart++pub+dart_pub__';
+const _repoPrefix = 'rules_dart++pub+dart_pub_files__';
 
 class _Entry {
   _Entry(this.name, this.type, {this.data = const [], this.link = ''});

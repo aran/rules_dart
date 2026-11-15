@@ -38,7 +38,7 @@ a repository to wait on itself, and the library repository fetches only the
 source repositories building the package fetches anyway.
 """
 
-_PUBSPEC_DEPENDENCIES = "pubspec_dependencies.txt"
+PUBSPEC_DEPENDENCIES = "pubspec_dependencies.txt"
 
 def write_pubspec_dependencies(ctx, names):
     """Records, in a package's source repository, the names its pubspec depends on.
@@ -48,7 +48,7 @@ def write_pubspec_dependencies(ctx, names):
       names: The names under the package's pubspec `dependencies:`, as
         `read_pubspec` (`pubspec.bzl`) reads them.
     """
-    ctx.file(_PUBSPEC_DEPENDENCIES, "".join([n + "\n" for n in names]))
+    ctx.file(PUBSPEC_DEPENDENCIES, "".join([n + "\n" for n in names]))
 
 def read_pubspec_dependencies(ctx, repo):
     """Reads what `write_pubspec_dependencies()` recorded in another repository.
@@ -66,7 +66,7 @@ def read_pubspec_dependencies(ctx, repo):
       The recorded names, in order.
     """
     sibling = "@@" + ctx.name[:len(ctx.name) - len(ctx.original_name)] + repo
-    return ctx.read(Label("{}//:{}".format(sibling, _PUBSPEC_DEPENDENCIES))).splitlines()
+    return ctx.read(Label("{}//:{}".format(sibling, PUBSPEC_DEPENDENCIES))).splitlines()
 
 def dependency_graph(package, dependencies, follow):
     """The packages `package` reaches, each with the names it depends on.
