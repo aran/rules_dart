@@ -42,6 +42,7 @@ SDK_FILE_SETS = {
     "kernel": _DARTAOTRUNTIME + [
         "bin/snapshots/kernel_worker_aot.dart.snapshot",
         "bin/snapshots/frontend_server_aot.dart.snapshot",
+        "lib/_internal/vm_platform.dill",
         "lib/_internal/vm_platform_product.dill",
         "lib/libraries.json",
     ],

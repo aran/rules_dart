@@ -231,15 +231,15 @@ that SDK is registered as, so nothing about which SDK compiles is fixed in \
 rules_dart.
 
 A platform has one platform `.dill` per kind of runtime it runs on: the VM \
-has a product runtime, Flutter a debug, a profile and a release \
-one. `runtimes` names each, and a compile asks for one by its name.""",
+has a debug runtime (what `dart run` starts) and a product one, Flutter a \
+debug, a profile and a release one. `runtimes` names each, and a compile asks for one by its name.""",
     fields = {
         "target": "str: The front end's target name (`vm`, `flutter`).",
         "aot_runtime": "File: The `dartaotruntime` that runs the snapshots.",
         "kernel_worker": "File or None: `kernel_worker_aot.dart.snapshot`, which compiles modules. None for a platform that compiles whole programs only.",
         "frontend_server": "File: `frontend_server_aot.dart.snapshot`, which compiles an executable's entrypoint and whole programs.",
-        "runtimes": "dict[str, struct]: The kinds of runtime a kernel can be compiled for, by name (`product` for the VM), each made by `dart_kernel_runtime()`: the platform `.dill` a kernel for that runtime compiles against, in whose directory the front end finds the SDK; the environment declarations that runtime fixes, e.g. `dart.vm.product=true`; and the front-end flags a whole-program compile for it takes.",
-        "module_runtime": "str: The entry of `runtimes` that modules, and the entrypoints linked with them, compile for.",
+        "runtimes": "dict[str, struct]: The kinds of runtime a kernel can be compiled for, by name (`debug` and `product` for the VM), each made by `dart_kernel_runtime()`: the platform `.dill` a kernel for that runtime compiles against, in whose directory the front end finds the SDK; the environment declarations that runtime fixes, e.g. `dart.vm.product=true`; and the front-end flags a whole-program compile for it takes.",
+        "module_runtime": "str: The entry of `runtimes` a test compiles for, as `dart test` runs it: its modules and the entrypoint linked with them, and its whole program when it is compiled as one.",
         "libraries_spec": "File or None: The `libraries.json` that lists the `dart:` libraries `target` provides, which modules are split by. None for a platform that compiles whole programs only.",
         "libraries_target": "str: The entry in `libraries_spec` to read (its `include` entries are followed).",
         "tool_files": "depset[File]: What the tools read at run time beyond the files named above; the actions take nothing else of the SDK. Empty for the VM, whose front end reads only its snapshot, its runtime and the platform.",

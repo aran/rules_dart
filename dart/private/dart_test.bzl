@@ -58,7 +58,6 @@ def _dart_test_impl(ctx):
     # The VM that runs the test: the target's, as everything the test runs is.
     dart_sdk_info = ctx.toolchains["//dart:toolchain_type"].dart_sdk_info
     workspace_name = ctx.workspace_name
-    sdk = ctx.attr._kernel_sdk[DartKernelSdkInfo]
 
     own = executable_package(ctx, [ctx.file.main] + ctx.files.srcs)
     packages = own.packages
@@ -96,12 +95,14 @@ def _dart_test_impl(ctx):
             main = main,
             packages = packages,
             output_dill = dill,
+            # Named by the SDK that compiles it, so the two cannot differ.
+            runtime = ctx.attr._program_kernel_sdk[DartKernelSdkInfo].module_runtime,
             defines = executable_defines(ctx),
             native_assets_yaml = native_assets_yaml,
             track_creation_locations = track_creation_locations(ctx),
         )
     else:
-        program_files = _link_modules(ctx, sdk, main, packages, own, native_assets_yaml, dill)
+        program_files = _link_modules(ctx, ctx.attr._kernel_sdk[DartKernelSdkInfo], main, packages, own, native_assets_yaml, dill)
 
     # Thin launcher: run the compiled program with asserts enabled. It carries
     # all sources/imports, so runfiles need only the VM, the kernels, the test

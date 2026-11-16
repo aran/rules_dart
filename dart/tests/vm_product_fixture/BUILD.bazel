@@ -1,0 +1,28 @@
+load("//dart:defs.bzl", "dart_library", "dart_test")
+
+# A test sees `dart.vm.product` false, as under `dart test`, in its own files
+# and in the modules of its dependencies; `dart_binary` keeps it true, as
+# `dart compile` does (`//dart/tests/kernel_uri_fixture`).
+
+dart_library(
+    name = "mode",
+    srcs = ["lib/mode.dart"],
+)
+
+dart_test(
+    name = "plain_test",
+    size = "small",
+    main = "check.dart",
+    deps = [":mode"],
+)
+
+dart_test(
+    name = "runner_test",
+    size = "small",
+    srcs = ["check.dart"],
+    main = "runner_check_test.dart",
+    deps = [
+        ":mode",
+        "@ext_pub_deps//:test",
+    ],
+)
