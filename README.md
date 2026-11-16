@@ -804,6 +804,13 @@ If two locks both build one package from its pubspec, they must name the same
 directory. A package built from its pubspec in one lock and fetched or ignored
 in another fails too.
 
+A [pub workspace](https://dart.dev/tools/pub/workspaces) needs none of these.
+Its lock, the one beside the root `pubspec.yaml`, lists only the packages the
+workspace fetches, never its members. Pass that lock to `pub.from_lock()`, and
+build each member as a package of your own, with its BUILD file and its
+`dart_package_metadata`. Members that use each other name each other's targets
+in `deps`.
+
 ### Packages that depend on each other
 
 Pub allows packages to depend on each other in a cycle (`dio` and
