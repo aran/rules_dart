@@ -1629,6 +1629,23 @@ empty package config. So `Isolate.resolvePackageUri` returns null, as it does
 in an `exe` installed on its own. Otherwise the VM would look upward from the
 program and, without a sandbox, find the workspace's own `.dart_tool`.
 
+A test that also runs under `dart test` and reads a file its package ships in
+`lib/` can take the null as its cue to use the runfiles instead, with
+[`package:runfiles`](https://pub.dev/packages/runfiles) in its pubspec (a lock
+listing it gets `@rules_dart//dart/runfiles`, the source of what pub.dev serves):
+
+```dart
+final uri = await Isolate.resolvePackageUri(
+  Uri.parse('package:my_pkg/templates/page.html'),
+);
+final page = uri != null
+    ? File.fromUri(uri) // dart test
+    : File(Runfiles.create().rlocation('_main/pkgs/my_pkg/lib/templates/page.html'));
+```
+
+The file must reach the test's runfiles: list it in `resources` of the
+`dart_library` that ships it, or in `data`.
+
 A test carries only the part of the Dart SDK that runs its compiled code: the
 `dart` launcher and the VM. A test that runs SDK commands itself, such as
 `dart compile` or `dart analyze`, needs the whole SDK. Add `@rules_dart//dart`
