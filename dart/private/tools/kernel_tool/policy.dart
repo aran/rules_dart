@@ -291,7 +291,7 @@ String? _mountedUri(
   final relativeHint = 'a path relative to ${file.path}';
   switch (ref.scheme) {
     case 'dart':
-      return ok(written);
+      return ok(ref.toString());
     case 'package':
       return _packageUri(written, ref);
     case rootScheme:

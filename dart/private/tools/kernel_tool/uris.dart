@@ -164,6 +164,10 @@ String resolveUri(String base, String ref) {
   } on FormatException {
     return ref;
   }
+  // A scheme is case-insensitive and percent-escapes of unreserved
+  // characters are not significant: the compiler loads `Dart:io` and
+  // `dart:%69o` as `dart:io`.
+  if (parsed.isScheme('dart')) return parsed.toString();
   if (parsed.hasScheme) return ref;
   return Uri.parse(base).resolveUri(parsed).toString();
 }

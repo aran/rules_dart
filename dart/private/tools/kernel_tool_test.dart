@@ -235,6 +235,8 @@ import r'c\\d.dart';
         'org-dartlang-root:///app/bin/x/y.dart',
       );
       expect(resolveUri('package:app/a.dart', 'dart:io'), 'dart:io');
+      expect(resolveUri('package:app/a.dart', 'Dart:io'), 'dart:io');
+      expect(resolveUri('package:app/a.dart', 'dart:%69o'), 'dart:io');
     });
   });
 
@@ -560,6 +562,13 @@ import 'stub.dart' if (dart.library.io) 'src/io.dart' if (dart.library.html) 'sr
       expect(check(files, parts: false).map((v) => v.message), [
         contains('no dependency of //app:lib provides package "dep"'),
       ]);
+    });
+
+    test('takes a dart: library however its URI is spelled', () {
+      expect(
+        check({'app/lib/a.dart': "import 'Dart:io';\nimport 'dart:%69o';"}),
+        isEmpty,
+      );
     });
 
     test('reports every import of a package no dependency provides', () {
