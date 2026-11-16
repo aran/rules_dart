@@ -45,7 +45,9 @@ bzl_library(
     srcs = ["build_content.bzl"],
     visibility = ["//dart/pub:__subpackages__"],
     deps = [
+        ":pub_git",
         "//dart/private:dart_package_metadata",
+        "//dart/private:package_info",
         "//dart/private:purl",
     ],
 )
@@ -54,7 +56,10 @@ bzl_library(
     name = "pub_lock_checks",
     srcs = ["pub_lock_checks.bzl"],
     visibility = ["//dart/pub:__subpackages__"],
-    deps = [":pub_git"],
+    deps = [
+        ":build_content",
+        ":pub_git",
+    ],
 )
 
 bzl_library(

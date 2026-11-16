@@ -7,7 +7,9 @@ version. Were the package's files stored in it, Bazel's repository contents
 cache would keep another copy of every package for each. So the files are
 fetched into a repository of their own, defined here with only the fetching
 code loaded, whose cache key changes only with what is fetched. The source
-repository links them in with `link_pub_files`.
+repository links them in with `link_pub_files`, and states the package's
+identity from what the files repository records it fetched
+(`pub_files_fetched`), so that no other attribute can describe other bytes.
 
 Keep this file's loads to the fetching code: each `.bzl` it loads is part of
 the key of every package's files.
@@ -23,8 +25,8 @@ visibility("//dart/...")
 FILES_LOAD = _FILES_LOAD
 FILES_MARKER = _FILES_MARKER
 
-def _finish(rctx):
-    write_pub_files_root(rctx)
+def _finish(rctx, fetched):
+    write_pub_files_root(rctx, fetched)
     return rctx.repo_metadata(reproducible = True)
 
 def _pub_archive_files_impl(rctx):
@@ -35,7 +37,13 @@ def _pub_archive_files_impl(rctx):
         sha256 = rctx.attr.sha256,
         base_url = rctx.attr.base_url,
     )
-    return _finish(rctx)
+    return _finish(rctx, {
+        "source": "hosted",
+        "package_name": rctx.attr.package_name,
+        "version": rctx.attr.version,
+        "sha256": rctx.attr.sha256,
+        "base_url": rctx.attr.base_url,
+    })
 
 pub_archive_files = repository_rule(
     implementation = _pub_archive_files_impl,
@@ -58,7 +66,15 @@ def _pub_git_files_impl(rctx):
         path = rctx.attr.path,
         lock = rctx.attr.lock,
     )
-    return _finish(rctx)
+    return _finish(rctx, {
+        "source": "git",
+        "package_name": rctx.attr.package_name,
+        "version": rctx.attr.version,
+        "url": rctx.attr.url,
+        "resolved_ref": rctx.attr.resolved_ref,
+        "path": rctx.attr.path,
+        "lock": str(rctx.attr.lock) if rctx.attr.lock else "",
+    })
 
 pub_git_files = repository_rule(
     implementation = _pub_git_files_impl,

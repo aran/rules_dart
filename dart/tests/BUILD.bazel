@@ -162,3 +162,10 @@ bzl_library(
         "//dart/private:versions",
     ],
 )
+
+bzl_library(
+    name = "fetched_record",
+    srcs = ["fetched_record.bzl"],
+    visibility = ["//visibility:public"],
+    deps = ["//dart/private:package_info"],
+)

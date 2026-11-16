@@ -181,6 +181,14 @@ pub.from_lock(
 )
 use_repo(pub, "resolve_deps")
 
+# pub/runfiles: the lock lists `runfiles` from pub.dev, where rules_dart
+# publishes it from `@rules_dart//dart/runfiles`, which is what the hub serves.
+pub.from_lock(
+    name = "runfiles_deps",
+    lock = "//pub/runfiles:pubspec.lock",
+)
+use_repo(pub, "runfiles_deps")
+
 # pub/path: the lock lists three `path` packages, as `dart pub get` writes
 # them. No Bazel target builds `local_greeting`, so it is built from its
 # directory as a hosted package is from its archive, `meta` from the lock among

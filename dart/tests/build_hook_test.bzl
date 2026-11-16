@@ -8,7 +8,7 @@ load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts", "unittest")
 load("//dart:providers.bzl", "DartCodeAssetInfo", "DartInfo")
 load("//dart/private:common.bzl", "merge_package_records")
 load("//dart/private:dart_package_metadata.bzl", "build_hook_error", "unreplaced_build_hook")
-load("//dart/private:package_info.bzl", "raw_dart_package_info")
+load("//dart/private:package_info.bzl", "purl_identity", "raw_dart_package_info")
 load(":small_suite.bzl", "small_unittest_suite")
 
 def _records_build_hook_test_impl(ctx):
@@ -86,6 +86,9 @@ def _record(package_root, hook = "", assets = ()):
         linked_code_assets = (),
         license_file = None,
         metadata = None,
+        # Fetched alike by two fetchers, so records at two roots are one
+        # package.
+        fetched_identity = purl_identity("pkg:pub/split@1.0.0"),
     )
 
 _ASSET = DartCodeAssetInfo(

@@ -51,7 +51,41 @@ forwarded silently discards every dependency's values.""",
     },
 )
 
-DartPackageMetadataInfo = provider(
+def _package_metadata_init(
+        label,
+        package_name,
+        package_root,
+        language_version,
+        version = "",
+        code_assets = (),
+        data_assets = (),
+        unreplaced_hook = "",
+        link_hook = None,
+        link_hook_assets = (),
+        linked_code_assets = (),
+        license_file = None,
+        fetched_identity = None):
+    # `language_version` has no default, as for `DartPackageInfo`: an absent
+    # one compiles the package at the SDK's own, so omitting it and stating
+    # `""` are different intentions.
+    return {
+        "label": label,
+        "package_name": package_name,
+        "package_root": package_root,
+        "language_version": language_version,
+        "version": version,
+        "code_assets": tuple(code_assets),
+        "data_assets": tuple(data_assets),
+        "unreplaced_hook": unreplaced_hook,
+        "link_hook": link_hook,
+        "link_hook_assets": tuple(link_hook_assets),
+        "linked_code_assets": tuple(linked_code_assets),
+        "license_file": license_file,
+        "fetched_identity": fetched_identity,
+    }
+
+DartPackageMetadataInfo, _raw_package_metadata_info = provider(
+    init = _package_metadata_init,
     doc = """A Dart package's own facts, declared once: the Bazel stand-in for its \
 `pubspec.yaml`, made by `dart_package_metadata`.
 
@@ -72,7 +106,9 @@ require-only, and a target providing `DartInfo` would make \
 
 A codegen rule returns the declaration it was built for, or, when it names \
 none, one with only the package name (`label` `None`), so the library \
-collecting its output can check that both name the same package.""",
+collecting its output can check that both name the same package. Every field \
+but `label`, `package_name`, `package_root` and `language_version` may be \
+left out, and is then empty.""",
     fields = {
         "label": "Label or None: The `dart_package_metadata` target. `None` on the provider a codegen rule naming no declaration returns.",
         "package_name": "str: The Dart package name used in `package:` imports. Required.",
@@ -86,6 +122,7 @@ collecting its output can check that both name the same package.""",
         "link_hook_assets": "tuple[str]: The ids of the data assets `link_hook` promises to emit in every program.",
         "linked_code_assets": "tuple[DartLinkedCodeAssetInfo]: Native code the package links into each program.",
         "license_file": "File or None: The package's license text.",
+        "fetched_identity": "struct or None: What a fetcher fetched the package as, or `None` for a package built in the workspace. See `DartPackageInfo.fetched_identity`.",
     },
 )
 

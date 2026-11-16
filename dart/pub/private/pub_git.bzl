@@ -1,7 +1,7 @@
 """Fetches a git-sourced pub package into a repository.
 
-`pub.from_lock()`'s `pub_lock_git_package` and rules_flutter's
-`flutter_pub_package` fetch a lock's `source: git` entries through
+`pub_git_files`, which `pub.from_lock()` and rules_flutter's
+`flutter_pub.from_lock()` fetch a lock's `source: git` entries with, calls
 `fetch_pub_git`, so one locked commit is the same tree whichever rule asks.
 
 The tree is what `dart pub get` checks out on a host with no git

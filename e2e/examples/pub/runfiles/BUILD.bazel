@@ -1,0 +1,32 @@
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata", "dart_test")
+
+exports_files(["pubspec.lock"])
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "runfiles_user",
+)
+
+# Uses `runfiles` as a pubspec listing it would: from the lock's hub.
+dart_library(
+    name = "data_path",
+    srcs = ["lib/data_path.dart"],
+    package = ":pubspec-metadata",
+    deps = ["@runfiles_deps//:runfiles"],
+)
+
+# A program can reach `runfiles` both ways. `@rules_dart//dart/runfiles` is the
+# source of what pub.dev serves, so they are one package whichever version the
+# lock names.
+dart_test(
+    name = "both_routes_test",
+    size = "small",
+    data = ["lib/data_path.dart"],
+    main = "test/both_routes_test.dart",
+    package = ":pubspec-metadata",
+    deps = [
+        ":data_path",
+        "@pub_deps//:test",
+        "@rules_dart//dart/runfiles",
+    ],
+)

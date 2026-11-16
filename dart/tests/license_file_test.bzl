@@ -16,19 +16,21 @@ load("//dart/pub:pub_library.bzl", "DartPackageMemberInfo")
 
 # buildifier: disable=bzl-visibility
 load("//dart/pub/private:build_content.bzl", "choose_pub_license_file", "make_dart_library_build_content", "make_pub_member_build_content")
+load(":fetched_record.bzl", "fetched")
 load(":small_suite.bzl", "small_unittest_suite")
 
 def _file(short_path):
     return struct(short_path = short_path)
 
 def _pkg(package_root, license_file = None, package_name = "ffi"):
-    return DartPackageInfo(
+    # Fetched alike by two fetchers, so records at two roots are one package.
+    return fetched(DartPackageInfo(
         None,
         package_name = package_name,
         package_root = package_root,
         language_version = "",
         license_file = license_file,
-    )
+    ), "pkg:pub/%s@1.0.0" % package_name)
 
 # --- choose_pub_license_file ---
 
@@ -98,7 +100,7 @@ def _agreement_tolerates_one_sided_license_test_impl(ctx):
     asserts.equals(env, None, package_agreement_error([
         _pkg("../hub_a__ffi"),
         _pkg("../hub_b__ffi", _file("../hub_b__ffi/LICENSE")),
-        DartPackageInfo(None, package_name = "ffi", package_root = "../old", language_version = ""),
+        _pkg("../old"),
     ]))
     return unittest.end(env)
 

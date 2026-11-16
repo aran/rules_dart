@@ -9,12 +9,18 @@ load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 cc_library(
     name = "empty",
     srcs = ["empty.cc"],
-    visibility = ["//dart/tests:__subpackages__"],
+    visibility = [
+        "//dart/tests:__subpackages__",
+        "@fetched_fixtures//propagation:__subpackages__",
+    ],
 )
 
 cc_shared_library(
     name = "empty_shared",
-    visibility = ["//dart/tests:__subpackages__"],
+    visibility = [
+        "//dart/tests:__subpackages__",
+        "@fetched_fixtures//propagation:__subpackages__",
+    ],
     deps = [":empty"],
 )
 
@@ -31,6 +37,9 @@ cc_shared_library(
         "@platforms//os:windows": "empty_alt.dll",
         "//conditions:default": "libempty_alt.so",
     }),
-    visibility = ["//dart/tests:__subpackages__"],
+    visibility = [
+        "//dart/tests:__subpackages__",
+        "@fetched_fixtures//propagation:__subpackages__",
+    ],
     deps = [":empty"],
 )

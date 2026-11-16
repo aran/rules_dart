@@ -1,0 +1,35 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+# A fetcher's generated BUILD file loads it so.
+# buildifier: disable=bzl-visibility
+load("@rules_dart//dart/private:fetched_package_metadata.bzl", "fetched_package_metadata")
+
+# `license_file_fixture`, declared as a fetcher declares a package it fetched,
+# so `second` can stand in for another fetcher's copy of it.
+fetched_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "license_file_fixture",
+    license_file = "LICENSE",
+    purl = "pkg:pub/license_file_fixture@1.0.0",
+    tags = ["manual"],
+    version = "1.0.0",
+)
+
+dart_library(
+    name = "lib",
+    srcs = ["lib/fixture.dart"],
+    package = ":pubspec-metadata",
+    tags = ["manual"],
+    visibility = ["@rules_dart//dart/tests/license_file_fixture:__pkg__"],
+    deps = ["@rules_dart//dart/tests/license_file_fixture/other"],
+)
+
+# Another target of the package carries the license too, from the one
+# declaration, whichever of the two a program reaches.
+dart_library(
+    name = "sibling",
+    srcs = ["lib/fixture.dart"],
+    package = ":pubspec-metadata",
+    tags = ["manual"],
+    visibility = ["@rules_dart//dart/tests/license_file_fixture/facade:__pkg__"],
+)

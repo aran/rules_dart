@@ -1,0 +1,14 @@
+load("//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "metadata",
+    package_name = "collection",
+    tags = ["manual"],
+)
+
+dart_library(
+    name = "declared",
+    package = ":metadata",
+    tags = ["manual"],
+    visibility = ["//dart/tests/package_clash_fixture:__pkg__"],
+)

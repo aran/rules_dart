@@ -1,0 +1,30 @@
+load("@rules_dart//dart:defs.bzl", "dart_code_asset", "dart_library")
+
+# A fetcher's generated BUILD file loads it so.
+# buildifier: disable=bzl-visibility
+load("@rules_dart//dart/private:fetched_package_metadata.bzl", "fetched_package_metadata")
+
+# `prop_b` again, as a second fetcher would supply it (so fetched alike),
+# backing the same id with a different library: two definitions of
+# one id reached through `deps`.
+dart_code_asset(
+    name = "alt_code_asset",
+    asset_id = "package:prop_b/src/ffi/prop_b.g.dart",
+    file = "@rules_dart//dart/tests/cc_fixture:empty_shared_alt",
+)
+
+fetched_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "prop_b",
+    code_assets = [":alt_code_asset"],
+    purl = "pkg:pub/prop_b@1.0.0",
+    tags = ["manual"],
+    version = "1.0.0",
+)
+
+dart_library(
+    name = "b_alt",
+    package = ":pubspec-metadata",
+    tags = ["manual"],
+    visibility = ["@rules_dart//dart/tests:__subpackages__"],
+)

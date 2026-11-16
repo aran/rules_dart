@@ -1,0 +1,8 @@
+load("//dart:defs.bzl", "dart_library")
+
+dart_library(
+    name = "not-a-package-name",
+    tags = ["manual"],
+    visibility = ["//dart/tests/package_clash_fixture:__pkg__"],
+    deps = ["@ext_pub_deps//:collection"],
+)

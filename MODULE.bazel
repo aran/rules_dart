@@ -80,7 +80,9 @@ filegroup(
 )
 
 # Dart packages in a repository other than the main one, for the test that
-# consumes them (//dart/tests/external_consumer_fixture).
+# consumes them (//dart/tests/external_consumer_fixture), and declared as a
+# fetcher's repository declares them, for the tests of package identity: the
+# `fetched_*package_metadata` rules refuse the main repository.
 local_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:local.bzl", "local_repository")
 
 local_repository(

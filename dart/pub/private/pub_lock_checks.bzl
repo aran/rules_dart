@@ -5,9 +5,15 @@ every refusal of a phase in one failure, as a user with several problems
 would otherwise find them one run at a time.
 """
 
+load("//dart/private:package_info.bzl", "fetched_identity_text")
+load("//dart/pub/private:build_content.bzl", "is_pub_dev", "pub_path_source", _normalize = "normalize_pub_path", _path_in_repo = "lock_path_in_repo")
 load("//dart/pub/private:pub_git.bzl", "is_relative_git_url", "pub_git_resolved_ref_error")
 
 visibility("//dart/...")
+
+# The packages this repository publishes to pub.dev, each with the target it
+# publishes. See `published_here_targets`.
+_PUBLISHED_HERE = {"runfiles": Label("//dart/runfiles")}
 
 def pub_command(subcommand, lock, packages = []):
     """The command that runs pub `subcommand` on the package that holds `lock`.
@@ -31,25 +37,6 @@ def pub_command(subcommand, lock, packages = []):
     if directory:
         words.append("--directory=" + directory)
     return " ".join(words + packages)
-
-def _normalize(path):
-    # Collapses `.` and `..`, so two locks naming one directory by different
-    # relative paths agree.
-    absolute = path.startswith("/")
-    parts = []
-    for part in path.replace("\\", "/").split("/"):
-        if part in ("", "."):
-            continue
-        if part == ".." and parts and parts[-1] != "..":
-            parts.pop()
-        else:
-            parts.append(part)
-    return ("/" if absolute else "") + "/".join(parts)
-
-def _path_in_repo(lock, path):
-    # The lock's relative `path`, from the root of the lock's repository; it
-    # starts with `..` when it leaves the repository.
-    return _normalize(lock.package + "/" + path if lock.package else path)
 
 def _unbuildable_paths(lock):
     # The `build_from_pubspec` packages whose directory the lock names in a way
@@ -204,6 +191,65 @@ def resolved_packages(locks, declared):
                 )
     return struct(targets = targets, errors = errors)
 
+def published_here_targets(locks, declared, targets, published = _PUBLISHED_HERE):
+    """`targets` with the packages rules_dart itself publishes to pub.dev.
+
+    `runfiles` reaches a build two ways: as `@rules_dart//dart/runfiles`, and
+    from pub.dev, where each rules_dart release publishes those sources. Those
+    are one package, so a build holds one copy, the one that came with the
+    rules: it knows the runfiles layout of the rules_dart building it, whichever
+    release a lock happened to resolve. It is `resolve` stated by the package's
+    publisher, so nothing about comparing packages changes, and the package's
+    users compile against one library. A lock's version of it is not compared,
+    as with any `resolve`; code the rules' copy does not fit fails to compile.
+
+    Only pub.dev's package is this one. A `runfiles` from another registry, git
+    or a path is some other package of that name, and so is the build's to
+    place. The user's own `resolve` of it wins.
+
+    Args:
+        locks: Every lock, as the extension parses them.
+        declared: The packages a `pub.package()` requests, all from pub.dev.
+        targets: `resolved_packages`'s targets.
+        published: Package name -> the target publishing it.
+
+    Returns:
+        `targets`, with an entry for each published package the build asks
+        pub.dev for and does not map itself.
+    """
+    result = dict(targets)
+    served = published_by_rules_dart([lock.packages for lock in locks], declared, published)
+    for name, target in served.items():
+        if name not in targets:
+            result[name] = struct(target = target, lock_label = str(target))
+    return result
+
+def published_by_rules_dart(lock_packages, requested = [], published = _PUBLISHED_HERE):
+    """The packages a build asks pub.dev for that rules_dart itself publishes.
+
+    Such a package is one package with its target in rules_dart, so an extension
+    serving pub packages should map it to that target unless the user's own
+    `resolve` maps it. See `published_here_targets`.
+
+    Args:
+        lock_packages: The `packages` of each lock, as `parse_pubspec_lock` returns them.
+        requested: Names the build requests from pub.dev outside any lock.
+        published: Package name -> the target publishing it.
+
+    Returns:
+        A dict of package name to the `Label` of the target publishing it, for
+        each such package every lock listing it takes from pub.dev.
+    """
+    result = {}
+    for name, target in published.items():
+        listed = [packages[name] for packages in lock_packages if name in packages]
+        if (listed or name in requested) and all([_from_pub_dev(info) for info in listed]):
+            result[name] = target
+    return result
+
+def _from_pub_dev(info):
+    return info["source"] == "hosted" and is_pub_dev(info.get("description", {}).get("url", "https://pub.dev"))
+
 def resolved_pubspecs(locks, resolved_targets):
     """The `resolve`-mapped packages whose pubspec the build can read.
 
@@ -277,8 +323,8 @@ def path_packages(locks, declared, resolved_targets):
             path = desc.get("path", "")
 
             # `lock_mapping_error` has checked the path is relative and stays
-            # in the lock's repository.
-            directory = "@@%s//%s" % (tag.lock.repo_name, _path_in_repo(tag.lock, path))
+            # in the lock's repository, so it has a source.
+            directory = fetched_identity_text(pub_path_source(tag.lock, path).identity)
             first = built.setdefault(name, struct(
                 directory = directory,
                 path = _normalize(path),

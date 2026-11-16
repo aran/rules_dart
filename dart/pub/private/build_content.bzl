@@ -12,6 +12,8 @@ web compilers reach it.
 """
 
 load("@package_metadata//purl:purl.bzl", "purl")
+load("//dart/private:package_info.bzl", "directory_identity", "local_git_identity", "purl_identity")
+load("//dart/pub/private:pub_git.bzl", "is_relative_git_url")
 
 visibility("//dart/...")
 
@@ -27,6 +29,17 @@ _METADATA_TARGET = "pubspec-metadata"
 # pub.dev, by its names in locks: what a purl of type `pub` means when it
 # names no `repository_url` (the purl spec's default is the older name).
 _PUB_DEV = ["https://pub.dev", "https://pub.dartlang.org"]
+
+def is_pub_dev(url):
+    """Whether a lock's hosted `url` is pub.dev, by either of its names.
+
+    Args:
+        url: The registry, as pubspec.lock's `description.url`.
+
+    Returns:
+        True for pub.dev.
+    """
+    return url.rstrip("/") in _PUB_DEV
 
 def pub_hosted_purl(name, version, sha256, base_url = "https://pub.dev"):
     """The purl of a hosted pub package's archive.
@@ -45,9 +58,8 @@ def pub_hosted_purl(name, version, sha256, base_url = "https://pub.dev"):
     """
     builder = purl.builder().type("pub").name(name).version(version)
     builder.add_qualifier("checksum", "sha256:" + sha256)
-    registry = base_url.rstrip("/")
-    if registry not in _PUB_DEV:
-        builder.add_qualifier("repository_url", registry)
+    if not is_pub_dev(base_url):
+        builder.add_qualifier("repository_url", base_url.rstrip("/"))
     return builder.build()
 
 def pub_git_purl(name, version, url, resolved_ref, path = "."):
@@ -55,8 +67,13 @@ def pub_git_purl(name, version, url, resolved_ref, path = "."):
 
     `pkg:pub/<name>@<version>?vcs_url=git+<url>@<commit>`, with `#<path>`
     for a package in a subdirectory, as an SPDX VCS location writes it. The
-    url is the lock's, as written, relative ones too, so the purl names what
-    the lock names on every machine.
+    path is normalized (`normalize_pub_path`), so every spelling of one
+    directory names it alike. The url is the lock's as written, a relative
+    one too: an SBOM then lists the package by its name, version and
+    commit, with a location that says it is a path from the lock's
+    checkout. A relative url names its repository only together with its
+    lock, so whether two copies are one package is `pub_git_source`'s to
+    say.
 
     Args:
         name: The pub package name.
@@ -68,58 +85,271 @@ def pub_git_purl(name, version, url, resolved_ref, path = "."):
     Returns:
         The purl, as the `package_metadata` module's builder writes it.
     """
-    location = "git+{}@{}".format(url, resolved_ref)
-    if path != ".":
-        location += "#" + path
+    location = "git+{}@{}".format(url, resolved_ref) + _git_subdirectory(path)
     return purl.builder().type("pub").name(name).version(version).add_qualifier("vcs_url", location).build()
 
-def pub_package_identity(purl):
-    """What a fetched pub package's repository writes to say what it holds.
+def pub_hosted_source(name, version, sha256, base_url = "https://pub.dev"):
+    """Where a hosted pub package came from: its archive.
 
-    A `package_metadata` target with the package's purl, in the BUILD file at
-    the repository's root, and a `REPO.bazel` attaching it to every target in
-    the repository, as Bazel's supply-chain metadata expects of a repository
-    fetched from a registry. `make_dart_library_build_content(purl = ...)`
-    and `make_pub_member_build_content(purl = ...)` write the first two; a
-    rule set writing its own BUILD file puts `loads` among its loads and
-    `target` among its targets, and writes `repo_file` as `REPO.bazel`.
+    A source is what a fetcher's generated BUILD file states about a package,
+    and what `make_package_metadata_content`, the other generators and
+    `pub_package_identity` take: `struct(identity, purl)`. `identity` is what
+    the package was fetched as (`DartPackageInfo.fetched_identity`), or None
+    when nothing names that; `purl` is what an SBOM lists it as, or "". Make one
+    with this, `pub_git_source` or `pub_path_source`, which keep the two
+    consistent. No source at all is None.
 
     Args:
-        purl: The package's purl (`pub_hosted_purl`, `pub_git_purl`), or ""
-            for a package of the user's own (a path package), which states
-            its own.
+        name: The pub package name.
+        version: The package version.
+        sha256: The archive's SHA-256, as pubspec.lock records it.
+        base_url: The hosted registry, as pubspec.lock's `description.url`.
 
     Returns:
-        `struct(loads, target, repo_file)`, each "" for no purl.
+        The source: its identity is the archive's purl (`pub_hosted_purl`).
     """
-    if not purl:
-        return struct(loads = "", target = "", repo_file = "")
+    package_purl = pub_hosted_purl(name, version, sha256, base_url)
+    return struct(identity = purl_identity(package_purl), purl = package_purl)
+
+def pub_git_source(name, version, url, resolved_ref, path = ".", lock = None):
+    """Where a git pub package came from: its locked commit.
+
+    Its purl is `pub_git_purl`'s. For a url naming the repository on its own,
+    that is its identity too. A relative url (`is_relative_git_url`) names a
+    repository in the lock's repository, where the same text relative to two
+    locks names two: the identity is that repository, found from the lock as
+    `pub_path_source` finds a path package's directory, with the commit and
+    the path. Two locks naming one repository, however each spells it, state
+    one identity, and two naming different ones never do. A relative url
+    leaving the lock's repository has no such name: the source has no
+    identity, and still its purl, so an SBOM lists the package.
+
+    Args:
+        name: The pub package name.
+        version: The package version.
+        url: The lock entry's `description.url`.
+        resolved_ref: The locked commit: `description.resolved-ref`.
+        path: The lock entry's `description.path`.
+        lock: The lock's `Label`; needed only for a relative url.
+
+    Returns:
+        The source (`pub_hosted_source`).
+    """
+    package_purl = pub_git_purl(name, version, url, resolved_ref, path)
+    if not is_relative_git_url(url):
+        return struct(identity = purl_identity(package_purl), purl = package_purl)
+    if lock == None:
+        fail("The git package \"{}\" {} is locked with the relative url \"{}\", and no lock is given to resolve it against.".format(name, version, url))
+    directory = lock_path_in_repo(lock, url)
+    if directory == ".." or directory.startswith("../"):
+        return struct(identity = None, purl = package_purl)
     return struct(
-        loads = 'load("{}", "package_metadata")\n'.format(str(Label("@package_metadata//rules:package_metadata.bzl"))),
+        identity = local_git_identity(lock.repo_name, directory, resolved_ref, normalize_pub_path(path)),
+        purl = package_purl,
+    )
+
+def _git_subdirectory(path):
+    directory = normalize_pub_path(path)
+    return "#" + directory if directory else ""
+
+def normalize_pub_path(path):
+    """A path as pub reads it, `/`-separated, with `.` and `..` collapsed.
+
+    A `..` that would leave the path's start is kept, so a path leaving the
+    directory it is relative to still says so.
+
+    Args:
+        path: A path, `/`- or `\\`-separated.
+
+    Returns:
+        The path, without empty or `.` segments; "" for the directory itself.
+    """
+    absolute = path.startswith("/")
+    parts = []
+    for part in path.replace("\\", "/").split("/"):
+        if part in ("", "."):
+            continue
+        if part == ".." and parts and parts[-1] != "..":
+            parts.pop()
+        else:
+            parts.append(part)
+    return ("/" if absolute else "") + "/".join(parts)
+
+def lock_path_in_repo(lock, path):
+    """A lock's relative `path`, from the root of the lock's repository.
+
+    Args:
+        lock: The lock's `Label`.
+        path: The lock entry's `description.path`, relative to the lock's
+            directory.
+
+    Returns:
+        The path, normalized (`normalize_pub_path`); it starts with `..` when
+        it leaves the repository.
+    """
+
+    # The lock's directory, from its package and its name: a lock named
+    # `sub/pubspec.lock` sits in the package's `sub/`.
+    directory = (lock.package + "/" + lock.name if lock.package else lock.name).rpartition("/")[0]
+    return normalize_pub_path(directory + "/" + path if directory else path)
+
+def pub_path_source(lock, path):
+    """Where a `path` package built from its directory came from: that directory.
+
+    The identity is the repository holding the lock and the directory's path
+    from that repository's root. It is the same on every machine and for every
+    lock naming the directory, however each spells the path (`./`, a trailing
+    `/`, `..`), so two fetchers building one directory state one identity, as
+    two fetching one archive state one purl.
+
+    It has no purl: its files are the lock's repository's own, which is where
+    they came from, so the repository's own supply-chain metadata, if any, is
+    theirs. The purl spec has no type for a directory, and a second origin
+    would be false.
+
+    A directory the lock names by an absolute path, or by one leaving the
+    lock's repository, has no such name, so the package has no source: a copy
+    stating none is one package with no other copy. rules_dart's `pub` refuses
+    to build such a package; build it from a directory inside the lock's
+    repository, or map it with `resolve`.
+
+    Args:
+        lock: The lock's `Label`.
+        path: The lock entry's `description.path`, relative to the lock's
+            directory.
+
+    Returns:
+        The source (`pub_hosted_source`), or None.
+    """
+    unix = path.replace("\\", "/")
+    if unix.startswith("/") or (len(unix) > 1 and unix[1] == ":"):
+        return None
+    directory = lock_path_in_repo(lock, path)
+    if directory == ".." or directory.startswith("../"):
+        return None
+    return struct(identity = directory_identity(lock.repo_name, directory), purl = "")
+
+# The rule declaring a package fetched as each kind of identity.
+_FETCHED_RULES = {
+    "purl": "fetched_package_metadata",
+    "local_git": "fetched_local_git_package_metadata",
+    "directory": "fetched_path_package_metadata",
+}
+
+def _identity_of(source):
+    return source.identity if source != None else None
+
+def _declaration_rule(identity):
+    return _FETCHED_RULES[identity.kind] if identity != None else "dart_package_metadata"
+
+def _declaration_load(identity):
+    if identity == None:
+        return 'load("@rules_dart//dart:defs.bzl", "dart_package_metadata")\n'
+    return 'load("@rules_dart//dart/private:fetched_package_metadata.bzl", "{}")\n'.format(_declaration_rule(identity))
+
+def pub_package_identity(source = None):
+    """What a pub package's repository writes to say what it holds.
+
+    Every generated package's BUILD file declares it with the rule `loads`
+    loads, which `make_package_metadata_content(source = ...)` writes: one for
+    each kind of fetched identity, and `dart_package_metadata` for a package
+    without one. A package with a purl also says so to Bazel's supply-chain
+    metadata: a `package_metadata` target with the purl, in the BUILD file at
+    the repository's root, and a `REPO.bazel` attaching it to every target in
+    the repository.
+    `make_dart_library_build_content(source = ...)` and
+    `make_pub_member_build_content(source = ...)` write the BUILD file's part;
+    a rule set writing its own BUILD file puts `loads` among its loads and
+    `target` among its targets, and writes `repo_file`, when not empty, as
+    `REPO.bazel`.
+
+    Args:
+        source: The package's source (`pub_hosted_source`, `pub_git_source`,
+            `pub_path_source`), or None for a package no fetcher states.
+
+    Returns:
+        `struct(loads, target, repo_file)`; `target` and `repo_file` are ""
+        without a purl.
+    """
+    declaration = _declaration_load(_identity_of(source))
+    if source == None or not source.purl:
+        return struct(loads = declaration, target = "", repo_file = "")
+    return struct(
+        loads = 'load("{}", "package_metadata")\n'.format(str(Label("@package_metadata//rules:package_metadata.bzl"))) + declaration,
         target = """
 package_metadata(
     name = "{target}",
     purl = "{purl}",
     visibility = ["//visibility:public"],
 )
-""".format(target = _IDENTITY_TARGET, purl = purl),
+""".format(target = _IDENTITY_TARGET, purl = source.purl),
         repo_file = 'repo(default_package_metadata = ["//:{}"])\n'.format(_IDENTITY_TARGET),
     )
 
-_LOAD = 'load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")\n'
+def _identity_attrs(identity):
+    if identity == None:
+        return ""
+    if identity.kind == "purl":
+        attrs = [("purl", identity.purl)]
+    elif identity.kind == "directory":
+        attrs = [("repository", identity.repository), ("directory", identity.directory)]
+    else:
+        attrs = [
+            ("repository", identity.repository),
+            ("directory", identity.directory),
+            ("commit", identity.commit),
+            ("package_path", identity.package_path),
+        ]
 
-def _metadata_block(name, language_version, version = "", code_assets = [], build_hook = "", link_hook = "", license_file = ""):
+    # Written even when empty: the main repository's name and a root's path are.
+    return "".join(['    {} = "{}",\n'.format(attr, value) for attr, value in attrs])
+
+def make_package_metadata_content(name, language_version, version = "", code_assets = [], build_hook = "", link_hook = "", license_file = "", source = None, visibility = "//visibility:public"):
+    """The target declaring a generated package's facts, named `pubspec-metadata`.
+
+    With a source that has a fetched identity, the package is one a fetcher
+    fetched, declared by the rule for that kind of identity, which a BUILD file
+    of the workspace does not write. Two packages of one name at different
+    roots are one package only when both are declared so, with one identity,
+    as when rules_dart's `pub` and another rule set's fetcher each fetch it
+    from agreeing locks, or each build it from one directory. Without one, a
+    `dart_package_metadata`, as for a package of the workspace's own.
+
+    For a rule set whose fetcher writes its own BUILD files (rules_flutter's
+    `flutter_pub_package`): put `pub_package_identity(source).loads` among its
+    loads, and this among its targets. A copy of a package fetched without an
+    identity is not taken for rules_dart's copy of it, so a program reaching
+    both fails.
+
+    Args:
+        name: The package name.
+        language_version: From its `environment.sdk`, or "".
+        version: The version pub resolved, or "".
+        code_assets: `dart_code_asset` label strings replacing its build hook.
+        build_hook: Its unreplaced `hook/build.dart`, package-relative, or "".
+        link_hook: Its `hook/link.dart`, package-relative, or "".
+        license_file: Its license file (`find_pub_license_file()`), or "".
+        source: Where it came from (`pub_hosted_source`, `pub_git_source`,
+            `pub_path_source`), or None.
+        visibility: The target's visibility.
+
+    Returns:
+        BUILD content: the target, without its load.
+    """
     return """\
-dart_package_metadata(
+{kind}(
     name = "{target}",
     package_name = "{name}",
     language_version = "{language_version}",
-{version}{assets}{hook}{license}{link_hook}    visibility = ["//visibility:public"],
+{version}{assets}{hook}{license}{link_hook}{identity}    visibility = ["{visibility}"],
 )
 """.format(
+        kind = _declaration_rule(_identity_of(source)),
         target = _METADATA_TARGET,
         name = name,
         language_version = language_version,
+        identity = _identity_attrs(_identity_of(source)),
+        visibility = visibility,
         version = _string_block("version", version),
         assets = _list_block("code_assets", code_assets),
         hook = _string_block("build_hook", build_hook),
@@ -205,7 +435,7 @@ def find_pub_license_file(rctx):
         if not p.is_dir
     ])
 
-def make_dart_library_build_content(name, deps, language_version, code_assets = [], build_hook = "", version = "", link_hook = "", license_file = "", purl = ""):
+def make_dart_library_build_content(name, deps, language_version, code_assets = [], build_hook = "", version = "", link_hook = "", license_file = "", source = None):
     """Generate the BUILD.bazel content for a single `dart_library` spoke.
 
     The shape — a `dart_package_metadata` stating the package's facts, and a
@@ -239,26 +469,24 @@ def make_dart_library_build_content(name, deps, language_version, code_assets = 
             replacing it, a consuming binary fails with an explanation
             instead of at runtime.
         version: The resolved package version this spoke was fetched at, or
-            empty. A trailing keyword with a default because this helper is
-            re-exported for rule sets outside //dart/pub — notably
-            rules_flutter's `flutter_pub_package` — whose existing calls must
-            keep working; a spoke that omits it simply states no version, and
-            an unstated version never conflicts with a stated one.
+            empty.
         link_hook: Package-relative path of the package's link hook
-            (`hook/link.dart`), or empty. Trailing with a default for the same
-            reason as `version`.
+            (`hook/link.dart`), or empty.
         license_file: Package-relative path of the package's license file
-            (`find_pub_license_file()`), or empty. Trailing with a default for
-            the same reason as `version`.
-        purl: The package's purl (`pub_hosted_purl`, `pub_git_purl`), for a
+            (`find_pub_license_file()`), or empty.
+        source: Where the package came from
+            (`make_package_metadata_content`); its purl is also stated on a
             `package_metadata` target, which the repository's `REPO.bazel`
-            (`pub_package_identity(purl).repo_file`) attaches to every
-            target; empty for a package of the user's own, which states none.
+            (`pub_package_identity(source).repo_file`) attaches to every
+            target. None for a package no fetcher states. A spoke that omits
+            it is not taken for another fetcher's copy of the package: a
+            program reaching both fails, as for two packages sharing a name.
 
     Returns:
         BUILD.bazel content as a string.
     """
-    library = _metadata_block(
+    identity = pub_package_identity(source)
+    library = make_package_metadata_content(
         name,
         language_version,
         version = version,
@@ -266,7 +494,8 @@ def make_dart_library_build_content(name, deps, language_version, code_assets = 
         build_hook = build_hook,
         link_hook = link_hook,
         license_file = license_file,
-    ) + pub_package_identity(purl).target + """
+        source = source,
+    ) + identity.target + """
 dart_library(
     name = "{target}",
     srcs = glob(["lib/**/*.dart"], allow_empty = True),
@@ -287,7 +516,7 @@ dart_library(
         metadata = _METADATA_TARGET,
         visibility = "//visibility:private" if name == "test" else "//visibility:public",
     )
-    loads = _LOAD + pub_package_identity(purl).loads
+    loads = 'load("@rules_dart//dart:defs.bzl", "dart_library")\n' + identity.loads
     if name != "test":
         return loads + "\n" + library
     return loads + _TEST_RUNNER_LOAD + "\n" + library + "\n" + _TEST_RUNNER_BLOCK
@@ -302,7 +531,7 @@ def _list_block(attr, items):
 def _string_block(attr, value):
     return '    {} = "{}",\n'.format(attr, value) if value else ""
 
-def make_pub_member_build_content(name, language_version, version, code_assets = [], unreplaced_hook = "", link_hook = "", license_file = "", purl = ""):
+def make_pub_member_build_content(name, language_version, version, code_assets = [], unreplaced_hook = "", link_hook = "", license_file = "", source = None):
     """The BUILD file of a `pub.from_lock()` package's source repository.
 
     It states what the package's own archive says — its files, language
@@ -319,12 +548,14 @@ def make_pub_member_build_content(name, language_version, version, code_assets =
         unreplaced_hook: Its unreplaced build hook's path, or "".
         link_hook: `hook/link.dart` if it has one, or "".
         license_file: Its license file (`find_pub_license_file()`), or "".
-        purl: Its purl, as for `make_dart_library_build_content`, or "".
+        source: Where it came from, as for
+            `make_dart_library_build_content`, or None.
 
     Returns:
         BUILD.bazel content.
     """
-    return 'load("@rules_dart//dart:defs.bzl", "dart_package_metadata")\n' + _PUB_LIBRARY_LOAD.format(rule = "pub_package_member") + pub_package_identity(purl).loads + "\n" + _metadata_block(
+    identity = pub_package_identity(source)
+    return _PUB_LIBRARY_LOAD.format(rule = "pub_package_member") + identity.loads + "\n" + make_package_metadata_content(
         name,
         language_version,
         version = version,
@@ -332,7 +563,8 @@ def make_pub_member_build_content(name, language_version, version, code_assets =
         build_hook = unreplaced_hook,
         link_hook = link_hook,
         license_file = license_file,
-    ) + pub_package_identity(purl).target + """
+        source = source,
+    ) + identity.target + """
 pub_package_member(
     name = "{name}",
     srcs = glob(["lib/**/*.dart"], allow_empty = True),

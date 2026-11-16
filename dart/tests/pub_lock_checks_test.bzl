@@ -16,6 +16,8 @@ load(
     "lock_mapping_error",
     "path_packages",
     "pub_command",
+    "published_by_rules_dart",
+    "published_here_targets",
     "resolved_packages",
     "resolved_pubspecs",
     "source_disagreement_errors",
@@ -69,6 +71,11 @@ def _mapping_accepts_every_path_package_named_once_test_impl(ctx):
         ignored = {"c": "an editor's"},
     )
     asserts.equals(env, None, lock_mapping_error(lock))
+
+    # A lock named `sub/pubspec.lock` sits in `app/sub/`, so `../../x` is
+    # `x`, inside the repository; from `app/` it would leave it.
+    nested = _lock({"x": _path("../../x")}, lock = "//app:sub/pubspec.lock", build_from_pubspec = ["x"])
+    asserts.equals(env, None, lock_mapping_error(nested))
     return unittest.end(env)
 
 def _mapping_names_each_problem_test_impl(ctx):
@@ -245,6 +252,47 @@ def _resolved_pubspecs_test_impl(ctx):
     asserts.equals(env, "0.1.0", found["mine"].version)
     return unittest.end(env)
 
+def _published_here_test_impl(ctx):
+    # rules_dart publishes `runfiles` to pub.dev from its own sources, so a
+    # lock's pub.dev entry and rules_dart's target are one package. The lock's
+    # version does not matter.
+    env = unittest.begin(ctx)
+    published = {"runfiles": "//dart/runfiles"}
+    hosted = _lock({"runfiles": _hosted("0.1.0")})
+    mapped = published_here_targets([hosted], {}, {}, published)
+    asserts.equals(env, "//dart/runfiles", mapped["runfiles"].target)
+
+    # Named with `pub.package()`, which only reaches pub.dev.
+    asserts.equals(env, "//dart/runfiles", published_here_targets([], {"runfiles": []}, {}, published)["runfiles"].target)
+
+    # A build that names it nowhere gets no repository for it.
+    asserts.equals(env, {}, published_here_targets([_lock({"a": _hosted()})], {}, {}, published))
+
+    # The user's own `resolve` wins.
+    own = {"runfiles": struct(target = "//fork", lock_label = "//:pubspec.lock")}
+    asserts.equals(env, "//fork", published_here_targets([hosted], {}, own, published)["runfiles"].target)
+
+    # What is not pub.dev's `runfiles` is some other package of that name.
+    elsewhere = _hosted()
+    elsewhere["description"] = {"sha256": "0" * 64, "url": "https://registry.example.invalid"}
+    for other in (elsewhere, _git(), _path("third_party/runfiles")):
+        asserts.equals(env, {}, published_here_targets([_lock({"runfiles": other})], {}, {}, published))
+        asserts.equals(env, {}, published_here_targets([hosted, _lock({"runfiles": other})], {}, {}, published))
+
+    # Older locks name pub.dev by its former host.
+    legacy = _hosted()
+    legacy["description"] = {"sha256": "0" * 64, "url": "https://pub.dartlang.org"}
+    asserts.true(env, "runfiles" in published_here_targets([_lock({"runfiles": legacy})], {}, {}, published))
+
+    # What another pub extension reads, without this one's lock structure.
+    listing = {"runfiles": _hosted("0.1.0")}
+    asserts.equals(env, published, published_by_rules_dart([listing], [], published))
+    asserts.equals(env, published, published_by_rules_dart([], ["runfiles"], published))
+    asserts.equals(env, {}, published_by_rules_dart([{"a": _hosted()}], [], published))
+    asserts.equals(env, {}, published_by_rules_dart([listing, {"runfiles": _git()}], [], published))
+    asserts.equals(env, {"runfiles": Label("//dart/runfiles")}, published_by_rules_dart([listing]))
+    return unittest.end(env)
+
 _t0_test = unittest.make(_pub_command_test_impl)
 _t1_test = unittest.make(_mapping_accepts_every_path_package_named_once_test_impl)
 _t2_test = unittest.make(_mapping_names_each_problem_test_impl)
@@ -255,6 +303,7 @@ _t6_test = unittest.make(_git_entry_unpinned_test_impl)
 _t7_test = unittest.make(_git_disagreement_test_impl)
 _t8_test = unittest.make(_source_disagreement_test_impl)
 _t9_test = unittest.make(_resolved_pubspecs_test_impl)
+_t10_test = unittest.make(_published_here_test_impl)
 
 def pub_lock_checks_test_suite(name):
-    small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test, _t4_test, _t5_test, _t6_test, _t7_test, _t8_test, _t9_test)
+    small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test, _t4_test, _t5_test, _t6_test, _t7_test, _t8_test, _t9_test, _t10_test)

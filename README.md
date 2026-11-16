@@ -242,6 +242,32 @@ same package name different ones, or one names it and the other names none.
 Then any program, test, library or analysis that reaches both fails to build,
 and the error names both targets.
 
+Two different packages can't share a name, either. Say you build a package
+named `collection` in your workspace, and a program also reaches pub's
+`collection`. The build fails and names both targets. If yours is a fork or a
+vendored copy, have it replace pub's for the whole build with
+`resolve = {"collection": "//third_party/collection"}` on `pub.from_lock()`.
+If the two only share a name, rename yours. (A `dart_library` with only `deps`
+is no package, so wrapping pub's `collection` in a directory called `collection`
+is fine.) Stating the same `version` on both doesn't make them one. The build
+holds one `runfiles`: pub.dev's is published from `@rules_dart//dart/runfiles`,
+so a lock's entry for it is that target, whichever version the lock names. When
+rules_dart's `pub` and
+rules_flutter's `flutter_pub` each fetch pub's `collection`, the two copies are
+one package if both fetched the same thing: the same version's archive from
+the same registry, the same git commit, or, for a `path` package both build
+from its pubspec, the same directory. If not, the build fails naming both.
+Then make the two lock files agree, or have one take the package from the
+other's hub with `resolve`, which both `from_lock`s take:
+
+```starlark
+flutter_pub.from_lock(
+    name = "flutter_deps",
+    lock = "//app:pubspec.lock",
+    resolve = {"collection": "@pub_deps//:collection"},
+)
+```
+
 If you're used to other languages in Bazel, you might expect one library per
 directory. Dart doesn't need that. Directories under `lib/` have no meaning to
 the compiler, and files in one package may import each other in a cycle. So one
@@ -956,8 +982,8 @@ reads it from each target's `package_metadata` attribute.
 | Source | purl |
 |---|---|
 | hosted (`pub.package()`, `pub.from_lock()`) | `pkg:pub/<name>@<version>?checksum=sha256:<hex>`, with `repository_url` for a registry other than pub.dev |
-| git | `pkg:pub/<name>@<version>?vcs_url=git+<url>@<commit>`, with `#<path>` for a package in a subdirectory |
-| path, `build_from_pubspec` | None. The package is yours, and states its own. |
+| git | `pkg:pub/<name>@<version>?vcs_url=git+<url>@<commit>`, with `#<path>` for a package in a subdirectory. A url relative to the lock appears as the lock writes it, so the SBOM shows a path from the lock's checkout. |
+| path, `build_from_pubspec` | None. Its files are its repository's own, and that repository states where they came from. |
 
 The Dart SDK's repositories are `pkg:generic/dart-sdk@<version>`, with the
 archive's `checksum` and `download_url`. The purl spec has no type for the SDK.

@@ -312,6 +312,7 @@ def package_info_from_metadata(label, metadata, package_root):
         linked_code_assets = metadata.linked_code_assets,
         license_file = metadata.license_file,
         metadata = metadata.label,
+        fetched_identity = metadata.fetched_identity,
     )
 
 def _dep_packages(deps):
@@ -320,12 +321,13 @@ def _dep_packages(deps):
         for dep in deps
     }
 
-def dart_info_no_package(deps = []):
+def dart_info_no_package(deps = [], runfiles = None):
     """Builds a `DartInfo` for a target that contributes no Dart package.
 
     For a target that has to be listed in a `deps` attribute requiring
     `DartInfo` but ships no Dart: `flutter_material_icons` provides a font, and
-    wants the provider present, not contributing. It records no
+    wants the provider present, not contributing; a `dart_library` with only
+    `deps` passes them on. It records no
     `DartPackageInfo`, so nothing it is listed on gains a `package_config.json`
     entry or a source to compile.
 
@@ -339,6 +341,7 @@ def dart_info_no_package(deps = []):
 
     Args:
       deps: Targets providing `DartInfo` whose closures are merged in.
+      runfiles: This target's own runfiles (its `data`), or None.
 
     Returns:
       A `DartInfo` carrying its dependencies' closures and nothing else.
@@ -352,6 +355,7 @@ def dart_info_no_package(deps = []):
         packages = [],
         # The label is for an error, and a dependency names itself in it.
         summaries = summaries_info(dep_summaries(None, deps)),
+        runfiles = runfiles,
     )
 
 def dart_analyzable_info(
@@ -536,6 +540,7 @@ def derived_package_info(
         ),
         license_file = pkg.license_file if license_file == None else license_file,
         metadata = pkg.metadata,
+        fetched_identity = pkg.fetched_identity,
     )
 
 def _merged_dart_info(

@@ -4,6 +4,7 @@ load("//dart:providers.bzl", "CODE_ASSET_LINK_MODES", "DartCodeAssetInfo", "Dart
 load("//dart/ext:registry.bzl", "curated_versions")
 load("//dart/private:dart_info.bzl", "derived_package_info", "package_info_from_metadata", "package_lib_prefix")
 load("//dart/private:exec_groups.bzl", "PORTABLE", "portable_sdk")
+load("//dart/private:package_info.bzl", "fetched_identity_text")
 load("//dart/private:package_root.bzl", "derive_package_root")
 load("//dart/private:resources.bzl", "kernel_resources")
 load("//dart/private:source_set.bzl", "needs_source_assembly", "package_for_index", "package_index")
@@ -267,22 +268,40 @@ def derived_pubspec(name, sdk, packages):
     return "\n".join(lines) + "\n"
 
 _VERSION_REMEDY = """
-Each package listed just above was resolved to different versions by two
-package sources. Typically two pub hubs — rules_flutter's `flutter.pub()` and
-rules_dart's `pub.from_lock()` each generating a spoke for the same package —
-whose lock files have drifted apart. Only one record per package can win, and
-dependency order would decide which, so the build would compile against
-whichever came first regardless of what the other's lock pins.
+Each package listed just above has records stating different `version`s,
+though they are one package: one declaration, or one fetched identity. A
+package has one version, so which one its generated `pubspec.yaml` states
+would be decided by dependency order. Make the producers of those records
+state the same `version`, or have only one of them state it.
+"""
 
-Reconcile the lock files feeding the two hubs so both pin one version of each:
-re-resolve the lagging lock with the toolchain that builds it, from the root of
-the workspace that holds it. For a lock `pub.from_lock()` reads:
+_FETCHED_REMEDY = """
+Each package listed just above was fetched differently by two fetchers,
+typically rules_dart's `pub` and rules_flutter's `flutter_pub`, each fetching
+it into a repository of its own, from lock files that have drifted apart,
+that name different registries or git commits, or that build it from
+different directories. A program has one package per name, so dependency
+order would decide which copy compiles.
+
+Make the two locks agree, so both fetch each package alike: re-resolve the
+lagging lock with the toolchain that builds it, from the root of the workspace
+that holds it, or make both name one directory. For a lock rules_dart's `pub`
+reads:
 
   bazel run @rules_dart//dart/pub -- upgrade --directory=<the lock's directory> <package>
 
+Or have one fetcher take the package from the other's hub: name it in
+`resolve` on that fetcher's `from_lock`, which rules_dart's `pub` and
+rules_flutter's `flutter_pub` both take, with the other hub's label:
+
+  resolve = {"<package>": "@<the other hub>//:<package>"},
+
 Every package that disagrees is listed, so one reconciliation settles all of
 them.
+"""
 
+# After the fetched remedy, when some package's copies are different versions.
+_ONE_VERSION = """
 rules_dart does not support multiple versions of a package.
 """
 
@@ -321,6 +340,31 @@ _BUILD_HOOK_REMEDY = """
 Each package listed just above has records naming different build hooks. A
 package has one `hook/build.dart`; make every producer that states one state
 the same path.
+"""
+
+_SOURCE_REMEDY = """
+Each package listed just above is supplied from more than one directory, and
+nothing makes those one package: they name no common `dart_package_metadata`,
+and they are not one package that two fetchers each fetched alike. A program
+has one package per name, so dependency order would decide which one compiles.
+Rename the package you build (`package_name` on its `dart_package_metadata`, or
+the directory a target naming none is named after), or depend on only one of
+them.
+"""
+
+# The fix for each package a workspace target and a fetcher both supply. Printed
+# with a `resolve` line per package.
+_FORK_REMEDY = """
+Each package listed just above is built in the workspace and also fetched, and
+nothing makes those one package. A program has one package per name, so
+dependency order would decide which one compiles. If yours is a fork or a
+vendored copy, have it replace the fetched one for the whole build, in `resolve`
+on the `pub.from_lock()` (or rules_flutter's `flutter_pub`) whose lock lists it:
+
+%s
+If they are unrelated and only share a name, rename yours (`package_name` on its
+`dart_package_metadata`, or the directory a target naming none is named after),
+or depend on only one of them.
 """
 
 _METADATA_REMEDY = """
@@ -538,14 +582,6 @@ def codegen_identity(identity):
         package_name = identity.package_name,
         package_root = "",
         language_version = "",
-        version = "",
-        code_assets = (),
-        data_assets = (),
-        unreplaced_hook = "",
-        link_hook = None,
-        link_hook_assets = (),
-        linked_code_assets = (),
-        license_file = None,
     )
 
 def _declared_by(metadata_label, package_name):
@@ -598,9 +634,7 @@ def package_agreement_error(merged):
     Two records for one `package_name` are normal — see `merge_package_records`
     for why — but they are supposed to describe the *same* package. Were they
     to disagree, `merge_package_records` would keep one and silently discard
-    the other: for `version`, one version's entire source tree substituted for
-    the other's, which a skewed pair of lock files reproduces; for
-    `language_version`, the package compiled under semantics one of its
+    the other: for `language_version`, the package compiled under semantics one of its
     targets did not state; for `link_hook`, one hook run and the other
     skipped.
 
@@ -614,6 +648,14 @@ def package_agreement_error(merged):
     Treating "" as a disagreement would fail every dual-hub build including
     the agreeing ones; treating it as "knows less" is what lets the merge take
     the fact from whichever record states it.
+
+    That holds only between records of one package. Records rooted apart that
+    name no common declaration are one package only when each carries a
+    `fetched_identity` and the identities are equal: one package fetched alike
+    by two fetchers. Otherwise they are different packages sharing a name, or
+    two copies fetched differently, and are reported, naming each and what it
+    was fetched as; their facts are not compared, though other packages'
+    are.
 
     The license file and link hook are compared by their path within the
     package rather than as Files, for the reason `_in_package_key` gives. Each
@@ -641,16 +683,22 @@ def package_agreement_error(merged):
       duplicate agrees.
     """
 
-    # Targets naming different declarations of one package is the cause of
-    # any value they disagree on, so it is reported alone.
+    # Targets naming different declarations of one package are the cause of
+    # any value they disagree on, so they are reported alone.
     err = _metadata_agreement_error(merged)
     if err != None:
         return err
-    blocks = []
+
+    # Packages sharing a name are not one package, so their facts are not
+    # compared; the other packages' still are.
+    apart = _source_agreement_error(merged)
+    blocks = [apart.error] if apart.error != None else []
     for read, label, remedy in _AGREED_FIELDS:
         # value -> the first record stating it, per package name.
         stated = {}
         for pkg in merged:
+            if pkg.package_name in apart.names:
+                continue
             value = read(pkg)
             if not value:
                 continue
@@ -730,6 +778,115 @@ def _metadata_agreement_error(merged):
         return None
     return "".join(reported) + _METADATA_REMEDY
 
+def _source_agreement_error(merged):
+    """Reports a package name supplied by packages that nothing makes one.
+
+    Records of one name are one package when they share a root (the targets
+    of one package), when they name one `dart_package_metadata` (a package
+    whose sources are assembled elsewhere), or when each carries the same
+    `fetched_identity` (one package that two fetchers each fetched into a
+    repository of their own, compared by value afterwards). A fetched
+    identity is stated only by a fetcher's generated BUILD file, so a
+    package of the workspace, or a version stated by hand, never makes two
+    roots one package.
+
+    Returns:
+      `struct(error, names)`: the message, or None, and the package names it
+      reports.
+    """
+
+    # name -> [struct(roots, metas, first, identity, version)]: the records
+    # of one package, joined as each new record shares a root or a
+    # declaration with groups already seen.
+    sources = {}
+    for pkg in merged:
+        hit = []
+        rest = []
+        for g in sources.get(pkg.package_name, []):
+            if pkg.package_root in g.roots or (pkg.metadata != None and pkg.metadata in g.metas):
+                hit.append(g)
+            else:
+                rest.append(g)
+        roots = {pkg.package_root: True}
+        metas = {pkg.metadata: True} if pkg.metadata != None else {}
+        for g in hit:
+            roots.update(g.roots)
+            metas.update(g.metas)
+
+        # Records joined by a root or a declaration name one declaration, so
+        # carry one identity, or `_metadata_agreement_error` reports them;
+        # versions they disagree on, the value comparison reports.
+        identities = [g.identity for g in hit if g.identity != None] + [pkg.fetched_identity]
+        versions = [g.version for g in hit if g.version] + [pkg.version]
+        sources[pkg.package_name] = rest + [struct(
+            roots = roots,
+            metas = metas,
+            first = hit[0].first if hit else pkg,
+            identity = identities[0],
+            version = versions[0],
+        )]
+
+    reported = []
+    names = {}
+    unfetched = False
+    forks = []
+    fetched_apart = False
+    versions_apart = False
+    for package_name in sorted(sources.keys()):
+        groups = sources[package_name]
+        identities = {g.identity: True for g in groups}
+        if len(groups) < 2 or (len(identities) == 1 and None not in identities):
+            continue
+        names[package_name] = True
+        lines = sorted([
+            "  - %s, %s\n" % (
+                _stated_by(g.first),
+                _fetched_as(g.identity),
+            )
+            for g in groups
+        ])
+        if None in identities:
+            built = [g for g in groups if g.identity == None]
+            if len(built) == 1:
+                forks.append("  resolve = {\"%s\": \"%s\"},\n" % (package_name, _resolve_label(built[0].first.label)))
+            else:
+                unfetched = True
+        else:
+            fetched_apart = True
+            versions = sorted({g.version: True for g in groups if g.version}.keys())
+            if len(versions) > 1:
+                versions_apart = True
+                lines.append("  They are different versions: %s.\n" % ", ".join(versions))
+            elif not [i for i in identities if i.kind != "directory"]:
+                lines.append("  They are built from different directories.\n")
+            elif [i for i in identities if i.kind == "directory"]:
+                lines.append("  One is built from a directory, another fetched from a registry or git.\n")
+            else:
+                lines.append("  They are fetched from different registries, archives or git commits.\n")
+        reported.append("Package \"%s\" is supplied by different packages:\n" % package_name + "".join(lines))
+    if not reported:
+        return struct(error = None, names = names)
+    remedies = (
+        ([_SOURCE_REMEDY] if unfetched else []) +
+        ([_FORK_REMEDY % "".join(forks)] if forks else []) +
+        ([_FETCHED_REMEDY] if fetched_apart else []) +
+        ([_ONE_VERSION] if versions_apart else [])
+    )
+    return struct(error = "".join(reported) + "".join(remedies), names = names)
+
+def _resolve_label(label):
+    """`label` as a person would write it in `resolve`."""
+    text = str(label)
+    if text.startswith("@@//"):
+        text = text[2:]
+    head, _, target = text.rpartition(":")
+    return head if head.endswith("/" + target) else text
+
+def _fetched_as(identity):
+    if identity == None:
+        return "which no fetcher states it fetched"
+    return ("built from " if identity.kind == "directory" else "fetched as ") + fetched_identity_text(identity)
+
 def _first_stated(records, read, empty):
     for pkg in records:
         value = read(pkg)
@@ -746,9 +903,9 @@ def merge_package_records(merged):
         per-directory layout, and the case `colocate_packages` exists to
         serve — whose records name one `dart_package_metadata` and so state
         the same facts; and
-      * a package supplied independently by two pub hubs, e.g. rules_flutter's
-        `flutter.pub()` and rules_dart's `pub.from_lock()` both generating a
-        spoke for `ffi`, rooted apart.
+      * a package fetched alike by two fetchers, e.g. rules_flutter's
+        `flutter_pub` and rules_dart's `pub` both generating a repository for
+        `ffi`, rooted apart and carrying one `fetched_identity`.
 
     The merged record is the first record, for source resolution, with every
     package-level fact taken from whichever record states it: `version`,
@@ -758,8 +915,9 @@ def merge_package_records(merged):
     stated on any record is the package's. Taking the first stated value is order-independent only
     because the records agree, so this calls `package_agreement_error` first
     and fails, naming both targets, when two records at one root name
-    different declarations or two records state different values of any of
-    those fields.
+    different declarations, when records rooted apart are not one package
+    (they name no common declaration and do not carry one `fetched_identity`),
+    or when two records state different values of any of those fields.
 
     Code and data assets union instead, each once: dropping a later record's
     assets would silently lose a native library, and the failure would surface

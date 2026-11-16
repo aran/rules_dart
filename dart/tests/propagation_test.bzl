@@ -9,7 +9,7 @@ gets you its assets with no opt-in.
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts", "unittest")
 load("//dart:providers.bzl", "DartCodeAssetInfo", "DartInfo")
 load("//dart/private:common.bzl", "merge_package_records", "package_agreement_error", "package_code_assets", "resolve_code_assets")
-load("//dart/private:package_info.bzl", "raw_dart_package_info")
+load("//dart/private:package_info.bzl", "purl_identity", "raw_dart_package_info")
 load(":small_suite.bzl", "small_unittest_suite")
 
 _L = "//pkg:consumer"
@@ -31,7 +31,7 @@ def _asset(asset_id, owner_path = "libfoo.so", link_mode = "dynamic_loading_bund
 
 # Built raw, not through `DartPackageInfo(...)`: that takes the code assets as
 # targets providing `DartCodeAssetInfo`, and these tests have values.
-def _pkg(package_name, package_root, code_assets = (), version = "", language_version = ""):
+def _pkg(package_name, package_root, code_assets = (), version = "", language_version = "", fetched = None):
     return raw_dart_package_info(
         label = None,
         package_name = package_name,
@@ -46,6 +46,9 @@ def _pkg(package_name, package_root, code_assets = (), version = "", language_ve
         linked_code_assets = (),
         license_file = None,
         metadata = None,
+        # A stated version stands for a fetcher's copy, fetched as it says,
+        # unless `fetched` says otherwise.
+        fetched_identity = purl_identity("pkg:pub/%s@%s" % (package_name, version)) if version and fetched != False else None,
     )
 
 # --- resolve_code_assets ---
@@ -120,15 +123,14 @@ def _resolve_keeps_non_bundle_modes_test_impl(ctx):
 def _two_hubs_supply_one_package_test_impl(ctx):
     # Regression: two independent pub hubs — rules_flutter's `flutter.pub()`
     # and rules_dart's `pub.from_lock()` — each generate a spoke for `ffi`,
-    # giving one package name two `package_root`s. This is normal, not an error.
-    # The same shape arises from a package deliberately split across
-    # `dart_library` targets, which `colocate_packages` exists to support.
+    # giving one package name two `package_root`s at one version. This is
+    # normal, not an error.
     env = unittest.begin(ctx)
     packages = merge_package_records([
-        _pkg("ffi", "../rules_flutter++flutter+deps__ffi"),
-        _pkg("ffi", "../rules_dart++pub+dart_pub__ffi"),
-        _pkg("meta", "../rules_flutter++flutter+deps__meta"),
-        _pkg("meta", "../rules_dart++pub+dart_pub__meta"),
+        _pkg("ffi", "../rules_flutter++flutter+deps__ffi", version = "2.2.0"),
+        _pkg("ffi", "../rules_dart++pub+dart_pub__ffi", version = "2.2.0"),
+        _pkg("meta", "../rules_flutter++flutter+deps__meta", version = "1.16.0"),
+        _pkg("meta", "../rules_dart++pub+dart_pub__meta", version = "1.16.0"),
     ])
     asserts.equals(env, ["ffi", "meta"], [p.package_name for p in packages])
 
@@ -137,13 +139,13 @@ def _two_hubs_supply_one_package_test_impl(ctx):
     return unittest.end(env)
 
 def _unions_assets_across_differing_roots_test_impl(ctx):
-    # Differing roots must still not lose assets: that silent drop is the one
+    # Two hubs' differing roots must still not lose assets: that silent drop is the one
     # thing the dedup can get wrong, and it surfaces at runtime as an
     # unresolved @Native symbol rather than at build time.
     env = unittest.begin(ctx)
     packages = merge_package_records([
-        _pkg("split", "first/split", (_asset("package:split/a.g.dart", "liba.so"),)),
-        _pkg("split", "second/split", (_asset("package:split/b.g.dart", "libb.so"),)),
+        _pkg("split", "first/split", (_asset("package:split/a.g.dart", "liba.so"),), version = "1.0.0"),
+        _pkg("split", "second/split", (_asset("package:split/b.g.dart", "libb.so"),), version = "1.0.0"),
     ])
     asserts.equals(env, 1, len(packages))
     ids = [a.asset_id for a in package_code_assets(packages[0])]
@@ -171,7 +173,7 @@ def _union_keeps_other_fields_test_impl(ctx):
     kept = _pkg("dual", "first/dual", (_asset("package:dual/a.g.dart"),), version = "1.2.3", language_version = "3.4")
     packages = merge_package_records([
         kept,
-        _pkg("dual", "second/dual", (_asset("package:dual/b.g.dart", "libb.so"),)),
+        _pkg("dual", "second/dual", (_asset("package:dual/b.g.dart", "libb.so"),), version = "1.2.3"),
     ])
     asserts.equals(env, 1, len(packages))
     asserts.equals(env, "first/dual", packages[0].package_root)
@@ -220,17 +222,19 @@ def _agreement_rejects_disagreeing_versions_test_impl(ctx):
     )
     return unittest.end(env)
 
-def _agreement_tolerates_one_sided_version_test_impl(ctx):
-    # A package that states no `version` (a `dart_library` written by hand)
-    # carries "". Comparing an empty against a known version would fail every
-    # dual-hub build immediately, including the agreeing ones, so only two
-    # *known* versions can disagree.
+def _agreement_rejects_one_sided_version_test_impl(ctx):
+    # A record stating no fetched identity at another root is not another
+    # fetcher's copy of the package, though it states the version: nothing
+    # says it is the same package, so the first of the two used to be
+    # compiled, whichever `deps` order put first.
     env = unittest.begin(ctx)
     err = package_agreement_error([
-        _pkg("ffi", "../rules_flutter++flutter+deps__ffi"),
+        _pkg("ffi", "../rules_flutter++flutter+deps__ffi", version = "2.2.0", fetched = False),
         _pkg("ffi", "../rules_dart++pub+dart_pub__ffi", version = "2.2.0"),
     ])
-    asserts.equals(env, None, err)
+    asserts.true(env, err != None, "a record no fetcher states it fetched beside a fetched one must be reported")
+    asserts.true(env, "../rules_flutter++flutter+deps__ffi, which no fetcher states it fetched" in err, err)
+    asserts.true(env, "../rules_dart++pub+dart_pub__ffi, fetched as pkg:pub/ffi@2.2.0" in err, err)
     return unittest.end(env)
 
 def _agreement_rejects_disagreeing_language_versions_test_impl(ctx):
@@ -240,8 +244,8 @@ def _agreement_rejects_disagreeing_language_versions_test_impl(ctx):
     # declared for it.
     env = unittest.begin(ctx)
     err = package_agreement_error([
-        _pkg("split", "first/split", language_version = "3.7"),
-        _pkg("split", "second/split", language_version = "3.4"),
+        _pkg("split", "first/split", version = "1.0.0", language_version = "3.7"),
+        _pkg("split", "second/split", version = "1.0.0", language_version = "3.4"),
     ])
     asserts.true(env, err != None, "disagreeing language versions must be reported")
     asserts.true(env, "3.7" in err, "message names the first language version")
@@ -254,8 +258,8 @@ def _agreement_tolerates_one_sided_language_version_test_impl(ctx):
     # one record simply knows less than the other.
     env = unittest.begin(ctx)
     err = package_agreement_error([
-        _pkg("split", "first/split", language_version = "3.7"),
-        _pkg("split", "second/split"),
+        _pkg("split", "pkgs/split", language_version = "3.7"),
+        _pkg("split", "pkgs/split"),
     ])
     asserts.equals(env, None, err)
     return unittest.end(env)
@@ -312,8 +316,8 @@ def _agreement_reports_both_fields_together_test_impl(ctx):
     err = package_agreement_error([
         _pkg("clock", "../flutter_hub__clock", version = "1.1.2"),
         _pkg("clock", "../dart_hub__clock", version = "1.1.3"),
-        _pkg("split", "first/split", language_version = "3.7"),
-        _pkg("split", "second/split", language_version = "3.4"),
+        _pkg("split", "first/split", version = "1.0.0", language_version = "3.7"),
+        _pkg("split", "second/split", version = "1.0.0", language_version = "3.4"),
     ])
     asserts.true(env, err != None, "both disagreements must be reported")
     asserts.true(env, '"clock"' in err, "message names the version mismatch")
@@ -405,7 +409,7 @@ def _asset_conflict_test_impl(ctx):
 
 def _version_conflict_test_impl(ctx):
     env = analysistest.begin(ctx)
-    asserts.expect_failure(env, "is supplied more than once with different versions")
+    asserts.expect_failure(env, "They are different versions: 2.1.5, 2.2.0.")
     return analysistest.end(env)
 
 version_conflict_test = analysistest.make(
@@ -456,7 +460,7 @@ _t7_test = unittest.make(_unions_assets_across_differing_roots_test_impl)
 _t8_test = unittest.make(_union_keeps_other_fields_test_impl)
 _t9_test = unittest.make(_agreement_accepts_agreeing_duplicates_test_impl)
 _t10_test = unittest.make(_agreement_rejects_disagreeing_versions_test_impl)
-_t11_test = unittest.make(_agreement_tolerates_one_sided_version_test_impl)
+_t11_test = unittest.make(_agreement_rejects_one_sided_version_test_impl)
 _t12_test = unittest.make(_agreement_rejects_disagreeing_language_versions_test_impl)
 _t13_test = unittest.make(_agreement_tolerates_one_sided_language_version_test_impl)
 _t14_test = unittest.make(_agreement_ignores_distinct_packages_test_impl)

@@ -1,52 +1,31 @@
 """Fixtures for the `analysistest`s in `//dart/tests:license_file_test.bzl`.
 
 Nothing here is built: every target an assertion reads is tagged `manual`.
+`license_file_fixture` itself, and its second copy, are declared as fetchers
+declare packages, in `@fetched_fixtures//license`.
 """
 
-load("//dart:defs.bzl", "dart_binary", "dart_library", "dart_package_metadata")
+load("//dart:defs.bzl", "dart_binary")
 load("//dart/tests:license_file_test.bzl", "conflicting_license_test", "records_license_test")
-
-dart_package_metadata(
-    name = "pubspec-metadata",
-    package_name = "license_file_fixture",
-    license_file = "LICENSE",
-    tags = ["manual"],
-)
-
-dart_library(
-    name = "lib",
-    srcs = ["lib/fixture.dart"],
-    package = ":pubspec-metadata",
-    tags = ["manual"],
-    deps = ["//dart/tests/license_file_fixture/other"],
-)
 
 records_license_test(
     name = "library_records_license_test",
     size = "small",
     license_files = {
-        "license_file_fixture": "dart/tests/license_file_fixture/LICENSE",
+        "license_file_fixture": "../+local_repository+fetched_fixtures/license/first/LICENSE",
         "license_file_other": "",
     },
-    target_under_test = ":lib",
+    target_under_test = "@fetched_fixtures//license/first:lib",
 )
 
 # Another target of the package carries the license too, from the one
 # declaration, whichever of the two a program reaches.
-dart_library(
-    name = "sibling",
-    srcs = ["lib/fixture.dart"],
-    package = ":pubspec-metadata",
-    tags = ["manual"],
-    visibility = ["//dart/tests/license_file_fixture/facade:__pkg__"],
-)
-
 records_license_test(
     name = "every_target_carries_license_test",
     size = "small",
     license_files = {
         "license_file_facade": "",
-        "license_file_fixture": "dart/tests/license_file_fixture/LICENSE",
+        "license_file_fixture": "../+local_repository+fetched_fixtures/license/first/LICENSE",
     },
     target_under_test = "//dart/tests/license_file_fixture/facade",
 )
@@ -58,8 +37,8 @@ dart_binary(
     main = "main.dart",
     tags = ["manual"],
     deps = [
-        ":lib",
-        "//dart/tests/license_file_fixture/second",
+        "@fetched_fixtures//license/first:lib",
+        "@fetched_fixtures//license/second",
     ],
 )
 

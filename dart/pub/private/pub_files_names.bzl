@@ -14,3 +14,27 @@ FILES_MARKER = "BUILD.bazel"
 # Fetching the source repository does that too, but a vendored one is never
 # fetched, and its links would then dangle while its globs run.
 FILES_LOAD = "pub_files.bzl"
+
+def files_load_content(fetched):
+    """The content of `FILES_LOAD`: `FILES`, what the files repository fetched.
+
+    Args:
+        fetched: A dict of strings, or None for files that state nothing.
+
+    Returns:
+        The file's content: Starlark, since the source repository's BUILD file
+        loads it, that `read_files_load` reads back.
+    """
+    return "FILES = {}\n".format(json.encode(fetched) if fetched != None else "None")
+
+def read_files_load(content):
+    """What a files repository fetched, from the content of its `FILES_LOAD`.
+
+    Args:
+        content: What `files_load_content` wrote.
+
+    Returns:
+        The dict it was given, or None.
+    """
+    value = content.removeprefix("FILES = ").strip()
+    return None if value == "None" else json.decode(value)

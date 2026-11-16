@@ -219,6 +219,78 @@ def data_assets_of(targets):
     """
     return [asset for t in targets for asset in t[DartDataAssetInfo].assets.to_list()]
 
+def purl_identity(purl):
+    """The fetched identity of an archive or git commit its purl names.
+
+    Args:
+      purl: The purl (`pub_hosted_purl`, `pub_git_purl`).
+
+    Returns:
+      A `DartPackageInfo.fetched_identity`.
+    """
+    return struct(kind = "purl", purl = purl)
+
+def directory_identity(repository, directory):
+    """The fetched identity of a `path` package: the directory it is built from.
+
+    Args:
+      repository: The canonical name of the repository holding it, "" for the
+        main repository.
+      directory: Its path from that repository's root, normalized; "" for the
+        root.
+
+    Returns:
+      A `DartPackageInfo.fetched_identity`.
+    """
+    return struct(kind = "directory", repository = repository, directory = directory)
+
+def local_git_identity(repository, directory, commit, package_path):
+    """The fetched identity of a commit of a git repository inside a lock's repository.
+
+    A lock's relative git url names such a repository, which only the lock's
+    place says: the same url in another lock names another.
+
+    Args:
+      repository: The canonical name of the repository holding the lock, ""
+        for the main repository.
+      directory: The git repository's path from that repository's root,
+        normalized; "" for the root.
+      commit: The locked commit.
+      package_path: The package's directory in the git repository, normalized;
+        "" for its root.
+
+    Returns:
+      A `DartPackageInfo.fetched_identity`.
+    """
+    return struct(
+        kind = "local_git",
+        repository = repository,
+        directory = directory,
+        commit = commit,
+        package_path = package_path,
+    )
+
+def fetched_identity_text(identity):
+    """A `fetched_identity` as messages write it.
+
+    For people only: identities are compared as they are, never as this text.
+
+    Args:
+      identity: A `DartPackageInfo.fetched_identity`, not None.
+
+    Returns:
+      The purl; `@@<repo>//<directory>` for a directory; or
+      `git+@@<repo>//<directory>@<commit>`, with `#<package_path>` for a package
+      below the git repository's root.
+    """
+    if identity.kind == "purl":
+        return identity.purl
+    where = "@@{}//{}".format(identity.repository, identity.directory)
+    if identity.kind == "directory":
+        return where
+    below = "#" + identity.package_path if identity.package_path else ""
+    return "git+{}@{}{}".format(where, identity.commit, below)
+
 def check_package_name(label, package_name):
     """Fails when a package record would have no name.
 
@@ -275,6 +347,7 @@ def _init(
         "linked_code_assets": tuple(own_linked),
         "license_file": license_file,
         "metadata": None,
+        "fetched_identity": None,
     }
 
 DartPackageInfo, raw_dart_package_info = provider(
@@ -282,7 +355,7 @@ DartPackageInfo, raw_dart_package_info = provider(
     doc = """Record of a single Dart package in the build graph, carried in depsets within DartInfo.
 
 `DartPackageInfo(...)` states a package's own facts, for a rule author whose rule \
-does so itself, and checks them: the code, data and linked code assets, and \
+does so itself, and checks them (it states no `fetched_identity`): the code, data and linked code assets, and \
 the `link_hook_assets` ids, which need a `link_hook`, must be the package's own, \
 `package_name` must not be empty, and `language_version` must be passed, as \
 `""` when the package states none. Its `code_assets`, `data_assets` and \
@@ -305,5 +378,6 @@ another goes through `derived_package_info()`.""",
         "linked_code_assets": "tuple[DartLinkedCodeAssetInfo]: Native code the package links into each program, as a code asset of its own. Empty when none.",
         "license_file": "File or None: The package's license text — for a pub package, the `NOTICES` file at its root if it has one, else its `LICENSE`, the file `flutter build` collects for the license page. Optional; `None` when the package has none. Read it with `package_license_file()` from `//dart:utils.bzl`.",
         "metadata": "Label or None: The `dart_package_metadata` the record was built from (`package_info_from_metadata()`), or `None` for a package that names none. Records of one package rooted at one directory must name the same one.",
+        "fetched_identity": "struct or None: What a fetcher fetched this package as, by its `kind`: `purl`, with `purl` (`pub_hosted_purl`, `pub_git_purl`), naming the registry, version and archive checksum, or the git repository, commit and path; `local_git`, for a git package locked by a url relative to the lock, with `repository` (the canonical name of the lock's repository), `directory` (the git repository's path in it), `commit` and `package_path`; or `directory`, for a `path` package a fetcher builds from its pubspec, with `repository` and `directory`. `None` for a package built in the workspace. Records of one name rooted apart are one package only when each has one and they are equal. Not stated by `DartPackageInfo(...)` or `dart_package_metadata`: only a fetcher's generated BUILD file states it, through `make_package_metadata_content()`.",
     },
 )

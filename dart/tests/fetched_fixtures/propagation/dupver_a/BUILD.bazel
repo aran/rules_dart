@@ -1,0 +1,21 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+# A fetcher's generated BUILD file loads it so.
+# buildifier: disable=bzl-visibility
+load("@rules_dart//dart/private:fetched_package_metadata.bzl", "fetched_package_metadata")
+
+# One hub's spoke for `dupver`, at the version its lock file pins.
+
+fetched_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "dupver",
+    purl = "pkg:pub/dupver@2.1.5",
+    version = "2.1.5",
+)
+
+dart_library(
+    name = "dupver",
+    srcs = ["lib/dupver.dart"],
+    package = ":pubspec-metadata",
+    visibility = ["@rules_dart//dart/tests:__subpackages__"],
+)

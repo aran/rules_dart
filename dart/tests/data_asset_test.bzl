@@ -15,7 +15,7 @@ load("//dart:providers.bzl", "DartDataAssetInfo", "DartInfo")
 load("//dart/private:common.bzl", "merge_package_records", "package_data_assets", "program_packages", "unique_data_assets")
 load("//dart/private:dart_data_asset.bzl", "data_asset")
 load("//dart/private:dart_package_metadata.bzl", "unreplaced_build_hook")
-load("//dart/private:package_info.bzl", "check_data_asset_ownership", "raw_dart_package_info")
+load("//dart/private:package_info.bzl", "check_data_asset_ownership", "purl_identity", "raw_dart_package_info")
 load(":small_suite.bzl", "small_unittest_suite")
 
 def _file(short_path):
@@ -68,6 +68,9 @@ def _record(package_root, hook = "", data_assets = ()):
         linked_code_assets = (),
         license_file = None,
         metadata = None,
+        # Fetched alike by two fetchers, so records at two roots are one
+        # package.
+        fetched_identity = purl_identity("pkg:pub/split@1.0.0"),
     )
 
 def _merge_unions_data_assets_test_impl(ctx):

@@ -1,4 +1,4 @@
-load("//dart:defs.bzl", "dart_binary", "dart_library", "dart_test")
+load("//dart:defs.bzl", "dart_binary", "dart_library", "dart_package_metadata", "dart_test")
 
 # Test fixtures: no API docs.
 # gazelle:map_kind bzl_library bzl_library @bazel_skylib//:bzl_library.bzl
@@ -10,9 +10,18 @@ exports_files(
     visibility = ["//dart/pub:__pkg__"],
 )
 
+# What pub.dev's `runfiles` is built from, and what `pub.from_lock()` serves for
+# it, so it states what that package does.
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "runfiles",
+    license_file = "LICENSE",
+)
+
 dart_library(
     name = "runfiles",
     srcs = ["lib/runfiles.dart"],
+    package = ":pubspec-metadata",
     visibility = ["//visibility:public"],
 )
 
@@ -22,6 +31,7 @@ dart_library(
 dart_binary(
     name = "create_probe",
     main = "test/create_probe.dart",
+    package = ":pubspec-metadata",
     deps = [":runfiles"],
 )
 
@@ -30,6 +40,7 @@ dart_binary(
 dart_binary(
     name = "lookup_probe",
     main = "test/lookup_probe.dart",
+    package = ":pubspec-metadata",
     visibility = ["//dart/runfiles/test:__subpackages__"],
     deps = [":runfiles"],
 )
@@ -42,6 +53,7 @@ dart_test(
         ":lookup_probe",
     ],
     main = "test/runfiles_test.dart",
+    package = ":pubspec-metadata",
     deps = [
         ":runfiles",
         "@ext_pub_deps//:test",

@@ -20,6 +20,7 @@ bzl_library(
     deps = [
         ":dart_info",
         ":exec_groups",
+        ":package_info",
         ":package_root",
         ":resources",
         ":source_set",
@@ -448,6 +449,13 @@ bzl_library(
         ":package_root",
         "//dart:providers",
     ],
+)
+
+bzl_library(
+    name = "fetched_package_metadata",
+    srcs = ["fetched_package_metadata.bzl"],
+    visibility = ["//visibility:public"],
+    deps = [":dart_package_metadata"],
 )
 
 bzl_library(

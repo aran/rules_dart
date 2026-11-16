@@ -1,6 +1,6 @@
 load("@git_fixture//:commits.bzl", "COMMITS")
 load("@rules_dart//dart:defs.bzl", "dart_test")
-load(":checks.bzl", "license_check")
+load(":checks.bzl", "fetched_identity_check", "license_check")
 load(":purls.bzl", "package_metadata_files")
 
 # Property: `pub.from_lock()` fetches git packages as `dart pub get` would on a
@@ -48,9 +48,29 @@ license_check(
     ],
 )
 
+# Property: each git package says what it was fetched as, so that another
+# fetcher's copy of it is one package with it only when fetched alike: the
+# repository its relative url names in the lock's repository, however a lock
+# spells it, the commit and the directory.
+fetched_identity_check(
+    name = "fetched_identities",
+    fetched_identities = {
+        "git_cyc_a": "remote.git@{}#pkgs/cyc_a".format(COMMITS["mono_v2"]),
+        "git_cyc_b": "remote.git@{}#pkgs/cyc_b".format(COMMITS["mono_v2"]),
+        "git_root": "root.git@{}".format(COMMITS["root_r1"]),
+        "git_sub": "remote.git@{}#pkgs/sub".format(COMMITS["sub_v1"]),
+    },
+    lock = "@git_fixture//:pubspec.lock",
+    deps = [
+        "@deps//:git_cyc_a",
+        "@deps//:git_root",
+        "@deps//:git_sub",
+    ],
+)
+
 # Property: each git package says what it is, for any SBOM tool: by name and
 # version, and by the repository, commit and directory the lock pins, as the
-# lock writes the repository.
+# lock writes the repository, a relative url included.
 package_metadata_files(
     name = "package_metadata",
     deps = [

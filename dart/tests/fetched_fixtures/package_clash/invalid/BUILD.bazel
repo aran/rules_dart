@@ -1,0 +1,20 @@
+# A fetcher's generated BUILD file loads them so.
+# buildifier: disable=bzl-visibility
+load("@rules_dart//dart/private:fetched_package_metadata.bzl", "fetched_local_git_package_metadata", "fetched_package_metadata")
+
+# What no fetcher's source can state: the declarations refuse them.
+fetched_package_metadata(
+    name = "not_a_purl",
+    package_name = "p",
+    purl = "@@//shared/p",
+    visibility = ["@rules_dart//dart/tests/package_clash_fixture:__pkg__"],
+)
+
+fetched_local_git_package_metadata(
+    name = "no_commit",
+    package_name = "p",
+    commit = "",
+    directory = "shared",
+    repository = "",
+    visibility = ["@rules_dart//dart/tests/package_clash_fixture:__pkg__"],
+)

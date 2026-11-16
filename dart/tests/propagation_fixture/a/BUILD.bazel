@@ -13,5 +13,5 @@ dart_library(
     srcs = ["lib/a.dart"],
     package = ":pubspec-metadata",
     visibility = ["//dart/tests:__subpackages__"],
-    deps = ["//dart/tests/propagation_fixture/b"],
+    deps = ["@fetched_fixtures//propagation/b"],
 )

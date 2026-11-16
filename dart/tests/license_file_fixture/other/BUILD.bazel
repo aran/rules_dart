@@ -11,5 +11,5 @@ dart_library(
     srcs = ["lib/other.dart"],
     package = ":pubspec-metadata",
     tags = ["manual"],
-    visibility = ["//dart/tests/license_file_fixture:__pkg__"],
+    visibility = ["@fetched_fixtures//license/first:__pkg__"],
 )

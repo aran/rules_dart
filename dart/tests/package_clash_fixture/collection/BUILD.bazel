@@ -1,0 +1,8 @@
+load("//dart:defs.bzl", "dart_library")
+
+# Named `collection` after its directory, as pub's `collection` is named.
+dart_library(
+    name = "collection",
+    srcs = ["lib/collection.dart"],
+    visibility = ["//dart/tests/package_clash_fixture:__pkg__"],
+)

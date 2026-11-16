@@ -3,8 +3,8 @@
 load("//dart:providers.bzl", "DartInfo")
 load("//dart/private:common.bzl", "codegen_identity_error", "identity_package_record", "own_packages", "package_identity_attrs", "resolve_package_identity")
 load("//dart/private:dart_import_check.bzl", "LIBRARY_IMPORT_CHECKER_ATTRS", "library_import_check")
-load("//dart/private:dart_info.bzl", "package_info_from_metadata", "package_lib_prefix")
-load("//dart/private:dart_summary.bzl", "SUMMARY_ATTRS", "dart_info")
+load("//dart/private:dart_info.bzl", "dart_info_no_package", "package_info_from_metadata", "package_lib_prefix")
+load("//dart/private:dart_summary.bzl", "SUMMARY_ATTRS", "dart_info", "data_runfiles")
 load("//dart/private:exec_groups.bzl", "PORTABLE_EXEC_GROUPS")
 load("//dart/private:package_root.bzl", "locate_package_root")
 load("//dart/private:runtime.bzl", "RUNTIME_INDEPENDENT_ATTR", "runtime_reset_when_independent")
@@ -220,8 +220,8 @@ def library_sources(ctx):
         srcs = ctx.files.srcs_dir
         package = library_package(ctx, srcs, assembled_root = srcs[0].short_path)
     else:
-        # `srcs` may be empty: a `dart_library` with only `deps` is a valid
-        # aggregate façade that re-exports its dependencies.
+        # `srcs` may be empty: the target states its package and has no
+        # files of it itself.
         srcs = ctx.files.srcs
         package = library_package(ctx, srcs, resources)
 
@@ -254,25 +254,37 @@ consumer's `data`.""",
 }
 
 def _dart_library_impl(ctx):
-    sources = library_sources(ctx)
-    own_srcs = sources.srcs
-    own_resources = sources.resources
-    package = sources.package
+    if ctx.files.srcs or ctx.files.srcs_dir or ctx.files.resources or ctx.attr.package:
+        sources = library_sources(ctx)
+        own_srcs = sources.srcs
+        own_resources = sources.resources
 
-    # `dart_library` is a pure collector: it propagates its sources (source-tree
-    # and/or generated) and package metadata unchanged. Co-location of a
-    # package's split-across-targets / source+generated files into one real
-    # directory happens in the *consumer* (`dart_binary`/`dart_test`), which is
-    # the only place that sees the package's complete file set. Its one
-    # action is the check of what its sources import, a validation.
-    info = dart_info(
-        ctx = ctx,
-        packages = [package.record],
-        deps = ctx.attr.deps,
-        srcs = own_srcs,
-        resources = own_resources,
-        data = ctx.attr.data,
-    )
+        # `dart_library` is a pure collector: it propagates its sources
+        # (source-tree and/or generated) and package metadata unchanged.
+        # Co-location of a package's split-across-targets / source+generated
+        # files into one real directory happens in the *consumer*
+        # (`dart_binary`/`dart_test`), which is the only place that sees the
+        # package's complete file set. Its one action is the check of what its
+        # sources import, a validation.
+        info = dart_info(
+            ctx = ctx,
+            packages = [sources.package.record],
+            deps = ctx.attr.deps,
+            srcs = own_srcs,
+            resources = own_resources,
+            data = ctx.attr.data,
+        )
+    else:
+        # Only `deps`: a façade passing them on. It has no file of any package
+        # and names none, so it is no package, whatever its directory is
+        # called: a wrapper of pub's `path` in `third_party/path` is not a
+        # second `path`.
+        own_srcs = []
+        own_resources = []
+        info = dart_info_no_package(
+            deps = ctx.attr.deps,
+            runfiles = data_runfiles(ctx, ctx.attr.data) if ctx.attr.data else None,
+        )
     runfiles = ctx.runfiles(files = own_srcs + own_resources)
     return [
         DefaultInfo(
@@ -308,5 +320,5 @@ Files under `lib/` are the package's own and belong in `resources`.""",
     } | package_identity_attrs() | RUNTIME_INDEPENDENT_ATTR | LIBRARY_IMPORT_CHECKER_ATTRS | SUMMARY_ATTRS,
     exec_groups = PORTABLE_EXEC_GROUPS,
     toolchains = COPY_TO_DIRECTORY_TOOLCHAINS,
-    doc = "Collects Dart sources and propagates dependency information via `DartInfo`. Its package is the one the `dart_package_metadata` it names in `package` declares, or, naming none, one named after its root directory that states nothing else. Does not compile or assemble; each consumer reads its sources, generated ones included, as `srcs` describes. Its `_validation` output group checks what its sources import, export and include as parts against its `deps` (see `dart_import_check.bzl`), so any build of the library runs the check.",
+    doc = "Collects Dart sources and propagates dependency information via `DartInfo`. Its package is the one the `dart_package_metadata` it names in `package` declares, or, naming none, one named after its root directory that states nothing else; a target with neither files nor `package` passes its `deps` on and is no package. Does not compile or assemble; each consumer reads its sources, generated ones included, as `srcs` describes. Its `_validation` output group checks what its sources import, export and include as parts against its `deps` (see `dart_import_check.bzl`), so any build of the library runs the check.",
 )

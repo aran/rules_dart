@@ -1,0 +1,23 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+# A fetcher's generated BUILD file loads it so.
+# buildifier: disable=bzl-visibility
+load("@rules_dart//dart/private:fetched_package_metadata.bzl", "fetched_path_package_metadata")
+
+# `local_pkg` as a fetcher builds a `path` package from its pubspec: the
+# directory it was built from is what it was fetched as. `path_a` and
+# `path_b` stand in for two fetchers' repositories built from one directory.
+fetched_path_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "local_pkg",
+    directory = "shared/local_pkg",
+    repository = "",
+    version = "1.0.0",
+)
+
+dart_library(
+    name = "local_pkg",
+    srcs = ["lib/local_pkg.dart"],
+    package = ":pubspec-metadata",
+    visibility = ["@rules_dart//dart/tests/package_clash_fixture:__pkg__"],
+)

@@ -76,7 +76,7 @@ load(
     _executable_defines_config = "executable_defines_config",
     _kernel_package_config = "kernel_package_config",
 )
-load("//dart/private:dart_summary.bzl", _SUMMARY_ATTRS = "SUMMARY_ATTRS", _dart_info = "dart_info")
+load("//dart/private:dart_summary.bzl", _SUMMARY_ATTRS = "SUMMARY_ATTRS", _dart_info = "dart_info", _data_runfiles = "data_runfiles")
 load(
     "//dart/private:exec_groups.bzl",
     _EXEC_TOOLS_TOOLCHAIN = "EXEC_TOOLS_TOOLCHAIN",
@@ -187,6 +187,10 @@ package_info_from_metadata = _package_info_from_metadata
 # else: with no package there is no `package_name`, no `package_root`, no sources,
 # and no code assets to declare, and the signature says so.
 dart_info_no_package = _dart_info_no_package
+
+# The runfiles of `data` targets, their files and their own runfiles together:
+# what a rule passes as `runfiles` to `dart_info` or `dart_info_no_package`.
+data_runfiles = _data_runfiles
 
 # For an executable rule — a binary, a test — that also contributes packages: a
 # downstream test rule whose `srcs` are its package's `lib/` files plus an

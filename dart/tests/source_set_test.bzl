@@ -10,7 +10,7 @@ load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
 load("//dart:providers.bzl", "DartInfo", "DartPackageInfo")
 load("//dart/private:common.bzl", "collect_packages", "collect_transitive_srcs", "package_code_assets")
 load("//dart/private:dart_info.bzl", "derived_package_info", "package_lib_prefix")
-load("//dart/private:package_info.bzl", "raw_dart_package_info")
+load("//dart/private:package_info.bzl", "purl_identity", "raw_dart_package_info")
 load("//dart/private:source_set.bzl", "COPY_TO_DIRECTORY_TOOLCHAINS", "colocate_packages", "needs_source_assembly", "package_for", "package_record_for", "package_record_for_index", "package_record_index", "package_source_roots")
 
 def _fake_file(is_source):
@@ -237,6 +237,7 @@ def _record(package_root, language_version, code_assets, unreplaced_hook):
         linked_code_assets = (),
         license_file = None,
         metadata = None,
+        fetched_identity = purl_identity("pkg:pub/pkg@1.0.0"),
     )
 
 def _fake_asset(asset_id):
@@ -256,6 +257,7 @@ def _derive_carries_every_field_test_impl(ctx):
     asserts.equals(env, "2.12", out.language_version)
     asserts.equals(env, ["package:pkg/a.g.dart"], [a.asset_id for a in out.code_assets])
     asserts.equals(env, "hook/build.dart", out.unreplaced_hook)
+    asserts.equals(env, purl_identity("pkg:pub/pkg@1.0.0"), out.fetched_identity)
     return unittest.end(env)
 
 def _derive_overrides_only_named_test_impl(ctx):

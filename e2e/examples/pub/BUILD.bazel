@@ -1,4 +1,5 @@
 # Pub packages: one declared on its own (package/), the packages of a lock
-# (lock/), `resolve` (resolve/), `path` and `git` packages (path/, git/) and
-# packages that depend on each other (cycle/). `checks.bzl` holds the assertion
+# (lock/), `resolve` (resolve/), `path` and `git` packages (path/, git/),
+# packages that depend on each other (cycle/) and the `runfiles` rules_dart
+# itself publishes (runfiles/). `checks.bzl` holds the assertion
 # about a target's package graph several of them, and fixtures/, share.

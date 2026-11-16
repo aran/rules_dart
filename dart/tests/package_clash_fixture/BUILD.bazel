@@ -1,0 +1,186 @@
+"""Packages of one name from different places.
+
+A package built in the workspace and a pub hub's package of the same name:
+before the check this built, and the order of `deps` decided which of the two
+`package:collection` compiled. And two fetchers' copies of a `path` package,
+one package when built from one directory.
+"""
+
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("//dart:defs.bzl", "dart_binary")
+load("//dart/private:fetched_package_metadata.bzl", "fetched_package_metadata")
+load("//dart/tests:package_record_test.bzl", "contributes_no_package_test", "declaration_conflict_test", "fetched_alike_test")
+
+dart_binary(
+    name = "app",
+    main = "main.dart",
+    tags = ["manual"],
+    deps = [
+        "//dart/tests/package_clash_fixture/collection",
+        "@ext_pub_deps//:collection",
+    ],
+)
+
+declaration_conflict_test(
+    name = "package_clash_test",
+    size = "small",
+    message = "  - @@//dart/tests/package_clash_fixture/collection:collection at dart/tests/package_clash_fixture/collection, which no fetcher states it fetched\n",
+    target_under_test = ":app",
+)
+
+# Pub's copy carries what pub fetched, from its generated BUILD file.
+declaration_conflict_test(
+    name = "pub_copy_fetched_test",
+    size = "small",
+    message = ", fetched as pkg:pub/collection@",
+    target_under_test = ":app",
+)
+
+# A library with no sources and no declaration wraps its dependency: it is no
+# package, so it clashes with nothing, though it is named like the dependency.
+dart_binary(
+    name = "wrapper_first_app",
+    main = "wrapper_main.dart",
+    tags = ["manual"],
+    deps = [
+        "//dart/tests/package_clash_fixture/wrapper/collection",
+        "@ext_pub_deps//:collection",
+    ],
+)
+
+fetched_alike_test(
+    name = "wrapper_first_test",
+    size = "small",
+    target_under_test = ":wrapper_first_app",
+)
+
+dart_binary(
+    name = "wrapper_second_app",
+    main = "wrapper_main.dart",
+    tags = ["manual"],
+    deps = [
+        "//dart/tests/package_clash_fixture/wrapper/collection",
+        "@ext_pub_deps//:collection",
+    ],
+)
+
+fetched_alike_test(
+    name = "wrapper_second_test",
+    size = "small",
+    target_under_test = ":wrapper_second_app",
+)
+
+# The wrapper alone: what `main` imports comes through it.
+dart_binary(
+    name = "wrapper_alone_app",
+    main = "wrapper_main.dart",
+    tags = ["manual"],
+    deps = ["//dart/tests/package_clash_fixture/wrapper/collection"],
+)
+
+build_test(
+    name = "wrapper_alone_test",
+    size = "small",
+    targets = [":wrapper_alone_app"],
+)
+
+# A directory that could not name a package holds one that is none.
+fetched_alike_test(
+    name = "wrapper_in_unnameable_directory_test",
+    size = "small",
+    target_under_test = "//dart/tests/package_clash_fixture/wrapper/not-a-package-name",
+)
+
+contributes_no_package_test(
+    name = "wrapper_contributes_no_package_test",
+    size = "small",
+    target_under_test = "//dart/tests/package_clash_fixture/wrapper/collection",
+)
+
+# A library saying which package it is stays that package without sources.
+declaration_conflict_test(
+    name = "declared_wrapper_clashes_test",
+    size = "small",
+    message = "Package \"collection\" is supplied by different packages:\n",
+    target_under_test = ":declared_wrapper_app",
+)
+
+dart_binary(
+    name = "declared_wrapper_app",
+    main = "main.dart",
+    tags = ["manual"],
+    deps = [
+        "//dart/tests/package_clash_fixture/wrapper/declared",
+        "@ext_pub_deps//:collection",
+    ],
+)
+
+# Two fetchers' copies of one `path` package, each built from the same
+# directory: one package.
+dart_binary(
+    name = "same_directory_app",
+    main = "local_main.dart",
+    tags = ["manual"],
+    deps = [
+        "@fetched_fixtures//package_clash/path_a:local_pkg",
+        "@fetched_fixtures//package_clash/path_b:local_pkg",
+    ],
+)
+
+fetched_alike_test(
+    name = "same_directory_test",
+    size = "small",
+    target_under_test = ":same_directory_app",
+)
+
+# Copies built from two directories are two packages sharing a name.
+dart_binary(
+    name = "other_directory_app",
+    main = "local_main.dart",
+    tags = ["manual"],
+    deps = [
+        "@fetched_fixtures//package_clash/path_a:local_pkg",
+        "@fetched_fixtures//package_clash/path_other:local_pkg",
+    ],
+)
+
+declaration_conflict_test(
+    name = "other_directory_test",
+    size = "small",
+    message = "Package \"local_pkg\" is supplied by different packages:\n" +
+              "  - @@+local_repository+fetched_fixtures//package_clash/path_a:local_pkg at ../+local_repository+fetched_fixtures/package_clash/path_a, built from @@//shared/local_pkg\n" +
+              "  - @@+local_repository+fetched_fixtures//package_clash/path_other:local_pkg at ../+local_repository+fetched_fixtures/package_clash/path_other, built from @@//other/local_pkg\n" +
+              "  They are built from different directories.\n",
+    target_under_test = ":other_directory_app",
+)
+
+# A package of the workspace cannot claim to be one a fetcher fetched, and so
+# be taken for pub's copy of it.
+fetched_package_metadata(
+    name = "claims_fetched",
+    package_name = "collection",
+    purl = "pkg:pub/collection@1.19.1",
+    tags = ["manual"],
+)
+
+declaration_conflict_test(
+    name = "workspace_states_no_identity_test",
+    size = "small",
+    message = "@@//dart/tests/package_clash_fixture:claims_fetched: `fetched_package_metadata` declares a package a fetcher fetched, and only a fetcher's repository states one. Declare a package of the workspace with `dart_package_metadata`",
+    target_under_test = ":claims_fetched",
+)
+
+# A declaration states one kind of identity, and a value of that kind.
+declaration_conflict_test(
+    name = "purl_is_a_purl_test",
+    size = "small",
+    message = "`purl` is \"@@//shared/p\", which is not a purl",
+    target_under_test = "@fetched_fixtures//package_clash/invalid:not_a_purl",
+)
+
+declaration_conflict_test(
+    name = "git_commit_is_stated_test",
+    size = "small",
+    message = "`commit` is empty",
+    target_under_test = "@fetched_fixtures//package_clash/invalid:no_commit",
+)

@@ -389,10 +389,10 @@ def dart_info(
         indirect_deps = indirect_deps,
         analysis_deps = analysis_deps,
         summaries = _own_summaries(ctx, packages, srcs, resources, deps + analysis_deps),
-        runfiles = _data_runfiles(ctx, data) if data else None,
+        runfiles = data_runfiles(ctx, data) if data else None,
     )
 
-def _data_runfiles(ctx, data):
+def data_runfiles(ctx, data):
     """The runfiles of `data` targets: their files and their own runfiles.
 
     Args:

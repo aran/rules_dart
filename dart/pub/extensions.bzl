@@ -2,11 +2,11 @@
 
 load("//dart/ext:registry.bzl", "curated_code_assets", "curated_cycles")
 load("//dart/pub:pub_graph.bzl", "cycle_declaration", "cycle_declarations_error")
-load("//dart/pub:pub_lock_package.bzl", "pub_archive_files", "pub_files_label", "pub_git_files", "pub_lock_git_package", "pub_lock_package", "pub_lock_path_package", "pub_lock_resolved_pubspec")
+load("//dart/pub:pub_lock_package.bzl", "pub_archive_files", "pub_files_label", "pub_git_files", "pub_lock_package", "pub_lock_path_package", "pub_lock_resolved_pubspec")
 load("//dart/pub:pub_versions.bzl", "CHECK_LEVELS", "pub_version_request", "select_pub_version")
 load("//dart/pub:yaml_parser.bzl", "parse_pubspec_lock")
 load("//dart/pub/private:pub_archive.bzl", "pub_archive_sha256_error")
-load("//dart/pub/private:pub_lock_checks.bzl", "git_disagreement_error", "git_lock_package", "lock_mapping_error", "path_packages", "pub_command", "resolved_packages", "resolved_pubspecs", "source_disagreement_errors")
+load("//dart/pub/private:pub_lock_checks.bzl", "git_disagreement_error", "git_lock_package", "lock_mapping_error", "path_packages", "pub_command", "published_here_targets", "resolved_packages", "resolved_pubspecs", "source_disagreement_errors")
 load("//dart/pub/private:pub_lock_hub.bzl", "pub_lock_hub")
 load("//dart/pub/private:pub_lock_library.bzl", "files_repo", "index_repo", "library_repo", "pub_lock_ignored", "pub_lock_index", "pub_lock_library", "pub_lock_resolved", "source_repo")
 load("//dart/pub/private:pub_settings.bzl", "root_only_settings")
@@ -127,7 +127,9 @@ _from_lock = tag_class(
           "dependencies its pubspec states and aliased in the hub `name`. `hosted` and " +
           "`git` packages are fetched; every `path` package is named in `resolve`, " +
           "`build_from_pubspec` or `ignored`; an `sdk` package is skipped unless `resolve` " +
-          "maps it.",
+          "maps it. pub.dev's `runfiles` is published from `@rules_dart//dart/runfiles`, " +
+          "so it is that target, whichever version the lock names, unless `resolve` maps " +
+          "it elsewhere.",
 )
 
 _settings = tag_class(
@@ -375,11 +377,12 @@ def _pub_impl(ctx):
     if mapping_errors:
         fail("\n\n".join(errors + mapping_errors))
 
-    # Packages a workspace target serves, by `resolve`, and the `path`
-    # packages built from their pubspec or ignored. A package they disagree
-    # on is still served by one of them, so nothing below fetches it.
+    # Packages a target serves, by `resolve` or because rules_dart publishes
+    # them, and the `path` packages built from their pubspec or ignored. A
+    # package they disagree on is still served by one of them, so nothing below
+    # fetches it.
     mapped = resolved_packages(locks, declared)
-    resolved_targets = mapped.targets
+    resolved_targets = published_here_targets(locks, declared, mapped.targets)
     paths = path_packages(locks, declared, resolved_targets)
 
     # The mapped packages whose pubspec planning reads, to find a cycle
@@ -508,7 +511,7 @@ def _pub_impl(ctx):
     resolved = {}  # name -> the winning lock entry's version, digest and registry
     for name in sorted(declared.keys() + [n for n in registry if n not in declared]):
         entries = registry.get(name, [])
-        if not entries and name not in pinned:
+        if name in resolved_targets or (not entries and name not in pinned):
             continue
         selection = _select_versions(
             name,
@@ -546,10 +549,6 @@ def _pub_impl(ctx):
         pub_lock_package(
             name = source_repo(_SPOKE_PREFIX, name),
             files = pub_files_label(files_repo(_SPOKE_PREFIX, name)),
-            package_name = name,
-            version = pkg.version,
-            sha256 = pkg.sha256,
-            base_url = pkg.url,
             code_assets = curated_code_assets(name, pkg.version),
             ignore_hook = name in ignore_hooks,
         )
@@ -593,14 +592,9 @@ def _pub_impl(ctx):
             path = pkg.path,
             lock = pkg.lock,
         )
-        pub_lock_git_package(
+        pub_lock_package(
             name = source_repo(_SPOKE_PREFIX, name),
             files = pub_files_label(files_repo(_SPOKE_PREFIX, name)),
-            package_name = name,
-            version = pkg.version,
-            url = pkg.url,
-            resolved_ref = pkg.resolved_ref,
-            path = pkg.path,
             code_assets = curated_code_assets(name, pkg.version),
             ignore_hook = name in ignore_hooks,
         )
@@ -620,10 +614,6 @@ def _pub_impl(ctx):
         pub_lock_package(
             name = source_repo(_SPOKE_PREFIX, name),
             files = pub_files_label(files_repo(_SPOKE_PREFIX, name)),
-            package_name = name,
-            version = pkg.version,
-            sha256 = pkg.sha256,
-            base_url = pkg.url,
             code_assets = curated_code_assets(name, pkg.version),
             ignore_hook = name in ignore_hooks,
         )
