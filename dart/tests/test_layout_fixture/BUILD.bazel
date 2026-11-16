@@ -22,9 +22,9 @@ dart_test(
     data = [
         "data.txt",
         ":layout_lib",
-        "@bazel_skylib//:bzl_library.bzl",
+        "@bazel_skylib//:LICENSE",
     ],
-    env = {"EXTERNAL_RLOCATIONPATH": "$(rlocationpath @bazel_skylib//:bzl_library.bzl)"},
+    env = {"EXTERNAL_RLOCATIONPATH": "$(rlocationpath @bazel_skylib//:LICENSE)"},
     main = "layout_test.dart",
     package = ":pubspec-metadata",
     visibility = ["//dart/private/tools:__pkg__"],
