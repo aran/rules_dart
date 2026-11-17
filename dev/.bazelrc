@@ -17,5 +17,9 @@ common --incompatible_exclude_starlark_flags_from_exec_config
 # exports them, so the rules are tested as a Bazel 10 workspace builds them.
 common --incompatible_no_implicit_file_export
 
+# A future Bazel release will no longer let an external repository's source
+# directory cross a package boundary, so the rules are tested with that on.
+common --incompatible_check_external_repo_source_dir_package_boundary
+
 # A nested workspace reads only its own rc files: import its untracked per-user overrides.
 try-import %workspace%/.bazelrc.user
