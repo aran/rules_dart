@@ -245,7 +245,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
-      USE_BAZEL_VERSION: 9.0.0
+      USE_BAZEL_VERSION: 9.3.0
     strategy:
       fail-fast: false
       matrix:

@@ -2,7 +2,7 @@
 
 visibility("//dart/...")
 
-def locate_package_root(workspace_root, label_package, files = []):
+def locate_package_root(repo_root, label_package, files = []):
     """The package root of a target, from the directory of its BUILD file.
 
     A BUILD file at a package's root takes its own directory. A BUILD file
@@ -22,7 +22,7 @@ def locate_package_root(workspace_root, label_package, files = []):
     `lib` components, never the repository's directory name.
 
     Args:
-        workspace_root: The workspace root of the label (ctx.label.workspace_root).
+        repo_root: The root of the label's repository (`ctx.label.repo_root`).
         label_package: The Bazel label package path (ctx.label.package).
         files: The target's own files, which tell a package whose root is
           itself inside a `lib` directory (they sit under its own `lib/`).
@@ -31,7 +31,7 @@ def locate_package_root(workspace_root, label_package, files = []):
         `struct(root, error)`: the root's short_path ("" for the main
         repository's root), and an error message or None.
     """
-    ws_root = workspace_root
+    ws_root = repo_root
     if ws_root.startswith("external/"):
         ws_root = "../" + ws_root[len("external/"):]
 
@@ -63,7 +63,7 @@ def locate_package_root(workspace_root, label_package, files = []):
         parts = parts[:lib_at[0]]
     return struct(root = under_ws("/".join(parts)), error = None)
 
-def derive_package_root(workspace_root, label_package):
+def derive_package_root(repo_root, label_package):
     """The package root of a target, from its label alone (see `locate_package_root`).
 
     Fails where the path is ambiguous. Rules that have the target's files
@@ -71,13 +71,13 @@ def derive_package_root(workspace_root, label_package):
     a `lib` directory.
 
     Args:
-        workspace_root: The workspace root of the label (ctx.label.workspace_root).
+        repo_root: The root of the label's repository (`ctx.label.repo_root`).
         label_package: The Bazel label package path (ctx.label.package).
 
     Returns:
         The package root's short_path, without the `lib/` component.
     """
-    result = locate_package_root(workspace_root, label_package)
+    result = locate_package_root(repo_root, label_package)
     if result.error != None:
         fail(result.error)
     return result.root

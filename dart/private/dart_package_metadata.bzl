@@ -67,7 +67,7 @@ def unreplaced_build_hook(build_hook, assets):
     return "hook/build.dart"
 
 def _package_metadata(ctx, fetched_identity):
-    root = locate_package_root(ctx.label.workspace_root, ctx.label.package)
+    root = locate_package_root(ctx.label.repo_root, ctx.label.package)
     if root.error != None:
         fail("%s: %s" % (ctx.label, root.error))
     package_root = root.root

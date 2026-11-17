@@ -164,7 +164,7 @@ def library_package(ctx, srcs, resources = [], assembled_root = None):
         ]:
             if err != None:
                 fail(err)
-        root = locate_package_root(ctx.label.workspace_root, ctx.label.package, srcs + resources)
+        root = locate_package_root(ctx.label.repo_root, ctx.label.package, srcs + resources)
         if root.error != None:
             fail("%s: %s" % (ctx.label, root.error))
         for err in [

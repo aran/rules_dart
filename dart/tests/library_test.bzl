@@ -145,8 +145,8 @@ def _package_root_rejects_foreign_codegen_output_test_impl(ctx):
     asserts.true(env, "codegen" in err, "should hint at the codegen case: %s" % err)
     return unittest.end(env)
 
-def _root_of(workspace_root, label_package, files = []):
-    return locate_package_root(workspace_root, label_package, [_fake_file(f, f) for f in files])
+def _root_of(repo_root, label_package, files = []):
+    return locate_package_root(repo_root, label_package, [_fake_file(f, f) for f in files])
 
 def _package_root_from_path_test_impl(ctx):
     env = unittest.begin(ctx)

@@ -14,7 +14,7 @@ the same source archive; REPO.bazel keeps it out of rules_dart's packages.
 # publish-to-bcr patches it in.
 module(
     name = "rules_dart_gazelle_plugin",
-    bazel_compatibility = [">=9.0.0"],
+    bazel_compatibility = [">=9.3.0"],
 )
 
 bazel_dep(name = "gazelle", version = "0.54.0", repo_name = "bazel_gazelle")

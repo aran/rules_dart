@@ -511,7 +511,7 @@ def resolve_package_identity(ctx, metadata = None):
             metadata = None,
             package_name = derive_package_name("", ctx.label.package, ctx.label.name),
             language_version = "",
-            package_root = derive_package_root(ctx.label.workspace_root, ctx.label.package),
+            package_root = derive_package_root(ctx.label.repo_root, ctx.label.package),
             license_file = None,
         )
     return struct(

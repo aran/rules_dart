@@ -95,8 +95,10 @@ passes under `--config=deep`; at least one e2e workspace builds.
   checked by CI's `lockfiles` job
 - `docs/ARCHITECTURE.md` — prose naming the major Bazel version, "Bazel 9.x"
   (if major version changes)
-- `MODULE.bazel` and `gazelle/MODULE.bazel` — the `bazel_compatibility` floor
-  (if major version changes and the rules come to need the new major)
+- `MODULE.bazel` and `gazelle/MODULE.bazel` — the `bazel_compatibility` floor,
+  with `README.md`'s statement of it, the oldest `bazel:` value of
+  `.bcr/presubmit.yml` and `USE_BAZEL_VERSION` of CI's `bazel-floor` job (if
+  the rules come to need a newer Bazel: a new major, or a feature of a minor)
 
 **Procedure**:
 

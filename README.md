@@ -67,7 +67,7 @@ me so we can collaborate.
 
 ## Installation
 
-rules_dart needs Bazel 9.0.0 or newer. Add this to your `MODULE.bazel`:
+rules_dart needs Bazel 9.3.0 or newer. Add this to your `MODULE.bazel`:
 
 ```starlark
 bazel_dep(name = "rules_dart", version = "<the latest release>")  # https://github.com/aran/rules_dart/releases

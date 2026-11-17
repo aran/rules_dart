@@ -52,7 +52,7 @@ def _module_library_impl(ctx):
             packages = [DartPackageInfo(
                 label = ctx.label,
                 package_name = ctx.attr.package_name,
-                package_root = derive_package_root(ctx.label.workspace_root, ctx.label.package),
+                package_root = derive_package_root(ctx.label.repo_root, ctx.label.package),
                 language_version = "",
             )],
             deps = ctx.attr.deps,
