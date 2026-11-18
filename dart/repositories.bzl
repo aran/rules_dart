@@ -7,22 +7,21 @@ the toolchains of every SDK the root module declares.
 
 Bazel's repository contents cache keys a repository by its canonical name, its
 attributes and the `.bzl` files its rule loads. So what is fetched is held by
-`http_archive`, by the load-free rule of `sdk_fetch.bzl`, or by the rules of
-`sdk_source_repo.bzl`; an SDK's attributes state only the release, its toolchains
-being in `@dart_toolchains`; and a release two names declare is one repository.
-An edit here, or a new name for a release already held, stores none of it again.
+`http_archive` or by the load-free rules of `sdk_fetch.bzl`; an SDK's attributes
+state only the release, its toolchains being in `@dart_toolchains`; and a release
+two names declare is one repository. An edit here, a new release in
+`versions.bzl`, or a new name for a release already held, stores none of it again.
 """
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("@package_metadata//purl:purl.bzl", "purl")
 load("//dart/private:local_sdk.bzl", "CROSS_TOOLS_PLACEHOLDER", "VERSION_PLACEHOLDER", "source_checkout_problem")
-load("//dart/private:sdk_fetch.bzl", "dart_fetched_files")
+load("//dart/private:sdk_fetch.bzl", "SOURCE_PACKAGES_LOAD", "dart_fetched_files", "dart_source_packages")
 load(
     "//dart/private:sdk_source_repo.bzl",
     "dart_source_archive_url",
     "source_tool_packages",
-    _dart_analyzer_source = "dart_analyzer_source",
-    _dart_kernel_source = "dart_kernel_source",
+    "source_tool_target",
     _fetch_dart_analyzer_source = "fetch_dart_analyzer_source",
     _fetch_dart_kernel_source = "fetch_dart_kernel_source",
 )
@@ -312,29 +311,29 @@ def dart_cross_tools(name, dart_version, exec_platform, target_platform, gen_sna
         dartaotruntime_sha256,
     ))
 
-# Repository rules: a load names them here.
-dart_kernel_source = _dart_kernel_source
-dart_analyzer_source = _dart_analyzer_source
+# Called from a repository rule: a load names them here.
 fetch_dart_kernel_source = _fetch_dart_kernel_source
 fetch_dart_analyzer_source = _fetch_dart_analyzer_source
 
-# What a repository of `dart_sdk_source_tool` provides, for each tool.
-_SOURCE_TOOL_TARGETS = {
-    "kernel": "outline_tool",
-    "analyzer": "summary_analyzer",
-}
-
 def _source_tool_impl(repository_ctx):
+    if repository_ctx.attr.misdeclared:
+        fail(repository_ctx.attr.misdeclared)
     tool = repository_ctx.attr.tool
     root, problem = source_checkout_problem(repository_ctx, source_tool_packages(tool))
     if problem:
-        repository_ctx.file("BUILD.bazel", SDK_ERROR_LOAD + sdk_tool_error_target(_SOURCE_TOOL_TARGETS[tool], problem))
+        repository_ctx.file("BUILD.bazel", SDK_ERROR_LOAD + sdk_tool_error_target(source_tool_target(tool), problem))
     else:
         fetch = {
             "kernel": fetch_dart_kernel_source,
             "analyzer": fetch_dart_analyzer_source,
         }[tool]
-        fetch(repository_ctx, str(root))
+        packages = repository_ctx.attr.source_packages
+        fetch(
+            repository_ctx,
+            str(root),
+            sdk = repository_ctx.attr.sdk_name,
+            build_prelude = 'load("{}", "SOURCE_PACKAGES")\n'.format(packages.same_package_label(SOURCE_PACKAGES_LOAD)) if packages else "",
+        )
 
     # Depends on a directory outside this repository.
     return repository_ctx.repo_metadata(reproducible = False)
@@ -346,9 +345,12 @@ Without usable source, the repository's target fails the build running it, sayin
 
 _SOURCE_TOOL_ATTRS = {
     "tool": attr.string(doc = "Which tool.", mandatory = True, values = ["kernel", "analyzer"]),
-    "sdk_name": attr.string(doc = "The SDK's name, for messages.", mandatory = True),
-    "source": attr.label(doc = "The `DEPS` file at the root of the SDK's source."),
-    "path_env": attr.string(doc = "The environment variable holding the checkout's path, when `source` is not given."),
+    "sdk_name": attr.string(doc = "The SDK's name, for messages."),
+    "misdeclared": attr.string(doc = "What is wrong with the declaration of this repository, which then fails to fetch."),
+    "source": attr.label(doc = "A file at the root of the SDK's source: its `DEPS`, or the `BUILD.bazel` of what `dart_source_packages` extracted."),
+    "source_packages": attr.label(doc = "`source` again, when it is in a `dart_source_packages` repository."),
+    "path": attr.string(doc = "The absolute path of the root of the SDK's source, when `source` is not given."),
+    "path_env": attr.string(doc = "The environment variable holding that path, when neither is given."),
 }
 
 dart_sdk_source_tool = repository_rule(
@@ -364,6 +366,97 @@ dart_checkout_source_tool = repository_rule(
     attrs = _SOURCE_TOOL_ATTRS,
     local = True,
 )
+
+def _dart_source_tool_repositories(rule, tool, name, dart_version, sha256, path):
+    # A mistake here fails the repository, not the extension declaring it and
+    # with it every other repository of that extension.
+    def misdeclared(problem):
+        dart_sdk_source_tool(name = name, tool = tool, misdeclared = "%s(name = \"%s\"): %s" % (rule, name, problem))
+
+    if bool(dart_version) == bool(path):
+        misdeclared("give exactly one of `dart_version` and `path`, %s." % ("both were given" if path else "neither was"))
+        return
+    if path:
+        if sha256:
+            misdeclared("`sha256` pins a release's source archive, and `path` fetches none.")
+            return
+        dart_sdk_source_tool(name = name, tool = tool, sdk_name = path, path = path)
+        return
+    url = dart_source_archive_url(dart_version)
+    sha256 = sha256 or SOURCE_VERSIONS.get(dart_version)
+    if not sha256:
+        misdeclared("rules_dart pins no source archive for Dart %s. Give `sha256`, that of %s." % (dart_version, url))
+        return
+
+    # The files are a repository of their own, whose key is the release alone.
+    files = name + "_files"
+    dart_source_packages(
+        name = files,
+        url = url,
+        sha256 = sha256,
+        strip_prefix = "sdk-" + dart_version,
+        packages = source_tool_packages(tool),
+    )
+    source = "@%s//:BUILD.bazel" % files
+    dart_sdk_source_tool(name = name, tool = tool, sdk_name = dart_version, source = source, source_packages = source)
+
+def dart_kernel_source(name, dart_version = "", sha256 = "", path = ""):
+    """Declares the outline stripper of one Dart SDK, built on that SDK's own `pkg/kernel`.
+
+    Call it from a module extension. `--@rules_dart//dart:outline_kernel` has
+    dependents compile against outlines of their dependencies' kernel modules,
+    which a stripper written on `pkg/kernel` makes. `pkg/kernel` reads and writes
+    only the kernel format of the SDK it ships in, so the stripper must be built
+    from the same SDK as the compiler that wrote the modules.
+
+    `@<name>//:outline_tool` is the stripper. Given `dart_version`, it is built
+    from `pkg/kernel` and `pkg/_fe_analyzer_shared` of that release's source
+    archive, unmodified, which `@<name>_files` holds. Given `path`, it is built
+    from that checkout, which is watched, so an edit there refetches it. What
+    keeps it from being built, such as a dependency rules_dart's own pub packages
+    lack, fails only the builds running it.
+
+    The `dart` extension makes one for each SDK. A rule set whose platform
+    bundles a Dart SDK (Flutter) declares one for that SDK and sets its
+    `:outline_tool` as its `DartKernelSdkInfo.outline_tool`.
+
+    Args:
+        name: The repository's name.
+        dart_version: The Dart SDK release. Exactly one of this and `path` is given.
+        sha256: The SHA-256 of the GitHub source archive of that release's tag.
+            Needed for a release `versions.bzl` does not pin.
+        path: The absolute path of a Dart SDK source checkout's root, the
+            directory holding `pkg/kernel`; for a Flutter engine checkout,
+            `third_party/dart`. It must be the source of the compiler whose
+            kernels the stripper reads: that is yours to keep, and a stripper
+            from one checkout fails on the kernels of another's compiler.
+    """
+    _dart_source_tool_repositories("dart_kernel_source", "kernel", name, dart_version, sha256, path)
+
+def dart_analyzer_source(name, dart_version = "", sha256 = "", path = ""):
+    """Declares the summary analyzer of one Dart SDK, built on that SDK's own `pkg/analyzer` and `pkg/linter`.
+
+    Call it from a module extension. `--@rules_dart//dart:analysis_summaries`
+    analyzes each target against its dependencies' analyzer summaries. No tool in
+    the SDK reads them, so rules_dart builds one on the SDK's own analyzer and
+    linter, which must be of the same SDK for it to report what that SDK's
+    `dart analyze` does.
+
+    `@<name>//:summary_analyzer` is the analyzer, built as `dart_kernel_source`
+    builds the stripper, from `pkg/analyzer`, `pkg/linter` and
+    `pkg/_fe_analyzer_shared`.
+
+    Args:
+        name: The repository's name.
+        dart_version: The Dart SDK release. Exactly one of this and `path` is given.
+        sha256: The SHA-256 of the GitHub source archive of that release's tag.
+            Needed for a release `versions.bzl` does not pin.
+        path: The absolute path of a Dart SDK source checkout's root, the
+            directory holding `pkg/analyzer`; for a Flutter engine checkout,
+            `third_party/dart`. It must be the source of the SDK whose analysis
+            the analyzer stands in for: that is yours to keep.
+    """
+    _dart_source_tool_repositories("dart_analyzer_source", "analyzer", name, dart_version, sha256, path)
 
 def _missing_checksum(sdk, what, url, attribute, flag = None):
     message = """\

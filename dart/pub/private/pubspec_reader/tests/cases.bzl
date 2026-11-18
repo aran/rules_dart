@@ -2,12 +2,21 @@
 
 `results.json` maps each file's name to what `run_pubspec_reader` returned for
 it, read as package "x": `{"error": message}` or `{"ok": {name, dependencies,
-sdk_constraint, language_version, fields}}`. `reader_test.dart` checks it against `package:yaml`.
+sdk_constraint, language_version, unsatisfied, fields}}`. `reader_test.dart` checks it against `package:yaml`.
 """
 
 load("//dart/pub/private/pubspec_reader:reader.bzl", "run_pubspec_reader")
 
 visibility("//dart/...")
+
+# What the constraints of `u01_constraints.yaml` are compared with.
+_LOCKED_VERSIONS = {
+    "u_any": "9.9.9",
+    "u_from_path": "0.1.0",
+    "u_in_map": "2.0.0",
+    "u_satisfied": "1.5.0",
+    "u_too_old": "1.5.0",
+}
 
 def _cases_impl(rctx):
     testdata = rctx.path(Label("//dart/pub/private/pubspec_reader/tests:BUILD.bazel")).dirname.get_child("testdata")
@@ -15,7 +24,7 @@ def _cases_impl(rctx):
     results = {}
     for case in sorted(testdata.readdir(), key = lambda p: p.basename):
         rctx.symlink(case, case.basename)
-        result = run_pubspec_reader(rctx, case.basename, "x")
+        result = run_pubspec_reader(rctx, case.basename, "x", _LOCKED_VERSIONS)
         if result.error != None:
             results[case.basename] = {"error": result.error}
         else:
@@ -26,6 +35,7 @@ def _cases_impl(rctx):
                 "language_version": p.language_version,
                 "name": p.name,
                 "sdk_constraint": p.sdk_constraint,
+                "unsatisfied": p.unsatisfied,
             }}
     rctx.file("results.json", json.encode_indent(results) + "\n")
     rctx.file("BUILD.bazel", 'exports_files(["results.json"])\n')

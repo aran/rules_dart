@@ -59,7 +59,8 @@ def source_checkout_problem(rctx, packages = ("kernel",)):
 
     Args:
         rctx: The context of a rule with attributes `sdk_name`, `path_env` and
-            `source`, the label of the `DEPS` file at that root.
+            `source`, a label of a file at that root, and perhaps `path`, the
+            root itself.
         packages: The packages under `pkg/` that must be there.
 
     Returns:
@@ -69,19 +70,23 @@ def source_checkout_problem(rctx, packages = ("kernel",)):
     if attr.source:
         root = rctx.path(attr.source).dirname
         named = str(attr.source)
+    elif getattr(attr, "path", ""):
+        root = rctx.path(attr.path)
+        named = attr.path
     else:
         root, named, problem = _env_checkout(rctx, attr.sdk_name, attr.path_env)
         if problem:
             return None, problem
     for package in packages:
-        pubspec = root.get_child("pkg", package, "pubspec.yaml")
+        for required in ["pubspec.yaml", "lib"]:
+            path = root.get_child("pkg", package, required)
 
-        # Watched before it is checked, so creating the file refetches.
-        rctx.watch(pubspec)
-        if not pubspec.exists:
-            return None, """\
+            # Watched before it is checked, so creating it refetches.
+            rctx.watch(path)
+            if not path.exists:
+                return None, """\
 Dart SDK "{sdk}": {named} is not the root of the Dart SDK's source: \
-{root} has no pkg/{package}/pubspec.yaml.""".format(sdk = attr.sdk_name, named = named, root = root, package = package)
+{root} has no pkg/{package}/{required}.""".format(sdk = attr.sdk_name, named = named, root = root, package = package, required = required)
     return root, None
 
 def _checkout_builds(rctx, root):

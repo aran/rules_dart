@@ -420,21 +420,7 @@ local_path_override(
 )
 
 # fixtures/kernel_source_refused: each repository is declared wrongly in its
-# own way, and fails only when it is fetched. `/usr` is a directory that is
-# not a Dart SDK checkout.
-dart_kernel_source = use_repo_rule("@rules_dart//dart:repositories.bzl", "dart_kernel_source")
-
-dart_kernel_source(
-    name = "both",
-    dart_version = "3.14.1",
-    path = "/usr",
-)
-
-dart_kernel_source(
-    name = "neither",
-)
-
-dart_kernel_source(
-    name = "not_a_checkout",
-    path = "/usr",
-)
+# own way, and fails only when it is used. `/usr` is a directory that is not a
+# Dart SDK checkout.
+kernel_source_refused = use_extension("//fixtures/kernel_source_refused:extension.bzl", "kernel_source_refused")
+use_repo(kernel_source_refused, "both", "neither", "not_a_checkout")

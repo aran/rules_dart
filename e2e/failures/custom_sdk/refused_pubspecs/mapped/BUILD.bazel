@@ -1,0 +1,14 @@
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "metadata",
+    package_name = "mapped",
+    language_version = "3.14",
+)
+
+dart_library(
+    name = "mapped",
+    srcs = ["lib/mapped.dart"],
+    package = ":metadata",
+    visibility = ["//visibility:public"],
+)

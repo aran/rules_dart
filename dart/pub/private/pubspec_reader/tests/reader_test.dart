@@ -72,6 +72,12 @@ const unparsableSdk = {
   'l16_garbage.yaml': 'Could not parse the SDK constraint "garbage"',
 };
 
+/// The dependencies whose constraint excludes the version `cases.bzl` gives
+/// them, by file. Every other file has none.
+const unsatisfied = {
+  'u01_constraints.yaml': {'u_too_old': '^2.0.0', 'u_in_map': '>=3.0.0'},
+};
+
 /// The document as JSON holds it, converted independently of the reader.
 Object? toJson(Object? value) => switch (value) {
   Map() => {for (final e in value.entries) '${e.key}': toJson(e.value)},
@@ -131,6 +137,7 @@ void main(List<String> args) {
       };
       expect(result.keys, ['ok']);
       final ok = Map<String, Object?>.of(result['ok'] as Map<String, Object?>);
+      expect(ok.remove('unsatisfied'), unsatisfied[name] ?? const {});
       final languageVersion = ok.remove('language_version');
       final expectedLanguageVersion = languageVersions[name];
       if (expectedLanguageVersion != null) {

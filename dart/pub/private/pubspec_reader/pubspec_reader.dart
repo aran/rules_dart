@@ -3,10 +3,14 @@
 //
 //   {"ok": {"name": ..., "dependencies": [...], "sdk": ... or null,
 //           "language_version": "<major>.<minor>",
+//           "unsatisfied": {<dependency>: <its constraint>, ...},
 //           "fields": <the whole document>}}
 //   {"error": "<the message pub would give, with its line and column>"}
 //
-// Usage: pubspec_reader <pubspec.yaml> [<expected package name>]
+// Usage: pubspec_reader <pubspec.yaml> [<expected package name>] [--locked=<json>]
+//
+// `--locked` gives a version for each of some packages, as a JSON object; a
+// dependency whose constraint excludes its version is `unsatisfied`.
 //
 // The file is named in messages as it is given, so a caller passes the path it
 // wants a reader to see. Any other exit than 0 with one of those lines is a
@@ -242,7 +246,41 @@ String _sdkLanguageVersion(YamlMap fields, String? sdk) {
   }
 }
 
-Map<String, Object?> read(String path, String? expectedName) {
+/// The dependencies whose constraint excludes the version in [locked], with
+/// the constraint. One from a source other than a hosted one has no version
+/// to compare.
+Map<String, String> _unsatisfied(YamlMap fields, Map<String, Object?> locked) {
+  final node = fields.nodes['dependencies'];
+  if (node is! YamlMap) return const {};
+  final unsatisfied = <String, String>{};
+  for (final MapEntry(key: nameNode, value: spec) in node.nodes.entries) {
+    final name = (nameNode as YamlNode).value as String;
+    final version = locked[name];
+    if (version is! String) continue;
+    YamlNode? constraint = spec;
+    if (spec is YamlMap) {
+      final sources = spec.keys.where((k) => k != 'version' && k != 'hosted');
+      if (sources.isNotEmpty) continue;
+      constraint = spec.nodes['version'];
+    }
+    final text = constraint?.value;
+    if (text is! String) continue;
+    final VersionConstraint parsed;
+    try {
+      parsed = VersionConstraint.parse(text);
+    } on FormatException catch (e) {
+      _error('Could not parse the constraint "$text": ${e.message}', constraint!.span);
+    }
+    if (!parsed.allows(Version.parse(version))) unsatisfied[name] = text;
+  }
+  return unsatisfied;
+}
+
+Map<String, Object?> read(
+  String path,
+  String? expectedName, [
+  Map<String, Object?> locked = const {},
+]) {
   final YamlNode document;
   try {
     document = loadYamlNode(
@@ -270,21 +308,31 @@ Map<String, Object?> read(String path, String? expectedName) {
       'dependencies': dependencies,
       'sdk': sdk,
       'language_version': _sdkLanguageVersion(fields, sdk),
+      'unsatisfied': _unsatisfied(fields, locked),
       'fields': _plain(fields),
     },
   };
 }
 
-void main(List<String> args) {
-  if (args.isEmpty || args.length > 2) {
-    stderr.writeln('usage: pubspec_reader <pubspec.yaml> [<expected name>]');
+void main(List<String> arguments) {
+  const lockedFlag = '--locked=';
+  final args = arguments.where((a) => !a.startsWith(lockedFlag)).toList();
+  final lockedArgs = arguments.where((a) => a.startsWith(lockedFlag));
+  if (args.isEmpty || args.length > 2 || lockedArgs.length > 1) {
+    stderr.writeln(
+      'usage: pubspec_reader <pubspec.yaml> [<expected name>] [--locked=<json>]',
+    );
     exit(2);
   }
+  final locked = lockedArgs.isEmpty
+      ? const <String, Object?>{}
+      : jsonDecode(lockedArgs.single.substring(lockedFlag.length))
+            as Map<String, Object?>;
   // Messages are read in Bazel's output, not a terminal that draws boxes.
   glyph.ascii = true;
   Map<String, Object?> result;
   try {
-    result = read(args[0], args.length > 1 ? args[1] : null);
+    result = read(args[0], args.length > 1 ? args[1] : null, locked);
   } on SourceSpanException catch (e) {
     result = {'error': e.toString()};
   }

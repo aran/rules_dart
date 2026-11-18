@@ -44,7 +44,10 @@ def _fancy_source_impl(ctx):
     pubspec = ctx.path(ctx.attr.pubspec)
     ctx.symlink(pubspec.dirname.get_child("lib"), "lib")
     ctx.symlink(pubspec, "pubspec.yaml")
-    read = read_pubspec(ctx, ctx.attr.package_name)
+    result = read_pubspec(ctx, ctx.attr.package_name)
+    if result.error:
+        fail(result.error)
+    read = result.pubspec
     write_pubspec_dependencies(ctx, read.dependencies)
     metadata = _METADATA.format(
         metadata = _METADATA_TARGET,

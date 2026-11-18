@@ -48,6 +48,7 @@ load("//dart/pub/private:pub_files_names.bzl", "read_files_load")
 load("//dart/pub/private:pub_git.bzl", _check_pub_git_resolved_ref = "check_pub_git_resolved_ref", _fetch_pub_git = "fetch_pub_git", _is_relative_git_url = "is_relative_git_url")
 load("//dart/pub/private:pub_lock_checks.bzl", _published_by_rules_dart = "published_by_rules_dart")
 load("//dart/pub/private:pub_path.bzl", _fetch_pub_path = "fetch_pub_path")
+load("//dart/pub/private:pub_refusal.bzl", "PUBSPEC_REFUSAL", "failing_target", "write_pubspec_refusal")
 
 # Re-export for consumers outside //dart/pub (rules_flutter's
 # flutter_pub_package). Loading the private bzl directly would trip
@@ -167,11 +168,19 @@ def _write_member(ctx, package_name, version, source, build_prelude = ""):
     # reach it: parsed once here, not by each.
     language_version = ""
     pubspec_deps = []
+    refusal = None
     if ctx.path("pubspec.yaml").exists:
-        pubspec = read_pubspec(ctx, package_name, version)
-        language_version = pubspec.language_version
-        pubspec_deps = pubspec.dependencies
+        read = read_pubspec(ctx, package_name, version)
+        refusal = read.error
+        if not refusal:
+            language_version = read.pubspec.language_version
+            pubspec_deps = read.pubspec.dependencies
     write_pubspec_dependencies(ctx, pubspec_deps)
+    write_pubspec_refusal(ctx, refusal)
+    if refusal:
+        # The whole lock is materialised, packages no build uses included.
+        ctx.file("BUILD.bazel", build_prelude + failing_target(package_name, refusal))
+        return ctx.repo_metadata(reproducible = False)
 
     # A package that builds native code declares a build hook. rules_dart
     # cannot run it, so unless a curated `dart_code_asset` replaces it — or the
@@ -206,7 +215,7 @@ def _write_member(ctx, package_name, version, source, build_prelude = ""):
 
 def _pub_lock_package_impl(ctx):
     # Its files are another repository's, linked in: see `link_pub_files`.
-    build_prelude = link_pub_files(ctx, ctx.attr.files, written = [PUBSPEC_DEPENDENCIES])
+    build_prelude = link_pub_files(ctx, ctx.attr.files, written = [PUBSPEC_DEPENDENCIES, PUBSPEC_REFUSAL])
     fetched = pub_files_fetched(ctx, ctx.attr.files)
     if fetched == None:
         fail("@{}: its files repository {} records nothing it fetched: name one `pub_archive_files` or `pub_git_files` makes.".format(ctx.original_name, ctx.attr.files))
@@ -307,7 +316,9 @@ def _pub_lock_resolved_pubspec_impl(ctx):
               "Check out the package there, or run `dart pub get` so the lock says where " +
               "it is.") % (ctx.attr.lock, ctx.attr.package_name, ctx.attr.path, pubspec))
     ctx.symlink(pubspec, "pubspec.yaml")
-    write_pubspec_dependencies(ctx, read_pubspec(ctx, ctx.attr.package_name, ctx.attr.version).dependencies)
+    read = read_pubspec(ctx, ctx.attr.package_name, ctx.attr.version)
+    write_pubspec_dependencies(ctx, read.pubspec.dependencies if read.pubspec else [])
+    write_pubspec_refusal(ctx, read.error)
     ctx.file("BUILD.bazel", "")
 
     # Its pubspec is the user's, outside Bazel's control.

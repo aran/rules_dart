@@ -1,12 +1,13 @@
-"""The repository rules building rules_dart's tools on a Dart SDK's own source.
+"""What builds rules_dart's tools on a Dart SDK's own source.
 
-These repositories hold packages extracted from a source archive, and Bazel's
-repository contents cache keys them by the `.bzl` files their rules load. So
-this file is apart from `repositories.bzl` and loads only what it must: an edit
-elsewhere in rules_dart does not store the packages again.
+`fetch_dart_kernel_source` and `fetch_dart_analyzer_source` write, over a source
+tree laid out as a checkout, the packages a tool is built on and the tool. They
+hold links and generated BUILD files, so what they load does not matter to
+Bazel's repository contents cache: the bytes of a release's source are in the
+repository `dart_source_packages` makes (`sdk_fetch.bzl`), which loads nothing.
 """
 
-load("//dart/private:versions.bzl", "SOURCE_VERSIONS")
+load("//dart/private:toolchains_repo.bzl", "SDK_ERROR_LOAD", "sdk_tool_error_target")
 load("//dart/pub:pubspec.bzl", "read_pubspec")
 
 visibility("//dart/...")
@@ -22,11 +23,26 @@ def dart_source_archive_url(version):
     """
     return "https://github.com/dart-lang/sdk/archive/refs/tags/%s.tar.gz" % version
 
-# The SDK packages each tool built on an SDK's own source is built on, with
-# the one SDK package they share. Each package's other dependencies come from
-# pub.
-_KERNEL_PACKAGES = ["kernel", "_fe_analyzer_shared"]
-_ANALYZER_PACKAGES = ["analyzer", "linter", "_fe_analyzer_shared"]
+# Each tool built on an SDK's own source: the SDK packages it is built on, with
+# the one they share. Those packages' other dependencies come from
+# `@ext_pub_deps`, rules_dart's own pub packages.
+_TOOLS = {
+    "kernel": struct(
+        packages = ["kernel", "_fe_analyzer_shared"],
+        target = "outline_tool",
+        what = "the outline stripper",
+        flag = "--@rules_dart//dart:outline_kernel=false",
+    ),
+    "analyzer": struct(
+        packages = ["analyzer", "linter", "_fe_analyzer_shared"],
+        target = "summary_analyzer",
+        what = "the summary analyzer",
+        flag = "--@rules_dart//dart:analysis_summaries=false",
+    ),
+}
+
+# The version of each package `@ext_pub_deps` has.
+_PUB_VERSIONS = Label("@ext_pub_deps//:versions.json")
 
 def source_tool_packages(tool):
     """The packages under an SDK source's `pkg/` that one tool is built on.
@@ -38,7 +54,18 @@ def source_tool_packages(tool):
     Returns:
         The packages' names.
     """
-    return {"kernel": _KERNEL_PACKAGES, "analyzer": _ANALYZER_PACKAGES}[tool]
+    return _TOOLS[tool].packages
+
+def source_tool_target(tool):
+    """The target a repository of one tool's source provides.
+
+    Args:
+        tool: `kernel` or `analyzer`.
+
+    Returns:
+        The target's name.
+    """
+    return _TOOLS[tool].target
 
 def _join(prefix, *parts):
     return "/".join(([prefix] if prefix else []) + list(parts))
@@ -47,32 +74,6 @@ def _check_prefix(caller, prefix):
     if prefix and (prefix.startswith("/") or "\\" in prefix or [p for p in prefix.split("/") if p in ("", ".", "..")]):
         fail(("%s: prefix `%s` is not a relative path inside the repository: " +
               "name a directory by its path below the repository root, with `/` between its parts.") % (caller, prefix))
-
-def _fetch_release(repository_ctx, packages):
-    """Extracts `packages` from the source archive of `dart_version`'s release tag."""
-    version = repository_ctx.attr.dart_version
-    url = dart_source_archive_url(version)
-    sha256 = repository_ctx.attr.sha256 or SOURCE_VERSIONS.get(version)
-    if not sha256:
-        fail("%s(name = \"%s\"): rules_dart pins no source archive for Dart %s. Give `sha256`, that of %s." % (
-            repository_ctx.attr._rule,
-            repository_ctx.original_name,
-            version,
-            url,
-        ))
-    archive = "sdk.tar.gz"
-    repository_ctx.download(
-        url = url,
-        output = archive,
-        sha256 = sha256,
-    )
-    for package in packages:
-        repository_ctx.extract(
-            archive,
-            output = package,
-            stripPrefix = "sdk-%s/pkg/%s" % (version, package),
-        )
-    repository_ctx.delete(archive)
 
 def _link_checkout(rctx, caller, path, prefix, packages):
     """Links `packages`' pubspecs and sources from the checkout at `path` under `prefix`."""
@@ -92,16 +93,59 @@ def _link_checkout(rctx, caller, path, prefix, packages):
         rctx.symlink(pubspec, _join(prefix, package, "pubspec.yaml"))
         rctx.symlink(sources, _join(prefix, package, "lib"))
 
-def _write_packages(rctx, prefix, version, packages):
-    """Writes a `dart_library` for each of `packages` under `prefix`."""
-    for package in packages:
-        pubspec = read_pubspec(rctx, package, version, pubspec = _join(prefix, package, "pubspec.yaml"))
+def _read_packages(rctx, tool, prefix, sdk):
+    """Reads the pubspecs of a tool's packages.
+
+    Returns:
+        Each package's pubspec and None, or None and why the tool cannot be built.
+    """
+
+    def problem(detail):
+        return None, """\
+Dart SDK "{sdk}" cannot build {what}: {detail}
+Use a rules_dart whose own pub packages suit this SDK, or build without it: {flag}.""".format(
+            sdk = sdk,
+            what = tool.what,
+            detail = detail,
+            flag = tool.flag,
+        )
+
+    # A package rules_dart's lock maps elsewhere has no version here.
+    available = json.decode(rctx.read(_PUB_VERSIONS))
+    pubspecs = {}
+    for package in tool.packages:
+        read = read_pubspec(
+            rctx,
+            package,
+            pubspec = _join(prefix, package, "pubspec.yaml"),
+            locked_versions = {name: version for name, version in available.items() if version},
+        )
+        if read.error:
+            return problem(read.error)
+        for dep in read.pubspec.dependencies:
+            if dep in tool.packages:
+                continue
+            if dep not in available:
+                return problem("its pkg/%s depends on `%s`, which rules_dart's own pub packages do not include." % (package, dep))
+            if dep in read.pubspec.unsatisfied:
+                return problem("its pkg/%s needs `%s` %s, and rules_dart's own pub packages have %s." % (
+                    package,
+                    dep,
+                    read.pubspec.unsatisfied[dep],
+                    available[dep],
+                ))
+        pubspecs[package] = read.pubspec
+    return pubspecs, None
+
+def _write_packages(rctx, tool, prefix, pubspecs, build_prelude):
+    """Writes a `dart_library` for each of a tool's packages under `prefix`."""
+    for package, pubspec in pubspecs.items():
         deps = [
-            "//" + _join(prefix, dep) if dep in packages else str(Label("@ext_pub_deps//:" + dep))
+            "//" + _join(prefix, dep) if dep in tool.packages else str(Label("@ext_pub_deps//:" + dep))
             for dep in pubspec.dependencies
         ]
-        rctx.file(_join(prefix, package, "BUILD.bazel"), """# Generated by dart/repositories.bzl
-load("{defs}", "dart_library", "dart_package_metadata")
+        rctx.file(_join(prefix, package, "BUILD.bazel"), """# Generated by dart/private/sdk_source_repo.bzl
+{build_prelude}load("{defs}", "dart_library", "dart_package_metadata")
 
 dart_package_metadata(
     name = "pubspec-metadata",
@@ -117,16 +161,33 @@ dart_library(
     deps = {deps},
 )
 """.format(
+            build_prelude = build_prelude,
             defs = str(Label("//dart:defs.bzl")),
             package = package,
             language_version = pubspec.language_version,
             deps = json.encode(deps),
         ))
 
-def _write_outline_tool(rctx, prefix, version):
-    """Writes the kernel packages and the stripper's BUILD file under `prefix`; returns its label."""
-    _write_packages(rctx, prefix, version, _KERNEL_PACKAGES)
-    rctx.file(_join(prefix, "BUILD.bazel"), """# Generated by dart/repositories.bzl
+def _write_tool(rctx, tool, prefix, sdk, build_prelude, build_file):
+    """Writes a tool and its packages under `prefix`, or a target failing when the tool is built.
+
+    A repository fetched for `bazel fetch --all` or `bazel vendor` fails only
+    the builds running its tool. `build_file` makes the tool's BUILD file.
+
+    Returns:
+        The label of the tool, relative to the repository.
+    """
+    pubspecs, problem = _read_packages(rctx, tool, prefix, sdk)
+    if problem:
+        content = SDK_ERROR_LOAD + sdk_tool_error_target(tool.target, problem)
+    else:
+        _write_packages(rctx, tool, prefix, pubspecs, build_prelude)
+        content = build_file()
+    rctx.file(_join(prefix, "BUILD.bazel"), content)
+    return "//%s:%s" % (prefix, tool.target)
+
+def _outline_tool_build(prefix):
+    return """# Generated by dart/private/sdk_source_repo.bzl
 load("{defs}", "dart_binary")
 
 # The outline stripper on this SDK's own `pkg/kernel`: for the outlines of the
@@ -142,10 +203,9 @@ dart_binary(
         defs = str(Label("//dart:defs.bzl")),
         main = str(Label("//dart/private/tools:kernel_outline.dart")),
         kernel = "//" + _join(prefix, "kernel"),
-    ))
-    return struct(outline_tool = "//%s:outline_tool" % prefix)
+    )
 
-def fetch_dart_kernel_source(rctx, path, prefix = ""):
+def fetch_dart_kernel_source(rctx, path, prefix = "", sdk = "", build_prelude = ""):
     """Serves a Dart SDK checkout's `pkg/kernel` and builds the outline stripper on it.
 
     The body of `dart_kernel_source(path = ...)`, for a repository rule that
@@ -153,8 +213,11 @@ def fetch_dart_kernel_source(rctx, path, prefix = ""):
     It links the checkout's `pkg/kernel` and `pkg/_fe_analyzer_shared`
     (pubspec and `lib/`) unmodified, watches them, reads their pubspecs with
     `read_pubspec`, and writes a `dart_library` for each and the stripper,
-    `:outline_tool`, built on them. Everything is written below `prefix`,
-    which is empty or a directory of the calling repository:
+    `:outline_tool`, built on them. If it cannot be built on them, because pub
+    refuses a pubspec or rules_dart's own pub packages do not suit them, building
+    `:outline_tool` fails, saying so, and the caller's fetch succeeds. Everything
+    is written below `prefix`, which is empty or a directory of the calling
+    repository:
 
     - `<prefix>/kernel` and `<prefix>/_fe_analyzer_shared`: the two packages.
     - `<prefix>/BUILD.bazel`: the package holding `:outline_tool`.
@@ -175,6 +238,10 @@ def fetch_dart_kernel_source(rctx, path, prefix = ""):
         `pkg/kernel`; for a Flutter engine checkout, `third_party/dart`.
       prefix: The directory below the repository root to write into, such as
         `kernel_source`; empty for the root.
+      sdk: What to call the SDK in messages; empty for `path`.
+      build_prelude: Text to start each package's BUILD file with: a `load`
+        from the repository holding `path`, if that is a repository, so that
+        Bazel makes it before reading through the links.
 
     Returns:
       `struct` with `outline_tool`, the stripper's label relative to the calling
@@ -183,73 +250,9 @@ def fetch_dart_kernel_source(rctx, path, prefix = ""):
       as `@<repository name>` followed by this.
     """
     _check_prefix("fetch_dart_kernel_source", prefix)
-    _link_checkout(rctx, "fetch_dart_kernel_source", path, prefix, _KERNEL_PACKAGES)
-    return _write_outline_tool(rctx, prefix, "")
-
-def _check_version_or_path(repository_ctx):
-    version = repository_ctx.attr.dart_version
-    path = repository_ctx.attr.path
-    if bool(version) == bool(path):
-        fail("%s(name = \"%s\"): give exactly one of `dart_version` and `path`, %s." % (
-            repository_ctx.attr._rule,
-            repository_ctx.original_name,
-            "both were given" if version else "neither was",
-        ))
-    if path and repository_ctx.attr.sha256:
-        fail("%s(name = \"%s\"): `sha256` pins a release's source archive, and `path` fetches none." % (
-            repository_ctx.attr._rule,
-            repository_ctx.original_name,
-        ))
-    return version, path
-
-def _dart_kernel_source_impl(repository_ctx):
-    version, path = _check_version_or_path(repository_ctx)
-    if path:
-        fetch_dart_kernel_source(repository_ctx, path)
-
-        # Depends on a directory outside Bazel's control.
-        return repository_ctx.repo_metadata(reproducible = False)
-
-    _fetch_release(repository_ctx, _KERNEL_PACKAGES)
-    _write_outline_tool(repository_ctx, "", version)
-
-    # A pinned URL and sha256; the pubspecs are read from the archive.
-    return repository_ctx.repo_metadata(reproducible = True)
-
-dart_kernel_source = repository_rule(
-    _dart_kernel_source_impl,
-    doc = """The outline stripper of one Dart SDK release, built on that release's own `pkg/kernel`.
-
-`--@rules_dart//dart:outline_kernel` has dependents compile against outlines of
-their dependencies' kernel modules, which a stripper written on `pkg/kernel`
-makes. `pkg/kernel` reads and writes only the kernel format of the SDK it ships
-in, so the stripper must be built from the same SDK as the compiler that wrote
-the modules. This repository fetches the source archive of the release's tag
-(pinned in `versions.bzl`), takes `pkg/kernel` and `pkg/_fe_analyzer_shared`
-from it unmodified, and declares `:outline_tool`, the stripper built on them.
-
-The `dart` extension makes one for each toolchain it registers. A rule set whose
-platform bundles a released Dart SDK (Flutter) declares one for that SDK's
-version, with the `sha256` of its source archive when rules_dart does not pin
-it, and sets its `:outline_tool` as its `DartKernelSdkInfo.outline_tool`.
-
-A Dart SDK built from source has no release to pin: name its checkout with
-`path` instead. The repository links the checkout's two packages and watches
-them, so an edit there refetches it; it is not reproducible, so Bazel does not
-share it between output bases.""",
-    attrs = {
-        "dart_version": attr.string(
-            doc = "The Dart SDK release whose `pkg/kernel` the stripper is built on. A version `versions.bzl` does not pin also needs `sha256`. Exactly one of `dart_version` and `path` is given.",
-        ),
-        "sha256": attr.string(
-            doc = "The SHA-256 of the GitHub source archive of `dart_version`'s tag. Needed for a release `versions.bzl` does not pin, which rules_dart need not serve.",
-        ),
-        "path": attr.string(
-            doc = "The absolute path of a Dart SDK source checkout's root, the directory holding `pkg/kernel`, whose `pkg/kernel` and `pkg/_fe_analyzer_shared` the stripper is built on; for a Flutter engine checkout that is `third_party/dart`. Exactly one of `dart_version` and `path` is given. `pkg/kernel` reads only the kernel format of the SDK it ships in, so the checkout must be the source of the compiler whose kernels the stripper reads: that is yours to keep, and a stripper from one checkout fails on the kernels of another's compiler.",
-        ),
-        "_rule": attr.string(default = "dart_kernel_source"),
-    },
-)
+    tool = _TOOLS["kernel"]
+    _link_checkout(rctx, "fetch_dart_kernel_source", path, prefix, tool.packages)
+    return struct(outline_tool = _write_tool(rctx, tool, prefix, sdk or path, build_prelude, lambda: _outline_tool_build(prefix)))
 
 # The files of the summary analyzer besides its `main`.
 _SUMMARY_ANALYZER_SRCS = [
@@ -262,10 +265,8 @@ _SUMMARY_ANALYZER_SRCS = [
     "summarize.dart",
 ]
 
-def _write_summary_analyzer(rctx, prefix, version):
-    """Writes the analyzer packages and the summary analyzer's BUILD file under `prefix`; returns its label."""
-    _write_packages(rctx, prefix, version, _ANALYZER_PACKAGES)
-    rctx.file(_join(prefix, "BUILD.bazel"), """# Generated by dart/repositories.bzl
+def _summary_analyzer_build(prefix):
+    return """# Generated by dart/private/sdk_source_repo.bzl
 load("{defs}", "dart_binary")
 
 # The analyzer `--@rules_dart//dart:analysis_summaries` runs: this SDK's own
@@ -287,17 +288,17 @@ dart_binary(
             str(Label("@ext_pub_deps//:" + d))
             for d in ["bazel_worker", "path", "yaml"]
         ]),
-    ))
-    return struct(summary_analyzer = "//%s:summary_analyzer" % prefix)
+    )
 
-def fetch_dart_analyzer_source(rctx, path, prefix = ""):
+def fetch_dart_analyzer_source(rctx, path, prefix = "", sdk = "", build_prelude = ""):
     """Serves a Dart SDK checkout's `pkg/analyzer` and `pkg/linter` and builds the summary analyzer on them.
 
     The body of `dart_analyzer_source(path = ...)`, for a repository rule that
     already reads the checkout, as `fetch_dart_kernel_source` is. It links the
     checkout's `pkg/analyzer`, `pkg/linter` and `pkg/_fe_analyzer_shared`
     (pubspec and `lib/`) unmodified, watches them, and writes a `dart_library`
-    for each and `:summary_analyzer`, built on them, below `prefix`:
+    for each and `:summary_analyzer`, built on them, below `prefix`. What
+    stops it being built fails building it, as for `fetch_dart_kernel_source`:
 
     - `<prefix>/analyzer`, `<prefix>/linter` and `<prefix>/_fe_analyzer_shared`.
     - `<prefix>/BUILD.bazel`: the package holding `:summary_analyzer`.
@@ -312,6 +313,8 @@ def fetch_dart_analyzer_source(rctx, path, prefix = ""):
         `pkg/analyzer`; for a Flutter engine checkout, `third_party/dart`.
       prefix: The directory below the repository root to write into, such as
         `analyzer_source`; empty for the root.
+      sdk: What to call the SDK in messages; empty for `path`.
+      build_prelude: As for `fetch_dart_kernel_source`.
 
     Returns:
       `struct` with `summary_analyzer`, the analyzer's label relative to the
@@ -320,54 +323,6 @@ def fetch_dart_analyzer_source(rctx, path, prefix = ""):
       `tool` names it as `@<repository name>` followed by this.
     """
     _check_prefix("fetch_dart_analyzer_source", prefix)
-    _link_checkout(rctx, "fetch_dart_analyzer_source", path, prefix, _ANALYZER_PACKAGES)
-    return _write_summary_analyzer(rctx, prefix, "")
-
-def _dart_analyzer_source_impl(repository_ctx):
-    version, path = _check_version_or_path(repository_ctx)
-    if path:
-        fetch_dart_analyzer_source(repository_ctx, path)
-
-        # Depends on a directory outside Bazel's control.
-        return repository_ctx.repo_metadata(reproducible = False)
-
-    _fetch_release(repository_ctx, _ANALYZER_PACKAGES)
-    _write_summary_analyzer(repository_ctx, "", version)
-
-    # A pinned URL and sha256; the pubspecs are read from the archive.
-    return repository_ctx.repo_metadata(reproducible = True)
-
-dart_analyzer_source = repository_rule(
-    _dart_analyzer_source_impl,
-    doc = """The summary analyzer of one Dart SDK release, built on that release's own `pkg/analyzer` and `pkg/linter`.
-
-`--@rules_dart//dart:analysis_summaries` analyzes each target against its
-dependencies' analyzer summaries. No tool in the SDK reads them, so rules_dart
-builds one on the SDK's own analyzer and linter, which must be of the same
-release for it to report what that release's `dart analyze` does. This
-repository fetches the source archive of the release's tag (pinned in
-`versions.bzl`), takes `pkg/analyzer`, `pkg/linter` and
-`pkg/_fe_analyzer_shared` from it unmodified, and declares
-`:summary_analyzer`, built on them.
-
-The `dart` extension makes one for each toolchain it registers. A rule set whose
-platform bundles a released Dart SDK (Flutter) declares one for that SDK's
-version, with the `sha256` of its source archive when rules_dart does not pin
-it, and registers a `dart_analyzer_toolchain` with its `:summary_analyzer`.
-
-A Dart SDK built from source has no release to pin: name its checkout with
-`path` instead. The repository links the checkout's packages and watches them;
-it is not reproducible, so Bazel does not share it between output bases.""",
-    attrs = {
-        "dart_version": attr.string(
-            doc = "The Dart SDK release whose `pkg/analyzer` and `pkg/linter` the analyzer is built on. A version `versions.bzl` does not pin also needs `sha256`. Exactly one of `dart_version` and `path` is given.",
-        ),
-        "sha256": attr.string(
-            doc = "The SHA-256 of the GitHub source archive of `dart_version`'s tag. Needed for a release `versions.bzl` does not pin, which rules_dart need not serve.",
-        ),
-        "path": attr.string(
-            doc = "The absolute path of a Dart SDK source checkout's root, the directory holding `pkg/analyzer`; for a Flutter engine checkout that is `third_party/dart`. Exactly one of `dart_version` and `path` is given. It must be the source of the SDK whose analysis the analyzer stands in for: that is yours to keep.",
-        ),
-        "_rule": attr.string(default = "dart_analyzer_source"),
-    },
-)
+    tool = _TOOLS["analyzer"]
+    _link_checkout(rctx, "fetch_dart_analyzer_source", path, prefix, tool.packages)
+    return struct(summary_analyzer = _write_tool(rctx, tool, prefix, sdk or path, build_prelude, lambda: _summary_analyzer_build(prefix)))

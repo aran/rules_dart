@@ -10,7 +10,7 @@ Bazel does not. A declared cycle (`pub.cycle()`, or rules_dart's curated
 ones) is one `pub_library` in the library repository of its first package by
 name, and every other package of it aliases that; an undeclared one fails the
 build using the package, naming the declaration to write. So does a dependency
-nothing supplies: the repository still fetches, as `bazel fetch --all` and
+nothing supplies, and a package whose pubspec pub refuses: the repository still fetches, as `bazel fetch --all` and
 `bazel vendor` need of every repository, whether or not a build uses it.
 
 The source repositories read nothing of each other, so planning a cycle never
@@ -19,6 +19,7 @@ asks a repository to wait on itself.
 
 load("//dart/pub:pub_graph.bzl", "cycle_error", "dependency_cycle", "dependency_graph", "read_pubspec_dependencies")
 load("//dart/pub/private:build_content.bzl", "make_pub_library_build_content")
+load("//dart/pub/private:pub_refusal.bzl", "failing_target", "read_pubspec_refusal")
 
 visibility("//dart/...")
 
@@ -90,15 +91,7 @@ def dependency_label(prefix, dep, explicit):
 
 def _unbuildable(ctx, message):
     """Makes the package's target fail the build using it with `message`."""
-    ctx.file("BUILD.bazel", """\
-load("@rules_dart//dart/private:sdk_error.bzl", "dart_sdk_error")
-
-dart_sdk_error(
-    name = "{name}",
-    message = {message},
-    visibility = ["//visibility:public"],
-)
-""".format(name = ctx.attr.package_name, message = json.encode(message)))
+    ctx.file("BUILD.bazel", failing_target(ctx.attr.package_name, message))
     return ctx.repo_metadata(reproducible = True)
 
 def _pub_lock_library_impl(ctx):
@@ -119,6 +112,12 @@ def _pub_lock_library_impl(ctx):
         lambda p: read_pubspec_dependencies(ctx, source_repo(prefix, p)),
         follow = fetched | served,
     )
+
+    # A pubspec pub refuses stops every build reaching it, and no other.
+    for member in graph:
+        refusal = read_pubspec_refusal(ctx, source_repo(prefix, member))
+        if refusal:
+            return _unbuildable(ctx, refusal)
 
     declarations = dict(
         declared = index["cycles"],

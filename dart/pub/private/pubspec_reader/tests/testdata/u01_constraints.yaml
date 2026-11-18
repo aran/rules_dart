@@ -1,0 +1,9 @@
+name: x
+dependencies:
+  u_satisfied: ^1.0.0
+  u_too_old: ^2.0.0
+  u_in_map:
+    version: ">=3.0.0"
+  u_from_path:
+    path: ../elsewhere
+  u_any:

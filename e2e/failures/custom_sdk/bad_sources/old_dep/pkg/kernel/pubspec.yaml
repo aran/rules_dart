@@ -1,0 +1,4 @@
+name: kernel
+dependencies:
+  _fe_analyzer_shared: any
+  collection: ">=99.0.0"

@@ -42,6 +42,7 @@ bzl_library(
         "//dart/pub/private:pub_git",
         "//dart/pub/private:pub_lock_checks",
         "//dart/pub/private:pub_path",
+        "//dart/pub/private:pub_refusal",
     ],
 )
 

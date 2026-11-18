@@ -416,9 +416,23 @@ jobs:
           expect no_cross_tools 'has no source to build the summary analyzer from' 'source = ...'
           target=(//:value_test)
           expect no_cross_tools 'has no source to build the outline stripper from' 'source = ...'
-          for sdk in no_source_checksum no_cross_tools; do
+          # Source the outline stripper cannot be built on stops what runs it, saying why.
+          expect source_refused 'Dart SDK "source_refused" cannot build the outline stripper' 'pub would refuse' '--@rules_dart//dart:outline_kernel=false'
+          expect source_missing_dep 'Dart SDK "source_missing_dep" cannot build the outline stripper' 'its pkg/kernel depends on' not_among_rules_dart_packages
+          expect source_old_dep 'Dart SDK "source_old_dep" cannot build the outline stripper' 'its pkg/kernel needs' 'collection' '>=99.0.0'
+          for sdk in no_source_checksum no_cross_tools source_refused source_missing_dep source_old_dep; do
             bazel build //:value_program "--@rules_dart//dart:sdk=$sdk"
           done
+          # A pubspec pub refuses stops the builds reaching it, and no other.
+          target=(@refused_pubspecs//:bad_yaml)
+          expect dart 'pub would refuse the pubspec of pub package "bad_yaml"'
+          target=(@refused_pubspecs//:wrong_name)
+          expect dart 'pub would refuse the pubspec of pub package "wrong_name"' "doesn't match expected name"
+          target=(@refused_pubspecs//:reaches_refused)
+          expect dart 'pub would refuse the pubspec of pub package "wrong_name"'
+          target=(@refused_pubspecs//:reaches_mapped)
+          expect dart 'pub would refuse the pubspec of pub package "mapped"'
+          bazel build --@rules_dart//dart:sdk=dart @refused_pubspecs//:fine
           echo "OK: every unusable SDK refused, saying why"
       - name: old_sdk_doc_import — expect analysis with Dart 3.13 to say which comment_references are false
         working-directory: e2e/failures/old_sdk_doc_import
@@ -515,7 +529,7 @@ jobs:
           done
           bazel build @both//:outline_tool 2>&1 | grep -q "give exactly one of \`dart_version\` and \`path\`, both were given"
           bazel build @neither//:outline_tool 2>&1 | grep -q "give exactly one of \`dart_version\` and \`path\`, neither was"
-          bazel build @not_a_checkout//:outline_tool 2>&1 | grep -q "/usr/pkg/kernel/pubspec.yaml does not exist"
+          bazel build @not_a_checkout//:outline_tool 2>&1 | grep -q "/usr has no pkg/kernel/pubspec.yaml"
           echo "OK: dart_kernel_source misuse refused"
       # A link hook that refuses the program's recorded uses fails the build,
       # and its own message reaches the user.

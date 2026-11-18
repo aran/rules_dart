@@ -26,7 +26,22 @@ pub.package(
     sha256 = "971043b3a0d3da28727e40ed3e0b5d18b742fa5a68665cca88e74b7876d5e025",
     version = "6.6.1",
 )
-use_repo(pub, "xml")
+
+# Packages whose pubspecs pub refuses: their repositories still fetch, and only
+# the builds reaching them fail.
+pub.from_lock(
+    name = "refused_pubspecs",
+    build_from_pubspec = [
+        "bad_yaml",
+        "fine",
+        "reaches_mapped",
+        "reaches_refused",
+        "wrong_name",
+    ],
+    lock = "//refused_pubspecs:pubspec.lock",
+    resolve = {"mapped": "//refused_pubspecs/mapped"},
+)
+use_repo(pub, "refused_pubspecs", "xml")
 
 dart = use_extension("@rules_dart//dart:extensions.bzl", "dart")
 dart.use_sdk(name = "older_than_requested")
@@ -127,5 +142,44 @@ dart.custom_sdk(
         "macos-x64": "@dart_macos-x64//:version",
         "windows-x64": "@dart_windows-x64//:version",
     },
+)
+
+# An SDK that runs here, with source whose pubspec pub refuses.
+dart.custom_sdk(
+    name = "source_refused",
+    sdk = {
+        "linux-arm64": "@dart_linux-arm64//:version",
+        "linux-x64": "@dart_linux-x64//:version",
+        "macos-arm64": "@dart_macos-arm64//:version",
+        "macos-x64": "@dart_macos-x64//:version",
+        "windows-x64": "@dart_windows-x64//:version",
+    },
+    source = "//bad_sources/refused:DEPS",
+)
+
+# An SDK that runs here, with source needing a package rules_dart's own pub packages lack.
+dart.custom_sdk(
+    name = "source_missing_dep",
+    sdk = {
+        "linux-arm64": "@dart_linux-arm64//:version",
+        "linux-x64": "@dart_linux-x64//:version",
+        "macos-arm64": "@dart_macos-arm64//:version",
+        "macos-x64": "@dart_macos-x64//:version",
+        "windows-x64": "@dart_windows-x64//:version",
+    },
+    source = "//bad_sources/missing_dep:DEPS",
+)
+
+# An SDK that runs here, with source needing a newer version of one of them.
+dart.custom_sdk(
+    name = "source_old_dep",
+    sdk = {
+        "linux-arm64": "@dart_linux-arm64//:version",
+        "linux-x64": "@dart_linux-x64//:version",
+        "macos-arm64": "@dart_macos-arm64//:version",
+        "macos-x64": "@dart_macos-x64//:version",
+        "windows-x64": "@dart_windows-x64//:version",
+    },
+    source = "//bad_sources/old_dep:DEPS",
 )
 use_repo(dart, "dart_linux-arm64", "dart_linux-x64", "dart_macos-arm64", "dart_macos-x64", "dart_windows-x64")

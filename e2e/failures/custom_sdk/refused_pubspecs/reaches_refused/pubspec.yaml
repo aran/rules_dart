@@ -1,0 +1,6 @@
+name: reaches_refused
+environment:
+  sdk: ^3.14.0
+dependencies:
+  wrong_name:
+    path: ../wrong_name

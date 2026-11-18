@@ -237,7 +237,7 @@ def pubspec_reader_repositories(release_dart, project_dart):
             src = str(_SOURCE),
         )
 
-def run_pubspec_reader(rctx, pubspec, expected_name = None):
+def run_pubspec_reader(rctx, pubspec, expected_name = None, locked_versions = None):
     """Reads a pubspec with the host's reader, without failing on what it refuses.
 
     Args:
@@ -246,16 +246,21 @@ def run_pubspec_reader(rctx, pubspec, expected_name = None):
             name it.
         expected_name: The name the package was fetched as, which its `name`
             field must match; None not to check.
+        locked_versions: The version to compare each dependency's constraint
+            with, by package; None or a package left out to compare none.
 
     Returns:
         `struct(error, pubspec)`: pub's message for a pubspec it refuses, or
-        None and `struct(name, dependencies, sdk_constraint, language_version, fields)`.
+        None and `struct(name, dependencies, sdk_constraint, language_version,
+        unsatisfied, fields)`.
     """
     rctx.watch(_SOURCE)
     tool = rctx.path(_TOOLS[host_platform(rctx.os)])
     args = [tool, pubspec]
     if expected_name != None:
         args.append(expected_name)
+    if locked_versions:
+        args.append("--locked=" + json.encode(locked_versions))
     result = rctx.execute(args)
     out = result.stdout.strip()
     if result.return_code != 0 or not out.startswith("{"):
@@ -269,5 +274,6 @@ def run_pubspec_reader(rctx, pubspec, expected_name = None):
         dependencies = ok["dependencies"],
         sdk_constraint = ok["sdk"] or "",
         language_version = ok["language_version"],
+        unsatisfied = ok["unsatisfied"],
         fields = ok["fields"],
     ))

@@ -699,6 +699,7 @@ def _pub_impl(ctx):
         pub_lock_hub(
             name = hub_name,
             packages = {name: library_label(name) for name in packages},
+            versions = {name: fetched[name] for name in packages if name in fetched},
         )
 
     # The repositories are fixed by the tags and the locks read above: a

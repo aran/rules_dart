@@ -3141,6 +3141,13 @@ release from its tag's archive, `dart.custom_sdk` from `source`, a checkout from
 its `pkg/`. Without that source, a build needing a tool fails, naming what to
 add and the flag that turns the tool off.
 
+Those `pkg/` packages have dependencies of their own, which come from
+rules_dart's pub packages, not from the SDK. They suit the releases rules_dart
+pins and, usually, those near them. If an SDK's `pkg/` needs a package they don't
+include, or a version they don't have, a build running that tool fails, naming the
+SDK, the package and the flag. Nothing else about the SDK is affected: with the
+flag, or with a rules_dart whose packages suit it, it builds as any other.
+
 ### Cross-compiling
 
 Cross-compiling needs files the SDK doesn't include: a `gen_snapshot` that runs
@@ -3521,8 +3528,11 @@ from `dart_analyzable_info()` for a target whose sources belong to a package, or
 A repository rule can read a `pubspec.yaml` the way `pub.from_lock()` does, with
 `read_pubspec(rctx, package_name)` from `@rules_dart//dart/pub:pubspec.bzl`. It
 uses Dart's own `package:yaml`, the loader pub uses, and refuses what pub
-refuses, with pub's message. It returns the pubspec's `name`, `dependencies`,
-`sdk_constraint` and `language_version`, and the whole document as `fields`.
+refuses. It returns `struct(error, pubspec)`, so your rule decides what a refusal
+means: `error` is pub's message, naming the package, or None, and `pubspec` then
+has the `name`, `dependencies`, `sdk_constraint` and `language_version`, and the
+whole document as `fields`. rules_dart's own repositories still fetch for a
+package pub refuses, and only a build using the package fails, with that message.
 
 ### A platform that bundles Dart
 
@@ -3536,13 +3546,13 @@ Each Dart toolchain has two tools beside the compiler: the outline stripper (see
 the source of the same SDK.
 
 If the platform bundles a published Dart release, build its tools with
-`dart_kernel_source` and `dart_analyzer_source`, repository rules in
-`@rules_dart//dart:repositories.bzl`, giving `dart_version` and `sha256`, the
-checksum of that tag's source archive on GitHub.
+`dart_kernel_source` and `dart_analyzer_source`, functions in
+`@rules_dart//dart:repositories.bzl` that a module extension calls, giving
+`dart_version` and `sha256`, the checksum of that tag's source archive on GitHub.
 
 A Dart SDK with no release tag, such as Flutter's beta and main channels, needs
 tools built from its checkout, which in a Flutter engine checkout is
-`third_party/dart`: give the same rules `path = "<checkout>"`. A repository rule
+`third_party/dart`: give the same functions `path = "<checkout>"`. A repository rule
 of your own that already reads the checkout can call
 `fetch_dart_kernel_source(rctx, path, prefix)` or
 `fetch_dart_analyzer_source(rctx, path, prefix)`, from the same file. These put
