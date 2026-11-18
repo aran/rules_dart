@@ -76,6 +76,25 @@ def assemble_source_dir(ctx, name, srcs, root_paths = ["."], replace_prefixes = 
     )
     return dst
 
+def package_source_roots(package_root):
+    """The `copy_to_directory` roots that strip a package's directory.
+
+    An external package's `package_root` is in `short_path` form
+    (`../repo/pkg`), but `copy_to_directory` drops external files unless their
+    repository is listed and matches `root_paths` against the repo-relative
+    path (`pkg`).
+
+    Args:
+      package_root: The package's `package_root`.
+
+    Returns:
+      `struct(root_paths, external_repositories)`, both lists.
+    """
+    if package_root.startswith("../"):
+        repo, _, rest = package_root[len("../"):].partition("/")
+        return struct(root_paths = [rest] if rest else [], external_repositories = [repo])
+    return struct(root_paths = [package_root] if package_root else ["."], external_repositories = [])
+
 def package_for(short_path, packages):
     """Returns the package_name owning `short_path` (see `package_record_for`).
 
@@ -248,11 +267,13 @@ def colocate_packages(ctx, packages, all_srcs, members = {}):
             mangled = p.package_name
             for ch in ["/", ":", ".", "+"]:
                 mangled = mangled.replace(ch, "_")
+            roots = package_source_roots(p.package_root)
             assembled = assemble_source_dir(
                 ctx,
                 ctx.label.name + "." + mangled + ".pkgsrcs",
                 files,
-                root_paths = [p.package_root] if p.package_root else ["."],
+                root_paths = roots.root_paths,
+                include_external_repositories = roots.external_repositories,
             )
 
             # Only `package_root` changes. Everything else the record carries —
