@@ -24,6 +24,7 @@ copy_to_directory(
         "lib/message.dart",
         ":message_part",
     ],
+    hardlink = "off",
 )
 
 dart_library(

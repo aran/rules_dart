@@ -2164,8 +2164,9 @@ Two more `dart/ext` packages are not builders. `sqlite3`
 Bazel (see [Native code assets](#native-code-assets)).
 
 To put hand-written and generated files from any targets into one directory,
-use bazel_lib's `copy_to_directory`. A `dart_library` takes that directory as
-`srcs_dir`.
+use bazel_lib's `copy_to_directory` with `hardlink = "off"`. A `dart_library`
+takes that directory as `srcs_dir`. The default hardlinks generated files, and
+a generated symlink to one of your sources then makes the source read-only.
 
 ### A generator and its package
 

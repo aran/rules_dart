@@ -4,6 +4,7 @@ load("//dart:defs.bzl", "dart_library", "dart_package_metadata")
 copy_to_directory(
     name = "tree_set",
     srcs = ["lib/tree.dart"],
+    hardlink = "off",
 )
 
 dart_package_metadata(

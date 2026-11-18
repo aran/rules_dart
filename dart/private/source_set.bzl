@@ -7,12 +7,13 @@ package whose files are split between the source tree and `bazel-out` (because a
 directory before `dart compile`/`dart` will resolve it.
 
 `assemble_source_dir` does that with bazel-lib's `copy_to_directory` (portable on
-Windows, no bash, no symlink privilege). A consumer that needs one directory
-per package assembles each package's complete file set at build time via
-`colocate_packages` — the consumer is the only place that sees a package's files
-across all of its `dart_library` fragments. `dart_source_set` exposes the
-same assembly as a standalone, package-agnostic primitive (consumed via
-`dart_library`'s `srcs_dir`).
+Windows, no bash, no symlink privilege). It copies and never hardlinks: a
+hardlink to a generated symlink is a hardlink to the source it names. A
+consumer that needs one directory per package assembles each package's complete
+file set at build time via `colocate_packages` — the consumer is the only place
+that sees a package's files across all of its `dart_library` fragments.
+`dart_source_set` exposes the same assembly as a standalone, package-agnostic
+primitive (consumed via `dart_library`'s `srcs_dir`).
 """
 
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory_bin_action")
@@ -73,6 +74,11 @@ def assemble_source_dir(ctx, name, srcs, root_paths = ["."], replace_prefixes = 
         root_paths = root_paths,
         replace_prefixes = replace_prefixes,
         include_external_repositories = include_external_repositories,
+        # Always copy. `copy_to_directory`'s default hardlinks every file that
+        # is not a source file, and a generated symlink to a source file is one:
+        # hardlinking it links the user's file, which Bazel then makes
+        # read-only (and executable) along with the output tree.
+        hardlink = "off",
     )
     return dst
 

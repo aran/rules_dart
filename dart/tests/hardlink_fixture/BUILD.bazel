@@ -1,0 +1,46 @@
+"""A package with a source, a generated file and a generated symlink to a source.
+
+The symlink is the input that bazel_lib's `copy_to_directory` hardlinks by
+default and that links the user's own file when it does. Assembling the package
+runs the real assembly actions, so a build of `:probe` also builds them.
+"""
+
+load("//dart:defs.bzl", "dart_library")
+load("//dart/tests:assembly_hardlink_test.bzl", "assembly_probe", "never_hardlinks_test", "symlinked")
+
+genrule(
+    name = "gen_src",
+    outs = ["lib/generated.dart"],
+    cmd = "echo \"String get generated => 'generated';\" > $@",
+)
+
+symlinked(
+    name = "linked_src",
+    src = "linked_source.dart",
+    out = "lib/linked.dart",
+)
+
+dart_library(
+    name = "pkg",
+    srcs = [
+        "lib/hand.dart",
+        ":gen_src",
+        ":linked_src",
+    ],
+)
+
+assembly_probe(
+    name = "probe",
+    srcs = [
+        "lib/hand.dart",
+        ":gen_src",
+        ":linked_src",
+    ],
+    deps = [":pkg"],
+)
+
+never_hardlinks_test(
+    name = "never_hardlinks_test",
+    size = "small",
+    target_under_test = ":probe",
+)
