@@ -79,6 +79,16 @@ filegroup(
     urls = ["https://github.com/dart-lang/pub/archive/fe190660d68a4dd3070fe33fc406ff58d754dccc.tar.gz"],
 )
 
+# Dart packages in a repository other than the main one, for the test that
+# consumes them (//dart/tests/external_consumer_fixture).
+local_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:local.bzl", "local_repository")
+
+local_repository(
+    name = "fetched_fixtures",
+    dev_dependency = True,
+    path = "dart/tests/fetched_fixtures",
+)
+
 # On macOS, rules_cc leaves C++ to apple_support's toolchain. 2.9.0 builds that
 # toolchain's helper tools for macOS 11, the oldest Xcode 27's libc++ accepts
 # without a warning. Dev-only: the C++ toolchain is the consuming module's call.

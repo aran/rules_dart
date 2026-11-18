@@ -1,0 +1,26 @@
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+package(default_visibility = ["//visibility:public"])
+
+# A Dart package at the root of a repository of its own, with a hand-written
+# and a generated file under `lib/`. The generated file makes a consumer
+# assemble the package's sources into one directory.
+genrule(
+    name = "gen_src",
+    outs = ["lib/generated.dart"],
+    cmd = "echo \"String get rootGenerated => 'root-generated';\" > $@",
+)
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "fetched_root",
+)
+
+dart_library(
+    name = "fetched_root",
+    srcs = [
+        "lib/hand.dart",
+        ":gen_src",
+    ],
+    package = ":pubspec-metadata",
+)

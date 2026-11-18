@@ -1,0 +1,24 @@
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+package(default_visibility = ["//visibility:public"])
+
+# The same, for a package in a subdirectory of the repository.
+genrule(
+    name = "gen_src",
+    outs = ["lib/generated.dart"],
+    cmd = "echo \"String get subGenerated => 'sub-generated';\" > $@",
+)
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "fetched_sub",
+)
+
+dart_library(
+    name = "fetched_sub",
+    srcs = [
+        "lib/hand.dart",
+        ":gen_src",
+    ],
+    package = ":pubspec-metadata",
+)

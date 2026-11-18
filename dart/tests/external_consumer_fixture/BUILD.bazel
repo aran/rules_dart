@@ -1,0 +1,33 @@
+load("//dart:defs.bzl", "dart_test")
+load(":colocated.bzl", "colocated")
+
+# Two packages of another repository (`@fetched_fixtures`, from
+# `//dart/tests/fetched_fixtures`), one at its root and one in `pkg/`, each with
+# a hand-written and a generated file under `lib/`.
+_EXTERNAL_PACKAGES = [
+    "@fetched_fixtures//:fetched_root",
+    "@fetched_fixtures//pkg:fetched_sub",
+]
+
+# A test of them compiles and runs, all four files imported through `package:`.
+dart_test(
+    name = "external_package_test",
+    size = "small",
+    main = "test/external_package_test.dart",
+    deps = _EXTERNAL_PACKAGES,
+)
+
+# A rule that colocates the packages, as `colocate_packages` is for, must find
+# both files of each in the directory it assembles.
+colocated(
+    name = "colocated",
+    deps = _EXTERNAL_PACKAGES,
+)
+
+dart_test(
+    name = "colocated_external_package_test",
+    size = "small",
+    data = [":colocated"],
+    main = "test/colocated_external_package_test.dart",
+    deps = ["//dart/runfiles"],
+)

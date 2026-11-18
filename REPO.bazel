@@ -16,6 +16,7 @@ ignore_directories([
     # Claude Code keeps its worktrees here, full checkouts Bazel would read as packages.
     ".claude",
     ".github",
+    "dart/tests/fetched_fixtures",
     "dev",
     "docs",
     "e2e",
