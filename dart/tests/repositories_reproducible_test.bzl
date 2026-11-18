@@ -7,10 +7,14 @@ attributes alone. Each implementation runs here against a context that offers
 the downloads and file writes the rule makes and nothing that reads the host
 (`os`, `getenv`, `execute`, `watch`, `which`): a rule that started reading the
 host would fail here, rather than share one machine's repository with another.
+
+The SDK is an `http_archive`, which Bazel marks reproducible when it is given a
+`sha256` and nothing else that varies, so that test checks the attributes
+rather than running an implementation.
 """
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
-load("//dart:repositories.bzl", "dart_cross_tools_impl", "dart_sdk_repo_impl")
+load("//dart:repositories.bzl", "dart_cross_tools_impl", "dart_sdk_repo_attrs")
 load("//dart/private:toolchains_repo.bzl", "CROSS_TARGETS", "PLATFORMS", "toolchains_repo_impl")
 load("//dart/private:versions.bzl", "CROSS_TOOL_VERSIONS", "TOOL_VERSIONS")
 load(":small_suite.bzl", "small_unittest_suite")
@@ -29,12 +33,15 @@ def _sdk_is_reproducible_test_impl(ctx):
     env = unittest.begin(ctx)
     version = TOOL_VERSIONS.keys()[0]
     for platform in PLATFORMS.keys():
-        metadata = dart_sdk_repo_impl(_context(
-            dart_version = version,
-            platform = platform,
-            user_repository_name = "dart",
-        ))
-        asserts.true(env, metadata and metadata.reproducible, "%s SDK repository" % platform)
+        attrs = dart_sdk_repo_attrs(version, platform, "dart")
+
+        # `http_archive` returns `reproducible = True` for a pinned digest,
+        # and Bazel's repository contents cache keys the repository by its
+        # attributes: any other would be a copy of the SDK per value.
+        asserts.equals(env, ["build_file_content", "sha256", "strip_prefix", "url"], sorted(attrs.keys()), "%s SDK repository" % platform)
+        asserts.equals(env, TOOL_VERSIONS[version][platform], attrs["sha256"], "%s SDK repository" % platform)
+        asserts.equals(env, 64, len(attrs["sha256"]), "%s SDK repository" % platform)
+        asserts.true(env, attrs["url"].startswith("https://"), "%s SDK repository" % platform)
     return unittest.end(env)
 
 def _cross_tools_are_reproducible_test_impl(ctx):

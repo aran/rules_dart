@@ -13,6 +13,19 @@ bzl_library(
     visibility = ["//dart:__subpackages__"],
 )
 
+# `http_archive` and what it loads, from Bazel's own tools, which ship no
+# `bzl_library`.
+# keep
+bzl_library(
+    name = "http_archive",
+    srcs = [
+        "@bazel_tools//tools/build_defs/repo:cache.bzl",
+        "@bazel_tools//tools/build_defs/repo:http.bzl",
+        "@bazel_tools//tools/build_defs/repo:utils.bzl",
+    ],
+    visibility = ["//dart:__subpackages__"],
+)
+
 bzl_library(
     name = "common",
     srcs = ["common.bzl"],

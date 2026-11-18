@@ -11,7 +11,7 @@ builds in place of a package's build hook, `package_metadata_check`):
 """
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
-load("//dart:repositories.bzl", "dart_cross_tools_impl", "dart_sdk_repo_impl")
+load("//dart:repositories.bzl", "dart_cross_tools_impl", "dart_sdk_repo_attrs")
 
 # buildifier: disable=bzl-visibility
 load("//dart/private:package_info.bzl", "directory_identity", "fetched_identity_text", "local_git_identity", "purl_identity")
@@ -242,14 +242,19 @@ def _recording_context(**attrs):
 def _sdk_test_impl(ctx):
     env = unittest.begin(ctx)
     version = TOOL_VERSIONS.keys()[0]
-    files, rctx = _recording_context(dart_version = version, platform = "linux-x64", user_repository_name = "dart")
-    dart_sdk_repo_impl(rctx)
+    attrs = dart_sdk_repo_attrs(version, "linux-x64", "dart")
     sha256 = TOOL_VERSIONS[version]["linux-x64"]
     want = ("pkg:generic/dart-sdk@{v}?checksum=sha256:{sha}&download_url=https:%2F%2Fstorage.googleapis.com" +
             "%2Fdart-archive%2Fchannels%2Fstable%2Frelease%2F{v}%2Fsdk%2Fdartsdk-linux-x64-release.zip").format(v = version, sha = sha256)
-    asserts.equals(env, 'repo(default_package_metadata = ["//:package_metadata"])\n', files.get("REPO.bazel"))
-    build = files.get("BUILD.bazel", "")
+    asserts.equals(env, sha256, attrs["sha256"])
+    build = attrs["build_file_content"]
     asserts.true(env, 'purl = "%s"' % want in build, build)
+
+    # An `http_archive` writes no `REPO.bazel`, so the SDK's one BUILD file
+    # attaches the metadata to its package, after its loads.
+    asserts.true(env, 'package(default_package_metadata = ["//:package_metadata"])' in build, build)
+    asserts.true(env, build.rfind("\nload(") < build.find("\npackage("), build)
+    asserts.true(env, build.find("\npackage(") < build.find("\ndart_sdk_files("), build)
     asserts.true(env, build.rfind("\nload(") < build.find("\ndart_sdk_files("), build)
 
     # The cross-compilation files are of the same release.

@@ -5,6 +5,7 @@ repository of its own; `dart_register_toolchains` declares them all and the
 repository exposing their toolchains.
 """
 
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("@package_metadata//purl:purl.bzl", "purl")
 load("//dart/private:toolchains_repo.bzl", "CROSS_TARGETS", "PLATFORMS", "SDK_CACHE_DIR", "TARGET_PLATFORMS", "cross_tool_files", "toolchains_repo")
 load("//dart/private:versions.bzl", "CROSS_TOOL_VERSIONS", "SOURCE_VERSIONS", "TOOL_VERSIONS")
@@ -15,11 +16,12 @@ load("//dart/pub:pubspec.bzl", "read_pubspec")
 ########
 
 # What a repository holding a Dart SDK release's files is, for every target in
-# it: a `package_metadata` target and the `REPO.bazel` attaching it. The purl
-# spec has no type for the Dart SDK, and its `github` type names a source
-# tree, not the prebuilt archive fetched here, so the identity is `generic`
-# with the archive's `download_url` and `checksum`, as the spec advises for
-# that type.
+# it: a `package_metadata` target and the `REPO.bazel` attaching it (an SDK's
+# one BUILD file attaches it with `package()` instead, since `http_archive`
+# writes no `REPO.bazel`). The purl spec has no type for the Dart SDK, and its
+# `github` type names a source tree, not the prebuilt archive fetched here, so
+# the identity is `generic` with the archive's `download_url` and `checksum`,
+# as the spec advises for that type.
 _SDK_PURL_NAME = "dart-sdk"
 _IDENTITY_TARGET = "package_metadata"
 _IDENTITY_REPO_FILE = 'repo(default_package_metadata = ["//:{}"])\n'.format(_IDENTITY_TARGET)
@@ -41,10 +43,10 @@ def _dart_sdk_purl(version, checksums, download_url = None):
         builder.add_qualifier("download_url", download_url)
     return builder.build()
 
-def _write_identity(repository_ctx, build_content, purl_string):
-    """Writes `BUILD.bazel`, with a `package_metadata` of `purl_string`, and the `REPO.bazel` attaching it."""
+def _with_identity(build_content, purl_string):
+    """Returns `build_content` with a `package_metadata` of `purl_string`, which `_IDENTITY_REPO_FILE` attaches (for an SDK, its BUILD file's own `package()` does)."""
     header, _, body = build_content.partition("\n")
-    repository_ctx.file("BUILD.bazel", """{header}
+    return """{header}
 load("{rules}", "package_metadata")
 {body}
 package_metadata(
@@ -58,53 +60,32 @@ package_metadata(
         body = body,
         target = _IDENTITY_TARGET,
         purl = purl_string,
-    ))
-    repository_ctx.file("REPO.bazel", _IDENTITY_REPO_FILE)
+    )
 
-_DOC = "Fetch the Dart SDK for a given version and platform"
-_ATTRS = {
-    "dart_version": attr.string(
-        doc = "The Dart SDK version to download (e.g. `3.14.1`). Must be a version listed in `versions.bzl`.",
-        mandatory = True,
-        values = TOOL_VERSIONS.keys(),
-    ),
-    "platform": attr.string(
-        doc = "The host platform whose SDK this repository downloads (e.g. " +
-              "`macos-arm64`, `linux-x64`). Must match a key in `PLATFORMS` — " +
-              "cross-only targets have no SDK of their own, so they are not " +
-              "valid here.",
-        mandatory = True,
-        values = PLATFORMS.keys(),
-    ),
-    "user_repository_name": attr.string(
-        doc = "The base name the repositories were registered under, which " +
-              "names each pair's `dart_cross_tools` repository.",
-        mandatory = True,
-    ),
-}
-
-def dart_sdk_repo_impl(repository_ctx):
-    """Implementation of `dart_repositories`, exposed so a test can run it.
+def dart_sdk_repo_attrs(dart_version, platform, user_repository_name):
+    """The attributes of the `http_archive` holding one platform's SDK.
 
     Args:
-        repository_ctx: The `repository_ctx`.
+        dart_version: The Dart SDK version, one listed in `versions.bzl`.
+        platform: The host platform whose SDK to fetch, a key of `PLATFORMS`.
+            Cross-only targets have no SDK of their own.
+        user_repository_name: The base name the repositories were registered
+            under, which names each pair's `dart_cross_tools` repository.
 
     Returns:
-        Metadata marking the repository reproducible.
+        A dict of `http_archive`'s attributes.
     """
-    version = repository_ctx.attr.dart_version
-    platform = repository_ctx.attr.platform
+    version = dart_version
+    if version not in TOOL_VERSIONS:
+        fail("rules_dart does not serve Dart SDK %s. It serves: %s." % (version, ", ".join(sorted(TOOL_VERSIONS.keys()))))
+    if platform not in PLATFORMS:
+        fail("No Dart SDK for platform %s. The platforms are: %s." % (platform, ", ".join(sorted(PLATFORMS.keys()))))
 
     url = "https://storage.googleapis.com/dart-archive/channels/stable/release/{version}/sdk/dartsdk-{platform}-release.zip".format(
         version = version,
         platform = platform,
     )
     sha256 = TOOL_VERSIONS[version][platform]
-    repository_ctx.download_and_extract(
-        url = url,
-        sha256 = sha256,
-        stripPrefix = "dart-sdk",
-    )
 
     # Determine the dart binary name based on platform
     if platform.startswith("windows"):
@@ -114,6 +95,8 @@ def dart_sdk_repo_impl(repository_ctx):
 
     build_content = """# Generated by dart/repositories.bzl
 load("@rules_dart//dart:toolchain.bzl", "dart_sdk_files", "dart_toolchain")
+
+package(default_package_metadata = ["//:{identity}"])
 
 dart_sdk_files(
     name = "sdk",
@@ -130,6 +113,7 @@ dart_toolchain(
 )
 """.format(
         dart_bin = dart_bin,
+        identity = _IDENTITY_TARGET,
         version = version,
         exec_os = PLATFORMS[platform].dart_os,
         exec_arch = PLATFORMS[platform].dart_arch,
@@ -158,24 +142,34 @@ dart_toolchain(
             exec_arch = PLATFORMS[platform].dart_arch,
             target_platform = target_platform,
             platform = platform,
-            user_repository_name = repository_ctx.attr.user_repository_name,
+            user_repository_name = user_repository_name,
             dart_bin = dart_bin,
             version = version,
             target_os = target_meta.dart_os,
             target_arch = target_meta.dart_arch,
         )
 
-    _write_identity(repository_ctx, build_content, _dart_sdk_purl(version, [sha256], url))
+    return {
+        "build_file_content": _with_identity(build_content, _dart_sdk_purl(version, [sha256], url)),
+        "sha256": sha256,
+        "strip_prefix": "dart-sdk",
+        "url": url,
+    }
 
-    # Pinned URL and sha256, `platform` an attribute rather than read from the
-    # host: the contents depend on the attributes alone.
-    return repository_ctx.repo_metadata(reproducible = True)
+def dart_repositories(name, dart_version, platform, user_repository_name):
+    """Declares the repository holding a Dart SDK for one platform.
 
-dart_repositories = repository_rule(
-    dart_sdk_repo_impl,
-    doc = _DOC,
-    attrs = _ATTRS,
-)
+    Args:
+        name: The repository's name.
+        dart_version: The Dart SDK version, one listed in `versions.bzl`.
+        platform: The host platform whose SDK to fetch, a key of `PLATFORMS`.
+        user_repository_name: The base name the repositories were registered
+            under, which names each pair's `dart_cross_tools` repository.
+    """
+    http_archive(
+        name = name,
+        **dart_sdk_repo_attrs(dart_version, platform, user_repository_name)
+    )
 
 def dart_cross_tools_impl(repository_ctx):
     """Implementation of `dart_cross_tools`, exposed so a test can run it.
@@ -208,13 +202,14 @@ def dart_cross_tools_impl(repository_ctx):
         )
         srcs.append(path)
 
-    _write_identity(repository_ctx, """# Generated by dart/repositories.bzl
+    repository_ctx.file("BUILD.bazel", _with_identity("""# Generated by dart/repositories.bzl
 filegroup(
     name = "sdk_cache",
     srcs = {srcs},
     visibility = ["//visibility:public"],
 )
-""".format(srcs = srcs), _dart_sdk_purl(version, [checksums[basename] for basename, _ in fetched]))
+""".format(srcs = srcs), _dart_sdk_purl(version, [checksums[basename] for basename, _ in fetched])))
+    repository_ctx.file("REPO.bazel", _IDENTITY_REPO_FILE)
 
     # Pinned URLs and sha256s, nothing read from the host.
     return repository_ctx.repo_metadata(reproducible = True)

@@ -119,7 +119,7 @@ def _platform_metadata_shape_test_impl(ctx):
 def _checksums_cover_every_host_test_impl(ctx):
     env = unittest.begin(ctx)
 
-    # `_dart_sdk_repo_impl` does TOOL_VERSIONS[version][platform], which hard
+    # `dart_sdk_repo_attrs` does TOOL_VERSIONS[version][platform], which hard
     # errors on a miss. Every pinned version therefore needs every host key —
     # and no extras, which would mean a checksum for a platform we never fetch.
     want = sorted(PLATFORMS.keys())
