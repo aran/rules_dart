@@ -261,8 +261,10 @@ jobs:
       - name: Bazel ${{ env.USE_BAZEL_VERSION }} — ${{ matrix.folder }}
         working-directory: ${{ matrix.folder }}
         run: bazel test --lockfile_mode=off --test_output=errors //...
-  # Bazel's latest release candidate, weekly: an upstream change that breaks us
-  # shows before its release. A red run here never blocks a merge.
+  # Bazel's latest release candidate, weekly, in every workspace `test` runs:
+  # an upstream change that breaks us shows before its release. It also turns
+  # on the incompatible flags no released Bazel we run has yet, so their flip
+  # shows here first. A red run here never blocks a merge.
   bazel-rc:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     continue-on-error: true
@@ -273,7 +275,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        folder: [".", "e2e/smoke"]
+        folder:
+          - "."
+          - "e2e/smoke"
+          - "e2e/examples"
+          - "e2e/root_settings"
+          - "overhead"
+          - "dev"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: bazel-contrib/setup-bazel@104e3eea9447cdaa4b00d0fb46191a3985d26ab3 # 0.19.1
@@ -284,7 +292,7 @@ jobs:
           repository-cache: true
       - name: Bazel's latest release candidate — ${{ matrix.folder }}
         working-directory: ${{ matrix.folder }}
-        run: bazel test --lockfile_mode=off --test_output=errors //...
+        run: bazel test --lockfile_mode=off --incompatible_fail_on_unknown_output_groups --test_output=errors //...
   # Workspaces that are expected to fail at module resolution.
   # Validates that rules_dart produces the correct error messages.
   expected-failure:
