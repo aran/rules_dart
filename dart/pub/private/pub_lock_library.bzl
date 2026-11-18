@@ -8,14 +8,16 @@ dependency cycle (`pub_graph.bzl`):
 pub allows packages to depend on each other (`dio` and `dio_web_adapter`), and
 Bazel does not. A declared cycle (`pub.cycle()`, or rules_dart's curated
 ones) is one `pub_library` in the library repository of its first package by
-name, and every other package of it aliases that; an undeclared one fails,
-naming the declaration to write.
+name, and every other package of it aliases that; an undeclared one fails the
+build using the package, naming the declaration to write. So does a dependency
+nothing supplies: the repository still fetches, as `bazel fetch --all` and
+`bazel vendor` need of every repository, whether or not a build uses it.
 
 The source repositories read nothing of each other, so planning a cycle never
 asks a repository to wait on itself.
 """
 
-load("//dart/pub:pub_graph.bzl", "dependency_cycle", "dependency_graph", "read_pubspec_dependencies")
+load("//dart/pub:pub_graph.bzl", "cycle_error", "dependency_cycle", "dependency_graph", "read_pubspec_dependencies")
 load("//dart/pub/private:build_content.bzl", "make_pub_library_build_content")
 
 visibility("//dart/...")
@@ -86,6 +88,19 @@ def dependency_label(prefix, dep, explicit):
         return "@{dep}//:{dep}".format(dep = dep)
     return "@{repo}//:{dep}".format(repo = library_repo(prefix, dep), dep = dep)
 
+def _unbuildable(ctx, message):
+    """Makes the package's target fail the build using it with `message`."""
+    ctx.file("BUILD.bazel", """\
+load("@rules_dart//dart/private:sdk_error.bzl", "dart_sdk_error")
+
+dart_sdk_error(
+    name = "{name}",
+    message = {message},
+    visibility = ["//visibility:public"],
+)
+""".format(name = ctx.attr.package_name, message = json.encode(message)))
+    return ctx.repo_metadata(reproducible = True)
+
 def _pub_lock_library_impl(ctx):
     prefix = ctx.attr.spoke_prefix
     index = read_index(ctx)
@@ -105,14 +120,16 @@ def _pub_lock_library_impl(ctx):
         follow = fetched | served,
     )
 
-    cycle = dependency_cycle(
-        graph,
-        ctx.attr.package_name,
+    declarations = dict(
         declared = index["cycles"],
         advisory = index["advisory_cycles"],
         declare = "pub.cycle",
         served = served,
     )
+    error = cycle_error(graph, ctx.attr.package_name, **declarations)
+    if error:
+        return _unbuildable(ctx, error)
+    cycle = dependency_cycle(graph, ctx.attr.package_name, **declarations)
     if cycle.owner != ctx.attr.package_name:
         ctx.file("BUILD.bazel", make_pub_library_build_content(
             name = ctx.attr.package_name,
@@ -123,7 +140,7 @@ def _pub_lock_library_impl(ctx):
     for member in cycle.packages:
         for dep in graph[member]:
             if dep not in fetched and dep not in resolved:
-                fail(unsupplied_dependency_error(
+                return _unbuildable(ctx, unsupplied_dependency_error(
                     member,
                     fetched[member],
                     dep,

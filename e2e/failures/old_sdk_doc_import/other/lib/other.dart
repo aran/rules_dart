@@ -1,0 +1,2 @@
+/// A thing.
+class Other {}

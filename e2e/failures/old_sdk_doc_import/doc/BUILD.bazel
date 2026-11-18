@@ -1,0 +1,16 @@
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "metadata",
+    package_name = "doc",
+    language_version = "3.13",
+)
+
+# Only a doc import uses `other`.
+dart_library(
+    name = "doc",
+    srcs = ["lib/doc.dart"],
+    features = ["-dart_unused_deps"],
+    package = ":metadata",
+    deps = ["//other"],
+)

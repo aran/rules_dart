@@ -11,10 +11,11 @@ builds in place of a package's build hook, `package_metadata_check`):
 """
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
-load("//dart:repositories.bzl", "dart_cross_tools_impl", "dart_sdk_repo_attrs")
+load("//dart:repositories.bzl", "dart_cross_tools_attrs", "dart_sdk_repo_attrs")
 
 # buildifier: disable=bzl-visibility
 load("//dart/private:package_info.bzl", "directory_identity", "fetched_identity_text", "local_git_identity", "purl_identity")
+load("//dart/private:sdk_fetch.bzl", "dart_fetched_files_impl")
 load("//dart/private:versions.bzl", "CROSS_TOOL_VERSIONS", "TOOL_VERSIONS")
 load("//dart/pub:pub_files_root.bzl", "write_pub_files_root")
 load("//dart/pub:pub_lock_package.bzl", "pub_files_fetched")
@@ -242,7 +243,7 @@ def _recording_context(**attrs):
 def _sdk_test_impl(ctx):
     env = unittest.begin(ctx)
     version = TOOL_VERSIONS.keys()[0]
-    attrs = dart_sdk_repo_attrs(version, "linux-x64", "dart")
+    attrs = dart_sdk_repo_attrs(version, "linux-x64")
     sha256 = TOOL_VERSIONS[version]["linux-x64"]
     want = ("pkg:generic/dart-sdk@{v}?checksum=sha256:{sha}&download_url=https:%2F%2Fstorage.googleapis.com" +
             "%2Fdart-archive%2Fchannels%2Fstable%2Frelease%2F{v}%2Fsdk%2Fdartsdk-linux-x64-release.zip").format(v = version, sha = sha256)
@@ -259,8 +260,8 @@ def _sdk_test_impl(ctx):
 
     # The cross-compilation files are of the same release.
     version = CROSS_TOOL_VERSIONS.keys()[0]
-    files, rctx = _recording_context(dart_version = version, exec_platform = "linux-x64", target_platform = "linux-arm64")
-    dart_cross_tools_impl(rctx)
+    files, rctx = _recording_context(**dart_cross_tools_attrs(version, "linux-x64", "linux-arm64", "0" * 64, "1" * 64))
+    dart_fetched_files_impl(rctx)
     asserts.equals(env, 'repo(default_package_metadata = ["//:package_metadata"])\n', files.get("REPO.bazel"))
     build = files.get("BUILD.bazel", "")
     asserts.true(env, 'purl = "pkg:generic/dart-sdk@%s?checksum=sha256:' % version in build, build)

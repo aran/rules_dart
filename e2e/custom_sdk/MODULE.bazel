@@ -1,0 +1,261 @@
+# Each way of supplying a Dart SDK other than a release rules_dart pins, all of
+# them Dart 3.14.0 where rules_dart pins a newer one. `dart.use_sdk` chooses the
+# one a plain build uses; BUILD.bazel runs the same tests under the others.
+# `minimum` is the oldest SDK rules_dart builds with; `minimum/` tests it.
+module(name = "custom_sdk_e2e")
+
+bazel_dep(name = "platforms", version = "1.1.0")
+bazel_dep(name = "rules_dart", version = "0.0.0")
+bazel_dep(name = "rules_platform", version = "0.1.0")
+
+local_path_override(
+    module_name = "rules_dart",
+    path = "../..",
+)
+
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
+
+dart = use_extension("@rules_dart//dart:extensions.bzl", "dart")
+
+# The SDK this workspace builds with, stated here and nowhere else.
+dart.use_sdk(name = "released")
+
+# A published release rules_dart does not pin.
+dart.release(
+    name = "released",
+    cross_tools_sha256 = {
+        "dartaotruntime_linux_arm": "bf41783424c8bc5755b98a74425d51446d6cc19eaafac40a945351d1a0ca780a",
+        "dartaotruntime_linux_arm64": "4c0e6f09c2ea7601d5d410bf1192ddace65d95fd40613ba980a265d4e5bc6f92",
+        "dartaotruntime_linux_riscv64": "50991a1d6fbe2db4eba0a1893b6a307156bbdebcaef2bbd727e6f324abdd6e68",
+        "dartaotruntime_linux_x64": "c97004ecd074ebabc2eb09e69cb9f35f7345eb5a168ca2bec21815668da4f82a",
+        "gen_snapshot_linux_arm64_linux_arm": "f2cf6c4c4c8296a1fa80470542a6dc771b8a28e64bb1139f0a4bfc01f6d57153",
+        "gen_snapshot_linux_arm64_linux_riscv64": "ac2742fbdf32ec2f39be71938f9f8a8d35bad7d488bef9b1e962d47ee7cb33a8",
+        "gen_snapshot_linux_arm64_linux_x64": "3c54bc85d52f65e87b702ea00a2a80ca306049321a02b96991f442dd42599ffa",
+        "gen_snapshot_linux_x64_linux_arm": "b186a32df97c25dc240d71d520f4ddb8d656eaaa2544a54a8de693e647b8e20a",
+        "gen_snapshot_linux_x64_linux_arm64": "9200d51fc8abd2f6516293d594c9e87850e579966d9be9023f645be6c45e407c",
+        "gen_snapshot_linux_x64_linux_riscv64": "e458747bbd22e6013ee638fc4f8e40eecf46239e670178f9be251ef88fad43d2",
+        "gen_snapshot_macos_arm64_linux_arm": "66ae4c8d1b180e55a8dc4f62ee5f4a5ae1d0dc91676a110fb453d0c008ca23e9",
+        "gen_snapshot_macos_arm64_linux_arm64": "46f697ea3580623d5e1efc595ff81132425d68d0ba4139c6b643c9c105ba7c41",
+        "gen_snapshot_macos_arm64_linux_riscv64": "6113fc9ed55bc84bbd7edeacddeb6f882e108c3cefbc9bd039e26af35eac3ad3",
+        "gen_snapshot_macos_arm64_linux_x64": "e0cea0d77ec8b72d5fd5995f5939945f06a77d749c34b7b8b349ada305b08801",
+        "gen_snapshot_macos_x64_linux_arm": "18ee005e8a03d258e688627cc4f0dd74482cf2d3bd89ad7c3b14745137b86a43",
+        "gen_snapshot_macos_x64_linux_arm64": "736bba06ccccb8294384ec7e2e820798a4c0b3abab9667dc7c9fd18f857b133e",
+        "gen_snapshot_macos_x64_linux_riscv64": "da16f74edcc0449bfcd159e660d0d48edac0450a0c92ee9c0904e59b3ef88a11",
+        "gen_snapshot_macos_x64_linux_x64": "7d29c51a2fb8534324f51120b8d988a4806353bd09de114f6ef050a3080d47be",
+        "gen_snapshot_windows_x64_linux_arm.exe": "20ba77922cddd1387ea208be07014032a6041ea5e0eb760d55132c978be55e69",
+        "gen_snapshot_windows_x64_linux_arm64.exe": "5235d7eb8be8124c2f4d7913ef46b83ff0c8e157757c2118afd6055b0f8fae85",
+        "gen_snapshot_windows_x64_linux_riscv64.exe": "886436bf1cf5cd92dce8ffe89ebf2c0f476c704c2be69771cb27d9efab8a322d",
+        "gen_snapshot_windows_x64_linux_x64.exe": "ea35080d6dea8a079ccdde30e86c3d6536747147e69fba778f52faf681e743f3",
+    },
+    dart_version = "3.14.0",
+    sdk_sha256 = {
+        "linux-arm64": "2bb9a19418ced8d9f5cc9e7faa2dcbbc7dc93882b287b8cd8db859efa191c888",
+        "linux-x64": "90f7fd75fe21e16437778df882f280910d9bbd4809c90024f21de82435dded1d",
+        "macos-arm64": "84ce7e50f18a724d6a29b33af5c4a16b160e9fb64622e12d575b3c9e3420509b",
+        "macos-x64": "91fff6ade4d81e02a4b568a6f5bfa037756fbfa1cc911c998e006b166547c05f",
+        "windows-x64": "9364024364325137b0db4cbfd36b178dd76ade7ec2f496846fc1e7e5bea6a681",
+    },
+    source_sha256 = "f9cdd43f4c05d7f8cbd1caea31e3505d1f81c489d008c063c7bc028364844f65",
+)
+
+# An SDK held by other repositories: one per host, and its source.
+# The oldest release rules_dart builds with.
+dart.release(
+    name = "minimum",
+    dart_version = "3.13.0",
+    sdk_sha256 = {
+        "linux-arm64": "20141a0653327939bb20c4b87b231226beba1128d8a9aedbb30cb5af1a2790d4",
+        "linux-x64": "87902573facd8acacac7ee1fe73fa8d0668e06065016068e2ed6c5c99c6b1ee0",
+        "macos-arm64": "1812d602aed0a9cf7281c93f514a1e1aecf60dc345c4337dba4ff28fa8d398ca",
+        "macos-x64": "6f75f0d6bc10c00457fb5b8861b26eadc5d883cfd11aa26a8c4f6353af370f47",
+        "windows-x64": "8480a527e621e9b06f1121cb4f56204e5c2b07851021cbe63965399de4d7f407",
+    },
+    source_sha256 = "89a06c61c4fd29dccae6ba48e86141dc94b867cb1c0ec021175dddc0720a0747",
+)
+
+# A prerelease whose `dart compile aot-snapshot` needs no target runtime: only
+# the `gen_snapshot`s are given, so a cross `aot-snapshot` is all it can build.
+dart.release(
+    name = "prerelease",
+    cross_tools_sha256 = {
+        "gen_snapshot_linux_arm64_linux_x64": "a571abad6c0002667c7b007b33f07c0fcc7df48abe6bbc58f29f21b7125a23eb",
+        "gen_snapshot_macos_arm64_linux_x64": "7afb434db0fb1f3f3d177477cf070ac1b5bd60b8e9cd79e5aac23f857abfac9d",
+        "gen_snapshot_macos_x64_linux_x64": "ab87c0e1b95b60106087146a2f620f7f0dc18526d5037a55e6dad25fa99a4293",
+        "gen_snapshot_windows_x64_linux_x64.exe": "62c796ad0b27c3f1b38fd692c1256735190c5e54a854980f550af301fe930e98",
+    },
+    dart_version = "3.15.0-148.0.dev",
+    sdk_sha256 = {
+        "linux-arm64": "09db1d95c6ba3aa13cd677ccfe92b321db4ed86916dcb50881c3271b720d45aa",
+        "linux-x64": "14b4199874829a5d5b6003d7049a6415c826e82216346cb5db51a64d46347583",
+        "macos-arm64": "d8cc04e664b0c7eb4b79dd525e5464258c86cdc393070b3b2767880da283f60d",
+        "macos-x64": "9432a18f580b266ba7ad6d2997d0c579ec0cc7417e8ca69aecbcdce0e9abff58",
+        "windows-x64": "2720018e5e81f528ddddfa966c10f9da009cdf57a6518538ec32d27f7c2589b0",
+    },
+    source_sha256 = "f77b88f40ab8fa90d50aab551ac67413cb6a68cc40d8aa596b11210d5e72d551",
+)
+dart.custom_sdk(
+    name = "from_repositories",
+    cross_tools = {
+        "dartaotruntime_linux_x64": "@cross_dartaotruntime//file:dartaotruntime",
+        "gen_snapshot_linux_arm64_linux_x64": "@cross_gen_snapshot_linux-arm64//file:gen_snapshot",
+        "gen_snapshot_macos_arm64_linux_x64": "@cross_gen_snapshot_macos-arm64//file:gen_snapshot",
+        "gen_snapshot_macos_x64_linux_x64": "@cross_gen_snapshot_macos-x64//file:gen_snapshot",
+        "gen_snapshot_windows_x64_linux_x64.exe": "@cross_gen_snapshot_windows-x64//file:gen_snapshot",
+    },
+    sdk = {
+        "linux-arm64": "@supplied_linux-arm64//:version",
+        "linux-x64": "@supplied_linux-x64//:version",
+        "macos-arm64": "@supplied_macos-arm64//:version",
+        "macos-x64": "@supplied_macos-x64//:version",
+        "windows-x64": "@supplied_windows-x64//:version",
+    },
+    source = "@supplied_source//:DEPS",
+)
+
+# The same SDK, older than Dart's change to `aot-snapshot`, with no target
+# runtime: an `aot-snapshot` compiles without one, an `exe` could not.
+dart.custom_sdk(
+    name = "no_target_runtime",
+    cross_tools = {
+        "gen_snapshot_linux_arm64_linux_x64": "@cross_gen_snapshot_linux-arm64//file:gen_snapshot",
+        "gen_snapshot_macos_arm64_linux_x64": "@cross_gen_snapshot_macos-arm64//file:gen_snapshot",
+        "gen_snapshot_macos_x64_linux_x64": "@cross_gen_snapshot_macos-x64//file:gen_snapshot",
+        "gen_snapshot_windows_x64_linux_x64.exe": "@cross_gen_snapshot_windows-x64//file:gen_snapshot",
+    },
+    sdk = {
+        "linux-arm64": "@supplied_linux-arm64//:version",
+        "linux-x64": "@supplied_linux-x64//:version",
+        "macos-arm64": "@supplied_macos-arm64//:version",
+        "macos-x64": "@supplied_macos-x64//:version",
+        "windows-x64": "@supplied_windows-x64//:version",
+    },
+    source = "@supplied_source//:DEPS",
+)
+
+# An SDK built in a checkout. A real one's path comes from `DART_CHECKOUT`; this
+# stand-in is laid out by a repository, from the two above. Its build directory
+# holds `gen_snapshot`, as `create_sdk` leaves it; the target's runtime is not
+# something that build makes, so it is named.
+dart.checkout(
+    name = "from_checkout",
+    checkout = "@standin_checkout//:DEPS",
+    cross_tools = {"dartaotruntime_linux_x64": "@cross_dartaotruntime//file:dartaotruntime"},
+)
+
+# The same stand-in reached the way a real checkout is, through `DART_CHECKOUT`.
+# Nothing sets it in a plain build, so CI's `checkout-from-env` job runs the
+# `from_env_*` tests, giving it the stand-in's path.
+dart.checkout(
+    name = "from_env",
+    cross_tools = {"dartaotruntime_linux_x64": "@cross_dartaotruntime//file:dartaotruntime"},
+)
+
+standin_checkout = use_repo_rule("//:standin_checkout.bzl", "standin_checkout")
+
+standin_checkout(
+    name = "standin_checkout",
+    gen_snapshots = {
+        "linux-arm64": "@cross_gen_snapshot_linux-arm64//file:gen_snapshot",
+        "macos-arm64": "@cross_gen_snapshot_macos-arm64//file:gen_snapshot",
+        "macos-x64": "@cross_gen_snapshot_macos-x64//file:gen_snapshot",
+        "windows-x64": "@cross_gen_snapshot_windows-x64//file:gen_snapshot",
+    },
+    sdks = {
+        "linux-arm64": "@supplied_linux-arm64//:version",
+        "linux-x64": "@supplied_linux-x64//:version",
+        "macos-arm64": "@supplied_macos-arm64//:version",
+        "macos-x64": "@supplied_macos-x64//:version",
+        "windows-x64": "@supplied_windows-x64//:version",
+    },
+    source = "@supplied_source//:DEPS",
+)
+
+http_archive(
+    name = "supplied_source",
+    build_file_content = 'exports_files(["DEPS"])',
+    sha256 = "f9cdd43f4c05d7f8cbd1caea31e3505d1f81c489d008c063c7bc028364844f65",
+    strip_prefix = "sdk-3.14.0",
+    url = "https://github.com/dart-lang/sdk/archive/refs/tags/3.14.0.tar.gz",
+)
+
+http_archive(
+    name = "supplied_linux-arm64",
+    build_file_content = 'exports_files(["version"])',
+    sha256 = "2bb9a19418ced8d9f5cc9e7faa2dcbbc7dc93882b287b8cd8db859efa191c888",
+    strip_prefix = "dart-sdk",
+    url = "https://storage.googleapis.com/dart-archive/channels/stable/release/3.14.0/sdk/dartsdk-linux-arm64-release.zip",
+)
+
+http_archive(
+    name = "supplied_linux-x64",
+    build_file_content = 'exports_files(["version"])',
+    sha256 = "90f7fd75fe21e16437778df882f280910d9bbd4809c90024f21de82435dded1d",
+    strip_prefix = "dart-sdk",
+    url = "https://storage.googleapis.com/dart-archive/channels/stable/release/3.14.0/sdk/dartsdk-linux-x64-release.zip",
+)
+
+http_archive(
+    name = "supplied_macos-arm64",
+    build_file_content = 'exports_files(["version"])',
+    sha256 = "84ce7e50f18a724d6a29b33af5c4a16b160e9fb64622e12d575b3c9e3420509b",
+    strip_prefix = "dart-sdk",
+    url = "https://storage.googleapis.com/dart-archive/channels/stable/release/3.14.0/sdk/dartsdk-macos-arm64-release.zip",
+)
+
+http_archive(
+    name = "supplied_macos-x64",
+    build_file_content = 'exports_files(["version"])',
+    sha256 = "91fff6ade4d81e02a4b568a6f5bfa037756fbfa1cc911c998e006b166547c05f",
+    strip_prefix = "dart-sdk",
+    url = "https://storage.googleapis.com/dart-archive/channels/stable/release/3.14.0/sdk/dartsdk-macos-x64-release.zip",
+)
+
+http_archive(
+    name = "supplied_windows-x64",
+    build_file_content = 'exports_files(["version"])',
+    sha256 = "9364024364325137b0db4cbfd36b178dd76ade7ec2f496846fc1e7e5bea6a681",
+    strip_prefix = "dart-sdk",
+    url = "https://storage.googleapis.com/dart-archive/channels/stable/release/3.14.0/sdk/dartsdk-windows-x64-release.zip",
+)
+
+# What cross-compiling to Linux x86-64 takes, from each host that does it.
+http_file(
+    name = "cross_dartaotruntime",
+    downloaded_file_path = "dartaotruntime",
+    sha256 = "c97004ecd074ebabc2eb09e69cb9f35f7345eb5a168ca2bec21815668da4f82a",
+    url = "https://storage.googleapis.com/dart-archive/channels/stable/release/3.14.0/sdk/dartaotruntime_linux_x64",
+)
+
+http_file(
+    name = "cross_gen_snapshot_linux-arm64",
+    downloaded_file_path = "gen_snapshot",
+    executable = True,
+    sha256 = "3c54bc85d52f65e87b702ea00a2a80ca306049321a02b96991f442dd42599ffa",
+    url = "https://storage.googleapis.com/dart-archive/channels/stable/release/3.14.0/sdk/gen_snapshot_linux_arm64_linux_x64",
+)
+
+http_file(
+    name = "cross_gen_snapshot_macos-arm64",
+    downloaded_file_path = "gen_snapshot",
+    executable = True,
+    sha256 = "e0cea0d77ec8b72d5fd5995f5939945f06a77d749c34b7b8b349ada305b08801",
+    url = "https://storage.googleapis.com/dart-archive/channels/stable/release/3.14.0/sdk/gen_snapshot_macos_arm64_linux_x64",
+)
+
+http_file(
+    name = "cross_gen_snapshot_macos-x64",
+    downloaded_file_path = "gen_snapshot",
+    executable = True,
+    sha256 = "7d29c51a2fb8534324f51120b8d988a4806353bd09de114f6ef050a3080d47be",
+    url = "https://storage.googleapis.com/dart-archive/channels/stable/release/3.14.0/sdk/gen_snapshot_macos_x64_linux_x64",
+)
+
+http_file(
+    name = "cross_gen_snapshot_windows-x64",
+    downloaded_file_path = "gen_snapshot",
+    executable = True,
+    sha256 = "ea35080d6dea8a079ccdde30e86c3d6536747147e69fba778f52faf681e743f3",
+    url = "https://storage.googleapis.com/dart-archive/channels/stable/release/3.14.0/sdk/gen_snapshot_windows_x64_linux_x64.exe",
+)

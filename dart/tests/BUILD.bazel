@@ -4,6 +4,7 @@ load(":build_hook_test.bzl", "build_hook_test_suite")
 load(":code_asset_test.bzl", "code_asset_test_suite")
 load(":codegen_test.bzl", "codegen_test_suite")
 load(":common_test.bzl", "common_test_suite")
+load(":custom_sdks_test.bzl", "custom_sdks_test_suite")
 load(":dart_binary_test.bzl", "dart_binary_test_suite")
 load(":data_asset_test.bzl", "data_asset_test_suite")
 load(":defines_test.bzl", "defines_test_suite")
@@ -39,6 +40,8 @@ load(":yaml_parser_test.bzl", "yaml_parser_test_suite")
 versions_test_suite(name = "versions_test")
 
 toolchains_test_suite(name = "toolchains_test")
+
+custom_sdks_test_suite(name = "custom_sdks_test")
 
 repositories_reproducible_test_suite(name = "repositories_reproducible_test")
 

@@ -75,10 +75,10 @@ bazel_dep(name = "rules_dart_gazelle_plugin", version = "<the same version>")  #
 
 dart = use_extension("@rules_dart//dart:extensions.bzl", "dart")
 dart.toolchain(dart_version = "3.14.1")
-use_repo(dart, "dart_toolchains")
-
-register_toolchains("@dart_toolchains//:all")
 ```
+
+rules_dart registers its toolchains itself, so there is nothing to register and
+no repository to bring in with `use_repo`.
 
 Use the newest release, which you can find in the
 [Bazel Central Registry](https://registry.bazel.build/modules/rules_dart). The
@@ -86,7 +86,10 @@ notes of each [GitHub release](https://github.com/aran/rules_dart/releases)
 start with the exact `bazel_dep` lines. The two modules are released together,
 from the same tag, so they always have the same version.
 
-`dart_version` is the Dart SDK the build downloads and uses, exactly.
+`dart_version` is the Dart SDK the build downloads and uses, exactly. Leave out
+the `dart` lines and you get the newest release rules_dart pins. To build
+with a release rules_dart doesn't pin, a fork or your own build of the SDK, see
+[Choosing a Dart SDK](#choosing-a-dart-sdk).
 
 `rules_dart_gazelle_plugin` is optional. It is a separate module so that
 rules_dart itself brings no Go dependency. Leave it out if you don't generate
@@ -917,8 +920,8 @@ other module's `pub.package()` or lock entry for it. This works like a root
 Only the root module may use `pub.settings`, `ignore_hooks` or `ignore_hook`.
 
 The Dart SDK version isn't a request. The root's `dart.toolchain` version is
-used exactly, and a module asking for a newer SDK fails the build, with an error
-that names the fix. To take the highest request instead, the root sets
+used exactly, and a module asking for a newer SDK fails any build using that SDK,
+with an error that names the fix. To take the highest request instead, the root sets
 `allow_upgrade_by_dependencies = True` on its `dart.toolchain`. A root without a
 `dart.toolchain` gets the newest SDK rules_dart supports. rules_dart asks for no
 version of its own, so the root can pin any version it supports.
@@ -1674,9 +1677,8 @@ class of a library written before Dart 3.0. In those, an edit that moves code
 also recompiles the library's dependents.
 
 The outlines come from a stripper built from the source of the same Dart SDK as
-the compiler. Each Dart toolchain registers one beside it. A Dart SDK of your
-own needs one too (see [A Dart SDK of your own](#a-dart-sdk-of-your-own)). Two
-flags turn this off:
+the compiler. Each Dart SDK comes with its own (see
+[Choosing a Dart SDK](#choosing-a-dart-sdk)). Two flags turn this off:
 
 - `--@rules_dart//dart:outline_kernel=false` compiles dependents against full
   kernels instead of outlines.
@@ -1994,12 +1996,13 @@ over this repository, its examples, a corpus of pub packages and the analyzer's
 and linter's own tests. A loss outside the list can't be detected. Analyzing
 with the flag off is the reference.
 
-The summary analyzer must be built from the same SDK release as the Dart
-toolchain, and the `dart` extension registers it for its own SDK. A Dart SDK
-with no release tag (Flutter's beta and main channels, a local build) has no
-unmodified analyzer source to build it from. There, analysis fails and names the
-flag, unless you register an analyzer toolchain built from that SDK's checkout
-(see [A Dart SDK of your own](#a-dart-sdk-of-your-own)).
+The summary analyzer must be built from the source of the same SDK as the Dart
+toolchain, and the `dart` extension builds it for every SDK you declare with
+that source (see [Choosing a Dart SDK](#choosing-a-dart-sdk)). A platform that
+brings a Dart SDK with no release tag, such as Flutter's beta and main channels,
+registers one from that SDK's checkout (see
+[A platform that bundles Dart](#a-platform-that-bundles-dart)). Without one,
+analysis fails and names the flag.
 
 With the flag on, every library declares a summary, so any build configures the
 summary analyzer. It fetches the SDK source archive the analyzer is built from,
@@ -2970,6 +2973,215 @@ fails the build, so leave it off there. If you have rules of your own that pass
 a configuration's output path to an action as a string, rather than as a
 `File`, fix them first (see [Architecture](docs/ARCHITECTURE.md)).
 
+## Choosing a Dart SDK
+
+`dart.toolchain` gives you a Dart release that rules_dart pins, and that is the
+SDK a build uses unless you say otherwise. Your root module can also declare
+other SDKs, give each a name, and say which one the build uses. Each way of
+supplying an SDK is its own tag:
+
+| Tag               | The SDK                                                    |
+| ----------------- | ---------------------------------------------------------- |
+| `dart.toolchain`  | A release rules_dart pins                                  |
+| `dart.release`    | Any other published release, with checksums you provide    |
+| `dart.custom_sdk` | A Dart SDK that other repositories hold, such as a fork's  |
+| `dart.checkout`   | The SDK you built in a dart-lang/sdk checkout              |
+
+Declaring an SDK fetches nothing: Bazel fetches it only when a build uses it. So
+you can declare a checkout in the `MODULE.bazel` you commit, though only some
+machines have one. What a machine can't use fails only the build that uses it,
+saying what is wrong and the fix; `bazel fetch --all` and `bazel vendor` still
+succeed there. `bazel vendor` leaves out a checkout's repositories, which hold
+paths on one machine.
+
+A workspace with pub packages also needs one Dart SDK while Bazel fetches, before
+any build has chosen one: rules_dart reads each pubspec with a small program of
+Dart's own YAML parser, compiled once per host. That SDK is the one `dart.use_sdk`
+names, when it can be used on the machine, and otherwise the `dart` release. So a
+project whose `dart.use_sdk` names a `dart.custom_sdk` or `dart.checkout` it has
+here downloads no other SDK. One that chooses its SDK only with the flag below,
+or a machine that can't use the chosen SDK, downloads the `dart` release too. To
+supply that release without network access, fetch once where there is access and
+carry the result over, with `bazel vendor` and `--vendor_dir`, or put the archive
+named by the error in a `--distdir` directory.
+
+### Saying which SDK the build uses
+
+`dart.use_sdk` in the root module chooses, with no flag or `.bazelrc` line:
+
+```starlark
+dart = use_extension("@rules_dart//dart:extensions.bzl", "dart")
+dart.release(
+    name = "next",
+    dart_version = "3.15.0",
+    sdk_sha256 = {"macos-arm64": "...", "linux-x64": "..."},
+    source_sha256 = "...",
+)
+dart.use_sdk(name = "next")
+```
+
+Without `dart.use_sdk`, the build uses `dart`, the release `dart.toolchain`
+gives. rules_dart registers the toolchains of every declared SDK itself, so
+choosing one takes nothing else.
+
+To use another SDK for one build, or on one machine, name it with a flag. The
+flag overrides `dart.use_sdk` when it is given:
+
+```sh
+bazel test //... --@rules_dart//dart:sdk=local
+```
+
+`dart.use_sdk` answers "what does this project build with?" and the flag answers
+"what does this build use instead?". Put the flag in an untracked
+`.bazelrc.user` to build with your checkout while the project keeps its default.
+A name that nothing declares fails, listing those that are declared.
+
+Only the root module can declare an SDK other than `dart`, or choose one. The
+name `dart` stays the release every module may request.
+
+### A published release
+
+`dart.release` takes any release in the Dart archive, on the stable, beta or dev
+channel, and the checksums of what it fetches:
+
+```starlark
+dart.release(
+    name = "next",
+    dart_version = "3.15.0-1.2.beta",
+    # The SDK archive of each host you build on.
+    sdk_sha256 = {
+        "macos-arm64": "...",
+        "linux-x64": "...",
+    },
+    # The GitHub archive of the release's tag.
+    source_sha256 = "...",
+    # What cross-compiling needs, by file name in the Dart archive.
+    cross_tools_sha256 = {
+        "gen_snapshot_macos_arm64_linux_x64": "...",
+        "dartaotruntime_linux_x64": "...",
+    },
+)
+```
+
+Give only what your builds need. Each missing checksum stops just the build that
+needs the file, and the error gives the file's URL and the attribute to add. If
+two names declare the same release with the same checksums, they share what is
+downloaded. The
+Dart archive publishes the checksum of each SDK archive and `gen_snapshot` beside
+it, as `<file>.sha256sum`. For a `dartaotruntime`, and for the source archive at
+`https://github.com/dart-lang/sdk/archive/refs/tags/<version>.tar.gz`, download
+the file and compute it.
+
+### An SDK from other repositories
+
+`dart.custom_sdk` takes an SDK that a repository of yours provides, such as a
+fork's build you download:
+
+```starlark
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+http_archive(
+    name = "fork_sdk_linux",
+    build_file_content = 'exports_files(["version"])',
+    sha256 = "...",
+    strip_prefix = "dart-sdk",
+    url = "https://example.com/fork/dartsdk-linux-x64-release.zip",
+)
+
+http_archive(
+    name = "fork_source",
+    build_file_content = 'exports_files(["DEPS"])',
+    sha256 = "...",
+    strip_prefix = "sdk-main",
+    url = "https://example.com/fork/source.tar.gz",
+)
+
+dart.custom_sdk(
+    name = "fork",
+    sdk = {"linux-x64": "@fork_sdk_linux//:version"},
+    source = "@fork_source//:DEPS",
+)
+```
+
+`sdk` maps each host to the `version` file at the root of that host's SDK. The
+directory must be laid out as the Dart SDK archive is. The SDK's version is
+whatever that file says, so you don't state it again. `source` is the `DEPS` file
+at the root of the SDK's source.
+
+### Your own build
+
+`dart.checkout` uses an SDK built in a dart-lang/sdk checkout with
+`tools/build.py --mode=release --arch=arm64 create_sdk`. The path is specific to
+your machine, so it isn't in `MODULE.bazel`:
+
+```starlark
+dart.checkout(name = "local")
+```
+
+```bazelrc
+# .bazelrc.user
+common --repo_env=DART_CHECKOUT=/path/to/dart-sdk/sdk
+common --@rules_dart//dart:sdk=local
+```
+
+Bazel picks the SDK built for your machine in `out/` or `xcodebuild/`. If there
+are several, the build fails and lists them, and you choose one with
+`--repo_env=DART_CHECKOUT_BUILD=ReleaseARM64`. Rebuilding the SDK or editing its
+`pkg/` is picked up by the next build. To declare a second checkout, give it its
+own variables with `path_env` and `build_env`. A repository that lays out a
+checkout itself can be named instead, with `checkout = "@tree//:DEPS"`.
+
+### What comes with each SDK
+
+The outline stripper (see [How tests are compiled](#how-tests-are-compiled)) and
+the summary analyzer (see [Analysis against summaries](#analysis-against-summaries))
+must come from the same source as the compiler, and each SDK brings its own: a
+release from its tag's archive, `dart.custom_sdk` from `source`, a checkout from
+its `pkg/`. Without that source, a build needing a tool fails, naming what to
+add and the flag that turns the tool off.
+
+### Cross-compiling
+
+Cross-compiling needs files the SDK doesn't include: a `gen_snapshot` that runs
+on your host and writes for the target, and, for an `exe`, the target's
+`dartaotruntime`. An `aot-snapshot` holds no runtime, but `dart compile` asks for
+one anyway before Dart 3.15.0-81.0.dev, so a release older than that needs both
+files for one too. A release fetches them, with the checksums in
+`cross_tools_sha256`. For the other two kinds, `cross_tools` names them, by the
+same file names, and an `aot-snapshot` needs only `gen_snapshot`, at any version:
+
+```starlark
+dart.custom_sdk(
+    name = "fork",
+    sdk = {"macos-arm64": "@fork_sdk_macos//:version"},
+    cross_tools = {
+        "gen_snapshot_macos_arm64_linux_x64": "@fork_tools//:gen_snapshot_linux_x64",
+        "dartaotruntime_linux_x64": "@fork_tools//:dartaotruntime_linux_x64",
+    },
+)
+```
+
+`gen_snapshot` must be executable. A checkout needs less: `create_sdk` leaves a
+`gen_snapshot_product_linux_<arch>` beside the SDK, and Bazel uses it. The target's
+runtime comes from a build for that target, so `dart.checkout` usually names just
+`dartaotruntime_<target>`, from that build or a release. A cross build missing
+a file it needs fails, naming the file and this attribute.
+
+### The oldest SDK
+
+rules_dart compiles its own tools with the SDK a build uses, so that SDK must be
+Dart 3.13.0 or newer. A build using an older one fails, saying so.
+
+### Dependencies' version requests
+
+A module that isn't the root still asks for a version with `dart.toolchain`, and
+that request is a minimum whichever SDK the build uses. If the SDK in use is older
+than a dependency asks, the build fails naming the module and the version. That
+holds for every kind of SDK, including those whose version only their `version`
+file says, and it is checked when the SDK is used. `allow_upgrade_by_dependencies`
+applies only to `dart.toolchain`, since no dependency can raise an SDK you
+supply.
+
 ## Flags
 
 These are all the command-line settings rules_dart reads. Set one per
@@ -2977,9 +3189,9 @@ invocation, or in `.bazelrc` as
 `common --@rules_dart//dart:<name>=<value>`.
 
 Build tools, such as codegen builders or any `cfg = "exec"` Dart tool, are built
-the same whatever you set most of these to. Three are the exception:
-`modular_kernel`, `outline_kernel` and `analysis_summaries` keep Bazel's default
-scope, so they apply in the exec configuration too. `outline_kernel` and
+the same whatever you set most of these to. Four are the exception: `sdk`,
+`modular_kernel`, `outline_kernel` and `analysis_summaries` have
+`scope = "universal"`, so they apply in the exec configuration too. `outline_kernel` and
 `analysis_summaries` need that because the tools they select are themselves
 resolved in the exec configuration.
 
@@ -2993,6 +3205,7 @@ resolved in the exec configuration.
 | `--@rules_dart//dart:modular_kernel`               | on          | Compiles each library once into kernel modules that tests link. Off, each test compiles its whole program from source.                                                                         |
 | `--@rules_dart//dart:outline_kernel`               | on          | Compiles dependents against outlines of their dependencies' modules, made by the Dart SDK's outline toolchain. Off, they compile against full kernels.                                         |
 | `--@rules_dart//dart:runner_snapshot`              | off         | Starts the `package:test` runner from a snapshot cached on the machine (see [Faster tests and builds](#faster-tests-and-builds-optional)). Off, it starts from its kernel and touches no cache. |
+| `--@rules_dart//dart:sdk=<name>`                   | none        | Builds with this declared Dart SDK, instead of the one `dart.use_sdk` chooses (see [Choosing a Dart SDK](#choosing-a-dart-sdk)).                                                               |
 | `--@rules_dart//dart:split_debug_info`             | off         | Leaves an `exe`'s or `aot-snapshot`'s debugging information out of it, and writes it to `<name>.symbols` in the `debug_info` output group. Stack traces then print as addresses.              |
 | `--@rules_dart//dart:track_creation_locations`     | off         | Compiles VM kernels with `--track-creation-locations` (`--track-widget-creation`).                                                                                                             |
 
@@ -3310,47 +3523,39 @@ uses Dart's own `package:yaml`, the loader pub uses, and refuses what pub
 refuses, with pub's message. It returns the pubspec's `name`, `dependencies`,
 `sdk_constraint` and `language_version`, and the whole document as `fields`.
 
-### A Dart SDK of your own
+### A platform that bundles Dart
 
-Each Dart toolchain registers two tools beside the compiler: the outline
-stripper (see [Tests](#tests)) and the summary analyzer (see
+To build with a Dart SDK of your own, use the tags in
+[Choosing a Dart SDK](#choosing-a-dart-sdk). This section is for a rule set whose
+platform carries a Dart SDK in its own toolchains, as a Flutter engine does.
+
+Each Dart toolchain has two tools beside the compiler: the outline stripper (see
+[Tests](#tests)) and the summary analyzer (see
 [Analysis against summaries](#analysis-against-summaries)). Both are built from
-the source of the same SDK release.
+the source of the same SDK.
 
-A platform can bundle a Dart release that rules_dart doesn't serve, as a Flutter
-engine does. Build its tools with `dart_kernel_source` and `dart_analyzer_source`,
-giving `dart_version` and `sha256`, the checksum of that tag's source archive on
-GitHub.
+If the platform bundles a published Dart release, build its tools with
+`dart_kernel_source` and `dart_analyzer_source`, repository rules in
+`@rules_dart//dart:repositories.bzl`, giving `dart_version` and `sha256`, the
+checksum of that tag's source archive on GitHub.
 
-A Dart SDK with no release tag has no such source to fetch. That includes a
-fork, a local build, and Flutter's beta and main channels. It needs its own
-tools, built from its source checkout. In a Flutter engine checkout that is
-`third_party/dart`. Each has an off switch if you'd rather not build it.
-
-**Outlines.** Register a `dart_outline_toolchain`, from
-`@rules_dart//dart:toolchain.bzl`. Its `tool` is the `:outline_tool` of a
-`dart_kernel_source(path = "<checkout>")` repository, built on that checkout's
-`pkg/kernel`. Or turn outlines off with
-`--@rules_dart//dart:outline_kernel=false`.
-
-**Summaries.** Register a `dart_analyzer_toolchain`, from the same file. Its
-`tool` is the `:summary_analyzer` of a
-`dart_analyzer_source(path = "<checkout>")` repository, built on that
-checkout's `pkg/analyzer` and `pkg/linter`. Or turn summaries off with
-`--@rules_dart//dart:analysis_summaries=false`.
-
-`dart_kernel_source` and `dart_analyzer_source` are repository rules in
-`@rules_dart//dart:repositories.bzl`, for `use_repo_rule`. A repository rule of
-your own that already reads the checkout can call
+A Dart SDK with no release tag, such as Flutter's beta and main channels, needs
+tools built from its checkout, which in a Flutter engine checkout is
+`third_party/dart`: give the same rules `path = "<checkout>"`. A repository rule
+of your own that already reads the checkout can call
 `fetch_dart_kernel_source(rctx, path, prefix)` or
 `fetch_dart_analyzer_source(rctx, path, prefix)`, from the same file. These put
 the same packages and tool in a directory of its own repository.
 
-Each toolchain's `version` is that of the Dart toolchain whose kernels or
-analysis it serves. Set its `tool` only when its flag is on, so that the tool
-isn't built otherwise. For example:
+Register the tools with a `dart_outline_toolchain` and a
+`dart_analyzer_toolchain`, from `@rules_dart//dart:toolchain.bzl`. Each toolchain's
+`tool` is the repository's `:outline_tool` or `:summary_analyzer`, and its
+`version` is that of the Dart toolchain whose kernels or analysis it serves. Set
+`tool` only when its flag is on, so that the tool isn't built otherwise:
 `select({"@rules_dart//dart:is_outline_kernel": ..., "//conditions:default": None})`,
-or `:is_analysis_summaries` for the analyzer.
+or `:is_analysis_summaries` for the analyzer. Or turn each off with
+`--@rules_dart//dart:outline_kernel=false` and
+`--@rules_dart//dart:analysis_summaries=false`.
 
 ## Examples
 

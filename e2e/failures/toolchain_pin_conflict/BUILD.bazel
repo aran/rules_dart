@@ -1,5 +1,8 @@
 # Property: a root pin below a dependency's request is never silently raised.
-# THIS WORKSPACE MUST FAIL TO BUILD, with an error naming `newer_dep`, the
-# version it requests and the two ways to fix it (CI's expected-failure job
-# checks it). If it builds, the root's pin of 3.13.0 was overridden without a
-# word.
+# A BUILD USING THAT SDK MUST FAIL, with an error naming `newer_dep`, the version
+# it requests and the ways to fix it (CI's expected-failure job checks it). If
+# it builds, the root's pin of 3.13.0 was overridden without a word.
+alias(
+    name = "uses_the_sdk",
+    actual = "@rules_dart//dart:resolved_toolchain",
+)

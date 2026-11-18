@@ -1,0 +1,62 @@
+# Property: an SDK a build cannot use stops the build that uses it, saying why,
+# and fetching it is no failure. CI's expected-failure job builds `:value_test`
+# under each SDK of MODULE.bazel; its fetch-all job fetches and vendors them all.
+load("@rules_dart//dart:defs.bzl", "dart_analysis_test", "dart_binary", "dart_library", "dart_package_metadata", "dart_test")
+
+dart_package_metadata(
+    name = "metadata",
+    package_name = "value",
+    language_version = "3.14",
+)
+
+dart_library(
+    name = "value",
+    srcs = ["lib/value.dart"],
+    package = ":metadata",
+)
+
+dart_test(
+    name = "value_test",
+    size = "small",
+    main = "value_test.dart",
+    deps = [":value"],
+)
+
+# Runs the summary analyzer, as a plain build does not.
+dart_analysis_test(
+    name = "value_analysis",
+    tags = ["manual"],
+    targets = [":value"],
+)
+
+# Depends on a pub package that cannot be built, which only this target finds out.
+dart_library(
+    name = "uses_unsupplied",
+    srcs = ["lib/value.dart"],
+    package = ":metadata",
+    tags = ["manual"],
+    deps = ["@xml"],
+)
+
+# RISC-V, which every host only ever cross-compiles to.
+platform(
+    name = "linux_riscv64",
+    constraint_values = [
+        "@platforms//cpu:riscv64",
+        "@platforms//os:linux",
+    ],
+)
+
+dart_binary(
+    name = "value_program",
+    compile_mode = "exe",
+    main = "value_test.dart",
+    deps = [":value"],
+)
+
+dart_binary(
+    name = "value_snapshot",
+    compile_mode = "aot-snapshot",
+    main = "value_test.dart",
+    deps = [":value"],
+)

@@ -103,6 +103,7 @@ bzl_library(
     deps = [
         ":common",
         ":resources",
+        ":sdk_error",
     ],
 )
 
@@ -556,6 +557,70 @@ bzl_library(
 )
 
 bzl_library(
+    name = "custom_sdks",
+    srcs = ["custom_sdks.bzl"],
+    visibility = ["//dart:__subpackages__"],
+    deps = [
+        ":toolchain_selection",
+        ":toolchains_repo",
+    ],
+)
+
+bzl_library(
+    name = "local_sdk",
+    srcs = ["local_sdk.bzl"],
+    visibility = ["//dart:__subpackages__"],
+    deps = [
+        ":toolchain_selection",
+        ":toolchains_repo",
+    ],
+)
+
+bzl_library(
+    name = "sdk_source_repo",
+    srcs = ["sdk_source_repo.bzl"],
+    visibility = ["//dart:__subpackages__"],
+    deps = [
+        ":versions",
+        "//dart/pub:pubspec",
+    ],
+)
+
+# Always and never true, for a generated `@dart_toolchains` to say which SDK a
+# build uses with `select`: a toolchain's `target_settings` takes settings, and
+# this one no flag can change.
+bool_setting(
+    name = "sdk_setting_false",
+    build_setting_default = False,
+)
+
+config_setting(
+    name = "sdk_always",
+    flag_values = {":sdk_setting_false": "False"},
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "sdk_never",
+    flag_values = {":sdk_setting_false": "True"},
+    visibility = ["//visibility:public"],
+)
+
+bzl_library(
+    name = "toolchains_repo",
+    srcs = ["toolchains_repo.bzl"],
+    visibility = ["//dart:__subpackages__"],
+    deps = [":platforms"],
+)
+
+bzl_library(
+    name = "sdk_error",
+    srcs = ["sdk_error.bzl"],
+    visibility = ["//dart:__subpackages__"],
+    deps = [":common"],
+)
+
+bzl_library(
     name = "exec_groups",
     srcs = ["exec_groups.bzl"],
     visibility = ["//dart:__subpackages__"],
@@ -570,6 +635,12 @@ bzl_library(
 bzl_library(
     name = "package_root",
     srcs = ["package_root.bzl"],
+    visibility = ["//dart:__subpackages__"],
+)
+
+bzl_library(
+    name = "platforms",
+    srcs = ["platforms.bzl"],
     visibility = ["//dart:__subpackages__"],
 )
 
@@ -592,14 +663,14 @@ bzl_library(
 )
 
 bzl_library(
-    name = "toolchain_selection",
-    srcs = ["toolchain_selection.bzl"],
+    name = "sdk_fetch",
+    srcs = ["sdk_fetch.bzl"],
     visibility = ["//dart:__subpackages__"],
 )
 
 bzl_library(
-    name = "toolchains_repo",
-    srcs = ["toolchains_repo.bzl"],
+    name = "toolchain_selection",
+    srcs = ["toolchain_selection.bzl"],
     visibility = ["//dart:__subpackages__"],
 )
 

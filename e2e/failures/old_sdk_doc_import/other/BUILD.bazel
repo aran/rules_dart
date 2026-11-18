@@ -1,0 +1,14 @@
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+dart_package_metadata(
+    name = "metadata",
+    package_name = "other",
+    language_version = "3.13",
+)
+
+dart_library(
+    name = "other",
+    srcs = ["lib/other.dart"],
+    package = ":metadata",
+    visibility = ["//visibility:public"],
+)

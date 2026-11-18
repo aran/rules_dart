@@ -44,6 +44,7 @@ jobs:
           "e2e/smoke",
           "e2e/examples",
           "e2e/root_settings",
+          "e2e/custom_sdk",
           "overhead",
           "dev"
         ]
@@ -280,6 +281,7 @@ jobs:
           - "e2e/smoke"
           - "e2e/examples"
           - "e2e/root_settings"
+          - "e2e/custom_sdk"
           - "overhead"
           - "dev"
     steps:
@@ -359,13 +361,74 @@ jobs:
       - name: toolchain_pin_conflict — expect a root pin below a dependency's request to fail, naming it
         working-directory: e2e/failures/toolchain_pin_conflict
         run: |
-          if out=$(bazel build @dart_toolchains//:all 2>&1); then
+          if out=$(bazel build //... 2>&1); then
             echo "ERROR: build should have failed: newer_dep requests a newer Dart SDK than the root pins"
             exit 1
           fi
           echo "$out" | grep -q "newer_dep requests 99.0.0"
           echo "$out" | grep -q "allow_upgrade_by_dependencies = True"
           echo "OK: expected toolchain upgrade refusal detected"
+      - name: custom_sdk — expect each declared Dart SDK a build cannot use to fail when used, saying what is wrong and the fix
+        working-directory: e2e/failures/custom_sdk
+        run: |
+          # The SDK a build chooses by flag, then what its failure must say.
+          expect() {
+            local sdk=$1; shift
+            local flag=()
+            [ -n "$sdk" ] && flag=("--@rules_dart//dart:sdk=$sdk")
+            if out=$(bazel build "${target[@]}" "${flag[@]}" 2>&1); then
+              echo "ERROR: building with SDK '$sdk' should have failed"
+              exit 1
+            fi
+            for text in "$@"; do
+              echo "$out" | grep -qF -- "$text" || { echo "$out"; echo "ERROR: '$sdk' did not say: $text"; exit 1; }
+            done
+          }
+          target=(//:value_test)
+          # No flag: the SDK dart.use_sdk chooses.
+          expect "" 'Dart SDK "older_than_requested" is 3.14.0' "newer_dep requests 3.14.1" "dart.use_sdk"
+          expect below_minimum 'Dart SDK "below_minimum" is 3.12.2' "at least Dart 3.13.0"
+          expect no_checksums 'Dart SDK "no_checksums" has no checksum for its' "sdk_sha256"
+          expect no_source_checksum 'Dart SDK "no_source_checksum" has no checksum for the source archive' 'source_sha256 = "<sha256>"' "Or build without it"
+          expect no_path 'Dart SDK "no_path" is a checkout, and DART_CHECKOUT is not set' "--repo_env=DART_CHECKOUT="
+          expect old_files 'Dart SDK "old_files" is 3.13.0' "newer_dep requests 3.14.1"
+          expect not_an_sdk 'Dart SDK "not_an_sdk"' "it has no bin/dart"
+          expect no_host 'Dart SDK "no_host" has no SDK for' 'dart.custom_sdk(name = "no_host"'
+          expect nonexistent "names no Dart SDK the root module declares" "dart, no_checksums"
+          target=(//:uses_unsupplied)
+          expect dart "nothing supplies"
+          # A path that is no checkout: what is set is checked too.
+          target=(//:value_test "--repo_env=DART_CHECKOUT=$PWD")
+          expect no_path 'Dart SDK "no_path"' "has no pkg/kernel/pubspec.yaml"
+          target=(//:value_program --platforms=//:linux_riscv64)
+          expect no_cross_tools 'Dart SDK "no_cross_tools" cannot cross-compile' 'dart.custom_sdk(name = "no_cross_tools", cross_tools = {'
+          target=(//:value_program --platforms=//:linux_riscv64)
+          expect no_runtime 'Dart SDK "no_runtime" has no checksum for' 'cross_tools_sha256 = {"dartaotruntime_linux_riscv64"'
+          # Before Dart 3.15, a cross `aot-snapshot` wants the runtime too.
+          target=(//:value_snapshot --platforms=//:linux_riscv64)
+          expect no_runtime 'Dart SDK "no_runtime" has no checksum for' 'dartaotruntime_linux_riscv64'
+          # A cross compile by any rule stops the same way, with no output.
+          target=(@rules_dart//dart/pub --platforms=//:linux_riscv64)
+          expect no_runtime 'Dart SDK "no_runtime" has no checksum for' 'dartaotruntime_linux_riscv64'
+          # The tools built from an SDK's source stop what runs them, and only that.
+          target=(//:value_analysis --@rules_dart//dart:outline_kernel=false)
+          expect no_source_checksum 'the summary analyzer is built from' '--@rules_dart//dart:analysis_summaries=false'
+          expect no_cross_tools 'has no source to build the summary analyzer from' 'source = ...'
+          target=(//:value_test)
+          expect no_cross_tools 'has no source to build the outline stripper from' 'source = ...'
+          for sdk in no_source_checksum no_cross_tools; do
+            bazel build //:value_program "--@rules_dart//dart:sdk=$sdk"
+          done
+          echo "OK: every unusable SDK refused, saying why"
+      - name: old_sdk_doc_import — expect analysis with Dart 3.13 to say which comment_references are false
+        working-directory: e2e/failures/old_sdk_doc_import
+        run: |
+          if out=$(bazel build //doc 2>&1); then
+            echo "ERROR: build should have failed: the analyzer reports a reference through a doc import"
+            exit 1
+          fi
+          echo "$out" | grep -qF "'Other' comes from the doc import of" || { echo "$out"; exit 1; }
+          echo "OK: the false comment_references explained"
       - name: root_settings/pub_unsupplied — expect a dependency on an unsupplied sdk package to fail
         working-directory: e2e/root_settings
         run: |
@@ -967,6 +1030,97 @@ jobs:
         run: bazel run //tool:pub_locks
       - name: bazelrc preset
         run: bazel run @overhead//preset -- --check
+  # `bazel fetch --all` and an untargeted `bazel vendor` take every repository,
+  # those of SDKs this machine cannot use among them: declaring such an SDK must
+  # not break them. The workspace declares one of each kind. Everything goes on
+  # the runner's large disk, as the two hold the toolchains of every host twice.
+  fetch-all:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: e2e/failures/custom_sdk
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: bazel-contrib/setup-bazel@104e3eea9447cdaa4b00d0fb46191a3985d26ab3 # 0.19.1
+        with:
+          cache-version: ${{ env.CACHE_VERSION }}
+          bazelisk-cache: true
+      - name: Put Bazel's files on the large disk
+        run: |
+          sudo mkdir /mnt/bazel
+          sudo chown "$USER" /mnt/bazel
+          {
+            echo 'startup --output_user_root=/mnt/bazel/root'
+            echo 'common --repository_cache=/mnt/bazel/repository_cache'
+          } > .bazelrc.user
+      - name: bazel fetch --all
+        run: bazel fetch --all
+      - name: bazel vendor, then build from what it vendored
+        run: |
+          vendor=/mnt/bazel/vendor
+          bazel vendor --vendor_dir=$vendor
+          # A checkout is one machine's, so it is not vendored; the rest is.
+          if compgen -G "$vendor/*+no_path_*" > /dev/null; then
+            echo "ERROR: bazel vendor took the repositories of a checkout"
+            exit 1
+          fi
+          compgen -G "$vendor/*+no_host_macos-x64" > /dev/null
+          bazel build --vendor_dir=$vendor --@rules_dart//dart:sdk=dart //:value_test
+          if out=$(bazel build --vendor_dir=$vendor --@rules_dart//dart:sdk=no_path //:value_test 2>&1); then
+            echo "ERROR: building with no_path should have failed"
+            exit 1
+          fi
+          echo "$out" | grep -qF 'Dart SDK "no_path" is a checkout, and DART_CHECKOUT is not set' || { echo "$out"; exit 1; }
+  # `dart.checkout` as the README sets it up: `--repo_env=DART_CHECKOUT` naming
+  # a directory laid out as a dart-lang/sdk checkout with an SDK built in it. The
+  # directory is the stand-in `e2e/custom_sdk` builds from repositories, since
+  # building the SDK here would take hours: see `standin_checkout.bzl` for what
+  # that cannot show. On Linux x86-64 the cross tests have nothing to do.
+  checkout-from-env:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: bazel-contrib/setup-bazel@104e3eea9447cdaa4b00d0fb46191a3985d26ab3 # 0.19.1
+        with:
+          cache-version: ${{ env.CACHE_VERSION }}
+          bazelisk-cache: true
+          disk-cache: ${{ github.job }}-${{ strategy.job-index }}
+          repository-cache: true
+      - name: The SDK DART_CHECKOUT names
+        working-directory: e2e/custom_sdk
+        run: |
+          bazel fetch --repo=@standin_checkout
+          checkout="$(bazel info output_base)/external/+standin_checkout+standin_checkout"
+          bazel test --test_output=errors --skip_incompatible_explicit_targets --repo_env=DART_CHECKOUT="$checkout" \
+            //:from_env_sdk_test //:from_env_analysis_test //:from_env_cross_test //:from_env_aot_cross_test
+      # Laying out a cross-compiling SDK copies its executables without Bazel's
+      # downloader, which this flag or a restrictive configuration stops. The
+      # output base is fresh so the repositories are made here; what they fetch
+      # comes from the repository cache the step above filled.
+      # The `dart` release is neither what this workspace builds with nor needed
+      # by anything else here, so the reader is what would fetch it.
+      - name: The pubspec reader compiles with the SDK dart.use_sdk names
+        working-directory: e2e/custom_sdk
+        run: |
+          base="$RUNNER_TEMP/pubspec_reader"
+          bazel --output_base="$base" build @rules_dart//dart/kernel_list:all
+          repos=$(ls "$base/external")
+          echo "$repos" | grep -qE '^rules_dart\+\+dart\+pubspec_reader_' || { echo "ERROR: nothing read a pubspec"; exit 1; }
+          if echo "$repos" | grep -E '^rules_dart\+\+dart\+dart_(linux|macos|windows)-'; then
+            echo "ERROR: the pubspec reader fetched the dart release"
+            exit 1
+          fi
+      - name: A custom SDK cross-compiles with downloads disabled
+        working-directory: e2e/custom_sdk
+        run: |
+          bazel --output_base="$RUNNER_TEMP/no_downloads" test --test_output=errors \
+            --skip_incompatible_explicit_targets --repository_disable_download //:from_repositories_cross_test
   # The jobs below `conclusion` needs are every job that must pass, and some
   # job runs in every workspace.
   ci-config:
@@ -1009,6 +1163,8 @@ jobs:
       - worker-sandboxing
       - bazel-floor
       - expected-failure
+      - fetch-all
+      - checkout-from-env
       - pub-archive-links
       - dbg-mode
       - dev-tests

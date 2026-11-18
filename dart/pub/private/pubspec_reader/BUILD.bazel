@@ -5,16 +5,13 @@ exports_files(["pubspec_reader.dart"])
 bzl_library(
     name = "reader",
     srcs = ["reader.bzl"],
-    visibility = ["//dart/pub:__subpackages__"],
+    visibility = [
+        "//dart:__pkg__",
+        "//dart/private:__pkg__",
+        "//dart/pub:__subpackages__",
+    ],
     deps = [
-        "//dart/private:toolchains_repo",
+        "//dart/private:platforms",
         "//dart/pub/private:pub_archive",
     ],
-)
-
-bzl_library(
-    name = "extension",
-    srcs = ["extension.bzl"],
-    visibility = ["//visibility:public"],
-    deps = [":reader"],
 )

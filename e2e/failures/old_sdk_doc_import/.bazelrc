@@ -1,0 +1,19 @@
+# Builds tools without the target configuration's Starlark flags, as a
+# downstream workspace may: the flags rules_dart's tools need are
+# `scope = "universal"`.
+common --incompatible_exclude_starlark_flags_from_exec_config
+
+# Bazel 10's default: another repository's source files are private unless it
+# exports them, so the rules are tested as a Bazel 10 workspace builds them.
+common --incompatible_no_implicit_file_export
+
+# A future Bazel release will no longer let an external repository's source
+# directory cross a package boundary, so the rules are tested with that on.
+common --incompatible_check_external_repo_source_dir_package_boundary
+
+try-import %workspace%/.bazelrc.user
+
+# The analysis this workspace is about.
+build --aspects=@rules_dart//dart:analyze.bzl%dart_analyze
+build --output_groups=+dart_analyze
+common --@rules_dart//dart:analysis_config=//:analysis_config

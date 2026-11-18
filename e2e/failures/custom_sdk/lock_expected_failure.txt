@@ -1,0 +1,5 @@
+# This workspace fails on purpose; `bazel run @overhead//locks:check` passes a
+# step that fails printing each line below.
+# The root chooses a Dart SDK older than a dependency requests.
+Dart SDK "older_than_requested" is 3.14.0
+newer_dep requests 3.14.1

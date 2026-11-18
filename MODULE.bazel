@@ -182,12 +182,13 @@ use_repo(
     "dart_analyzer_source",
     "dart_kernel_source",
     "dart_toolchains",
-    # Each host's SDK, which compiles that host's pubspec reader.
-    "dart_linux-arm64",
-    "dart_linux-x64",
-    "dart_macos-arm64",
-    "dart_macos-x64",
-    "dart_windows-x64",
+    # rules_dart reads pubspecs with Dart's own package:yaml, compiled once per
+    # host (dart/pub/pubspec.bzl). Only the host's reader is fetched.
+    "pubspec_reader_linux-arm64",
+    "pubspec_reader_linux-x64",
+    "pubspec_reader_macos-arm64",
+    "pubspec_reader_macos-x64",
+    "pubspec_reader_windows-x64",
 )
 
 # A Dart SDK source checkout on disk and the outline stripper and summary
@@ -203,18 +204,6 @@ kernel_checkout = use_extension("//dart/tests:kernel_checkout.bzl", "kernel_chec
 use_repo(kernel_checkout, "analyzer_checkout_source", "analyzer_prefixed_source", "analyzer_unserved_source", "kernel_checkout_source", "kernel_prefixed_source", "kernel_unserved_source")
 
 register_toolchains("@dart_toolchains//:all")
-
-# rules_dart reads pubspecs with Dart's own package:yaml, compiled once per host
-# (dart/pub/pubspec.bzl). Only the host's reader is fetched.
-pubspec_reader = use_extension("//dart/pub/private/pubspec_reader:extension.bzl", "pubspec_reader")
-use_repo(
-    pubspec_reader,
-    "pubspec_reader_linux-arm64",
-    "pubspec_reader_linux-x64",
-    "pubspec_reader_macos-arm64",
-    "pubspec_reader_macos-x64",
-    "pubspec_reader_windows-x64",
-)
 
 # The reader's results on hand-written pubspecs, for its test.
 pubspec_reader_cases = use_extension(

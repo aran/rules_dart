@@ -1,0 +1,131 @@
+# Dart SDKs a build cannot use, each for its own reason. Declaring them is
+# fine: every failure comes when a build uses the SDK (`dart.use_sdk` below, or
+# `--@rules_dart//dart:sdk=<name>`), and says what is wrong and the fix. CI's
+# expected-failure job builds with each.
+module(name = "custom_sdk_failures_e2e")
+
+bazel_dep(name = "platforms", version = "1.1.0")
+bazel_dep(name = "rules_dart", version = "0.0.0")
+local_path_override(
+    module_name = "rules_dart",
+    path = "../../..",
+)
+
+# A dependency requesting Dart 3.14.1.
+bazel_dep(name = "newer_dep", version = "0.0.0")
+local_path_override(
+    module_name = "newer_dep",
+    path = "newer_dep",
+)
+
+# A pub package whose dependencies nothing supplies: its repositories still
+# fetch, and only `//:uses_unsupplied` fails.
+pub = use_extension("@rules_dart//dart/pub:extensions.bzl", "pub")
+pub.package(
+    name = "xml",
+    sha256 = "971043b3a0d3da28727e40ed3e0b5d18b742fa5a68665cca88e74b7876d5e025",
+    version = "6.6.1",
+)
+use_repo(pub, "xml")
+
+dart = use_extension("@rules_dart//dart:extensions.bzl", "dart")
+dart.use_sdk(name = "older_than_requested")
+
+# A release, older than `newer_dep` requests.
+dart.release(
+    name = "older_than_requested",
+    dart_version = "3.14.0",
+)
+
+# A release older than rules_dart builds with.
+dart.release(
+    name = "below_minimum",
+    dart_version = "3.12.2",
+)
+
+# A release with no checksums at all.
+dart.release(
+    name = "no_checksums",
+    dart_version = "3.14.1",
+)
+
+# The host archives only: the tools built from source have no checksum.
+dart.release(
+    name = "no_source_checksum",
+    dart_version = "3.14.1",
+    sdk_sha256 = {
+        "linux-arm64": "c6e5581d478ac43ecf7d7028798b1bd10aef509f5e351184c755ec7eeeb1bea9",
+        "linux-x64": "759bed01e0aeb50e1a0b0a19474ba5c80c6087ce1d37b3214e475c81a44430e8",
+        "macos-arm64": "b670699f921bf307c3f2754b56349863ee9b2878661bcd446b50b90296e11311",
+        "macos-x64": "3d440c968d4c1bb21c6d57eb1e3e364cea687899daef46b7cc99f07d328caaae",
+        "windows-x64": "fb2550f71e3408f2a69ff6ee29573f341991a927f8bc9ad0601dd3c9b19945c8",
+    },
+)
+
+# The compiler of each pair to RISC-V and no target runtime: a cross `aot-snapshot`
+# of this SDK's version wants the runtime as an `exe` does.
+dart.release(
+    name = "no_runtime",
+    cross_tools_sha256 = {
+        "gen_snapshot_linux_arm64_linux_riscv64": "226564dafc1151354171e8378d510b4b81abb6d55842a18d799cc50cc6ad320d",
+        "gen_snapshot_linux_x64_linux_riscv64": "14005575483ca5811fbc4f5e21c6861771dff7365e993cf90916af2760c638b1",
+        "gen_snapshot_macos_arm64_linux_riscv64": "84025f8b977b4c5e144506d75798e937a0e053efb24eba0fce110b12bb1c1ecc",
+        "gen_snapshot_macos_x64_linux_riscv64": "947fc674d573519a0f1c08ce495f7bf67253d409e64856904d189495966d857f",
+        "gen_snapshot_windows_x64_linux_riscv64.exe": "6a2bcba6156aadc4a559af9a8d2ef1532a985d0693208bb3cf97d5066aa69e6f",
+    },
+    dart_version = "3.14.1",
+    sdk_sha256 = {
+        "linux-arm64": "c6e5581d478ac43ecf7d7028798b1bd10aef509f5e351184c755ec7eeeb1bea9",
+        "linux-x64": "759bed01e0aeb50e1a0b0a19474ba5c80c6087ce1d37b3214e475c81a44430e8",
+        "macos-arm64": "b670699f921bf307c3f2754b56349863ee9b2878661bcd446b50b90296e11311",
+        "macos-x64": "3d440c968d4c1bb21c6d57eb1e3e364cea687899daef46b7cc99f07d328caaae",
+        "windows-x64": "fb2550f71e3408f2a69ff6ee29573f341991a927f8bc9ad0601dd3c9b19945c8",
+    },
+    source_sha256 = "eb16c29569bc8ebe9e88add7387cbc2d7dcfb0e0edec855b8b758575c0a7c4cc",
+)
+
+# A checkout whose path nothing gives: no `--repo_env=DART_CHECKOUT` here.
+dart.checkout(name = "no_path")
+
+# An SDK whose `version` file is older than `newer_dep` requests.
+dart.custom_sdk(
+    name = "old_files",
+    sdk = {
+        "linux-arm64": "//fake_sdk:version",
+        "linux-x64": "//fake_sdk:version",
+        "macos-arm64": "//fake_sdk:version",
+        "macos-x64": "//fake_sdk:version",
+        "windows-x64": "//fake_sdk:version",
+    },
+)
+
+# A `version` file with no SDK around it.
+dart.custom_sdk(
+    name = "not_an_sdk",
+    sdk = {
+        "linux-arm64": "//not_an_sdk:version",
+        "linux-x64": "//not_an_sdk:version",
+        "macos-arm64": "//not_an_sdk:version",
+        "macos-x64": "//not_an_sdk:version",
+        "windows-x64": "//not_an_sdk:version",
+    },
+)
+
+# An SDK for hosts this job does not run on.
+dart.custom_sdk(
+    name = "no_host",
+    sdk = {"macos-x64": "//fake_sdk:version"},
+)
+
+# An SDK that runs here, the release `dart` is, with nothing to cross-compile with.
+dart.custom_sdk(
+    name = "no_cross_tools",
+    sdk = {
+        "linux-arm64": "@dart_linux-arm64//:version",
+        "linux-x64": "@dart_linux-x64//:version",
+        "macos-arm64": "@dart_macos-arm64//:version",
+        "macos-x64": "@dart_macos-x64//:version",
+        "windows-x64": "@dart_windows-x64//:version",
+    },
+)
+use_repo(dart, "dart_linux-arm64", "dart_linux-x64", "dart_macos-arm64", "dart_macos-x64", "dart_windows-x64")

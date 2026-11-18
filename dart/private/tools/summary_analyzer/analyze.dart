@@ -178,7 +178,7 @@ Future<void> _analyzeContext(
       'server alone, which cannot read summaries.',
     );
   }
-  refusals.addAll(await summaryLosses(context, libraries));
+  refusals.addAll(await summaryLosses(context, libraries, diagnostics));
 }
 
 /// What an analyzer crash leaves: no diagnostics for its library at all.

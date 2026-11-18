@@ -14,7 +14,7 @@ local_path_override(
 )
 
 # The root pins an SDK and does not set `allow_upgrade_by_dependencies`, so the
-# pin is used exactly and `newer_dep`'s request fails the build.
+# pin is used exactly and `newer_dep`'s request fails a build using it.
 dart = use_extension("@rules_dart//dart:extensions.bzl", "dart")
 dart.toolchain(dart_version = "3.13.0")
 use_repo(dart, "dart_toolchains")

@@ -2,6 +2,7 @@
 
 load("//dart/private:common.bzl", "PATH_MAPPING", "SDK_ENV")
 load("//dart/private:resources.bzl", "native_compile_resources")
+load("//dart/private:sdk_error.bzl", "fail_when_built")
 
 visibility("//dart/...")
 
@@ -253,8 +254,22 @@ def dart_compile_action(
     if sdk.cross_tools != None and compile_mode in RECORDING_COMPILE_MODES:
         # The modes that take the target flags. dartdev reads only this cache
         # from the home it is given, so a read-only one serves.
-        env["APPDATA" if sdk.exec_os == "windows" else "HOME"] = sdk.cross_tools.home
-        transitive.append(sdk.cross_tools.files)
+        tools = sdk.cross_tools
+        if tools.home:
+            env["APPDATA" if sdk.exec_os == "windows" else "HOME"] = tools.home
+        needed = ["gen_snapshot"]
+
+        # Only `exe` holds the target's runtime; older SDKs ask for it anyway.
+        if compile_mode == "exe" or tools.aot_snapshot_needs_runtime:
+            needed.append("dartaotruntime")
+        for tool in needed:
+            if tool in tools.missing:
+                # Failing here would stop builds that want none of `outputs`:
+                # every `dart_binary` depends on the launcher, built for the
+                # same platform, and under a cross toolchain nothing runs it.
+                fail_when_built(ctx, sdk, outputs, tools.missing[tool])
+                return
+            transitive.append(getattr(tools, tool))
 
     ctx.actions.run(
         executable = sdk.dart,

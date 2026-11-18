@@ -1,7 +1,8 @@
 """Unit tests for the host and URI helpers of the pubspec reader's tool repository."""
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
-load("//dart/pub/private/pubspec_reader:reader.bzl", "file_uri", "host_platform")
+load("//dart/private:toolchains_repo.bzl", "host_platform")
+load("//dart/pub/private/pubspec_reader:reader.bzl", "file_uri")
 load("//dart/tests:small_suite.bzl", "small_unittest_suite")
 
 visibility("//dart/...")

@@ -1,0 +1,65 @@
+# Property: rules_dart's minimum Dart SDK compiles, runs and analyzes a project,
+# tools included. Raising what those tools need without raising the minimum
+# fails here.
+load("@rules_dart//dart:defs.bzl", "dart_analysis_test", "dart_binary", "dart_library", "dart_package_metadata", "dart_test")
+load("//:with_sdk.bzl", "with_sdk_test")
+
+dart_package_metadata(
+    name = "metadata",
+    package_name = "value",
+    language_version = "3.13",
+)
+
+dart_library(
+    name = "base",
+    srcs = ["lib/base.dart"],
+    package = ":metadata",
+)
+
+dart_library(
+    name = "value",
+    srcs = ["lib/value.dart"],
+    package = ":metadata",
+    deps = [":base"],
+)
+
+dart_binary(
+    name = "program",
+    srcs = ["bin/program.dart"],
+    compile_mode = "exe",
+    main = "bin/program.dart",
+    deps = [":value"],
+)
+
+# Run under the minimum SDK by `minimum_*` below, and only there.
+dart_test(
+    name = "value_test",
+    size = "small",
+    data = [":program"],
+    env = {"PROGRAM": "$(rlocationpath :program)"},
+    main = "value_test.dart",
+    tags = ["manual"],
+    deps = [
+        ":value",
+        "@rules_dart//dart/runfiles",
+    ],
+)
+
+dart_analysis_test(
+    name = "analysis_test",
+    tags = ["manual"],
+    targets = [":value"],
+)
+
+[
+    with_sdk_test(
+        name = "minimum_" + test,
+        size = "small",
+        sdk = "minimum",
+        test = ":" + test,
+    )
+    for test in [
+        "value_test",
+        "analysis_test",
+    ]
+]
