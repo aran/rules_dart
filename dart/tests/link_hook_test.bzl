@@ -22,7 +22,7 @@ load("//dart/private:dart_compile.bzl", "recorded_uses_kind")
 load("//dart/private:dart_package_metadata.bzl", "link_hook_error")
 load("//dart/private:exec_groups.bzl", "PORTABLE_EXEC_GROUPS")
 load("//dart/private:package_info.bzl", "link_hook_assets_error", "parse_data_asset_ids")
-load("//dart/private:program_assets.bzl", "PROGRAM_ASSETS_FORMAT", "PROGRAM_ASSETS_TOOLCHAINS", "dart_program_assets_actions", "package_files_error", "program_asset_file", "program_assets_action_args", "program_assets_attrs", "program_kernel_code_assets", "recorded_uses_file_error")
+load("//dart/private:program_assets.bzl", "PROGRAM_ASSETS_FORMAT", "PROGRAM_ASSETS_TOOLCHAINS", "dart_program_assets_actions", "package_files_error", "program_asset_file", "program_assets_action_args", "program_assets_attrs", "program_kernel_code_assets", "recorded_uses_file_error", "static_link_inputs")
 
 # buildifier: disable=bzl-visibility
 load("//dart/pub/private:build_content.bzl", "classify_pub_hooks", "make_dart_library_build_content")
@@ -105,6 +105,34 @@ def _recorded_uses_file_test_impl(ctx):
     return unittest.end(env)
 
 _recorded_uses_file_test = unittest.make(_recorded_uses_file_test_impl)
+
+# --- static_link_inputs ---
+
+def _static_link_inputs_test_impl(ctx):
+    # A library to link names the archive and objects it is linked from; one
+    # with no archive still names its objects.
+    env = unittest.begin(ctx)
+
+    def library(**kwargs):
+        fields = {"pic_static_library": None, "static_library": None, "pic_objects": [], "objects": []}
+        fields.update(kwargs)
+        return struct(**fields)
+
+    pic = library(pic_static_library = "libx.pic.a", static_library = "libx.a", pic_objects = ["x.pic.o"], objects = ["x.o"])
+    asserts.equals(env, struct(archive = "libx.pic.a", objects = ["x.pic.o"]), static_link_inputs(pic))
+    static = library(static_library = "libx.a", objects = ["x.o"])
+    asserts.equals(env, struct(archive = "libx.a", objects = ["x.o"]), static_link_inputs(static))
+    asserts.equals(env, struct(archive = "libx.a", objects = []), static_link_inputs(library(static_library = "libx.a", objects = None)))
+
+    pic_only = library(pic_objects = ["x.pic.o"])
+    asserts.equals(env, struct(archive = None, objects = ["x.pic.o"]), static_link_inputs(pic_only))
+    plain_only = library(objects = ["x.o"])
+    asserts.equals(env, struct(archive = None, objects = ["x.o"]), static_link_inputs(plain_only))
+    asserts.equals(env, struct(archive = None, objects = ["x.pic.o", "x.o"]), static_link_inputs(library(pic_objects = ["x.pic.o"], objects = ["x.o"])))
+    asserts.equals(env, struct(archive = None, objects = []), static_link_inputs(library(pic_objects = None, objects = None)))
+    return unittest.end(env)
+
+_static_link_inputs_test = unittest.make(_static_link_inputs_test_impl)
 
 # --- package_files_error ---
 
@@ -467,7 +495,13 @@ def _native_link_test_impl(ctx):
     env = analysistest.begin(ctx)
     target = analysistest.target_under_test(env)
     info = target[DartProgramAssetsInfo]
-    library = info.code_assets["package:link_hook_native/native"].file
+    asset = info.code_assets["package:link_hook_native/native"]
+    library = asset.file
+
+    # What it was linked from, for a consumer that reads the objects again.
+    asserts.equals(env, None, asset.link_inputs_unset_reason)
+    link_inputs = [f.path for f in asset.link_inputs.to_list()]
+    asserts.true(env, [p for p in link_inputs if "cc_fixture" in p and "empty" in p], str(link_inputs))
     asserts.true(env, library.basename in ["libnative.so", "libnative.dylib", "native.dll"], library.basename)
     asserts.true(env, library.short_path.startswith("dart/tests/link_hook_fixture/%s/link_hook_native/" % target.label.name), library.short_path)
     links = [a for a in analysistest.target_actions(env) if library in a.outputs.to_list()]
@@ -681,6 +715,7 @@ def link_hook_test_suite(name):
         _rejects_malformed_ids_test,
         _rejects_duplicate_ids_test,
         _recorded_uses_file_test,
+        _static_link_inputs_test,
         _package_files_test,
         _link_hook_location_test,
         _link_hook_assets_test,

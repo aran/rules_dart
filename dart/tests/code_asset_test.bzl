@@ -6,8 +6,10 @@ case here asserting both that it fires and what it says.
 """
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts")
+load("@rules_cc//cc/common:cc_shared_library_info.bzl", "CcSharedLibraryInfo")
 load("//dart:defs.bzl", "dart_code_asset")
-load("//dart:providers.bzl", "DartCodeAssetInfo")
+load("//dart:providers.bzl", "DartCodeAssetInfo", "DartLinkInputsInfo")
+load("//dart/private:common.bzl", "stage_code_assets")
 
 _ASSET_ID = "package:fixture/src/ffi/fixture.g.dart"
 _SHARED_LIB = "//dart/tests/cc_fixture:empty_shared"
@@ -30,8 +32,25 @@ _process_rejects_library_test = _expect("`file` is only valid with")
 _executable_rejects_uri_test = _expect("`uri` is only valid with")
 _prebuilt_wrong_platform_test = _expect("is not a dynamic library for the target platform")
 _prebuilt_not_a_library_test = _expect("is not a dynamic library for the target platform")
-_prebuilt_two_files_test = _expect("nor a single prebuilt library file; it has 2 files")
 _system_rejects_prebuilt_test = _expect("`file` is only valid with")
+_stated_other_library_test = _expect("but `file` provides")
+_stated_library_not_file_test = _expect("`library` must be a File, got string")
+_stated_inputs_not_depset_test = _expect("`inputs` must be a depset of Files, got list")
+_asset_states_both_test = _expect("states both `link_inputs` and `link_inputs_unset_reason`")
+_asset_inputs_not_depset_test = _expect("`link_inputs` must be a depset of Files or None, got list")
+_asset_reason_not_string_test = _expect("`link_inputs_unset_reason` must be a string or None, got int")
+
+def _expect_all_impl(ctx):
+    env = analysistest.begin(ctx)
+    for words in ctx.attr.messages:
+        asserts.expect_failure(env, words)
+    return analysistest.end(env)
+
+_expect_all_test = analysistest.make(
+    _expect_all_impl,
+    attrs = {"messages": attr.string_list()},
+    expect_failure = True,
+)
 
 def _prebuilt_carried_impl(ctx):
     env = analysistest.begin(ctx)
@@ -46,6 +65,186 @@ _prebuilt_carried_test = analysistest.make(
     attrs = {"basename": attr.string()},
 )
 
+def _link_inputs_test_impl(ctx):
+    env = analysistest.begin(ctx)
+    info = analysistest.target_under_test(env)[DartCodeAssetInfo]
+    asserts.equals(env, None, info.link_inputs_unset_reason)
+    paths = [f.path for f in info.link_inputs.to_list()]
+    for name in ctx.attr.linked:
+        asserts.true(env, [p for p in paths if name in p], "%s is not among %s" % (name, paths))
+    for name in ctx.attr.not_linked:
+        asserts.false(env, [p for p in paths if name in p], "%s is among %s" % (name, paths))
+    return analysistest.end(env)
+
+_link_inputs_test = analysistest.make(
+    _link_inputs_test_impl,
+    attrs = {
+        "linked": attr.string_list(),
+        "not_linked": attr.string_list(),
+    },
+)
+
+def _bound_library_test_impl(ctx):
+    env = analysistest.begin(ctx)
+    library = analysistest.target_under_test(env)[DartCodeAssetInfo].file
+    asserts.true(env, ctx.attr.contains in library.basename, "%s lacks %s" % (library.path, ctx.attr.contains))
+    asserts.true(env, library.basename.endswith(ctx.attr.suffix), "%s does not end with %s" % (library.path, ctx.attr.suffix))
+    return analysistest.end(env)
+
+_bound_library_test = analysistest.make(
+    _bound_library_test_impl,
+    attrs = {
+        "contains": attr.string(),
+        "suffix": attr.string(),
+    },
+)
+
+def _no_link_inputs_test_impl(ctx):
+    env = analysistest.begin(ctx)
+    info = analysistest.target_under_test(env)[DartCodeAssetInfo]
+    asserts.equals(env, [], info.link_inputs.to_list())
+    asserts.equals(env, None, info.link_inputs_unset_reason)
+    return analysistest.end(env)
+
+_no_link_inputs_test = analysistest.make(_no_link_inputs_test_impl)
+
+def _unknown_link_inputs_test_impl(ctx):
+    env = analysistest.begin(ctx)
+    info = analysistest.target_under_test(env)[DartCodeAssetInfo]
+    asserts.equals(env, None, info.link_inputs)
+    reason = info.link_inputs_unset_reason
+    asserts.true(env, type(reason) == "string" and reason, "no reason: %r" % reason)
+    for words in ctx.attr.reason:
+        asserts.true(env, words in reason, "%r is not in %r" % (words, reason))
+    return analysistest.end(env)
+
+_unknown_link_inputs_test = analysistest.make(
+    _unknown_link_inputs_test_impl,
+    attrs = {"reason": attr.string_list()},
+)
+
+def _stated_asset_impl(ctx):
+    kwargs = {}
+    if ctx.attr.states == "both":
+        kwargs = {"link_inputs": depset(), "link_inputs_unset_reason": "because"}
+    elif ctx.attr.states == "inputs_not_depset":
+        kwargs = {"link_inputs": []}
+    elif ctx.attr.states == "reason_not_string":
+        kwargs = {"link_inputs_unset_reason": 1}
+    elif ctx.attr.states == "reason_only":
+        kwargs = {"link_inputs_unset_reason": "stated by the rule"}
+    return [
+        DefaultInfo(),
+        DartCodeAssetInfo(
+            asset_id = _ASSET_ID,
+            link_mode = "dynamic_loading_process",
+            file = None,
+            uri = "",
+            **kwargs
+        ),
+    ]
+
+# A rule of a user's that builds a `DartCodeAssetInfo`, saying about what the
+# library was linked from only what `states` picks: nothing at all, or
+# something the provider refuses. Only analysed.
+_stated_asset = rule(
+    implementation = _stated_asset_impl,
+    attrs = {"states": attr.string(default = "nothing")},
+)
+
+def _copied_library_impl(ctx):
+    asset = ctx.attr.asset[DartCodeAssetInfo]
+    copy = ctx.actions.declare_file("%s/%s" % (ctx.label.name, asset.file.basename))
+    ctx.actions.run_shell(
+        inputs = [asset.file],
+        outputs = [copy],
+        mnemonic = ctx.attr.mnemonic,
+        command = 'cp "$1" "$2"',
+        arguments = [asset.file.path, copy.path],
+    )
+    providers = [DefaultInfo(files = depset([copy]))]
+    if ctx.attr.states == "copy":
+        providers.append(DartLinkInputsInfo(library = copy, inputs = asset.link_inputs))
+    elif ctx.attr.states == "original":
+        providers.append(DartLinkInputsInfo(library = asset.file, inputs = asset.link_inputs))
+    elif ctx.attr.states == "library_not_file":
+        providers.append(DartLinkInputsInfo(library = copy.path, inputs = asset.link_inputs))
+    elif ctx.attr.states == "inputs_not_depset":
+        providers.append(DartLinkInputsInfo(library = copy, inputs = [asset.file]))
+    return providers
+
+# A rule of a user's that writes a copy of a code asset's library, saying what
+# `states` picks about what it was linked from. Only analysed.
+_copied_library = rule(
+    implementation = _copied_library_impl,
+    attrs = {
+        "asset": attr.label(providers = [DartCodeAssetInfo]),
+        "mnemonic": attr.string(default = "CopyFile"),
+        "states": attr.string(default = "nothing"),
+    },
+)
+
+def _stating_sibling_impl(ctx):
+    library = ctx.attr.of[DefaultInfo].files.to_list()[0]
+    return [
+        DefaultInfo(),
+        DartLinkInputsInfo(library = library, inputs = depset(ctx.files.inputs)),
+    ]
+
+# A rule of a user's that provides no file but states what the first file of
+# `of` was linked from, as `inputs`: a sibling of the target that provides it.
+_stating_sibling = rule(
+    implementation = _stating_sibling_impl,
+    attrs = {
+        "inputs": attr.label_list(allow_files = True),
+        "of": attr.label(),
+    },
+)
+
+# A rule that passes on the files of another target without writing them or
+# saying anything about them, as a `filegroup` does, but is no `filegroup`.
+_forwarded_files = rule(
+    implementation = lambda ctx: [DefaultInfo(files = ctx.attr.of[DefaultInfo].files)],
+    attrs = {"of": attr.label()},
+)
+
+def _forwarded_shared_impl(ctx):
+    info = ctx.attr.of[CcSharedLibraryInfo]
+    files = ctx.attr.of[DefaultInfo].files
+    providers = [info]
+    if ctx.attr.sibling:
+        sibling = ctx.actions.declare_file("%s/%s" % (ctx.label.name, ctx.attr.sibling))
+        ctx.actions.write(sibling, "")
+        files = depset([sibling], transitive = [files])
+        if ctx.attr.states:
+            library = [lib.dynamic_library for lib in info.linker_input.libraries if lib.dynamic_library][0]
+            providers.append(DartLinkInputsInfo(library = library, inputs = depset([sibling])))
+    return providers + [DefaultInfo(files = files)]
+
+# A rule that passes on a `cc_shared_library` as a platform transition or a
+# wrapper does: its `CcSharedLibraryInfo` and files, with no action linking
+# the library. With `sibling`, a file of its own beside the library's, as a
+# Windows import library is; with `states`, it says that file is what the
+# library was linked from.
+_forwarded_shared = rule(
+    implementation = _forwarded_shared_impl,
+    attrs = {
+        "of": attr.label(providers = [CcSharedLibraryInfo]),
+        "sibling": attr.string(),
+        "states": attr.bool(),
+    },
+)
+
+def _staged_asset_impl(ctx):
+    staged = stage_code_assets(ctx, [ctx.attr.asset[DartCodeAssetInfo]], lambda _index: ctx.label.name)[0]
+    return [DefaultInfo(files = depset([staged.file])), staged]
+
+# `stage_code_assets` on one asset: a symlink of its library.
+_staged_asset = rule(
+    implementation = _staged_asset_impl,
+    attrs = {"asset": attr.label(providers = [DartCodeAssetInfo])},
+)
+
 # A library of the target platform, and one of another.
 _RIGHT_PLATFORM = select({
     "@platforms//os:windows": _PREBUILT + "libwrong.dll",
@@ -55,6 +254,13 @@ _RIGHT_PLATFORM = select({
 _WRONG_PLATFORM = select({
     "@platforms//os:windows": _PREBUILT + "libwrong.so",
     "//conditions:default": _PREBUILT + "libwrong.dll",
+})
+
+# What the target platform names a dynamic library's file.
+_LIBRARY_SUFFIX = select({
+    "@platforms//os:windows": ".dll",
+    "@platforms//os:macos": ".dylib",
+    "//conditions:default": ".so",
 })
 
 def code_asset_test_suite(name):
@@ -185,9 +391,14 @@ def code_asset_test_suite(name):
         file = _PREBUILT + "two_files",
         tags = ["manual"],
     )
-    _prebuilt_two_files_test(
+    _expect_all_test(
         name = "prebuilt_two_files_test",
         size = "small",
+        messages = [
+            "nor a single prebuilt library file; it has 2 files",
+            "libwrong.dll",
+            "libwrong.so",
+        ],
         target_under_test = ":ca_prebuilt_two_files",
     )
 
@@ -222,9 +433,888 @@ def code_asset_test_suite(name):
         target_under_test = ":ca_prebuilt",
     )
 
+    _no_link_inputs_test(
+        name = "prebuilt_no_link_inputs_test",
+        size = "small",
+        target_under_test = ":ca_prebuilt",
+    )
+
+    dart_code_asset(
+        name = "ca_system",
+        asset_id = _ASSET_ID,
+        link_mode = "dynamic_loading_system",
+        uri = "libfixture.so.0",
+        tags = ["manual"],
+    )
+    _no_link_inputs_test(
+        name = "system_no_link_inputs_test",
+        size = "small",
+        target_under_test = ":ca_system",
+    )
+
+    dart_code_asset(
+        name = "ca_linked_shared",
+        asset_id = _ASSET_ID,
+        file = "//dart/tests/cc_fixture:linked_shared",
+        tags = ["manual"],
+    )
+    _link_inputs_test(
+        name = "shared_library_link_inputs_test",
+        size = "small",
+        linked = [
+            "linked_root",
+            "linked_dep",
+        ],
+        not_linked = ["exported_cc"],
+        target_under_test = ":ca_linked_shared",
+    )
+
+    dart_code_asset(
+        name = "ca_linked_binary",
+        asset_id = _ASSET_ID,
+        file = select({
+            "@platforms//os:windows": "//dart/tests/cc_fixture:linked_binary.dll",
+            "@platforms//os:macos": "//dart/tests/cc_fixture:liblinked_binary.dylib",
+            "//conditions:default": "//dart/tests/cc_fixture:liblinked_binary.so",
+        }),
+        tags = ["manual"],
+    )
+    _link_inputs_test(
+        name = "binary_link_inputs_test",
+        size = "small",
+        linked = [
+            "linked_root",
+            "linked_dep",
+            "exported_cc",
+        ],
+        target_under_test = ":ca_linked_binary",
+    )
+
+    # A `filegroup` adds nothing to the library, so the link behind it is the
+    # link of the library.
+    native.filegroup(
+        name = "linked_shared_files",
+        srcs = ["//dart/tests/cc_fixture:linked_shared"],
+        tags = ["manual"],
+    )
+    dart_code_asset(
+        name = "ca_behind_filegroup",
+        asset_id = _ASSET_ID,
+        file = ":linked_shared_files",
+        tags = ["manual"],
+    )
+    _link_inputs_test(
+        name = "filegroup_link_inputs_test",
+        size = "small",
+        linked = [
+            "linked_root",
+            "linked_dep",
+        ],
+        not_linked = ["exported_cc"],
+        target_under_test = ":ca_behind_filegroup",
+    )
+
+    native.filegroup(
+        name = "linked_shared_files_outer",
+        srcs = [":linked_shared_files"],
+        tags = ["manual"],
+    )
+    dart_code_asset(
+        name = "ca_behind_nested_filegroups",
+        asset_id = _ASSET_ID,
+        file = ":linked_shared_files_outer",
+        tags = ["manual"],
+    )
+    _link_inputs_test(
+        name = "nested_filegroups_link_inputs_test",
+        size = "small",
+        linked = [
+            "linked_root",
+            "linked_dep",
+        ],
+        not_linked = ["exported_cc"],
+        target_under_test = ":ca_behind_nested_filegroups",
+    )
+
+    native.alias(
+        name = "linked_shared_alias",
+        actual = "//dart/tests/cc_fixture:linked_shared",
+        tags = ["manual"],
+    )
+    dart_code_asset(
+        name = "ca_behind_alias",
+        asset_id = _ASSET_ID,
+        file = ":linked_shared_alias",
+        tags = ["manual"],
+    )
+    _link_inputs_test(
+        name = "alias_link_inputs_test",
+        size = "small",
+        linked = [
+            "linked_root",
+            "linked_dep",
+        ],
+        not_linked = ["exported_cc"],
+        target_under_test = ":ca_behind_alias",
+    )
+
+    native.filegroup(
+        name = "linked_shared_alias_files",
+        srcs = [":linked_shared_alias"],
+        tags = ["manual"],
+    )
+    dart_code_asset(
+        name = "ca_behind_alias_filegroup",
+        asset_id = _ASSET_ID,
+        file = ":linked_shared_alias_files",
+        tags = ["manual"],
+    )
+    _link_inputs_test(
+        name = "alias_filegroup_link_inputs_test",
+        size = "small",
+        linked = [
+            "linked_root",
+            "linked_dep",
+        ],
+        not_linked = ["exported_cc"],
+        target_under_test = ":ca_behind_alias_filegroup",
+    )
+
+    native.filegroup(
+        name = "linked_binary_files",
+        srcs = select({
+            "@platforms//os:windows": ["//dart/tests/cc_fixture:linked_binary.dll"],
+            "@platforms//os:macos": ["//dart/tests/cc_fixture:liblinked_binary.dylib"],
+            "//conditions:default": ["//dart/tests/cc_fixture:liblinked_binary.so"],
+        }),
+        tags = ["manual"],
+    )
+    dart_code_asset(
+        name = "ca_binary_behind_filegroup",
+        asset_id = _ASSET_ID,
+        file = ":linked_binary_files",
+        tags = ["manual"],
+    )
+    _link_inputs_test(
+        name = "binary_filegroup_link_inputs_test",
+        size = "small",
+        linked = [
+            "linked_root",
+            "linked_dep",
+            "exported_cc",
+        ],
+        target_under_test = ":ca_binary_behind_filegroup",
+    )
+
+    # A filegroup binds the library of the `cc_shared_library` it wraps only
+    # when it provides that library and nothing but the library target's own
+    # outputs, as an import library and a `.pdb` are on Windows. Here a target
+    # of the library's own, with a file beside it, stands in for them, on every
+    # platform.
+    _forwarded_shared(
+        name = "shared_with_sibling",
+        of = "//dart/tests/cc_fixture:linked_shared",
+        sibling = "linked_shared.sibling",
+        states = True,
+        tags = ["manual"],
+    )
+    native.filegroup(
+        name = "shared_with_sibling_files",
+        srcs = [":shared_with_sibling"],
+        tags = ["manual"],
+    )
+    dart_code_asset(
+        name = "ca_shared_with_sibling",
+        asset_id = _ASSET_ID,
+        file = ":shared_with_sibling_files",
+        tags = ["manual"],
+    )
+    _link_inputs_test(
+        name = "shared_with_sibling_link_inputs_test",
+        size = "small",
+        linked = ["linked_shared.sibling"],
+        target_under_test = ":ca_shared_with_sibling",
+    )
+    _bound_library_test(
+        name = "shared_with_sibling_library_test",
+        size = "small",
+        contains = "linked_shared",
+        suffix = _LIBRARY_SUFFIX,
+        target_under_test = ":ca_shared_with_sibling",
+    )
+
+    # A text file beside the library in the filegroup is not an output of the
+    # library: it is not bound as if it were not there. Nor is a library of
+    # another origin.
+    native.filegroup(
+        name = "linked_shared_with_extra_files",
+        srcs = [
+            "//dart/tests/cc_fixture:linked_shared",
+            _PREBUILT + "libwrong.txt",
+        ],
+        tags = ["manual"],
+    )
+    dart_code_asset(
+        name = "ca_shared_with_extra_files",
+        asset_id = _ASSET_ID,
+        file = ":linked_shared_with_extra_files",
+        tags = ["manual"],
+    )
+    _expect_all_test(
+        name = "shared_with_extra_files_test",
+        size = "small",
+        messages = [
+            "nor a single prebuilt library file; it has 2 files",
+            "libwrong.txt",
+            "linked_shared",
+        ],
+        target_under_test = ":ca_shared_with_extra_files",
+    )
+
+    native.filegroup(
+        name = "linked_shared_with_other_library",
+        srcs = ["//dart/tests/cc_fixture:linked_shared"] + select({
+            "@platforms//os:windows": [_PREBUILT + "libwrong.dll"],
+            "@platforms//os:macos": [_PREBUILT + "libwrong.dylib"],
+            "//conditions:default": [_PREBUILT + "libwrong.so"],
+        }),
+        tags = ["manual"],
+    )
+    dart_code_asset(
+        name = "ca_shared_with_other_library",
+        asset_id = _ASSET_ID,
+        file = ":linked_shared_with_other_library",
+        tags = ["manual"],
+    )
+    _expect_all_test(
+        name = "shared_with_other_library_test",
+        size = "small",
+        messages = [
+            "nor a single prebuilt library file; it has 2 files",
+            "libwrong.",
+            "linked_shared",
+        ],
+        target_under_test = ":ca_shared_with_other_library",
+    )
+
+    # An output group that is not the library: the filegroup does not provide
+    # it, so there is nothing to bind it by.
+    native.filegroup(
+        name = "linked_shared_pdb",
+        srcs = ["//dart/tests/cc_fixture:linked_shared"],
+        output_group = "pdb_file",
+        tags = ["manual"],
+    )
+    dart_code_asset(
+        name = "ca_shared_pdb",
+        asset_id = _ASSET_ID,
+        file = ":linked_shared_pdb",
+        tags = ["manual"],
+    )
+    _expect_all_test(
+        name = "shared_pdb_test",
+        size = "small",
+        messages = ["ca_shared_pdb: `file` ", "linked_shared_pdb"],
+        target_under_test = ":ca_shared_pdb",
+    )
+
+    # An output group that is the library, beside a file of no output group:
+    # the filegroup provides just the library.
+    native.filegroup(
+        name = "linked_shared_main_output",
+        srcs = [
+            "//dart/tests/cc_fixture:linked_shared",
+            _PREBUILT + "libwrong.txt",
+        ],
+        output_group = "main_shared_library_output",
+        tags = ["manual"],
+    )
+    dart_code_asset(
+        name = "ca_shared_main_output",
+        asset_id = _ASSET_ID,
+        file = ":linked_shared_main_output",
+        tags = ["manual"],
+    )
+    _link_inputs_test(
+        name = "shared_main_output_link_inputs_test",
+        size = "small",
+        linked = [
+            "linked_root",
+            "linked_dep",
+        ],
+        not_linked = ["exported_cc"],
+        target_under_test = ":ca_shared_main_output",
+    )
+    _bound_library_test(
+        name = "shared_main_output_library_test",
+        size = "small",
+        contains = "linked_shared",
+        suffix = _LIBRARY_SUFFIX,
+        target_under_test = ":ca_shared_main_output",
+    )
+
+    # A `cc_shared_library` passed on without a link of its own: the library
+    # is bound all the same, and what it was linked from is not known.
+    _forwarded_shared(
+        name = "forwarded_shared",
+        of = "//dart/tests/cc_fixture:linked_shared",
+        tags = ["manual"],
+    )
+    dart_code_asset(
+        name = "ca_forwarded_shared",
+        asset_id = _ASSET_ID,
+        file = ":forwarded_shared",
+        tags = ["manual"],
+    )
+    _bound_library_test(
+        name = "forwarded_shared_library_test",
+        size = "small",
+        contains = "linked_shared",
+        suffix = _LIBRARY_SUFFIX,
+        target_under_test = ":ca_forwarded_shared",
+    )
+    _unknown_link_inputs_test(
+        name = "forwarded_shared_unknown_link_inputs_test",
+        size = "small",
+        reason = [
+            ":ca_forwarded_shared",
+            ":forwarded_shared",
+            "did not write",
+            "DartLinkInputsInfo",
+        ],
+        target_under_test = ":ca_forwarded_shared",
+    )
+
+    native.filegroup(
+        name = "forwarded_shared_files",
+        srcs = [":forwarded_shared"],
+        tags = ["manual"],
+    )
+    dart_code_asset(
+        name = "ca_forwarded_shared_behind_filegroup",
+        asset_id = _ASSET_ID,
+        file = ":forwarded_shared_files",
+        tags = ["manual"],
+    )
+    _unknown_link_inputs_test(
+        name = "forwarded_shared_filegroup_unknown_link_inputs_test",
+        size = "small",
+        reason = [
+            ":ca_forwarded_shared_behind_filegroup",
+            ":forwarded_shared_files",
+            "did not write",
+            "DartLinkInputsInfo",
+        ],
+        target_under_test = ":ca_forwarded_shared_behind_filegroup",
+    )
+
+    # ... unless the target says what it was linked from.
+    _forwarded_shared(
+        name = "forwarded_shared_stating",
+        of = "//dart/tests/cc_fixture:linked_shared",
+        sibling = "linked_shared.stated",
+        states = True,
+        tags = ["manual"],
+    )
+    dart_code_asset(
+        name = "ca_forwarded_shared_stating",
+        asset_id = _ASSET_ID,
+        file = ":forwarded_shared_stating",
+        tags = ["manual"],
+    )
+    _link_inputs_test(
+        name = "forwarded_shared_stating_link_inputs_test",
+        size = "small",
+        linked = ["linked_shared.stated"],
+        target_under_test = ":ca_forwarded_shared_stating",
+    )
+
+    native.filegroup(
+        name = "two_shared_libraries",
+        srcs = [
+            "//dart/tests/cc_fixture:linked_shared",
+            _SHARED_LIB,
+        ],
+        tags = ["manual"],
+    )
+    dart_code_asset(
+        name = "ca_two_shared_libraries",
+        asset_id = _ASSET_ID,
+        file = ":two_shared_libraries",
+        tags = ["manual"],
+    )
+    _expect_all_test(
+        name = "two_shared_libraries_test",
+        size = "small",
+        messages = [
+            "wraps 2 shared libraries",
+            "cc_fixture:linked_shared",
+            "cc_fixture:empty_shared",
+        ],
+        target_under_test = ":ca_two_shared_libraries",
+    )
+
+    # Only a `filegroup` is looked through: a rule that forwards the files
+    # itself may have changed them.
+    _forwarded_files(
+        name = "forwarded_files",
+        of = "//dart/tests/cc_fixture:linked_shared",
+        tags = ["manual"],
+    )
+    dart_code_asset(
+        name = "ca_forwarded_files",
+        asset_id = _ASSET_ID,
+        file = ":forwarded_files",
+        tags = ["manual"],
+    )
+    _unknown_link_inputs_test(
+        name = "forwarded_files_unknown_link_inputs_test",
+        size = "small",
+        reason = [
+            ":ca_forwarded_files",
+            ":forwarded_files",
+            "did not write",
+            "DartLinkInputsInfo",
+        ],
+        target_under_test = ":ca_forwarded_files",
+    )
+
+    # A prebuilt library has no link, behind a filegroup as well.
+    native.filegroup(
+        name = "prebuilt_files",
+        srcs = select({
+            "@platforms//os:windows": [_PREBUILT + "libwrong.dll"],
+            "@platforms//os:macos": [_PREBUILT + "libwrong.dylib"],
+            "//conditions:default": [_PREBUILT + "libwrong.so"],
+        }),
+        tags = ["manual"],
+    )
+    dart_code_asset(
+        name = "ca_prebuilt_behind_filegroup",
+        asset_id = _ASSET_ID,
+        file = ":prebuilt_files",
+        tags = ["manual"],
+    )
+    _no_link_inputs_test(
+        name = "prebuilt_filegroup_no_link_inputs_test",
+        size = "small",
+        target_under_test = ":ca_prebuilt_behind_filegroup",
+    )
+
+    # A copy's action is no link: its inputs are the library, not the objects.
+    _copied_library(
+        name = "copied_library",
+        asset = ":ca_linked_shared",
+        tags = ["manual"],
+    )
+    dart_code_asset(
+        name = "ca_copied",
+        asset_id = _ASSET_ID,
+        file = ":copied_library",
+        tags = ["manual"],
+    )
+    _unknown_link_inputs_test(
+        name = "copy_unknown_link_inputs_test",
+        size = "small",
+        reason = [
+            ":ca_copied",
+            ":copied_library",
+            "`CopyFile`",
+            "DartLinkInputsInfo",
+        ],
+        target_under_test = ":ca_copied",
+    )
+
+    native.filegroup(
+        name = "copied_library_files",
+        srcs = [":copied_library"],
+        tags = ["manual"],
+    )
+    dart_code_asset(
+        name = "ca_copied_behind_filegroup",
+        asset_id = _ASSET_ID,
+        file = ":copied_library_files",
+        tags = ["manual"],
+    )
+    _unknown_link_inputs_test(
+        name = "copy_filegroup_unknown_link_inputs_test",
+        size = "small",
+        reason = [
+            ":ca_copied_behind_filegroup",
+            ":copied_library_files",
+            "`CopyFile`",
+            "DartLinkInputsInfo",
+        ],
+        target_under_test = ":ca_copied_behind_filegroup",
+    )
+
+    _copied_library(
+        name = "forwarding_library",
+        asset = ":ca_linked_shared",
+        states = "copy",
+        tags = ["manual"],
+    )
+    dart_code_asset(
+        name = "ca_forwarded",
+        asset_id = _ASSET_ID,
+        file = ":forwarding_library",
+        tags = ["manual"],
+    )
+    _link_inputs_test(
+        name = "forwarded_link_inputs_test",
+        size = "small",
+        linked = [
+            "linked_root",
+            "linked_dep",
+        ],
+        not_linked = ["exported_cc"],
+        target_under_test = ":ca_forwarded",
+    )
+
+    native.filegroup(
+        name = "forwarding_library_files",
+        srcs = [":forwarding_library"],
+        tags = ["manual"],
+    )
+    dart_code_asset(
+        name = "ca_forwarded_behind_filegroup",
+        asset_id = _ASSET_ID,
+        file = ":forwarding_library_files",
+        tags = ["manual"],
+    )
+    _link_inputs_test(
+        name = "forwarded_filegroup_link_inputs_test",
+        size = "small",
+        linked = [
+            "linked_root",
+            "linked_dep",
+        ],
+        not_linked = ["exported_cc"],
+        target_under_test = ":ca_forwarded_behind_filegroup",
+    )
+
+    # Only what a wrapped target states about the bound library counts: a
+    # sibling that states another file is not in the way, whichever is first.
+    _stating_sibling(
+        name = "unrelated_statement",
+        inputs = [_PREBUILT + "libwrong.txt"],
+        of = _SHARED_LIB,
+        tags = ["manual"],
+    )
+    native.filegroup(
+        name = "forwarded_with_sibling_files",
+        srcs = [
+            ":unrelated_statement",
+            ":forwarding_library",
+        ],
+        tags = ["manual"],
+    )
+    dart_code_asset(
+        name = "ca_forwarded_with_sibling",
+        asset_id = _ASSET_ID,
+        file = ":forwarded_with_sibling_files",
+        tags = ["manual"],
+    )
+    _link_inputs_test(
+        name = "sibling_statement_link_inputs_test",
+        size = "small",
+        linked = [
+            "linked_root",
+            "linked_dep",
+        ],
+        not_linked = [
+            "exported_cc",
+            "libwrong",
+        ],
+        target_under_test = ":ca_forwarded_with_sibling",
+    )
+
+    native.filegroup(
+        name = "linked_with_sibling_files",
+        srcs = [
+            "//dart/tests/cc_fixture:linked_shared",
+            ":unrelated_statement",
+        ],
+        tags = ["manual"],
+    )
+    dart_code_asset(
+        name = "ca_linked_with_sibling",
+        asset_id = _ASSET_ID,
+        file = ":linked_with_sibling_files",
+        tags = ["manual"],
+    )
+    _link_inputs_test(
+        name = "sibling_statement_over_link_inputs_test",
+        size = "small",
+        linked = [
+            "linked_root",
+            "linked_dep",
+        ],
+        not_linked = [
+            "exported_cc",
+            "libwrong",
+        ],
+        target_under_test = ":ca_linked_with_sibling",
+    )
+
+    # Two targets stating the one library differently: one of them is wrong.
+    _stating_sibling(
+        name = "conflicting_statement",
+        inputs = [_PREBUILT + "libwrong.txt"],
+        of = ":forwarding_library",
+        tags = ["manual"],
+    )
+    native.filegroup(
+        name = "conflicting_files",
+        srcs = [
+            ":forwarding_library",
+            ":conflicting_statement",
+        ],
+        tags = ["manual"],
+    )
+    dart_code_asset(
+        name = "ca_conflicting",
+        asset_id = _ASSET_ID,
+        file = ":conflicting_files",
+        tags = ["manual"],
+    )
+    _expect_all_test(
+        name = "disagreeing_statements_test",
+        size = "small",
+        messages = [
+            "disagree",
+            ":forwarding_library",
+            ":conflicting_statement",
+            ":ca_conflicting",
+        ],
+        target_under_test = ":ca_conflicting",
+    )
+
+    # The same statement reached twice is one statement.
+    native.filegroup(
+        name = "forwarded_twice_files",
+        srcs = [
+            ":forwarding_library",
+            ":forwarding_library_files",
+        ],
+        tags = ["manual"],
+    )
+    dart_code_asset(
+        name = "ca_forwarded_twice",
+        asset_id = _ASSET_ID,
+        file = ":forwarded_twice_files",
+        tags = ["manual"],
+    )
+    _link_inputs_test(
+        name = "statement_reached_twice_link_inputs_test",
+        size = "small",
+        linked = ["linked_root"],
+        target_under_test = ":ca_forwarded_twice",
+    )
+
+    # Staging a library for a program links it, and it is the same library.
+    _staged_asset(
+        name = "staged_linked",
+        asset = ":ca_behind_filegroup",
+        tags = ["manual"],
+    )
+    _link_inputs_test(
+        name = "staged_link_inputs_test",
+        size = "small",
+        linked = [
+            "linked_root",
+            "linked_dep",
+        ],
+        not_linked = ["exported_cc"],
+        target_under_test = ":staged_linked",
+    )
+    _staged_asset(
+        name = "staged_unknown",
+        asset = ":ca_copied",
+        tags = ["manual"],
+    )
+    _unknown_link_inputs_test(
+        name = "staged_unknown_link_inputs_test",
+        size = "small",
+        reason = [
+            ":ca_copied",
+            "`CopyFile`",
+            "DartLinkInputsInfo",
+        ],
+        target_under_test = ":staged_unknown",
+    )
+
+    # What a rule states wins over the action writing the library, even one
+    # that counts as a link: this one's only input is the original library.
+    _copied_library(
+        name = "stating_linker",
+        asset = ":ca_linked_shared",
+        mnemonic = "CppLink",
+        states = "copy",
+        tags = ["manual"],
+    )
+    dart_code_asset(
+        name = "ca_stating_linker",
+        asset_id = _ASSET_ID,
+        file = ":stating_linker",
+        tags = ["manual"],
+    )
+    _link_inputs_test(
+        name = "stated_over_action_link_inputs_test",
+        size = "small",
+        linked = ["linked_root"],
+        target_under_test = ":ca_stating_linker",
+    )
+
+    _copied_library(
+        name = "states_other_library",
+        asset = ":ca_linked_shared",
+        states = "original",
+        tags = ["manual"],
+    )
+    dart_code_asset(
+        name = "ca_states_other_library",
+        asset_id = _ASSET_ID,
+        file = ":states_other_library",
+        tags = ["manual"],
+    )
+    _stated_other_library_test(
+        name = "stated_other_library_test",
+        size = "small",
+        target_under_test = ":ca_states_other_library",
+    )
+
+    _copied_library(
+        name = "states_library_not_file",
+        asset = ":ca_linked_shared",
+        states = "library_not_file",
+        tags = ["manual"],
+    )
+    _stated_library_not_file_test(
+        name = "stated_library_not_file_test",
+        size = "small",
+        target_under_test = ":states_library_not_file",
+    )
+
+    _copied_library(
+        name = "states_inputs_not_depset",
+        asset = ":ca_linked_shared",
+        states = "inputs_not_depset",
+        tags = ["manual"],
+    )
+    _stated_inputs_not_depset_test(
+        name = "stated_inputs_not_depset_test",
+        size = "small",
+        target_under_test = ":states_inputs_not_depset",
+    )
+
+    # A rule that says nothing about it gets a reason that says so and what to do.
+    _stated_asset(
+        name = "silent_asset",
+        tags = ["manual"],
+    )
+    _unknown_link_inputs_test(
+        name = "silent_asset_unknown_link_inputs_test",
+        size = "small",
+        reason = [
+            "did not state what",
+            "was linked from",
+            "`link_inputs`",
+            "`dart_code_asset`",
+        ],
+        target_under_test = ":silent_asset",
+    )
+
+    # A rule that states why it cannot say keeps its own words.
+    _stated_asset(
+        name = "reasoned_asset",
+        states = "reason_only",
+        tags = ["manual"],
+    )
+    _unknown_link_inputs_test(
+        name = "reasoned_asset_unknown_link_inputs_test",
+        size = "small",
+        reason = ["stated by the rule"],
+        target_under_test = ":reasoned_asset",
+    )
+
+    # One fact, one way: known inputs have no reason for being unknown.
+    _stated_asset(
+        name = "asset_states_both",
+        states = "both",
+        tags = ["manual"],
+    )
+    _asset_states_both_test(
+        name = "asset_states_both_test",
+        size = "small",
+        target_under_test = ":asset_states_both",
+    )
+    _stated_asset(
+        name = "asset_inputs_not_depset",
+        states = "inputs_not_depset",
+        tags = ["manual"],
+    )
+    _asset_inputs_not_depset_test(
+        name = "asset_inputs_not_depset_test",
+        size = "small",
+        target_under_test = ":asset_inputs_not_depset",
+    )
+    _stated_asset(
+        name = "asset_reason_not_string",
+        states = "reason_not_string",
+        tags = ["manual"],
+    )
+    _asset_reason_not_string_test(
+        name = "asset_reason_not_string_test",
+        size = "small",
+        target_under_test = ":asset_reason_not_string",
+    )
+
     native.test_suite(
         name = name,
         tests = [
+            ":silent_asset_unknown_link_inputs_test",
+            ":reasoned_asset_unknown_link_inputs_test",
+            ":asset_states_both_test",
+            ":asset_inputs_not_depset_test",
+            ":asset_reason_not_string_test",
+            ":filegroup_link_inputs_test",
+            ":shared_with_sibling_link_inputs_test",
+            ":shared_with_sibling_library_test",
+            ":shared_with_extra_files_test",
+            ":shared_with_other_library_test",
+            ":shared_pdb_test",
+            ":shared_main_output_link_inputs_test",
+            ":shared_main_output_library_test",
+            ":forwarded_shared_library_test",
+            ":forwarded_shared_unknown_link_inputs_test",
+            ":forwarded_shared_filegroup_unknown_link_inputs_test",
+            ":forwarded_shared_stating_link_inputs_test",
+            ":two_shared_libraries_test",
+            ":nested_filegroups_link_inputs_test",
+            ":alias_link_inputs_test",
+            ":alias_filegroup_link_inputs_test",
+            ":binary_filegroup_link_inputs_test",
+            ":forwarded_files_unknown_link_inputs_test",
+            ":prebuilt_filegroup_no_link_inputs_test",
+            ":copy_filegroup_unknown_link_inputs_test",
+            ":forwarded_filegroup_link_inputs_test",
+            ":sibling_statement_link_inputs_test",
+            ":sibling_statement_over_link_inputs_test",
+            ":disagreeing_statements_test",
+            ":statement_reached_twice_link_inputs_test",
+            ":staged_link_inputs_test",
+            ":staged_unknown_link_inputs_test",
+            ":copy_unknown_link_inputs_test",
+            ":forwarded_link_inputs_test",
+            ":stated_over_action_link_inputs_test",
+            ":stated_other_library_test",
+            ":stated_library_not_file_test",
+            ":stated_inputs_not_depset_test",
+            ":prebuilt_no_link_inputs_test",
+            ":system_no_link_inputs_test",
+            ":shared_library_link_inputs_test",
+            ":binary_link_inputs_test",
             ":prebuilt_wrong_platform_test",
             ":prebuilt_not_a_library_test",
             ":prebuilt_two_files_test",

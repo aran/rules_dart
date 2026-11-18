@@ -2587,6 +2587,81 @@ the whole library. The id must be the package's own, and not also one of its
 `code_assets`. The tool can't be a library of the package that names it,
 because the package would then depend on itself.
 
+**What a library was linked from.** A tool that reads a library's object files
+again needs them as inputs of its action. `dsymutil` is the usual case: a Mach-O
+library holds only a map naming the objects its debug information is in.
+`DartCodeAssetInfo.link_inputs` is a depset holding every object file and static
+archive of the link (the objects of a library that has no archive too), for a
+`cc_shared_library`, a `cc_binary` with `linkshared`, and a library linked into a
+program from `linked_code_assets`:
+
+```starlark
+asset = ctx.attr.code_asset[DartCodeAssetInfo]
+if asset.link_inputs == None:
+    fail("%s: %s" % (ctx.label, asset.link_inputs_unset_reason))
+ctx.actions.run(
+    executable = ctx.executable._dsymutil,
+    arguments = [asset.file.path, "-o", dsym.path],
+    inputs = depset([asset.file], transitive = [asset.link_inputs]),
+    outputs = [dsym],
+)
+```
+
+It can hold more than that, such as the linker's own tools, so pass it on whole
+rather than listing it. Code that comes from a library in `dynamic_deps` isn't
+there, because it isn't in this library. A prebuilt library has an empty
+`link_inputs`. When what it was linked from isn't known, `link_inputs` is
+`None`, and a consumer that needs it can `fail()` with `link_inputs_unset_reason`,
+as above.
+
+`dart_code_asset` sees the link when `file` names the target that linked the
+library, or a `filegroup` around it, nested ones included. A `filegroup` that
+wraps one `cc_shared_library` binds that library's `.so`, `.dylib` or `.dll`
+when it provides that library and nothing but files the `cc_shared_library`
+provides itself, such as a Windows import library and `.pdb`. A `filegroup` that
+adds another file, or selects an `output_group` without the library, is not
+that library: `file` is then the one library file it provides, or an error that
+names its files. Wrapping several shared libraries is an error. When another
+rule forwards the library, as a platform transition does, or `file` is a copy,
+it can't see the link: the library is bound all the same, and `link_inputs` is
+`None`. The asset's `link_inputs_unset_reason` says which case it is. Name the
+`cc_shared_library`, or a `filegroup` around it; if you copied the library to
+give it another name, its `shared_lib_name` does that without a copy.
+
+A rule that has to copy the library, or links it with an action of its own, says
+what it was linked from with `DartLinkInputsInfo`. This one copies a library and
+forwards the inputs of the original, which it takes from a `dart_code_asset` of
+that library:
+
+```starlark
+load("@rules_dart//dart:providers.bzl", "DartCodeAssetInfo", "DartLinkInputsInfo")
+
+def _library_copy_impl(ctx):
+    original = ctx.attr.original[DartCodeAssetInfo]
+    if original.link_inputs == None:
+        fail("%s: %s" % (ctx.label, original.link_inputs_unset_reason))
+    copy = ctx.actions.declare_file(ctx.attr.out)
+    ctx.actions.run_shell(
+        inputs = [original.file],
+        outputs = [copy],
+        command = 'cp "$1" "$2"',
+        arguments = [original.file.path, copy.path],
+    )
+    return [
+        DefaultInfo(files = depset([copy])),
+        DartLinkInputsInfo(library = copy, inputs = original.link_inputs),
+    ]
+```
+
+`library` must be the file the target provides, or `dart_code_asset` fails.
+Behind a `filegroup`, a statement about another file than the one `file` provides
+is ignored, and two about that file must agree. Don't forward inputs for a
+stripped copy if they are for `dsymutil`: stripping removes the map naming the
+objects, so run it on the unstripped library. A rule of your own that provides
+`DartCodeAssetInfo` passes `link_inputs` itself, or `link_inputs_unset_reason`
+when it can't know; one that passes neither leaves `link_inputs` as `None`, and
+passing both is an error.
+
 **Replacements rules_dart ships.** Two packages have one, under `dart/ext`:
 
 - `package:sqlite3` 2.0.0 and later: `sqlite3_code_asset()` from

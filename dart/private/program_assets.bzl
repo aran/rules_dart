@@ -477,6 +477,26 @@ def _link_format(ctx):
             return "macho", "lib%s.dylib"
     return "elf", "lib%s.so"
 
+def static_link_inputs(library_to_link):
+    """What a `LibraryToLink` is linked from, as a static library.
+
+    The position-independent archive and its objects when there is one, else
+    the plain archive and its objects. A library with no archive still has
+    objects to name, both kinds if both are there.
+
+    Args:
+      library_to_link: A `LibraryToLink`.
+
+    Returns:
+      A struct of `archive`, the static archive `File` or `None`, and
+      `objects`, the list of object `File`s.
+    """
+    if library_to_link.pic_static_library != None:
+        return struct(archive = library_to_link.pic_static_library, objects = list(library_to_link.pic_objects or []))
+    if library_to_link.static_library != None:
+        return struct(archive = library_to_link.static_library, objects = list(library_to_link.objects or []))
+    return struct(archive = None, objects = list(library_to_link.pic_objects or []) + list(library_to_link.objects or []))
+
 def _native_link(ctx, pkg, linked, recorded_uses, name):
     """Links one package's `linked_code_assets` entry for this program.
 
@@ -511,13 +531,20 @@ def _native_link(ctx, pkg, linked, recorded_uses, name):
     # `deps` are; what it depends on, as the link needs.
     linker_inputs = []
     objects = []
+    link_inputs = []
     for linker_input in linked.library.linking_context.linker_inputs.to_list():
+        for library_to_link in linker_input.libraries:
+            inputs = static_link_inputs(library_to_link)
+            if inputs.archive != None:
+                link_inputs.append(inputs.archive)
+            link_inputs.extend(inputs.objects)
         if linker_input.owner == linked.owner:
+            # Only an archive is linked below, so only an archive's objects
+            # are the library's own.
             for library_to_link in linker_input.libraries:
-                if library_to_link.pic_static_library != None:
-                    objects.extend(library_to_link.pic_objects or [])
-                elif library_to_link.static_library != None:
-                    objects.extend(library_to_link.objects or [])
+                inputs = static_link_inputs(library_to_link)
+                if inputs.archive != None:
+                    objects.extend(inputs.objects)
             linker_input = cc_common.create_linker_input(
                 owner = linker_input.owner,
                 libraries = depset([
@@ -602,6 +629,7 @@ def _native_link(ctx, pkg, linked, recorded_uses, name):
         link_mode = "dynamic_loading_bundle",
         file = library,
         uri = "",
+        link_inputs = depset(link_inputs),
     )
 
 def _windows_export_all(ctx, cc_toolchain, feature_configuration, objects, library, prefix):

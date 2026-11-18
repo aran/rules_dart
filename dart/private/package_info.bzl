@@ -10,19 +10,63 @@ one refuses.
 
 visibility("//dart/...")
 
-DartCodeAssetInfo = provider(
+_LINK_INPUTS_UNSET_BY_DEFAULT = (
+    "the rule that provided this code asset did not state what its library was " +
+    "linked from. That rule should pass `link_inputs`, a depset of the files the " +
+    "library was linked from, when it builds `DartCodeAssetInfo`, or bind the " +
+    "library with `dart_code_asset`, which reads them from the link."
+)
+
+def _code_asset_init(
+        asset_id,
+        link_mode,
+        file,
+        uri,
+        link_inputs = None,
+        link_inputs_unset_reason = None):
+    # What the library was linked from is a fact stated one way: the files when
+    # they are known, and otherwise the reason they are not. A rule that says
+    # neither is a rule that did not think of it, which a consumer deserves to
+    # hear as such rather than as an empty link.
+    if link_inputs != None and type(link_inputs) != "depset":
+        fail("DartCodeAssetInfo: `link_inputs` must be a depset of Files or None, got %s." % type(link_inputs))
+    if link_inputs_unset_reason != None and type(link_inputs_unset_reason) != "string":
+        fail("DartCodeAssetInfo: `link_inputs_unset_reason` must be a string or None, got %s." % type(link_inputs_unset_reason))
+    if link_inputs != None and link_inputs_unset_reason != None:
+        fail(("DartCodeAssetInfo %s: states both `link_inputs` and `link_inputs_unset_reason`. " +
+              "Pass `link_inputs` when it is known, and the reason when it is not.") % asset_id)
+    if link_inputs == None and link_inputs_unset_reason == None:
+        link_inputs_unset_reason = "%s: %s" % (asset_id, _LINK_INPUTS_UNSET_BY_DEFAULT)
+    return {
+        "asset_id": asset_id,
+        "link_mode": link_mode,
+        "file": file,
+        "uri": uri,
+        "link_inputs": link_inputs,
+        "link_inputs_unset_reason": link_inputs_unset_reason,
+    }
+
+DartCodeAssetInfo, _raw_code_asset_info = provider(
+    init = _code_asset_init,
     doc = """A native code asset (a Bazel-built dynamic library) bound to the \
 Dart `@Native`/`@DefaultAsset` asset id the owning package uses.
 
 Produced by the `dart_code_asset` rule and consumed via the `code_assets` \
 attribute of `dart_test` / `dart_binary`, which embed the mapping into the \
 compiled kernel (`frontend_server --native-assets`) so the Dart VM resolves the \
-package's `@Native` symbols against the Bazel-built library at runtime.""",
+package's `@Native` symbols against the Bazel-built library at runtime.
+
+A rule building one states `asset_id`, `link_mode`, `file` and `uri`, and \
+`link_inputs` when it knows what `file` was linked from, or \
+`link_inputs_unset_reason` when it does not. Stating neither leaves \
+`link_inputs` unset with a reason saying so; stating both fails.""",
     fields = {
         "asset_id": "str: The code-asset id the owning package declares (its `@ffi.DefaultAsset` / `@Native(assetId:)`), e.g. `package:sqlite3/src/ffi/libsqlite3.g.dart`.",
         "link_mode": "str: How the runtime loads the asset. One of `dynamic_loading_bundle`, `dynamic_loading_system`, `dynamic_loading_executable`, `dynamic_loading_process` — the upstream `code_assets` strings, verbatim.",
         "file": "File or None: The dynamic library (`.so`/`.dylib`/`.dll`) the asset resolves to. Set only for `dynamic_loading_bundle`; `None` otherwise.",
         "uri": "str: System library URI (e.g. `libsqlite3.so.0`) for `dynamic_loading_system`. Empty string otherwise.",
+        "link_inputs": "depset[File] or None: What `file` was linked from, for an action that reads those files again, as `dsymutil` does: at least every object file and static archive of the link (the objects of a library with no archive too), and possibly the rest of its inputs, such as linker tools. From the C++ link action of the target `dart_code_asset` binds, or what that target states in `DartLinkInputsInfo`. Empty for a prebuilt library and when there is no `file`. `None` when it is not known: a rule that is no `filegroup` forwards a library another target wrote (a platform transition does, and the library is bound all the same), an action that does not link wrote it, as a copy does, or the rule that built this provider did not state it. A consumer that needs it tests for `None` and `fail()`s with `link_inputs_unset_reason`. Pass it to an action's `inputs` as it is: nothing is computed until then.",
+        "link_inputs_unset_reason": "str or None: Why `link_inputs` is `None` and what to do about it; `None` when `link_inputs` is known. For a consumer that needs `link_inputs` to `fail()` with.",
     },
 )
 

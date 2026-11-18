@@ -183,6 +183,30 @@ DartCompileInfo = provider(
 
 DartCodeAssetInfo = _DartCodeAssetInfo
 
+def _link_inputs_init(library, inputs):
+    if type(library) != "File":
+        fail("DartLinkInputsInfo: `library` must be a File, got %s." % type(library))
+    if type(inputs) != "depset":
+        fail("DartLinkInputsInfo: `inputs` must be a depset of Files, got %s." % type(inputs))
+    return {"library": library, "inputs": inputs}
+
+DartLinkInputsInfo, _raw_link_inputs_info = provider(
+    init = _link_inputs_init,
+    doc = """What a dynamic library a rule produces was linked from, stated by \
+that rule.
+
+`dart_code_asset` finds this itself when its `file` is the target that linked \
+the library with a C++ toolchain. A rule returns this provider when that cannot \
+work: it copies or renames a library, and forwards the inputs of the original, \
+or it links with an action of its own. `dart_code_asset` prefers it to what it \
+would find, carries `inputs` as `DartCodeAssetInfo.link_inputs`, and fails if \
+`library` is not the library it binds.""",
+    fields = {
+        "library": "File: The library this describes, the one the target provides.",
+        "inputs": "depset[File]: What `library` was linked from: at least every object file and static archive of the link. Empty for a library linked from nothing Bazel knows.",
+    },
+)
+
 DartRecordedUsesInfo = provider(
     doc = """The uses of `@RecordUse` definitions the compiler recorded while \
 building an executable: which annotated classes were instantiated with which \

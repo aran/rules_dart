@@ -1,3 +1,4 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 
@@ -43,3 +44,56 @@ cc_shared_library(
     ],
     deps = [":empty"],
 )
+
+# What a code asset's `link_inputs` holds: a library linked from `linked_root`
+# and `linked_dep`, which reaches `exported_cc` through a shared library of its
+# own, so that code is not linked in. Only analysed: a Windows DLL exports
+# nothing unless told to, so `linked_shared` would not link there.
+cc_library(
+    name = "exported_cc",
+    srcs = ["exported.cc"],
+)
+
+cc_shared_library(
+    name = "exported_shared",
+    tags = ["manual"],
+    deps = [":exported_cc"],
+)
+
+cc_library(
+    name = "linked_dep",
+    srcs = ["linked_dep.cc"],
+)
+
+cc_library(
+    name = "linked_root",
+    srcs = ["linked_root.cc"],
+    deps = [
+        ":exported_cc",
+        ":linked_dep",
+    ],
+)
+
+cc_shared_library(
+    name = "linked_shared",
+    dynamic_deps = [":exported_shared"],
+    tags = ["manual"],
+    visibility = ["//dart/tests:__subpackages__"],
+    deps = [":linked_root"],
+)
+
+# The same code linked by `cc_binary`, named as each platform names a library.
+[
+    cc_binary(
+        name = library,
+        linkshared = True,
+        tags = ["manual"],
+        visibility = ["//dart/tests:__subpackages__"],
+        deps = [":linked_root"],
+    )
+    for library in [
+        "liblinked_binary.dylib",
+        "liblinked_binary.so",
+        "linked_binary.dll",
+    ]
+]

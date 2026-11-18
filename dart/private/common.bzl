@@ -1864,11 +1864,16 @@ def stage_code_assets(ctx, assets, directory):
             link = ctx.actions.declare_file("%s/%s" % (directory(len(links)), library.basename))
             ctx.actions.symlink(output = link, target_file = library)
             links[library] = link
+
+        # The link is a symlink of the library: what it was linked from, or
+        # that this is unknown, is as true of it.
         staged.append(DartCodeAssetInfo(
             asset_id = asset.asset_id,
             link_mode = asset.link_mode,
             file = links[library],
             uri = asset.uri,
+            link_inputs = asset.link_inputs,
+            link_inputs_unset_reason = asset.link_inputs_unset_reason,
         ))
     return staged
 
