@@ -970,6 +970,9 @@ jobs:
       - name: pub/vendor — expect vendored pub packages to build in a new output base
         working-directory: e2e/examples
         run: dart pub/vendor/check_vendor.dart
+      - name: pub/version_move — expect a lock's version move to remake the package's source repository
+        working-directory: e2e/examples
+        run: dart pub/version_move/check_version_move.dart
   # `dart compile kernel` rejects `--enable-asserts`, so dbg-mode flags are
   # chosen per compile mode. examples' hello_world builds all four dart_binary
   # modes; dart_test exercises the kernel test path end-to-end.

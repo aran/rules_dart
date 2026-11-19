@@ -131,8 +131,11 @@ def link_pub_files(rctx, files, written = []):
     root = rctx.path(files).dirname
     skip = _NEVER_LINKED + written
 
-    # Unwatched: the files repository changes only with its attributes, and
-    # `rctx.path(files)` already makes this repository depend on it.
+    # What the source repository writes describes these files, so it is made
+    # again whenever they change: a lock that moves the package's version
+    # fetches its files again, and naming the files repository records nothing
+    # of their content. The tree's digest covers the names read here.
+    rctx.watch_tree(root)
     for child in root.readdir(watch = "no"):
         if child.basename not in skip:
             rctx.symlink(child, child.basename)
@@ -156,9 +159,7 @@ def pub_files_fetched(rctx, files):
         repository records nothing (`write_pub_files_root` without `fetched`).
     """
 
-    # Unwatched: the record changes only with the files repository, which
-    # `rctx.path(files)` already makes this repository depend on.
-    record = read_files_load(rctx.read(rctx.path(files).dirname.get_child(FILES_LOAD), watch = "no"))
+    record = read_files_load(rctx.read(rctx.path(files).dirname.get_child(FILES_LOAD), watch = "yes"))
     if record == None:
         return None
     name = record["package_name"]
