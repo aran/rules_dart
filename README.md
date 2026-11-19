@@ -250,7 +250,9 @@ named `collection` in your workspace, and a program also reaches pub's
 `collection`. The build fails and names both targets. If yours is a fork or a
 vendored copy, have it replace pub's for the whole build with
 `resolve = {"collection": "//third_party/collection"}` on `pub.from_lock()`.
-If the two only share a name, rename yours. (A `dart_library` with only `deps`
+If the two only share a name, rename yours. A `dart_library` naming no package
+is called after its directory, so one in `pkg/test/` clashes with pub's `test`,
+and the error says to rename it first. (A `dart_library` with only `deps`
 is no package, so wrapping pub's `collection` in a directory called `collection`
 is fine.) Stating the same `version` on both doesn't make them one. The build
 holds one `runfiles`: pub.dev's is published from `@rules_dart//dart/runfiles`,

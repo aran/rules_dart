@@ -427,6 +427,31 @@ def _agreement_rejects_own_package_beside_hubs_test_impl(ctx):
         asserts.true(env, "Make the two locks agree" not in err, err)
     return unittest.end(env)
 
+def _agreement_gives_a_directory_named_package_its_own_first_fix_test_impl(ctx):
+    # `pkg/test/` holds a helper with no `package`: it is `test` only because
+    # of its directory, so replacing pub's `test` with it is the wrong first
+    # thing to suggest. A package stating its name gets `resolve` first.
+    env = unittest.begin(ctx)
+    pub_test = _pkg("@hub//:test", package_name = "test", package_root = "../hub__test", version = "1.25.0", metadata = "@hub//:pubspec", fetched_identity = purl_identity("pkg:pub/test@1.25.0"))
+    named_by_directory = package_agreement_error([
+        _pkg("//pkg/test", package_name = "test", package_root = "pkg/test"),
+        pub_test,
+    ])
+    asserts.true(env, "is called after its directory" in named_by_directory, named_by_directory)
+    rename = named_by_directory.find("rename yours")
+    replace = named_by_directory.find("resolve = {\"test\": \"//pkg/test\"},")
+    asserts.true(env, rename != -1 and replace != -1 and rename < replace, named_by_directory)
+
+    stated = package_agreement_error([
+        _pkg("//pkg/test", package_name = "test", package_root = "pkg/test", metadata = "//pkg/test:metadata"),
+        pub_test,
+    ])
+    asserts.true(env, "called after its directory" not in stated, stated)
+    rename = stated.find("rename yours")
+    replace = stated.find("resolve = {\"test\": \"//pkg/test\"},")
+    asserts.true(env, rename != -1 and replace != -1 and replace < rename, stated)
+    return unittest.end(env)
+
 def _agreement_rejects_two_own_packages_of_one_name_test_impl(ctx):
     # Two directories each a package named `util`, and every clash at once.
     env = unittest.begin(ctx)
@@ -590,6 +615,7 @@ _agreement_rejects_two_fetched_versions_test = unittest.make(_agreement_rejects_
 _agreement_path_copies_test = unittest.make(_agreement_path_copies_test_impl)
 _agreement_rejects_own_packages_stating_one_version_test = unittest.make(_agreement_rejects_own_packages_stating_one_version_test_impl)
 _agreement_rejects_unfetched_copy_beside_fetched_test = unittest.make(_agreement_rejects_unfetched_copy_beside_fetched_test_impl)
+_agreement_gives_a_directory_named_package_its_own_first_fix_test = unittest.make(_agreement_gives_a_directory_named_package_its_own_first_fix_test_impl)
 _agreement_rejects_two_own_packages_of_one_name_test = unittest.make(_agreement_rejects_two_own_packages_of_one_name_test_impl)
 _agreement_accepts_one_declaration_at_two_roots_test = unittest.make(_agreement_accepts_one_declaration_at_two_roots_test_impl)
 _agreement_accepts_split_package_stating_facts_once_test = unittest.make(_agreement_accepts_split_package_stating_facts_once_test_impl)
@@ -627,6 +653,7 @@ def package_record_test_suite(name):
         _agreement_rejects_two_fetched_versions_test,
         _agreement_rejects_own_packages_stating_one_version_test,
         _agreement_rejects_unfetched_copy_beside_fetched_test,
+        _agreement_gives_a_directory_named_package_its_own_first_fix_test,
         _agreement_rejects_two_own_packages_of_one_name_test,
         _agreement_accepts_one_declaration_at_two_roots_test,
         _agreement_accepts_split_package_stating_facts_once_test,

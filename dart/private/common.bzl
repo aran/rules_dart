@@ -367,6 +367,21 @@ If they are unrelated and only share a name, rename yours (`package_name` on its
 or depend on only one of them.
 """
 
+# The same clash where the workspace's package states no name: it is called
+# after its directory, so it is more likely unrelated than a copy.
+_DIRECTORY_NAMED_REMEDY = """
+Each package listed just above is built in the workspace and also fetched, and
+nothing makes those one package. A program has one package per name, so
+dependency order would decide which one compiles. Yours names no package, so it
+is called after its directory, and `package:` imports reach its `lib/` by that
+name. If it is unrelated to the fetched one, rename yours: give it a
+`dart_package_metadata` with another `package_name` and point its `package` at
+that, or rename the directory. If it is a fork or a vendored copy, have it
+replace the fetched one for the whole build, in `resolve` on the
+`pub.from_lock()` (or rules_flutter's `flutter_pub`) whose lock lists it:
+
+%s"""
+
 _METADATA_REMEDY = """
 Every target of one package names the package's one `dart_package_metadata`
 with `package`, so each of its records carries every fact the package states,
@@ -830,6 +845,7 @@ def _source_agreement_error(merged):
     names = {}
     unfetched = False
     forks = []
+    directory_named = []
     fetched_apart = False
     versions_apart = False
     for package_name in sorted(sources.keys()):
@@ -848,7 +864,8 @@ def _source_agreement_error(merged):
         if None in identities:
             built = [g for g in groups if g.identity == None]
             if len(built) == 1:
-                forks.append("  resolve = {\"%s\": \"%s\"},\n" % (package_name, _resolve_label(built[0].first.label)))
+                line = "  resolve = {\"%s\": \"%s\"},\n" % (package_name, _resolve_label(built[0].first.label))
+                (forks if built[0].metas else directory_named).append(line)
             else:
                 unfetched = True
         else:
@@ -869,6 +886,7 @@ def _source_agreement_error(merged):
     remedies = (
         ([_SOURCE_REMEDY] if unfetched else []) +
         ([_FORK_REMEDY % "".join(forks)] if forks else []) +
+        ([_DIRECTORY_NAMED_REMEDY % "".join(directory_named)] if directory_named else []) +
         ([_FETCHED_REMEDY] if fetched_apart else []) +
         ([_ONE_VERSION] if versions_apart else [])
     )
