@@ -948,6 +948,34 @@ def code_asset_test_suite(name):
         target_under_test = ":ca_copied_behind_filegroup",
     )
 
+    # rules_rust's `Rustc` action writes a Rust library, and is no link either:
+    # its object file is made and deleted inside it.
+    _copied_library(
+        name = "rustc_library",
+        asset = ":ca_linked_shared",
+        mnemonic = "Rustc",
+        tags = ["manual"],
+    )
+    dart_code_asset(
+        name = "ca_rustc",
+        asset_id = _ASSET_ID,
+        file = ":rustc_library",
+        tags = ["manual"],
+    )
+    _unknown_link_inputs_test(
+        name = "rustc_unknown_link_inputs_test",
+        size = "small",
+        reason = [
+            ":ca_rustc",
+            ":rustc_library",
+            "`Rustc`",
+            "deletes inside that action",
+            "DartLinkInputsInfo",
+            "dsym_folder",
+        ],
+        target_under_test = ":ca_rustc",
+    )
+
     _copied_library(
         name = "forwarding_library",
         asset = ":ca_linked_shared",
@@ -1298,6 +1326,7 @@ def code_asset_test_suite(name):
             ":forwarded_files_unknown_link_inputs_test",
             ":prebuilt_filegroup_no_link_inputs_test",
             ":copy_filegroup_unknown_link_inputs_test",
+            ":rustc_unknown_link_inputs_test",
             ":forwarded_filegroup_link_inputs_test",
             ":sibling_statement_link_inputs_test",
             ":sibling_statement_over_link_inputs_test",

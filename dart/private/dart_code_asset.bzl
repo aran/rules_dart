@@ -31,7 +31,21 @@ _APPLE_OSES = ["ios", "macos", "tvos", "visionos", "watchos"]
 # platform, `ObjcLink` when it links an Objective-C executable, as Apple binary
 # rules do, dynamic libraries included. Any other action writing a library, a
 # copy above all, has inputs that say nothing about what is in it.
+#
+# `Rustc` is not one, though rules_rust's `rust_shared_library` writes its
+# library with it. On macOS rustc compiles the crate to an object file inside
+# that action, links it, runs dsymutil and deletes the object. The library's
+# debug map names that object and no input of the action provides it, so a
+# dsymutil run on the library given every input still gets no line tables for
+# the crate's own code (its Rust and C dependencies keep theirs).
 _LINK_MNEMONICS = ["CppLink", "ObjcLink"]
+
+_RUSTC_UNKNOWN = ("wrote it with a `Rustc` action, which links the crate from an object file it makes " +
+                  "and deletes inside that action, so no input of the action is what the library was linked from")
+_RUSTC_ADVICE = ("Have `file` return DartLinkInputsInfo from a rule that holds the crate's object file, " +
+                 "or, to symbolicate Rust code on Apple platforms, use the dSYM the `Rustc` action writes " +
+                 "(the `dsym_folder` output group of the Rust target, with debug info on) " +
+                 "instead of running dsymutil on the library.")
 
 _LibraryActionsInfo = provider(
     doc = """The actions of the target behind a `dart_code_asset`'s `file`, and \
@@ -206,16 +220,20 @@ def _linked_from(ctx, library_target, library, written):
         return action.inputs, None
     if action == None and written.is_source:
         return depset(), None
-    if action != None:
+    advice = "Name the target that linked it, or have `file` return DartLinkInputsInfo."
+    if action != None and action.mnemonic == "Rustc":
+        seen = _RUSTC_UNKNOWN
+        advice = _RUSTC_ADVICE
+    elif action != None:
         seen = "wrote it with a `%s` action, which does not link" % action.mnemonic
     else:
         seen = "did not write it"
-    return None, ("dart_code_asset %s: what %s was linked from is unknown: `file` %s %s. " +
-                  "Name the target that linked it, or have `file` return DartLinkInputsInfo.") % (
+    return None, ("dart_code_asset %s: what %s was linked from is unknown: `file` %s %s. %s") % (
         ctx.label,
         library.short_path,
         library_target.label,
         seen,
+        advice,
     )
 
 def _extract_dynamic_library(ctx, library_target):
