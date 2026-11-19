@@ -72,6 +72,26 @@ const unparsableSdk = {
   'l16_garbage.yaml': 'Could not parse the SDK constraint "garbage"',
 };
 
+/// `environment.flutter` constraints pub_semver does not parse, and one on an
+/// SDK of no other interest: pub parses them all.
+const unparsableEnvironment = {
+  'f10_flutter_garbage.yaml':
+      'Could not parse the "flutter" SDK constraint "garbage"',
+  'f11_other_sdk_garbage.yaml':
+      'Could not parse the "fuchsia" SDK constraint "garbage"',
+};
+
+/// The lower bound of each file's `environment.flutter`, by pub_semver's
+/// `VersionRange.min`. Every other file has none.
+const flutterMinimums = {
+  'f01_range.yaml': '3.22.0',
+  'f02_caret.yaml': '3.22.0',
+  'f03_bare_version.yaml': '3.22.0',
+  'f04_exclusive.yaml': '3.22.0',
+  'f07_prerelease.yaml': '3.18.0-18.0.pre.54',
+  'f08_no_space.yaml': '2.11.0',
+};
+
 /// The dependencies whose constraint excludes the version `cases.bzl` gives
 /// them, by file. Every other file has none.
 const unsatisfied = {
@@ -117,7 +137,7 @@ void main(List<String> args) {
         expect(result['error'], contains('of $name: $pubMessage'));
         return;
       }
-      final unparsable = unparsableSdk[name];
+      final unparsable = unparsableSdk[name] ?? unparsableEnvironment[name];
       if (unparsable != null) {
         expect(result.keys, ['error']);
         expect(result['error'], contains('of $name: '));
@@ -133,6 +153,10 @@ void main(List<String> args) {
             ? dependencies.keys.toList()
             : <Object?>[],
         'sdk_constraint': environment is Map ? environment['sdk'] ?? '' : '',
+        'flutter_constraint': environment is Map
+            ? environment['flutter'] ?? ''
+            : '',
+        'flutter_minimum': flutterMinimums[name] ?? '',
         'fields': fields,
       };
       expect(result.keys, ['ok']);

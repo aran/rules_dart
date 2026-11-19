@@ -329,7 +329,8 @@ def run_pubspec_reader(rctx, pubspec, expected_name = None, locked_versions = No
     Returns:
         `struct(error, refused, pubspec)`. `error` is what stops the pubspec
         being read, or None and `pubspec` is `struct(name, dependencies,
-        sdk_constraint, language_version, unsatisfied, fields)`. `refused` says
+        sdk_constraint, language_version, flutter_constraint, flutter_minimum,
+        unsatisfied, fields)`. `refused` says
         whether `error` is pub's message for the pubspec, not that this host has
         no Dart SDK to read it with, which fails no fetch either.
     """
@@ -356,6 +357,8 @@ def run_pubspec_reader(rctx, pubspec, expected_name = None, locked_versions = No
         dependencies = ok["dependencies"],
         sdk_constraint = ok["sdk"] or "",
         language_version = ok["language_version"],
+        flutter_constraint = ok["flutter"] or "",
+        flutter_minimum = ok["flutter_minimum"] or "",
         unsatisfied = ok["unsatisfied"],
         fields = ok["fields"],
     ))

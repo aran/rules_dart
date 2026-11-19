@@ -3,6 +3,7 @@
 //
 //   {"ok": {"name": ..., "dependencies": [...], "sdk": ... or null,
 //           "language_version": "<major>.<minor>",
+//           "flutter": ... or null, "flutter_minimum": ... or null,
 //           "unsatisfied": {<dependency>: <its constraint>, ...},
 //           "fields": <the whole document>}}
 //   {"error": "<the message pub would give, with its line and column>"}
@@ -194,32 +195,28 @@ List<String> _dependencies(YamlMap fields, String field, String name) {
 /// lower bound.
 const _defaultLanguageVersion = '2.7';
 
+/// The lower bound of [constraint], pub_semver's `VersionRange.min`. None for
+/// `any`, for an upper bound alone, and for a constraint nothing satisfies.
+Version? _minimum(VersionConstraint? constraint) =>
+    constraint is VersionRange ? constraint.min : null;
+
 /// pub's `LanguageVersion.fromSdkConstraint`: the lower bound of the SDK
 /// constraint, as `<major>.<minor>`.
 String _languageVersion(VersionConstraint? constraint) {
-  Version? min;
-  if (constraint == null || constraint.isEmpty) {
-    min = null;
-  } else if (constraint is Version) {
-    min = constraint;
-  } else if (constraint is VersionRange) {
-    min = constraint.min;
-  } else if (constraint is VersionUnion) {
-    min = constraint.ranges.first.min;
-  } else {
-    throw ArgumentError('Unknown VersionConstraint type $constraint.');
-  }
+  final min = _minimum(constraint);
   return min == null ? _defaultLanguageVersion : '${min.major}.${min.minor}';
 }
 
-/// pub's `_parseEnvironment`: the Dart SDK constraint, or null for none.
-String? _sdk(YamlMap fields) {
+/// pub's `_parseEnvironment`: the constraint on each SDK, by its key. pub
+/// parses all of them, so a constraint it cannot read refuses the pubspec
+/// whichever SDK it is on.
+Map<String, (String, VersionConstraint)> _environment(YamlMap fields) {
   final node = fields.nodes['environment'];
-  if (node == null || node.value == null) return null;
+  if (node == null || node.value == null) return const {};
   if (node is! YamlMap) {
     _error('"environment" field must be a map.', node.span);
   }
-  _versionConstraint(node.nodes['sdk']);
+  final constraints = <String, (String, VersionConstraint)>{};
   for (final MapEntry(:key, :value) in node.nodes.entries) {
     final nameNode = key as YamlNode;
     final sdk = nameNode.value;
@@ -227,23 +224,20 @@ String? _sdk(YamlMap fields) {
     if (sdk == 'dart') {
       _error('Use "sdk" to for Dart SDK constraints.', nameNode.span);
     }
-    if (sdk != 'sdk') _versionConstraint(value);
+    _versionConstraint(value);
+    final text = value.value as String?;
+    if (text == null) continue;
+    try {
+      constraints[sdk] = (text, VersionConstraint.parse(text));
+    } on FormatException catch (e) {
+      final what = sdk == 'sdk' ? 'SDK' : '"$sdk" SDK';
+      _error(
+        'Could not parse the $what constraint "$text": ${e.message}',
+        value.span,
+      );
+    }
   }
-  return node['sdk'] as String?;
-}
-
-/// The language version pub gives a package with this `environment.sdk`.
-String _sdkLanguageVersion(YamlMap fields, String? sdk) {
-  if (sdk == null) return _defaultLanguageVersion;
-  try {
-    return _languageVersion(VersionConstraint.parse(sdk));
-  } on FormatException catch (e) {
-    final node = (fields.nodes['environment'] as YamlMap).nodes['sdk']!;
-    _error(
-      'Could not parse the SDK constraint "$sdk": ${e.message}',
-      node.span,
-    );
-  }
+  return constraints;
 }
 
 /// The dependencies whose constraint excludes the version in [locked], with
@@ -301,13 +295,16 @@ Map<String, Object?> read(
   }
   final name = _name(fields, expectedName);
   final dependencies = _dependencies(fields, 'dependencies', name);
-  final sdk = _sdk(fields);
+  final environment = _environment(fields);
+  final flutter = environment['flutter'];
   return {
     'ok': {
       'name': name,
       'dependencies': dependencies,
-      'sdk': sdk,
-      'language_version': _sdkLanguageVersion(fields, sdk),
+      'sdk': environment['sdk']?.$1,
+      'language_version': _languageVersion(environment['sdk']?.$2),
+      'flutter': flutter?.$1,
+      'flutter_minimum': _minimum(flutter?.$2)?.toString(),
       'unsatisfied': _unsatisfied(fields, locked),
       'fields': _plain(fields),
     },

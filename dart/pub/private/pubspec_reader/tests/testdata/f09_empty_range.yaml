@@ -1,0 +1,4 @@
+name: x
+environment:
+  sdk: ^3.0.0
+  flutter: ">=4.0.0 <3.0.0"

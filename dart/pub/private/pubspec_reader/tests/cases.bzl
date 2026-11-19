@@ -2,7 +2,8 @@
 
 `results.json` maps each file's name to what `run_pubspec_reader` returned for
 it, read as package "x": `{"error": message}` or `{"ok": {name, dependencies,
-sdk_constraint, language_version, unsatisfied, fields}}`. `reader_test.dart` checks it against `package:yaml`.
+sdk_constraint, language_version, flutter_constraint, flutter_minimum,
+unsatisfied, fields}}`. `reader_test.dart` checks it against `package:yaml`.
 """
 
 load("//dart/pub/private/pubspec_reader:reader.bzl", "run_pubspec_reader")
@@ -32,6 +33,8 @@ def _cases_impl(rctx):
             results[case.basename] = {"ok": {
                 "dependencies": p.dependencies,
                 "fields": p.fields,
+                "flutter_constraint": p.flutter_constraint,
+                "flutter_minimum": p.flutter_minimum,
                 "language_version": p.language_version,
                 "name": p.name,
                 "sdk_constraint": p.sdk_constraint,

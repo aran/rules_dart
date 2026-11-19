@@ -14,7 +14,7 @@ def read_pubspec(rctx, package_name, version = "", pubspec = "pubspec.yaml", loc
 
     pub's checks apply to the fields this returns: `name` must be the package's,
     each dependency must be named and specified as pub requires, and every
-    version constraint, `environment.sdk` among them, must be a string.
+    constraint in `environment` must be one pub_semver parses.
 
     A refusal is about the package, so it is a value: `fail(result.error)`, or
     fetch anyway and fail only the builds using the package, as rules_dart's pub
@@ -44,6 +44,13 @@ def read_pubspec(rctx, package_name, version = "", pubspec = "pubspec.yaml", loc
         - `language_version`: the `<major>.<minor>` language version pub gives
           the package: the lower bound of `environment.sdk`, or "2.7" where
           there is none, as pub's `LanguageVersion.fromSdkConstraint` has it.
+        - `flutter_constraint`: `environment.flutter`, or "" for none. pub holds
+          a Flutter SDK only to its lower bound: it ignores an upper one, and
+          a lock's `sdks.flutter` states the lower bound alone.
+        - `flutter_minimum`: that constraint's lower bound as written, whether
+          inclusive or not, pub_semver's `VersionRange.min`: `3.22.0` for
+          `>=3.22.0 <4.0.0`, `^3.22.0`, `>3.22.0` or `3.22.0`. "" for no
+          constraint, `any`, an upper bound alone, or a range nothing satisfies.
         - `unsatisfied`: of the dependencies in `locked_versions`, those whose
           constraint excludes that version, each with the constraint.
         - `fields`: the whole document as JSON values (dicts, lists, strings,
