@@ -31,7 +31,6 @@ _system_rejects_library_test = _expect("`file` is only valid with")
 _process_rejects_library_test = _expect("`file` is only valid with")
 _executable_rejects_uri_test = _expect("`uri` is only valid with")
 _prebuilt_wrong_platform_test = _expect("is not a dynamic library for the target platform")
-_prebuilt_not_a_library_test = _expect("is not a dynamic library for the target platform")
 _system_rejects_prebuilt_test = _expect("`file` is only valid with")
 _stated_other_library_test = _expect("but `file` provides")
 _stated_library_not_file_test = _expect("`library` must be a File, got string")
@@ -487,9 +486,13 @@ def code_asset_test_suite(name):
         file = _PREBUILT + "libwrong.txt",
         tags = ["manual"],
     )
-    _prebuilt_not_a_library_test(
+    _expect_all_test(
         name = "prebuilt_not_a_library_test",
         size = "small",
+        messages = [
+            "`file` @@//dart/tests/prebuilt_library_fixture:libwrong.txt: ",
+            "libwrong.txt is not a dynamic library for the target platform",
+        ],
         target_under_test = ":ca_prebuilt_not_a_library",
     )
 

@@ -348,9 +348,9 @@ def _extract_dynamic_library(ctx, library_target):
     os, extension = _library_extension(ctx)
     name = library.basename
     if not (name.endswith(extension) or (extension == ".so" and ".so." in name)):
-        fail(("dart_code_asset %s: `file` file %s is not a dynamic library " +
+        fail(("dart_code_asset %s: `file` %s: %s is not a dynamic library " +
               "for the target platform, which loads %s files%s.") %
-             (ctx.label, library.short_path, extension, " (%s)" % os if os else ""))
+             (ctx.label, library_target.label, library.short_path, extension, " (%s)" % os if os else ""))
     return _bound_library(ctx, library_target, library, library)
 
 def _dart_code_asset_impl(ctx):
