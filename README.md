@@ -254,7 +254,8 @@ If the two only share a name, rename yours. (A `dart_library` with only `deps`
 is no package, so wrapping pub's `collection` in a directory called `collection`
 is fine.) Stating the same `version` on both doesn't make them one. The build
 holds one `runfiles`: pub.dev's is published from `@rules_dart//dart/runfiles`,
-so a lock's entry for it is that target, whichever version the lock names. When
+so a lock's entry for it is that target, whichever version the lock names, and
+`pub.package(name = "runfiles")` is an error: depend on the target. When
 rules_dart's `pub` and
 rules_flutter's `flutter_pub` each fetch pub's `collection`, the two copies are
 one package if both fetched the same thing: the same version's archive from

@@ -502,7 +502,7 @@ jobs:
         working-directory: e2e/failures/pub_lock_refused
         run: |
           if out=$(bazel build @one//:meta 2>&1); then
-            echo "ERROR: build should have refused path's and meta's missing sha256, foo's abbreviated resolved-ref, and the locks' disagreements on tuple, bar and baz"
+            echo "ERROR: build should have refused path's and meta's missing sha256, foo's abbreviated resolved-ref, the locks' disagreements on tuple, bar and baz, and the declaration of runfiles"
             exit 1
           fi
           echo "$out" | grep -qF 'No sha256 is pinned for pub package "path"'
@@ -512,6 +512,8 @@ jobs:
           echo "$out" | grep -qF 'Package "tuple" 2.0.2 has conflicting sha256 digests'
           echo "$out" | grep -qF 'Git package "bar" is locked differently across lock files'
           echo "$out" | grep -qF 'Package "baz" is a git package in'
+          echo "$out" | grep -qF '(in the root module) names a package rules_dart publishes'
+          echo "$out" | grep -qF '@rules_dart//dart/runfiles'
           echo "OK: every refusal named in one failure"
       - name: fixtures/pub_missing_dep — expect a pub.package() whose pubspec depends on an unsupplied package to be refused
         working-directory: e2e/examples

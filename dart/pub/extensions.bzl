@@ -6,7 +6,7 @@ load("//dart/pub:pub_lock_package.bzl", "pub_archive_files", "pub_files_label", 
 load("//dart/pub:pub_versions.bzl", "CHECK_LEVELS", "pub_version_request", "select_pub_version")
 load("//dart/pub:yaml_parser.bzl", "parse_pubspec_lock")
 load("//dart/pub/private:pub_archive.bzl", "pub_archive_sha256_error")
-load("//dart/pub/private:pub_lock_checks.bzl", "git_disagreement_error", "git_lock_package", "lock_mapping_error", "path_packages", "pub_command", "published_here_targets", "resolved_packages", "resolved_pubspecs", "source_disagreement_errors")
+load("//dart/pub/private:pub_lock_checks.bzl", "git_disagreement_error", "git_lock_package", "lock_mapping_error", "path_packages", "pub_command", "published_declaration_errors", "published_here_targets", "resolved_packages", "resolved_pubspecs", "source_disagreement_errors")
 load("//dart/pub/private:pub_lock_hub.bzl", "pub_lock_hub")
 load("//dart/pub/private:pub_lock_library.bzl", "files_repo", "index_label", "index_repo", "library_repo", "pub_lock_ignored", "pub_lock_index", "pub_lock_library", "pub_lock_resolved", "source_label", "source_repo")
 load("//dart/pub/private:pub_settings.bzl", "root_only_settings")
@@ -16,7 +16,9 @@ _SPOKE_PREFIX = "dart_pub"
 _package = tag_class(
     attrs = {
         "name": attr.string(
-            doc = "The pub.dev package name (also used as the repository name).",
+            doc = "The pub.dev package name (also used as the repository name). A package " +
+                  "rules_dart publishes (`runfiles`) cannot be declared: depend on its target " +
+                  "(`@rules_dart//dart/runfiles`), which is what a build holds.",
             mandatory = True,
         ),
         "version": attr.string(
@@ -371,6 +373,13 @@ def _pub_impl(ctx):
             else:
                 pinned.setdefault(name, []).append(d)
 
+    # A declaration of a package rules_dart publishes would not be honoured.
+    where_declared = {}
+    for mod in ctx.modules:
+        for pkg in mod.tags.package:
+            where_declared.setdefault(pkg.name, []).append("the root module" if mod.is_root else "module `%s`" % mod.name)
+    errors.extend(published_declaration_errors(where_declared))
+
     # Each lock's own `resolve`, `build_from_pubspec` and `ignored`. Until
     # they are right, what serves a lock's packages is unknown.
     mapping_errors = [e for e in [lock_mapping_error(lock) for lock in locks] if e]
@@ -382,7 +391,7 @@ def _pub_impl(ctx):
     # package they disagree on is still served by one of them, so nothing below
     # fetches it.
     mapped = resolved_packages(locks, declared)
-    resolved_targets = published_here_targets(locks, declared, mapped.targets)
+    resolved_targets = published_here_targets(locks, mapped.targets)
     paths = path_packages(locks, declared, resolved_targets)
 
     # The mapped packages whose pubspec planning reads, to find a cycle

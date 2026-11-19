@@ -191,7 +191,34 @@ def resolved_packages(locks, declared):
                 )
     return struct(targets = targets, errors = errors)
 
-def published_here_targets(locks, declared, targets, published = _PUBLISHED_HERE):
+def published_declaration_errors(declared, published = _PUBLISHED_HERE):
+    """Why a `pub.package()` of a package rules_dart publishes cannot stand.
+
+    It states a version and a digest, and the build would serve the target that
+    came with the rules whatever they say (`published_here_targets`). Nobody who
+    wrote down a version should silently get other code.
+
+    Args:
+        declared: Package name -> where each `pub.package()` of it is, for the
+            message.
+        published: Package name -> the target publishing it.
+
+    Returns:
+        The messages, one per such package.
+    """
+    return [
+        ("`pub.package(name = \"%s\")` (in %s) names a package rules_dart publishes. A build " +
+         "holds the copy that came with the rules, @rules_dart//%s, so the version and sha256 " +
+         "would not be used. Remove the declaration and depend on that target.") % (
+            name,
+            ", ".join(declared[name]),
+            published[name].package,
+        )
+        for name in sorted(declared)
+        if name in published
+    ]
+
+def published_here_targets(locks, targets, published = _PUBLISHED_HERE):
     """`targets` with the packages rules_dart itself publishes to pub.dev.
 
     `runfiles` reaches a build two ways: as `@rules_dart//dart/runfiles`, and
@@ -205,27 +232,28 @@ def published_here_targets(locks, declared, targets, published = _PUBLISHED_HERE
 
     Only pub.dev's package is this one. A `runfiles` from another registry, git
     or a path is some other package of that name, and so is the build's to
-    place. The user's own `resolve` of it wins.
+    place. The user's own `resolve` of it wins. A lock lists what pub resolved,
+    so serving it this way overrides no one's choice; a `pub.package()` states
+    one, and is refused (`published_declaration_errors`).
 
     Args:
         locks: Every lock, as the extension parses them.
-        declared: The packages a `pub.package()` requests, all from pub.dev.
         targets: `resolved_packages`'s targets.
         published: Package name -> the target publishing it.
 
     Returns:
-        `targets`, with an entry for each published package the build asks
-        pub.dev for and does not map itself.
+        `targets`, with an entry for each published package a lock takes from
+        pub.dev and the build does not map itself.
     """
     result = dict(targets)
-    served = published_by_rules_dart([lock.packages for lock in locks], declared, published)
+    served = published_by_rules_dart([lock.packages for lock in locks], published)
     for name, target in served.items():
         if name not in targets:
             result[name] = struct(target = target, lock_label = str(target))
     return result
 
-def published_by_rules_dart(lock_packages, requested = [], published = _PUBLISHED_HERE):
-    """The packages a build asks pub.dev for that rules_dart itself publishes.
+def published_by_rules_dart(lock_packages, published = _PUBLISHED_HERE):
+    """The packages a build's locks take from pub.dev that rules_dart itself publishes.
 
     Such a package is one package with its target in rules_dart, so an extension
     serving pub packages should map it to that target unless the user's own
@@ -233,7 +261,6 @@ def published_by_rules_dart(lock_packages, requested = [], published = _PUBLISHE
 
     Args:
         lock_packages: The `packages` of each lock, as `parse_pubspec_lock` returns them.
-        requested: Names the build requests from pub.dev outside any lock.
         published: Package name -> the target publishing it.
 
     Returns:
@@ -243,7 +270,7 @@ def published_by_rules_dart(lock_packages, requested = [], published = _PUBLISHE
     result = {}
     for name, target in published.items():
         listed = [packages[name] for packages in lock_packages if name in packages]
-        if (listed or name in requested) and all([_from_pub_dev(info) for info in listed]):
+        if listed and all([_from_pub_dev(info) for info in listed]):
             result[name] = target
     return result
 

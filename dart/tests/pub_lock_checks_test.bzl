@@ -17,6 +17,7 @@ load(
     "path_packages",
     "pub_command",
     "published_by_rules_dart",
+    "published_declaration_errors",
     "published_here_targets",
     "resolved_packages",
     "resolved_pubspecs",
@@ -259,38 +260,52 @@ def _published_here_test_impl(ctx):
     env = unittest.begin(ctx)
     published = {"runfiles": "//dart/runfiles"}
     hosted = _lock({"runfiles": _hosted("0.1.0")})
-    mapped = published_here_targets([hosted], {}, {}, published)
+    mapped = published_here_targets([hosted], {}, published)
     asserts.equals(env, "//dart/runfiles", mapped["runfiles"].target)
 
-    # Named with `pub.package()`, which only reaches pub.dev.
-    asserts.equals(env, "//dart/runfiles", published_here_targets([], {"runfiles": []}, {}, published)["runfiles"].target)
-
     # A build that names it nowhere gets no repository for it.
-    asserts.equals(env, {}, published_here_targets([_lock({"a": _hosted()})], {}, {}, published))
+    asserts.equals(env, {}, published_here_targets([_lock({"a": _hosted()})], {}, published))
 
     # The user's own `resolve` wins.
     own = {"runfiles": struct(target = "//fork", lock_label = "//:pubspec.lock")}
-    asserts.equals(env, "//fork", published_here_targets([hosted], {}, own, published)["runfiles"].target)
+    asserts.equals(env, "//fork", published_here_targets([hosted], own, published)["runfiles"].target)
 
     # What is not pub.dev's `runfiles` is some other package of that name.
     elsewhere = _hosted()
     elsewhere["description"] = {"sha256": "0" * 64, "url": "https://registry.example.invalid"}
     for other in (elsewhere, _git(), _path("third_party/runfiles")):
-        asserts.equals(env, {}, published_here_targets([_lock({"runfiles": other})], {}, {}, published))
-        asserts.equals(env, {}, published_here_targets([hosted, _lock({"runfiles": other})], {}, {}, published))
+        asserts.equals(env, {}, published_here_targets([_lock({"runfiles": other})], {}, published))
+        asserts.equals(env, {}, published_here_targets([hosted, _lock({"runfiles": other})], {}, published))
 
     # Older locks name pub.dev by its former host.
     legacy = _hosted()
     legacy["description"] = {"sha256": "0" * 64, "url": "https://pub.dartlang.org"}
-    asserts.true(env, "runfiles" in published_here_targets([_lock({"runfiles": legacy})], {}, {}, published))
+    asserts.true(env, "runfiles" in published_here_targets([_lock({"runfiles": legacy})], {}, published))
 
     # What another pub extension reads, without this one's lock structure.
     listing = {"runfiles": _hosted("0.1.0")}
-    asserts.equals(env, published, published_by_rules_dart([listing], [], published))
-    asserts.equals(env, published, published_by_rules_dart([], ["runfiles"], published))
-    asserts.equals(env, {}, published_by_rules_dart([{"a": _hosted()}], [], published))
-    asserts.equals(env, {}, published_by_rules_dart([listing, {"runfiles": _git()}], [], published))
+    asserts.equals(env, published, published_by_rules_dart([listing], published))
+    asserts.equals(env, {}, published_by_rules_dart([], published))
+    asserts.equals(env, {}, published_by_rules_dart([{"a": _hosted()}], published))
+    asserts.equals(env, {}, published_by_rules_dart([listing, {"runfiles": _git()}], published))
     asserts.equals(env, {"runfiles": Label("//dart/runfiles")}, published_by_rules_dart([listing]))
+    return unittest.end(env)
+
+def _published_declaration_test_impl(ctx):
+    # A `pub.package()` states a version and a digest. For a package rules_dart
+    # publishes neither would be honoured, so stating them is refused.
+    env = unittest.begin(ctx)
+    errors = published_declaration_errors({"runfiles": ["the root module", "module `dep`"], "http": ["the root module"]})
+    asserts.equals(env, 1, len(errors), str(errors))
+    _contains(
+        env,
+        errors[0],
+        '`pub.package(name = "runfiles")`',
+        "the root module, module `dep`",
+        "@rules_dart//dart/runfiles",
+        "Remove the declaration",
+    )
+    asserts.equals(env, [], published_declaration_errors({"http": ["the root module"]}))
     return unittest.end(env)
 
 _t0_test = unittest.make(_pub_command_test_impl)
@@ -304,6 +319,7 @@ _t7_test = unittest.make(_git_disagreement_test_impl)
 _t8_test = unittest.make(_source_disagreement_test_impl)
 _t9_test = unittest.make(_resolved_pubspecs_test_impl)
 _t10_test = unittest.make(_published_here_test_impl)
+_t11_test = unittest.make(_published_declaration_test_impl)
 
 def pub_lock_checks_test_suite(name):
-    small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test, _t4_test, _t5_test, _t6_test, _t7_test, _t8_test, _t9_test, _t10_test)
+    small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test, _t4_test, _t5_test, _t6_test, _t7_test, _t8_test, _t9_test, _t10_test, _t11_test)
