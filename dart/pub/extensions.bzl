@@ -8,7 +8,7 @@ load("//dart/pub:yaml_parser.bzl", "parse_pubspec_lock")
 load("//dart/pub/private:pub_archive.bzl", "pub_archive_sha256_error")
 load("//dart/pub/private:pub_lock_checks.bzl", "git_disagreement_error", "git_lock_package", "lock_mapping_error", "path_packages", "pub_command", "published_here_targets", "resolved_packages", "resolved_pubspecs", "source_disagreement_errors")
 load("//dart/pub/private:pub_lock_hub.bzl", "pub_lock_hub")
-load("//dart/pub/private:pub_lock_library.bzl", "files_repo", "index_repo", "library_repo", "pub_lock_ignored", "pub_lock_index", "pub_lock_library", "pub_lock_resolved", "source_repo")
+load("//dart/pub/private:pub_lock_library.bzl", "files_repo", "index_label", "index_repo", "library_repo", "pub_lock_ignored", "pub_lock_index", "pub_lock_library", "pub_lock_resolved", "source_label", "source_repo")
 load("//dart/pub/private:pub_settings.bzl", "root_only_settings")
 
 _SPOKE_PREFIX = "dart_pub"
@@ -555,6 +555,7 @@ def _pub_impl(ctx):
         pub_lock_library(
             name = name,
             package_name = name,
+            index = index_label(_SPOKE_PREFIX),
             spoke_prefix = _SPOKE_PREFIX,
         )
 
@@ -573,6 +574,7 @@ def _pub_impl(ctx):
     pub_lock_index(
         name = index_repo(_SPOKE_PREFIX),
         versions = fetched,
+        sources = {name: source_label(_SPOKE_PREFIX, name) for name in fetched.keys() + readable.keys()},
         explicit_packages = explicit_names,
         # An ignored package's library repository is where its dependents
         # look, as for a mapped one.
@@ -601,6 +603,7 @@ def _pub_impl(ctx):
         pub_lock_library(
             name = library_repo(_SPOKE_PREFIX, name),
             package_name = name,
+            index = index_label(_SPOKE_PREFIX),
             spoke_prefix = _SPOKE_PREFIX,
         )
     for name, pkg in resolved.items():
@@ -620,6 +623,7 @@ def _pub_impl(ctx):
         pub_lock_library(
             name = library_repo(_SPOKE_PREFIX, name),
             package_name = name,
+            index = index_label(_SPOKE_PREFIX),
             spoke_prefix = _SPOKE_PREFIX,
         )
 
@@ -636,6 +640,7 @@ def _pub_impl(ctx):
         pub_lock_library(
             name = library_repo(_SPOKE_PREFIX, name),
             package_name = name,
+            index = index_label(_SPOKE_PREFIX),
             spoke_prefix = _SPOKE_PREFIX,
         )
 

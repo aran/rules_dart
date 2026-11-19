@@ -11,7 +11,7 @@ with and what they depend on:
     def _my_library_repo_impl(ctx):
         graph = dependency_graph(
             ctx.attr.package_name,
-            lambda p: read_pubspec_dependencies(ctx, "my_src__" + p),
+            lambda p: read_pubspec_dependencies(ctx, source_labels[p]),
             follow = known,
         )
         cycle = dependency_cycle(
@@ -50,23 +50,22 @@ def write_pubspec_dependencies(ctx, names):
     """
     ctx.file(PUBSPEC_DEPENDENCIES, "".join([n + "\n" for n in names]))
 
-def read_pubspec_dependencies(ctx, repo):
-    """Reads what `write_pubspec_dependencies()` recorded in another repository.
+def read_pubspec_dependencies(ctx, source):
+    """Reads back what `write_pubspec_dependencies()` recorded in another repository.
 
-    The repository is read through its canonical name, not a label attribute:
-    Bazel fetches every repository a label attribute names before the rule
-    runs, and only the packages reached are wanted.
+    Naming a repository in an attribute does not fetch it, so a rule can be
+    given every package's source repository and read only those it reaches.
+    To keep that list off each of many repositories, one repository can hold it
+    (`str()` of each label is its canonical form) for the others to read.
 
     Args:
       ctx: The reading repository's `repository_ctx`.
-      repo: The source repository's name as the module extension that made
-        both gave it. The two must come from the same module extension.
+      source: A `Label` in the root package of the source repository.
 
     Returns:
       The recorded names, in order.
     """
-    sibling = "@@" + ctx.name[:len(ctx.name) - len(ctx.original_name)] + repo
-    return ctx.read(Label("{}//:{}".format(sibling, PUBSPEC_DEPENDENCIES))).splitlines()
+    return ctx.read(source.same_package_label(PUBSPEC_DEPENDENCIES)).splitlines()
 
 def dependency_graph(package, dependencies, follow):
     """The packages `package` reaches, each with the names it depends on.

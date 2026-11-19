@@ -85,10 +85,11 @@ def _labels(names, suffix = ""):
 
 def _fancy_library_repo_impl(ctx):
     name = ctx.attr.package_name
-    known = {p: True for p in ctx.attr.packages}
+    sources = ctx.attr.sources
+    known = {p: True for p in sources}
     graph = dependency_graph(
         name,
-        lambda p: [d for d in read_pubspec_dependencies(ctx, _source(p)) if d in known],
+        lambda p: [d for d in read_pubspec_dependencies(ctx, sources[p]) if d in known],
         follow = known,
     )
     cycle = dependency_cycle(
@@ -134,7 +135,7 @@ _fancy_library_repo = repository_rule(
     implementation = _fancy_library_repo_impl,
     attrs = {
         "package_name": attr.string(mandatory = True),
-        "packages": attr.string_list(doc = "Every package the extension makes."),
+        "sources": attr.string_keyed_label_dict(doc = "Every package the extension makes, with a file of its source repository. Naming one does not fetch it."),
         "cycles": attr.string_list(doc = "The root module's cycles, each its packages joined by spaces."),
         "advisory_cycles": attr.string_list(doc = "Other modules' and the curated cycles, each its packages joined by spaces."),
     },
@@ -166,7 +167,7 @@ def _fancy_impl(mctx):
         _fancy_library_repo(
             name = _library(t.name),
             package_name = t.name,
-            packages = names,
+            sources = {n: "@%s//:BUILD.bazel" % _source(n) for n in names},
             cycles = declared,
             advisory_cycles = advisory,
         )

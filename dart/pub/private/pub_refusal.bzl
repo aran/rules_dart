@@ -19,18 +19,17 @@ def write_pubspec_refusal(ctx, refusal):
     """
     ctx.file(PUBSPEC_REFUSAL, refusal or "")
 
-def read_pubspec_refusal(ctx, repo):
+def read_pubspec_refusal(ctx, source):
     """Reads what `write_pubspec_refusal` recorded in another repository.
 
     Args:
       ctx: The reading repository's `repository_ctx`.
-      repo: The source repository's name, as the extension making both gave it.
+      source: A `Label` in the root package of the source repository.
 
     Returns:
       The message, or None.
     """
-    sibling = "@@" + ctx.name[:len(ctx.name) - len(ctx.original_name)] + repo
-    return ctx.read(Label("{}//:{}".format(sibling, PUBSPEC_REFUSAL))) or None
+    return ctx.read(source.same_package_label(PUBSPEC_REFUSAL)) or None
 
 def failing_target(name, message):
     """A target that fails the build using it with `message`, as a whole BUILD file.
