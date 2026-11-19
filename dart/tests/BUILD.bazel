@@ -172,3 +172,10 @@ bzl_library(
     visibility = ["//visibility:public"],
     deps = ["//dart/private:package_info"],
 )
+
+bzl_library(
+    name = "unsupported_host_toolchains",
+    srcs = ["unsupported_host_toolchains.bzl"],
+    visibility = ["//visibility:public"],
+    deps = ["//dart/private:toolchains_repo"],
+)

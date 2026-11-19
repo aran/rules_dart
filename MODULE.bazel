@@ -202,6 +202,11 @@ kernel_checkout_files = use_repo_rule("//dart/tests:kernel_checkout.bzl", "kerne
 
 kernel_checkout_files(name = "kernel_checkout_files")
 
+# What a machine with no Dart SDK registers, for the test of its error.
+unsupported_host_toolchains = use_repo_rule("//dart/tests:unsupported_host_toolchains.bzl", "unsupported_host_toolchains")
+
+unsupported_host_toolchains(name = "unsupported_host_toolchains")
+
 kernel_checkout = use_extension("//dart/tests:kernel_checkout.bzl", "kernel_checkout", dev_dependency = True)
 use_repo(kernel_checkout, "analyzer_checkout_source", "analyzer_prefixed_source", "analyzer_unserved_source", "kernel_checkout_source", "kernel_prefixed_source", "kernel_unserved_source")
 

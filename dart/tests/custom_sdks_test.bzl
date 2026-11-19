@@ -1,6 +1,6 @@
 """Unit tests for the tags declaring Dart SDKs, and the toolchains generated for them."""
 
-load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
+load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts", "unittest")
 
 # buildifier: disable=bzl-visibility
 load("//dart/private:custom_sdks.bzl", "custom_sdks", "sdk_name_error")
@@ -11,6 +11,7 @@ load("//dart/private:toolchain_selection.bzl", "MINIMUM_SDK_VERSION", "aot_snaps
 # buildifier: disable=bzl-visibility
 load("//dart/private:toolchains_repo.bzl", "CROSS_TARGETS", "PLATFORMS", "cross_pair", "host_toolchains_build_content", "toolchains_build_content")
 load(":small_suite.bzl", "small_unittest_suite")
+load(":unsupported_host_toolchains.bzl", "UNSUPPORTED_HOST_MESSAGE")
 
 def _module(name = "root", is_root = True, release = [], custom_sdk = [], checkout = [], use_sdk = []):
     return struct(
@@ -337,5 +338,18 @@ _t7_test = unittest.make(_requests_are_checked_against_the_sdk_test_impl)
 _t8_test = unittest.make(_toolchains_follow_the_choice_test_impl)
 _t9_test = unittest.make(_no_sdk_name_collides_test_impl)
 
+def _unsupported_host_fails_the_build_test_impl(ctx):
+    env = analysistest.begin(ctx)
+    asserts.expect_failure(env, UNSUPPORTED_HOST_MESSAGE)
+    return analysistest.end(env)
+
+_unsupported_host_test = analysistest.make(_unsupported_host_fails_the_build_test_impl, expect_failure = True)
+
 def custom_sdks_test_suite(name):
+    # Loading the generated file proves its `load`s and toolchains hold together.
+    _unsupported_host_test(
+        name = name + "_unsupported_host",
+        size = "small",
+        target_under_test = "@unsupported_host_toolchains//:unsupported_host",
+    )
     small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test, _t4_test, _t5_test, _t6_test, _t7_test, _t8_test, _t9_test, _minimum_test, _lacks_test, _checkout_host_test, _toolchain_names_test, _aot_runtime_test)
