@@ -183,9 +183,11 @@ void main(List<String> args) {
       });
       final cli = await dartAnalyze(dir);
       expect(cli.exitCode, 1);
-      expect(cli.stdout, contains('lib/c.dart:1:10'));
-      expect(cli.stdout, isNot(contains('lib/a.dart')));
-      expect(cli.stdout, isNot(contains('lib/b.dart')));
+      // As the platform writes the path `dart analyze` reports.
+      final lib = 'lib${Platform.pathSeparator}';
+      expect(cli.stdout, contains('${lib}c.dart:1:10'));
+      expect(cli.stdout, isNot(contains('${lib}a.dart')));
+      expect(cli.stdout, isNot(contains('${lib}b.dart')));
       expect(cli.stdout, endsWith('1 issue found.'));
       expect(await analyze(analyzer(), dir), cli);
     });
