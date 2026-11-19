@@ -195,9 +195,55 @@ def _git_disagreement_test_impl(ctx):
     asserts.true(env, git_disagreement_error("foo", one, subdir) != None, "another directory of one commit disagrees")
 
     # A relative url names a repository by the lock's directory.
-    rel_one = git_lock_package("foo", _git(url = "../foo"), _tag("//one:pubspec.lock")).package
-    rel_two = git_lock_package("foo", _git(url = "../foo"), _tag("//two:pubspec.lock")).package
+    rel_one = git_lock_package("foo", _git(url = "../foo"), _tag("//a/one:pubspec.lock")).package
+    rel_two = git_lock_package("foo", _git(url = "../foo"), _tag("//b/two:pubspec.lock")).package
     asserts.true(env, git_disagreement_error("foo", rel_one, rel_two) != None, "one relative url from two directories")
+    return unittest.end(env)
+
+def _git_agreement_is_identity_test_impl(ctx):
+    # Two locks agree when `pub_git_source` calls their entries one package,
+    # however each spells where it is.
+    env = unittest.begin(ctx)
+
+    def entry(lock, **kwargs):
+        return git_lock_package("foo", _git(**kwargs), _tag(lock)).package
+
+    # One repository, reached from two directories.
+    near = entry("//shared/app:pubspec.lock", url = "../foo")
+    far = entry("//shared/deep/app:pubspec.lock", url = "../../foo")
+    asserts.equals(env, None, git_disagreement_error("foo", near, far))
+
+    # One directory of it, spelled three ways.
+    root = entry("//one:pubspec.lock")
+    for path in ("./", ""):
+        asserts.equals(env, None, git_disagreement_error("foo", root, entry("//two:pubspec.lock", path = path)))
+    pkg = entry("//one:pubspec.lock", path = "pkgs/foo")
+    asserts.equals(env, None, git_disagreement_error("foo", pkg, entry("//two:pubspec.lock", path = "./pkgs/foo/")))
+
+    # What is fetched is the normalized path: git reads `./` as something else.
+    asserts.equals(env, ".", entry("//two:pubspec.lock", path = "./").path)
+    asserts.equals(env, "pkgs/foo", entry("//two:pubspec.lock", path = "./pkgs/foo/").path)
+
+    # Two urls at one commit may be two repositories, and asking for the same
+    # commit, which they already do, would not help.
+    mirror = entry("//two:pubspec.lock", url = "https://mirror.example.invalid/foo.git")
+    _contains(
+        env,
+        git_disagreement_error("foo", root, mirror),
+        "Both are at one commit",
+        "one url",
+        "  bazel run @rules_dart//dart/pub -- upgrade --directory=one foo",
+    )
+    asserts.true(env, "same commit" not in git_disagreement_error("foo", root, mirror))
+
+    # Urls leaving the lock's repository name nothing to compare...
+    out_one = entry("//one:pubspec.lock", url = "../../foo")
+    out_two = entry("//two:pubspec.lock", url = "../../foo")
+    _contains(env, git_disagreement_error("foo", out_one, out_two), "Both are at one commit")
+
+    # ...unless they are one lock's.
+    again = entry("//one:pubspec.lock", url = "../../foo", path = "./")
+    asserts.equals(env, None, git_disagreement_error("foo", out_one, again))
     return unittest.end(env)
 
 def _source_disagreement_test_impl(ctx):
@@ -320,6 +366,7 @@ _t8_test = unittest.make(_source_disagreement_test_impl)
 _t9_test = unittest.make(_resolved_pubspecs_test_impl)
 _t10_test = unittest.make(_published_here_test_impl)
 _t11_test = unittest.make(_published_declaration_test_impl)
+_t12_test = unittest.make(_git_agreement_is_identity_test_impl)
 
 def pub_lock_checks_test_suite(name):
-    small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test, _t4_test, _t5_test, _t6_test, _t7_test, _t8_test, _t9_test, _t10_test, _t11_test)
+    small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test, _t4_test, _t5_test, _t6_test, _t7_test, _t8_test, _t9_test, _t10_test, _t11_test, _t12_test)

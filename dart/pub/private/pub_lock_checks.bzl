@@ -6,7 +6,7 @@ would otherwise find them one run at a time.
 """
 
 load("//dart/private:package_info.bzl", "fetched_identity_text")
-load("//dart/pub/private:build_content.bzl", "is_pub_dev", "pub_path_source", _normalize = "normalize_pub_path", _path_in_repo = "lock_path_in_repo")
+load("//dart/pub/private:build_content.bzl", "is_pub_dev", "pub_git_source", "pub_path_source", _normalize = "normalize_pub_path", _path_in_repo = "lock_path_in_repo")
 load("//dart/pub/private:pub_git.bzl", "is_relative_git_url", "pub_git_resolved_ref_error")
 
 visibility("//dart/...")
@@ -391,8 +391,9 @@ def git_lock_package(name, info, lock_tag):
 
     Returns:
         `struct(package, errors)`: what is fetched for it, `struct(version,
-        url, resolved_ref, path, lock, lock_label, lock_file)`, None when
-        `errors` names why it cannot be.
+        url, resolved_ref, path, lock, identity, lock_label, lock_file)`, None
+        when `errors` names why it cannot be. `path` is normalized, "." for the
+        repository's root; `identity` is `pub_git_source`'s.
     """
     desc = info.get("description", {})
     version = info.get("version", "")
@@ -418,15 +419,19 @@ def git_lock_package(name, info, lock_tag):
         errors.append(ref_error)
     if errors:
         return struct(package = None, errors = errors)
+
+    # A relative url is resolved against the lock's directory, so the lock is
+    # part of what it names.
+    lock = lock_tag.lock if is_relative_git_url(url) else None
+    path = _normalize(desc.get("path", ".")) or "."
     return struct(
         package = struct(
             version = version,
             url = url,
             resolved_ref = resolved_ref,
-            path = desc.get("path", "."),
-            # A relative url is resolved against the lock's directory, so the
-            # lock is part of what it names.
-            lock = lock_tag.lock if is_relative_git_url(url) else None,
+            path = path,
+            lock = lock,
+            identity = pub_git_source(name, version, url, resolved_ref, path, lock).identity,
             lock_label = str(lock_tag.lock),
             lock_file = lock_tag.lock,
         ),
@@ -438,7 +443,10 @@ def git_disagreement_error(name, first, other):
 
     Every lock that lists a git package must pin the same commit of the same
     repository directory: there is no version order between commits to
-    upgrade along.
+    upgrade along. Two entries are one package when `pub_git_source` gives them
+    one identity, however each spells the repository's place or the directory.
+    An entry with no identity, a relative url leaving the lock's repository,
+    agrees only with its own lock's.
 
     Args:
         name: The package name.
@@ -448,14 +456,22 @@ def git_disagreement_error(name, first, other):
     Returns:
         The message, or None when they agree.
     """
-    if (first.url, first.lock, first.resolved_ref, first.path) == (other.url, other.lock, other.resolved_ref, other.path):
+    if first.identity != None or other.identity != None:
+        if first.identity == other.identity:
+            return None
+    elif (first.url, first.lock, first.resolved_ref, first.path) == (other.url, other.lock, other.resolved_ref, other.path):
         return None
+    one_commit = first.resolved_ref == other.resolved_ref and first.path == other.path
+    if one_commit and (first.url != other.url or first.identity == None):
+        remedy = ("Both are at one commit, and nothing says their urls name one repository. " +
+                  "Have the pubspecs name it by one url that does not depend on where the lock is")
+    else:
+        remedy = "Make the pubspecs ask for the same commit"
     return ("Git package \"%s\" is locked differently across lock files:\n" +
             "  - %s at %s, path %s (from %s)\n" +
             "  - %s at %s, path %s (from %s)\n" +
-            "rules_dart builds one copy of each package. Make the pubspecs ask for the " +
-            "same commit, then re-resolve each lock from the root of the workspace that " +
-            "holds it:\n  %s\n  %s") % (
+            "rules_dart builds one copy of each package. %s, then re-resolve each lock " +
+            "from the root of the workspace that holds it:\n  %s\n  %s") % (
         name,
         first.url,
         first.resolved_ref,
@@ -465,6 +481,7 @@ def git_disagreement_error(name, first, other):
         other.resolved_ref,
         other.path,
         other.lock_label,
+        remedy,
         pub_command("upgrade", first.lock_file, [name]),
         pub_command("upgrade", other.lock_file, [name]),
     )
