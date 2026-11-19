@@ -72,6 +72,7 @@ exports_files(
         "apply_args.dart",
         "apply_changes.dart",
         "build_events.dart",
+        "build_file_edit.dart",
         "changes.dart",
         "unused_deps_fix.dart",
         "unused_deps_main.dart",
@@ -115,6 +116,14 @@ dart_test(
         "@ext_pub_deps//:diffutil_dart",
         "@ext_pub_deps//:test",
     ],
+)
+
+dart_test(
+    name = "build_file_edit_test",
+    size = "small",
+    srcs = ["build_file_edit.dart"],
+    main = "build_file_edit_test.dart",
+    deps = ["@ext_pub_deps//:test"],
 )
 
 dart_test(

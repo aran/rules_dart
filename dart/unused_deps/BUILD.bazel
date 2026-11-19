@@ -12,6 +12,7 @@ dart_binary(
     srcs = [
         "//dart/private/tools:apply_args.dart",
         "//dart/private/tools:build_events.dart",
+        "//dart/private/tools:build_file_edit.dart",
         "//dart/private/tools:unused_deps_fix.dart",
     ],
     args = [

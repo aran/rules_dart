@@ -8,8 +8,10 @@
 // The tool builds the check's reports (the `dart_unused_deps` output group)
 // over the patterns, works out from `bazel query` which written labels they
 // mean and which BUILD file entry states them (`unused_deps_fix.dart`), and
-// has buildozer remove them from a copy of their BUILD files, which a real
-// run writes back. `--dry-run` prints the edits as a diff instead. A dep
+// has buildozer remove them from a copy of their BUILD files. buildozer
+// formats what it edits, so a file buildifier would change has only those
+// removals made to it (`build_file_edit.dart`). A real run writes the result
+// back; `--dry-run` prints it as a diff instead. A dep
 // buildozer cannot reach (one in a list variable or a comprehension) or that
 // the entry must keep is reported with its place, as is a file of an
 // executable's srcs its main never loads, and an import the import check
@@ -21,6 +23,7 @@ import 'package:runfiles/runfiles.dart';
 
 import 'apply_args.dart';
 import 'build_events.dart';
+import 'build_file_edit.dart';
 import 'unused_deps_fix.dart';
 
 const _name = 'unused_deps';
@@ -166,14 +169,14 @@ class _Fixer {
 
     if (args.dryRun) {
       for (final package in {for (final e in made.remove.keys) _package(e)}) {
-        final (:path, :before, :after) = mirror.change(package);
+        final (:path, :before, :after) = await mirror.change(package);
         stdout.write(unifiedDiff(path, before, after));
       }
       return _reportKept(made, made.kept);
     }
     final left = <Kept>[];
     if (made.remove.isNotEmpty) {
-      mirror.writeBack({for (final e in made.remove.keys) _package(e)});
+      await mirror.writeBack({for (final e in made.remove.keys) _package(e)});
       left.addAll(stillListed(made, await _rules(packages)));
     }
     final count = made.remove.values.fold(0, (n, deps) => n + deps.length);
@@ -298,7 +301,8 @@ String _package(String label) => label.substring(2, label.indexOf(':'));
 /// A copy of some packages' BUILD files, which buildozer edits in place of
 /// the workspace's. buildozer formats each file it edits, so the copies are
 /// formatted first: then a command that removes nothing changes nothing,
-/// and its exit code says so.
+/// and its exit code says so. What goes back to the workspace is the file as
+/// it was with only the removals made, so its formatting stays its own.
 class _Mirror {
   _Mirror._(this.root, this.workspace, this.buildozer, this.files);
 
@@ -329,6 +333,9 @@ class _Mirror {
         ['format', for (final p in packages) '//$p:__pkg__'],
         {0, 3},
       );
+      for (final MapEntry(key: package, value: path) in files.entries) {
+        mirror._formatted[package] = File('$root/$path').readAsStringSync();
+      }
     }
     return mirror;
   }
@@ -340,6 +347,12 @@ class _Mirror {
   /// Each package's BUILD file, by workspace path.
   final Map<String, String> files;
 
+  /// Each package's BUILD file as formatted, before any edit.
+  final _formatted = <String, String>{};
+
+  /// What each edited package's BUILD file becomes.
+  final _results = <String, String>{};
+
   /// Removes [dep] from [entry] in the copy, answering buildozer's exit code
   /// and what it printed.
   Future<({int code, String output})> remove(String entry, String dep) async {
@@ -348,29 +361,77 @@ class _Mirror {
   }
 
   /// The BUILD file of [package], by workspace path, as it is and as edited.
-  ({String path, String before, String after}) change(String package) {
+  Future<({String path, String before, String after})> change(
+    String package,
+  ) async {
     final path = files[package]!;
     return (
       path: path,
       before: File('$workspace/$path').readAsStringSync(),
-      after: File('$root/$path').readAsStringSync(),
+      after: await _result(package),
     );
   }
 
-  /// Copies the BUILD files of [packages] back into the workspace.
-  void writeBack(Set<String> packages) {
-    for (final package in packages) {
-      final path = files[package]!;
-      File('$workspace/$path')
-          .writeAsBytesSync(File('$root/$path').readAsBytesSync());
-    }
+  /// Writes the edited BUILD files of [packages] into the workspace: all of
+  /// them, or none when one cannot be edited.
+  Future<void> writeBack(Set<String> packages) async {
+    final results = {for (final p in packages) p: await _result(p)};
+    results.forEach((package, text) {
+      File('$workspace/${files[package]!}').writeAsStringSync(text);
+    });
   }
 
-  Future<ProcessResult> _run(List<String> arguments, Set<int> expected) async {
+  /// [package]'s BUILD file with buildozer's removals, and nothing else
+  /// changed. A file already formatted is exactly what buildozer wrote.
+  Future<String> _result(String package) async {
+    final known = _results[package];
+    if (known != null) return known;
+    final path = files[package]!;
+    final original = File('$workspace/$path').readAsStringSync();
+    final formatted = _formatted[package]!;
+    final edited = File('$root/$path').readAsStringSync();
+    var result = edited;
+    if (original != formatted) {
+      final confined = applyRemovals(
+        original: original,
+        formatted: formatted,
+        edited: edited,
+      );
+      // The check that nothing else changed, or was missed: formatted, it
+      // says what buildozer made.
+      if (confined == null ||
+          !sameBuild(await _format(package, confined), edited)) {
+        throw _Failure(
+          '$path is not as buildifier writes it, and the removals could not '
+          'be made without reformatting it, so nothing was changed. Run '
+          'buildifier on it, then run this again.',
+        );
+      }
+      result = confined;
+    }
+    return _results[package] = result;
+  }
+
+  /// [text] as buildozer formats [package]'s BUILD file.
+  Future<String> _format(String package, String text) async {
+    final check = '$root.check';
+    final file = File('$check/${files[package]!}')
+      ..createSync(recursive: true)
+      ..writeAsStringSync(text);
+    File('$check/MODULE.bazel').createSync();
+    await _run(['format', '//$package:__pkg__'], {0, 3}, directory: check);
+    return file.readAsStringSync();
+  }
+
+  Future<ProcessResult> _run(
+    List<String> arguments,
+    Set<int> expected, {
+    String? directory,
+  }) async {
     final result = await Process.run(
       buildozer,
       arguments,
-      workingDirectory: root,
+      workingDirectory: directory ?? root,
     );
     if (!expected.contains(result.exitCode)) {
       throw _Failure(

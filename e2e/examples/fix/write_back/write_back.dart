@@ -4,8 +4,9 @@
 // target's check would have it, with `--dry-run` nothing, and a target a tag
 // filter leaves out only with the flags that build it. And
 // `@rules_dart//dart/unused_deps` removes from a BUILD file each written label
-// that stands only for unused deps, at the call that wrote it, and fails,
-// naming the place, on one it cannot reach.
+// that stands only for unused deps, at the call that wrote it, changes nothing
+// else in the file, however it is formatted, and fails, naming the place, on
+// one it cannot reach.
 //
 // The fixtures are this workspace's own sources, so each is put back
 // afterwards, whatever happened.
@@ -28,6 +29,11 @@ const _expected = {
   // runner needs kept.
   'fix/unused/BUILD.bazel': 'fix/unused/golden/BUILD.golden',
 };
+
+/// A call of `fix/unused/BUILD.bazel` as buildifier writes it, and as it does
+/// not. Nothing the fixer removes is in it.
+const _tidy = 'alias(\n    name = "hub_a",\n    actual = ":leaf",\n)\n';
+const _untidy = 'alias(name="hub_a",   actual=":leaf")\n';
 
 void main() {
   final workspace = Platform.environment['BUILD_WORKSPACE_DIRECTORY'];
@@ -153,11 +159,38 @@ void main() {
     }
     expectFiles('after unused_deps of unreachable deps', originals);
 
-    run('unused_deps', [
+    // A file buildifier would change keeps everything but what is removed.
+    const unusedTargets = [
       '//fix/unused:lib',
       '//fix/unused:call.program',
       '//fix/unused:conformance_test',
-    ]);
+    ];
+    const build = 'fix/unused/BUILD.bazel';
+    final untidy = originals[build]!.replaceFirst(_tidy, _untidy);
+    if (untidy == originals[build]) failures.add('$build lost its tidy alias');
+    file(build).writeAsStringSync(untidy);
+    final untidyDry = run('unused_deps', ['--dry-run', ...unusedTargets]);
+    if ('${untidyDry.stdout}'.contains('hub_a",   actual') ||
+        '${untidyDry.stdout}'.contains('+alias(')) {
+      failures.add('unused_deps --dry-run reformatted:\n${untidyDry.stdout}');
+    }
+    expectFiles('after unused_deps --dry-run of an untidy file', {
+      build: untidy,
+    });
+    run('unused_deps', unusedTargets);
+    final left = file(build).readAsLinesSync();
+    final gone = untidy.split('\n');
+    for (final line in left) {
+      if (!gone.remove(line)) failures.add('unused_deps wrote: $line');
+    }
+    final removedLines = [for (final l in gone) l.trim()]..sort();
+    if ('$removedLines' !=
+        '${['', '":hub_a",', '":hub_b",', '":leaf",', '":leaf",', '"@rules_dart//dart/runfiles",']}') {
+      failures.add('unused_deps of an untidy file removed: $removedLines');
+    }
+    file(build).writeAsStringSync(originals[build]!);
+
+    run('unused_deps', unusedTargets);
     run('fix', ['//fix/dirty:lib', '//fix/dirty_bin:bin']);
     run('format', ['//fix/short_style:lib']);
     run('format', ['--config=deep', '//fix/deep:lib']);
