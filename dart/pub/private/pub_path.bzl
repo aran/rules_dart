@@ -1,7 +1,7 @@
 """Serves a `source: path` pub package from its directory, for a repository.
 
 `pub.from_lock(build_from_pubspec = [...])`'s `pub_lock_path_package` and
-rules_flutter's `flutter_pub_package` call `fetch_pub_path`, so one local
+rules_flutter's `flutter_pub_package` call `link_pub_path`, so one local
 package is the same tree whichever rule builds it.
 
 The repository links the entries its caller names, each at its own path, and
@@ -17,7 +17,9 @@ so creating one refetches it too.
 A package with a Bazel build of its own is mapped with `resolve` instead:
 linking a `BUILD` file in would make the directory holding it a package of the
 repository, which the generated build's globs then silently skip. So any
-Bazel file under a linked entry fails the fetch.
+Bazel file under a linked entry is a refusal, as is a directory that is not
+there. A refusal is returned, not raised: `bazel fetch --all` and `bazel vendor`
+fetch packages no build uses, so only the builds using this one should fail.
 
 The repository depends on files outside Bazel's control, so a rule calling
 this must not mark itself reproducible.
@@ -32,7 +34,7 @@ _BAZEL_FILES = ["BUILD", "BUILD.bazel", "MODULE.bazel", "REPO.bazel", "WORKSPACE
 def _check_entry(entry):
     parts = entry.split("/")
     if entry.startswith("/") or "\\" in entry or [p for p in parts if p in ("", ".", "..")]:
-        fail("fetch_pub_path: `%s` is not a relative path inside the package: name each entry by its path below the package directory, with `/` between its parts." % entry)
+        fail("link_pub_path: `%s` is not a relative path inside the package: name each entry by its path below the package directory, with `/` between its parts." % entry)
     return parts
 
 def _child(directory, parts):
@@ -61,7 +63,7 @@ def _bazel_files(path, entry):
             found.append(name)
     return sorted(found)
 
-def fetch_pub_path(rctx, directory, entries):
+def link_pub_path(rctx, directory, entries):
     """Links the named entries of a local package directory into the repository.
 
     Args:
@@ -73,15 +75,21 @@ def fetch_pub_path(rctx, directory, entries):
       entries: Paths below `directory` to serve, such as `pubspec.yaml`, `lib`
         or `android/src`. Each is linked at its own path, a missing one is
         skipped, and every one is watched.
+
+    Returns:
+      None, or why the package cannot be built from this directory, for the
+      caller to make the builds using it fail with. Nothing is linked then, and
+      what was looked at is still watched, so fixing it refetches the repository.
     """
     root = rctx.path(directory)
     rctx.watch(root)
     if not root.exists:
-        fail(("fetch_pub_path: the package directory %s does not exist. The lock lists the " +
-              "package by path; check out that directory, or name the package in `resolve` " +
-              "or `ignored` instead.") % root)
+        return ("The package directory %s does not exist. The lock lists the package by " +
+                "path; check out that directory, or name the package in `resolve` or " +
+                "`ignored` instead.") % root
     if not root.is_dir:
-        fail("fetch_pub_path: %s is not a directory." % root)
+        return "%s is not a directory." % root
+    links = []
     found = []
     for entry in entries:
         parts = _check_entry(entry)
@@ -96,8 +104,10 @@ def fetch_pub_path(rctx, directory, entries):
             if src.basename in _BAZEL_FILES:
                 found.append(entry)
             rctx.watch(src)
-        rctx.symlink(src, entry)
+        links.append((src, entry))
     if found:
-        fail(("fetch_pub_path: %s has a Bazel build of its own (%s). Map the package to the " +
-              "target that builds it, with `resolve`, instead of building it from its " +
-              "pubspec.") % (root, ", ".join(found)))
+        return ("%s has a Bazel build of its own (%s). Map the package to the target that " +
+                "builds it, with `resolve`, instead of building it from its pubspec.") % (root, ", ".join(found))
+    for src, entry in links:
+        rctx.symlink(src, entry)
+    return None

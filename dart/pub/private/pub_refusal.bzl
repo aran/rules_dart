@@ -1,6 +1,7 @@
-"""A pubspec pub refuses, recorded so that only the builds reaching it fail.
+"""Why a package cannot be built, recorded so that only the builds reaching it fail.
 
-A lock is fetched whole by `bazel fetch --all` and `bazel vendor`, packages no
+A pubspec pub refuses, a `path` package's directory that is not there, or one
+with a Bazel build of its own. A lock is fetched whole by `bazel fetch --all` and `bazel vendor`, packages no
 build uses among them, so a source repository records the refusal instead of
 failing, and every library repository reaching the package fails its build with
 it.
@@ -11,11 +12,11 @@ visibility("//dart/pub/...")
 PUBSPEC_REFUSAL = "pubspec_refusal.txt"
 
 def write_pubspec_refusal(ctx, refusal):
-    """Records in a source repository why pub refuses its pubspec.
+    """Records in a source repository why its package cannot be built.
 
     Args:
       ctx: The source repository's `repository_ctx`.
-      refusal: `read_pubspec`'s `error`: the message, or None.
+      refusal: The message, such as `read_pubspec`'s `error`, or None.
     """
     ctx.file(PUBSPEC_REFUSAL, refusal or "")
 

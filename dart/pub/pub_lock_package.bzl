@@ -23,8 +23,8 @@ links into a repository that builds it, and `pub_files_fetched` reads what
 it fetched;
 `fetch_pub_archive` (with `check_pub_archive_sha256`) fetches a hosted package
 `fetch_pub_git` (with `check_pub_git_resolved_ref`) a git package and
-`fetch_pub_path` a path package's directory exactly as rules_dart's own pub
-rules do, `is_relative_git_url` says whether a lock's
+`link_pub_path` serves a path package's directory exactly as rules_dart's own
+pub rules do, `is_relative_git_url` says whether a lock's
 git `url` is relative to the lock (only then does the package depend on it),
 `find_pub_license_file` finds a package's
 license file as `flutter build` does, and `make_dart_library_build_content` emits the
@@ -47,7 +47,7 @@ load("//dart/pub/private:pub_files.bzl", "FILES_LOAD", _pub_archive_files = "pub
 load("//dart/pub/private:pub_files_names.bzl", "read_files_load")
 load("//dart/pub/private:pub_git.bzl", _check_pub_git_resolved_ref = "check_pub_git_resolved_ref", _fetch_pub_git = "fetch_pub_git", _is_relative_git_url = "is_relative_git_url")
 load("//dart/pub/private:pub_lock_checks.bzl", _published_by_rules_dart = "published_by_rules_dart")
-load("//dart/pub/private:pub_path.bzl", _fetch_pub_path = "fetch_pub_path")
+load("//dart/pub/private:pub_path.bzl", _link_pub_path = "link_pub_path")
 load("//dart/pub/private:pub_refusal.bzl", "PUBSPEC_REFUSAL", "failing_target", "write_pubspec_refusal")
 
 # Re-export for consumers outside //dart/pub (rules_flutter's
@@ -68,7 +68,7 @@ check_pub_archive_sha256 = _check_pub_archive_sha256
 fetch_pub_git = _fetch_pub_git
 check_pub_git_resolved_ref = _check_pub_git_resolved_ref
 is_relative_git_url = _is_relative_git_url
-fetch_pub_path = _fetch_pub_path
+link_pub_path = _link_pub_path
 pub_archive_files = _pub_archive_files
 pub_git_files = _pub_git_files
 pub_files_label = _pub_files_label
@@ -161,15 +161,14 @@ _PATH_PACKAGE_ENTRIES = ["pubspec.yaml", "lib", "hook", "LICENSE", "NOTICES"]
 
 # A member is never reproducible: its links name this output base (hosted and
 # git), or its files are the user's, outside Bazel's control (path).
-def _write_member(ctx, package_name, version, source, build_prelude = ""):
+def _write_member(ctx, package_name, version, source, build_prelude = "", refusal = None):
     # Read the package's SDK constraint, to mirror pub's per-package
     # languageVersion behaviour, and its dependencies, which it records for
     # its library repository and the library repositories of packages that
     # reach it: parsed once here, not by each.
     language_version = ""
     pubspec_deps = []
-    refusal = None
-    if ctx.path("pubspec.yaml").exists:
+    if not refusal and ctx.path("pubspec.yaml").exists:
         read = read_pubspec(ctx, package_name, version)
         refusal = read.error
         if not refusal:
@@ -238,7 +237,6 @@ def _lock_path_directory(ctx):
     return directory
 
 def _pub_lock_path_package_impl(ctx):
-    fetch_pub_path(ctx, _lock_path_directory(ctx), _PATH_PACKAGE_ENTRIES)
     source = _pub_path_source(ctx.attr.lock, ctx.attr.path)
     if source == None:
         # `pub.from_lock()` refuses such a path when it reads the lock.
@@ -251,7 +249,16 @@ def _pub_lock_path_package_impl(ctx):
             ctx.attr.path,
             ctx.attr.lock,
         ))
-    return _write_member(ctx, ctx.attr.package_name, ctx.attr.version, source)
+    directory = _lock_path_directory(ctx)
+    problem = link_pub_path(ctx, directory, _PATH_PACKAGE_ENTRIES)
+    if not problem and not ctx.path("pubspec.yaml").exists:
+        # A directory an uninitialized submodule left, say: nothing to build from.
+        problem = ("%s has no pubspec.yaml. The lock lists the package by path; check it " +
+                   "out there, or name it in `resolve` or `ignored` instead.") % directory
+    refusal = None
+    if problem:
+        refusal = "Pub package \"%s\" %s cannot be built: %s" % (ctx.attr.package_name, ctx.attr.version, problem)
+    return _write_member(ctx, ctx.attr.package_name, ctx.attr.version, source, refusal = refusal)
 
 _MEMBER_ATTRS = {
     "ignore_hook": attr.bool(
@@ -311,14 +318,19 @@ pub_lock_path_package = repository_rule(
 def _pub_lock_resolved_pubspec_impl(ctx):
     pubspec = _lock_path_directory(ctx).get_child("pubspec.yaml")
     ctx.watch(pubspec)
-    if not pubspec.exists:
-        fail(("pub.from_lock(): %s lists package `%s` at `%s`, and %s does not exist. " +
-              "Check out the package there, or run `dart pub get` so the lock says where " +
-              "it is.") % (ctx.attr.lock, ctx.attr.package_name, ctx.attr.path, pubspec))
-    ctx.symlink(pubspec, "pubspec.yaml")
-    read = read_pubspec(ctx, ctx.attr.package_name, ctx.attr.version)
-    write_pubspec_dependencies(ctx, read.pubspec.dependencies if read.pubspec else [])
-    write_pubspec_refusal(ctx, read.error)
+    if pubspec.exists and not pubspec.is_dir:
+        ctx.symlink(pubspec, "pubspec.yaml")
+        read = read_pubspec(ctx, ctx.attr.package_name, ctx.attr.version)
+        dependencies = read.pubspec.dependencies if read.pubspec else []
+        refusal = read.error
+    else:
+        # Only a pub package reaching this one needs its pubspec, to plan with.
+        dependencies = []
+        refusal = ("pub.from_lock(): %s lists package `%s` at `%s`, and %s does not exist. " +
+                   "Check out the package there, or run `dart pub get` so the lock says where " +
+                   "it is.") % (ctx.attr.lock, ctx.attr.package_name, ctx.attr.path, pubspec)
+    write_pubspec_dependencies(ctx, dependencies)
+    write_pubspec_refusal(ctx, refusal)
     ctx.file("BUILD.bazel", "")
 
     # Its pubspec is the user's, outside Bazel's control.

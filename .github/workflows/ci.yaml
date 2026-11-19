@@ -440,7 +440,18 @@ jobs:
           expect dart 'pub would refuse the pubspec of pub package "wrong_name"'
           target=(@refused_pubspecs//:reaches_mapped)
           expect dart 'pub would refuse the pubspec of pub package "mapped"'
-          bazel build --@rules_dart//dart:sdk=dart @refused_pubspecs//:fine
+          # So does a path package that cannot be built.
+          target=(@refused_pubspecs//:not_checked_out)
+          expect dart 'Pub package "not_checked_out" 1.0.0 cannot be built' 'does not exist' 'or name the package in'
+          target=(@refused_pubspecs//:reaches_not_checked_out)
+          expect dart 'Pub package "not_checked_out" 1.0.0 cannot be built'
+          target=(@refused_pubspecs//:empty_checkout)
+          expect dart 'Pub package "empty_checkout" 1.0.0 cannot be built' 'has no pubspec.yaml'
+          target=(@refused_pubspecs//:builds_itself)
+          expect dart 'has a Bazel build of its own (lib/BUILD.bazel)'
+          target=(@refused_pubspecs//:reaches_no_pubspec)
+          expect dart 'no_pubspec/pubspec.yaml does not exist'
+          bazel build --@rules_dart//dart:sdk=dart @refused_pubspecs//:fine //refused_pubspecs/no_pubspec
           echo "OK: every unusable SDK refused, saying why"
       - name: old_sdk_doc_import — expect analysis with Dart 3.13 to say which comment_references are false
         working-directory: e2e/failures/old_sdk_doc_import
@@ -1069,9 +1080,10 @@ jobs:
       - name: bazelrc preset
         run: bazel run @overhead//preset -- --check
   # `bazel fetch --all` and an untargeted `bazel vendor` take every repository,
-  # those of SDKs this machine cannot use among them: declaring such an SDK must
-  # not break them. The workspace declares one of each kind. Everything goes on
-  # the runner's large disk, as the two hold the toolchains of every host twice.
+  # those of SDKs this machine cannot use and of pub packages that cannot be
+  # built among them: declaring either must not break them. The workspace
+  # declares one of each kind. Everything goes on the runner's large disk, as
+  # the two hold the toolchains of every host twice.
   fetch-all:
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -1110,6 +1122,12 @@ jobs:
             exit 1
           fi
           echo "$out" | grep -qF 'Dart SDK "no_path" is a checkout, and DART_CHECKOUT is not set' || { echo "$out"; exit 1; }
+          # A package that cannot be built was vendored, and fails what uses it.
+          if out=$(bazel build --vendor_dir=$vendor --@rules_dart//dart:sdk=dart @refused_pubspecs//:not_checked_out 2>&1); then
+            echo "ERROR: building not_checked_out should have failed"
+            exit 1
+          fi
+          echo "$out" | grep -qF 'Pub package "not_checked_out" 1.0.0 cannot be built' || { echo "$out"; exit 1; }
   # `dart.checkout` as the README sets it up: `--repo_env=DART_CHECKOUT` naming
   # a directory laid out as a dart-lang/sdk checkout with an SDK built in it. The
   # directory is the stand-in `e2e/custom_sdk` builds from repositories, since

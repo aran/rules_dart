@@ -10,7 +10,8 @@ Bazel does not. A declared cycle (`pub.cycle()`, or rules_dart's curated
 ones) is one `pub_library` in the library repository of its first package by
 name, and every other package of it aliases that; an undeclared one fails the
 build using the package, naming the declaration to write. So does a dependency
-nothing supplies, and a package whose pubspec pub refuses: the repository still fetches, as `bazel fetch --all` and
+nothing supplies, and a package refused when its source repository was made
+(`pub_refusal.bzl`): the repository still fetches, as `bazel fetch --all` and
 `bazel vendor` need of every repository, whether or not a build uses it.
 
 The source repositories read nothing of each other, so planning a cycle never
@@ -119,7 +120,7 @@ def _pub_lock_library_impl(ctx):
         follow = fetched | served,
     )
 
-    # A pubspec pub refuses stops every build reaching it, and no other.
+    # A refused package stops every build reaching it, and no other.
     for member in graph:
         refusal = read_pubspec_refusal(ctx, sources[member])
         if refusal:

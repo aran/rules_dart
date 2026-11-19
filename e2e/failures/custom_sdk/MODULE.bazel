@@ -27,19 +27,29 @@ pub.package(
     version = "6.6.1",
 )
 
-# Packages whose pubspecs pub refuses: their repositories still fetch, and only
-# the builds reaching them fail.
+# Packages that cannot be built: a pubspec pub refuses, a directory that is not
+# checked out, a Bazel build of their own under `lib/`, and a mapped package with
+# no pubspec to read. Their repositories still fetch, and only the builds
+# reaching them fail.
 pub.from_lock(
     name = "refused_pubspecs",
     build_from_pubspec = [
         "bad_yaml",
+        "builds_itself",
+        "empty_checkout",
         "fine",
+        "not_checked_out",
         "reaches_mapped",
+        "reaches_no_pubspec",
+        "reaches_not_checked_out",
         "reaches_refused",
         "wrong_name",
     ],
     lock = "//refused_pubspecs:pubspec.lock",
-    resolve = {"mapped": "//refused_pubspecs/mapped"},
+    resolve = {
+        "mapped": "//refused_pubspecs/mapped",
+        "no_pubspec": "//refused_pubspecs/no_pubspec",
+    },
 )
 use_repo(pub, "refused_pubspecs", "xml")
 

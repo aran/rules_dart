@@ -1,0 +1,6 @@
+name: reaches_not_checked_out
+environment:
+  sdk: ^3.14.0
+dependencies:
+  not_checked_out:
+    path: ../not_checked_out

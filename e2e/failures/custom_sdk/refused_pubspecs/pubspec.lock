@@ -8,6 +8,20 @@ packages:
       relative: true
     source: path
     version: "1.0.0"
+  builds_itself:
+    dependency: "direct main"
+    description:
+      path: builds_itself
+      relative: true
+    source: path
+    version: "1.0.0"
+  empty_checkout:
+    dependency: "direct main"
+    description:
+      path: empty_checkout
+      relative: true
+    source: path
+    version: "1.0.0"
   fine:
     dependency: "direct main"
     description:
@@ -22,10 +36,38 @@ packages:
       relative: true
     source: path
     version: "1.0.0"
+  no_pubspec:
+    dependency: "direct main"
+    description:
+      path: no_pubspec
+      relative: true
+    source: path
+    version: "1.0.0"
+  not_checked_out:
+    dependency: "direct main"
+    description:
+      path: not_checked_out
+      relative: true
+    source: path
+    version: "1.0.0"
   reaches_mapped:
     dependency: "direct main"
     description:
       path: reaches_mapped
+      relative: true
+    source: path
+    version: "1.0.0"
+  reaches_no_pubspec:
+    dependency: "direct main"
+    description:
+      path: reaches_no_pubspec
+      relative: true
+    source: path
+    version: "1.0.0"
+  reaches_not_checked_out:
+    dependency: "direct main"
+    description:
+      path: reaches_not_checked_out
       relative: true
     source: path
     version: "1.0.0"

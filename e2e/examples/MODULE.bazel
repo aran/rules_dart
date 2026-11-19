@@ -203,8 +203,8 @@ pub.from_lock(
 )
 
 # `has_build` has a BUILD file of its own, so building it from its pubspec is
-# refused when its repository is fetched; CI builds `@refused//:has_build` and
-# expects the error.
+# refused, for the builds using it; CI builds `@refused//:has_build` and expects
+# the error.
 pub.from_lock(
     name = "refused",
     build_from_pubspec = ["has_build"],

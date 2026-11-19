@@ -1,0 +1,6 @@
+name: reaches_no_pubspec
+environment:
+  sdk: ^3.14.0
+dependencies:
+  no_pubspec:
+    path: ../no_pubspec

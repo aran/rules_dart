@@ -1,0 +1,1 @@
+# Makes `lib/` a Bazel package: the package has a build of its own.
