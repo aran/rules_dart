@@ -114,7 +114,10 @@ _from_lock = tag_class(
                   "lock's directory, holds the package, and its `pubspec.yaml`, `lib/`, " +
                   "`hook/` and license file are served from there. For a package with no " +
                   "Bazel build of its own; one with a `BUILD` file is mapped with `resolve`. " +
-                  "Two locks building one package must name the same directory.",
+                  "The package is never vendored: its files are the checkout's or this " +
+                  "machine's. The directory may be outside the repository, by an absolute " +
+                  "path or one leaving it, and the build then depends on this machine. Two " +
+                  "locks building one package must name the same directory.",
             default = [],
         ),
         "ignored": attr.string_dict(
@@ -405,7 +408,7 @@ def _pub_impl(ctx):
     # fetches it.
     mapped = resolved_packages(locks, declared)
     resolved_targets = published_here_targets(locks, mapped.targets)
-    paths = path_packages(locks, declared, resolved_targets)
+    paths = path_packages(ctx, locks, declared, resolved_targets)
 
     # The mapped packages whose pubspec planning reads, to find a cycle
     # between one and pub packages, which no declaration can build.
@@ -727,7 +730,8 @@ def _pub_impl(ctx):
 
     # The repositories are fixed by the tags and the locks read above: a
     # hosted package without a sha256 or a git package without a commit id
-    # fails, so nothing depends on what a server holds on the day.
+    # fails, so nothing depends on what a server holds on the day. What a
+    # directory outside the repository holds is its repository's to watch.
     return ctx.extension_metadata(
         root_module_direct_deps = [name for name, dev in root_repos.items() if not dev],
         root_module_direct_dev_deps = [name for name, dev in root_repos.items() if dev],

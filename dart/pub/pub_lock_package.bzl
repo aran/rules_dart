@@ -3,17 +3,20 @@
 Each hosted, git or built-from-pubspec path package gets its own source
 repository (spoke), holding its files and the facts it states about itself as
 a `pub_package_member`: `pub_lock_package` for a hosted or git package,
-`pub_lock_path_package` for a path one. A hosted or git package's files are
-fetched into a repository of their own (`pub_archive_files`, `pub_git_files`)
-and linked in with `link_pub_files`, so Bazel's repository cache keeps one
-copy of each package version however often the generated build changes. The
-files repository records what it fetched, from which the source repository
-states the package's name, version and source (`pub_files_fetched`).
+`pub_lock_path_package` for a path one, wherever its directory is. A hosted
+or git package's files are fetched into a repository of their own
+(`pub_archive_files`, `pub_git_files`) and linked in with `link_pub_files`, so
+Bazel's repository cache keeps one copy of each package version however often
+the generated build changes. The files repository records what it fetched,
+from which the source repository states the package's name, version and source
+(`pub_files_fetched`).
 Which packages it is built with — its dependency cycle, if pub resolved one —
 is decided by its library repository (`pub_lock_library`), which the hub's
 `@hub//:pkg` aliases point at. A `path` package `resolve` maps to a target of
 the user's gets `pub_lock_resolved_pubspec` instead, which holds only the
 dependencies its pubspec states, so that planning finds a cycle through it.
+The two rules serving a `path` package read this machine's files, so both are
+`local`, as `local_repository` is: `bazel vendor` leaves them out.
 
 Also re-exports public Starlark helpers for other Bazel rule sets (notably
 rules_flutter's `flutter_pub_package`, the `flutter pub get` analog):
@@ -43,19 +46,27 @@ three functions. `pub_lock_mapping_error` checks how a tag maps one lock's
 packages; `pub_lock_entry` reads a package of a lock; and, once every lock is
 read, `pub_lock_disagreement_errors` compares the entries a package has across
 them. `pub_lock_path_directory` finds a `path` package's directory from the
-lock and the entry's `path`, as `pub_lock_path_package` does.
+lock and the entry's `path`, as `pub_lock_path_package` does, wherever it is,
+and `pub_lock_path_source` gives its source. A lock may name a directory
+outside its repository, by an absolute path or one leaving it. A repository
+serving a `path` package, wherever it is, is `local = True`.
+`pub_lock_resolved_pubspec` records the dependencies of a `path` package
+`resolve` maps, which `read_pubspec_dependencies` (`pub_graph.bzl`) reads, and
+why its pubspec cannot be planned with, if it cannot, which
+`read_pubspec_refusal` reads: a library repository reaching the package fails
+its build with that message instead of planning it as having no dependencies.
 """
 
 load("//dart/pub:pub_graph.bzl", "PUBSPEC_DEPENDENCIES", "write_pubspec_dependencies")
 load("//dart/pub:pubspec.bzl", "read_pubspec")
-load("//dart/pub/private:build_content.bzl", _classify_pub_hooks = "classify_pub_hooks", _find_pub_license_file = "find_pub_license_file", _make_dart_library_build_content = "make_dart_library_build_content", _make_package_metadata_content = "make_package_metadata_content", _make_pub_member_build_content = "make_pub_member_build_content", _normalize_pub_path = "normalize_pub_path", _pub_git_purl = "pub_git_purl", _pub_git_source = "pub_git_source", _pub_hosted_purl = "pub_hosted_purl", _pub_hosted_source = "pub_hosted_source", _pub_package_identity = "pub_package_identity", _pub_path_source = "pub_path_source")
+load("//dart/pub/private:build_content.bzl", _classify_pub_hooks = "classify_pub_hooks", _find_pub_license_file = "find_pub_license_file", _make_dart_library_build_content = "make_dart_library_build_content", _make_package_metadata_content = "make_package_metadata_content", _make_pub_member_build_content = "make_pub_member_build_content", _pub_git_purl = "pub_git_purl", _pub_git_source = "pub_git_source", _pub_hosted_purl = "pub_hosted_purl", _pub_hosted_source = "pub_hosted_source", _pub_package_identity = "pub_package_identity", _pub_path_is_outside = "pub_path_is_outside", _pub_path_source = "pub_path_source")
 load("//dart/pub/private:pub_archive.bzl", _check_pub_archive_sha256 = "check_pub_archive_sha256", _fetch_pub_archive = "fetch_pub_archive")
 load("//dart/pub/private:pub_files.bzl", "FILES_LOAD", _pub_archive_files = "pub_archive_files", _pub_files_label = "pub_files_label", _pub_git_files = "pub_git_files")
 load("//dart/pub/private:pub_files_names.bzl", "read_files_load")
 load("//dart/pub/private:pub_git.bzl", _check_pub_git_resolved_ref = "check_pub_git_resolved_ref", _fetch_pub_git = "fetch_pub_git", _is_relative_git_url = "is_relative_git_url")
 load("//dart/pub/private:pub_lock_checks.bzl", _pub_lock_disagreement_errors = "pub_lock_disagreement_errors", _pub_lock_entry = "pub_lock_entry", _pub_lock_mapping_error = "pub_lock_mapping_error", _published_by_rules_dart = "published_by_rules_dart")
-load("//dart/pub/private:pub_path.bzl", _link_pub_path = "link_pub_path")
-load("//dart/pub/private:pub_refusal.bzl", "PUBSPEC_REFUSAL", "failing_target", "write_pubspec_refusal")
+load("//dart/pub/private:pub_path.bzl", _link_pub_path = "link_pub_path", _pub_lock_path_directory = "pub_lock_path_directory", _pub_lock_path_location = "pub_lock_path_location", _pub_lock_path_source = "pub_lock_path_source")
+load("//dart/pub/private:pub_refusal.bzl", "PUBSPEC_REFUSAL", "failing_target", "write_pubspec_refusal", _read_pubspec_refusal = "read_pubspec_refusal")
 
 # Re-export for consumers outside //dart/pub (rules_flutter's
 # flutter_pub_package). Loading the private bzl directly would trip
@@ -72,6 +83,10 @@ pub_git_purl = _pub_git_purl
 pub_hosted_source = _pub_hosted_source
 pub_git_source = _pub_git_source
 pub_path_source = _pub_path_source
+pub_path_is_outside = _pub_path_is_outside
+pub_lock_path_directory = _pub_lock_path_directory
+pub_lock_path_location = _pub_lock_path_location
+pub_lock_path_source = _pub_lock_path_source
 pub_package_identity = _pub_package_identity
 fetch_pub_archive = _fetch_pub_archive
 check_pub_archive_sha256 = _check_pub_archive_sha256
@@ -82,6 +97,7 @@ link_pub_path = _link_pub_path
 pub_archive_files = _pub_archive_files
 pub_git_files = _pub_git_files
 pub_files_label = _pub_files_label
+read_pubspec_refusal = _read_pubspec_refusal
 
 # Names a source repository owns at its root: Bazel's own files, which
 # would make the root another package or repository, and what the source
@@ -236,42 +252,7 @@ def _pub_lock_package_impl(ctx):
         build_prelude = build_prelude,
     )
 
-def pub_lock_path_directory(rctx, lock, path):
-    """The directory of a `path` package, from the lock that lists it.
-
-    As pub does, the path is resolved lexically against the lock's directory,
-    with `/` or `\\` between its parts. `pub_lock_entry` gives both arguments,
-    for a directory inside the lock's repository.
-
-    Args:
-        rctx: The `repository_ctx`.
-        lock: The lock's `Label`.
-        path: The entry's `description.path`, relative to the lock's directory.
-
-    Returns:
-        The directory's `path`.
-    """
-    directory = rctx.path(lock).dirname
-    for part in _normalize_pub_path(path).split("/"):
-        if part == "..":
-            directory = directory.dirname
-        elif part:
-            directory = directory.get_child(part)
-    return directory
-
 def _pub_lock_path_package_impl(ctx):
-    source = _pub_path_source(ctx.attr.lock, ctx.attr.path)
-    if source == None:
-        # `pub.from_lock()` refuses such a path when it reads the lock.
-        fail(("@{}: package `{}` is at `{}` from {}, outside the repository " +
-              "that holds the lock, so nothing identifies the directory it is " +
-              "built from. A repository builds only its own files; move the " +
-              "package into it, or map it with `resolve` to a target that builds it.").format(
-            ctx.original_name,
-            ctx.attr.package_name,
-            ctx.attr.path,
-            ctx.attr.lock,
-        ))
     directory = pub_lock_path_directory(ctx, ctx.attr.lock, ctx.attr.path)
     problem = link_pub_path(ctx, directory, _PATH_PACKAGE_ENTRIES)
     if not problem and not ctx.path("pubspec.yaml").exists:
@@ -281,6 +262,7 @@ def _pub_lock_path_package_impl(ctx):
     refusal = None
     if problem:
         refusal = "Pub package \"%s\" %s cannot be built: %s" % (ctx.attr.package_name, ctx.attr.version, problem)
+    source = pub_lock_path_source(ctx, ctx.attr.lock, ctx.attr.path)
     return _write_member(ctx, ctx.attr.package_name, ctx.attr.version, source, refusal = refusal)
 
 _MEMBER_ATTRS = {
@@ -325,33 +307,41 @@ pub_lock_path_package = repository_rule(
             mandatory = True,
         ),
         "lock": attr.label(
-            doc = "The lock, against whose directory `path` is resolved.",
+            doc = "The lock, against whose directory a relative `path` is resolved.",
             allow_single_file = True,
             mandatory = True,
         ),
         "path": attr.string(
-            doc = "The package's directory relative to the lock's: the lock's " +
-                  "`description.path`, `/`-separated. It stays inside the lock's repository.",
+            doc = "The package's directory: the lock's `description.path`, normalized.",
             mandatory = True,
         ),
     },
-    doc = "Serves a `source: path` package from its directory, built from its pubspec, and generates a BUILD file.",
+    # Its files are this machine's, inside the lock's repository or outside it:
+    # like `local_repository`, so `bazel vendor` leaves it out. Its inputs are
+    # watched, so editing them refetches it.
+    local = True,
+    doc = "Serves a `source: path` package from its directory, built from its pubspec, and " +
+          "generates a BUILD file. The directory may be outside the lock's repository, by an " +
+          "absolute path or one leaving it.",
 )
 
 def _pub_lock_resolved_pubspec_impl(ctx):
     pubspec = pub_lock_path_directory(ctx, ctx.attr.lock, ctx.attr.path).get_child("pubspec.yaml")
     ctx.watch(pubspec)
+    dependencies = []
+    refusal = None
     if pubspec.exists and not pubspec.is_dir:
         ctx.symlink(pubspec, "pubspec.yaml")
         read = read_pubspec(ctx, ctx.attr.package_name, ctx.attr.version)
         dependencies = read.pubspec.dependencies if read.pubspec else []
         refusal = read.error
-    else:
+    elif not _pub_path_is_outside(ctx.attr.lock, ctx.attr.path):
         # Only a pub package reaching this one needs its pubspec, to plan with.
-        dependencies = []
-        refusal = ("pub.from_lock(): %s lists package `%s` at `%s`, and %s does not exist. " +
+        # One outside the repository may be missing where another machine
+        # wrote the lock; a target builds the package, so that stops nothing.
+        refusal = ("%s(): %s lists package `%s` at `%s`, and %s does not exist. " +
                    "Check out the package there, or run `dart pub get` so the lock says where " +
-                   "it is.") % (ctx.attr.lock, ctx.attr.package_name, ctx.attr.path, pubspec)
+                   "it is.") % (ctx.attr.from_lock, ctx.attr.lock, ctx.attr.package_name, ctx.attr.path, pubspec)
     write_pubspec_dependencies(ctx, dependencies)
     write_pubspec_refusal(ctx, refusal)
     ctx.file("BUILD.bazel", "")
@@ -365,16 +355,22 @@ pub_lock_resolved_pubspec = repository_rule(
         "package_name": attr.string(mandatory = True, doc = "The pub package name."),
         "version": attr.string(doc = "The package version, as pubspec.lock records it, for messages."),
         "lock": attr.label(
-            doc = "The lock, against whose directory `path` is resolved.",
+            doc = "The lock, against whose directory a relative `path` is resolved.",
             allow_single_file = True,
             mandatory = True,
         ),
         "path": attr.string(
-            doc = "The package's directory relative to the lock's: the lock's " +
-                  "`description.path`, `/`-separated. It stays inside the lock's repository.",
+            doc = "The package's directory: the lock's `description.path`, normalized.",
             mandatory = True,
         ),
+        "from_lock": attr.string(
+            doc = "The tag that fetches the lock, as `<extension>.<tag>`, for messages.",
+            default = "pub.from_lock",
+        ),
     },
+    # Its pubspec is this machine's, as `pub_lock_path_package`'s files are.
+    local = True,
     doc = "Records the pubspec dependencies of a `path` package `resolve` maps to a target of " +
-          "the user's, so the library repositories of pub packages can find a cycle through it.",
+          "the user's, so the library repositories of pub packages can find a cycle through it. " +
+          "A pubspec outside the lock's repository that is not there records no dependencies.",
 )

@@ -1,0 +1,19 @@
+load("@rules_dart//dart:defs.bzl", "dart_test")
+
+exports_files(["pubspec.lock"])
+
+# The lock names the package by a relative path leaving this workspace.
+dart_test(
+    name = "relative_path_test",
+    size = "small",
+    main = "outside_package_test.dart",
+    deps = ["@outside_deps//:outside_greeting"],
+)
+
+# Another lock names the same directory by its absolute path: one package.
+dart_test(
+    name = "absolute_path_test",
+    size = "small",
+    main = "outside_package_test.dart",
+    deps = ["@outside_absolute_deps//:outside_greeting"],
+)

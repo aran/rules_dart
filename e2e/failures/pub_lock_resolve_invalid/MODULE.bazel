@@ -17,15 +17,11 @@ register_toolchains("@dart_toolchains//:all")
 # THIS WORKSPACE MUST FAIL TO RESOLVE (CI's expected-failure job checks it):
 # the lock's `path` package `models` is named nowhere, `utils` is named twice,
 # `resolve` maps `http`, which the lock does not list, and
-# `build_from_pubspec` names `path`, which the lock lists as hosted, `far`,
-# which the lock names by an absolute path, and `outside`, whose directory is
-# outside the workspace.
+# `build_from_pubspec` names `path`, which the lock lists as hosted.
 pub = use_extension("@rules_dart//dart/pub:extensions.bzl", "pub")
 pub.from_lock(
     name = "pub",
     build_from_pubspec = [
-        "far",
-        "outside",
         "path",
         "utils",
     ],

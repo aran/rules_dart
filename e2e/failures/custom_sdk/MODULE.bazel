@@ -28,17 +28,21 @@ pub.package(
 )
 
 # Packages that cannot be built: a pubspec pub refuses, a directory that is not
-# checked out, a Bazel build of their own under `lib/`, and a mapped package with
-# no pubspec to read. Their repositories still fetch, and only the builds
-# reaching them fail.
+# checked out, inside this workspace or outside it, a Bazel build of their own
+# under `lib/`, and a mapped package with no pubspec to read. Their repositories
+# still fetch, and only the builds reaching them fail. `outside_greeting` can be
+# built, from outside the workspace, so it is this machine's and is not vendored.
 pub.from_lock(
     name = "refused_pubspecs",
     build_from_pubspec = [
+        "absolute_absent",
         "bad_yaml",
         "builds_itself",
         "empty_checkout",
         "fine",
         "not_checked_out",
+        "outside_absent",
+        "outside_greeting",
         "reaches_mapped",
         "reaches_no_pubspec",
         "reaches_not_checked_out",

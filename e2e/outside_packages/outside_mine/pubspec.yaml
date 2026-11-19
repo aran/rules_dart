@@ -1,0 +1,7 @@
+name: outside_mine
+version: 1.0.0
+environment:
+  sdk: ^3.5.0
+dependencies:
+  outside_theirs:
+    path: ../outside_theirs

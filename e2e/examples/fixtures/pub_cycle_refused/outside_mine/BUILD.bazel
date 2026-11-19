@@ -1,0 +1,10 @@
+load("@rules_dart//dart:defs.bzl", "dart_library")
+
+# What `resolve` maps `outside_mine` to. Its pubspec, outside this workspace,
+# says it depends on `outside_theirs`, which is what puts it in a cycle.
+dart_library(
+    name = "outside_mine",
+    srcs = ["lib/outside_mine.dart"],
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+)

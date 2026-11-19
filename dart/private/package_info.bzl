@@ -322,11 +322,16 @@ def purl_identity(purl):
 def directory_identity(repository, directory):
     """The fetched identity of a `path` package: the directory it is built from.
 
+    A directory in no repository a build knows is named by its absolute path
+    with symbolic links resolved, so it means something on this machine only.
+    That is enough: identities are compared within one build, and a repository
+    holding such a package is never shared with another machine.
+
     Args:
       repository: The canonical name of the repository holding it, "" for the
-        main repository.
-      directory: Its path from that repository's root, normalized; "" for the
-        root.
+        main repository or for a directory in no repository.
+      directory: Its path from that repository's root, normalized, "" for the
+        root; or its absolute path.
 
     Returns:
       A `DartPackageInfo.fetched_identity`.
@@ -368,12 +373,15 @@ def fetched_identity_text(identity):
       identity: A `DartPackageInfo.fetched_identity`, not None.
 
     Returns:
-      The purl; `@@<repo>//<directory>` for a directory; or
+      The purl; `@@<repo>//<directory>` for a directory, or its absolute path
+      for one in no repository; or
       `git+@@<repo>//<directory>@<commit>`, with `#<package_path>` for a package
       below the git repository's root.
     """
     if identity.kind == "purl":
         return identity.purl
+    if identity.kind == "directory" and (identity.directory.startswith("/") or identity.directory[1:3] == ":/"):
+        return identity.directory
     where = "@@{}//{}".format(identity.repository, identity.directory)
     if identity.kind == "directory":
         return where

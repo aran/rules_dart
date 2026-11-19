@@ -472,11 +472,11 @@ jobs:
           fi
           echo "$out" | grep -q "nothing supplies \`petitparser\`"
           echo "OK: expected unsupplied dependency detected"
-      - name: pub_lock_resolve_invalid — expect unnamed, twice-named and wrongly named packages, and path packages no lock can hold, to fail, naming each
+      - name: pub_lock_resolve_invalid — expect unnamed, twice-named and wrongly named packages to fail, naming each
         working-directory: e2e/failures/pub_lock_resolve_invalid
         run: |
           if out=$(bazel build @pub//:path 2>&1); then
-            echo "ERROR: build should have failed: models named nowhere, utils twice, http not locked, path not a path package, far absolute, outside outside the workspace"
+            echo "ERROR: build should have failed: models named nowhere, utils twice, http not locked, path not a path package"
             exit 1
           fi
           echo "$out" | grep -qF "it lists \`models\` as a \`path\` package"
@@ -484,8 +484,6 @@ jobs:
           echo "$out" | grep -qF "\`resolve\` maps \`http\`, which the lock does not list"
           echo "$out" | grep -qF "\`build_from_pubspec\` names \`path\`, which the lock does not list as \`path\`"
           echo "$out" | grep -qF "\`utils\` is named in \`build_from_pubspec\` and \`ignored\`"
-          echo "$out" | grep -qF "\`build_from_pubspec\` names \`far\` (/opt/far), whose directory the lock gives by an absolute path"
-          echo "$out" | grep -qF "\`build_from_pubspec\` names \`outside\` (../outside), whose directory is outside the repository"
           echo "OK: expected resolve errors detected"
       - name: pub/path — expect a path package with a BUILD file of its own to be refused
         working-directory: e2e/examples
@@ -503,7 +501,7 @@ jobs:
         working-directory: e2e/failures/pub_lock_refused
         run: |
           if out=$(bazel build @one//:meta 2>&1); then
-            echo "ERROR: build should have refused path's and meta's missing sha256, foo's abbreviated resolved-ref, the locks' disagreements on tuple, bar, baz, registry, from_path and from_path_git, and the declaration of runfiles"
+            echo "ERROR: build should have refused path's and meta's missing sha256, foo's abbreviated resolved-ref, the locks' disagreements on tuple, bar, baz, registry, from_outside, from_path and from_path_git, and the declaration of runfiles"
             exit 1
           fi
           echo "$out" | grep -qF 'No sha256 is pinned for pub package "path"'
@@ -519,6 +517,7 @@ jobs:
             echo "ERROR: pub.dev and pub.dartlang.org are one registry"
             exit 1
           fi
+          echo "$out" | grep -qF 'Package "from_outside" is built from different directories'
           echo "$out" | grep -qF 'Package "from_path" is built from @@//from_path by the lock'
           echo "$out" | grep -qF 'lists it as a hosted package'
           echo "$out" | grep -qF 'Package "from_path_git" is built from @@//from_path_git by the lock'
@@ -535,7 +534,7 @@ jobs:
           fi
           bazel build @provider//:provider 2>&1 | grep -q "nothing supplies \`flutter\`"
           echo "OK: unsupplied pub.package() dependency refused"
-      - name: fixtures/pub_cycle_refused — expect an undeclared cycle, a stale declaration, part of a cycle and a cycle through a resolve target to be refused
+      - name: fixtures/pub_cycle_refused — expect an undeclared cycle, a stale declaration, part of a cycle and a cycle through a resolve target, inside or outside the workspace, to be refused
         working-directory: e2e/examples
         run: |
           for target in left old_a tri_a theirs; do
@@ -548,6 +547,7 @@ jobs:
           bazel build @refused_cycles//:old_a 2>&1 | grep -qF "\`old_a\` is in no cycle"
           bazel build @refused_cycles//:tri_a 2>&1 | grep -qF 'pub.cycle(packages = ["tri_a", "tri_b", "tri_c"])'
           bazel build @refused_cycles//:theirs 2>&1 | grep -qF "move it from \`resolve\` to \`build_from_pubspec\`"
+          bazel build @refused_cycles//:outside_theirs 2>&1 | grep -qF "move it from \`resolve\` to \`build_from_pubspec\`"
           bazel build //fixtures/pub_cycle_refused/mine 2>&1 | grep -qF 'pub.cycle(packages = ["mine", "theirs"])'
           echo "OK: undeclared and misdeclared cycles refused"
       - name: kernel_source_refused — expect a dart_kernel_source naming both or neither of dart_version and path, or a path that is no checkout, to be refused
@@ -1147,12 +1147,40 @@ jobs:
             exit 1
           fi
           echo "$out" | grep -qF 'Dart SDK "no_path" is a checkout, and DART_CHECKOUT is not set' || { echo "$out"; exit 1; }
-          # A package that cannot be built was vendored, and fails what uses it.
+          # A package that cannot be built fails what uses it.
           if out=$(bazel build --vendor_dir=$vendor --@rules_dart//dart:sdk=dart @refused_pubspecs//:not_checked_out 2>&1); then
             echo "ERROR: building not_checked_out should have failed"
             exit 1
           fi
           echo "$out" | grep -qF 'Pub package "not_checked_out" 1.0.0 cannot be built' || { echo "$out"; exit 1; }
+          # So does one outside the workspace, by either kind of path.
+          for missing in outside_absent absolute_absent; do
+            if out=$(bazel build --vendor_dir=$vendor --@rules_dart//dart:sdk=dart @refused_pubspecs//:$missing 2>&1); then
+              echo "ERROR: building $missing should have failed"
+              exit 1
+            fi
+            echo "$out" | grep -qF "Pub package \"$missing\" 1.0.0 cannot be built" || { echo "$out"; exit 1; }
+          done
+          # A path package is the checkout's or this machine's: it is not
+          # vendored, inside the workspace or outside it, and the build keeps
+          # following its directory. What plans with it is vendored.
+          for local in fine outside_greeting absolute_absent mapped; do
+            if compgen -G "$vendor/*+dart_pub__$local" > /dev/null; then
+              echo "ERROR: bazel vendor froze path package $local"
+              exit 1
+            fi
+          done
+          compgen -G "$vendor/*+dart_pub_lib__fine" > /dev/null
+          bazel build --vendor_dir=$vendor --@rules_dart//dart:sdk=dart @refused_pubspecs//:fine @refused_pubspecs//:outside_greeting
+          sources() {
+            bazel query --vendor_dir=$vendor 'kind("source file", deps(@refused_pubspecs//:outside_greeting))' 2>/dev/null
+          }
+          sources | grep -qF 'lib/outside_greeting.dart'
+          added=../../outside_packages/outside_greeting/lib/added.dart
+          echo 'const added = 1;' > $added
+          found=$(sources)
+          rm $added
+          echo "$found" | grep -qF 'lib/added.dart' || { echo "ERROR: a file added outside the workspace did not reach the build"; exit 1; }
   # `dart.checkout` as the README sets it up: `--repo_env=DART_CHECKOUT` naming
   # a directory laid out as a dart-lang/sdk checkout with an SDK built in it. The
   # directory is the stand-in `e2e/custom_sdk` builds from repositories, since

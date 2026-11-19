@@ -317,7 +317,8 @@ fetched_path_package_metadata = rule(
         repository = _REPOSITORY_ATTR,
         directory = attr.string(
             mandatory = True,
-            doc = "The package's directory from that repository's root, normalized; empty for the root.",
+            doc = "The package's directory from that repository's root, normalized, empty for the root; " +
+                  "or, for a directory in no repository, its absolute path with symbolic links resolved.",
         ),
     ),
     provides = [DartPackageMetadataInfo],

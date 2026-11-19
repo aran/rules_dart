@@ -202,6 +202,14 @@ def _served_cycle_test_impl(ctx):
     asserts.true(env, "Pub packages `a` and `b` depend on each other" in error, error)
     cycle = dependency_cycle({"a": ["b", "mine"], "b": ["a"], "mine": []}, "a", declared = [["a", "b"]], served = served)
     asserts.equals(env, ["mine"], cycle.deps)
+
+    # Another extension's message names its own tags.
+    error = cycle_error(graph, "theirs", declare = "flutter_pub.cycle", served = served, from_lock = "flutter_pub.from_lock")
+    _mentions(env, error, [
+        "on the `flutter_pub.from_lock()` that lists it",
+        'flutter_pub.cycle(packages = ["mine", "theirs"])',
+    ])
+    asserts.true(env, "`pub.from_lock()`" not in error, error)
     return unittest.end(env)
 
 def _mentions(env, text, fragments):

@@ -41,6 +41,13 @@ packages:
       relative: true
     source: path
     version: "1.0.0"
+  from_outside:
+    dependency: "direct main"
+    description:
+      path: "../elsewhere/from_outside"
+      relative: true
+    source: path
+    version: "1.0.0"
   meta:
     dependency: "direct main"
     description:

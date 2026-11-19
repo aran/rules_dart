@@ -15,5 +15,7 @@ Git package "bar" is locked differently across lock files
 Package "baz" is a git package in
 # Two lock files fetch one package from different registries.
 Package "registry" is fetched from different registries
+# Two lock files build one package from different directories outside the repository.
+Package "from_outside" is built from different directories
 # A package rules_dart publishes is not declared.
 names a package rules_dart publishes

@@ -29,6 +29,20 @@ packages:
       relative: true
     source: path
     version: "1.0.0"
+  outside_mine:
+    dependency: "direct main"
+    description:
+      path: "../../../outside_packages/outside_mine"
+      relative: true
+    source: path
+    version: "1.0.0"
+  outside_theirs:
+    dependency: "direct main"
+    description:
+      path: "../../../outside_packages/outside_theirs"
+      relative: true
+    source: path
+    version: "1.0.0"
   right:
     dependency: "direct main"
     description:

@@ -212,6 +212,25 @@ pub.from_lock(
 )
 use_repo(pub, "path_deps", "refused")
 
+# pub/outside: a `path` package outside this workspace, named by a relative path
+# in one lock and by an absolute one in another. Both name one directory, so
+# they are one package.
+outside_absolute_lock = use_repo_rule("//pub/outside:absolute_lock.bzl", "outside_absolute_lock")
+
+outside_absolute_lock(name = "outside_absolute_lock")
+
+pub.from_lock(
+    name = "outside_deps",
+    build_from_pubspec = ["outside_greeting"],
+    lock = "//pub/outside:pubspec.lock",
+)
+pub.from_lock(
+    name = "outside_absolute_deps",
+    build_from_pubspec = ["outside_greeting"],
+    lock = "@outside_absolute_lock//:pubspec.lock",
+)
+use_repo(pub, "outside_absolute_deps", "outside_deps")
+
 # pub/git: git repositories made on the spot, beside the lock `dart pub get`
 # writes for them: no network, and every commit id is the same on every
 # machine. `git_cyc_a` and `git_cyc_b` depend on each other. dep_mod is a
@@ -324,6 +343,7 @@ pub.from_lock(
         "left",
         "old_a",
         "old_b",
+        "outside_theirs",
         "right",
         "theirs",
         "tri_a",
@@ -331,13 +351,18 @@ pub.from_lock(
         "tri_c",
     ],
     lock = "//fixtures/pub_cycle_refused:pubspec.lock",
-    resolve = {"mine": "//fixtures/pub_cycle_refused/mine"},
+    resolve = {
+        "mine": "//fixtures/pub_cycle_refused/mine",
+        "outside_mine": "//fixtures/pub_cycle_refused/outside_mine",
+    },
 )
 
 # `left` and `right` depend on each other, and nothing declares it.
 
 # `mine`, which a target of this workspace builds, and `theirs`, built from
 # its pubspec, depend on each other: no declaration can build that.
+
+# So do `outside_mine` and `outside_theirs`, outside this workspace.
 
 # `old_a` depends on `old_b`, but not the other way round: a stale declaration.
 pub.cycle(packages = [

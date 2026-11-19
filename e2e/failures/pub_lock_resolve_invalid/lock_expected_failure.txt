@@ -1,14 +1,11 @@
 # This workspace fails on purpose; `bazel run @overhead//locks:check` passes a
 # step that fails printing each line below.
 # A `path` package is named nowhere, another twice, `resolve` maps a package
-# the lock does not list and `build_from_pubspec` names a hosted one, one the
-# lock names by an absolute path and one outside the workspace; resolving the
-# module refuses all six at once, offering the three ways to name the first,
-# as the expected-failure CI job asserts.
+# the lock does not list and `build_from_pubspec` names a hosted one; resolving
+# the module refuses all four at once, offering the three ways to name the
+# first, as the expected-failure CI job asserts.
 it lists `models` as a `path` package
 build_from_pubspec = ["models"]
 `resolve` maps `http`, which the lock does not list
 `build_from_pubspec` names `path`, which the lock does not list as `path`
 `utils` is named in `build_from_pubspec` and `ignored`
-`build_from_pubspec` names `far` (/opt/far), whose directory the lock gives by an absolute path
-`build_from_pubspec` names `outside` (../outside), whose directory is outside the repository

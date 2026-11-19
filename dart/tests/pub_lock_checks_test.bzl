@@ -16,6 +16,9 @@ load(
 )
 
 # buildifier: disable=bzl-visibility
+load("//dart/pub/private:build_content.bzl", "normalize_pub_path", "pub_path_is_outside", "pub_path_root")
+
+# buildifier: disable=bzl-visibility
 load(
     "//dart/pub/private:pub_lock_checks.bzl",
     "git_disagreement_error",
@@ -129,9 +132,10 @@ def _mapping_names_each_problem_test_impl(ctx):
         "  - it lists `models` as a `path` package.",
         'resolve = {"models": "//app/models:<target>"}',
         'build_from_pubspec = ["models"]',
-        "`build_from_pubspec` names `far` (/opt/far), whose directory the lock gives by an absolute path",
-        "`build_from_pubspec` names `outside` (../../outside), whose directory is outside the repository",
     )
+
+    # A directory outside the repository is the lock's to name.
+    asserts.true(env, "`far`" not in error and "`outside`" not in error, error)
     return unittest.end(env)
 
 def _resolve_agreement_test_impl(ctx):
@@ -157,11 +161,11 @@ def _path_agreement_test_impl(ctx):
     two = _lock({"m": _path("../elsewhere/m"), "i": _path("i"), "d": _path("d")}, lock = "//two:pubspec.lock", build_from_pubspec = ["m"], ignored = {"i": "unused", "d": "declared"})
     r = _lock({"m": _path("m")}, lock = "//r:pubspec.lock", resolve = {"m": "//m"})
 
-    agreed = path_packages([one], {}, {})
+    agreed = path_packages(None, [one], {}, {})
     asserts.equals(env, [], agreed.errors)
     asserts.equals(env, "@@//one/m", agreed.built["m"].directory)
 
-    refused = path_packages([one, two, r], {"d": []}, resolved_packages([r], {}).targets)
+    refused = path_packages(None, [one, two, r], {"d": []}, resolved_packages([r], {}).targets)
     _contains(env, "\n".join(refused.errors), "Package \"d\" is declared with `pub.package()` and named by the `pub.from_lock()` for @@//two:pubspec.lock")
     _contains(
         env,
@@ -324,10 +328,62 @@ def _entries_test_impl(ctx):
     path = pub_lock_entry("foo", _path("../pkgs/./foo/"), lock).entry
     asserts.equals(env, ("../pkgs/foo", "@@//pkgs/foo", lock), (path.path, path.directory, path.lock_file))
 
-    for unbuildable in (_path("../../outside"), _path("/opt/far", relative = "False"), _path("C:\\far", relative = "False")):
-        refused = pub_lock_entry("foo", unbuildable, lock)
-        asserts.equals(env, None, refused.entry)
-        _contains(env, refused.errors[0], 'Package "foo" is at', "Map it with `resolve`")
+    asserts.equals(env, (False, None), (path.outside, path.location))
+    return unittest.end(env)
+
+def _path_entry(directory, location = None, outside = False, lock = "//a:pubspec.lock"):
+    return struct(source = "path", directory = directory, location = location, outside = outside, lock_label = lock)
+
+def _path_disagreement_test_impl(ctx):
+    env = unittest.begin(ctx)
+
+    def errors(*entries):
+        return pub_lock_disagreement_errors("p", list(entries))
+
+    # Inside a repository, entries are compared by name, on every machine.
+    asserts.equals(env, [], errors(_path_entry("@@//p", "/here/p"), _path_entry("@@//p", "/elsewhere/p")))
+    asserts.equals(env, 1, len(errors(_path_entry("@@//p", "/here/p"), _path_entry("@@//q", "/here/p"))))
+
+    # An entry outside one is compared by where it is, with any other.
+    outside = _path_entry("/there/p", "/there/p", outside = True)
+    asserts.equals(env, [], errors(outside, _path_entry("/there/p", "/there/p", outside = True)))
+    asserts.equals(env, [], errors(_path_entry("@@//p", "/there/p"), outside))
+    other = errors(outside, _path_entry("/there/q", "/there/q", outside = True))
+    _contains(env, other[0], 'Package "p" is built from different directories', "/there/p", "/there/q")
+    asserts.equals(env, 1, len(errors(_path_entry("@@//p", "/here/p"), outside)))
+
+    # An entry shaped by another extension, without a location, is a different
+    # directory from one outside.
+    asserts.equals(env, 1, len(errors(struct(source = "path", directory = "@@//p", lock_label = "x"), outside)))
+    return unittest.end(env)
+
+def _absolute_paths_test_impl(ctx):
+    env = unittest.begin(ctx)
+    for path, root, normalized in (
+        ("/opt/./far/../pkg/", "/", "/opt/pkg"),
+        ("/../pkg", "/", "/pkg"),
+        ("C:\\work\\..\\pkg", "C:/", "C:/pkg"),
+        ("c:/pkg", "c:/", "c:/pkg"),
+        ("C:", "C:/", "C:/"),
+        ("\\\\server\\share\\a\\..\\pkg", "//server/share/", "//server/share/pkg"),
+        ("../../pkg", "", "../../pkg"),
+        ("pkg", "", "pkg"),
+        ("C:pkg", "", "C:pkg"),
+    ):
+        asserts.equals(env, root, pub_path_root(path), path)
+        asserts.equals(env, normalized, normalize_pub_path(path), path)
+    lock = Label("//app:pubspec.lock")
+    for path, outside in (
+        ("pkg", False),
+        ("../pkg", False),
+        ("..", False),
+        ("../..", True),
+        ("../../pkg", True),
+        ("/opt/pkg", True),
+        ("C:\\pkg", True),
+        ("pkg/../../../up", True),
+    ):
+        asserts.equals(env, outside, pub_path_is_outside(lock, path), path)
     return unittest.end(env)
 
 def _mapping_takes_plain_values_test_impl(ctx):
@@ -381,8 +437,8 @@ def _path_directory_test_impl(ctx):
 def _resolved_pubspecs_test_impl(ctx):
     env = unittest.begin(ctx)
 
-    # A mapped package's pubspec is read where its lock lists it by a relative
-    # path inside the lock's repository, from the first such lock.
+    # A mapped package's pubspec is read where its first lock lists it, whether
+    # or not that is inside the lock's repository.
     one = _lock(
         {
             "mine": _path("../mine/"),
@@ -397,7 +453,9 @@ def _resolved_pubspecs_test_impl(ctx):
     mapped = resolved_packages([one, two], {})
     asserts.equals(env, [], mapped.errors)
     found = resolved_pubspecs([one, two], mapped.targets)
-    asserts.equals(env, ["mine"], found.keys())
+    asserts.equals(env, ["abs", "mine", "outside"], sorted(found.keys()))
+    asserts.equals(env, "/elsewhere/abs", found["abs"].path)
+    asserts.equals(env, "../../outside", found["outside"].path)
     asserts.equals(env, "//mine", found["mine"].target)
     asserts.equals(env, "../mine", found["mine"].path)
     asserts.equals(env, Label("//app:pubspec.lock"), found["mine"].lock)
@@ -475,6 +533,8 @@ _t12_test = unittest.make(_git_agreement_is_identity_test_impl)
 _t13_test = unittest.make(_entries_test_impl)
 _t14_test = unittest.make(_mapping_takes_plain_values_test_impl)
 _t15_test = unittest.make(_path_directory_test_impl)
+_t16_test = unittest.make(_path_disagreement_test_impl)
+_t17_test = unittest.make(_absolute_paths_test_impl)
 
 def pub_lock_checks_test_suite(name):
-    small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test, _t4_test, _t5_test, _t6_test, _t7_test, _t8_test, _t9_test, _t10_test, _t11_test, _t12_test, _t13_test, _t14_test, _t15_test)
+    small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test, _t4_test, _t5_test, _t6_test, _t7_test, _t8_test, _t9_test, _t10_test, _t11_test, _t12_test, _t13_test, _t14_test, _t15_test, _t16_test, _t17_test)

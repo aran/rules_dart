@@ -34,6 +34,13 @@ packages:
       url: "https://example.invalid/from_path_git.git"
     source: git
     version: "1.0.0"
+  from_outside:
+    dependency: "direct main"
+    description:
+      path: "/elsewhere/from_outside"
+      relative: false
+    source: path
+    version: "1.0.0"
   registry:
     dependency: "direct main"
     description:

@@ -224,10 +224,14 @@ def _path_identity_test_impl(ctx):
     asserts.true(env, other_repo.repo_name != "")
     asserts.true(env, want != identity("shared/p", other_repo))
 
-    # A directory no label names, absolute or leaving the lock's
-    # repository, has no source.
+    # A directory no label names, absolute or leaving the lock's repository,
+    # has no source a lock alone can state: only its machine can place it.
     for path in ["/home/me/p", "C:\\p", "c:/p", "../../p", "../../../app/p"]:
         asserts.equals(env, None, pub_path_source(lock, path), path)
+
+    # Placed, it is named by where it is, and reads as that.
+    asserts.equals(env, "/home/me/p", fetched_identity_text(directory_identity("", "/home/me/p")))
+    asserts.equals(env, "C:/me/p", fetched_identity_text(directory_identity("", "C:/me/p")))
     return unittest.end(env)
 
 def _recording_context(**attrs):

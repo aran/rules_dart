@@ -10,9 +10,10 @@ same locks: `pub_lock_package.bzl` exports them.
 """
 
 load("//dart/private:package_info.bzl", "fetched_identity_text")
-load("//dart/pub/private:build_content.bzl", "is_pub_dev", "pub_git_source", "pub_path_source", _normalize = "normalize_pub_path", _path_in_repo = "lock_path_in_repo")
+load("//dart/pub/private:build_content.bzl", "is_pub_dev", "pub_git_source", "pub_path_is_outside", "pub_path_source", _normalize = "normalize_pub_path", _path_in_repo = "lock_path_in_repo")
 load("//dart/pub/private:pub_archive.bzl", "pub_archive_sha256_error")
 load("//dart/pub/private:pub_git.bzl", "is_relative_git_url", "pub_git_resolved_ref_error")
+load("//dart/pub/private:pub_path.bzl", "pub_lock_path_location")
 
 visibility("//dart/...")
 
@@ -47,55 +48,13 @@ def pub_command(subcommand, lock, packages = [], runner = _RUNNER):
         words.append("--directory=" + directory)
     return " ".join(words + packages)
 
-def _leaves_repository(in_repo):
-    return in_repo == ".." or in_repo.startswith("../")
-
-def _is_relative(description):
-    # The lock's scalars are read as strings: `true` is "True".
-    return description.get("relative", "").lower() == "true"
-
-def _unbuildable_paths(lock, packages, build_from_pubspec):
-    # The `build_from_pubspec` packages whose directory the lock names in a way
-    # no repository attribute can hold on every machine: by an absolute path,
-    # or by one leaving the lock's repository. MODULE.bazel.lock records every
-    # repository's attributes, so it would hold only in this checkout.
-    absolute = []
-    outside = []
-    for name in build_from_pubspec:
-        info = packages.get(name, {})
-        if info.get("source") != "path":
-            continue
-        desc = info.get("description", {})
-        path = desc.get("path", "")
-        if not _is_relative(desc):
-            absolute.append("`%s` (%s)" % (name, path))
-        elif _leaves_repository(_path_in_repo(lock, path)):
-            outside.append("`%s` (%s)" % (name, path))
-    problems = []
-    if absolute:
-        problems.append(
-            ("  - `build_from_pubspec` names %s, whose directory the lock gives by an absolute " +
-             "path, which holds only on this machine. Give the package a relative `path:` in " +
-             "the pubspec and run `dart pub get`, or map it with `resolve`.") % ", ".join(absolute),
-        )
-    if outside:
-        problems.append(
-            ("  - `build_from_pubspec` names %s, whose directory is outside the repository that " +
-             "holds the lock. A repository builds only its own files; move the package into it, " +
-             "or map it with `resolve` to a target that builds it, in a module " +
-             "`local_path_override` brings in, say.") % ", ".join(outside),
-        )
-    return problems
-
 def _suggested_target(lock, info):
     # What `resolve` most likely maps a `path` package to: the Bazel package
     # at its directory, where the lock's repository holds one.
-    desc = info.get("description", {})
-    if _is_relative(desc):
-        in_repo = _path_in_repo(lock, desc.get("path", ""))
-        if not _leaves_repository(in_repo):
-            return "//%s:<target>" % in_repo
-    return "//..."
+    path = info.get("description", {}).get("path", "")
+    if pub_path_is_outside(lock, path):
+        return "//..."
+    return "//%s:<target>" % _path_in_repo(lock, path)
 
 def pub_lock_mapping_error(call, lock, packages, resolve = {}, build_from_pubspec = [], ignored = {}):
     """What is wrong with how one call of a `from_lock` tag maps its lock's packages.
@@ -106,10 +65,9 @@ def pub_lock_mapping_error(call, lock, packages, resolve = {}, build_from_pubspe
     hosted package is) or `ignored` (nothing builds it, for a reason).
 
     Refused: a name the lock does not list, a non-`path` package in
-    `build_from_pubspec` or `ignored`, a package named twice, a `path` package
-    named nowhere, and a `build_from_pubspec` package whose directory the lock
-    gives by an absolute path or one leaving the lock's repository, which no
-    repository attribute can hold on every machine.
+    `build_from_pubspec` or `ignored`, a package named twice, and a `path`
+    package named nowhere. Where the directory is, outside the lock's repository
+    too, is the lock's to say, as it is pub's.
 
     Args:
         call: The tag as the message's heading names it, such as
@@ -175,7 +133,6 @@ def pub_lock_mapping_error(call, lock, packages, resolve = {}, build_from_pubspe
                 ", ".join(['"%s": "<why>"' % n for n in unmapped]),
             ),
         )
-    problems.extend(_unbuildable_paths(lock, packages, build_from_pubspec))
     if not problems:
         return None
     return "%s:\n%s" % (call, "\n".join(problems))
@@ -315,10 +272,9 @@ def resolved_pubspecs(locks, resolved_targets):
     A mapped package is a target of the user's, whose dependencies its BUILD
     file states. Its pubspec states what pub sees it depend on, which is what
     finds a dependency cycle between it and pub packages, which no target can
-    be built in. The pubspec is read where a lock lists the package by a
-    relative `path` inside the lock's repository, which every checkout holds
-    alike, as for `build_from_pubspec`. Call it once every lock's
-    `lock_mapping_error` is None.
+    be built in. The pubspec is read where the first lock listing the package
+    by a `path` says it is. Call it once every lock's `lock_mapping_error` is
+    None.
 
     Args:
         locks: Every lock, as the extension parses them.
@@ -334,27 +290,24 @@ def resolved_pubspecs(locks, resolved_targets):
         tag = lock.tag
         for name in tag.resolve:
             info = lock.packages.get(name, {})
-            desc = info.get("description", {})
-            if name in found or info.get("source") != "path" or desc.get("relative", "").lower() != "true":
-                continue
-            in_repo = _path_in_repo(tag.lock, desc.get("path", ""))
-            if in_repo == ".." or in_repo.startswith("../"):
+            if name in found or info.get("source") != "path":
                 continue
             found[name] = struct(
                 target = resolved_targets[name].target,
-                path = _normalize(desc.get("path", "")),
+                path = _normalize(info.get("description", {}).get("path", "")),
                 version = info.get("version", ""),
                 lock = tag.lock,
             )
     return found
 
-def path_packages(locks, declared, resolved_targets):
+def path_packages(ctx, locks, declared, resolved_targets):
     """Collects the `path` packages each lock builds from its pubspec or ignores.
 
     Call it once every lock's `lock_mapping_error` is None: it reads each
     named package as the lock's `path` entry.
 
     Args:
+        ctx: The `module_ctx`, which finds where each directory is.
         locks: Every lock, as the extension parses them.
         declared: The packages a `pub.package()` requests.
         resolved_targets: `resolved_packages`'s targets.
@@ -376,7 +329,7 @@ def path_packages(locks, declared, resolved_targets):
                                "`pub.from_lock()` for %s. Each package is one repository; keep one of the " +
                                "two.") % (name, tag.lock))
         for name in tag.build_from_pubspec:
-            read = pub_lock_entry(name, lock.packages[name], tag.lock)
+            read = pub_lock_entry(name, lock.packages[name], tag.lock, ctx = ctx)
             errors.extend(read.errors)
             if read.entry:
                 built.setdefault(name, read.entry)
@@ -458,33 +411,30 @@ def _hosted_entry(name, info, common):
         errors = [],
     )
 
-def _path_entry(name, info, common):
+def _path_entry(name, info, common, ctx):
     path = info.get("description", {}).get("path", "")
-    source = pub_path_source(common["lock_file"], path)
-    if source == None:
-        return struct(entry = None, errors = [
-            ("Package \"%s\" is at `%s` from %s, an absolute path or one outside the repository " +
-             "that holds the lock, so no build can name its directory. Map it with `resolve`.") % (
-                name,
-                path,
-                common["lock_label"],
-            ),
-        ])
+    lock = common["lock_file"]
+    outside = pub_path_is_outside(lock, path)
+    if outside and ctx == None:
+        fail(("Package \"%s\" is at `%s` from %s, outside the lock's repository: give " +
+              "`pub_lock_entry` the `ctx` that can find it.") % (name, path, common["lock_label"]))
+    location = pub_lock_path_location(ctx, lock, path) if ctx else None
     return struct(
         entry = struct(
             path = _normalize(path),
-            directory = fetched_identity_text(source.identity),
+            outside = outside,
+            location = location,
+            directory = location if outside else fetched_identity_text(pub_path_source(lock, path).identity),
             **common
         ),
         errors = [],
     )
 
-def pub_lock_entry(name, info, lock, runner = _RUNNER):
+def pub_lock_entry(name, info, lock, runner = _RUNNER, ctx = None):
     """Reads one package of a lock, refusing what could not be fetched from it.
 
     A hosted entry must pin its archive's sha256, and a git entry a url and a
-    full commit. A `path` entry must name a directory inside the lock's
-    repository; read only the `path` packages built from their pubspec, those
+    full commit. Read only the `path` packages built from their pubspec, those
     `pub_lock_mapping_error` has checked.
 
     Args:
@@ -493,6 +443,9 @@ def pub_lock_entry(name, info, lock, runner = _RUNNER):
         lock: The lock's `Label`.
         runner: The target whose `bazel run` runs pub, for the commands the
             messages and the entry give.
+        ctx: The `module_ctx`. A `path` entry needs it to find its directory
+            when that is outside the lock's repository, and to be compared
+            with one that is. Reading such an entry without it fails.
 
     Returns:
         `struct(entry, errors)`: the messages, and the entry, None when they
@@ -504,10 +457,14 @@ def pub_lock_entry(name, info, lock, runner = _RUNNER):
         - git: `url`, `resolved_ref`, `path` (normalized, "." for the root),
           `lock` (the lock's `Label` when `url` is relative to it, else None)
           and `identity` (`pub_git_source`'s).
-        - path: `path` (normalized) and `directory`, which names the package's
-          directory by its repository, for comparing and for messages. Give
-          `lock_file` and `path` to `pub_lock_path_directory`, or to
-          `pub_lock_path_package`.
+        - path: `path` (normalized, absolute if the lock's is); `outside`,
+          whether it is outside the lock's repository (`pub_path_is_outside`),
+          which decides how it is compared; `location`, where it is on this
+          machine (`pub_lock_path_location`), None without `ctx`; and
+          `directory`, for messages: its name by its repository, or its
+          location when outside. Give `lock_file` and `path` to
+          `pub_lock_path_directory`, or to the repository rule, which is
+          `local` wherever the directory is.
     """
     common = dict(
         source = info.get("source", ""),
@@ -522,7 +479,7 @@ def pub_lock_entry(name, info, lock, runner = _RUNNER):
     if common["source"] == "git":
         return _git_entry(name, info, common)
     if common["source"] == "path":
-        return _path_entry(name, info, common)
+        return _path_entry(name, info, common, ctx)
     return struct(entry = struct(**common), errors = [])
 
 def git_disagreement_error(name, first, other):
@@ -573,11 +530,19 @@ def git_disagreement_error(name, first, other):
         other.upgrade,
     )
 
+def _same_directory(one, other):
+    # By name inside a repository, which holds on every machine. An entry
+    # outside one has only its place on this machine to be compared by.
+    if getattr(one, "outside", False) or getattr(other, "outside", False):
+        return getattr(one, "location", None) == getattr(other, "location", None)
+    return one.directory == other.directory
+
 def pub_lock_disagreement_errors(name, entries):
     """Why the locks listing one package cannot all be built, with one copy of it.
 
-    Two `path` entries must name one directory and two git entries one commit
-    of one repository directory (`git_disagreement_error`), and a package may
+    Two `path` entries must name one directory, however each spells it, and
+    two git entries one commit of one repository directory
+    (`git_disagreement_error`), and a package may
     come from only one of `path`, git and a registry. Which version of a hosted
     package wins is `select_pub_version`'s to say. An entry of any other source
     is not compared.
@@ -598,7 +563,7 @@ def pub_lock_disagreement_errors(name, entries):
     agree = "A build holds one copy of each package; make the locks agree, or map it to one target with `resolve`."
     errors = []
     for other in paths[1:]:
-        if other.directory != paths[0].directory:
+        if not _same_directory(paths[0], other):
             errors.append(("Package \"%s\" is built from different directories:\n" +
                            "  - %s (by the lock %s)\n" +
                            "  - %s (by the lock %s)\n" +

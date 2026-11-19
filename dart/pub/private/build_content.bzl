@@ -155,8 +155,9 @@ def _git_subdirectory(path):
 def normalize_pub_path(path):
     """A path as pub reads it, `/`-separated, with `.` and `..` collapsed.
 
-    A `..` that would leave the path's start is kept, so a path leaving the
-    directory it is relative to still says so.
+    A `..` that would leave a relative path's start is kept, so a path leaving
+    the directory it is relative to still says so. An absolute path keeps its
+    root (`pub_path_root`), which a `..` cannot leave.
 
     Args:
         path: A path, `/`- or `\\`-separated.
@@ -164,16 +165,53 @@ def normalize_pub_path(path):
     Returns:
         The path, without empty or `.` segments; "" for the directory itself.
     """
-    absolute = path.startswith("/")
+    unix = path.replace("\\", "/")
+    root = pub_path_root(unix)
     parts = []
-    for part in path.replace("\\", "/").split("/"):
+    for part in unix[len(root):].split("/"):
         if part in ("", "."):
             continue
         if part == ".." and parts and parts[-1] != "..":
             parts.pop()
-        else:
+        elif part != ".." or not root:
             parts.append(part)
-    return ("/" if absolute else "") + "/".join(parts)
+    return root + "/".join(parts)
+
+def pub_path_root(path):
+    """The root of an absolute path, as pub's `path` package reads one.
+
+    Args:
+        path: A path, `/`- or `\\`-separated.
+
+    Returns:
+        `/`, a Windows drive (`C:/`) or share (`//server/share/`), with `/`
+        separators; "" for a relative path.
+    """
+    unix = path.replace("\\", "/")
+    if len(unix) >= 2 and unix[0].isalpha() and unix[1] == ":" and unix[2:3] in ("", "/"):
+        return unix[:2] + "/"
+    if unix.startswith("//"):
+        return "//" + "".join([part + "/" for part in [p for p in unix.split("/") if p][:2]])
+    return "/" if unix.startswith("/") else ""
+
+def pub_path_is_outside(lock, path):
+    """Whether a lock's `path` names a directory outside the lock's repository.
+
+    It does if it is absolute, or leaves the repository by its `..`s. That is
+    what the path says, whatever it reaches on this machine: pub also takes an
+    absolute path for one, whatever the entry's `relative` says.
+
+    Args:
+        lock: The lock's `Label`.
+        path: The lock entry's `description.path`.
+
+    Returns:
+        True for a directory outside the repository.
+    """
+    if pub_path_root(path):
+        return True
+    directory = lock_path_in_repo(lock, path)
+    return directory == ".." or directory.startswith("../")
 
 def lock_path_in_repo(lock, path):
     """A lock's relative `path`, from the root of the lock's repository.
@@ -207,11 +245,9 @@ def pub_path_source(lock, path):
     theirs. The purl spec has no type for a directory, and a second origin
     would be false.
 
-    A directory the lock names by an absolute path, or by one leaving the
-    lock's repository, has no such name, so the package has no source: a copy
-    stating none is one package with no other copy. rules_dart's `pub` refuses
-    to build such a package; build it from a directory inside the lock's
-    repository, or map it with `resolve`.
+    A directory outside the lock's repository (`pub_path_is_outside`) has no
+    such name: only the machine can say where it is, so this gives None for
+    it. A repository rule asks `pub_lock_path_source`, which looks.
 
     Args:
         lock: The lock's `Label`.
@@ -221,13 +257,23 @@ def pub_path_source(lock, path):
     Returns:
         The source (`pub_hosted_source`), or None.
     """
-    unix = path.replace("\\", "/")
-    if unix.startswith("/") or (len(unix) > 1 and unix[1] == ":"):
+    if pub_path_is_outside(lock, path):
         return None
-    directory = lock_path_in_repo(lock, path)
-    if directory == ".." or directory.startswith("../"):
-        return None
-    return struct(identity = directory_identity(lock.repo_name, directory), purl = "")
+    return pub_directory_source(lock.repo_name, lock_path_in_repo(lock, path))
+
+def pub_directory_source(repository, directory):
+    """The source of a `path` package built from a directory.
+
+    Args:
+        repository: The canonical name of the repository holding the directory,
+            "" for the main repository or a directory in none.
+        directory: Its normalized path from that repository's root, or its
+            absolute path on this machine.
+
+    Returns:
+        The source (`pub_hosted_source`).
+    """
+    return struct(identity = directory_identity(repository, directory), purl = "")
 
 # The rule declaring a package fetched as each kind of identity.
 _FETCHED_RULES = {

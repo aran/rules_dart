@@ -394,8 +394,10 @@ package does. Then declare the cycle with `pub.cycle()`, as
 shows.
 
 You don't have to spot such a cycle yourself. When a lock lists a `resolve`
-package by a `path` inside its repository, the build reads that package's
-`pubspec.yaml` to learn what it depends on. A cycle between it and pub packages
+package by a `path`, the build reads that package's `pubspec.yaml` to learn what
+it depends on. If the package is outside the repository and its directory isn't
+there, the build goes on without it, since your target builds the package. A
+cycle between it and pub packages
 then fails when a pub package in it is first built. The error names every
 package in the cycle, the one to move to `build_from_pubspec`, and the
 `pub.cycle()` to add.
@@ -826,15 +828,23 @@ pub.from_lock(
 )
 ```
 
-For `build_from_pubspec`, the lock has to name the directory by a relative
-path. `dart pub get` writes one when the pubspec's `path:` is relative. The
-directory must also be inside the repository that holds the lock. An absolute
-path, or one leading out of the repository, would work on only one machine, so
-it fails when the lock is read. Map such a package with `resolve` instead.
+Bazel treats a package built from its pubspec as it does a `local_repository`:
+`bazel vendor` leaves it out, the repository contents cache never holds it, and
+an edit to its files reaches the next build. If the directory isn't there, only
+the builds using the package fail.
+
+The directory can be anywhere `dart pub get` found it: inside the repository,
+at a relative path leading out of it, or at an absolute path. A package outside
+the repository ties the build to this machine. An absolute path in a lock holds
+only where the lock was written, so that lock doesn't work on another machine,
+and a relative path out of the repository needs the same directories beside
+every checkout.
 
 If two locks both build one package from its pubspec, they must name the same
-directory. A package built from its pubspec in one lock and fetched or ignored
-in another fails too.
+directory. They can spell it differently: paths that lead to one directory, once
+symbolic links are followed, are the same directory, as they are for pub. A
+package built from its pubspec in one lock and fetched or ignored in another
+fails too.
 
 A [pub workspace](https://dart.dev/tools/pub/workspaces) needs none of these.
 Its lock, the one beside the root `pubspec.yaml`, lists only the packages the
@@ -989,7 +999,7 @@ reads it from each target's `package_metadata` attribute.
 |---|---|
 | hosted (`pub.package()`, `pub.from_lock()`) | `pkg:pub/<name>@<version>?checksum=sha256:<hex>`, with `repository_url` for a registry other than pub.dev |
 | git | `pkg:pub/<name>@<version>?vcs_url=git+<url>@<commit>`, with `#<path>` for a package in a subdirectory. A url relative to the lock appears as the lock writes it, so the SBOM shows a path from the lock's checkout. |
-| path, `build_from_pubspec` | None. Its files are its repository's own, and that repository states where they came from. |
+| path, `build_from_pubspec` | None. Its files are its repository's own, and that repository states where they came from. One outside the repository has no such statement: it is this machine's files. |
 
 The Dart SDK's repositories are `pkg:generic/dart-sdk@<version>`, with the
 archive's `checksum` and `download_url`. The purl spec has no type for the SDK.
