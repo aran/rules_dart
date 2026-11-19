@@ -7,7 +7,13 @@ decodes. Its packages are pinned here by version and sha256, outside pub
 resolution, and joined by a hand-written package config; `pub get` never runs.
 
 `pubspec_reader-<platform>` compiles the program on a host of that platform
-only, so no cache can hand one OS's binary to another. Pubspecs are read while
+only, and on any other holds a target saying so. Which of the two it is depends
+on the machine fetching it, and Bazel knows a repository by its rule and
+attributes alone. So the rule is `configure`: `bazel vendor` leaves it out, and
+each machine makes its own from the vendored SDK and packages. And only the
+binary is marked reproducible: its platform is in its name, so the repository
+contents cache can share it between machines of that platform, and can never
+hand another machine the target standing in for it. Pubspecs are read while
 repositories are fetched, before any build has chosen an SDK, so the compiler is
 the one the project builds with by default, the SDK `dart.use_sdk` names, when
 that SDK is usable here; otherwise the `dart` release, saying why first. Which
@@ -185,7 +191,15 @@ def compile_reader(rctx, exe, notify):
         error += '\nDart SDK "{}" was tried first: {}'.format(attr.project_sdk, problem)
     return struct(error = error, with_project_sdk = False)
 
-def _reader_tool_impl(rctx):
+def pubspec_reader_tool_impl(rctx):
+    """Implementation of `pubspec_reader_tool`, exposed so a test can run it.
+
+    Args:
+        rctx: The `repository_ctx`.
+
+    Returns:
+        Metadata saying whether the repository may be shared between machines.
+    """
     platform = rctx.attr.platform
     host = host_platform(rctx.os)
     if host != platform:
@@ -209,7 +223,10 @@ dart_sdk_error(
     visibility = ["//visibility:public"],
 )
 """.format(exe = _executable(platform), message = json.encode(message)))
-        return rctx.repo_metadata(reproducible = bool(host))
+
+        # True of this machine only: the real reader has this rule and these
+        # attributes too.
+        return rctx.repo_metadata(reproducible = False)
     packages = []
     for label, name in rctx.attr.packages.items():
         packages.append({
@@ -230,11 +247,15 @@ dart_sdk_error(
         fail(compiled.error)
     rctx.file("BUILD.bazel", 'exports_files(["{}"])\n'.format(exe))
 
+    # It names this output base, and the binary no longer needs it.
+    rctx.delete("package_config.json")
+
     # The project's SDK may be this machine's own build.
     return rctx.repo_metadata(reproducible = not rctx.attr.project_sdk)
 
 pubspec_reader_tool = repository_rule(
-    implementation = _reader_tool_impl,
+    implementation = pubspec_reader_tool_impl,
+    configure = True,
     attrs = {
         "platform": attr.string(
             doc = "The host platform this reader is built for and on.",

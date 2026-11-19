@@ -3051,7 +3051,11 @@ here downloads no other SDK. One that chooses its SDK only with the flag below,
 or a machine that can't use the chosen SDK, downloads the `dart` release too. To
 supply that release without network access, fetch once where there is access and
 carry the result over, with `bazel vendor` and `--vendor_dir`, or put the archive
-named by the error in a `--distdir` directory.
+named by the error in a `--distdir` directory. An untargeted `bazel vendor` takes
+every host's SDK, so the directory serves another operating system too: what
+depends on the machine, its pubspec reader and toolchains, is left out and made
+there from what was vendored. Vendor on a machine that has a Dart SDK, since
+without one no pubspec can be read.
 
 ### Saying which SDK the build uses
 

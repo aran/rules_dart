@@ -18,6 +18,7 @@ load("//dart:repositories.bzl", "dart_cross_tools_attrs", "dart_sdk_repo_attrs")
 load("//dart/private:sdk_fetch.bzl", "dart_fetched_files_impl")
 load("//dart/private:toolchains_repo.bzl", "CROSS_TARGETS", "PLATFORMS", "cross_pair", "toolchains_repo_impl")
 load("//dart/private:versions.bzl", "CROSS_TOOL_VERSIONS", "TOOL_VERSIONS")
+load("//dart/pub/private/pubspec_reader:reader.bzl", "pubspec_reader_tool_impl")
 load(":small_suite.bzl", "small_unittest_suite")
 
 def _context(**attrs):
@@ -81,9 +82,64 @@ def _toolchains_are_reproducible_test_impl(ctx):
     asserts.true(env, metadata and metadata.reproducible, "toolchains repository")
     return unittest.end(env)
 
+def _reader_context(os_name, arch, written, deleted, platform = "linux-x64", project_sdk = ""):
+    """A `repository_ctx` for the pubspec reader of `platform`, on the given host."""
+
+    def write(path, content = "", **_):
+        written[path] = content
+
+    return struct(
+        attr = struct(
+            platform = platform,
+            dart = "dart",
+            project_dart = "fork_dart" if project_sdk else None,
+            project_sdk = project_sdk,
+            packages = {"yaml_pubspec": "yaml"},
+            src = "src",
+        ),
+        delete = deleted.append,
+        execute = lambda *_args, **_kwargs: struct(return_code = 0, stdout = "", stderr = ""),
+        file = write,
+        original_name = "pubspec_reader-" + platform,
+        os = struct(name = os_name, arch = arch),
+        path = lambda _: struct(dirname = struct(realpath = "/output_base/external/yaml"), exists = True),
+        read = lambda _: "",
+        repo_metadata = lambda reproducible: struct(reproducible = reproducible),
+    )
+
+def _a_stand_in_reader_is_not_shared_test_impl(ctx):
+    env = unittest.begin(ctx)
+
+    # The real reader has this rule and these attributes: a cache keyed by them
+    # must never give it to a machine in place of the stand-in's, or back.
+    for os_name, arch in [("mac os x", "aarch64"), ("windows 11", "amd64"), ("freebsd", "amd64"), ("linux", "riscv64")]:
+        written = {}
+        metadata = pubspec_reader_tool_impl(_reader_context(os_name, arch, written, []))
+        asserts.false(env, metadata.reproducible, "reader for linux-x64 on %s %s" % (os_name, arch))
+        asserts.true(env, "dart_sdk_error" in written["BUILD.bazel"], written["BUILD.bazel"])
+    return unittest.end(env)
+
+def _the_real_reader_is_shared_test_impl(ctx):
+    env = unittest.begin(ctx)
+    written = {}
+    deleted = []
+    metadata = pubspec_reader_tool_impl(_reader_context("linux", "amd64", written, deleted))
+    asserts.true(env, metadata.reproducible, "the reader of the release, on its own platform")
+    asserts.equals(env, 'exports_files(["pubspec_reader"])\n', written["BUILD.bazel"])
+
+    # What would tie the shared copy to this output base is gone.
+    asserts.equals(env, ["package_config.json"], deleted)
+
+    # The project's SDK may be this machine's own build.
+    metadata = pubspec_reader_tool_impl(_reader_context("linux", "amd64", {}, [], project_sdk = "fork"))
+    asserts.false(env, metadata.reproducible, "the reader of a project's own SDK")
+    return unittest.end(env)
+
 _t0_test = unittest.make(_sdk_is_reproducible_test_impl)
 _t1_test = unittest.make(_cross_tools_are_reproducible_test_impl)
 _t2_test = unittest.make(_toolchains_are_reproducible_test_impl)
+_t3_test = unittest.make(_a_stand_in_reader_is_not_shared_test_impl)
+_t4_test = unittest.make(_the_real_reader_is_shared_test_impl)
 
 def repositories_reproducible_test_suite(name):
-    small_unittest_suite(name, _t0_test, _t1_test, _t2_test)
+    small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test, _t4_test)

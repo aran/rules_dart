@@ -645,6 +645,8 @@ dart_host_toolchains = repository_rule(
     _dart_host_toolchains_impl,
     doc = "The toolchains that depend on the machine Bazel runs on: see `host_toolchains_build_content`. Apart from `toolchains_repo`, whose contents depend on no host.",
     attrs = _SDKS_ATTRS,
+    # Each machine makes its own: `bazel vendor` must not freeze one machine's.
+    configure = True,
 )
 
 toolchains_repo = repository_rule(

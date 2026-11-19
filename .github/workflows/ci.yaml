@@ -1117,6 +1117,11 @@ jobs:
             echo "ERROR: bazel vendor took the repositories of a checkout"
             exit 1
           fi
+          # What depends on the machine is made by whichever uses the directory.
+          if compgen -G "$vendor/*+dart_host_toolchains" > /dev/null || compgen -G "$vendor/*+pubspec_reader-*" > /dev/null; then
+            echo "ERROR: bazel vendor froze this machine's toolchains or pubspec reader"
+            exit 1
+          fi
           compgen -G "$vendor/*+no_host_macos-x64" > /dev/null
           bazel build --vendor_dir=$vendor --@rules_dart//dart:sdk=dart //:value_test
           if out=$(bazel build --vendor_dir=$vendor --@rules_dart//dart:sdk=no_path //:value_test 2>&1); then
