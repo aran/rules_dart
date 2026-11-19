@@ -96,7 +96,7 @@ The release: `3.15.0`, or a beta or dev channel's `3.15.0-1.2.beta`.
 """, mandatory = True),
         "sdk_sha256": attr.string_dict(doc = """\
 The SHA-256 of each host's SDK archive, by host: `macos-arm64`, `macos-x64`,
-`linux-x64`, `linux-arm64`, `windows-x64`.
+`linux-x64`, `linux-arm64`, `windows-x64`, `windows-arm64`.
 """),
         "source_sha256": attr.string(doc = """\
 The SHA-256 of the GitHub source archive of the release's tag, from which the

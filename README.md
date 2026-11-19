@@ -3038,9 +3038,8 @@ Declaring an SDK fetches nothing: Bazel fetches it only when a build uses it. So
 you can declare a checkout in the `MODULE.bazel` you commit, though only some
 machines have one. What a machine can't use fails only the build that uses it,
 saying what is wrong and the fix; `bazel fetch --all` and `bazel vendor` still
-succeed there. That holds on a machine with no Dart SDK at all, such as Windows on
-Arm or Linux on RISC-V, where every build needing Dart fails, saying so. `bazel
-vendor` leaves out a checkout's repositories, which hold paths on one machine.
+succeed there. That holds on a machine with no Dart SDK at all, such as Linux on
+RISC-V, where every build needing Dart fails, saying so. `bazel vendor` leaves out a checkout's repositories, which hold paths on one machine.
 
 A workspace with pub packages also needs one Dart SDK while Bazel fetches, before
 any build has chosen one: rules_dart reads each pubspec with a small program of
