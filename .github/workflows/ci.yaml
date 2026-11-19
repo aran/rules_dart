@@ -503,7 +503,7 @@ jobs:
         working-directory: e2e/failures/pub_lock_refused
         run: |
           if out=$(bazel build @one//:meta 2>&1); then
-            echo "ERROR: build should have refused path's and meta's missing sha256, foo's abbreviated resolved-ref, the locks' disagreements on tuple, bar and baz, and the declaration of runfiles"
+            echo "ERROR: build should have refused path's and meta's missing sha256, foo's abbreviated resolved-ref, the locks' disagreements on tuple, bar, baz, from_path and from_path_git, and the declaration of runfiles"
             exit 1
           fi
           echo "$out" | grep -qF 'No sha256 is pinned for pub package "path"'
@@ -513,6 +513,10 @@ jobs:
           echo "$out" | grep -qF 'Package "tuple" 2.0.2 has conflicting sha256 digests'
           echo "$out" | grep -qF 'Git package "bar" is locked differently across lock files'
           echo "$out" | grep -qF 'Package "baz" is a git package in'
+          echo "$out" | grep -qF 'Package "from_path" is built from @@//from_path by the lock'
+          echo "$out" | grep -qF 'lists it as a hosted package'
+          echo "$out" | grep -qF 'Package "from_path_git" is built from @@//from_path_git by the lock'
+          echo "$out" | grep -qF 'lists it as a git package'
           echo "$out" | grep -qF '(in the root module) names a package rules_dart publishes'
           echo "$out" | grep -qF '@rules_dart//dart/runfiles'
           echo "OK: every refusal named in one failure"

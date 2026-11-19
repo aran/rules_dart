@@ -27,6 +27,20 @@ packages:
       url: "https://example.invalid/foo.git"
     source: git
     version: "1.0.0"
+  from_path:
+    dependency: "direct main"
+    description:
+      path: from_path
+      relative: true
+    source: path
+    version: "1.0.0"
+  from_path_git:
+    dependency: "direct main"
+    description:
+      path: from_path_git
+      relative: true
+    source: path
+    version: "1.0.0"
   meta:
     dependency: "direct main"
     description:

@@ -17,6 +17,23 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.0"
+  from_path:
+    dependency: "direct main"
+    description:
+      name: from_path
+      sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.0"
+  from_path_git:
+    dependency: "direct main"
+    description:
+      path: "."
+      ref: main
+      resolved-ref: 0123456789abcdef0123456789abcdef01234567
+      url: "https://example.invalid/from_path_git.git"
+    source: git
+    version: "1.0.0"
   tuple:
     dependency: "direct main"
     description:

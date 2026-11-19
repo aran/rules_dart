@@ -22,6 +22,8 @@ register_toolchains("@dart_toolchains//:all")
 #   - `tuple`, at one version with a different digest in each lock;
 #   - `bar`, a git package the locks pin at different commits;
 #   - `baz`, git in one.lock and hosted in two.lock;
+#   - `from_path` and `from_path_git`, built from their directories by one.lock
+#     and hosted and git in two.lock;
 #   - `runfiles`, declared though rules_dart publishes it and would serve its own.
 pub = use_extension("@rules_dart//dart/pub:extensions.bzl", "pub")
 pub.package(
@@ -36,6 +38,10 @@ pub.package(
 )
 pub.from_lock(
     name = "one",
+    build_from_pubspec = [
+        "from_path",
+        "from_path_git",
+    ],
     lock = "//:one.lock",
 )
 pub.from_lock(

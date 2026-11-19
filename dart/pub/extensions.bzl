@@ -450,14 +450,22 @@ def _pub_impl(ctx):
 
         for name, info in lock.packages.items():
             # One `resolve` maps is that target, however the lock lists it.
-            if name in resolved_targets or name in paths.built or name in paths.ignored:
+            if name in resolved_targets or name in paths.ignored:
                 hub_packages[hub_name][name] = True
                 continue
+
+            # One built from its pubspec is that directory, so a lock fetching
+            # it from elsewhere disagrees, and is read only to say so.
+            source = info["source"]
+            built = name in paths.built
+            if built:
+                hub_packages[hub_name][name] = True
+                if source not in ("git", "hosted"):
+                    continue
 
             # A `pub.package()` supplies a package the lock lists from a source
             # with no version to compare (git, sdk); a hosted entry is one more
             # request for it.
-            source = info["source"]
             if name in declared and source != "hosted":
                 hub_packages[hub_name][name] = True
                 continue
@@ -482,6 +490,8 @@ def _pub_impl(ctx):
             if not entry:
                 continue
             lock_entries.setdefault(name, []).append(entry)
+            if built:
+                continue
             if source == "git":
                 git_registry.setdefault(name, entry)
                 continue
