@@ -123,6 +123,10 @@ func (d *dartLang) generateDartRules(args language.GenerateArgs) language.Genera
 
 	for _, f := range testFiles {
 		name := strings.TrimSuffix(f.Path, ".dart")
+		isHelper := func(main string) bool { _, ok := helpers[main]; return ok }
+		if mainSetByHand(args.File, "dart_test", name, f.Path, isHelper) {
+			continue
+		}
 		r := rule.NewRule("dart_test", name)
 		r.SetAttr("main", f.Path)
 		srcs, files := d.testHelpers(args, f)
@@ -228,6 +232,9 @@ func (d *dartLang) binaryRules(args language.GenerateArgs, root string, files []
 			continue
 		}
 		r, is := d.programRule(args, root, f, byPath, reached)
+		if mainSetByHand(args.File, "dart_binary", r.Name(), f.Path, isPartOf(files)) {
+			continue
+		}
 		gen = append(gen, r)
 		imports = append(imports, is)
 	}
@@ -321,6 +328,33 @@ func unreachedPartError(file, kind string) string {
 		"exclude it with `# gazelle:exclude`", file, kind)
 }
 
+// mainSetByHand reports whether the BUILD file f has a rule of this kind and
+// name whose main is not file: someone gave the name to another program, so
+// Gazelle generates nothing for file under it, as merging would overwrite that
+// main. A main that stale says Gazelle replaces does not count.
+func mainSetByHand(f *rule.File, kind, name, file string, stale func(string) bool) bool {
+	if f == nil {
+		return false
+	}
+	for _, r := range f.Rules {
+		if r.Kind() != kind || r.Name() != name || r.Attr("main") == nil {
+			continue
+		}
+		main := r.AttrString("main")
+		return main != file && !stale(main)
+	}
+	return false
+}
+
+// isPartOf says whether a path is that of one of files that is a part.
+func isPartOf(files []DartFileInfo) func(string) bool {
+	parts := map[string]bool{}
+	for _, file := range files {
+		parts[file.Path] = file.IsPart
+	}
+	return func(p string) bool { return parts[p] }
+}
+
 // partBinaries returns an empty-rule marker for each existing dart_binary
 // whose main is one of files that is a part, which earlier Gazelle versions
 // wrote: a part cannot be compiled alone. `# keep` keeps one.
@@ -328,13 +362,10 @@ func partBinaries(f *rule.File, files []DartFileInfo) []*rule.Rule {
 	if f == nil {
 		return nil
 	}
-	parts := map[string]bool{}
-	for _, file := range files {
-		parts[file.Path] = file.IsPart
-	}
+	isPart := isPartOf(files)
 	var empty []*rule.Rule
 	for _, r := range f.Rules {
-		if r.Kind() == "dart_binary" && parts[r.AttrString("main")] && !r.ShouldKeep() {
+		if r.Kind() == "dart_binary" && isPart(r.AttrString("main")) && !r.ShouldKeep() {
 			empty = append(empty, rule.NewRule("dart_binary", r.Name()))
 		}
 	}
@@ -360,6 +391,9 @@ func (d *dartLang) scriptRules(args language.GenerateArgs, root string, files []
 			continue
 		}
 		r, is := d.programRule(args, root, f, byPath, reached)
+		if mainSetByHand(args.File, "dart_binary", r.Name(), f.Path, isPartOf(files)) {
+			continue
+		}
 		if ruleNamed(taken, r.Name()) != nil {
 			d.errs.add(fmt.Sprintf(
 				"dart: %s: its `dart_binary` would be named %q, as the package's "+

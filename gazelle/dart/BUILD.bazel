@@ -51,6 +51,7 @@ go_test(
         "dag_test.go",
         "external_test.go",
         "generate_test.go",
+        "merge_test.go",
         "metadata_test.go",
         "package_root_test.go",
         "package_scan_test.go",
@@ -60,4 +61,5 @@ go_test(
         "test_tags_test.go",
     ],
     embed = [":dart"],
+    deps = ["@bazel_gazelle//merger:go_default_library"],
 )
