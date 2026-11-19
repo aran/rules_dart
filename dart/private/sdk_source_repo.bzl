@@ -7,13 +7,14 @@ Bazel's repository contents cache: the bytes of a release's source are in the
 repository `dart_source_packages` makes (`sdk_fetch.bzl`), which loads nothing.
 """
 
+load("//dart/private:toolchain_selection.bzl", "edge_commit")
 load("//dart/private:toolchains_repo.bzl", "SDK_ERROR_LOAD", "sdk_tool_error_target")
 load("//dart/pub:pubspec.bzl", "read_pubspec")
 
 visibility("//dart/...")
 
 def dart_source_archive_url(version):
-    """The GitHub source archive of a Dart SDK release's tag.
+    """The GitHub source archive of a Dart SDK release's tag, or a main-channel build's commit.
 
     Args:
         version: The release.
@@ -21,7 +22,21 @@ def dart_source_archive_url(version):
     Returns:
         The URL.
     """
+    commit = edge_commit(version)
+    if commit:
+        return "https://github.com/dart-lang/sdk/archive/%s.tar.gz" % commit
     return "https://github.com/dart-lang/sdk/archive/refs/tags/%s.tar.gz" % version
+
+def dart_source_archive_prefix(version):
+    """The directory `dart_source_archive_url`'s archive holds the source in.
+
+    Args:
+        version: The release.
+
+    Returns:
+        The directory's name.
+    """
+    return "sdk-" + (edge_commit(version) or version)
 
 # Each tool built on an SDK's own source: the SDK packages it is built on, with
 # the one they share. Those packages' other dependencies come from

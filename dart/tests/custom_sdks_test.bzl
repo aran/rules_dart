@@ -1,12 +1,16 @@
 """Unit tests for the tags declaring Dart SDKs, and the toolchains generated for them."""
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts", "unittest")
+load("//dart:repositories.bzl", "dart_cross_tools_attrs", "dart_sdk_repo_attrs")
 
 # buildifier: disable=bzl-visibility
 load("//dart/private:custom_sdks.bzl", "custom_sdks", "sdk_name_error")
 
 # buildifier: disable=bzl-visibility
-load("//dart/private:toolchain_selection.bzl", "MINIMUM_SDK_VERSION", "aot_snapshot_needs_runtime", "newest_version", "sdk_too_old_error")
+load("//dart/private:sdk_source_repo.bzl", "dart_source_archive_prefix", "dart_source_archive_url")
+
+# buildifier: disable=bzl-visibility
+load("//dart/private:toolchain_selection.bzl", "MINIMUM_SDK_VERSION", "aot_snapshot_needs_runtime", "is_published_version", "newest_version", "parse_version_or_none", "sdk_too_old_error")
 
 # buildifier: disable=bzl-visibility
 load("//dart/private:toolchains_repo.bzl", "CROSS_TARGETS", "PLATFORMS", "cross_pair", "host_toolchains_build_content", "toolchains_build_content")
@@ -322,6 +326,58 @@ def _aot_snapshot_runtime_follows_the_version_test_impl(ctx):
         asserts.equals(env, version == "3.15.0-1.0.beta", aot_snapshot_needs_runtime(version), version)
     return unittest.end(env)
 
+_EDGE_COMMIT = "5016166518df602cf8cfb867af5902839f6c21b7"
+_EDGE = "3.15.0-edge." + _EDGE_COMMIT
+
+def _a_release_must_be_one_the_archive_can_have_test_impl(ctx):
+    env = unittest.begin(ctx)
+    for version in ["3.14.1", "3.15.0-1.2.beta", "3.15.0-148.0.dev", _EDGE]:
+        asserts.equals(env, None, _plan(_module(release = [_release(dart_version = version)])).error, version)
+    for version in [
+        "3",
+        "3.14",
+        "3.14.1.0",
+        "03.14.1",
+        "3.14.1-",
+        "3.14.1-1..dev",
+        "3.15.0-1.2.alpha",
+        "3.15.0-148.dev",
+        "3.15.0-edge",
+        "3.15.0-edge.abc",
+        "3.14.1+1",
+        "latest",
+    ]:
+        _refused(env, _plan(_module(release = [_release(dart_version = version)])), "`dart_version` " + version, "3.15.0-edge.<commit>")
+    return unittest.end(env)
+
+def _a_version_has_three_numbers_test_impl(ctx):
+    env = unittest.begin(ctx)
+    for version in ["3", "3.14", "3.14.1.0", "", "3.14.", "3.14.1-", "3.14.1+", "3.14.1-a..b", "3.14.1-a_b"]:
+        asserts.equals(env, None, parse_version_or_none(version), version)
+    for version in ["3.14.1", "3.15.0-edge", "3.15.0-edge.abc", "3.15.0-1.2.beta", "3.14.1+build.1"]:
+        asserts.true(env, parse_version_or_none(version) != None, version)
+
+    # A version file may say what no archive holds; a release tag may not.
+    asserts.false(env, is_published_version("3.15.0-edge"))
+    return unittest.end(env)
+
+def _a_main_channel_build_is_fetched_by_its_commit_test_impl(ctx):
+    env = unittest.begin(ctx)
+    base = "https://storage.googleapis.com/dart-archive/channels/main/raw/hash/%s/sdk/" % _EDGE_COMMIT
+    asserts.equals(env, base + "dartsdk-linux-x64-release.zip", dart_sdk_repo_attrs(_EDGE, "linux-x64", "0" * 64)["url"])
+    tools = dart_cross_tools_attrs(_EDGE, "linux-x64", "linux-arm64", gen_snapshot_sha256 = "0" * 64)
+    asserts.equals(env, [base + "gen_snapshot_linux_x64_linux_arm64"], tools["urls"].values())
+    asserts.equals(env, "https://github.com/dart-lang/sdk/archive/%s.tar.gz" % _EDGE_COMMIT, dart_source_archive_url(_EDGE))
+    asserts.equals(env, "sdk-" + _EDGE_COMMIT, dart_source_archive_prefix(_EDGE))
+
+    # A release keeps its tag.
+    asserts.equals(env, "https://github.com/dart-lang/sdk/archive/refs/tags/3.14.1.tar.gz", dart_source_archive_url("3.14.1"))
+    asserts.equals(env, "sdk-3.14.1", dart_source_archive_prefix("3.14.1"))
+    return unittest.end(env)
+
+_published_test = unittest.make(_a_release_must_be_one_the_archive_can_have_test_impl)
+_three_numbers_test = unittest.make(_a_version_has_three_numbers_test_impl)
+_edge_urls_test = unittest.make(_a_main_channel_build_is_fetched_by_its_commit_test_impl)
 _lacks_test = unittest.make(_what_an_sdk_lacks_fails_when_used_test_impl)
 _checkout_host_test = unittest.make(_a_checkout_serves_only_this_machine_test_impl)
 _toolchain_names_test = unittest.make(_toolchain_names_are_checked_test_impl)
@@ -352,4 +408,4 @@ def custom_sdks_test_suite(name):
         size = "small",
         target_under_test = "@unsupported_host_toolchains//:unsupported_host",
     )
-    small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test, _t4_test, _t5_test, _t6_test, _t7_test, _t8_test, _t9_test, _minimum_test, _lacks_test, _checkout_host_test, _toolchain_names_test, _aot_runtime_test)
+    small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test, _t4_test, _t5_test, _t6_test, _t7_test, _t8_test, _t9_test, _minimum_test, _lacks_test, _checkout_host_test, _toolchain_names_test, _aot_runtime_test, _published_test, _three_numbers_test, _edge_urls_test)

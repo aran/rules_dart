@@ -19,13 +19,14 @@ load("//dart/private:local_sdk.bzl", "CROSS_TOOLS_PLACEHOLDER", "VERSION_PLACEHO
 load("//dart/private:sdk_fetch.bzl", "SOURCE_PACKAGES_LOAD", "dart_fetched_files", "dart_source_packages")
 load(
     "//dart/private:sdk_source_repo.bzl",
+    "dart_source_archive_prefix",
     "dart_source_archive_url",
     "source_tool_packages",
     "source_tool_target",
     _fetch_dart_analyzer_source = "fetch_dart_analyzer_source",
     _fetch_dart_kernel_source = "fetch_dart_kernel_source",
 )
-load("//dart/private:toolchain_selection.bzl", "unserved_release_error")
+load("//dart/private:toolchain_selection.bzl", "edge_commit", "unserved_release_error")
 load("//dart/private:toolchains_repo.bzl", "CROSS_TARGETS", "PLATFORMS", "SDK_CACHE_DIR", "SDK_ERROR_LOAD", "TARGET_PLATFORMS", "cross_pair", "cross_tool_files", "dart_bin", "sdk_tool_error_target")
 load("//dart/private:versions.bzl", "CROSS_TOOL_VERSIONS", "SOURCE_VERSIONS", "TOOL_VERSIONS")
 
@@ -82,6 +83,9 @@ package_metadata(
 
 def _archive_base_url(version):
     """Where the Dart archive keeps a release's files; the channel is in the version's suffix."""
+    commit = edge_commit(version)
+    if commit:
+        return "https://storage.googleapis.com/dart-archive/channels/main/raw/hash/%s/sdk/" % commit
     channel = "stable"
     if version.endswith(".beta"):
         channel = "beta"
@@ -394,7 +398,7 @@ def _dart_source_tool_repositories(rule, tool, name, dart_version, sha256, path)
         name = files,
         url = url,
         sha256 = sha256,
-        strip_prefix = "sdk-" + dart_version,
+        strip_prefix = dart_source_archive_prefix(dart_version),
         packages = source_tool_packages(tool),
     )
     source = "@%s//:BUILD.bazel" % files

@@ -1,6 +1,6 @@
 """Which SDKs the root module declares besides `dart.toolchain`'s, and which the build uses."""
 
-load(":toolchain_selection.bzl", "parse_version_or_none")
+load(":toolchain_selection.bzl", "is_published_version")
 load(":toolchains_repo.bzl", "PLATFORMS", "cross_tool_basenames")
 
 visibility("//dart/...")
@@ -46,8 +46,9 @@ def _check_cross_tools(declared, attribute, keys):
     return None
 
 def _check_release(tag, declared):
-    if parse_version_or_none(tag.dart_version) == None:
-        return "{} gives `dart_version` {}, which is no Dart SDK version: expected one like 3.14.1 or 3.15.0-1.2.beta.".format(
+    if not is_published_version(tag.dart_version):
+        return ("{} gives `dart_version` {}, which no published Dart SDK has. Name it in full: " +
+                "3.14.1, 3.15.0-1.2.beta, 3.15.0-148.0.dev or 3.15.0-edge.<commit>.").format(
             declared,
             tag.dart_version,
         )

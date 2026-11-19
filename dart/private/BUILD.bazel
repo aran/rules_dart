@@ -581,6 +581,7 @@ bzl_library(
     srcs = ["sdk_source_repo.bzl"],
     visibility = ["//dart:__subpackages__"],
     deps = [
+        ":toolchain_selection",
         ":toolchains_repo",
         "//dart/pub:pubspec",
     ],

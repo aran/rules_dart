@@ -7,8 +7,23 @@ visibility("//dart/...")
 # language version. Raise it when that dependency's language version rises.
 MINIMUM_SDK_VERSION = "3.13.0"
 
+_IDENTIFIER_CHARACTERS = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-"
+
+_COMMIT_CHARACTERS = "0123456789abcdef"
+
+def _is_number(text):
+    return text.isdigit() and (text == "0" or text[0] != "0")
+
+def _are_identifiers(text):
+    return all([
+        part and not [c for c in part.elems() if c not in _IDENTIFIER_CHARACTERS]
+        for part in text.split(".")
+    ])
+
 def parse_version_or_none(v):
     """A sort key for a version, in semver's order: `3.15.0-1.0.dev` < `3.15.0-2.0.beta` < `3.15.0`.
+
+    A version has all three numbers: `3.14` and `3` name no SDK.
 
     Args:
       v: The version.
@@ -16,10 +31,12 @@ def parse_version_or_none(v):
     Returns:
       The key, or None when `v` is no version.
     """
-    core = v.partition("+")[0]
+    core, plus, build = v.partition("+")
     release, dash, prerelease = core.partition("-")
     numbers = release.split(".")
-    if not all([n.isdigit() for n in numbers]):
+    if len(numbers) != 3 or not all([_is_number(n) for n in numbers]):
+        return None
+    if (dash and not _are_identifiers(prerelease)) or (plus and not _are_identifiers(build)):
         return None
 
     # Numeric identifiers sort below the others, by value.
@@ -28,6 +45,41 @@ def parse_version_or_none(v):
         for p in prerelease.split(".")
     ] if dash else []
     return ([int(n) for n in numbers], 0 if dash else 1, identifiers)
+
+def edge_commit(version):
+    """The commit a main-channel build is of, which its version ends with.
+
+    Args:
+      version: The SDK's version.
+
+    Returns:
+      The commit for `<release>-edge.<40 hex digits>`, else None.
+    """
+    parts = version.partition("-")[2].split(".")
+    if len(parts) != 2 or parts[0] != "edge" or len(parts[1]) != 40:
+        return None
+    return parts[1] if not [c for c in parts[1].elems() if c not in _COMMIT_CHARACTERS] else None
+
+def is_published_version(version):
+    """Whether the Dart archive names a build this way.
+
+    Args:
+      version: The version.
+
+    Returns:
+      True for a stable release `3.14.1`, a beta or dev build `3.15.0-1.2.beta`
+      or `3.15.0-148.0.dev`, and a main-channel build
+      `3.15.0-edge.<commit>`.
+    """
+    if parse_version_or_none(version) == None or "+" in version:
+        return False
+    prerelease = version.partition("-")[2]
+    if not prerelease:
+        return True
+    parts = prerelease.split(".")
+    if len(parts) == 3 and parts[2] in ("beta", "dev"):
+        return _is_number(parts[0]) and _is_number(parts[1])
+    return edge_commit(version) != None
 
 # The first Dart SDK whose `dart compile aot-snapshot` for another platform does
 # not ask for the target's `dartaotruntime` (dart-lang/sdk 3ebf2405d3c). An

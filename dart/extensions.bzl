@@ -35,7 +35,7 @@ builds using it.
 
 load("//dart/private:custom_sdks.bzl", "custom_sdks", "sdk_name_error")
 load("//dart/private:local_sdk.bzl", "dart_checkout_cross_sdk", "dart_checkout_sdk", "dart_checkout_sdk_tools", "dart_local_cross_sdk", "dart_local_sdk", "dart_local_sdk_tools")
-load("//dart/private:toolchain_selection.bzl", "named_toolchain_requests", "newest_version", "sdk_too_old_error", "select_toolchain_version", "servable_release")
+load("//dart/private:toolchain_selection.bzl", "named_toolchain_requests", "newest_version", "parse_version_or_none", "sdk_too_old_error", "select_toolchain_version", "servable_release")
 load("//dart/private:toolchains_repo.bzl", "CROSS_TARGETS", "DEFAULT_SDK_NAME", "PLATFORMS", "cross_pair", "cross_tool_files", "dart_bin", "dart_host_toolchains", "toolchains_repo")
 load("//dart/private:versions.bzl", "TOOL_VERSIONS")
 load("//dart/pub/private/pubspec_reader:reader.bzl", "pubspec_reader_repositories")
@@ -92,7 +92,8 @@ that runs the outline stripper or the summary analyzer. The Dart archive publish
     attrs = {
         "name": attr.string(doc = _SDK_NAME_DOC, mandatory = True),
         "dart_version": attr.string(doc = """\
-The release: `3.15.0`, or a beta or dev channel's `3.15.0-1.2.beta`.
+The release, in full: `3.15.0`, a beta or dev build's `3.15.0-1.2.beta` or
+`3.15.0-148.0.dev`, or a main-channel build's `3.15.0-edge.<commit>`.
 """, mandatory = True),
         "sdk_sha256": attr.string_dict(doc = """\
 The SHA-256 of each host's SDK archive, by host: `macos-arm64`, `macos-x64`,
@@ -301,6 +302,8 @@ def _toolchain_extension(module_ctx):
             name_error = sdk_name_error(toolchain.name, 'dart.toolchain(name = "%s")' % toolchain.name)
             if name_error:
                 fail(name_error)
+            if parse_version_or_none(toolchain.dart_version) == None:
+                fail('dart.toolchain(dart_version = "{}") in module {} is no Dart SDK version: name it in full, like 3.14.1.'.format(toolchain.dart_version, mod.name))
             if toolchain.name not in registrations.keys():
                 registrations[toolchain.name] = []
             registrations[toolchain.name].append(struct(
