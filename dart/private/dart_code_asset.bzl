@@ -12,15 +12,16 @@ Two-tier usage: a native-asset-owning package can ship a target exposing
 `//dart/ext/<package>` (see `//dart/ext/sqlite3`).
 
 `DartCodeAssetInfo` carries what upstream's `CodeAsset` carries — id, link
-mode, and the library — and what the library was linked from, which only the
-build knows: from the action that linked it, or from `DartLinkInputsInfo` when
-`file` states it. Bundling concerns (where the file lands inside an application,
+mode, and the library — and what only the build knows: what the library was
+linked from and its dSYM, from the action that wrote it, or from
+`DartLinkInputsInfo` and `DartDsymInfo` when `file` states them. Bundling
+concerns (where the file lands inside an application,
 what it is renamed to) belong to the consumer; rules_flutter layers those on
 top of this provider rather than rules_dart guessing at them.
 """
 
 load("@rules_cc//cc/common:cc_shared_library_info.bzl", "CcSharedLibraryInfo")
-load("//dart:providers.bzl", "CODE_ASSET_LINK_MODES", "DartCodeAssetInfo", "DartLinkInputsInfo")
+load("//dart:providers.bzl", "CODE_ASSET_LINK_MODES", "DartCodeAssetInfo", "DartDsymInfo", "DartLinkInputsInfo")
 load("//dart/private:runtime.bzl", "non_dart_transition")
 
 visibility("//dart/...")
@@ -42,10 +43,7 @@ _LINK_MNEMONICS = ["CppLink", "ObjcLink"]
 
 _RUSTC_UNKNOWN = ("wrote it with a `Rustc` action, which links the crate from an object file it makes " +
                   "and deletes inside that action, so no input of the action is what the library was linked from")
-_RUSTC_ADVICE = ("Have `file` return DartLinkInputsInfo from a rule that holds the crate's object file, " +
-                 "or, to symbolicate Rust code on Apple platforms, use the dSYM the `Rustc` action writes " +
-                 "(the `dsym_folder` output group of the Rust target, with debug info on) " +
-                 "instead of running dsymutil on the library.")
+_RUSTC_ADVICE = "Have `file` return DartLinkInputsInfo from a rule that holds the crate's object file."
 
 _LibraryActionsInfo = provider(
     doc = """The actions of the target behind a `dart_code_asset`'s `file`, and \
@@ -53,6 +51,7 @@ what the targets behind it state and provide, when it is a `filegroup`.""",
     fields = {
         "actions": "list[Action]: The target's actions; behind a `filegroup`, those of the targets it wraps.",
         "stated": "list[tuple[Label, DartLinkInputsInfo]]: What the targets wrapped by a `filegroup` state, with their labels. Empty for any other rule, whose own statement `dart_code_asset` reads from the target itself.",
+        "stated_dsyms": "list[tuple[Label, DartDsymInfo]]: The dSYMs the targets wrapped by a `filegroup` state, as `stated` holds what they state of links.",
         "shared_libraries": "list[tuple[Label, CcSharedLibraryInfo, depset[File]]]: The targets with a `CcSharedLibraryInfo` wrapped by a `filegroup`, with their labels and every file each provides of its own: its files, its output groups and the files of its libraries. Empty for any other rule, which `dart_code_asset` reads `CcSharedLibraryInfo` from itself.",
     },
 )
@@ -74,24 +73,28 @@ def _own_files(target):
 
 def _library_actions_aspect_impl(target, ctx):
     if ctx.rule.kind != "filegroup":
-        return [_LibraryActionsInfo(actions = target.actions, stated = [], shared_libraries = [])]
+        return [_LibraryActionsInfo(actions = target.actions, stated = [], stated_dsyms = [], shared_libraries = [])]
 
     # A `filegroup` adds nothing to the files it names, so the link of a
     # library behind it is the link of the library: what the targets it wraps
     # own and say. Nothing else forwards.
     actions = []
     stated = []
+    stated_dsyms = []
     shared_libraries = []
     for src in ctx.rule.attr.srcs:
         if DartLinkInputsInfo in src:
             stated.append((src.label, src[DartLinkInputsInfo]))
+        if DartDsymInfo in src:
+            stated_dsyms.append((src.label, src[DartDsymInfo]))
         if CcSharedLibraryInfo in src:
             shared_libraries.append((src.label, src[CcSharedLibraryInfo], _own_files(src)))
         if _LibraryActionsInfo in src:
             actions.extend(src[_LibraryActionsInfo].actions)
             stated.extend(src[_LibraryActionsInfo].stated)
+            stated_dsyms.extend(src[_LibraryActionsInfo].stated_dsyms)
             shared_libraries.extend(src[_LibraryActionsInfo].shared_libraries)
-    return [_LibraryActionsInfo(actions = actions, stated = stated, shared_libraries = shared_libraries)]
+    return [_LibraryActionsInfo(actions = actions, stated = stated, stated_dsyms = stated_dsyms, shared_libraries = shared_libraries)]
 
 # Reads the link from the action itself: it alone says what a
 # `cc_shared_library` linked in, which is less than its `deps` reach when
@@ -158,6 +161,58 @@ def _stated_link_inputs(ctx, library_target, library):
 
 def _paths(inputs):
     return sorted([file.path for file in inputs.to_list()])
+
+def _stated_dsym(ctx, library_target, library):
+    """The dSYM `library_target` says is `library`'s, or None.
+
+    As `_stated_link_inputs` reads statements of what a library was linked from.
+    """
+    if DartDsymInfo in library_target:
+        stated = library_target[DartDsymInfo]
+        if stated.library != library:
+            fail(("dart_code_asset %s: DartDsymInfo of %s describes %s, " +
+                  "but `file` provides %s.") %
+                 (ctx.label, library_target.label, stated.library.short_path, library.short_path))
+        return stated.dsym
+    if _LibraryActionsInfo not in library_target:
+        return None
+
+    statements = {}
+    for label, stated in library_target[_LibraryActionsInfo].stated_dsyms:
+        if stated.library == library:
+            statements[label] = stated.dsym
+    if not statements:
+        return None
+    labels = sorted(statements)
+    first = statements[labels[0]]
+    for label in labels[1:]:
+        if statements[label] != first:
+            fail(("dart_code_asset %s: %s and %s both state the dSYM of %s, " +
+                  "and they disagree. Only one target should.") %
+                 (ctx.label, labels[0], label, library.short_path))
+    return first
+
+def _dsym_of(ctx, library_target, library, written):
+    """The dSYM of `library`, written as `written`, or None.
+
+    What `library_target` states in `DartDsymInfo`; failing that, the
+    `<name>.dSYM` directory written by the action that wrote the library. That
+    the one action wrote both is what makes it this library's dSYM, whatever
+    the rule behind it (rustc's and a C++ link's alike) and whatever output
+    group it is offered in: a dSYM merely forwarded beside a library may
+    describe another one.
+    """
+    stated = _stated_dsym(ctx, library_target, library)
+    if stated != None:
+        return stated
+    action = _writing_action(library_target, written)
+    if action == None:
+        return None
+    name = written.basename + ".dSYM"
+    for output in action.outputs.to_list():
+        if output.is_directory and output.basename == name:
+            return output
+    return None
 
 def _wrapped_shared_library(ctx, library_target):
     """The one `cc_shared_library` behind a `filegroup`, as a tuple of its `CcSharedLibraryInfo` and the files it provides, or None."""
@@ -236,8 +291,21 @@ def _linked_from(ctx, library_target, library, written):
         advice,
     )
 
+def _bound_library(ctx, library_target, library, written):
+    """What the build knows of `library`, written as `written`.
+
+    Returns:
+      A tuple of `library`, the depset of its link's inputs, why those are
+      unknown, and its dSYM.
+    """
+    inputs, reason = _linked_from(ctx, library_target, library, written)
+    dsym = _dsym_of(ctx, library_target, library, written)
+    if reason != None and dsym != None:
+        reason += " For debug symbols, use `dsym`, the library's dSYM, instead of running dsymutil."
+    return library, inputs, reason, dsym
+
 def _extract_dynamic_library(ctx, library_target):
-    """The dynamic-library File behind `file`, and what it was linked from.
+    """The dynamic-library File behind `file`, and what the build knows of it.
 
     From a `cc_shared_library`, or a `filegroup` wrapping exactly one and
     providing its library and nothing but its own files, read from
@@ -252,11 +320,11 @@ def _extract_dynamic_library(ctx, library_target):
     file was linked from nothing Bazel knows.
 
     Returns:
-      A tuple of the library `File`, the depset of its link's inputs, and why
-      those are unknown. The inputs are `None` and the reason is set when the
-      link is out of sight: a rule that is no `filegroup` forwards a library
-      another target wrote, as a platform transition does, or an action that
-      does not link wrote it, as a copy does.
+      A tuple of the library `File`, the depset of its link's inputs, why those
+      are unknown, and its dSYM or `None`. The inputs are `None` and the reason
+      is set when the link is out of sight: a rule that is no `filegroup`
+      forwards a library another target wrote, as a platform transition does,
+      or an action that does not link wrote it, as a copy does.
     """
     lib = None
     if CcSharedLibraryInfo in library_target:
@@ -269,8 +337,7 @@ def _extract_dynamic_library(ctx, library_target):
                 lib = candidate
     if lib != None:
         # `dynamic_library` may be a symlink to what the link wrote.
-        inputs, reason = _linked_from(ctx, library_target, lib.dynamic_library, lib.resolved_symlink_dynamic_library or lib.dynamic_library)
-        return lib.dynamic_library, inputs, reason
+        return _bound_library(ctx, library_target, lib.dynamic_library, lib.resolved_symlink_dynamic_library or lib.dynamic_library)
 
     files = library_target[DefaultInfo].files.to_list()
     if len(files) != 1:
@@ -284,8 +351,7 @@ def _extract_dynamic_library(ctx, library_target):
         fail(("dart_code_asset %s: `file` file %s is not a dynamic library " +
               "for the target platform, which loads %s files%s.") %
              (ctx.label, library.short_path, extension, " (%s)" % os if os else ""))
-    inputs, reason = _linked_from(ctx, library_target, library, library)
-    return library, inputs, reason
+    return _bound_library(ctx, library_target, library, library)
 
 def _dart_code_asset_impl(ctx):
     link_mode = ctx.attr.link_mode
@@ -305,6 +371,7 @@ def _dart_code_asset_impl(ctx):
     uri = ""
     link_inputs = depset()
     unset_reason = None
+    dsym = None
 
     if link_mode == "dynamic_loading_bundle":
         if ctx.attr.file == None:
@@ -313,7 +380,7 @@ def _dart_code_asset_impl(ctx):
         if ctx.attr.uri:
             fail(("dart_code_asset %s: `uri` is only valid with " +
                   "link_mode = \"dynamic_loading_system\".") % ctx.label)
-        file, link_inputs, unset_reason = _extract_dynamic_library(ctx, ctx.attr.file)
+        file, link_inputs, unset_reason, dsym = _extract_dynamic_library(ctx, ctx.attr.file)
     elif link_mode == "dynamic_loading_system":
         if not ctx.attr.uri:
             fail(("dart_code_asset %s: link_mode = \"dynamic_loading_system\" " +
@@ -341,6 +408,7 @@ def _dart_code_asset_impl(ctx):
             uri = uri,
             link_inputs = link_inputs,
             link_inputs_unset_reason = unset_reason,
+            dsym = dsym,
         ),
     ]
 
@@ -373,8 +441,9 @@ another expresses that here, and consumers see a single target.""",
             doc = """The dynamic library that backs this code asset: a `cc_shared_library`, or one \
 prebuilt library file (a checked-in or downloaded `.so`, `.dylib` or `.dll`, as \
 `cc_import.shared_library` takes it), whose extension must be the target platform's. A target \
-that provides `DartLinkInputsInfo` for the library says what it was linked from; otherwise that is \
-known only from the target that linked it, which may be behind a `filegroup`, nested ones included. \
+that provides `DartLinkInputsInfo` for the library says what it was linked from, and one that \
+provides `DartDsymInfo` says what its dSYM is; otherwise those are known only from the target that \
+wrote it, which may be behind a `filegroup`, nested ones included. \
 A `filegroup` stands for the `cc_shared_library` it wraps only when it provides that library and \
 nothing but the files that target provides itself; with other files, or an `output_group` without the \
 library, `file` must be one library file. Required for `dynamic_loading_bundle`; forbidden for the other link modes.""",

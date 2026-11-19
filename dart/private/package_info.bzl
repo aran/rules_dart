@@ -17,13 +17,25 @@ _LINK_INPUTS_UNSET_BY_DEFAULT = (
     "library with `dart_code_asset`, which reads them from the link."
 )
 
+def check_dsym(provider, dsym):
+    """Fails unless `dsym` is a `.dSYM` directory.
+
+    Args:
+      provider: The name of the provider being built, for the message.
+      dsym: The File.
+    """
+    if not dsym.is_directory or not dsym.basename.endswith(".dSYM"):
+        fail(("%s: `dsym` must be a `.dSYM` directory, as `ctx.actions.declare_directory` " +
+              "declares one, got %s.") % (provider, dsym.short_path))
+
 def _code_asset_init(
         asset_id,
         link_mode,
         file,
         uri,
         link_inputs = None,
-        link_inputs_unset_reason = None):
+        link_inputs_unset_reason = None,
+        dsym = None):
     # What the library was linked from is a fact stated one way: the files when
     # they are known, and otherwise the reason they are not. A rule that says
     # neither is a rule that did not think of it, which a consumer deserves to
@@ -37,6 +49,14 @@ def _code_asset_init(
               "Pass `link_inputs` when it is known, and the reason when it is not.") % asset_id)
     if link_inputs == None and link_inputs_unset_reason == None:
         link_inputs_unset_reason = "%s: %s" % (asset_id, _LINK_INPUTS_UNSET_BY_DEFAULT)
+
+    # A dSYM describes a library, so there is none without one.
+    if dsym != None:
+        if type(dsym) != "File":
+            fail("DartCodeAssetInfo: `dsym` must be a File or None, got %s." % type(dsym))
+        check_dsym("DartCodeAssetInfo", dsym)
+        if file == None:
+            fail("DartCodeAssetInfo %s: states `dsym` but has no `file` for it to describe." % asset_id)
     return {
         "asset_id": asset_id,
         "link_mode": link_mode,
@@ -44,6 +64,7 @@ def _code_asset_init(
         "uri": uri,
         "link_inputs": link_inputs,
         "link_inputs_unset_reason": link_inputs_unset_reason,
+        "dsym": dsym,
     }
 
 DartCodeAssetInfo, _raw_code_asset_info = provider(
@@ -59,7 +80,8 @@ package's `@Native` symbols against the Bazel-built library at runtime.
 A rule building one states `asset_id`, `link_mode`, `file` and `uri`, and \
 `link_inputs` when it knows what `file` was linked from, or \
 `link_inputs_unset_reason` when it does not. Stating neither leaves \
-`link_inputs` unset with a reason saying so; stating both fails.""",
+`link_inputs` unset with a reason saying so; stating both fails. It states \
+`dsym` when it has the dSYM of `file`.""",
     fields = {
         "asset_id": "str: The code-asset id the owning package declares (its `@ffi.DefaultAsset` / `@Native(assetId:)`), e.g. `package:sqlite3/src/ffi/libsqlite3.g.dart`.",
         "link_mode": "str: How the runtime loads the asset. One of `dynamic_loading_bundle`, `dynamic_loading_system`, `dynamic_loading_executable`, `dynamic_loading_process` — the upstream `code_assets` strings, verbatim.",
@@ -67,6 +89,7 @@ A rule building one states `asset_id`, `link_mode`, `file` and `uri`, and \
         "uri": "str: System library URI (e.g. `libsqlite3.so.0`) for `dynamic_loading_system`. Empty string otherwise.",
         "link_inputs": "depset[File] or None: What `file` was linked from, for an action that reads those files again, as `dsymutil` does: at least every object file and static archive of the link (the objects of a library with no archive too), and possibly the rest of its inputs, such as linker tools. From the C++ link action of the target `dart_code_asset` binds, or what that target states in `DartLinkInputsInfo`. Empty for a prebuilt library and when there is no `file`. `None` when it is not known: a rule that is no `filegroup` forwards a library another target wrote (a platform transition does, and the library is bound all the same), an action that does not link wrote it (a copy, or rustc, which makes the object file it links inside the action), or the rule that built this provider did not state it. A consumer that needs it tests for `None` and `fail()`s with `link_inputs_unset_reason`. Pass it to an action's `inputs` as it is: nothing is computed until then.",
         "link_inputs_unset_reason": "str or None: Why `link_inputs` is `None` and what to do about it; `None` when `link_inputs` is known. For a consumer that needs `link_inputs` to `fail()` with.",
+        "dsym": "File or None: The `.dSYM` directory of `file` on Apple platforms, made when `file` was and ready to use as it is. A consumer that wants debug symbols takes this when it is set and otherwise runs `dsymutil` over `link_inputs`. It is the only way to the line tables of a library whose object files are gone, as a `rust_shared_library`'s are. Set when the action that wrote `file` also wrote `<file's name>.dSYM` next to any other output (rustc does; so does a `cc_binary` link under `--apple_generate_dsym`), or when the target `dart_code_asset` binds states it in `DartDsymInfo`. `None` otherwise, including for a `cc_shared_library`, whose link writes none, and on other platforms. What it holds is what the build put there, which analysis cannot see: rustc leaves the directory empty unless the crate is compiled with debug information, as under `-c dbg`, so a consumer must accept an empty one.",
     },
 )
 

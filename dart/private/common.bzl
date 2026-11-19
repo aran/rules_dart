@@ -1866,7 +1866,7 @@ def stage_code_assets(ctx, assets, directory):
             links[library] = link
 
         # The link is a symlink of the library: what it was linked from, or
-        # that this is unknown, is as true of it.
+        # that this is unknown, and its dSYM are as true of it.
         staged.append(DartCodeAssetInfo(
             asset_id = asset.asset_id,
             link_mode = asset.link_mode,
@@ -1874,6 +1874,7 @@ def stage_code_assets(ctx, assets, directory):
             uri = asset.uri,
             link_inputs = asset.link_inputs,
             link_inputs_unset_reason = asset.link_inputs_unset_reason,
+            dsym = asset.dsym,
         ))
     return staged
 

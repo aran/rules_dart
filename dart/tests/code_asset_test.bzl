@@ -8,7 +8,7 @@ case here asserting both that it fires and what it says.
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts")
 load("@rules_cc//cc/common:cc_shared_library_info.bzl", "CcSharedLibraryInfo")
 load("//dart:defs.bzl", "dart_code_asset")
-load("//dart:providers.bzl", "DartCodeAssetInfo", "DartLinkInputsInfo")
+load("//dart:providers.bzl", "DartCodeAssetInfo", "DartDsymInfo", "DartLinkInputsInfo")
 load("//dart/private:common.bzl", "stage_code_assets")
 
 _ASSET_ID = "package:fixture/src/ffi/fixture.g.dart"
@@ -39,6 +39,14 @@ _stated_inputs_not_depset_test = _expect("`inputs` must be a depset of Files, go
 _asset_states_both_test = _expect("states both `link_inputs` and `link_inputs_unset_reason`")
 _asset_inputs_not_depset_test = _expect("`link_inputs` must be a depset of Files or None, got list")
 _asset_reason_not_string_test = _expect("`link_inputs_unset_reason` must be a string or None, got int")
+_asset_dsym_not_file_test = _expect("`dsym` must be a File or None, got string")
+_asset_dsym_not_directory_test = _expect("`dsym` must be a `.dSYM` directory")
+_asset_dsym_misnamed_test = _expect("`dsym` must be a `.dSYM` directory")
+_asset_dsym_without_file_test = _expect("states `dsym` but has no `file`")
+_stated_dsym_other_library_test = _expect("but `file` provides")
+_stated_dsym_library_not_file_test = _expect("DartDsymInfo: `library` must be a File, got string")
+_stated_dsym_not_directory_test = _expect("`dsym` must be a `.dSYM` directory")
+_disagreeing_dsyms_test = _expect("both state the dSYM of")
 
 def _expect_all_impl(ctx):
     env = analysistest.begin(ctx)
@@ -104,6 +112,7 @@ def _no_link_inputs_test_impl(ctx):
     info = analysistest.target_under_test(env)[DartCodeAssetInfo]
     asserts.equals(env, [], info.link_inputs.to_list())
     asserts.equals(env, None, info.link_inputs_unset_reason)
+    asserts.equals(env, None, info.dsym)
     return analysistest.end(env)
 
 _no_link_inputs_test = analysistest.make(_no_link_inputs_test_impl)
@@ -116,12 +125,54 @@ def _unknown_link_inputs_test_impl(ctx):
     asserts.true(env, type(reason) == "string" and reason, "no reason: %r" % reason)
     for words in ctx.attr.reason:
         asserts.true(env, words in reason, "%r is not in %r" % (words, reason))
+    for words in ctx.attr.not_in_reason:
+        asserts.false(env, words in reason, "%r is in %r" % (words, reason))
     return analysistest.end(env)
 
 _unknown_link_inputs_test = analysistest.make(
     _unknown_link_inputs_test_impl,
-    attrs = {"reason": attr.string_list()},
+    attrs = {
+        "reason": attr.string_list(),
+        "not_in_reason": attr.string_list(),
+    },
 )
+
+def _dsym_test_impl(ctx):
+    env = analysistest.begin(ctx)
+    info = analysistest.target_under_test(env)[DartCodeAssetInfo]
+    dsym = info.dsym
+    asserts.true(env, dsym != None, "no dsym")
+    if dsym != None:
+        asserts.true(env, dsym.is_directory, "%s is no directory" % dsym.path)
+        asserts.true(env, dsym.basename.startswith(ctx.attr.of), "%s is not the dSYM of %s" % (dsym.path, ctx.attr.of))
+        asserts.true(env, dsym.basename.endswith(".dSYM"), "%s is no dSYM" % dsym.path)
+    asserts.equals(env, ctx.attr.link_inputs_known, info.link_inputs != None)
+    for words in ctx.attr.reason:
+        asserts.true(env, words in info.link_inputs_unset_reason, "%r is not in %r" % (words, info.link_inputs_unset_reason))
+    return analysistest.end(env)
+
+_DSYM_TEST_ATTRS = {
+    "of": attr.string(doc = "What the dSYM's name starts with: the library's."),
+    "link_inputs_known": attr.bool(),
+    "reason": attr.string_list(),
+}
+
+_dsym_test = analysistest.make(_dsym_test_impl, attrs = _DSYM_TEST_ATTRS)
+
+# A real link under the flag that asks the C++ rules for a dSYM.
+_generated_dsym_test = analysistest.make(
+    _dsym_test_impl,
+    attrs = _DSYM_TEST_ATTRS,
+    config_settings = {"//command_line_option:apple_generate_dsym": True},
+)
+
+def _no_dsym_test_impl(ctx):
+    env = analysistest.begin(ctx)
+    info = analysistest.target_under_test(env)[DartCodeAssetInfo]
+    asserts.equals(env, None, info.dsym)
+    return analysistest.end(env)
+
+_no_dsym_test = analysistest.make(_no_dsym_test_impl)
 
 def _stated_asset_impl(ctx):
     kwargs = {}
@@ -133,6 +184,14 @@ def _stated_asset_impl(ctx):
         kwargs = {"link_inputs_unset_reason": 1}
     elif ctx.attr.states == "reason_only":
         kwargs = {"link_inputs_unset_reason": "stated by the rule"}
+    elif ctx.attr.states == "dsym_not_file":
+        kwargs = {"dsym": "libfixture.dylib.dSYM"}
+    elif ctx.attr.states == "dsym_not_directory":
+        kwargs = {"dsym": ctx.actions.declare_file(ctx.label.name + ".dSYM")}
+    elif ctx.attr.states == "dsym_misnamed":
+        kwargs = {"dsym": ctx.actions.declare_directory(ctx.label.name)}
+    elif ctx.attr.states == "dsym_without_file":
+        kwargs = {"dsym": ctx.actions.declare_directory(ctx.label.name + ".dSYM")}
     return [
         DefaultInfo(),
         DartCodeAssetInfo(
@@ -171,6 +230,14 @@ def _copied_library_impl(ctx):
         providers.append(DartLinkInputsInfo(library = copy.path, inputs = asset.link_inputs))
     elif ctx.attr.states == "inputs_not_depset":
         providers.append(DartLinkInputsInfo(library = copy, inputs = [asset.file]))
+    elif ctx.attr.states == "dsym":
+        providers.append(DartDsymInfo(library = copy, dsym = asset.dsym))
+    elif ctx.attr.states == "dsym_of_original":
+        providers.append(DartDsymInfo(library = asset.file, dsym = asset.dsym))
+    elif ctx.attr.states == "dsym_library_not_file":
+        providers.append(DartDsymInfo(library = copy.path, dsym = asset.dsym))
+    elif ctx.attr.states == "dsym_not_directory":
+        providers.append(DartDsymInfo(library = copy, dsym = copy))
     return providers
 
 # A rule of a user's that writes a copy of a code asset's library, saying what
@@ -181,6 +248,47 @@ _copied_library = rule(
         "asset": attr.label(providers = [DartCodeAssetInfo]),
         "mnemonic": attr.string(default = "CopyFile"),
         "states": attr.string(default = "nothing"),
+    },
+)
+
+def _linked_with_dsym_impl(ctx):
+    library = ctx.actions.declare_file("%s/lib%s%s" % (ctx.label.name, ctx.label.name, ctx.attr.suffix))
+    dsym = ctx.actions.declare_directory("%s/%s" % (ctx.label.name, ctx.attr.dsym_name or library.basename + ".dSYM"))
+    ctx.actions.run_shell(
+        outputs = [library, dsym],
+        mnemonic = ctx.attr.mnemonic,
+        command = "exit 1",
+    )
+    return [DefaultInfo(files = depset([library]))]
+
+# A rule whose one action writes a library and a dSYM beside it, as rustc does
+# under rules_rust and a C++ link does under `--apple_generate_dsym`. Only
+# analysed.
+_linked_with_dsym = rule(
+    implementation = _linked_with_dsym_impl,
+    attrs = {
+        "dsym_name": attr.string(),
+        "mnemonic": attr.string(default = "Rustc"),
+        "suffix": attr.string(),
+    },
+)
+
+def _stating_dsym_sibling_impl(ctx):
+    return [
+        DefaultInfo(),
+        DartDsymInfo(
+            library = ctx.attr.of[DefaultInfo].files.to_list()[0],
+            dsym = ctx.attr.asset[DartCodeAssetInfo].dsym,
+        ),
+    ]
+
+# A rule of a user's that provides no file but states that the dSYM of `asset`
+# is the dSYM of the first file of `of`.
+_stating_dsym_sibling = rule(
+    implementation = _stating_dsym_sibling_impl,
+    attrs = {
+        "asset": attr.label(providers = [DartCodeAssetInfo]),
+        "of": attr.label(),
     },
 )
 
@@ -971,8 +1079,9 @@ def code_asset_test_suite(name):
             "`Rustc`",
             "deletes inside that action",
             "DartLinkInputsInfo",
-            "dsym_folder",
         ],
+        # This one wrote no dSYM, so there is none to point at.
+        not_in_reason = ["dsym", "dSYM"],
         target_under_test = ":ca_rustc",
     )
 
@@ -1298,9 +1407,11 @@ def code_asset_test_suite(name):
         target_under_test = ":asset_reason_not_string",
     )
 
+    _dsym_tests()
+
     native.test_suite(
         name = name,
-        tests = [
+        tests = _DSYM_TESTS + [
             ":silent_asset_unknown_link_inputs_test",
             ":reasoned_asset_unknown_link_inputs_test",
             ":asset_states_both_test",
@@ -1358,3 +1469,321 @@ def code_asset_test_suite(name):
             ":executable_rejects_uri_test",
         ],
     )
+
+_DSYM_TESTS = [
+    ":rustc_dsym_test",
+    ":link_dsym_test",
+    ":generated_dsym_test",
+    ":filegroup_dsym_test",
+    ":staged_dsym_test",
+    ":other_name_no_dsym_test",
+    ":forwarded_files_no_dsym_test",
+    ":shared_library_no_dsym_test",
+    ":copy_no_dsym_test",
+    ":copy_no_dsym_reason_test",
+    ":copy_stated_dsym_test",
+    ":copy_stated_dsym_filegroup_test",
+    ":sibling_stated_dsym_test",
+    ":other_file_statement_no_dsym_test",
+    ":disagreeing_dsyms_test",
+    ":stated_dsym_other_library_test",
+    ":stated_dsym_library_not_file_test",
+    ":stated_dsym_not_directory_test",
+    ":asset_dsym_not_file_test",
+    ":asset_dsym_not_directory_test",
+    ":asset_dsym_misnamed_test",
+    ":asset_dsym_without_file_test",
+]
+
+def _dsym_asset(name, file):
+    dart_code_asset(
+        name = name,
+        asset_id = _ASSET_ID,
+        file = file,
+        tags = ["manual"],
+    )
+
+def _dsym_tests():
+    # rustc writes the library and its dSYM in one action, and deletes the
+    # object file between them: the dSYM is the only way to its line tables.
+    _linked_with_dsym(
+        name = "rust_library",
+        suffix = _LIBRARY_SUFFIX,
+        tags = ["manual"],
+    )
+    _dsym_asset("ca_rust", ":rust_library")
+    _dsym_test(
+        name = "rustc_dsym_test",
+        size = "small",
+        of = "librust_library",
+        reason = [
+            "`Rustc`",
+            "`dsym`",
+        ],
+        target_under_test = ":ca_rust",
+    )
+
+    # A link that writes one has both: the dSYM, and what dsymutil would read.
+    _linked_with_dsym(
+        name = "linked_with_dsym",
+        mnemonic = "CppLink",
+        suffix = _LIBRARY_SUFFIX,
+        tags = ["manual"],
+    )
+    _dsym_asset("ca_linked_with_dsym", ":linked_with_dsym")
+    _dsym_test(
+        name = "link_dsym_test",
+        size = "small",
+        link_inputs_known = True,
+        of = "liblinked_with_dsym",
+        target_under_test = ":ca_linked_with_dsym",
+    )
+
+    # The real thing: `cc_binary` under `--apple_generate_dsym`.
+    dart_code_asset(
+        name = "ca_generated_dsym",
+        asset_id = _ASSET_ID,
+        file = "//dart/tests/cc_fixture:liblinked_binary.dylib",
+        tags = ["manual"],
+        target_compatible_with = ["@platforms//os:macos"],
+    )
+    _generated_dsym_test(
+        name = "generated_dsym_test",
+        size = "small",
+        link_inputs_known = True,
+        of = "liblinked_binary.dylib",
+        target_compatible_with = ["@platforms//os:macos"],
+        target_under_test = ":ca_generated_dsym",
+    )
+
+    native.filegroup(
+        name = "rust_library_files",
+        srcs = [":rust_library"],
+        tags = ["manual"],
+    )
+    native.filegroup(
+        name = "rust_library_files_again",
+        srcs = [":rust_library_files"],
+        tags = ["manual"],
+    )
+    _dsym_asset("ca_rust_filegroup", ":rust_library_files_again")
+    _dsym_test(
+        name = "filegroup_dsym_test",
+        size = "small",
+        of = "librust_library",
+        target_under_test = ":ca_rust_filegroup",
+    )
+
+    # The staged library is a symlink of the one the dSYM describes.
+    _staged_asset(
+        name = "staged_rust",
+        asset = ":ca_rust",
+        tags = ["manual"],
+    )
+    _dsym_test(
+        name = "staged_dsym_test",
+        size = "small",
+        of = "librust_library",
+        target_under_test = ":staged_rust",
+    )
+
+    # An action's other directories are not this library's dSYM.
+    _linked_with_dsym(
+        name = "other_name",
+        dsym_name = "libother.dylib.dSYM",
+        suffix = _LIBRARY_SUFFIX,
+        tags = ["manual"],
+    )
+    _dsym_asset("ca_other_name", ":other_name")
+    _no_dsym_test(
+        name = "other_name_no_dsym_test",
+        size = "small",
+        target_under_test = ":ca_other_name",
+    )
+
+    # A rule that is no `filegroup` hides the action that wrote the library.
+    _forwarded_files(
+        name = "forwarded_rust_library",
+        of = ":rust_library",
+        tags = ["manual"],
+    )
+    _dsym_asset("ca_forwarded_rust", ":forwarded_rust_library")
+    _no_dsym_test(
+        name = "forwarded_files_no_dsym_test",
+        size = "small",
+        target_under_test = ":ca_forwarded_rust",
+    )
+
+    _no_dsym_test(
+        name = "shared_library_no_dsym_test",
+        size = "small",
+        target_under_test = ":ca_linked_shared",
+    )
+
+    # A copy is the same code, but only its rule can say so.
+    _copied_library(
+        name = "rust_copy",
+        asset = ":ca_rust",
+        tags = ["manual"],
+    )
+    _dsym_asset("ca_rust_copy", ":rust_copy")
+    _no_dsym_test(
+        name = "copy_no_dsym_test",
+        size = "small",
+        target_under_test = ":ca_rust_copy",
+    )
+    _unknown_link_inputs_test(
+        name = "copy_no_dsym_reason_test",
+        size = "small",
+        not_in_reason = ["`dsym`"],
+        target_under_test = ":ca_rust_copy",
+    )
+
+    _copied_library(
+        name = "rust_copy_stating",
+        asset = ":ca_rust",
+        states = "dsym",
+        tags = ["manual"],
+    )
+    _dsym_asset("ca_rust_copy_stating", ":rust_copy_stating")
+    _dsym_test(
+        name = "copy_stated_dsym_test",
+        size = "small",
+        of = "librust_library",
+        reason = [
+            "`CopyFile`",
+            "`dsym`",
+        ],
+        target_under_test = ":ca_rust_copy_stating",
+    )
+    native.filegroup(
+        name = "rust_copy_stating_files",
+        srcs = [":rust_copy_stating"],
+        tags = ["manual"],
+    )
+    _dsym_asset("ca_rust_copy_stating_filegroup", ":rust_copy_stating_files")
+    _dsym_test(
+        name = "copy_stated_dsym_filegroup_test",
+        size = "small",
+        of = "librust_library",
+        target_under_test = ":ca_rust_copy_stating_filegroup",
+    )
+
+    # Behind a `filegroup`, a sibling may state it, and statements about other
+    # files are none of this library's concern.
+    _stating_dsym_sibling(
+        name = "dsym_sibling",
+        asset = ":ca_rust",
+        of = ":rust_copy",
+        tags = ["manual"],
+    )
+    native.filegroup(
+        name = "rust_copy_with_sibling",
+        srcs = [
+            ":dsym_sibling",
+            ":rust_copy",
+        ],
+        tags = ["manual"],
+    )
+    _dsym_asset("ca_rust_copy_with_sibling", ":rust_copy_with_sibling")
+    _dsym_test(
+        name = "sibling_stated_dsym_test",
+        size = "small",
+        of = "librust_library",
+        target_under_test = ":ca_rust_copy_with_sibling",
+    )
+
+    _stating_dsym_sibling(
+        name = "dsym_sibling_of_other_file",
+        asset = ":ca_rust",
+        of = ":copied_library",
+        tags = ["manual"],
+    )
+    native.filegroup(
+        name = "rust_copy_with_other_statement",
+        srcs = [
+            ":dsym_sibling_of_other_file",
+            ":rust_copy",
+        ],
+        tags = ["manual"],
+    )
+    _dsym_asset("ca_rust_copy_with_other_statement", ":rust_copy_with_other_statement")
+    _no_dsym_test(
+        name = "other_file_statement_no_dsym_test",
+        size = "small",
+        target_under_test = ":ca_rust_copy_with_other_statement",
+    )
+
+    _stating_dsym_sibling(
+        name = "disagreeing_dsym_sibling",
+        asset = ":ca_linked_with_dsym",
+        of = ":rust_copy",
+        tags = ["manual"],
+    )
+    native.filegroup(
+        name = "rust_copy_disagreeing",
+        srcs = [
+            ":disagreeing_dsym_sibling",
+            ":dsym_sibling",
+            ":rust_copy",
+        ],
+        tags = ["manual"],
+    )
+    _dsym_asset("ca_rust_copy_disagreeing", ":rust_copy_disagreeing")
+    _disagreeing_dsyms_test(
+        name = "disagreeing_dsyms_test",
+        size = "small",
+        target_under_test = ":ca_rust_copy_disagreeing",
+    )
+
+    _copied_library(
+        name = "rust_copy_stating_original",
+        asset = ":ca_rust",
+        states = "dsym_of_original",
+        tags = ["manual"],
+    )
+    _dsym_asset("ca_rust_copy_stating_original", ":rust_copy_stating_original")
+    _stated_dsym_other_library_test(
+        name = "stated_dsym_other_library_test",
+        size = "small",
+        target_under_test = ":ca_rust_copy_stating_original",
+    )
+    _copied_library(
+        name = "dsym_library_not_file",
+        asset = ":ca_rust",
+        states = "dsym_library_not_file",
+        tags = ["manual"],
+    )
+    _stated_dsym_library_not_file_test(
+        name = "stated_dsym_library_not_file_test",
+        size = "small",
+        target_under_test = ":dsym_library_not_file",
+    )
+    _copied_library(
+        name = "dsym_statement_not_directory",
+        asset = ":ca_rust",
+        states = "dsym_not_directory",
+        tags = ["manual"],
+    )
+    _stated_dsym_not_directory_test(
+        name = "stated_dsym_not_directory_test",
+        size = "small",
+        target_under_test = ":dsym_statement_not_directory",
+    )
+
+    for states, test in [
+        ("dsym_not_file", _asset_dsym_not_file_test),
+        ("dsym_not_directory", _asset_dsym_not_directory_test),
+        ("dsym_misnamed", _asset_dsym_misnamed_test),
+        ("dsym_without_file", _asset_dsym_without_file_test),
+    ]:
+        _stated_asset(
+            name = "asset_" + states,
+            states = states,
+            tags = ["manual"],
+        )
+        test(
+            name = "asset_%s_test" % states,
+            size = "small",
+            target_under_test = ":asset_" + states,
+        )

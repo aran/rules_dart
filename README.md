@@ -2666,6 +2666,47 @@ objects, so run it on the unstripped library. A rule of your own that provides
 when it can't know; one that passes neither leaves `link_inputs` as `None`, and
 passing both is an error.
 
+**A library's dSYM.** Some builds make the dSYM while they link, and then it is
+the one to use. `rustc` does this for a `rust_shared_library` on macOS: it deletes
+the crate's object file before it finishes, so `dsymutil` run later can't find the
+crate's own line tables, and `link_inputs` is `None`. `DartCodeAssetInfo.dsym` is
+that `.dSYM` directory, or `None` when the build made none. A rule that wants
+debug symbols takes it first and falls back to `link_inputs`:
+
+```starlark
+asset = ctx.attr.code_asset[DartCodeAssetInfo]
+if asset.dsym != None:
+    inputs = [asset.dsym]  # Copy it, or read it, as it is.
+elif asset.link_inputs != None:
+    inputs = depset([asset.file], transitive = [asset.link_inputs])  # Run dsymutil.
+else:
+    fail("%s: %s" % (ctx.label, asset.link_inputs_unset_reason))
+```
+
+`dart_code_asset` sets `dsym` when the action that wrote the library also wrote
+`<library file name>.dSYM`, seen through a `filegroup` as above. That covers
+`rust_shared_library` and, under `--apple_generate_dsym`, a `cc_binary` with
+`linkshared`. A `cc_shared_library` writes no dSYM, so it has `link_inputs`
+instead. `rustc` leaves the directory empty unless the crate was compiled with
+debug information, as `-c dbg` does, and the build can't tell you which you have,
+so a rule reading `dsym` has to accept an empty one.
+
+A dSYM is matched to a library by the UUID in both, which copying, renaming or
+stripping the library leaves alone. So a rule that does one of those can pass the
+original's dSYM on with `DartDsymInfo`, next to the `DartLinkInputsInfo` of the
+example above. A rule that builds the dSYM with an action of its own says so the
+same way:
+
+```starlark
+if original.dsym != None:
+    providers.append(DartDsymInfo(library = copy, dsym = original.dsym))
+```
+
+`library` must be the file the target provides, and `dsym` a `.dSYM` directory.
+Statements behind a `filegroup` work as they do for `DartLinkInputsInfo`. A rule
+of your own that provides `DartCodeAssetInfo` passes `dsym` itself; it needs a
+`file`.
+
 **Replacements rules_dart ships.** Two packages have one, under `dart/ext`:
 
 - `package:sqlite3` 2.0.0 and later: `sqlite3_code_asset()` from

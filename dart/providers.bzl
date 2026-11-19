@@ -6,6 +6,7 @@ load(
     _DartDataAssetInfo = "DartDataAssetInfo",
     _DartLinkedCodeAssetInfo = "DartLinkedCodeAssetInfo",
     _DartPackageInfo = "DartPackageInfo",
+    _check_dsym = "check_dsym",
 )
 
 # The upstream `code_assets` link-mode vocabulary, verbatim (see
@@ -204,6 +205,31 @@ would find, carries `inputs` as `DartCodeAssetInfo.link_inputs`, and fails if \
     fields = {
         "library": "File: The library this describes, the one the target provides.",
         "inputs": "depset[File]: What `library` was linked from: at least every object file and static archive of the link. Empty for a library linked from nothing Bazel knows.",
+    },
+)
+
+def _dsym_init(library, dsym):
+    if type(library) != "File":
+        fail("DartDsymInfo: `library` must be a File, got %s." % type(library))
+    if type(dsym) != "File":
+        fail("DartDsymInfo: `dsym` must be a File, got %s." % type(dsym))
+    _check_dsym("DartDsymInfo", dsym)
+    return {"library": library, "dsym": dsym}
+
+DartDsymInfo, _raw_dsym_info = provider(
+    init = _dsym_init,
+    doc = """The dSYM of a dynamic library a rule produces, stated by that rule.
+
+`dart_code_asset` finds a dSYM itself when the action that wrote its `file` \
+wrote the dSYM too. A rule returns this provider when that cannot work: it \
+copies, renames or strips a library and forwards the dSYM of the original, which \
+still describes it because those keep the library's UUID, or a separate action \
+makes the dSYM. `dart_code_asset` prefers it to what it would find, carries \
+`dsym` as `DartCodeAssetInfo.dsym`, and fails if `library` is not the library \
+it binds.""",
+    fields = {
+        "library": "File: The library this describes, the one the target provides.",
+        "dsym": "File: The library's `.dSYM` directory.",
     },
 )
 
