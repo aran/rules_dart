@@ -21,12 +21,13 @@ def _with_sdk_test_impl(ctx):
     link = ctx.actions.declare_file(ctx.label.name + extension)
     ctx.actions.symlink(output = link, target_file = executable, is_executable = True)
 
-    # A `dart_test`'s launcher reads the configuration beside it, by its name.
+    # A `dart_test`'s launcher reads the configuration beside it, by its name
+    # without `.exe`.
     links = [link]
-    configuration = executable.basename + ".launcher.json"
+    configuration = executable.basename.removesuffix(".exe") + ".launcher.json"
     for file in test[DefaultInfo].default_runfiles.files.to_list():
         if file.basename == configuration:
-            links.append(ctx.actions.declare_file(link.basename + ".launcher.json"))
+            links.append(ctx.actions.declare_file(ctx.label.name + ".launcher.json"))
             ctx.actions.symlink(output = links[-1], target_file = file)
     providers = [DefaultInfo(
         executable = link,
