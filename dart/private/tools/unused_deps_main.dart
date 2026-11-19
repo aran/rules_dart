@@ -14,8 +14,10 @@
 // back; `--dry-run` prints it as a diff instead. A dep
 // buildozer cannot reach (one in a list variable or a comprehension) or that
 // the entry must keep is reported with its place, as is a file of an
-// executable's srcs its main never loads, and an import the import check
-// refuses (which holds back the entry's deps), and the tool exits 1.
+// executable's srcs its main never loads, an import the import check refuses
+// (which holds back the entry's deps), and a BUILD file the removals cannot be
+// made in, which is left as it is while the others are fixed. Any of them makes
+// the tool exit 1.
 import 'dart:convert';
 import 'dart:io';
 
@@ -152,7 +154,8 @@ class _Fixer {
     }, canonical);
     // buildozer edits a copy of the BUILD files, one dep at a time, and its
     // exit codes say which removals it makes. A dry run stops there; a real
-    // run writes the copies it edited back, so both report the same.
+    // run writes the copies it edited back, so both report the same. A file
+    // that cannot be edited is reported, and costs the others nothing.
     final removals = findRemovals(
       reports: reports,
       rules: rules,
@@ -165,18 +168,27 @@ class _Fixer {
       buildozer: buildozer,
       packages: {for (final e in removals.remove.keys) _package(e)},
     );
-    final made = await editEach(removals, rules, mirror.remove);
+    final edited = await editEach(
+      removals.only((e) => !mirror.failures.containsKey(_package(e))),
+      rules,
+      mirror.remove,
+    );
+    final results = await mirror.results({
+      for (final e in edited.remove.keys) _package(e),
+    });
+    final made = edited.only((e) => results.containsKey(_package(e)));
 
     if (args.dryRun) {
-      for (final package in {for (final e in made.remove.keys) _package(e)}) {
-        final (:path, :before, :after) = await mirror.change(package);
+      results.forEach((package, after) {
+        final path = mirror.files[package]!;
+        final before = File('$workspace/$path').readAsStringSync();
         stdout.write(unifiedDiff(path, before, after));
-      }
-      return _reportKept(made, made.kept);
+      });
+      return _reportLeft(made, made.kept, mirror);
     }
     final left = <Kept>[];
     if (made.remove.isNotEmpty) {
-      await mirror.writeBack({for (final e in made.remove.keys) _package(e)});
+      mirror.writeBack(results);
       left.addAll(stillListed(made, await _rules(packages)));
     }
     final count = made.remove.values.fold(0, (n, deps) => n + deps.length);
@@ -184,12 +196,17 @@ class _Fixer {
       '$_name: removed $count deps from ${made.remove.length} BUILD file '
       'entries',
     );
-    return _reportKept(made, [...made.kept, ...left]);
+    return _reportLeft(made, [...made.kept, ...left], mirror);
   }
 
   /// Prints what the fixer leaves to the user, failing when there is any.
-  int _reportKept(Removals made, List<Kept> kept) {
-    final left = [...made.refused, ...made.unreached, ...kept];
+  int _reportLeft(Removals made, List<Kept> kept, _Mirror mirror) {
+    final left = [
+      ...made.refused,
+      ...made.unreached,
+      ...kept,
+      for (final failure in mirror.failures.values) '$_name: $failure',
+    ];
     left.forEach(stderr.writeln);
     return left.isEmpty ? 0 : 1;
   }
@@ -302,9 +319,10 @@ String _package(String label) => label.substring(2, label.indexOf(':'));
 /// the workspace's. buildozer formats each file it edits, so the copies are
 /// formatted first: then a command that removes nothing changes nothing,
 /// and its exit code says so. What goes back to the workspace is the file as
-/// it was with only the removals made, so its formatting stays its own.
+/// it was with only the removals made, so its formatting stays its own. A file
+/// this cannot be done for goes in [failures], and the others carry on.
 class _Mirror {
-  _Mirror._(this.root, this.workspace, this.buildozer, this.files);
+  _Mirror._(this.root, this.workspace, this.buildozer);
 
   static Future<_Mirror> create(
     String root, {
@@ -312,29 +330,14 @@ class _Mirror {
     required String buildozer,
     required Set<String> packages,
   }) async {
-    final files = <String, String>{};
-    for (final package in packages) {
-      // The file Bazel and buildozer read, BUILD.bazel before BUILD.
-      final dir = package.isEmpty ? workspace : '$workspace/$package';
-      final name = ['BUILD.bazel', 'BUILD'].firstWhere(
-        (n) => File('$dir/$n').existsSync(),
-        orElse: () => throw _Failure('no BUILD file in $dir'),
-      );
-      final path = package.isEmpty ? name : '$package/$name';
-      files[package] = path;
-      File('$workspace/$path')
-          .copySync((File('$root/$path')..createSync(recursive: true)).path);
-    }
+    final mirror = _Mirror._(root, workspace, buildozer);
     // Where buildozer finds the root of the labels it is given.
     File('$root/MODULE.bazel').createSync(recursive: true);
-    final mirror = _Mirror._(root, workspace, buildozer, files);
-    if (packages.isNotEmpty) {
-      await mirror._run(
-        ['format', for (final p in packages) '//$p:__pkg__'],
-        {0, 3},
-      );
-      for (final MapEntry(key: package, value: path) in files.entries) {
-        mirror._formatted[package] = File('$root/$path').readAsStringSync();
+    for (final package in packages) {
+      try {
+        await mirror._add(package);
+      } on _Failure catch (e) {
+        mirror.failures[package] = e.message;
       }
     }
     return mirror;
@@ -345,13 +348,29 @@ class _Mirror {
   final String buildozer;
 
   /// Each package's BUILD file, by workspace path.
-  final Map<String, String> files;
+  final files = <String, String>{};
+
+  /// Why each package's BUILD file cannot be edited.
+  final failures = <String, String>{};
 
   /// Each package's BUILD file as formatted, before any edit.
   final _formatted = <String, String>{};
 
-  /// What each edited package's BUILD file becomes.
-  final _results = <String, String>{};
+  /// Copies [package]'s BUILD file and formats the copy.
+  Future<void> _add(String package) async {
+    // The file Bazel and buildozer read, BUILD.bazel before BUILD.
+    final dir = package.isEmpty ? workspace : '$workspace/$package';
+    final name = ['BUILD.bazel', 'BUILD'].firstWhere(
+      (n) => File('$dir/$n').existsSync(),
+      orElse: () => throw _Failure('no BUILD file in $dir'),
+    );
+    final path = package.isEmpty ? name : '$package/$name';
+    files[package] = path;
+    File('$workspace/$path')
+        .copySync((File('$root/$path')..createSync(recursive: true)).path);
+    await _run(['format', '//$package:__pkg__'], {0, 3});
+    _formatted[package] = File('$root/$path').readAsStringSync();
+  }
 
   /// Removes [dep] from [entry] in the copy, answering buildozer's exit code
   /// and what it printed.
@@ -360,22 +379,22 @@ class _Mirror {
     return (code: result.exitCode, output: '${result.stdout}${result.stderr}');
   }
 
-  /// The BUILD file of [package], by workspace path, as it is and as edited.
-  Future<({String path, String before, String after})> change(
-    String package,
-  ) async {
-    final path = files[package]!;
-    return (
-      path: path,
-      before: File('$workspace/$path').readAsStringSync(),
-      after: await _result(package),
-    );
+  /// What the BUILD file of each of [packages] becomes, for those that can
+  /// have their removals made.
+  Future<Map<String, String>> results(Set<String> packages) async {
+    final results = <String, String>{};
+    for (final package in packages) {
+      try {
+        results[package] = await _result(package);
+      } on _Failure catch (e) {
+        failures[package] = e.message;
+      }
+    }
+    return results;
   }
 
-  /// Writes the edited BUILD files of [packages] into the workspace: all of
-  /// them, or none when one cannot be edited.
-  Future<void> writeBack(Set<String> packages) async {
-    final results = {for (final p in packages) p: await _result(p)};
+  /// Writes [results], by package, into the workspace.
+  void writeBack(Map<String, String> results) {
     results.forEach((package, text) {
       File('$workspace/${files[package]!}').writeAsStringSync(text);
     });
@@ -384,32 +403,27 @@ class _Mirror {
   /// [package]'s BUILD file with buildozer's removals, and nothing else
   /// changed. A file already formatted is exactly what buildozer wrote.
   Future<String> _result(String package) async {
-    final known = _results[package];
-    if (known != null) return known;
     final path = files[package]!;
     final original = File('$workspace/$path').readAsStringSync();
     final formatted = _formatted[package]!;
     final edited = File('$root/$path').readAsStringSync();
-    var result = edited;
-    if (original != formatted) {
-      final confined = applyRemovals(
-        original: original,
-        formatted: formatted,
-        edited: edited,
+    if (original == formatted) return edited;
+    final confined = applyRemovals(
+      original: original,
+      formatted: formatted,
+      edited: edited,
+    );
+    // The check that nothing else changed, or was missed: formatted, it
+    // says what buildozer made.
+    if (confined == null ||
+        !sameBuild(await _format(package, confined), edited)) {
+      throw _Failure(
+        '$path is not as buildifier writes it, and the removals could not '
+        'be made without reformatting it, so it was left as it is. Run '
+        'buildifier on it, then run this again.',
       );
-      // The check that nothing else changed, or was missed: formatted, it
-      // says what buildozer made.
-      if (confined == null ||
-          !sameBuild(await _format(package, confined), edited)) {
-        throw _Failure(
-          '$path is not as buildifier writes it, and the removals could not '
-          'be made without reformatting it, so nothing was changed. Run '
-          'buildifier on it, then run this again.',
-        );
-      }
-      result = confined;
     }
-    return _results[package] = result;
+    return confined;
   }
 
   /// [text] as buildozer formats [package]'s BUILD file.

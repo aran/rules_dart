@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:runfiles/runfiles.dart';
 import 'package:test/test.dart';
 
 import 'build_file_edit.dart';
@@ -31,7 +34,95 @@ dart_library(
 )
 ''';
 
-void main() {
+/// The first argument is buildozer's runfiles path.
+void main(List<String> args) {
+  group('with buildozer, a label written as', () {
+    final buildozer = Runfiles.create().rlocation(args.first);
+    late Directory root;
+    setUp(() => root = Directory.systemTemp.createTempSync('build_file_edit'));
+    tearDown(() => root.deleteSync(recursive: true));
+
+    File buildFile() => File('${root.path}/app/sub/BUILD.bazel');
+
+    /// Runs buildozer on the copy under [root], returning the file it leaves.
+    String run(List<String> command) {
+      final result = Process.runSync(buildozer, [
+        ...command,
+      ], workingDirectory: root.path);
+      expect(result.exitCode, anyOf(0, 3), reason: '${result.stderr}');
+      return buildFile().readAsStringSync();
+    }
+
+    for (final label in const [
+      // Shortened by buildifier.
+      '@xml//:xml',
+      '@repo//pkg:pkg',
+      '@repo//a/pkg:pkg',
+      '//app/sub:sub',
+      '//a/b:b',
+      // The short forms themselves.
+      '@xml',
+      '@repo//pkg',
+      '//a/b',
+      // Not shortened: a canonical repository, or a name buildifier's pattern
+      // for a repository does not take.
+      '@@canonical//:canonical',
+      '@@canonical',
+      '@@canon+//pkg:pkg',
+      '@@+ext+repo//:repo',
+      '@a-b//:a-b',
+      '@a.b//:a.b',
+      '@//app:app',
+      '@@//app:app',
+      // A target named otherwise than its package.
+      '@repo//pkg:other',
+      '@repo//:other',
+      '//app:other',
+      '//:root',
+      '//a:a/b',
+      '@r//a/b:b/b',
+      // In the package.
+      ':local',
+      'bare',
+    ]) {
+      test('$label is removed from a file buildifier would change', () {
+        File('${root.path}/MODULE.bazel').writeAsStringSync('');
+        final original = 'x(name="lib",\n  deps=["$label", ":keep"])\n';
+        buildFile()
+          ..createSync(recursive: true)
+          ..writeAsStringSync(original);
+        final formatted = run(['format', '//app/sub:__pkg__']);
+        final edited = run(['remove deps $label', '//app/sub:lib']);
+        expect(edited, isNot(formatted), reason: 'buildozer removed nothing');
+
+        final made = applyRemovals(
+          original: original,
+          formatted: formatted,
+          edited: edited,
+        );
+        expect(made, 'x(name="lib",\n  deps=[":keep"])\n');
+
+        buildFile().writeAsStringSync(made!);
+        expect(sameBuild(run(['format', '//app/sub:__pkg__']), edited), isTrue);
+      });
+    }
+  });
+
+  test('takes one label for its spellings, and no other label for it', () {
+    const formatted = 'x(\n    name = "lib",\n    deps = ["@xml", ":c"],\n)\n';
+    const edited = 'x(\n    name = "lib",\n    deps = [":c"],\n)\n';
+    String? removing(String list) => applyRemovals(
+      original: 'x(name="lib", deps=$list)\n',
+      formatted: formatted,
+      edited: edited,
+    );
+    expect(removing('["@xml//:xml", ":c"]'), 'x(name="lib", deps=[":c"])\n');
+    // Each names another target.
+    expect(removing('["@xml//:other", ":c"]'), isNull);
+    expect(removing('["@xml//xml", ":c"]'), isNull);
+    expect(removing('["@@xml", ":c"]'), isNull);
+  });
+
   test('removes a dep on its own line and touches nothing else', () {
     expect(
       applyRemovals(

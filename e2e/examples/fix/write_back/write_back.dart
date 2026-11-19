@@ -5,8 +5,9 @@
 // filter leaves out only with the flags that build it. And
 // `@rules_dart//dart/unused_deps` removes from a BUILD file each written label
 // that stands only for unused deps, at the call that wrote it, changes nothing
-// else in the file, however it is formatted, and fails, naming the place, on
-// one it cannot reach.
+// else in the file, however it is formatted or spells the label, fails, naming
+// the place, on one it cannot reach, and still fixes the other files when it
+// cannot edit one.
 //
 // The fixtures are this workspace's own sources, so each is put back
 // afterwards, whatever happened.
@@ -35,6 +36,16 @@ const _expected = {
 const _tidy = 'alias(\n    name = "hub_a",\n    actual = ":leaf",\n)\n';
 const _untidy = 'alias(name="hub_a",   actual=":leaf")\n';
 
+/// Two packages whose BUILD files the fixer is given together, as they are
+/// checked in and as the run writes them. buildifier shortens the first label
+/// and joins the second, which the fixer then cannot find in the file.
+const _spelled = 'fix/unused_spelled/BUILD.bazel';
+const _spelledTidy = '"@path"';
+const _spelledOtherwise = '"@path//:path"';
+const _joined = 'fix/unused_joined/BUILD.bazel';
+const _joinedTidy = '"//fix/unused_joined:leaf"';
+const _joinedApart = '"//fix/unused_joined" + ":leaf"';
+
 void main() {
   final workspace = Platform.environment['BUILD_WORKSPACE_DIRECTORY'];
   if (workspace == null) {
@@ -44,7 +55,8 @@ void main() {
   File file(String path) => File('$workspace/$path');
 
   final originals = {
-    for (final path in _expected.keys) path: file(path).readAsStringSync(),
+    for (final path in [..._expected.keys, _spelled, _joined])
+      path: file(path).readAsStringSync(),
   };
   for (final MapEntry(key: path, value: golden) in _expected.entries) {
     if (originals[path] == file(golden).readAsStringSync()) {
@@ -189,6 +201,40 @@ void main() {
       failures.add('unused_deps of an untidy file removed: $removedLines');
     }
     file(build).writeAsStringSync(originals[build]!);
+
+    // A label buildifier spells otherwise is found, and a file the fixer cannot
+    // edit is named and left, without costing the other its fix.
+    const twoFiles = ['//fix/unused_spelled:lib', '//fix/unused_joined:lib'];
+    final spelled = originals[_spelled]!.replaceFirst(
+      _spelledTidy,
+      _spelledOtherwise,
+    );
+    final joined = originals[_joined]!.replaceFirst(_joinedTidy, _joinedApart);
+    file(_spelled).writeAsStringSync(spelled);
+    file(_joined).writeAsStringSync(joined);
+    final twoDry = run('unused_deps', ['--dry-run', ...twoFiles], fails: true);
+    if (!'${twoDry.stdout}'.contains('-    deps = [$_spelledOtherwise],') ||
+        '${twoDry.stdout}'.contains(_joined) ||
+        !'${twoDry.stderr}'.contains('$_joined is not as buildifier')) {
+      failures.add(
+        'unused_deps --dry-run of two files:\n${twoDry.stdout}${twoDry.stderr}',
+      );
+    }
+    expectFiles('after unused_deps --dry-run of two files', {
+      _spelled: spelled,
+      _joined: joined,
+    });
+    final twoReal = run('unused_deps', twoFiles, fails: true);
+    if (twoReal.exitCode != 1 ||
+        !'${twoReal.stderr}'.contains('$_joined is not as buildifier')) {
+      failures.add('unused_deps of two files:\n${twoReal.stderr}');
+    }
+    expectFiles('after unused_deps of two files', {
+      _spelled: spelled.replaceFirst('    deps = [$_spelledOtherwise],\n', ''),
+      _joined: joined,
+    });
+    file(_spelled).writeAsStringSync(originals[_spelled]!);
+    file(_joined).writeAsStringSync(originals[_joined]!);
 
     run('unused_deps', unusedTargets);
     run('fix', ['//fix/dirty:lib', '//fix/dirty_bin:bin']);

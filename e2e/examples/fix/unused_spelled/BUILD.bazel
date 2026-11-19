@@ -1,0 +1,18 @@
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+# A fixture of `@rules_dart//dart/unused_deps`, which //fix/write_back runs. It
+# lists a dep its file does not import, so it fails to build, and is `manual`.
+# The run spells the dep `@path//:path`, which buildifier writes `@path`.
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "fix_unused_spelled",
+)
+
+dart_library(
+    name = "lib",
+    srcs = ["lib/spelled.dart"],
+    package = ":pubspec-metadata",
+    tags = ["manual"],
+    deps = ["@path"],
+)

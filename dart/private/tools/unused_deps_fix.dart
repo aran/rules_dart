@@ -248,6 +248,17 @@ class Removals {
   final List<Kept> kept;
   final List<Unreached> unreached;
   final List<Refused> refused;
+
+  /// These removals, of only the entries [keep] accepts.
+  Removals only(bool Function(String entry) keep) => Removals(
+    {
+      for (final MapEntry(key: entry, value: deps) in remove.entries)
+        if (keep(entry)) entry: deps,
+    },
+    kept,
+    unreached: unreached,
+    refused: refused,
+  );
 }
 
 /// The written deps to remove, by the BUILD file entry that states them.

@@ -122,8 +122,13 @@ dart_test(
     name = "build_file_edit_test",
     size = "small",
     srcs = ["build_file_edit.dart"],
+    args = ["$(rlocationpath @buildozer_binary//:buildozer.exe)"],
+    data = ["@buildozer_binary//:buildozer.exe"],
     main = "build_file_edit_test.dart",
-    deps = ["@ext_pub_deps//:test"],
+    deps = [
+        "//dart/runfiles",
+        "@ext_pub_deps//:test",
+    ],
 )
 
 dart_test(

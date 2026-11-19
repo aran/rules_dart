@@ -19,10 +19,12 @@ String? applyRemovals({
   final calls = _calls(original);
   final cuts = <_Span>[];
   for (final MapEntry(key: name, value: call) in before.entries) {
-    final left = [for (final s in after[name]?.strings ?? const []) s.value];
+    final left = [
+      for (final s in after[name]?.strings ?? const <_Str>[]) _label(s.value),
+    ];
     final removed = [
       for (final s in call.strings)
-        if (!left.remove(s.value)) s.value,
+        if (!left.remove(_label(s.value))) _label(s.value),
     ];
     if (removed.isEmpty) continue;
     final target = calls[name];
@@ -30,7 +32,7 @@ String? applyRemovals({
     final remaining = [...target.strings];
     final taken = <_Str>[];
     for (final value in removed) {
-      final index = remaining.indexWhere((s) => _sameLabel(s.value, value));
+      final index = remaining.indexWhere((s) => _label(s.value) == value);
       if (index < 0) return null;
       taken.add(remaining.removeAt(index));
     }
@@ -68,14 +70,21 @@ bool sameBuild(String a, String b) {
 bool _isCloser(_Token token) =>
     token.kind == _Kind.punctuation && _close.contains(token.text);
 
-/// Whether two spellings are one label: buildifier writes `//a/b:b` as `//a/b`.
-bool _sameLabel(String a, String b) => _short(a) == _short(b);
-
-String _short(String label) {
-  final colon = label.lastIndexOf(':');
-  if (colon < 0) return label;
-  final package = label.substring(0, colon);
-  return package.endsWith('/${label.substring(colon + 1)}') ? package : label;
+/// The target [written] names, the same for every spelling of it: buildifier
+/// writes `//a/b:b` as `//a/b` and `@a//:a` as `@a`, and leaves other forms.
+/// `@` and `@@` stay apart, as an apparent and a canonical name are not one.
+String _label(String written) {
+  final slashes = written.indexOf('//');
+  if (slashes < 0 && !written.startsWith('@')) {
+    return written.startsWith(':') ? written : ':$written';
+  }
+  final repo = slashes < 0 ? written : written.substring(0, slashes);
+  final path = slashes < 0 ? '' : written.substring(slashes + 2);
+  final colon = path.indexOf(':');
+  if (colon >= 0) return '$repo//$path';
+  final last = path.substring(path.lastIndexOf('/') + 1);
+  final name = last.isEmpty ? repo.replaceFirst(RegExp('^@+'), '') : last;
+  return '$repo//$path:$name';
 }
 
 class _Span {
