@@ -46,6 +46,7 @@ bzl_library(
     srcs = ["build_content.bzl"],
     visibility = ["//dart/pub:__subpackages__"],
     deps = [
+        ":hosted_url",
         ":pub_git",
         "//dart/private:dart_package_metadata",
         "//dart/private:package_info",
@@ -74,6 +75,12 @@ bzl_library(
         ":pub_git",
         "//dart/pub:pub_files_root",
     ],
+)
+
+bzl_library(
+    name = "hosted_url",
+    srcs = ["hosted_url.bzl"],
+    visibility = ["//dart/pub:__subpackages__"],
 )
 
 bzl_library(

@@ -217,20 +217,22 @@ def _declarations(ctx, root_unversioned):
             declared[name] = decls
     return struct(declared = declared, overridden = overridden)
 
-def _select_versions(name, decls, entries, url, check):
+def _select_versions(name, decls, entries, check):
     """Picks a hosted package's version from its declarations and lock entries.
+
+    Each request carries its own registry: a declaration's is pub.dev, and a
+    lock entry's is the one it names, so two that disagree are refused.
 
     Args:
       name: The package.
       decls: Its `pub.package()` declarations, as `_declarations` gives them.
       entries: Its hosted lock entries.
-      url: The registry its lock entries name, or pub.dev.
       check: The root's `check_direct_dependencies`.
 
     Returns:
-      `struct(version, sha256, url, declared, warnings, error)`: the winner,
-      whether a declaration states it (its repository is then named for the
-      package), and the messages.
+      `struct(version, sha256, url, declared, warnings, error)`: the winning
+      request's version, digest and registry, whether a declaration states it
+      (its repository is then named for the package), and the messages.
     """
     requests = [
         pub_version_request(
@@ -245,7 +247,7 @@ def _select_versions(name, decls, entries, url, check):
         pub_version_request(
             version = e.version,
             sha256 = e.sha256,
-            url = url,
+            url = e.url,
             is_root = e.is_root,
             where = e.where,
             upgrade = e.upgrade,
@@ -533,7 +535,6 @@ def _pub_impl(ctx):
             name,
             pinned.get(name, []),
             entries,
-            entries[0].url if entries else "https://pub.dev",
             settings.check,
         )
         if selection.error:

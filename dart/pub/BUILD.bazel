@@ -101,7 +101,10 @@ bzl_library(
     name = "pub_versions",
     srcs = ["pub_versions.bzl"],
     visibility = ["//visibility:public"],
-    deps = ["//dart/pub/private:version"],
+    deps = [
+        "//dart/pub/private:hosted_url",
+        "//dart/pub/private:version",
+    ],
 )
 
 # Every public symbol of this package's .bzl files is documented.

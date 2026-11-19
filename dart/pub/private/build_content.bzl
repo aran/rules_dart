@@ -13,6 +13,7 @@ web compilers reach it.
 
 load("@package_metadata//purl:purl.bzl", "purl")
 load("//dart/private:package_info.bzl", "directory_identity", "local_git_identity", "purl_identity")
+load("//dart/pub/private:hosted_url.bzl", "normalize_hosted_url")
 load("//dart/pub/private:pub_git.bzl", "is_relative_git_url")
 
 visibility("//dart/...")
@@ -26,12 +27,11 @@ _IDENTITY_TARGET = "package-metadata"
 # name, so the two never collide.
 _METADATA_TARGET = "pubspec-metadata"
 
-# pub.dev, by its names in locks: what a purl of type `pub` means when it
-# names no `repository_url` (the purl spec's default is the older name).
-_PUB_DEV = ["https://pub.dev", "https://pub.dartlang.org"]
-
 def is_pub_dev(url):
-    """Whether a lock's hosted `url` is pub.dev, by either of its names.
+    """Whether a lock's hosted `url` is pub.dev, however pub would spell it.
+
+    pub.dev is what a purl of type `pub` means when it names no
+    `repository_url` (the purl spec's default is its older name).
 
     Args:
         url: The registry, as pubspec.lock's `description.url`.
@@ -39,7 +39,7 @@ def is_pub_dev(url):
     Returns:
         True for pub.dev.
     """
-    return url.rstrip("/") in _PUB_DEV
+    return normalize_hosted_url(url) == "https://pub.dev"
 
 def pub_hosted_purl(name, version, sha256, base_url = "https://pub.dev"):
     """The purl of a hosted pub package's archive.

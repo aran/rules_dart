@@ -13,5 +13,7 @@ Package "tuple" 2.0.2 has conflicting sha256 digests
 Git package "bar" is locked differently across lock files
 # One lock file's git package is another's hosted one.
 Package "baz" is a git package in
+# Two lock files fetch one package from different registries.
+Package "registry" is fetched from different registries
 # A package rules_dart publishes is not declared.
 names a package rules_dart publishes
