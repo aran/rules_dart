@@ -59,6 +59,7 @@ bzl_library(
     visibility = ["//dart/pub:__subpackages__"],
     deps = [
         ":build_content",
+        ":pub_archive",
         ":pub_git",
     ],
 )

@@ -2,11 +2,11 @@
 
 load("//dart/ext:registry.bzl", "curated_code_assets", "curated_cycles")
 load("//dart/pub:pub_graph.bzl", "cycle_declaration", "cycle_declarations_error")
-load("//dart/pub:pub_lock_package.bzl", "pub_archive_files", "pub_files_label", "pub_git_files", "pub_lock_package", "pub_lock_path_package", "pub_lock_resolved_pubspec")
+load("//dart/pub:pub_lock_package.bzl", "pub_archive_files", "pub_files_label", "pub_git_files", "pub_lock_disagreement_errors", "pub_lock_entry", "pub_lock_mapping_error", "pub_lock_package", "pub_lock_path_package", "pub_lock_resolved_pubspec")
 load("//dart/pub:pub_versions.bzl", "CHECK_LEVELS", "pub_version_request", "select_pub_version")
 load("//dart/pub:yaml_parser.bzl", "parse_pubspec_lock")
 load("//dart/pub/private:pub_archive.bzl", "pub_archive_sha256_error")
-load("//dart/pub/private:pub_lock_checks.bzl", "git_disagreement_error", "git_lock_package", "lock_mapping_error", "path_packages", "pub_command", "published_declaration_errors", "published_here_targets", "resolved_packages", "resolved_pubspecs", "source_disagreement_errors")
+load("//dart/pub/private:pub_lock_checks.bzl", "path_packages", "published_declaration_errors", "published_here_targets", "resolved_packages", "resolved_pubspecs")
 load("//dart/pub/private:pub_lock_hub.bzl", "pub_lock_hub")
 load("//dart/pub/private:pub_lock_library.bzl", "files_repo", "index_label", "index_repo", "library_repo", "pub_lock_ignored", "pub_lock_index", "pub_lock_library", "pub_lock_resolved", "source_label", "source_repo")
 load("//dart/pub/private:pub_settings.bzl", "root_only_settings")
@@ -248,8 +248,8 @@ def _select_versions(name, decls, entries, url, check):
             url = url,
             is_root = e.is_root,
             where = e.where,
-            upgrade = pub_command("upgrade", e.lock_file, [name]),
-            refresh = pub_command("get", e.lock_file),
+            upgrade = e.upgrade,
+            refresh = e.refresh,
         )
         for e in entries
     ]
@@ -327,6 +327,17 @@ def _cycles(ctx, fetched, resolved_targets, ignored):
         ],
     )
 
+def _mapping_error(lock):
+    tag = lock.tag
+    return pub_lock_mapping_error(
+        'pub.from_lock(name = "%s", lock = "%s")' % (tag.name, tag.lock),
+        tag.lock,
+        lock.packages,
+        resolve = tag.resolve,
+        build_from_pubspec = tag.build_from_pubspec,
+        ignored = tag.ignored,
+    )
+
 def _pub_impl(ctx):
     # The root's settings, and the packages whose hooks it declared
     # irrelevant: a package is one repository however many tags name it, so
@@ -382,7 +393,7 @@ def _pub_impl(ctx):
 
     # Each lock's own `resolve`, `build_from_pubspec` and `ignored`. Until
     # they are right, what serves a lock's packages is unknown.
-    mapping_errors = [e for e in [lock_mapping_error(lock) for lock in locks] if e]
+    mapping_errors = [e for e in [_mapping_error(lock) for lock in locks] if e]
     if mapping_errors:
         fail("\n\n".join(errors + mapping_errors))
 
@@ -414,6 +425,9 @@ def _pub_impl(ctx):
 
     # Git packages, each with the one commit every lock that lists it pins.
     git_registry = {}
+
+    # What each lock that counts says of a package, to compare across them.
+    lock_entries = {name: list(entries) for name, entries in paths.entries.items()}
 
     # Packages a lock lists that no repository is fetched for (SDK sources and
     # those pub does not know, unless mapped), with how the first such lock
@@ -455,48 +469,30 @@ def _pub_impl(ctx):
                 if root_unversioned[name] == "git":
                     hub_packages[hub_name][name] = True
                 continue
-            if source == "git":
-                hub_packages[hub_name][name] = True
-                git = git_lock_package(name, info, lock_tag)
-                errors.extend(git.errors)
-                if git.package:
-                    first = git_registry.setdefault(name, git.package)
-                    disagreement = git_disagreement_error(name, first, git.package)
-                    if disagreement:
-                        errors.append(disagreement)
-                continue
-            if source != "hosted":
+            if source not in ("git", "hosted"):
                 if source == "sdk":
                     skipped_sdk.append(name)
                 non_hosted.setdefault(name, "a `%s` package in %s" % (source, lock_tag.lock))
                 continue
 
             hub_packages[hub_name][name] = True
-
-            desc = info.get("description", {})
-            url = desc.get("url", "https://pub.dev")
-            version = info.get("version", "")
-            sha256 = desc.get("sha256", "")
-            error = pub_archive_sha256_error(
-                name,
-                version,
-                sha256,
-                str(lock_tag.lock),
-                rewrite = pub_command("get", lock_tag.lock),
-            )
-            if error:
-                # An entry that pins nothing requests nothing, so it is in no
-                # disagreement over digests.
-                errors.append(error)
+            read = pub_lock_entry(name, info, lock_tag.lock)
+            errors.extend(read.errors)
+            entry = read.entry
+            if not entry:
+                continue
+            lock_entries.setdefault(name, []).append(entry)
+            if source == "git":
+                git_registry.setdefault(name, entry)
                 continue
             registry.setdefault(name, []).append(struct(
-                version = version,
-                sha256 = sha256,
-                url = url,
+                version = entry.version,
+                sha256 = entry.sha256,
+                url = entry.url,
                 is_root = mod.is_root,
                 where = _where_lock(mod, lock_tag.lock),
-                lock_label = str(lock_tag.lock),
-                lock_file = lock_tag.lock,
+                upgrade = entry.upgrade,
+                refresh = entry.refresh,
             ))
 
         if skipped_sdk:
@@ -512,7 +508,8 @@ def _pub_impl(ctx):
                 ),
             )
 
-    errors.extend(source_disagreement_errors(paths.built, git_registry, registry))
+    for name in sorted(lock_entries):
+        errors.extend(pub_lock_disagreement_errors(name, lock_entries[name]))
 
     # One version per hosted package: the highest request, a `pub.package()`
     # in any module or a lock entry, wins.
@@ -641,7 +638,7 @@ def _pub_impl(ctx):
             name = source_repo(_SPOKE_PREFIX, name),
             package_name = name,
             version = pkg.version,
-            lock = pkg.lock,
+            lock = pkg.lock_file,
             path = pkg.path,
             code_assets = curated_code_assets(name, pkg.version),
             ignore_hook = name in ignore_hooks,

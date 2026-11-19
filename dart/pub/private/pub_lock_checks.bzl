@@ -3,10 +3,15 @@
 Each check returns its messages instead of failing, so the extension reports
 every refusal of a phase in one failure, as a user with several problems
 would otherwise find them one run at a time.
+
+`pub_lock_mapping_error`, `pub_lock_entry` and `pub_lock_disagreement_errors`
+take nothing of the extension's own, so that another pub extension refuses the
+same locks: `pub_lock_package.bzl` exports them.
 """
 
 load("//dart/private:package_info.bzl", "fetched_identity_text")
 load("//dart/pub/private:build_content.bzl", "is_pub_dev", "pub_git_source", "pub_path_source", _normalize = "normalize_pub_path", _path_in_repo = "lock_path_in_repo")
+load("//dart/pub/private:pub_archive.bzl", "pub_archive_sha256_error")
 load("//dart/pub/private:pub_git.bzl", "is_relative_git_url", "pub_git_resolved_ref_error")
 
 visibility("//dart/...")
@@ -15,7 +20,10 @@ visibility("//dart/...")
 # publishes. See `published_here_targets`.
 _PUBLISHED_HERE = {"runfiles": Label("//dart/runfiles")}
 
-def pub_command(subcommand, lock, packages = []):
+# What runs pub for this extension's users.
+_RUNNER = "@rules_dart//dart/pub"
+
+def pub_command(subcommand, lock, packages = [], runner = _RUNNER):
     """The command that runs pub `subcommand` on the package that holds `lock`.
 
     `@rules_dart//dart/pub` needs only the `dart` toolchain, so it runs while
@@ -27,38 +35,42 @@ def pub_command(subcommand, lock, packages = []):
         subcommand: The pub subcommand: `get` or `upgrade`.
         lock: The lock's label.
         packages: The packages to re-resolve, for `upgrade`.
+        runner: The target that runs pub.
 
     Returns:
         The command, to print on a line of its own.
     """
     path = lock.package + "/" + lock.name if lock.package else lock.name
     directory = path.rpartition("/")[0]
-    words = ["bazel run @rules_dart//dart/pub --", subcommand]
+    words = ["bazel run %s --" % runner, subcommand]
     if directory:
         words.append("--directory=" + directory)
     return " ".join(words + packages)
 
-def _unbuildable_paths(lock):
+def _leaves_repository(in_repo):
+    return in_repo == ".." or in_repo.startswith("../")
+
+def _is_relative(description):
+    # The lock's scalars are read as strings: `true` is "True".
+    return description.get("relative", "").lower() == "true"
+
+def _unbuildable_paths(lock, packages, build_from_pubspec):
     # The `build_from_pubspec` packages whose directory the lock names in a way
     # no repository attribute can hold on every machine: by an absolute path,
     # or by one leaving the lock's repository. MODULE.bazel.lock records every
     # repository's attributes, so it would hold only in this checkout.
     absolute = []
     outside = []
-    for name in lock.tag.build_from_pubspec:
-        info = lock.packages.get(name, {})
+    for name in build_from_pubspec:
+        info = packages.get(name, {})
         if info.get("source") != "path":
             continue
         desc = info.get("description", {})
         path = desc.get("path", "")
-
-        # The lock's scalars are read as strings: `true` is "True".
-        if desc.get("relative", "").lower() != "true":
+        if not _is_relative(desc):
             absolute.append("`%s` (%s)" % (name, path))
-        else:
-            in_repo = _path_in_repo(lock.tag.lock, path)
-            if in_repo == ".." or in_repo.startswith("../"):
-                outside.append("`%s` (%s)" % (name, path))
+        elif _leaves_repository(_path_in_repo(lock, path)):
+            outside.append("`%s` (%s)" % (name, path))
     problems = []
     if absolute:
         problems.append(
@@ -75,26 +87,46 @@ def _unbuildable_paths(lock):
         )
     return problems
 
-def lock_mapping_error(lock):
-    """What is wrong with how one `from_lock` call maps its lock's packages.
+def _suggested_target(lock, info):
+    # What `resolve` most likely maps a `path` package to: the Bazel package
+    # at its directory, where the lock's repository holds one.
+    desc = info.get("description", {})
+    if _is_relative(desc):
+        in_repo = _path_in_repo(lock, desc.get("path", ""))
+        if not _leaves_repository(in_repo):
+            return "//%s:<target>" % in_repo
+    return "//..."
 
-    A name `resolve`, `build_from_pubspec` or `ignored` gives that the lock
-    does not list, a non-`path` package the last two name, a package named
-    twice, a `path` package named nowhere, and a `build_from_pubspec` package
-    whose directory no repository can hold.
+def pub_lock_mapping_error(call, lock, packages, resolve = {}, build_from_pubspec = [], ignored = {}):
+    """What is wrong with how one call of a `from_lock` tag maps its lock's packages.
+
+    A lock's `path` packages name directories only its author knows how to
+    build, so each must be named in exactly one of three attributes: `resolve`
+    (a target builds it), `build_from_pubspec` (its directory is built as a
+    hosted package is) or `ignored` (nothing builds it, for a reason).
+
+    Refused: a name the lock does not list, a non-`path` package in
+    `build_from_pubspec` or `ignored`, a package named twice, a `path` package
+    named nowhere, and a `build_from_pubspec` package whose directory the lock
+    gives by an absolute path or one leaving the lock's repository, which no
+    repository attribute can hold on every machine.
 
     Args:
-        lock: One lock, as the extension parses it: `struct(module, tag,
-            packages)`.
+        call: The tag as the message's heading names it, such as
+            `pub.from_lock(name = "deps", lock = "//:pubspec.lock")`.
+        lock: The lock's `Label`.
+        packages: The lock's packages, as `parse_pubspec_lock` gives them.
+        resolve: The names `resolve` maps: a dict by package name, or a list.
+        build_from_pubspec: The names built from their pubspec.
+        ignored: The names ignored: a dict by package name, or a list.
 
     Returns:
         One message naming each problem, or None.
     """
-    tag = lock.tag
     problems = []
     chosen = {}
-    for attr_name, names in (("resolve", tag.resolve), ("build_from_pubspec", tag.build_from_pubspec), ("ignored", tag.ignored)):
-        stale = sorted([name for name in names if name not in lock.packages])
+    for attr_name, names in (("resolve", resolve), ("build_from_pubspec", build_from_pubspec), ("ignored", ignored)):
+        stale = sorted([name for name in names if name not in packages])
         if stale:
             problems.append(
                 "  - `%s` %s %s, which the lock does not list. Remove %s." % (
@@ -108,7 +140,7 @@ def lock_mapping_error(lock):
             not_path = sorted([
                 name
                 for name in names
-                if name in lock.packages and lock.packages[name].get("source") != "path"
+                if name in packages and packages[name].get("source") != "path"
             ])
             if not_path:
                 problems.append(
@@ -127,7 +159,7 @@ def lock_mapping_error(lock):
             ))
     unmapped = sorted([
         name
-        for name, info in lock.packages.items()
+        for name, info in packages.items()
         if info.get("source") == "path" and name not in chosen
     ])
     if unmapped:
@@ -138,15 +170,15 @@ def lock_mapping_error(lock):
              "      ignored = {%s}  (nothing builds it; depending on it fails with the reason)") % (
                 ", ".join(["`%s`" % n for n in unmapped]),
                 "`path` packages" if len(unmapped) > 1 else "a `path` package",
-                ", ".join(['"%s": "//..."' % n for n in unmapped]),
+                ", ".join(['"%s": "%s"' % (n, _suggested_target(lock, packages[n])) for n in unmapped]),
                 ", ".join(['"%s"' % n for n in unmapped]),
                 ", ".join(['"%s": "<why>"' % n for n in unmapped]),
             ),
         )
-    problems.extend(_unbuildable_paths(lock))
+    problems.extend(_unbuildable_paths(lock, packages, build_from_pubspec))
     if not problems:
         return None
-    return "pub.from_lock(name = \"%s\", lock = \"%s\"):\n%s" % (tag.name, tag.lock, "\n".join(problems))
+    return "%s:\n%s" % (call, "\n".join(problems))
 
 def resolved_packages(locks, declared):
     """Decides which locked packages a workspace target serves, from `resolve`.
@@ -328,13 +360,12 @@ def path_packages(locks, declared, resolved_targets):
         resolved_targets: `resolved_packages`'s targets.
 
     Returns:
-        `struct(built, ignored, errors)`: package name -> `struct(directory,
-        path, version, lock, lock_label)`, package name -> `struct(reason,
-        lock_label)`, and the messages. `directory` names the package's
-        directory by its repository, for comparing and naming; `path` is the
-        lock's path to it.
+        `struct(built, entries, ignored, errors)`: package name -> its first
+        `pub_lock_entry`, package name -> every such entry, package name ->
+        `struct(reason, lock_label)`, and the messages.
     """
     built = {}
+    entries = {}
     ignored = {}
     errors = []
     for lock in locks:
@@ -345,26 +376,11 @@ def path_packages(locks, declared, resolved_targets):
                                "`pub.from_lock()` for %s. Each package is one repository; keep one of the " +
                                "two.") % (name, tag.lock))
         for name in tag.build_from_pubspec:
-            info = lock.packages[name]
-            desc = info.get("description", {})
-            path = desc.get("path", "")
-
-            # `lock_mapping_error` has checked the path is relative and stays
-            # in the lock's repository, so it has a source.
-            directory = fetched_identity_text(pub_path_source(tag.lock, path).identity)
-            first = built.setdefault(name, struct(
-                directory = directory,
-                path = _normalize(path),
-                version = info.get("version", ""),
-                lock = tag.lock,
-                lock_label = str(tag.lock),
-            ))
-            if first.directory != directory:
-                errors.append(("Package \"%s\" is built from different directories:\n" +
-                               "  - %s (by the `pub.from_lock()` for %s)\n" +
-                               "  - %s (by the `pub.from_lock()` for %s)\n" +
-                               "rules_dart builds one copy of each package; make the locks name one " +
-                               "directory.") % (name, first.directory, first.lock_label, directory, tag.lock))
+            read = pub_lock_entry(name, lock.packages[name], tag.lock)
+            errors.extend(read.errors)
+            if read.entry:
+                built.setdefault(name, read.entry)
+                entries.setdefault(name, []).append(read.entry)
         for name, reason in tag.ignored.items():
             first = ignored.setdefault(name, struct(reason = reason, lock_label = str(tag.lock)))
             if first.reason != reason:
@@ -379,64 +395,135 @@ def path_packages(locks, declared, resolved_targets):
             errors.append(("Package \"%s\" is mapped by `resolve` in the `pub.from_lock()` for %s and " +
                            "named by `build_from_pubspec` or `ignored` in another. rules_dart builds one " +
                            "copy of each package; choose one.") % (name, resolved_targets[name].lock_label))
-    return struct(built = built, ignored = ignored, errors = errors)
+    return struct(built = built, entries = entries, ignored = ignored, errors = errors)
 
-def git_lock_package(name, info, lock_tag):
-    """Reads a lock's `source: git` entry, refusing one that pins nothing.
-
-    Args:
-        name: The package name.
-        info: The lock entry.
-        lock_tag: The `from_lock` tag whose lock lists it.
-
-    Returns:
-        `struct(package, errors)`: what is fetched for it, `struct(version,
-        url, resolved_ref, path, lock, identity, lock_label, lock_file)`, None
-        when `errors` names why it cannot be. `path` is normalized, "." for the
-        repository's root; `identity` is `pub_git_source`'s.
-    """
+def _git_entry(name, info, common):
     desc = info.get("description", {})
-    version = info.get("version", "")
+    version = common["version"]
     url = desc.get("url", "")
     resolved_ref = desc.get("resolved-ref", "")
+    lock_file = common["lock_file"]
     errors = []
     if not url:
         errors.append(("The git package \"%s\" %s (in %s) has no `description.url`. Re-resolve the " +
                        "lock to rewrite it, from the root of the workspace that holds it:\n  %s") % (
             name,
             version,
-            lock_tag.lock,
-            pub_command("get", lock_tag.lock),
+            lock_file,
+            common["refresh"],
         ))
     ref_error = pub_git_resolved_ref_error(
         name,
         version,
         resolved_ref,
-        str(lock_tag.lock),
-        rewrite = pub_command("get", lock_tag.lock),
+        str(lock_file),
+        rewrite = common["refresh"],
     )
     if ref_error:
         errors.append(ref_error)
     if errors:
-        return struct(package = None, errors = errors)
+        return struct(entry = None, errors = errors)
 
     # A relative url is resolved against the lock's directory, so the lock is
     # part of what it names.
-    lock = lock_tag.lock if is_relative_git_url(url) else None
+    lock = lock_file if is_relative_git_url(url) else None
     path = _normalize(desc.get("path", ".")) or "."
     return struct(
-        package = struct(
-            version = version,
+        entry = struct(
             url = url,
             resolved_ref = resolved_ref,
             path = path,
             lock = lock,
             identity = pub_git_source(name, version, url, resolved_ref, path, lock).identity,
-            lock_label = str(lock_tag.lock),
-            lock_file = lock_tag.lock,
+            **common
         ),
         errors = [],
     )
+
+def _hosted_entry(name, info, common):
+    desc = info.get("description", {})
+    sha256 = desc.get("sha256", "")
+    error = pub_archive_sha256_error(
+        name,
+        common["version"],
+        sha256,
+        common["lock_label"],
+        rewrite = common["refresh"],
+    )
+    if error:
+        # An entry that pins nothing requests nothing.
+        return struct(entry = None, errors = [error])
+    return struct(
+        entry = struct(sha256 = sha256, url = desc.get("url", "https://pub.dev"), **common),
+        errors = [],
+    )
+
+def _path_entry(name, info, common):
+    path = info.get("description", {}).get("path", "")
+    source = pub_path_source(common["lock_file"], path)
+    if source == None:
+        return struct(entry = None, errors = [
+            ("Package \"%s\" is at `%s` from %s, an absolute path or one outside the repository " +
+             "that holds the lock, so no build can name its directory. Map it with `resolve`.") % (
+                name,
+                path,
+                common["lock_label"],
+            ),
+        ])
+    return struct(
+        entry = struct(
+            path = _normalize(path),
+            directory = fetched_identity_text(source.identity),
+            **common
+        ),
+        errors = [],
+    )
+
+def pub_lock_entry(name, info, lock, runner = _RUNNER):
+    """Reads one package of a lock, refusing what could not be fetched from it.
+
+    A hosted entry must pin its archive's sha256, and a git entry a url and a
+    full commit. A `path` entry must name a directory inside the lock's
+    repository; read only the `path` packages built from their pubspec, those
+    `pub_lock_mapping_error` has checked.
+
+    Args:
+        name: The package name.
+        info: Its entry, from `parse_pubspec_lock`'s `packages`.
+        lock: The lock's `Label`.
+        runner: The target whose `bazel run` runs pub, for the commands the
+            messages and the entry give.
+
+    Returns:
+        `struct(entry, errors)`: the messages, and the entry, None when they
+        say it cannot be used. Every entry has `source`, `version`,
+        `lock_file` (the lock's `Label`), `lock_label` (its text), `refresh`
+        (the `pub get` that rewrites the lock) and `upgrade` (the `pub upgrade`
+        of this package). Besides those,
+        - hosted: `sha256`, `url`.
+        - git: `url`, `resolved_ref`, `path` (normalized, "." for the root),
+          `lock` (the lock's `Label` when `url` is relative to it, else None)
+          and `identity` (`pub_git_source`'s).
+        - path: `path` (normalized) and `directory`, which names the package's
+          directory by its repository, for comparing and for messages. Give
+          `lock_file` and `path` to `pub_lock_path_directory`, or to
+          `pub_lock_path_package`.
+    """
+    common = dict(
+        source = info.get("source", ""),
+        version = info.get("version", ""),
+        lock_file = lock,
+        lock_label = str(lock),
+        refresh = pub_command("get", lock, runner = runner),
+        upgrade = pub_command("upgrade", lock, [name], runner = runner),
+    )
+    if common["source"] == "hosted":
+        return _hosted_entry(name, info, common)
+    if common["source"] == "git":
+        return _git_entry(name, info, common)
+    if common["source"] == "path":
+        return _path_entry(name, info, common)
+    return struct(entry = struct(**common), errors = [])
 
 def git_disagreement_error(name, first, other):
     """Why two locks' entries for one git package cannot both be built, or None.
@@ -450,7 +537,7 @@ def git_disagreement_error(name, first, other):
 
     Args:
         name: The package name.
-        first: The first lock's entry, as `git_lock_package` reads it.
+        first: The first lock's entry, as `pub_lock_entry` reads it.
         other: Another lock's entry.
 
     Returns:
@@ -470,7 +557,7 @@ def git_disagreement_error(name, first, other):
     return ("Git package \"%s\" is locked differently across lock files:\n" +
             "  - %s at %s, path %s (from %s)\n" +
             "  - %s at %s, path %s (from %s)\n" +
-            "rules_dart builds one copy of each package. %s, then re-resolve each lock " +
+            "A build holds one copy of each package. %s, then re-resolve each lock " +
             "from the root of the workspace that holds it:\n  %s\n  %s") % (
         name,
         first.url,
@@ -482,45 +569,59 @@ def git_disagreement_error(name, first, other):
         other.path,
         other.lock_label,
         remedy,
-        pub_command("upgrade", first.lock_file, [name]),
-        pub_command("upgrade", other.lock_file, [name]),
+        first.upgrade,
+        other.upgrade,
     )
 
-def source_disagreement_errors(built, git, hosted):
-    """Why a package two locks list from different sources cannot be built.
+def pub_lock_disagreement_errors(name, entries):
+    """Why the locks listing one package cannot all be built, with one copy of it.
+
+    Two `path` entries must name one directory and two git entries one commit
+    of one repository directory (`git_disagreement_error`), and a package may
+    come from only one of `path`, git and a registry. Which version of a hosted
+    package wins is `select_pub_version`'s to say. An entry of any other source
+    is not compared.
 
     Args:
-        built: The `path` packages built from their pubspec, as
-            `path_packages` gives them.
-        git: Package name -> the git package fetched for it.
-        hosted: Package name -> its hosted lock entries, each with a
-            `lock_label`.
+        name: The package name.
+        entries: Its `pub_lock_entry` entries, the first of each source being
+            the one the build would use. Leave out those of a lock whose entry
+            does not count: one the root module's lock overrides, or a package
+            `resolve` maps to a target.
 
     Returns:
-        The messages, one per package.
+        The messages.
     """
+    paths = [e for e in entries if e.source == "path"]
+    gits = [e for e in entries if e.source == "git"]
+    hosted = [e for e in entries if e.source == "hosted"]
+    agree = "A build holds one copy of each package; make the locks agree, or map it to one target with `resolve`."
     errors = []
-    for name, path_pkg in built.items():
-        if name in hosted or name in git:
-            errors.append(
-                ("Package \"%s\" is built from %s by the `pub.from_lock()` for %s, and another " +
-                 "lock lists it as a %s package. rules_dart builds one copy of each package; " +
-                 "make the locks agree.") % (
-                    name,
-                    path_pkg.directory,
-                    path_pkg.lock_label,
-                    "hosted" if name in hosted else "git",
-                ),
-            )
-    for name, git_pkg in git.items():
-        if name in hosted:
-            errors.append(
-                ("Package \"%s\" is a git package in %s and a hosted package in %s. " +
-                 "rules_dart builds one copy of each package; make the locks agree, " +
-                 "or declare it with `pub.package()` in the root module.") % (
-                    name,
-                    git_pkg.lock_label,
-                    hosted[name][0].lock_label,
-                ),
-            )
+    for other in paths[1:]:
+        if other.directory != paths[0].directory:
+            errors.append(("Package \"%s\" is built from different directories:\n" +
+                           "  - %s (by the lock %s)\n" +
+                           "  - %s (by the lock %s)\n" +
+                           "%s") % (name, paths[0].directory, paths[0].lock_label, other.directory, other.lock_label, agree))
+    for other in gits[1:]:
+        error = git_disagreement_error(name, gits[0], other)
+        if error:
+            errors.append(error)
+    if paths and (gits or hosted):
+        other = hosted[0] if hosted else gits[0]
+        errors.append("Package \"%s\" is built from %s by the lock %s, and the lock %s lists it as a %s package. %s" % (
+            name,
+            paths[0].directory,
+            paths[0].lock_label,
+            other.lock_label,
+            other.source,
+            agree,
+        ))
+    elif gits and hosted:
+        errors.append("Package \"%s\" is a git package in %s and a hosted package in %s. %s" % (
+            name,
+            gits[0].lock_label,
+            hosted[0].lock_label,
+            agree,
+        ))
     return errors

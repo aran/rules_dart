@@ -7,13 +7,18 @@ refusal of a phase at once.
 """
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
+load(
+    "//dart/pub:pub_lock_package.bzl",
+    "pub_lock_disagreement_errors",
+    "pub_lock_entry",
+    "pub_lock_mapping_error",
+    "pub_lock_path_directory",
+)
 
 # buildifier: disable=bzl-visibility
 load(
     "//dart/pub/private:pub_lock_checks.bzl",
     "git_disagreement_error",
-    "git_lock_package",
-    "lock_mapping_error",
     "path_packages",
     "pub_command",
     "published_by_rules_dart",
@@ -21,7 +26,6 @@ load(
     "published_here_targets",
     "resolved_packages",
     "resolved_pubspecs",
-    "source_disagreement_errors",
 )
 load(":small_suite.bzl", "small_unittest_suite")
 
@@ -38,6 +42,21 @@ def _tag(lock, name = "deps", resolve = {}, build_from_pubspec = [], ignored = {
 def _lock(packages, **kwargs):
     lock = kwargs.pop("lock", "//app:pubspec.lock")
     return struct(module = None, tag = _tag(lock, **kwargs), packages = packages)
+
+def lock_mapping_error(lock):
+    tag = lock.tag
+    return pub_lock_mapping_error(
+        'pub.from_lock(name = "%s", lock = "%s")' % (tag.name, tag.lock),
+        tag.lock,
+        lock.packages,
+        resolve = tag.resolve,
+        build_from_pubspec = tag.build_from_pubspec,
+        ignored = tag.ignored,
+    )
+
+def _entry(lock, info, name = "foo"):
+    read = pub_lock_entry(name, info, Label(lock))
+    return read.entry
 
 def _hosted(version = "1.0.0"):
     return {"source": "hosted", "version": version, "description": {"sha256": "0" * 64}}
@@ -60,6 +79,11 @@ def _pub_command_test_impl(ctx):
         env,
         "bazel run @rules_dart//dart/pub -- upgrade --directory=app/sub foo",
         pub_command("upgrade", Label("//app/sub:pubspec.lock"), ["foo"]),
+    )
+    asserts.equals(
+        env,
+        "bazel run @other//pub -- get --directory=app",
+        pub_command("get", Label("//app:pubspec.lock"), runner = "@other//pub"),
     )
     return unittest.end(env)
 
@@ -103,6 +127,7 @@ def _mapping_names_each_problem_test_impl(ctx):
         "  - `build_from_pubspec` names `path`, which the lock does not list as `path`",
         "  - `utils` is named in `build_from_pubspec` and `ignored`; name it in one.",
         "  - it lists `models` as a `path` package.",
+        'resolve = {"models": "//app/models:<target>"}',
         'build_from_pubspec = ["models"]',
         "`build_from_pubspec` names `far` (/opt/far), whose directory the lock gives by an absolute path",
         "`build_from_pubspec` names `outside` (../../outside), whose directory is outside the repository",
@@ -138,28 +163,36 @@ def _path_agreement_test_impl(ctx):
 
     refused = path_packages([one, two, r], {"d": []}, resolved_packages([r], {}).targets)
     _contains(env, "\n".join(refused.errors), "Package \"d\" is declared with `pub.package()` and named by the `pub.from_lock()` for @@//two:pubspec.lock")
-    _contains(env, "\n".join(refused.errors), "Package \"m\" is built from different directories:", "  - @@//one/m (by", "  - @@//elsewhere/m (by")
+    _contains(
+        env,
+        "\n".join(pub_lock_disagreement_errors("m", refused.entries["m"])),
+        "Package \"m\" is built from different directories:",
+        "  - @@//one/m (by the lock @@//one:pubspec.lock)",
+        "  - @@//elsewhere/m (by the lock @@//two:pubspec.lock)",
+    )
     _contains(env, "\n".join(refused.errors), "Package \"i\" is built from its pubspec by the `pub.from_lock()` for @@//one:pubspec.lock and ignored by the one for @@//two:pubspec.lock")
     _contains(env, "\n".join(refused.errors), "Package \"m\" is mapped by `resolve` in the `pub.from_lock()` for @@//r:pubspec.lock")
     return unittest.end(env)
 
 def _git_entry_pinned_test_impl(ctx):
     env = unittest.begin(ctx)
-    tag = _tag("//app:pubspec.lock")
-    read = git_lock_package("foo", _git(), tag)
+    lock = Label("//app:pubspec.lock")
+    read = pub_lock_entry("foo", _git(), lock)
     asserts.equals(env, [], read.errors)
-    asserts.equals(env, _COMMIT_A, read.package.resolved_ref)
-    asserts.equals(env, None, read.package.lock, "an absolute url names no lock")
+    asserts.equals(env, "git", read.entry.source)
+    asserts.equals(env, _COMMIT_A, read.entry.resolved_ref)
+    asserts.equals(env, None, read.entry.lock, "an absolute url names no lock")
+    asserts.equals(env, lock, read.entry.lock_file)
 
-    relative = git_lock_package("foo", _git(url = "../foo"), tag)
-    asserts.equals(env, Label("//app:pubspec.lock"), relative.package.lock, "a relative url is resolved against the lock")
+    relative = pub_lock_entry("foo", _git(url = "../foo"), lock)
+    asserts.equals(env, lock, relative.entry.lock, "a relative url is resolved against the lock")
     return unittest.end(env)
 
 def _git_entry_unpinned_test_impl(ctx):
     env = unittest.begin(ctx)
-    tag = _tag("//app:pubspec.lock")
-    short = git_lock_package("foo", _git(ref = "a1b2c3d"), tag)
-    asserts.equals(env, None, short.package)
+    lock = Label("//app:pubspec.lock")
+    short = pub_lock_entry("foo", _git(ref = "a1b2c3d"), lock)
+    asserts.equals(env, None, short.entry)
     asserts.equals(env, 1, len(short.errors))
     _contains(
         env,
@@ -168,8 +201,8 @@ def _git_entry_unpinned_test_impl(ctx):
         "bazel run @rules_dart//dart/pub -- get --directory=app",
     )
 
-    neither = git_lock_package("foo", _git(url = "", ref = None), tag)
-    asserts.equals(env, None, neither.package)
+    neither = pub_lock_entry("foo", _git(url = "", ref = None), lock)
+    asserts.equals(env, None, neither.entry)
     asserts.equals(env, 2, len(neither.errors), "a missing url and a missing commit are each named")
     _contains(env, neither.errors[0], 'The git package "foo" 1.0.0 (in @@//app:pubspec.lock) has no `description.url`.')
     _contains(env, neither.errors[1], 'resolved-ref "", which is not a full commit id')
@@ -177,10 +210,10 @@ def _git_entry_unpinned_test_impl(ctx):
 
 def _git_disagreement_test_impl(ctx):
     env = unittest.begin(ctx)
-    one = git_lock_package("foo", _git(), _tag("//one:pubspec.lock")).package
-    same = git_lock_package("foo", _git(), _tag("//same:pubspec.lock")).package
-    other = git_lock_package("foo", _git(ref = _COMMIT_B), _tag("//two:pubspec.lock")).package
-    subdir = git_lock_package("foo", _git(path = "pkgs/foo"), _tag("//sub:pubspec.lock")).package
+    one = _entry("//one:pubspec.lock", _git())
+    same = _entry("//same:pubspec.lock", _git())
+    other = _entry("//two:pubspec.lock", _git(ref = _COMMIT_B))
+    subdir = _entry("//sub:pubspec.lock", _git(path = "pkgs/foo"))
 
     asserts.equals(env, None, git_disagreement_error("foo", one, same))
     _contains(
@@ -195,8 +228,8 @@ def _git_disagreement_test_impl(ctx):
     asserts.true(env, git_disagreement_error("foo", one, subdir) != None, "another directory of one commit disagrees")
 
     # A relative url names a repository by the lock's directory.
-    rel_one = git_lock_package("foo", _git(url = "../foo"), _tag("//a/one:pubspec.lock")).package
-    rel_two = git_lock_package("foo", _git(url = "../foo"), _tag("//b/two:pubspec.lock")).package
+    rel_one = _entry("//a/one:pubspec.lock", _git(url = "../foo"))
+    rel_two = _entry("//b/two:pubspec.lock", _git(url = "../foo"))
     asserts.true(env, git_disagreement_error("foo", rel_one, rel_two) != None, "one relative url from two directories")
     return unittest.end(env)
 
@@ -206,7 +239,7 @@ def _git_agreement_is_identity_test_impl(ctx):
     env = unittest.begin(ctx)
 
     def entry(lock, **kwargs):
-        return git_lock_package("foo", _git(**kwargs), _tag(lock)).package
+        return _entry(lock, _git(**kwargs))
 
     # One repository, reached from two directories.
     near = entry("//shared/app:pubspec.lock", url = "../foo")
@@ -248,29 +281,101 @@ def _git_agreement_is_identity_test_impl(ctx):
 
 def _source_disagreement_test_impl(ctx):
     env = unittest.begin(ctx)
-    git = {
-        "foo": git_lock_package("foo", _git(), _tag("//one:pubspec.lock")).package,
-        "bar": git_lock_package("bar", _git(), _tag("//one:pubspec.lock")).package,
-    }
-    hosted = {
-        "foo": [struct(lock_label = "@@//two:pubspec.lock")],
-        "baz": [struct(lock_label = "@@//two:pubspec.lock")],
-    }
-    built = {
-        "bar": struct(directory = "@@//bar", lock_label = "@@//three:pubspec.lock"),
-        "baz": struct(directory = "@@//baz", lock_label = "@@//three:pubspec.lock"),
-        "alone": struct(directory = "@@//alone", lock_label = "@@//three:pubspec.lock"),
-    }
-    errors = "\n".join(source_disagreement_errors(built, git, hosted))
+    git = _entry("//one:pubspec.lock", _git())
+    hosted = _entry("//two:pubspec.lock", _hosted())
+    path = _entry("//three:pubspec.lock", _path("p"))
     _contains(
         env,
-        errors,
+        "\n".join(pub_lock_disagreement_errors("foo", [git, hosted])),
         "Package \"foo\" is a git package in @@//one:pubspec.lock and a hosted package in @@//two:pubspec.lock.",
-        "Package \"bar\" is built from @@//bar by the `pub.from_lock()` for @@//three:pubspec.lock, and another lock lists it as a git package.",
-        "Package \"baz\" is built from @@//baz by the `pub.from_lock()` for @@//three:pubspec.lock, and another lock lists it as a hosted package.",
+        "map it to one target with `resolve`",
     )
-    asserts.false(env, "alone" in errors, "a package one source serves agrees")
-    asserts.equals(env, [], source_disagreement_errors({}, {"bar": git["bar"]}, {"baz": hosted["baz"]}))
+    _contains(
+        env,
+        "\n".join(pub_lock_disagreement_errors("foo", [path, git])),
+        "Package \"foo\" is built from @@//three/p by the lock @@//three:pubspec.lock, and the lock @@//one:pubspec.lock lists it as a git package.",
+    )
+    _contains(
+        env,
+        "\n".join(pub_lock_disagreement_errors("foo", [hosted, path])),
+        "Package \"foo\" is built from @@//three/p by the lock @@//three:pubspec.lock, and the lock @@//two:pubspec.lock lists it as a hosted package.",
+    )
+    other_hosted = _entry("//four:pubspec.lock", _hosted("2.0.0"))
+    asserts.equals(env, [], pub_lock_disagreement_errors("foo", [hosted, other_hosted]), "`select_pub_version` picks among hosted entries")
+    asserts.equals(env, [], pub_lock_disagreement_errors("foo", [path, _entry("//three:pubspec.lock", _path("./p/"))]))
+    sdk = _entry("//five:pubspec.lock", {"source": "sdk", "version": "0.0.0", "description": {"name": "flutter"}})
+    asserts.equals(env, [], pub_lock_disagreement_errors("foo", [hosted, sdk]), "other sources are not compared")
+    return unittest.end(env)
+
+def _entries_test_impl(ctx):
+    env = unittest.begin(ctx)
+    lock = Label("//app:pubspec.lock")
+    runner = "@other//pub"
+
+    hosted = pub_lock_entry("foo", _hosted("1.2.3"), lock, runner = runner).entry
+    asserts.equals(env, ("hosted", "1.2.3", "0" * 64, "https://pub.dev"), (hosted.source, hosted.version, hosted.sha256, hosted.url))
+    asserts.equals(env, "bazel run @other//pub -- get --directory=app", hosted.refresh)
+    asserts.equals(env, "bazel run @other//pub -- upgrade --directory=app foo", hosted.upgrade)
+
+    unpinned = pub_lock_entry("foo", {"source": "hosted", "version": "1.0.0", "description": {}}, lock, runner = runner)
+    asserts.equals(env, None, unpinned.entry)
+    _contains(env, unpinned.errors[0], 'No sha256 is pinned for pub package "foo"', "bazel run @other//pub -- get --directory=app")
+
+    path = pub_lock_entry("foo", _path("../pkgs/./foo/"), lock).entry
+    asserts.equals(env, ("../pkgs/foo", "@@//pkgs/foo", lock), (path.path, path.directory, path.lock_file))
+
+    for unbuildable in (_path("../../outside"), _path("/opt/far", relative = "False"), _path("C:\\far", relative = "False")):
+        refused = pub_lock_entry("foo", unbuildable, lock)
+        asserts.equals(env, None, refused.entry)
+        _contains(env, refused.errors[0], 'Package "foo" is at', "Map it with `resolve`")
+    return unittest.end(env)
+
+def _mapping_takes_plain_values_test_impl(ctx):
+    # Another extension's tag has only to give the names.
+    env = unittest.begin(ctx)
+    lock = Label("//app/deep:pubspec.lock")
+    packages = {"a": _path("../a"), "b": _path("../../../b"), "c": _path("/abs", relative = "False")}
+    error = pub_lock_mapping_error("other_pub.from_lock(lock = x)", lock, packages)
+    _contains(
+        env,
+        error,
+        "other_pub.from_lock(lock = x):\n",
+        '"a": "//app/a:<target>"',
+        '"b": "//..."',
+        '"c": "//..."',
+    )
+    asserts.equals(env, None, pub_lock_mapping_error("x", lock, packages, resolve = ["a"], build_from_pubspec = [], ignored = ["b", "c"]))
+    asserts.equals(env, None, pub_lock_mapping_error("x", lock, packages, resolve = {"a": "//a"}, ignored = {"b": "why", "c": "why"}))
+    return unittest.end(env)
+
+def _fake_path(parts):
+    return struct(
+        parts = parts,
+        dirname = _fake_path_above(parts),
+        get_child = lambda child: _fake_path(parts + [child]),
+    )
+
+def _fake_path_above(parts):
+    return struct(parts = parts[:-1], get_child = lambda child: _fake_path(parts[:-1] + [child]))
+
+def _path_directory_test_impl(ctx):
+    env = unittest.begin(ctx)
+
+    def resolved(path):
+        # The lock's directory is `repo/app`, deep enough for one step up.
+        lock_file = struct(dirname = struct(
+            parts = ["repo", "app"],
+            dirname = struct(parts = ["repo"], get_child = lambda child: _fake_path(["repo", child])),
+            get_child = lambda child: _fake_path(["repo", "app", child]),
+        ))
+        rctx = struct(path = lambda label: lock_file)
+        return pub_lock_path_directory(rctx, Label("//app:pubspec.lock"), path).parts
+
+    asserts.equals(env, ["repo", "app", "pkg"], resolved("pkg"))
+    asserts.equals(env, ["repo", "app", "pkg"], resolved("./pkg/"))
+    asserts.equals(env, ["repo", "sibling"], resolved("../sibling"))
+    asserts.equals(env, ["repo", "sibling"], resolved("..\\sibling"))
+    asserts.equals(env, ["repo", "app"], resolved("."))
     return unittest.end(env)
 
 def _resolved_pubspecs_test_impl(ctx):
@@ -367,6 +472,9 @@ _t9_test = unittest.make(_resolved_pubspecs_test_impl)
 _t10_test = unittest.make(_published_here_test_impl)
 _t11_test = unittest.make(_published_declaration_test_impl)
 _t12_test = unittest.make(_git_agreement_is_identity_test_impl)
+_t13_test = unittest.make(_entries_test_impl)
+_t14_test = unittest.make(_mapping_takes_plain_values_test_impl)
+_t15_test = unittest.make(_path_directory_test_impl)
 
 def pub_lock_checks_test_suite(name):
-    small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test, _t4_test, _t5_test, _t6_test, _t7_test, _t8_test, _t9_test, _t10_test, _t11_test, _t12_test)
+    small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test, _t4_test, _t5_test, _t6_test, _t7_test, _t8_test, _t9_test, _t10_test, _t11_test, _t12_test, _t13_test, _t14_test, _t15_test)

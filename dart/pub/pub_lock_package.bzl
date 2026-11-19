@@ -37,16 +37,23 @@ take whole. `pub_package_identity` gives the loads a source's declaration needs
 and, for a purl, the `package_metadata` target and `REPO.bazel` that state it
 for the whole repository, as Bazel's supply-chain metadata expects of a
 repository fetched from a registry.
+
+A second pub extension refuses the locks `pub.from_lock` refuses with the same
+three functions. `pub_lock_mapping_error` checks how a tag maps one lock's
+packages; `pub_lock_entry` reads a package of a lock; and, once every lock is
+read, `pub_lock_disagreement_errors` compares the entries a package has across
+them. `pub_lock_path_directory` finds a `path` package's directory from the
+lock and the entry's `path`, as `pub_lock_path_package` does.
 """
 
 load("//dart/pub:pub_graph.bzl", "PUBSPEC_DEPENDENCIES", "write_pubspec_dependencies")
 load("//dart/pub:pubspec.bzl", "read_pubspec")
-load("//dart/pub/private:build_content.bzl", _classify_pub_hooks = "classify_pub_hooks", _find_pub_license_file = "find_pub_license_file", _make_dart_library_build_content = "make_dart_library_build_content", _make_package_metadata_content = "make_package_metadata_content", _make_pub_member_build_content = "make_pub_member_build_content", _pub_git_purl = "pub_git_purl", _pub_git_source = "pub_git_source", _pub_hosted_purl = "pub_hosted_purl", _pub_hosted_source = "pub_hosted_source", _pub_package_identity = "pub_package_identity", _pub_path_source = "pub_path_source")
+load("//dart/pub/private:build_content.bzl", _classify_pub_hooks = "classify_pub_hooks", _find_pub_license_file = "find_pub_license_file", _make_dart_library_build_content = "make_dart_library_build_content", _make_package_metadata_content = "make_package_metadata_content", _make_pub_member_build_content = "make_pub_member_build_content", _normalize_pub_path = "normalize_pub_path", _pub_git_purl = "pub_git_purl", _pub_git_source = "pub_git_source", _pub_hosted_purl = "pub_hosted_purl", _pub_hosted_source = "pub_hosted_source", _pub_package_identity = "pub_package_identity", _pub_path_source = "pub_path_source")
 load("//dart/pub/private:pub_archive.bzl", _check_pub_archive_sha256 = "check_pub_archive_sha256", _fetch_pub_archive = "fetch_pub_archive")
 load("//dart/pub/private:pub_files.bzl", "FILES_LOAD", _pub_archive_files = "pub_archive_files", _pub_files_label = "pub_files_label", _pub_git_files = "pub_git_files")
 load("//dart/pub/private:pub_files_names.bzl", "read_files_load")
 load("//dart/pub/private:pub_git.bzl", _check_pub_git_resolved_ref = "check_pub_git_resolved_ref", _fetch_pub_git = "fetch_pub_git", _is_relative_git_url = "is_relative_git_url")
-load("//dart/pub/private:pub_lock_checks.bzl", _published_by_rules_dart = "published_by_rules_dart")
+load("//dart/pub/private:pub_lock_checks.bzl", _pub_lock_disagreement_errors = "pub_lock_disagreement_errors", _pub_lock_entry = "pub_lock_entry", _pub_lock_mapping_error = "pub_lock_mapping_error", _published_by_rules_dart = "published_by_rules_dart")
 load("//dart/pub/private:pub_path.bzl", _link_pub_path = "link_pub_path")
 load("//dart/pub/private:pub_refusal.bzl", "PUBSPEC_REFUSAL", "failing_target", "write_pubspec_refusal")
 
@@ -54,6 +61,9 @@ load("//dart/pub/private:pub_refusal.bzl", "PUBSPEC_REFUSAL", "failing_target", 
 # flutter_pub_package). Loading the private bzl directly would trip
 # buildifier's bzl-visibility check, so we expose it via this public file.
 published_by_rules_dart = _published_by_rules_dart
+pub_lock_mapping_error = _pub_lock_mapping_error
+pub_lock_entry = _pub_lock_entry
+pub_lock_disagreement_errors = _pub_lock_disagreement_errors
 make_dart_library_build_content = _make_dart_library_build_content
 make_package_metadata_content = _make_package_metadata_content
 find_pub_license_file = _find_pub_license_file
@@ -226,13 +236,26 @@ def _pub_lock_package_impl(ctx):
         build_prelude = build_prelude,
     )
 
-def _lock_path_directory(ctx):
-    # As pub does, the path is resolved lexically against the lock's directory.
-    directory = ctx.path(ctx.attr.lock).dirname
-    for part in ctx.attr.path.split("/"):
+def pub_lock_path_directory(rctx, lock, path):
+    """The directory of a `path` package, from the lock that lists it.
+
+    As pub does, the path is resolved lexically against the lock's directory,
+    with `/` or `\\` between its parts. `pub_lock_entry` gives both arguments,
+    for a directory inside the lock's repository.
+
+    Args:
+        rctx: The `repository_ctx`.
+        lock: The lock's `Label`.
+        path: The entry's `description.path`, relative to the lock's directory.
+
+    Returns:
+        The directory's `path`.
+    """
+    directory = rctx.path(lock).dirname
+    for part in _normalize_pub_path(path).split("/"):
         if part == "..":
             directory = directory.dirname
-        elif part not in ("", "."):
+        elif part:
             directory = directory.get_child(part)
     return directory
 
@@ -249,7 +272,7 @@ def _pub_lock_path_package_impl(ctx):
             ctx.attr.path,
             ctx.attr.lock,
         ))
-    directory = _lock_path_directory(ctx)
+    directory = pub_lock_path_directory(ctx, ctx.attr.lock, ctx.attr.path)
     problem = link_pub_path(ctx, directory, _PATH_PACKAGE_ENTRIES)
     if not problem and not ctx.path("pubspec.yaml").exists:
         # A directory an uninitialized submodule left, say: nothing to build from.
@@ -316,7 +339,7 @@ pub_lock_path_package = repository_rule(
 )
 
 def _pub_lock_resolved_pubspec_impl(ctx):
-    pubspec = _lock_path_directory(ctx).get_child("pubspec.yaml")
+    pubspec = pub_lock_path_directory(ctx, ctx.attr.lock, ctx.attr.path).get_child("pubspec.yaml")
     ctx.watch(pubspec)
     if pubspec.exists and not pubspec.is_dir:
         ctx.symlink(pubspec, "pubspec.yaml")
