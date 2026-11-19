@@ -4,7 +4,7 @@ load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
 load("//dart/private:toolchains_repo.bzl", "PLATFORMS", "host_platform", "host_toolchains_build_content", "unsupported_host_message")
 load("//dart/pub:pubspec.bzl", "read_pubspec")
 load("//dart/pub/private:pub_archive.bzl", "fetch_pub_archive")
-load("//dart/pub/private/pubspec_reader:reader.bzl", "file_uri", "reader_tool_repo")
+load("//dart/pub/private/pubspec_reader:reader.bzl", "compile_reader", "file_uri", "reader_tool_repo")
 load("//dart/tests:small_suite.bzl", "small_unittest_suite")
 
 visibility("//dart/...")
@@ -77,6 +77,75 @@ def _unsupported_host_test_impl(ctx):
     asserts.false(env, "toolchain(" in host_toolchains_build_content("linux-x64", None, {}, {}))
     return unittest.end(env)
 
+def _reader_attempt(project_dart, project_exists, project_compiles, release_compiles):
+    """Runs `compile_reader` with fakes; returns its result and what happened, in order."""
+    events = []
+
+    def path(label):
+        events.append("path " + label)
+        return struct(exists = project_exists if label == "project" else True, label = label)
+
+    def execute(args, **_kwargs):
+        dart = args[0].label
+        events.append("compile " + dart)
+        ok = project_compiles if dart == "project" else release_compiles
+        return struct(return_code = 0 if ok else 1, stdout = "", stderr = dart + " says no")
+
+    rctx = struct(
+        attr = struct(project_dart = project_dart, project_sdk = "mine", dart = "release"),
+        path = path,
+        execute = execute,
+    )
+    result = compile_reader(rctx, "reader", lambda note: events.append("note " + note))
+    return result, events
+
+def _reader_compiles_with_the_project_sdk_test_impl(ctx):
+    env = unittest.begin(ctx)
+    result, events = _reader_attempt("project", True, True, True)
+    asserts.equals(env, None, result.error)
+    asserts.true(env, result.with_project_sdk)
+
+    # The release is not touched, so it is not fetched.
+    asserts.equals(env, ["path project", "compile project"], events)
+    return unittest.end(env)
+
+def _reader_says_why_it_needs_the_release_test_impl(ctx):
+    env = unittest.begin(ctx)
+
+    # The reason comes before the release is asked for: offline, that is where
+    # the fetch fails, and it does not name the SDK the user chose.
+    for project_dart, exists, why in [
+        ("project", True, "project says no"),
+        ("project", False, "no `dart`"),
+        (None, True, "no build for this machine"),
+    ]:
+        result, events = _reader_attempt(project_dart, exists, False, True)
+        asserts.equals(env, None, result.error)
+        asserts.false(env, result.with_project_sdk)
+        notes = [e for e in events if e.startswith("note ")]
+        asserts.equals(env, 1, len(notes), str(events))
+        asserts.true(env, why in notes[0] and '"mine"' in notes[0] and "`dart` release" in notes[0], notes[0])
+        asserts.true(env, events.index(notes[0]) < events.index("path release"), str(events))
+
+    # When that fails too, the failure gives both causes.
+    result, _ = _reader_attempt("project", True, False, False)
+    asserts.true(env, "project says no" in result.error and "release says no" in result.error, result.error)
+
+    # A project that chose no SDK of its own has nothing to be told.
+    rctx_events = []
+    rctx = struct(
+        attr = struct(project_dart = None, project_sdk = "", dart = "release"),
+        path = lambda label: struct(exists = True, label = label),
+        execute = lambda args, **_kwargs: struct(return_code = 0, stdout = "", stderr = ""),
+    )
+    asserts.equals(env, None, compile_reader(rctx, "reader", rctx_events.append).error)
+    asserts.equals(env, [], rctx_events)
+    return unittest.end(env)
+
+_reader_project_sdk_test = unittest.make(_reader_compiles_with_the_project_sdk_test_impl)
+
+_reader_release_test = unittest.make(_reader_says_why_it_needs_the_release_test_impl)
+
 def _reader_repositories_collide_with_no_sdk_test_impl(ctx):
     env = unittest.begin(ctx)
     for platform in PLATFORMS:
@@ -91,4 +160,4 @@ _file_uri_test = unittest.make(_file_uri_test_impl)
 _host_platform_test = unittest.make(_host_platform_test_impl)
 
 def reader_unit_test_suite(name):
-    small_unittest_suite(name, _file_uri_test, _host_platform_test, _unsupported_host_test, _reader_repositories_test)
+    small_unittest_suite(name, _file_uri_test, _host_platform_test, _unsupported_host_test, _reader_repositories_test, _reader_project_sdk_test, _reader_release_test)

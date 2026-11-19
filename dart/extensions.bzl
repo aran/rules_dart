@@ -285,6 +285,7 @@ def _declare_pubspec_reader(sdks, default_sdk):
     pubspec_reader_repositories(
         release_dart = {platform: _host_dart(sdks[_DEFAULT_NAME], platform) for platform in PLATFORMS.keys()},
         project_dart = project_dart,
+        project_sdk = "" if default_sdk == _DEFAULT_NAME else default_sdk,
     )
 
 def _toolchain_extension(module_ctx):

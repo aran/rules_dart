@@ -10,9 +10,9 @@ resolution, and joined by a hand-written package config; `pub get` never runs.
 only, so no cache can hand one OS's binary to another. Pubspecs are read while
 repositories are fetched, before any build has chosen an SDK, so the compiler is
 the one the project builds with by default, the SDK `dart.use_sdk` names, when
-that SDK is usable here; otherwise the `dart` release. Which SDK a flag chooses
-for one build cannot matter: fetching does not know it, and any SDK's reader
-reads a pubspec alike. A repository rule reaches the host's through
+that SDK is usable here; otherwise the `dart` release, saying why first. Which
+SDK a flag chooses for one build cannot matter: fetching does not know it, and
+any SDK's reader reads a pubspec alike. A repository rule reaches the host's through
 `run_pubspec_reader`, which also
 watches the program's source: the tool's output is not part of a repository's
 cache key, so without the watch a reader change would leave every package read
@@ -130,6 +130,61 @@ pubspec_reader_package = repository_rule(
     doc = "One of the pubspec reader's pinned packages.",
 )
 
+def compile_reader(rctx, exe, notify):
+    """Compiles the reader, with the project's SDK if it can.
+
+    An SDK this host cannot use fails only the builds using it, so it does not
+    stop a pubspec being read for a build using another. The `dart` release
+    stands in, and `notify` says why before anything asks for it: a label names
+    a repository without fetching it, so the release is downloaded only here,
+    and if that fails, as it does offline, the failure names the release alone.
+
+    Args:
+        rctx: The context, whose `pubspec_reader.dart` and
+            `package_config.json` are written.
+        exe: The file to write.
+        notify: Called with the reason the release is used, if it is in place
+            of an SDK `dart.use_sdk` names.
+
+    Returns:
+        `struct(error, with_project_sdk)`: `error` is None or what went wrong.
+    """
+    attr = rctx.attr
+
+    def compile_with(dart):
+        return rctx.execute(
+            [dart, "compile", "exe", "--packages=package_config.json", "-o", exe, "pubspec_reader.dart"],
+            environment = {"DASH__SUPPRESS_ANALYTICS": "true"},
+            timeout = 600,
+        )
+
+    problem = None
+    if attr.project_dart:
+        project = rctx.path(attr.project_dart)
+        if project.exists:
+            result = compile_with(project)
+            if result.return_code == 0:
+                return struct(error = None, with_project_sdk = True)
+            problem = "compiling with it failed:\n" + result.stdout + result.stderr
+        else:
+            problem = "it has no `dart` here; a build using it says why."
+    elif attr.project_sdk:
+        problem = "it has no build for this machine."
+    if problem:
+        notify(
+            'rules_dart compiles its pubspec reader with Dart SDK "{sdk}", which dart.use_sdk names, but {problem}\n'.format(
+                sdk = attr.project_sdk,
+                problem = problem,
+            ) + "It uses the `dart` release instead, downloading it if it is not here yet.",
+        )
+    result = compile_with(rctx.path(attr.dart))
+    if result.return_code == 0:
+        return struct(error = None, with_project_sdk = False)
+    error = "Compiling rules_dart's pubspec reader failed:\n" + result.stdout + result.stderr
+    if problem:
+        error += '\nDart SDK "{}" was tried first: {}'.format(attr.project_sdk, problem)
+    return struct(error = error, with_project_sdk = False)
+
 def _reader_tool_impl(rctx):
     platform = rctx.attr.platform
     host = host_platform(rctx.os)
@@ -170,27 +225,13 @@ dart_sdk_error(
     rctx.file("pubspec_reader.dart", rctx.read(rctx.attr.src))
     exe = _executable(platform)
 
-    def compile_with(dart):
-        return rctx.execute(
-            [dart, "compile", "exe", "--packages=package_config.json", "-o", exe, "pubspec_reader.dart"],
-            environment = {"DASH__SUPPRESS_ANALYTICS": "true"},
-            timeout = 600,
-        )
-
-    # An SDK this host cannot use fails only the builds using it, so it does
-    # not stop a pubspec being read for a build using another. A label names
-    # a repository without fetching it: the `dart` release is fetched only here.
-    project_sdk = rctx.path(rctx.attr.project_dart) if rctx.attr.project_dart else None
-    if project_sdk and project_sdk.exists and compile_with(project_sdk).return_code == 0:
-        rctx.file("BUILD.bazel", 'exports_files(["{}"])\n'.format(exe))
-
-        # That SDK may be this machine's own build.
-        return rctx.repo_metadata(reproducible = False)
-    result = compile_with(rctx.path(rctx.attr.dart))
-    if result.return_code != 0:
-        fail("Compiling rules_dart's pubspec reader failed:\n" + result.stdout + result.stderr)
+    compiled = compile_reader(rctx, exe, print)
+    if compiled.error:
+        fail(compiled.error)
     rctx.file("BUILD.bazel", 'exports_files(["{}"])\n'.format(exe))
-    return rctx.repo_metadata(reproducible = not rctx.attr.project_dart)
+
+    # The project's SDK may be this machine's own build.
+    return rctx.repo_metadata(reproducible = not rctx.attr.project_sdk)
 
 pubspec_reader_tool = repository_rule(
     implementation = _reader_tool_impl,
@@ -209,6 +250,7 @@ pubspec_reader_tool = repository_rule(
             doc = "The `dart` of the SDK `dart.use_sdk` names, on that platform, if it names one with a repository there. Preferred, so that a project need not fetch the `dart` release.",
             allow_single_file = True,
         ),
+        "project_sdk": attr.string(doc = "The name of the SDK `dart.use_sdk` names, if it is not `dart`."),
         "packages": attr.label_keyed_string_dict(
             doc = "Each pinned package's pubspec.yaml, keyed to the package name.",
             allow_files = True,
@@ -218,7 +260,7 @@ pubspec_reader_tool = repository_rule(
     doc = "Compiles the pubspec reader for one host platform.",
 )
 
-def pubspec_reader_repositories(release_dart, project_dart):
+def pubspec_reader_repositories(release_dart, project_dart, project_sdk):
     """Declares the reader's pinned packages and a reader per host platform.
 
     The `dart` extension calls this, as only it knows the SDKs. Only the host's
@@ -228,6 +270,7 @@ def pubspec_reader_repositories(release_dart, project_dart):
         release_dart: The label of the `dart` release's `dart`, by platform.
         project_dart: The label of the `dart` of the SDK `dart.use_sdk` names,
             by platform, for those it has one on.
+        project_sdk: That SDK's name, or "" when it is the `dart` release.
     """
     for name, (version, sha256, _) in READER_PACKAGES.items():
         pubspec_reader_package(
@@ -242,6 +285,7 @@ def pubspec_reader_repositories(release_dart, project_dart):
             platform = platform,
             dart = release_dart[platform],
             project_dart = project_dart.get(platform),
+            project_sdk = project_sdk,
             packages = {
                 "@{}//:pubspec.yaml".format(reader_package_repo(name)): name
                 for name in READER_PACKAGES
