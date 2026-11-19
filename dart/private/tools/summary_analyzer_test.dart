@@ -40,6 +40,7 @@ Directory project(
             '"packageUri": "lib/", "languageVersion": "3.13"}'].join(', ')}]}',
     );
   File(p.join(dir.path, 'analysis_options.yaml')).writeAsStringSync(options);
+  File(p.join(dir.path, 'fetched_packages.txt')).writeAsStringSync('');
   return dir;
 }
 
@@ -246,6 +247,50 @@ int use(Holder h) => h.missing;
     );
     expect(narrowed.output, contains('2 issues found.'));
   });
+
+  test('fails on an unresolved doc import when the fetched packages are not '
+      'listed', () async {
+    final dir = project(
+      'unlisted',
+      {
+        'app/lib/app.dart':
+            "/// @docImport 'package:app/misspelt.dart';\nlibrary;\n",
+      },
+      packages: ['app'],
+    );
+    File(p.join(dir.path, 'fetched_packages.txt')).deleteSync();
+    final result = await analyze(dir, []);
+    expect(result.exitCode, isNonZero);
+    expect(result.stamped, isFalse);
+    expect(result.output, contains('fetched_packages.txt'));
+  });
+
+  for (final (form, library, partOf) in const [
+    ('its name', 'library app.main;', 'part of app.main;'),
+    ('a package URI', 'library;', "part of 'package:app/app.dart';"),
+  ]) {
+    test('an unresolved doc import covers a part that gives its library by '
+        '$form', () async {
+      final result = await analyze(
+        project(
+          'named_${form.hashCode}',
+          {
+            'app/lib/app.dart':
+                "/// @docImport 'package:absent/absent.dart';\n$library\n\n"
+                "part 'part.dart';\n",
+            'app/lib/part.dart':
+                '$partOf\n\n/// See [Absent] and [_Private].\nclass B {}\n',
+          },
+          packages: ['app'],
+          options: 'linter:\n  rules:\n    - comment_references\n',
+        ),
+        [],
+      );
+      // Only `_Private`, which no import can bring in.
+      expect('comment_references'.allMatches(result.output), hasLength(1));
+      expect(result.output, contains('part.dart:3:23'));
+    });
+  }
 
   test('a doc import that could supply anything supplies no private name, and '
       'one that does not exist supplies nothing', () async {

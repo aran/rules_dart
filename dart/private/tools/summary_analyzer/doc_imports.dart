@@ -26,10 +26,15 @@ const _commentReferences = 'comment_references';
 /// holds whole, one per line.
 const _fetchedPackages = 'fetched_packages.txt';
 
+/// A `part of` directive, with the URI it gives, if it gives one and not the
+/// library's name.
 final _partOf = RegExp(
-  r'''^\s*part\s+of\s+['"]([^'"]+)['"]''',
+  r'''^\s*part\s+of\s+(?:['"]([^'"]+)['"]|[\w$.\s]+;)''',
   multiLine: true,
 );
+
+/// A `part` directive and its URI.
+final _part = RegExp(r'''^\s*part\s+['"]([^'"]+)['"]''', multiLine: true);
 
 // The message says "doesn't", so a quoted URI is told by holding no space.
 final _quoted = RegExp(r"'([^'\s]*)'");
@@ -91,14 +96,19 @@ String _normal(String path) => File(path).absolute.uri.toFilePath();
 /// The URI an unresolved doc import's [message] quotes.
 String? _uriOf(String message) => _quoted.firstMatch(message)?[1];
 
+/// The packages [project] holds whole. Without the list a broken doc import
+/// could not be told from one outside the target's view, so it is required.
 Set<String> _readFetchedPackages(String project) {
   try {
     return File('$project/$_fetchedPackages')
         .readAsLinesSync()
         .where((l) => l.isNotEmpty)
         .toSet();
-  } on FileSystemException {
-    return const {};
+  } on FileSystemException catch (e) {
+    throw StateError(
+      'cannot read $_fetchedPackages of the analyzed project $project, which '
+      'says what an unresolved doc import means: ${e.message}',
+    );
   }
 }
 
@@ -137,7 +147,7 @@ List<_DocImport>? _importsOfLibrary(
   while (current != null && seen.add(current)) {
     final imports = unresolved[current];
     if (imports != null) return imports;
-    current = _libraryOfPart(current);
+    current = _libraryOfPart(current, unresolved.keys);
   }
   return null;
 }
@@ -150,13 +160,34 @@ String? _read(String path) {
   }
 }
 
-/// The file the part at [path] says it belongs to, or null when it is no part
-/// or names its library rather than a file.
-String? _libraryOfPart(String path) {
+/// The file the part at [path] belongs to, or null when it is no part or its
+/// library is not known. A relative URI says which. A library's name or a
+/// `package:` URI gives no path here, so its library is whichever of
+/// [libraries] lists the part.
+String? _libraryOfPart(String path, Iterable<String> libraries) {
   final text = _read(path);
-  if (text == null) return null;
-  final uri = _partOf.firstMatch(text)?[1];
-  return uri == null ? null : File(path).uri.resolve(uri).toFilePath();
+  final match = text == null ? null : _partOf.firstMatch(text);
+  if (match == null) return null;
+  final uri = match[1];
+  if (uri != null && !uri.startsWith('package:')) {
+    return File(path).uri.resolve(uri).toFilePath();
+  }
+  return libraries.where((l) => _listsPart(l, path)).firstOrNull;
+}
+
+/// Whether the file at [library] has a `part` directive naming the file at
+/// [path].
+bool _listsPart(String library, String path) {
+  final text = _read(library);
+  if (text == null) return false;
+  return _part.allMatches(text).any((m) {
+    final uri = m[1]!;
+    if (!uri.startsWith('package:')) {
+      return File(library).uri.resolve(uri).toFilePath() == path;
+    }
+    final inPackage = uri.substring(uri.indexOf('/') + 1);
+    return File(path).uri.path.endsWith('/lib/$inPackage');
+  });
 }
 
 /// The dotted name in the file at [path] around [line] and [column], or null

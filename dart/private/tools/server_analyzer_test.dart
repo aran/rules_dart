@@ -50,6 +50,7 @@ void main(List<String> args) {
       '.dart_tool/package_config.json':
           '{"configVersion":2,"packages":[{"name":"probe","rootUri":"../",'
           '"packageUri":"lib/","languageVersion":"3.10"}]}\n',
+      'fetched_packages.txt': '',
       ...files,
     }.entries) {
       File('${root.path}/$key')
@@ -160,6 +161,42 @@ void main(List<String> args) {
       });
       expect(out, 'No issues found!');
     });
+
+    test('is an error when the fetched packages are not listed, as it cannot '
+        'then be told from one the target cannot see', () async {
+      final dir = project('doc', {
+        'lib/a.dart':
+            "/// @docImport 'package:probe/misspelt.dart';\nlibrary;\n",
+      });
+      File('$dir/fetched_packages.txt').deleteSync();
+      final names = throwsA(
+        isA<StateError>().having(
+          (e) => e.message,
+          'message',
+          contains('fetched_packages.txt'),
+        ),
+      );
+      await expectLater(dartAnalyze(dir), names);
+      await expectLater(analyze(analyzer(), dir), names);
+    });
+
+    for (final (form, library, partOf) in const [
+      ('its name', 'library probe.a;', 'part of probe.a;'),
+      ('a package URI', 'library;', "part of 'package:probe/a.dart';"),
+    ]) {
+      test('covers a part that gives its library by $form', () async {
+        final out = await reportedIdentically({
+          'lib/a.dart':
+              "/// @docImport 'package:absent/absent.dart';\n$library\n\n"
+              "part 'b.dart';\n\n/// See [Absent].\nclass A {}\n",
+          'lib/b.dart':
+              '$partOf\n\n/// See [Absent] and [_Private].\nclass B {}\n',
+        });
+        // Only `_Private`, which no import can bring in.
+        expect('comment_references'.allMatches(out), hasLength(1));
+        expect(out, contains('b.dart:3:23'));
+      });
+    }
 
     test('hides only the references it could supply', () async {
       final out = await reportedIdentically({
