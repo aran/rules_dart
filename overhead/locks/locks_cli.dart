@@ -153,7 +153,7 @@ Future<bool> _runSteps(
       '${expected == null ? '' : ' without printing what $expectedFailureFile expects'}',
     );
     final pin = unfetchablePin(output);
-    stderr.writeln(pin == null ? _tail(output) : '    $pin');
+    stderr.writeln(pin == null ? failureReport(output) : '    $pin');
     return false;
   }
   return true;
@@ -172,7 +172,7 @@ Future<bool> _holdsNoHostPath(String workspace, File lock) async {
     stderr.writeln(
       'FAILED $workspace: bazel info output_base exited ${info.exitCode}',
     );
-    stderr.writeln(_tail('${info.stdout}\n${info.stderr}'));
+    stderr.writeln(failureReport('${info.stdout}\n${info.stderr}'));
     return false;
   }
   final home =
@@ -198,11 +198,4 @@ Future<bool> _holdsNoHostPath(String workspace, File lock) async {
     stderr.writeln('    $name:${at.line}: ${at.path} (under ${at.root})');
   }
   return false;
-}
-
-/// The last lines of Bazel's output, where it says what is wrong.
-String _tail(String output, {int lines = 25}) {
-  final all = output.trimRight().split('\n');
-  final kept = all.length <= lines ? all : all.sublist(all.length - lines);
-  return kept.map((l) => '    $l').join('\n');
 }

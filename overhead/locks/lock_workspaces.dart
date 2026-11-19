@@ -213,11 +213,34 @@ final refreshSteps = [
 ];
 
 /// The arguments to run [step] with.
+///
+/// A build shows the output of every package, those of external repositories
+/// included, whatever `--output_filter` an rc file sets: a lock goes stale in
+/// an extension's repositories, and their errors are what say why. (`mod`
+/// takes no `--output_filter`.)
 List<String> bazelArgs(LockStep step) => [
   step.args.first,
   '--lockfile_mode=${step.lockfileMode}',
   '--noshow_progress',
   '--curses=no',
   '--color=no',
+  if (step.args.first == 'build') '--output_filter=.*',
   ...step.args.skip(1),
 ];
+
+/// What to show of Bazel's [output] when a step fails: every `ERROR:` line,
+/// which `--keep_going` can scatter far above the end, then the last [tail]
+/// lines, where Bazel sums up. A line is shown once.
+String failureReport(String output, {int tail = 25}) {
+  final all = output.trimRight().split('\n');
+  final start = all.length <= tail ? 0 : all.length - tail;
+  final errors = [
+    for (var i = 0; i < start; i++)
+      if (all[i].startsWith('ERROR:')) all[i],
+  ];
+  return [
+    ...errors,
+    if (errors.isNotEmpty) '...',
+    ...all.sublist(start),
+  ].map((l) => '    $l').join('\n');
+}

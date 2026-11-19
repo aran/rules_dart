@@ -271,5 +271,39 @@ git_override(module_name = "d", remote = "x", commit = "y")
     final args = bazelArgs(checkSteps.first);
     expect(args.first, 'mod');
     expect(args, contains('--lockfile_mode=error'));
+    expect(args, isNot(contains('--output_filter=.*')));
+  });
+
+  test(
+    'a build step shows every package\'s output, whatever an rc filters',
+    () {
+      final build = checkSteps.firstWhere((s) => s.args.first == 'build');
+      expect(bazelArgs(build), contains('--output_filter=.*'));
+    },
+  );
+
+  group('failureReport', () {
+    test('shows short output whole', () {
+      expect(failureReport('a\nb\n'), '    a\n    b');
+    });
+
+    test('keeps an ERROR line far above the tail', () {
+      final lines = [
+        'INFO: start',
+        'ERROR: /ext/BUILD:1:1: no such package',
+        for (var i = 0; i < 30; i++) 'line $i',
+        'ERROR: command succeeded, but there were loading phase errors',
+      ];
+      final report = failureReport(lines.join('\n'), tail: 5);
+      expect(report.split('\n'), [
+        '    ERROR: /ext/BUILD:1:1: no such package',
+        '    ...',
+        '    line 26',
+        '    line 27',
+        '    line 28',
+        '    line 29',
+        '    ERROR: command succeeded, but there were loading phase errors',
+      ]);
+    });
   });
 }
