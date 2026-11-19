@@ -247,6 +247,43 @@ int use(Holder h) => h.missing;
     expect(narrowed.output, contains('2 issues found.'));
   });
 
+  test('a doc import that could supply anything supplies no private name, and '
+      'one that does not exist supplies nothing', () async {
+    const comments = 'linter:\n  rules:\n    - comment_references\n';
+    final private = await analyze(
+      project(
+        'private',
+        {
+          'app/lib/app.dart':
+              "/// @docImport 'package:absent/a.dart';\n"
+              "/// @docImport 'package:absent/b.dart' as b;\nlibrary;\n\n"
+              '/// See [Public], [_private] and [_Private.member].\n'
+              'class A {}\n',
+        },
+        packages: ['app'],
+        options: comments,
+      ),
+      [],
+    );
+    expect(private.output, contains('2 issues found.'));
+
+    // The doc import is reported, so nothing is left to explain [Absent].
+    final missing = project(
+      'in_view',
+      {
+        'app/lib/app.dart':
+            "/// @docImport 'package:app/misspelt.dart';\nlibrary;\n\n"
+            '/// See [Absent].\nclass A {}\n',
+      },
+      packages: ['app'],
+      options: comments,
+    );
+    File(p.join(missing.path, 'fetched_packages.txt'))
+        .writeAsStringSync('app\n');
+    final reported = await analyze(missing, []);
+    expect(reported.output, contains('2 issues found.'));
+  });
+
   test('refuses a subtype of a dependency\'s base class the analyzer lets '
       'through', () async {
     final summary = await dep();

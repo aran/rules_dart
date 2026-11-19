@@ -10,6 +10,13 @@
 // from it, or from a relative path, may still exist. Which `dart:` libraries
 // exist depends on the platform, and a package can document a Flutter type, so
 // one this SDK lacks (`dart:ui`) may exist too.
+//
+// A library analysis cannot see may declare any public name, so a reference to
+// one is not reported while such a doc import could bring it in. Nothing shows
+// more than that: this file reads diagnostics and source text, for each
+// analyzer alike, and text cannot say what a name in scope resolves to. What is
+// certain is reported: no import brings in a private name, and a doc import of
+// a fetched package's missing file, itself reported, brings in nothing.
 import 'dart:io';
 
 const _unresolvedDocImport = 'uri_does_not_exist_in_doc_import';
@@ -51,16 +58,18 @@ List<T> withoutUnresolvedDocImports<T>(
   required int? Function(T) line,
   required int? Function(T) column,
 }) {
+  if (!diagnostics.any((d) => code(d) == _unresolvedDocImport)) {
+    return diagnostics;
+  }
+  final fetched = _readFetchedPackages(project);
   final unresolved = <String, List<_DocImport>>{};
   for (final d in diagnostics) {
     if (code(d) != _unresolvedDocImport) continue;
-    final library = _normal(file(d));
     final uri = _uriOf(message(d));
+    if (_inView(uri, fetched)) continue;
+    final library = _normal(file(d));
     unresolved.putIfAbsent(library, () => []).add(_docImportOf(library, uri));
   }
-  if (unresolved.isEmpty) return diagnostics;
-
-  final fetched = _readFetchedPackages(project);
   return [
     for (final d in diagnostics)
       if (switch (code(d)) {
@@ -214,6 +223,7 @@ class _DocImport {
 
   /// Whether `[reference]` could mean something this doc import brings in. Its
   /// first name is what the import must supply; what follows may be a member.
+  /// An import brings in no private name.
   bool couldSupply(String reference) {
     var names = reference.split('.');
     if (prefix != null) {
@@ -221,6 +231,8 @@ class _DocImport {
       names = names.sublist(1);
     }
     final name = names.first;
-    return (shown?.contains(name) ?? true) && !hidden.contains(name);
+    return !name.startsWith('_') &&
+        (shown?.contains(name) ?? true) &&
+        !hidden.contains(name);
   }
 }
