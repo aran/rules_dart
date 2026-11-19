@@ -2621,7 +2621,13 @@ rather than listing it. Code that comes from a library in `dynamic_deps` isn't
 there, because it isn't in this library. A prebuilt library has an empty
 `link_inputs`. When what it was linked from isn't known, `link_inputs` is
 `None`, and a consumer that needs it can `fail()` with `link_inputs_unset_reason`,
-as above.
+as above. `None` has two meanings, and `link_inputs_gone` tells them apart. When it
+is `False`, the link is out of sight and naming the right target may mend it. When
+it is `True`, the files existed and the action that linked the library deleted
+them, as `rustc` does with a crate's object file: no target brings them back, and
+no tool run later can do better. A consumer with a fallback for a library without
+its objects takes it then, and one without fails as above. `link_inputs_gone` is
+`False` whenever `link_inputs` is known.
 
 `dart_code_asset` sees the link when `file` names the target that linked the
 library, or a `filegroup` around it, nested ones included. A `filegroup` that
@@ -2647,7 +2653,7 @@ load("@rules_dart//dart:providers.bzl", "DartCodeAssetInfo", "DartLinkInputsInfo
 
 def _library_copy_impl(ctx):
     original = ctx.attr.original[DartCodeAssetInfo]
-    if original.link_inputs == None:
+    if original.link_inputs == None and not original.link_inputs_gone:
         fail("%s: %s" % (ctx.label, original.link_inputs_unset_reason))
     copy = ctx.actions.declare_file(ctx.attr.out)
     ctx.actions.run_shell(
@@ -2658,25 +2664,34 @@ def _library_copy_impl(ctx):
     )
     return [
         DefaultInfo(files = depset([copy])),
-        DartLinkInputsInfo(library = copy, inputs = original.link_inputs),
+        DartLinkInputsInfo(
+            library = copy,
+            inputs = original.link_inputs,
+            gone = original.link_inputs_gone,
+        ),
     ]
 ```
 
-`library` must be the file the target provides, or `dart_code_asset` fails.
+`library` must be the file the target provides, or `dart_code_asset` fails. A rule
+that links with an action of its own and deletes the objects, or that copies a
+library whose `link_inputs_gone` is `True`, as the one above does, says so with
+`gone = True` in place of `inputs`; stating both, or neither, is an error.
 Behind a `filegroup`, a statement about another file than the one `file` provides
 is ignored, and two about that file must agree. Don't forward inputs for a
 stripped copy if they are for `dsymutil`: stripping removes the map naming the
 objects, so run it on the unstripped library. A rule of your own that provides
 `DartCodeAssetInfo` passes `link_inputs` itself, or `link_inputs_unset_reason`
-when it can't know; one that passes neither leaves `link_inputs` as `None`, and
-passing both is an error.
+when it can't know, or `link_inputs_gone = True` when the files are deleted;
+one that passes none leaves `link_inputs` as `None` and `link_inputs_gone` as
+`False`, and passing `link_inputs` with either of the others is an error.
 
 **A library's dSYM.** Some builds make the dSYM while they link, and then it is
 the one to use. `rustc` does this for a `rust_shared_library` on macOS: it deletes
 the crate's object file before it finishes, so `dsymutil` run later can't find the
-crate's own line tables, and `link_inputs` is `None`. `DartCodeAssetInfo.dsym` is
-that `.dSYM` directory, or `None` when the build made none. A rule that wants
-debug symbols takes it first and falls back to `link_inputs`:
+crate's own line tables, and `link_inputs` is `None` with `link_inputs_gone` set.
+`DartCodeAssetInfo.dsym` is that `.dSYM` directory, or `None` when the build made
+none. A rule that wants debug symbols takes it first and falls back to
+`link_inputs`, then to what it can make without the objects:
 
 ```starlark
 asset = ctx.attr.code_asset[DartCodeAssetInfo]
@@ -2684,9 +2699,16 @@ if asset.dsym != None:
     inputs = [asset.dsym]  # Copy it, or read it, as it is.
 elif asset.link_inputs != None:
     inputs = depset([asset.file], transitive = [asset.link_inputs])  # Run dsymutil.
+elif asset.link_inputs_gone:
+    inputs = [asset.file]  # The objects no longer exist: a dSYM of the symbol table alone.
 else:
     fail("%s: %s" % (ctx.label, asset.link_inputs_unset_reason))
 ```
+
+`rules_rust` declares the dSYM only for a macOS target, so a `rust_shared_library`
+for iOS or another Apple OS has no `dsym` and no `link_inputs`. Its
+`link_inputs_gone` is still `True`, which is how a consumer knows the missing
+`link_inputs` is no mistake and no target would mend it.
 
 `dart_code_asset` sets `dsym` when the action that wrote the library also wrote
 `<library file name>.dSYM`, seen through a `filegroup` as above. That covers

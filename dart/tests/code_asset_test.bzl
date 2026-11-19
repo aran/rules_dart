@@ -38,6 +38,11 @@ _stated_inputs_not_depset_test = _expect("`inputs` must be a depset of Files, go
 _asset_states_both_test = _expect("states both `link_inputs` and `link_inputs_unset_reason`")
 _asset_inputs_not_depset_test = _expect("`link_inputs` must be a depset of Files or None, got list")
 _asset_reason_not_string_test = _expect("`link_inputs_unset_reason` must be a string or None, got int")
+_asset_gone_with_inputs_test = _expect("states `link_inputs_gone` with `link_inputs`")
+_asset_gone_not_bool_test = _expect("`link_inputs_gone` must be a bool, got string")
+_stated_gone_with_inputs_test = _expect("DartLinkInputsInfo: states both `inputs` and `gone`")
+_stated_neither_test = _expect("DartLinkInputsInfo: states neither `inputs` nor `gone`")
+_stated_gone_not_bool_test = _expect("DartLinkInputsInfo: `gone` must be a bool, got string")
 _asset_dsym_not_file_test = _expect("`dsym` must be a File or None, got string")
 _asset_dsym_not_directory_test = _expect("`dsym` must be a `.dSYM` directory")
 _asset_dsym_misnamed_test = _expect("`dsym` must be a `.dSYM` directory")
@@ -76,6 +81,7 @@ def _link_inputs_test_impl(ctx):
     env = analysistest.begin(ctx)
     info = analysistest.target_under_test(env)[DartCodeAssetInfo]
     asserts.equals(env, None, info.link_inputs_unset_reason)
+    asserts.equals(env, False, info.link_inputs_gone)
     paths = [f.path for f in info.link_inputs.to_list()]
     for name in ctx.attr.linked:
         asserts.true(env, [p for p in paths if name in p], "%s is not among %s" % (name, paths))
@@ -111,6 +117,7 @@ def _no_link_inputs_test_impl(ctx):
     info = analysistest.target_under_test(env)[DartCodeAssetInfo]
     asserts.equals(env, [], info.link_inputs.to_list())
     asserts.equals(env, None, info.link_inputs_unset_reason)
+    asserts.equals(env, False, info.link_inputs_gone)
     asserts.equals(env, None, info.dsym)
     return analysistest.end(env)
 
@@ -120,6 +127,7 @@ def _unknown_link_inputs_test_impl(ctx):
     env = analysistest.begin(ctx)
     info = analysistest.target_under_test(env)[DartCodeAssetInfo]
     asserts.equals(env, None, info.link_inputs)
+    asserts.equals(env, ctx.attr.gone, info.link_inputs_gone)
     reason = info.link_inputs_unset_reason
     asserts.true(env, type(reason) == "string" and reason, "no reason: %r" % reason)
     for words in ctx.attr.reason:
@@ -131,6 +139,7 @@ def _unknown_link_inputs_test_impl(ctx):
 _unknown_link_inputs_test = analysistest.make(
     _unknown_link_inputs_test_impl,
     attrs = {
+        "gone": attr.bool(doc = "Whether the files it was linked from no longer exist."),
         "reason": attr.string_list(),
         "not_in_reason": attr.string_list(),
     },
@@ -146,12 +155,14 @@ def _dsym_test_impl(ctx):
         asserts.true(env, dsym.basename.startswith(ctx.attr.of), "%s is not the dSYM of %s" % (dsym.path, ctx.attr.of))
         asserts.true(env, dsym.basename.endswith(".dSYM"), "%s is no dSYM" % dsym.path)
     asserts.equals(env, ctx.attr.link_inputs_known, info.link_inputs != None)
+    asserts.equals(env, ctx.attr.gone, info.link_inputs_gone)
     for words in ctx.attr.reason:
         asserts.true(env, words in info.link_inputs_unset_reason, "%r is not in %r" % (words, info.link_inputs_unset_reason))
     return analysistest.end(env)
 
 _DSYM_TEST_ATTRS = {
     "of": attr.string(doc = "What the dSYM's name starts with: the library's."),
+    "gone": attr.bool(),
     "link_inputs_known": attr.bool(),
     "reason": attr.string_list(),
 }
@@ -183,6 +194,14 @@ def _stated_asset_impl(ctx):
         kwargs = {"link_inputs_unset_reason": 1}
     elif ctx.attr.states == "reason_only":
         kwargs = {"link_inputs_unset_reason": "stated by the rule"}
+    elif ctx.attr.states == "gone":
+        kwargs = {"link_inputs_gone": True}
+    elif ctx.attr.states == "gone_reasoned":
+        kwargs = {"link_inputs_gone": True, "link_inputs_unset_reason": "deleted by the rule"}
+    elif ctx.attr.states == "gone_with_inputs":
+        kwargs = {"link_inputs_gone": True, "link_inputs": depset()}
+    elif ctx.attr.states == "gone_not_bool":
+        kwargs = {"link_inputs_gone": "yes"}
     elif ctx.attr.states == "dsym_not_file":
         kwargs = {"dsym": "libfixture.dylib.dSYM"}
     elif ctx.attr.states == "dsym_not_directory":
@@ -229,6 +248,20 @@ def _copied_library_impl(ctx):
         providers.append(DartLinkInputsInfo(library = copy.path, inputs = asset.link_inputs))
     elif ctx.attr.states == "inputs_not_depset":
         providers.append(DartLinkInputsInfo(library = copy, inputs = [asset.file]))
+    elif ctx.attr.states == "gone":
+        providers.append(DartLinkInputsInfo(library = copy, gone = True))
+    elif ctx.attr.states == "gone_forwarded":
+        # What a rule that forwards the original's link says, either way.
+        if asset.link_inputs_gone:
+            providers.append(DartLinkInputsInfo(library = copy, gone = True))
+        else:
+            providers.append(DartLinkInputsInfo(library = copy, inputs = asset.link_inputs))
+    elif ctx.attr.states == "gone_with_inputs":
+        providers.append(DartLinkInputsInfo(library = copy, inputs = depset(), gone = True))
+    elif ctx.attr.states == "neither":
+        providers.append(DartLinkInputsInfo(library = copy))
+    elif ctx.attr.states == "gone_not_bool":
+        providers.append(DartLinkInputsInfo(library = copy, gone = "yes"))
     elif ctx.attr.states == "dsym":
         providers.append(DartDsymInfo(library = copy, dsym = asset.dsym))
     elif ctx.attr.states == "dsym_of_original":
@@ -293,16 +326,20 @@ _stating_dsym_sibling = rule(
 
 def _stating_sibling_impl(ctx):
     library = ctx.attr.of[DefaultInfo].files.to_list()[0]
+    if ctx.attr.gone:
+        return [DefaultInfo(), DartLinkInputsInfo(library = library, gone = True)]
     return [
         DefaultInfo(),
         DartLinkInputsInfo(library = library, inputs = depset(ctx.files.inputs)),
     ]
 
 # A rule of a user's that provides no file but states what the first file of
-# `of` was linked from, as `inputs`: a sibling of the target that provides it.
+# `of` was linked from, as `inputs` or, with `gone`, that those no longer
+# exist: a sibling of the target that provides it.
 _stating_sibling = rule(
     implementation = _stating_sibling_impl,
     attrs = {
+        "gone": attr.bool(),
         "inputs": attr.label_list(allow_files = True),
         "of": attr.label(),
     },
@@ -1081,10 +1118,16 @@ def code_asset_test_suite(name):
             ":rustc_library",
             "`Rustc`",
             "deletes inside that action",
+            "no longer exist",
+        ],
+        # This one wrote no dSYM, so there is none to point at; and there is
+        # no target to name that would bring the objects back.
+        not_in_reason = [
+            "dsym",
+            "dSYM",
             "DartLinkInputsInfo",
         ],
-        # This one wrote no dSYM, so there is none to point at.
-        not_in_reason = ["dsym", "dSYM"],
+        gone = True,
         target_under_test = ":ca_rustc",
     )
 
@@ -1411,10 +1454,11 @@ def code_asset_test_suite(name):
     )
 
     _dsym_tests()
+    _gone_tests()
 
     native.test_suite(
         name = name,
-        tests = _DSYM_TESTS + [
+        tests = _DSYM_TESTS + _GONE_TESTS + [
             ":silent_asset_unknown_link_inputs_test",
             ":reasoned_asset_unknown_link_inputs_test",
             ":asset_states_both_test",
@@ -1518,6 +1562,7 @@ def _dsym_tests():
     _dsym_test(
         name = "rustc_dsym_test",
         size = "small",
+        gone = True,
         of = "librust_library",
         reason = [
             "`Rustc`",
@@ -1573,6 +1618,7 @@ def _dsym_tests():
     _dsym_test(
         name = "filegroup_dsym_test",
         size = "small",
+        gone = True,
         of = "librust_library",
         target_under_test = ":ca_rust_filegroup",
     )
@@ -1586,6 +1632,7 @@ def _dsym_tests():
     _dsym_test(
         name = "staged_dsym_test",
         size = "small",
+        gone = True,
         of = "librust_library",
         target_under_test = ":staged_rust",
     )
@@ -1789,4 +1836,284 @@ def _dsym_tests():
             name = "asset_%s_test" % states,
             size = "small",
             target_under_test = ":asset_" + states,
+        )
+
+_GONE_TESTS = [
+    ":rustc_filegroup_gone_test",
+    ":forwarded_rustc_not_gone_test",
+    ":rustc_copy_not_gone_test",
+    ":rustc_copy_stating_gone_test",
+    ":rustc_copy_stating_gone_filegroup_test",
+    ":rustc_copy_stating_known_link_inputs_test",
+    ":sibling_stating_gone_test",
+    ":disagreeing_gone_statements_test",
+    ":gone_statement_reached_twice_test",
+    ":staged_gone_test",
+    ":silent_asset_not_gone_test",
+    ":gone_asset_test",
+    ":reasoned_gone_asset_test",
+    ":asset_gone_with_inputs_test",
+    ":asset_gone_not_bool_test",
+    ":stated_gone_with_inputs_test",
+    ":stated_neither_test",
+    ":stated_gone_not_bool_test",
+]
+
+def _gone_tests():
+    # `Rustc` deletes the objects it links inside the action, so they are gone,
+    # not merely out of sight; a `filegroup` around it, nested ones included,
+    # shows the action as it shows any other.
+    native.filegroup(
+        name = "rustc_library_files",
+        srcs = [":rustc_library"],
+        tags = ["manual"],
+    )
+    native.filegroup(
+        name = "rustc_library_files_again",
+        srcs = [":rustc_library_files"],
+        tags = ["manual"],
+    )
+    _dsym_asset("ca_rustc_behind_filegroup", ":rustc_library_files_again")
+    _unknown_link_inputs_test(
+        name = "rustc_filegroup_gone_test",
+        size = "small",
+        gone = True,
+        reason = [
+            ":rustc_library_files_again",
+            "`Rustc`",
+            "no longer exist",
+        ],
+        target_under_test = ":ca_rustc_behind_filegroup",
+    )
+
+    # A rule that is no `filegroup` hides the action: the link is out of sight,
+    # which naming the right target mends, so it is not gone.
+    _forwarded_files(
+        name = "forwarded_rustc_library",
+        of = ":rustc_library",
+        tags = ["manual"],
+    )
+    _dsym_asset("ca_forwarded_rustc_library", ":forwarded_rustc_library")
+    _unknown_link_inputs_test(
+        name = "forwarded_rustc_not_gone_test",
+        size = "small",
+        not_in_reason = [
+            "`Rustc`",
+            "no longer exist",
+        ],
+        reason = ["did not write it"],
+        target_under_test = ":ca_forwarded_rustc_library",
+    )
+
+    # A copy of it is a copy: only its rule can say what became of the objects.
+    _copied_library(
+        name = "rustc_copy",
+        asset = ":ca_rustc",
+        tags = ["manual"],
+    )
+    _dsym_asset("ca_rustc_copy", ":rustc_copy")
+    _unknown_link_inputs_test(
+        name = "rustc_copy_not_gone_test",
+        size = "small",
+        not_in_reason = ["no longer exist"],
+        reason = [
+            "`CopyFile`",
+            "DartLinkInputsInfo",
+        ],
+        target_under_test = ":ca_rustc_copy",
+    )
+
+    # A copy that says so is gone; one that forwards inputs which are known is not.
+    _copied_library(
+        name = "rustc_copy_stating",
+        asset = ":ca_rustc",
+        states = "gone_forwarded",
+        tags = ["manual"],
+    )
+    _dsym_asset("ca_rustc_copy_stating", ":rustc_copy_stating")
+    _unknown_link_inputs_test(
+        name = "rustc_copy_stating_gone_test",
+        size = "small",
+        gone = True,
+        reason = [
+            ":rustc_copy_stating",
+            "says its objects were deleted",
+            "no longer exist",
+        ],
+        target_under_test = ":ca_rustc_copy_stating",
+    )
+    native.filegroup(
+        name = "rustc_copy_stating_files",
+        srcs = [":rustc_copy_stating"],
+        tags = ["manual"],
+    )
+    _dsym_asset("ca_rustc_copy_stating_filegroup", ":rustc_copy_stating_files")
+    _unknown_link_inputs_test(
+        name = "rustc_copy_stating_gone_filegroup_test",
+        size = "small",
+        gone = True,
+        reason = ["no longer exist"],
+        target_under_test = ":ca_rustc_copy_stating_filegroup",
+    )
+    _copied_library(
+        name = "linked_copy_stating",
+        asset = ":ca_linked_shared",
+        states = "gone_forwarded",
+        tags = ["manual"],
+    )
+    _dsym_asset("ca_linked_copy_stating", ":linked_copy_stating")
+    _link_inputs_test(
+        name = "rustc_copy_stating_known_link_inputs_test",
+        size = "small",
+        linked = ["linked_root"],
+        target_under_test = ":ca_linked_copy_stating",
+    )
+
+    # Behind a `filegroup`, a sibling may state it.
+    _stating_sibling(
+        name = "gone_sibling",
+        gone = True,
+        of = ":rustc_copy",
+        tags = ["manual"],
+    )
+    native.filegroup(
+        name = "rustc_copy_with_gone_sibling",
+        srcs = [
+            ":gone_sibling",
+            ":rustc_copy",
+        ],
+        tags = ["manual"],
+    )
+    _dsym_asset("ca_rustc_copy_with_gone_sibling", ":rustc_copy_with_gone_sibling")
+    _unknown_link_inputs_test(
+        name = "sibling_stating_gone_test",
+        size = "small",
+        gone = True,
+        reason = ["no longer exist"],
+        target_under_test = ":ca_rustc_copy_with_gone_sibling",
+    )
+
+    # Gone and known are different statements, and two of them disagree.
+    _stating_sibling(
+        name = "known_sibling",
+        inputs = [_PREBUILT + "libwrong.txt"],
+        of = ":rustc_copy_stating",
+        tags = ["manual"],
+    )
+    native.filegroup(
+        name = "rustc_copy_disagreeing_files",
+        srcs = [
+            ":rustc_copy_stating",
+            ":known_sibling",
+        ],
+        tags = ["manual"],
+    )
+    _dsym_asset("ca_rustc_copy_disagreeing", ":rustc_copy_disagreeing_files")
+    _expect_all_test(
+        name = "disagreeing_gone_statements_test",
+        size = "small",
+        messages = [
+            "disagree",
+            ":rustc_copy_stating",
+            ":known_sibling",
+        ],
+        target_under_test = ":ca_rustc_copy_disagreeing",
+    )
+
+    # The same statement reached twice is one statement.
+    native.filegroup(
+        name = "gone_twice_files",
+        srcs = [
+            ":rustc_copy_stating",
+            ":rustc_copy_stating_files",
+        ],
+        tags = ["manual"],
+    )
+    _dsym_asset("ca_gone_twice", ":gone_twice_files")
+    _unknown_link_inputs_test(
+        name = "gone_statement_reached_twice_test",
+        size = "small",
+        gone = True,
+        target_under_test = ":ca_gone_twice",
+    )
+
+    # Staging a library for a program links it, and it is the same library.
+    _staged_asset(
+        name = "staged_rustc",
+        asset = ":ca_rustc",
+        tags = ["manual"],
+    )
+    _unknown_link_inputs_test(
+        name = "staged_gone_test",
+        size = "small",
+        gone = True,
+        reason = ["`Rustc`"],
+        target_under_test = ":staged_rustc",
+    )
+
+    # A rule building the provider itself: nothing stated is not gone, gone
+    # needs no words of its own but keeps them when given, and gone is no
+    # company for files that are known.
+    _unknown_link_inputs_test(
+        name = "silent_asset_not_gone_test",
+        size = "small",
+        not_in_reason = ["no longer exist"],
+        target_under_test = ":silent_asset",
+    )
+    _stated_asset(
+        name = "gone_asset",
+        states = "gone",
+        tags = ["manual"],
+    )
+    _unknown_link_inputs_test(
+        name = "gone_asset_test",
+        size = "small",
+        gone = True,
+        reason = ["no longer exist"],
+        target_under_test = ":gone_asset",
+    )
+    _stated_asset(
+        name = "reasoned_gone_asset",
+        states = "gone_reasoned",
+        tags = ["manual"],
+    )
+    _unknown_link_inputs_test(
+        name = "reasoned_gone_asset_test",
+        size = "small",
+        gone = True,
+        not_in_reason = ["did not state"],
+        reason = ["deleted by the rule"],
+        target_under_test = ":reasoned_gone_asset",
+    )
+    for states, test in [
+        ("gone_with_inputs", _asset_gone_with_inputs_test),
+        ("gone_not_bool", _asset_gone_not_bool_test),
+    ]:
+        _stated_asset(
+            name = "asset_" + states,
+            states = states,
+            tags = ["manual"],
+        )
+        test(
+            name = "asset_%s_test" % states,
+            size = "small",
+            target_under_test = ":asset_" + states,
+        )
+
+    # The same for what a rule states in `DartLinkInputsInfo`.
+    for states, test in [
+        ("gone_with_inputs", _stated_gone_with_inputs_test),
+        ("neither", _stated_neither_test),
+        ("gone_not_bool", _stated_gone_not_bool_test),
+    ]:
+        _copied_library(
+            name = "statement_" + states,
+            asset = ":ca_linked_shared",
+            states = states,
+            tags = ["manual"],
+        )
+        test(
+            name = "stated_%s_test" % states,
+            size = "small",
+            target_under_test = ":statement_" + states,
         )

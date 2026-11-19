@@ -34,16 +34,18 @@ _APPLE_OSES = ["ios", "macos", "tvos", "visionos", "watchos"]
 # copy above all, has inputs that say nothing about what is in it.
 #
 # `Rustc` is not one, though rules_rust's `rust_shared_library` writes its
-# library with it. On macOS rustc compiles the crate to an object file inside
-# that action, links it, runs dsymutil and deletes the object. The library's
-# debug map names that object and no input of the action provides it, so a
-# dsymutil run on the library given every input still gets no line tables for
-# the crate's own code (its Rust and C dependencies keep theirs).
+# library with it. rustc compiles the crate to an object file inside that
+# action, links it and deletes the object (on macOS it runs dsymutil in between,
+# and declares the dSYM, which rules_rust does for no other Apple OS). The
+# library's debug map names that object and no input of the action provides it,
+# so a dsymutil run on the library given every input still gets no line tables
+# for the crate's own code (its Rust and C dependencies keep theirs). The
+# objects are gone, not out of sight: there is no target to name that would
+# bring them back, and `link_inputs_gone` says so.
 _LINK_MNEMONICS = ["CppLink", "ObjcLink"]
 
-_RUSTC_UNKNOWN = ("wrote it with a `Rustc` action, which links the crate from an object file it makes " +
-                  "and deletes inside that action, so no input of the action is what the library was linked from")
-_RUSTC_ADVICE = "Have `file` return DartLinkInputsInfo from a rule that holds the crate's object file."
+_RUSTC_GONE = ("wrote it with a `Rustc` action, which links the crate from an object file it makes " +
+               "and deletes inside that action, so no tool run later can find it")
 
 _LibraryActionsInfo = provider(
     doc = """The actions of the target behind a `dart_code_asset`'s `file`, and \
@@ -126,8 +128,8 @@ def _writing_action(library_target, output):
                 return action
     return None
 
-def _stated_link_inputs(ctx, library_target, library):
-    """What `library_target` says `library` was linked from, or None.
+def _stated_link(ctx, library_target, library):
+    """The `DartLinkInputsInfo` stating what `library` was linked from, or None.
 
     The target's own statement must be about `library`. Behind a `filegroup`
     the targets it wraps may state other libraries, which are not the concern
@@ -139,25 +141,30 @@ def _stated_link_inputs(ctx, library_target, library):
             fail(("dart_code_asset %s: DartLinkInputsInfo of %s describes %s, " +
                   "but `file` provides %s.") %
                  (ctx.label, library_target.label, stated.library.short_path, library.short_path))
-        return stated.inputs
+        return stated
     if _LibraryActionsInfo not in library_target:
         return None
 
     statements = {}
     for label, stated in library_target[_LibraryActionsInfo].stated:
         if stated.library == library:
-            statements[label] = stated.inputs
+            statements[label] = stated
     if not statements:
         return None
     labels = sorted(statements)
     first = statements[labels[0]]
     for label in labels[1:]:
         # Each is one target's statement, reached by however many paths.
-        if statements[label] != first and _paths(statements[label]) != _paths(first):
+        if not _same_statement(statements[label], first):
             fail(("dart_code_asset %s: %s and %s both state what %s was linked from, " +
                   "and they disagree. Only the target that linked it should.") %
                  (ctx.label, labels[0], label, library.short_path))
     return first
+
+def _same_statement(a, b):
+    if a.gone or b.gone:
+        return a.gone == b.gone
+    return a.inputs == b.inputs or _paths(a.inputs) == _paths(b.inputs)
 
 def _paths(inputs):
     return sorted([file.path for file in inputs.to_list()])
@@ -165,7 +172,7 @@ def _paths(inputs):
 def _stated_dsym(ctx, library_target, library):
     """The dSYM `library_target` says is `library`'s, or None.
 
-    As `_stated_link_inputs` reads statements of what a library was linked from.
+    As `_stated_link` reads statements of what a library was linked from.
     """
     if DartDsymInfo in library_target:
         stated = library_target[DartDsymInfo]
@@ -262,47 +269,59 @@ def _linked_from(ctx, library_target, library, written):
     was linked from nothing Bazel knows.
 
     Returns:
-      A tuple of the depset of its link's inputs, and why those are unknown.
-      The inputs are `None` and the reason is set when the link is out of
-      sight: a rule that is no `filegroup` forwards a library another target
-      wrote, or an action that does not link wrote it, as a copy's does.
+      A tuple of the depset of its link's inputs, why those are unknown, and
+      whether they are gone. The inputs are `None` and the reason is set when
+      the link is out of sight: a rule that is no `filegroup` forwards a
+      library another target wrote, or an action that does not link wrote it,
+      as a copy's does. Gone is the other case of unknown inputs: the files
+      existed and the action that linked the library deleted them, as `Rustc`
+      does, or the rule behind `file` says so.
     """
-    inputs = _stated_link_inputs(ctx, library_target, library)
-    if inputs != None:
-        return inputs, None
+    stated = _stated_link(ctx, library_target, library)
+    if stated != None and not stated.gone:
+        return stated.inputs, None, False
+    if stated != None:
+        return None, "dart_code_asset %s: what %s was linked from no longer exists: `file` %s says its objects were deleted." % (
+            ctx.label,
+            library.short_path,
+            library_target.label,
+        ), True
     action = _writing_action(library_target, written)
     if action != None and action.mnemonic in _LINK_MNEMONICS:
-        return action.inputs, None
+        return action.inputs, None, False
     if action == None and written.is_source:
-        return depset(), None
-    advice = "Name the target that linked it, or have `file` return DartLinkInputsInfo."
+        return depset(), None, False
     if action != None and action.mnemonic == "Rustc":
-        seen = _RUSTC_UNKNOWN
-        advice = _RUSTC_ADVICE
-    elif action != None:
+        return None, "dart_code_asset %s: what %s was linked from no longer exists: `file` %s %s." % (
+            ctx.label,
+            library.short_path,
+            library_target.label,
+            _RUSTC_GONE,
+        ), True
+    if action != None:
         seen = "wrote it with a `%s` action, which does not link" % action.mnemonic
     else:
         seen = "did not write it"
-    return None, ("dart_code_asset %s: what %s was linked from is unknown: `file` %s %s. %s") % (
+    return None, ("dart_code_asset %s: what %s was linked from is unknown: `file` %s %s. " +
+                  "Name the target that linked it, or have `file` return DartLinkInputsInfo.") % (
         ctx.label,
         library.short_path,
         library_target.label,
         seen,
-        advice,
-    )
+    ), False
 
 def _bound_library(ctx, library_target, library, written):
     """What the build knows of `library`, written as `written`.
 
     Returns:
       A tuple of `library`, the depset of its link's inputs, why those are
-      unknown, and its dSYM.
+      unknown, whether they are gone, and its dSYM.
     """
-    inputs, reason = _linked_from(ctx, library_target, library, written)
+    inputs, reason, gone = _linked_from(ctx, library_target, library, written)
     dsym = _dsym_of(ctx, library_target, library, written)
     if reason != None and dsym != None:
         reason += " For debug symbols, use `dsym`, the library's dSYM, instead of running dsymutil."
-    return library, inputs, reason, dsym
+    return library, inputs, reason, gone, dsym
 
 def _extract_dynamic_library(ctx, library_target):
     """The dynamic-library File behind `file`, and what the build knows of it.
@@ -321,10 +340,11 @@ def _extract_dynamic_library(ctx, library_target):
 
     Returns:
       A tuple of the library `File`, the depset of its link's inputs, why those
-      are unknown, and its dSYM or `None`. The inputs are `None` and the reason
-      is set when the link is out of sight: a rule that is no `filegroup`
-      forwards a library another target wrote, as a platform transition does,
-      or an action that does not link wrote it, as a copy does.
+      are unknown, whether they are gone, and its dSYM or `None`. The inputs
+      are `None` and the reason is set when the link is out of sight: a rule
+      that is no `filegroup` forwards a library another target wrote, as a
+      platform transition does, or an action that does not link wrote it, as a
+      copy does; or gone, when the action that linked it deleted them.
     """
     lib = None
     if CcSharedLibraryInfo in library_target:
@@ -371,6 +391,7 @@ def _dart_code_asset_impl(ctx):
     uri = ""
     link_inputs = depset()
     unset_reason = None
+    gone = False
     dsym = None
 
     if link_mode == "dynamic_loading_bundle":
@@ -380,7 +401,7 @@ def _dart_code_asset_impl(ctx):
         if ctx.attr.uri:
             fail(("dart_code_asset %s: `uri` is only valid with " +
                   "link_mode = \"dynamic_loading_system\".") % ctx.label)
-        file, link_inputs, unset_reason, dsym = _extract_dynamic_library(ctx, ctx.attr.file)
+        file, link_inputs, unset_reason, gone, dsym = _extract_dynamic_library(ctx, ctx.attr.file)
     elif link_mode == "dynamic_loading_system":
         if not ctx.attr.uri:
             fail(("dart_code_asset %s: link_mode = \"dynamic_loading_system\" " +
@@ -408,6 +429,7 @@ def _dart_code_asset_impl(ctx):
             uri = uri,
             link_inputs = link_inputs,
             link_inputs_unset_reason = unset_reason,
+            link_inputs_gone = gone,
             dsym = dsym,
         ),
     ]

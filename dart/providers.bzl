@@ -184,12 +184,20 @@ DartCompileInfo = provider(
 
 DartCodeAssetInfo = _DartCodeAssetInfo
 
-def _link_inputs_init(library, inputs):
+def _link_inputs_init(library, inputs = None, gone = False):
     if type(library) != "File":
         fail("DartLinkInputsInfo: `library` must be a File, got %s." % type(library))
-    if type(inputs) != "depset":
+    if type(gone) != "bool":
+        fail("DartLinkInputsInfo: `gone` must be a bool, got %s." % type(gone))
+    if inputs != None and type(inputs) != "depset":
         fail("DartLinkInputsInfo: `inputs` must be a depset of Files, got %s." % type(inputs))
-    return {"library": library, "inputs": inputs}
+
+    # What the library was linked from is either known or gone.
+    if gone and inputs != None:
+        fail("DartLinkInputsInfo: states both `inputs` and `gone`. Pass `inputs` when the files exist, and `gone = True` when they do not.")
+    if not gone and inputs == None:
+        fail("DartLinkInputsInfo: states neither `inputs` nor `gone`. Pass `inputs`, or `gone = True` when what the library was linked from no longer exists.")
+    return {"library": library, "inputs": inputs, "gone": gone}
 
 DartLinkInputsInfo, _raw_link_inputs_info = provider(
     init = _link_inputs_init,
@@ -201,10 +209,15 @@ the library with a C++ toolchain. A rule returns this provider when that cannot 
 work: it copies or renames a library, and forwards the inputs of the original, \
 or it links with an action of its own. `dart_code_asset` prefers it to what it \
 would find, carries `inputs` as `DartCodeAssetInfo.link_inputs`, and fails if \
-`library` is not the library it binds.""",
+`library` is not the library it binds.
+
+A rule whose action links and then deletes the objects, or that copies a \
+library whose objects are gone, passes `gone = True` and no `inputs`: \
+`DartCodeAssetInfo.link_inputs` stays `None` and `link_inputs_gone` is `True`.""",
     fields = {
         "library": "File: The library this describes, the one the target provides.",
-        "inputs": "depset[File]: What `library` was linked from: at least every object file and static archive of the link. Empty for a library linked from nothing Bazel knows.",
+        "inputs": "depset[File] or None: What `library` was linked from: at least every object file and static archive of the link. Empty for a library linked from nothing Bazel knows. `None` when `gone` is `True`.",
+        "gone": "bool: That what `library` was linked from existed and no longer does, because the action that linked it deleted it. Then `inputs` is `None`; `dart_code_asset` carries it as `DartCodeAssetInfo.link_inputs_gone`.",
     },
 )
 

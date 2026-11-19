@@ -1892,6 +1892,7 @@ def stage_code_assets(ctx, assets, directory):
             uri = asset.uri,
             link_inputs = asset.link_inputs,
             link_inputs_unset_reason = asset.link_inputs_unset_reason,
+            link_inputs_gone = asset.link_inputs_gone,
             dsym = asset.dsym,
         ))
     return staged
