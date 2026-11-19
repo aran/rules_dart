@@ -189,6 +189,7 @@ use_repo(
     "pubspec_reader_linux-x64",
     "pubspec_reader_macos-arm64",
     "pubspec_reader_macos-x64",
+    "pubspec_reader_windows-arm64",
     "pubspec_reader_windows-x64",
 )
 

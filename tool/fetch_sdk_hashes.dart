@@ -18,6 +18,7 @@ const platforms = [
   'linux-x64',
   'linux-arm64',
   'windows-x64',
+  'windows-arm64',
 ];
 
 /// `CROSS_TARGETS` in `dart/private/toolchains_repo.bzl`, in archive spelling.
@@ -27,6 +28,7 @@ const crossTargets = {
   'linux_x64': ['linux_arm64', 'linux_riscv64', 'linux_arm'],
   'linux_arm64': ['linux_x64', 'linux_riscv64', 'linux_arm'],
   'windows_x64': ['linux_x64', 'linux_arm64', 'linux_riscv64', 'linux_arm'],
+  'windows_arm64': ['linux_x64', 'linux_arm64', 'linux_riscv64', 'linux_arm'],
 };
 
 /// The files `dart compile` fetches for a cross target: each pair's

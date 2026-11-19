@@ -7,7 +7,7 @@ Byte-level proof that each target really produces its architecture lives in
 
 Because analysis resolves the cross toolchain from whatever host runs the test,
 one suite covers `linux-x64_cross_*` on Linux CI, `macos-arm64_cross_*` on
-macOS, and `windows-x64_cross_*` on Windows.
+macOS, and `windows-x64_cross_*` or `windows-arm64_cross_*` on Windows.
 """
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts")

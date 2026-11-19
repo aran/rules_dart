@@ -49,6 +49,14 @@ PLATFORMS = {
         dart_os = "windows",
         dart_arch = "x64",
     ),
+    "windows-arm64": struct(
+        compatible_with = [
+            "@platforms//os:windows",
+            "@platforms//cpu:aarch64",
+        ],
+        dart_os = "windows",
+        dart_arch = "arm64",
+    ),
 }
 
 _HOST_OS = {"mac": "macos", "windows": "windows", "linux": "linux"}

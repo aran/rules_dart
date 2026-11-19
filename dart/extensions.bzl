@@ -119,7 +119,7 @@ The SDK's version is what its `version` file says.
         "name": attr.string(doc = _SDK_NAME_DOC, mandatory = True),
         "sdk": attr.string_keyed_label_dict(doc = """\
 The `version` file at the root of the SDK for each host (`macos-arm64`,
-`macos-x64`, `linux-x64`, `linux-arm64`, `windows-x64`). Beside it the directory
+`macos-x64`, `linux-x64`, `linux-arm64`, `windows-x64`, `windows-arm64`). Beside it the directory
 must be laid out as the SDK archive is, with `bin/` and `lib/`. A build on a
 host not listed fails, naming it.
 """, mandatory = True),

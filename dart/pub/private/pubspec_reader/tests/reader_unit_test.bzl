@@ -29,6 +29,7 @@ def _host_platform_test_impl(ctx):
     asserts.equals(env, "linux-arm64", host_platform(struct(name = "linux", arch = "aarch64")))
     asserts.equals(env, "linux-x64", host_platform(struct(name = "linux", arch = "amd64")))
     asserts.equals(env, "windows-x64", host_platform(struct(name = "Windows 11", arch = "amd64")))
+    asserts.equals(env, "windows-arm64", host_platform(struct(name = "Windows 11", arch = "aarch64")))
 
     # A machine with no SDK is that, not the nearest one that has one.
     for name, arch in [
@@ -36,7 +37,6 @@ def _host_platform_test_impl(ctx):
         ("linux", "ppc64le"),
         ("linux", "s390x"),
         ("linux", "x86"),
-        ("Windows 11", "aarch64"),
         ("FreeBSD", "amd64"),
     ]:
         asserts.equals(env, None, host_platform(struct(name = name, arch = arch)), "%s %s" % (name, arch))

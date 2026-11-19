@@ -9,6 +9,7 @@ TOOL_VERSIONS = {
         "linux-x64": "759bed01e0aeb50e1a0b0a19474ba5c80c6087ce1d37b3214e475c81a44430e8",
         "linux-arm64": "c6e5581d478ac43ecf7d7028798b1bd10aef509f5e351184c755ec7eeeb1bea9",
         "windows-x64": "fb2550f71e3408f2a69ff6ee29573f341991a927f8bc9ad0601dd3c9b19945c8",
+        "windows-arm64": "aca7650ed190f87446930893fa84442d90b5039d0b7e06e21318ed0cf7ddaddb",
     },
 }
 
@@ -37,6 +38,10 @@ CROSS_TOOL_VERSIONS = {
         "gen_snapshot_macos_x64_linux_arm64": "75a16982b288c84c1694d1a7a32be5620c349ec4b5aba71625553a529e773af3",
         "gen_snapshot_macos_x64_linux_riscv64": "947fc674d573519a0f1c08ce495f7bf67253d409e64856904d189495966d857f",
         "gen_snapshot_macos_x64_linux_x64": "5535a45e1f724b7a10a6fe6ad0145aaea935316d561774c9cb3127c5339a6768",
+        "gen_snapshot_windows_arm64_linux_arm.exe": "4e5e6817e055bf0e27f96ec394a6e452fcbeb42277e4f91e3399f77ff333d1de",
+        "gen_snapshot_windows_arm64_linux_arm64.exe": "6143087fa872d4c302992ace18b3bd3fc49b4f25a8db9ceb5b2a3f93180e198e",
+        "gen_snapshot_windows_arm64_linux_riscv64.exe": "19f303f5cc9b9f122b3a1361bf6e3b6e36ae939d0c25779230167442a473052f",
+        "gen_snapshot_windows_arm64_linux_x64.exe": "dff6e23dbfd608a240f33ed7efc71e8295a79f4b648b5b9123c9dc6d1d255aa0",
         "gen_snapshot_windows_x64_linux_arm.exe": "d826ddf93461def60c404bd16a36555336a8078986c1af5e7274bf24bfe86876",
         "gen_snapshot_windows_x64_linux_arm64.exe": "6eeb4ea3c44249c99eeacff224507d900d1ba2b04a07ac0a81416fe863e09375",
         "gen_snapshot_windows_x64_linux_riscv64.exe": "6a2bcba6156aadc4a559af9a8d2ef1532a985d0693208bb3cf97d5066aa69e6f",

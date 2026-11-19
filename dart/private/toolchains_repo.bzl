@@ -73,6 +73,7 @@ CROSS_TARGETS = {
     "linux-x64": ["linux-arm64", "linux-riscv64", "linux-arm"],
     "linux-arm64": ["linux-x64", "linux-riscv64", "linux-arm"],
     "windows-x64": ["linux-x64", "linux-arm64", "linux-riscv64", "linux-arm"],
+    "windows-arm64": ["linux-x64", "linux-arm64", "linux-riscv64", "linux-arm"],
 }
 
 # Where dartdev's `SdkCache` looks for a cross target's files, under `$HOME`
