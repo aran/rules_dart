@@ -38,6 +38,15 @@ dart_library(
     deps = ["@xml"],
 )
 
+# Windows on Arm, which no SDK here has a build for and CI's job does not run on.
+platform(
+    name = "windows_arm64",
+    constraint_values = [
+        "@platforms//cpu:aarch64",
+        "@platforms//os:windows",
+    ],
+)
+
 # RISC-V, which every host only ever cross-compiles to.
 platform(
     name = "linux_riscv64",

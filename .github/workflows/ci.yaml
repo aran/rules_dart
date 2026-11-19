@@ -395,6 +395,14 @@ jobs:
           expect not_an_sdk 'Dart SDK "not_an_sdk"' "it has no bin/dart"
           expect no_host 'Dart SDK "no_host" has no SDK for' 'dart.custom_sdk(name = "no_host"'
           expect nonexistent "names no Dart SDK the root module declares" "dart, no_checksums"
+          # With no execution platform it can serve, the build says why for this
+          # machine, the last one tried, not for the one tried first.
+          target=(//:value_test --extra_execution_platforms=//:windows_arm64)
+          expect no_checksums 'Dart SDK "no_checksums" has no checksum for its' "sdk_sha256"
+          if echo "$out" | grep -qF 'windows-arm64'; then echo "$out"; echo "ERROR: named the first platform tried, not this machine"; exit 1; fi
+          expect no_host 'Dart SDK "no_host" has no SDK for' 'dart.custom_sdk(name = "no_host"'
+          if echo "$out" | grep -qF 'windows-arm64'; then echo "$out"; echo "ERROR: named the first platform tried, not this machine"; exit 1; fi
+          expect no_path 'Dart SDK "no_path" is a checkout, and DART_CHECKOUT is not set'
           target=(//:uses_unsupplied)
           expect dart "nothing supplies"
           # A path that is no checkout: what is set is checked too.

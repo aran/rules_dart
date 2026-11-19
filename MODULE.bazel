@@ -207,8 +207,9 @@ use_repo(kernel_checkout, "analyzer_checkout_source", "analyzer_prefixed_source"
 
 register_toolchains("@dart_toolchains//:all")
 
-# Empty on a host the Dart SDK runs on. Elsewhere, a build needing Dart fails
-# saying so.
+# What holds only on the machine Bazel runs on, tried last among the execution
+# platforms: a checkout's SDK, and the reason a build stops when no platform
+# has the Dart SDK it needs.
 register_toolchains("@dart_host_toolchains//:all")
 
 # The reader's results on hand-written pubspecs, for its test.

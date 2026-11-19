@@ -68,11 +68,13 @@ def _unsupported_host_test_impl(ctx):
     asserts.equals(env, {"pubspec.yaml": "name: x\n"}, written)
 
     # A build needing Dart stops, saying why; with an SDK there is nothing to register.
-    content = host_toolchains_build_content(message)
+    # Only on this machine: another execution platform may still have an SDK.
+    content = host_toolchains_build_content(None, message, {}, {})
     asserts.true(env, json.encode(message) in content, content)
     asserts.true(env, 'toolchain_type = "@rules_dart//dart:toolchain_type"' in content, content)
     asserts.true(env, 'toolchain_type = "@rules_dart//dart:exec_tools_toolchain_type"' in content, content)
-    asserts.false(env, "toolchain(" in host_toolchains_build_content(None))
+    asserts.true(env, "exec_compatible_with = HOST_CONSTRAINTS" in content, content)
+    asserts.false(env, "toolchain(" in host_toolchains_build_content("linux-x64", None, {}, {}))
     return unittest.end(env)
 
 _unsupported_host_test = unittest.make(_unsupported_host_test_impl)

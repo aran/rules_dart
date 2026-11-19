@@ -246,13 +246,27 @@ dart_analyzer_toolchain(
 """.format(prefix = prefix, kernel = labels["kernel"], analyzer = labels["analyzer"], version = version)
 
 def _toolchain(name, toolchain_type, toolchain, settings = None, exec_compatible_with = None, target_compatible_with = None):
+    """A `toolchain` target, as BUILD text.
+
+    Args:
+        name: The target's name.
+        toolchain_type: The type's name in `@rules_dart//dart`.
+        toolchain: The label of what it resolves to.
+        settings: The label of the setting it needs, if any.
+        exec_compatible_with: A list of constraints, or an expression giving one.
+        target_compatible_with: A list of constraints.
+
+    Returns:
+        The target.
+    """
     lines = ["toolchain(", '    name = "%s",' % name]
     if exec_compatible_with:
-        lines.append("    exec_compatible_with = %s," % json.encode(exec_compatible_with))
+        written = exec_compatible_with if type(exec_compatible_with) == "string" else json.encode(exec_compatible_with)
+        lines.append("    exec_compatible_with = %s," % written)
     if target_compatible_with:
         lines.append("    target_compatible_with = %s," % json.encode(target_compatible_with))
     if settings:
-        lines.append('    target_settings = [":%s"],' % settings)
+        lines.append('    target_settings = ["%s"],' % settings)
     lines += [
         '    toolchain = "%s",' % toolchain,
         '    toolchain_type = "@rules_dart//dart:%s",' % toolchain_type,
@@ -314,10 +328,48 @@ def _release_compiler(name, repo, version, platform, target, cross):
     lines.append("    package_metadata = %s," % json.encode(metadata))
     return "\n" + "\n".join(lines + [")"]) + "\n"
 
-def _sdk_toolchains(sdk, parts, unavailable):
-    """The toolchains of one SDK, each applying when the build uses that SDK."""
+def _serves_every_cross_tool(cross):
+    return "repo" in cross and "missing" not in cross and not cross.get("incomplete")
+
+def _shared_toolchain_applies(parts, unavailable, platform, target):
+    """Whether a toolchain for this pair belongs in the toolchains of every machine.
+
+    Bazel takes the first execution platform any toolchain matches, so a
+    toolchain must not match a platform the SDK cannot serve: it would end the
+    search there. An SDK no build can use has one everywhere, saying so.
+    """
+    if unavailable:
+        return True
+    if parts.get("host_only") or "repo" not in parts["hosts"][platform]:
+        return False
+    return not target or _serves_every_cross_tool(parts["cross"][cross_pair(platform, target)])
+
+def _host_toolchain_applies(parts, host, platform, target):
+    """Whether a toolchain for this pair belongs to the machine Bazel runs on alone.
+
+    A checkout's SDK is that machine's, which only a repository can find out. A
+    cross compile missing a tool is offered there, the last platform tried, so
+    that what needs no such tool still builds and what does is told which.
+    """
+    if platform != host or "repo" not in parts["hosts"][platform]:
+        return False
+    return bool(parts.get("host_only")) or (bool(target) and not _serves_every_cross_tool(parts["cross"][cross_pair(platform, target)]))
+
+def _sdk_compiler_toolchains(sdk, parts, unavailable, settings, applies):
+    """The toolchains running one SDK's `dart`, for the pairs `applies` accepts.
+
+    Args:
+        sdk: The SDK's name.
+        parts: What it is made of: see `toolchains_build_content`.
+        unavailable: Why no build can use it, or None.
+        settings: The label of the setting saying the build uses it.
+        applies: Takes a host and a target or None, and says whether to write
+            that pair's toolchain.
+
+    Returns:
+        The targets, as BUILD text.
+    """
     prefix = _sdk_target_prefix(sdk)
-    settings = prefix + "uses"
     version = parts["version"]
 
     # The targets `compiler` needs here, by name.
@@ -329,10 +381,7 @@ def _sdk_toolchains(sdk, parts, unavailable):
         host = parts["hosts"][platform]
         cross = parts["cross"][cross_pair(platform, target)] if target else {}
         name = prefix + platform + ("_cross_" + target if target else "") + "_sdk"
-        error = host.get("error") or cross.get("error")
-        if error:
-            targets[name] = sdk_error_target(name, error)
-        elif version:
+        if version:
             targets[name] = _release_compiler(name, host["repo"], version, platform, target, cross)
         elif target:
             # Only the SDK's own files say its version, so a repository reading
@@ -343,19 +392,18 @@ def _sdk_toolchains(sdk, parts, unavailable):
         return ":" + name
 
     content = ""
-    if unavailable:
-        content += sdk_error_target(prefix + "unavailable", unavailable)
 
     # Native toolchains: exec and target constraints match the same platform.
     for platform, meta in PLATFORMS.items():
-        content += _toolchain(
-            prefix + platform + "_toolchain",
-            "toolchain_type",
-            compiler(platform),
-            settings,
-            exec_compatible_with = meta.compatible_with,
-            target_compatible_with = meta.compatible_with,
-        )
+        if applies(platform, None):
+            content += _toolchain(
+                prefix + platform + "_toolchain",
+                "toolchain_type",
+                compiler(platform),
+                settings,
+                exec_compatible_with = meta.compatible_with,
+                target_compatible_with = meta.compatible_with,
+            )
 
     # Exec-tools toolchains: the codegen rules run a generator on the exec/host
     # machine and emit platform-agnostic Dart source, so SDK selection must not
@@ -364,25 +412,45 @@ def _sdk_toolchains(sdk, parts, unavailable):
     # matches any target platform (iOS, Android, …). Reuses the native
     # dart_toolchain (the host SDK).
     for platform, meta in PLATFORMS.items():
-        content += _toolchain(
-            prefix + platform + "_exec_tools_toolchain",
-            "exec_tools_toolchain_type",
-            compiler(platform),
-            settings,
-            exec_compatible_with = meta.compatible_with,
-        )
+        if applies(platform, None):
+            content += _toolchain(
+                prefix + platform + "_exec_tools_toolchain",
+                "exec_tools_toolchain_type",
+                compiler(platform),
+                settings,
+                exec_compatible_with = meta.compatible_with,
+            )
 
     # Cross-compilation toolchains: exec constraints = host, target constraints = cross target.
     for exec_platform, cross_targets in CROSS_TARGETS.items():
         for target_platform in cross_targets:
-            content += _toolchain(
-                "{}{}_cross_{}_toolchain".format(prefix, exec_platform, target_platform),
-                "toolchain_type",
-                compiler(exec_platform, target_platform),
-                settings,
-                exec_compatible_with = PLATFORMS[exec_platform].compatible_with,
-                target_compatible_with = TARGET_PLATFORMS[target_platform].compatible_with,
-            )
+            if applies(exec_platform, target_platform):
+                content += _toolchain(
+                    "{}{}_cross_{}_toolchain".format(prefix, exec_platform, target_platform),
+                    "toolchain_type",
+                    compiler(exec_platform, target_platform),
+                    settings,
+                    exec_compatible_with = PLATFORMS[exec_platform].compatible_with,
+                    target_compatible_with = TARGET_PLATFORMS[target_platform].compatible_with,
+                )
+    return "".join(targets.values()) + content
+
+def _sdk_toolchains(sdk, parts, unavailable):
+    """The toolchains of one SDK that hold on every machine."""
+    prefix = _sdk_target_prefix(sdk)
+    settings = ":%suses" % prefix
+    version = parts["version"]
+
+    content = ""
+    if unavailable:
+        content += sdk_error_target(prefix + "unavailable", unavailable)
+    content += _sdk_compiler_toolchains(
+        sdk,
+        parts,
+        unavailable,
+        settings,
+        lambda platform, target: _shared_toolchain_applies(parts, unavailable, platform, target),
+    )
 
     # The outline stripper and the summary analyzer of the same SDK. An SDK
     # whose version only its own files say has them in a repository that reads it.
@@ -393,7 +461,7 @@ def _sdk_toolchains(sdk, parts, unavailable):
         tools = "@%s_tools//:" % sdk
     content += _toolchain(prefix + "outline_toolchain", "outline_toolchain_type", tools + "outline", settings)
     content += _toolchain(prefix + "analyzer_toolchain", "analyzer_toolchain_type", tools + "analyzer", settings)
-    return "".join(targets.values()) + content
+    return content
 
 def toolchains_build_content(sdks, default_sdk, unavailable):
     """The `BUILD.bazel` holding the toolchains of every declared SDK.
@@ -406,7 +474,10 @@ def toolchains_build_content(sdks, default_sdk, unavailable):
             there is none, which stops only a build using it. A release's
             `cross` part has `missing` instead of `error`, the message for each
             tool without a checksum (`gen_snapshot`, `dartaotruntime`), and no
-            `repo` when that is both.
+            `repo` when that is both; another SDK's has `incomplete` when it is
+            not given both. `host_only` marks an SDK that serves only the
+            machine Bazel runs on, a checkout. Only what an SDK fully serves is
+            here: see `host_toolchains_build_content` for the rest.
         default_sdk: The SDK a build without `--@rules_dart//dart:sdk` uses.
         unavailable: Why an SDK cannot be used, by name, for those that cannot.
 
@@ -442,6 +513,7 @@ alias(
         ":{prefix}chosen": "@rules_dart//dart/private:sdk_always",
 {default}        "//conditions:default": "@rules_dart//dart/private:sdk_never",
     }}),
+    visibility = ["@dart_host_toolchains//:__pkg__"],
 )
 """.format(
             prefix = _sdk_target_prefix(sdk),
@@ -470,12 +542,15 @@ alias(
             "--@rules_dart//dart:sdk names no Dart SDK the root module declares. The declared SDKs are: {}.".format(", ".join(names)),
         ).lstrip("\n"),
     )
-    content += _toolchain("undeclared_sdk_toolchain", "toolchain_type", ":undeclared_sdk", "uses_undeclared_sdk")
-    content += _toolchain("undeclared_sdk_exec_tools_toolchain", "exec_tools_toolchain_type", ":undeclared_sdk", "uses_undeclared_sdk")
+    content += _toolchain("undeclared_sdk_toolchain", "toolchain_type", ":undeclared_sdk", ":uses_undeclared_sdk")
+    content += _toolchain("undeclared_sdk_exec_tools_toolchain", "exec_tools_toolchain_type", ":undeclared_sdk", ":uses_undeclared_sdk")
 
     for sdk in names:
         content += _sdk_toolchains(sdk, sdks[sdk], unavailable.get(sdk))
     return content
+
+def _decoded_sdks(repository_ctx):
+    return {name: json.decode(parts) for name, parts in repository_ctx.attr.sdks.items()}
 
 def toolchains_repo_impl(repository_ctx):
     """Implementation of `toolchains_repo`, exposed so a test can run it.
@@ -487,48 +562,96 @@ def toolchains_repo_impl(repository_ctx):
         Metadata marking the repository reproducible.
     """
     repository_ctx.file("BUILD.bazel", toolchains_build_content(
-        {name: json.decode(parts) for name, parts in repository_ctx.attr.sdks.items()},
+        _decoded_sdks(repository_ctx),
         repository_ctx.attr.default_sdk,
         repository_ctx.attr.unavailable,
     ))
     return repository_ctx.repo_metadata(reproducible = True)
 
-def host_toolchains_build_content(message):
-    """The BUILD file of `dart_host_toolchains`.
+def host_toolchains_build_content(host, unsupported, sdks, unavailable):
+    """The BUILD file of `dart_host_toolchains`: what depends on this machine.
+
+    Bazel tries the execution platforms in order, this machine last. So what
+    is registered here matches this machine only, and is reached when no
+    platform before it can serve the build: the SDK that only this machine
+    has, a cross compile short of a tool, and the reason a build stops when
+    this machine is no use either, rather than Bazel's report of no matching
+    toolchain.
 
     Args:
-        message: Why this host has no Dart SDK, or None if it has one.
+        host: This machine's `PLATFORMS` key, or None if it has none.
+        unsupported: Why this machine has no Dart SDK, when `host` is None.
+        sdks: What each SDK is made of: see `toolchains_build_content`.
+        unavailable: Why an SDK cannot be used, by name, for those that cannot.
 
     Returns:
-        The file: nothing to register on a host with an SDK, and on one without,
-        toolchains matching anything that fail the build with `message`, so
-        that it does not end in Bazel's report of no matching toolchain.
+        The file.
     """
     content = "# Generated by dart/private/toolchains_repo.bzl\n"
-    if message:
-        content += SDK_ERROR_LOAD + sdk_error_target("unsupported_host", message)
-        content += _toolchain("unsupported_host_toolchain", "toolchain_type", ":unsupported_host")
-        content += _toolchain("unsupported_host_exec_tools_toolchain", "exec_tools_toolchain_type", ":unsupported_host")
+    if unsupported:
+        content += 'load("@platforms//host:constraints.bzl", "HOST_CONSTRAINTS")\n' + SDK_ERROR_LOAD
+        content += sdk_error_target("unsupported_host", unsupported)
+        for name, toolchain_type in [
+            ("unsupported_host_toolchain", "toolchain_type"),
+            ("unsupported_host_exec_tools_toolchain", "exec_tools_toolchain_type"),
+        ]:
+            content += _toolchain(name, toolchain_type, ":unsupported_host", exec_compatible_with = "HOST_CONSTRAINTS")
+        return content
+    body = ""
+    for sdk in sorted(sdks.keys()):
+        if sdk in unavailable:
+            continue
+        parts = sdks[sdk]
+        prefix = _sdk_target_prefix(sdk)
+        settings = "@dart_toolchains//:%suses" % prefix
+        error = parts["hosts"][host].get("error")
+        if error:
+            body += sdk_error_target(prefix + "unserved_host", error)
+            for suffix, toolchain_type in [("toolchain", "toolchain_type"), ("exec_tools_toolchain", "exec_tools_toolchain_type")]:
+                body += _toolchain(
+                    prefix + "unserved_host_" + suffix,
+                    toolchain_type,
+                    ":%sunserved_host" % prefix,
+                    settings,
+                    exec_compatible_with = PLATFORMS[host].compatible_with,
+                )
+            continue
+        body += _sdk_compiler_toolchains(
+            sdk,
+            parts,
+            None,
+            settings,
+            lambda platform, target: _host_toolchain_applies(parts, host, platform, target),
+        )
+    if body:
+        content += 'load("@rules_dart//dart:toolchain.bzl", "dart_toolchain")\n' + SDK_ERROR_LOAD + body
     return content
 
 def _dart_host_toolchains_impl(repository_ctx):
     host = host_platform(repository_ctx.os)
     repository_ctx.file("BUILD.bazel", host_toolchains_build_content(
+        host,
         None if host else unsupported_host_message(repository_ctx.os),
+        _decoded_sdks(repository_ctx),
+        repository_ctx.attr.unavailable,
     ))
+
+_SDKS_ATTRS = {
+    "sdks": attr.string_dict(doc = "What each SDK is made of, by name, as JSON: see `toolchains_build_content`.", mandatory = True),
+    "unavailable": attr.string_dict(doc = "Why an SDK cannot be used, by name, for those that cannot."),
+}
 
 dart_host_toolchains = repository_rule(
     _dart_host_toolchains_impl,
-    doc = "On a host with no Dart SDK, toolchains failing every build that needs one, saying so. Apart from `toolchains_repo`, whose contents depend on no host.",
+    doc = "The toolchains that depend on the machine Bazel runs on: see `host_toolchains_build_content`. Apart from `toolchains_repo`, whose contents depend on no host.",
+    attrs = _SDKS_ATTRS,
 )
 
 toolchains_repo = repository_rule(
     toolchains_repo_impl,
     doc = """Creates the repository with the toolchains of every declared Dart SDK, for
      all known platforms, which rules_dart's own `MODULE.bazel` registers.""",
-    attrs = {
+    attrs = dict(_SDKS_ATTRS, **{
         "default_sdk": attr.string(doc = "The SDK a build without `--@rules_dart//dart:sdk` uses.", mandatory = True),
-        "sdks": attr.string_dict(doc = "What each SDK is made of, by name, as JSON: see `toolchains_build_content`.", mandatory = True),
-        "unavailable": attr.string_dict(doc = "Why an SDK cannot be used, by name, for those that cannot."),
-    },
+    }),
 )

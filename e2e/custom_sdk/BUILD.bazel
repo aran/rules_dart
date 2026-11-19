@@ -141,6 +141,40 @@ _TESTS = [
     ]
 ]
 
+# No SDK here has a Windows on Arm build. As the first execution platform it is
+# passed over for one the SDK serves, for builds and cross compiles alike. It
+# offers only Dart's toolchains, as nothing here can really run on it.
+platform(
+    name = "windows_arm64",
+    allowed_toolchain_types = [
+        "@rules_dart//dart:exec_tools_toolchain_type",
+        "@rules_dart//dart:toolchain_type",
+    ],
+    check_toolchain_types = True,
+    constraint_values = [
+        "@platforms//cpu:aarch64",
+        "@platforms//os:windows",
+    ],
+)
+
+[
+    [
+        with_sdk_test(
+            name = "%s_%s_past_unserved_platform" % (sdk, test),
+            size = "small",
+            first_exec_platform = ":windows_arm64",
+            sdk = sdk,
+            test = ":" + test,
+        )
+        for test in _TESTS
+    ]
+    for sdk in [
+        "released",
+        "from_repositories",
+        "from_checkout",
+    ]
+]
+
 # Only what its checksums allow: no target runtime.
 with_sdk_test(
     name = "prerelease_aot_cross_test",

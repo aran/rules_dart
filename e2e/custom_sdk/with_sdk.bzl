@@ -1,12 +1,17 @@
 """Runs a test under another Dart SDK, as `--@rules_dart//dart:sdk` would choose it."""
 
-def _sdk_transition_impl(_settings, attr):
-    return {"@rules_dart//dart:sdk": attr.sdk}
+_EXEC_PLATFORMS = "//command_line_option:extra_execution_platforms"
+
+def _sdk_transition_impl(settings, attr):
+    platforms = settings[_EXEC_PLATFORMS]
+    if attr.first_exec_platform:
+        platforms = [str(attr.first_exec_platform)] + platforms
+    return {"@rules_dart//dart:sdk": attr.sdk, _EXEC_PLATFORMS: platforms}
 
 _sdk_transition = transition(
     implementation = _sdk_transition_impl,
-    inputs = [],
-    outputs = ["@rules_dart//dart:sdk"],
+    inputs = [_EXEC_PLATFORMS],
+    outputs = ["@rules_dart//dart:sdk", _EXEC_PLATFORMS],
 )
 
 def _with_sdk_test_impl(ctx):
@@ -34,6 +39,7 @@ def _with_sdk_test_impl(ctx):
 with_sdk_test = rule(
     implementation = _with_sdk_test_impl,
     attrs = {
+        "first_exec_platform": attr.label(doc = "An execution platform Bazel tries before the others."),
         "sdk": attr.string(mandatory = True),
         "test": attr.label(mandatory = True, cfg = _sdk_transition, executable = True),
     },

@@ -36,7 +36,7 @@ builds using it.
 load("//dart/private:custom_sdks.bzl", "custom_sdks", "sdk_name_error")
 load("//dart/private:local_sdk.bzl", "dart_checkout_cross_sdk", "dart_checkout_sdk", "dart_checkout_sdk_tools", "dart_local_cross_sdk", "dart_local_sdk", "dart_local_sdk_tools")
 load("//dart/private:toolchain_selection.bzl", "named_toolchain_requests", "newest_version", "sdk_too_old_error", "select_toolchain_version", "servable_release")
-load("//dart/private:toolchains_repo.bzl", "CROSS_TARGETS", "DEFAULT_SDK_NAME", "PLATFORMS", "cross_pair", "dart_bin", "dart_host_toolchains", "toolchains_repo")
+load("//dart/private:toolchains_repo.bzl", "CROSS_TARGETS", "DEFAULT_SDK_NAME", "PLATFORMS", "cross_pair", "cross_tool_files", "dart_bin", "dart_host_toolchains", "toolchains_repo")
 load("//dart/private:versions.bzl", "TOOL_VERSIONS")
 load("//dart/pub/private/pubspec_reader:reader.bzl", "pubspec_reader_repositories")
 load(":repositories.bzl", "dart_checkout_source_tool", "dart_local_cross_sdk_build_file", "dart_local_sdk_build_file", "dart_release_repositories", "dart_sdk_source_tool")
@@ -120,8 +120,9 @@ The SDK's version is what its `version` file says.
         "sdk": attr.string_keyed_label_dict(doc = """\
 The `version` file at the root of the SDK for each host (`macos-arm64`,
 `macos-x64`, `linux-x64`, `linux-arm64`, `windows-x64`, `windows-arm64`). Beside it the directory
-must be laid out as the SDK archive is, with `bin/` and `lib/`. A build on a
-host not listed fails, naming it.
+must be laid out as the SDK archive is, with `bin/` and `lib/`. Bazel passes
+over an execution platform not listed; a build no listed platform can run fails,
+naming the machine it ran on.
 """, mandatory = True),
         "source": attr.label(doc = """\
 The `DEPS` file at the root of this SDK's source (dart-lang/sdk or a fork of
@@ -231,7 +232,11 @@ def _declare_local_host(name, platform, tag, requests, location, parts, sdk_rule
             requests = requests,
             **location
         )
-        parts["cross"][cross_pair(platform, target)] = {"repo": cross_repo}
+        files = cross_tool_files(platform, target)
+        parts["cross"][cross_pair(platform, target)] = {
+            "repo": cross_repo,
+            "incomplete": files.gen_snapshot not in tag.cross_tools or files.dartaotruntime not in tag.cross_tools,
+        }
 
 def _local_parts():
     return {"version": "", "hosts": {}, "cross": {}, "tools": {}}
@@ -255,6 +260,9 @@ dart.custom_sdk(name = "{name}", sdk = {{"{platform}": ...}}).""".format(name = 
 def _declare_checkout(name, tag, requests):
     location = {"build_env": tag.build_env, "path_env": tag.path_env, "source": tag.checkout}
     parts = _local_parts()
+
+    # Only the repositories, fetched on it, can tell which machine that is.
+    parts["host_only"] = True
     for platform in PLATFORMS.keys():
         _declare_local_host(name, platform, tag, requests, location, parts, dart_checkout_sdk, dart_checkout_cross_sdk)
     parts["tools"] = _source_tools(name, rule = dart_checkout_source_tool, source = tag.checkout, path_env = tag.path_env)
@@ -357,10 +365,11 @@ def _toolchain_extension(module_ctx):
             unavailable[name] = error
 
     _declare_pubspec_reader(sdks, default_sdk)
-    dart_host_toolchains(name = "dart_host_toolchains")
+    encoded_sdks = {name: json.encode(parts) for name, parts in sdks.items()}
+    dart_host_toolchains(name = "dart_host_toolchains", sdks = encoded_sdks, unavailable = unavailable)
     toolchains_repo(
         name = _DEFAULT_NAME + "_toolchains",
-        sdks = {name: json.encode(parts) for name, parts in sdks.items()},
+        sdks = encoded_sdks,
         default_sdk = default_sdk,
         unavailable = unavailable,
     )

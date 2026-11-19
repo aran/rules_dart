@@ -9,7 +9,7 @@ load("//dart/private:custom_sdks.bzl", "custom_sdks", "sdk_name_error")
 load("//dart/private:toolchain_selection.bzl", "MINIMUM_SDK_VERSION", "aot_snapshot_needs_runtime", "newest_version", "sdk_too_old_error")
 
 # buildifier: disable=bzl-visibility
-load("//dart/private:toolchains_repo.bzl", "CROSS_TARGETS", "PLATFORMS", "cross_pair", "toolchains_build_content")
+load("//dart/private:toolchains_repo.bzl", "CROSS_TARGETS", "PLATFORMS", "cross_pair", "host_toolchains_build_content", "toolchains_build_content")
 load(":small_suite.bzl", "small_unittest_suite")
 
 def _module(name = "root", is_root = True, release = [], custom_sdk = [], checkout = [], use_sdk = []):
@@ -214,6 +214,9 @@ def _no_sdk_name_collides_test_impl(ctx):
     asserts.equals(env, sorted(names), sorted({name: None for name in names}.keys()))
     return unittest.end(env)
 
+def _toolchain_names(build):
+    return [part.partition('"')[0] for part in build.split('\ntoolchain(\n    name = "')[1:]]
+
 def _what_an_sdk_lacks_fails_when_used_test_impl(ctx):
     env = unittest.begin(ctx)
     parts = _parts("next", "3.15.0")
@@ -226,21 +229,76 @@ def _what_an_sdk_lacks_fails_when_used_test_impl(ctx):
     parts["tools"]["kernel"] = {"error": "no source"}
     build = toolchains_build_content({"dart": _parts("dart", "3.14.1"), "next": parts}, "dart", {})
 
-    # What has no repository is a target failing with the reason, so no
-    # repository has to fail for it.
-    _contains(env, build, 'name = "next-linux-x64_sdk",\n    message = "no linux archive"')
-    _contains(env, build, 'toolchain = ":next-linux-x64_sdk"')
+    # A toolchain matching a platform the SDK lacks would end Bazel's search
+    # there, so nothing is registered for that host or its cross compiles, and
+    # the pairs missing a tool are not offered to other machines either.
+    names = _toolchain_names(build)
+    asserts.false(env, "next-linux-x64_toolchain" in names, names)
+    asserts.false(env, "next-linux-x64_exec_tools_toolchain" in names, names)
+    asserts.false(env, "next-linux-x64_cross_linux-arm64_toolchain" in names, names)
+    asserts.false(env, "next-macos-arm64_cross_linux-x64_toolchain" in names, names)
+    asserts.false(env, "next-macos-arm64_cross_linux-arm64_toolchain" in names, names)
+    asserts.true(env, "next-macos-arm64_toolchain" in names, names)
+    asserts.true(env, "next-macos-arm64_cross_linux-riscv64_toolchain" in names, names)
     _contains(env, build, 'name = "next-kernel_unavailable",\n    message = "no source"')
     _contains(env, build, '"@rules_dart//dart:is_outline_kernel": ":next-kernel_unavailable"')
 
-    # A cross build of that host stops for the host's reason.
-    _contains(env, build, 'name = "next-linux-x64_cross_linux-arm64_sdk",\n    message = "no linux archive"')
+    # On the machine Bazel runs on, the last platform tried, a host the SDK
+    # lacks stops the build with the reason.
+    sdks = {"dart": _parts("dart", "3.14.1"), "next": parts}
+    here = host_toolchains_build_content("linux-x64", None, sdks, {})
+    _contains(env, here, 'name = "next-unserved_host",\n    message = "no linux archive"')
+    _contains(env, here, 'target_settings = ["@dart_toolchains//:next-uses"]')
+    _contains(env, here, 'exec_compatible_with = ["@platforms//os:linux","@platforms//cpu:x86_64"]')
+    asserts.equals(
+        env,
+        ["next-unserved_host_exec_tools_toolchain", "next-unserved_host_toolchain"],
+        sorted(_toolchain_names(here)),
+    )
 
-    # One tool's absence is left to the compile that needs that tool.
-    _contains(env, build, 'missing_cross_tools = {"dartaotruntime":"no runtime"}')
-    pair = build[build.index('name = "next-macos-arm64_cross_linux-arm64_sdk"'):]
+    # A pair missing a tool is offered there too, and left to the compile that
+    # needs that tool.
+    here = host_toolchains_build_content("macos-arm64", None, sdks, {})
+    asserts.equals(
+        env,
+        ["next-macos-arm64_cross_linux-arm64_toolchain", "next-macos-arm64_cross_linux-x64_toolchain"],
+        sorted(_toolchain_names(here)),
+    )
+    _contains(env, here, 'missing_cross_tools = {"dartaotruntime":"no runtime"}')
+    pair = here[here.index('name = "next-macos-arm64_cross_linux-arm64_sdk"'):]
     pair = pair[:pair.index("\n)\n")]
     asserts.false(env, "sdk_cache" in pair, pair)
+
+    # Where the SDK serves everything, this machine adds nothing.
+    asserts.equals(env, [], _toolchain_names(host_toolchains_build_content("macos-x64", None, sdks, {})))
+    return unittest.end(env)
+
+def _a_checkout_serves_only_this_machine_test_impl(ctx):
+    env = unittest.begin(ctx)
+    parts = _parts("local", "")
+    parts["host_only"] = True
+    sdks = {"dart": _parts("dart", "3.14.1"), "local": parts}
+
+    # Which machine that is is known when repositories are fetched, not when
+    # the toolchains every machine shares are written.
+    names = _toolchain_names(toolchains_build_content(sdks, "dart", {}))
+    asserts.equals(env, ["local-analyzer_toolchain", "local-outline_toolchain"], sorted([n for n in names if n.startswith("local-")]))
+    here = host_toolchains_build_content("macos-arm64", None, sdks, {})
+    asserts.equals(
+        env,
+        sorted([
+            "local-macos-arm64_toolchain",
+            "local-macos-arm64_exec_tools_toolchain",
+        ] + ["local-macos-arm64_cross_%s_toolchain" % t for t in CROSS_TARGETS["macos-arm64"]]),
+        sorted(_toolchain_names(here)),
+    )
+    _contains(env, here, 'toolchain = "@local_macos-arm64//:dart_toolchain"')
+    _contains(env, here, 'toolchain = "@local_macos-arm64_cross_linux-x64//:dart_toolchain_cross_linux-x64"')
+
+    # An SDK no build can use says so from the shared toolchains, on any platform.
+    build = toolchains_build_content(sdks, "dart", {"local": "too old"})
+    _contains(env, build, 'name = "local-macos-x64_toolchain"')
+    asserts.equals(env, [], _toolchain_names(host_toolchains_build_content("macos-arm64", None, sdks, {"local": "too old"})))
     return unittest.end(env)
 
 def _toolchain_names_are_checked_test_impl(ctx):
@@ -264,6 +322,7 @@ def _aot_snapshot_runtime_follows_the_version_test_impl(ctx):
     return unittest.end(env)
 
 _lacks_test = unittest.make(_what_an_sdk_lacks_fails_when_used_test_impl)
+_checkout_host_test = unittest.make(_a_checkout_serves_only_this_machine_test_impl)
 _toolchain_names_test = unittest.make(_toolchain_names_are_checked_test_impl)
 _aot_runtime_test = unittest.make(_aot_snapshot_runtime_follows_the_version_test_impl)
 _minimum_test = unittest.make(_sdks_below_the_minimum_are_refused_test_impl)
@@ -279,4 +338,4 @@ _t8_test = unittest.make(_toolchains_follow_the_choice_test_impl)
 _t9_test = unittest.make(_no_sdk_name_collides_test_impl)
 
 def custom_sdks_test_suite(name):
-    small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test, _t4_test, _t5_test, _t6_test, _t7_test, _t8_test, _t9_test, _minimum_test, _lacks_test, _toolchain_names_test, _aot_runtime_test)
+    small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test, _t4_test, _t5_test, _t6_test, _t7_test, _t8_test, _t9_test, _minimum_test, _lacks_test, _checkout_host_test, _toolchain_names_test, _aot_runtime_test)
