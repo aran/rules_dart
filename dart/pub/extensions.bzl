@@ -345,8 +345,8 @@ def _pub_impl(ctx):
     locks = []
     for mod in ctx.modules:
         for lock_tag in mod.tags.from_lock:
-            lock_pkgs = parse_pubspec_lock(ctx.read(lock_tag.lock), lock_tag.lock)
-            locks.append(struct(module = mod, tag = lock_tag, packages = lock_pkgs))
+            lock = parse_pubspec_lock(ctx.read(lock_tag.lock), lock_tag.lock)
+            locks.append(struct(module = mod, tag = lock_tag, packages = lock.packages))
 
     # Every module's `pub.package()` requests, and the ones the root's lock
     # supplies instead.

@@ -8,7 +8,7 @@ the extension needs it. A pubspec.yaml is read the way pub reads it, by
 load("@yaml.bzl//:yaml.bzl", "yaml")
 
 # buildifier: disable=bzl-visibility
-load("//dart/pub/private:version.bzl", "is_semver")
+load("//dart/pub/private:version.bzl", "constraint_error", "is_semver")
 
 def _entry(name, info):
     """A package entry as callers read it, or a description of why pub refuses it."""
@@ -38,41 +38,80 @@ def _entry(name, info):
             entry[k] = "" if v == None else str(v)
     return entry
 
+def _constraint(where, value):
+    """A constraint as pub reads it from a lock, or a description of why it refuses it."""
+    if type(value) != "string":
+        return struct(problem = "`{}` is not a version constraint string (got {})".format(where, repr(value)), constraint = None)
+    problem = constraint_error(value)
+    if problem != None:
+        return struct(problem = "`{}` is not a version constraint: {} (got {})".format(where, problem, repr(value)), constraint = None)
+    return struct(problem = None, constraint = value)
+
+def _sdks(data):
+    """The `sdks` of a lock as pub reads them: `struct(problem, sdks)`, one of them None."""
+    sdks = {}
+
+    # Locks pub wrote from 1.14 to 1.18 hold the Dart constraint in a top-level
+    # `sdk`. pub reads it first, so an `sdks` block names Dart over it.
+    if "sdk" in data:
+        read = _constraint("sdk", data["sdk"])
+        if read.problem != None:
+            return struct(problem = read.problem, sdks = None)
+        sdks["dart"] = read.constraint
+
+    # `sdks` may be left empty: `sdks:` is null.
+    if data.get("sdks") == None:
+        return struct(problem = None, sdks = sdks)
+    if type(data["sdks"]) != "dict":
+        return struct(problem = "`sdks` is not a mapping", sdks = None)
+    for name, constraint in data["sdks"].items():
+        if type(name) != "string":
+            return struct(problem = "`sdks` has a key that is not a string (got {})".format(repr(name)), sdks = None)
+        read = _constraint("sdks." + name, constraint)
+        if read.problem != None:
+            return struct(problem = read.problem, sdks = None)
+        sdks[name] = read.constraint
+    return struct(problem = None, sdks = sdks)
+
 def _read(content):
-    """Reads a lock as pub does: `struct(problem, packages)`, one of them None."""
+    """Reads a lock as pub does: `struct(problem, packages, sdks)`, the first None or the others."""
 
     # pub reads a lock of only whitespace as an empty one.
     if not content.strip():
-        return struct(problem = None, packages = {})
+        return struct(problem = None, packages = {}, sdks = {})
     documents = yaml.parse_all(content)
     if len(documents) > 1:
-        return struct(problem = "it holds {} YAML documents, and pub expects one".format(len(documents)), packages = None)
+        return struct(problem = "it holds {} YAML documents, and pub expects one".format(len(documents)), packages = None, sdks = None)
     for error in yaml.get_errors(documents[0]):
         problem = error.message if error.line == None else "line {}: {}".format(error.line, error.message)
-        return struct(problem = problem, packages = None)
+        return struct(problem = problem, packages = None, sdks = None)
     data = yaml.get_value(documents[0])
     if type(data) != "dict":
-        return struct(problem = "its top level is not a mapping", packages = None)
+        return struct(problem = "its top level is not a mapping", packages = None, sdks = None)
 
-    # `packages` may be left out, but not left empty: `packages:` is null.
-    if "packages" not in data:
-        return struct(problem = None, packages = {})
+    sdks = _sdks(data)
+    if sdks.problem != None:
+        return struct(problem = sdks.problem, packages = None, sdks = None)
+
+    # `packages:` with nothing after it is null, which pub reads as absent.
+    if data.get("packages") == None:
+        return struct(problem = None, packages = {}, sdks = sdks.sdks)
     if type(data["packages"]) != "dict":
-        return struct(problem = "`packages` is not a mapping", packages = None)
+        return struct(problem = "`packages` is not a mapping", packages = None, sdks = None)
     packages = {}
     for name, info in data["packages"].items():
         entry = _entry(name, info)
         if type(entry) == "string":
-            return struct(problem = entry, packages = None)
+            return struct(problem = entry, packages = None, sdks = None)
         packages[name] = entry
-    return struct(problem = None, packages = packages)
+    return struct(problem = None, packages = packages, sdks = sdks.sdks)
 
 def lock_error(content):
     """Says why pub would refuse a pubspec.lock, as it does.
 
     pub reads a lock strictly: one YAML document, no key twice, a mapping of
     packages, each with a `version` string, a `source` string and a
-    `description`. A source pub does not know is no reason to refuse. So does this, where a lenient read would pick one of two
+    `description`, and an `sdks` block of version constraints. A source pub does not know is no reason to refuse. So does this, where a lenient read would pick one of two
     entries for a package listed twice, ignore everything after a second
     `---`, or give no packages for a lock it cannot read.
 
@@ -85,7 +124,7 @@ def lock_error(content):
     return _read(content).problem
 
 def parse_pubspec_lock(content, source):
-    """Parse a pubspec.lock file into a dict of package info.
+    """Parse a pubspec.lock file into its packages and the SDK constraints it records.
 
     Fails, naming the lock, where pub would refuse it (see `lock_error`).
 
@@ -94,14 +133,19 @@ def parse_pubspec_lock(content, source):
         source: The lock as a message names it, such as its label.
 
     Returns:
-        Dict of package_name -> {
+        A struct with
+        `packages`: dict of package_name -> {
             "dependency": str,
             "source": str,
             "version": str,
             "description": dict (keys vary by source type),
         }
+        `sdks`: dict of SDK name (`dart`, `flutter`) -> the constraint string
+        the lock states, such as `>=3.9.0 <4.0.0`. Empty when the lock has no
+        `sdks:` block. A top-level `sdk:`, which pub 1.14 to 1.18 wrote, is the
+        `dart` constraint, and an `sdks:` block wins over it.
     """
     read = _read(content)
     if read.problem != None:
         fail("pub would refuse the lock {}: {}".format(source, read.problem))
-    return read.packages
+    return struct(packages = read.packages, sdks = read.sdks)

@@ -35,7 +35,7 @@ sdks:
 
 def _parse_lock_packages_test_impl(ctx):
     env = unittest.begin(ctx)
-    result = parse_pubspec_lock(_SAMPLE_LOCK, "sample")
+    result = parse_pubspec_lock(_SAMPLE_LOCK, "sample").packages
     asserts.equals(env, 3, len(result))
     asserts.true(env, "collection" in result)
     asserts.true(env, "meta" in result)
@@ -44,7 +44,7 @@ def _parse_lock_packages_test_impl(ctx):
 
 def _parse_lock_hosted_test_impl(ctx):
     env = unittest.begin(ctx)
-    result = parse_pubspec_lock(_SAMPLE_LOCK, "sample")
+    result = parse_pubspec_lock(_SAMPLE_LOCK, "sample").packages
     collection = result["collection"]
     asserts.equals(env, "hosted", collection["source"])
     asserts.equals(env, "1.18.0", collection["version"])
@@ -54,7 +54,7 @@ def _parse_lock_hosted_test_impl(ctx):
 
 def _parse_lock_sdk_test_impl(ctx):
     env = unittest.begin(ctx)
-    result = parse_pubspec_lock(_SAMPLE_LOCK, "sample")
+    result = parse_pubspec_lock(_SAMPLE_LOCK, "sample").packages
     flutter = result["flutter"]
     asserts.equals(env, "sdk", flutter["source"])
     asserts.equals(env, "0.0.0", flutter["version"])
@@ -100,16 +100,19 @@ def _lock_shape_test_impl(ctx):
     env = unittest.begin(ctx)
 
     # What pub reads as a lock with no packages.
-    asserts.equals(env, {}, parse_pubspec_lock("", "empty"))
-    asserts.equals(env, {}, parse_pubspec_lock("  \n", "blank"))
-    asserts.equals(env, {}, parse_pubspec_lock("sdks:\n  dart: \">=3.0.0 <4.0.0\"\n", "no packages"))
-    asserts.equals(env, {}, parse_pubspec_lock("packages: {}\n", "empty packages"))
+    asserts.equals(env, {}, parse_pubspec_lock("", "empty").packages)
+    asserts.equals(env, {}, parse_pubspec_lock("  \n", "blank").packages)
+    asserts.equals(env, {}, parse_pubspec_lock("sdks:\n  dart: \">=3.0.0 <4.0.0\"\n", "no packages").packages)
+    asserts.equals(env, {}, parse_pubspec_lock("packages: {}\n", "empty packages").packages)
+
+    # `packages:` with nothing after it is a null, which pub reads as absent.
+    asserts.equals(env, {}, parse_pubspec_lock("packages:\n", "null packages").packages)
 
     # What pub refuses, where a lenient read gives an empty hub or skips a
     # package.
     _expect_refused(env, "# only a comment\n", "top level is not a mapping")
     _expect_refused(env, "- packages\n", "top level is not a mapping")
-    _expect_refused(env, "packages:\n", "`packages` is not a mapping")
+    _expect_refused(env, "packages: 3\n", "`packages` is not a mapping")
     _expect_refused(env, "packages: [a]\n", "`packages` is not a mapping")
     _expect_refused(env, "packages:\n  foo: 1.0.0\n", "package `foo` is not a mapping")
 
@@ -122,9 +125,159 @@ def _lock_shape_test_impl(ctx):
 
     # pub reads an entry from a source it does not know, and fails only for
     # what needs it.
-    asserts.equals(env, "svn", parse_pubspec_lock(_SAMPLE_LOCK.replace("    source: sdk\n", "    source: svn\n"), "unknown source")["flutter"]["source"])
+    asserts.equals(env, "svn", parse_pubspec_lock(_SAMPLE_LOCK.replace("    source: sdk\n", "    source: svn\n"), "unknown source").packages["flutter"]["source"])
     _expect_refused(env, _SAMPLE_LOCK.replace("    description: flutter\n", ""), "package `flutter` has no `description`")
     _expect_refused(env, _SAMPLE_LOCK.replace("    dependency: transitive\n", "    dependency: [transitive]\n"), "package `meta` has a `dependency`")
+    return unittest.end(env)
+
+def _sdks(content):
+    return parse_pubspec_lock(content, "sdks").sdks
+
+def _sdks_lock(*lines):
+    return "sdks:\n" + "".join(["  {}\n".format(line) for line in lines])
+
+def _lock_sdks_test_impl(ctx):
+    env = unittest.begin(ctx)
+
+    # The constraint strings as the YAML spells them, per SDK.
+    asserts.equals(env, {"dart": ">=3.0.0 <4.0.0"}, parse_pubspec_lock(_SAMPLE_LOCK, "sample").sdks)
+    asserts.equals(
+        env,
+        {"dart": ">=3.9.0 <4.0.0", "flutter": ">=3.18.0-18.0.pre.54", "fuchsia": "any"},
+        _sdks(_sdks_lock("dart: \">=3.9.0 <4.0.0\"", "flutter: \">=3.18.0-18.0.pre.54\"", "fuchsia: any")),
+    )
+
+    # Empty where the lock has none, and where pub reads it as none.
+    asserts.equals(env, {}, _sdks(""))
+    asserts.equals(env, {}, _sdks("  \n"))
+    asserts.equals(env, {}, _sdks("packages: {}\n"))
+    asserts.equals(env, {}, _sdks("sdks:\n"))
+    asserts.equals(env, {}, _sdks("sdks: {}\n"))
+
+    # The packages and the SDKs of a lock are read together.
+    both = parse_pubspec_lock(_SAMPLE_LOCK.replace(">=3.0.0", ">=3.5.0"), "sample")
+    asserts.equals(env, 3, len(both.packages))
+    asserts.equals(env, {"dart": ">=3.5.0 <4.0.0"}, both.sdks)
+
+    # The top-level `sdk` of pub 1.14 to 1.18 is the Dart constraint, and the
+    # `sdks` block wins where a lock has both, wherever each sits.
+    legacy = "sdk: \">=2.0.0 <3.0.0\"\n"
+    asserts.equals(env, {"dart": ">=2.0.0 <3.0.0"}, _sdks(legacy))
+    asserts.equals(env, {"dart": ">=2.0.0 <3.0.0", "flutter": ">=1.0.0"}, _sdks(legacy + _sdks_lock("flutter: \">=1.0.0\"")))
+    asserts.equals(env, {"dart": ">=3.1.0 <4.0.0"}, _sdks(legacy + _sdks_lock("dart: \">=3.1.0 <4.0.0\"")))
+    asserts.equals(env, {"dart": ">=3.1.0 <4.0.0"}, _sdks(_sdks_lock("dart: \">=3.1.0 <4.0.0\"") + legacy))
+    return unittest.end(env)
+
+def _lock_sdks_refused_test_impl(ctx):
+    env = unittest.begin(ctx)
+
+    # Each is a "Failed parsing lock file" from `dart pub get`.
+    _expect_refused(env, "sdks: 3\n", "`sdks` is not a mapping")
+    _expect_refused(env, "sdks:\n  - dart\n", "`sdks` is not a mapping")
+    _expect_refused(env, _sdks_lock("dart:"), "`sdks.dart`", "version constraint")
+    _expect_refused(env, _sdks_lock("dart: 3"), "`sdks.dart`", "version constraint")
+    _expect_refused(env, _sdks_lock("dart: 3.0"), "`sdks.dart`")
+    _expect_refused(env, _sdks_lock("dart: true"), "`sdks.dart`")
+    _expect_refused(env, _sdks_lock("dart: {a: b}"), "`sdks.dart`")
+    _expect_refused(env, _sdks_lock("dart: [\">=3.0.0\"]"), "`sdks.dart`")
+    _expect_refused(env, _sdks_lock("1: \">=3.0.0\""), "`sdks`", "key")
+    _expect_refused(env, _sdks_lock("dart: \">=3.0.0\"", "dart: \">=3.1.0\""), "dart")
+    _expect_refused(env, _sdks_lock("dart: \"\""), "`sdks.dart`", "empty")
+    _expect_refused(env, _sdks_lock("dart: \"   \""), "`sdks.dart`", "empty")
+    _expect_refused(env, _sdks_lock("dart: \"foo\""), "`sdks.dart`", "foo")
+    _expect_refused(env, _sdks_lock("flutter: \">=3.0.0 <4.0.0\"", "dart: \"3\""), "`sdks.dart`", "\"3\"")
+
+    # The legacy key is read as strictly, and whether or not the lock has `sdks`.
+    _expect_refused(env, "sdk:\n", "`sdk`", "version constraint")
+    _expect_refused(env, "sdk: 3.0\n", "`sdk`")
+    _expect_refused(env, "sdk: [a]\n", "`sdk`")
+    _expect_refused(env, "sdk: foo\n", "`sdk`", "foo")
+    _expect_refused(env, "sdk: foo\n" + _sdks_lock("dart: \">=3.0.0\""), "`sdk`", "foo")
+
+    # A bad block is refused beside good packages.
+    _expect_refused(env, _SAMPLE_LOCK.replace(">=3.0.0 <4.0.0", "nonsense"), "`sdks.dart`", "nonsense")
+
+    # parse_pubspec_lock fails, naming the lock.
+    asserts.true(env, lock_error(_sdks_lock("dart: \"foo\"")) != None)
+    return unittest.end(env)
+
+# What `VersionConstraint.parse` takes and refuses, each checked as the
+# `sdks` constraint of a lock given to `dart pub get`.
+_ACCEPTED_CONSTRAINTS = [
+    "any",
+    " any ",
+    "1.0.0",
+    ">=3.0.0 <4.0.0",
+    ">=3.0.0<4.0.0",
+    ">= 3.0.0",
+    ">  3.0.0",
+    "<=3.0.0",
+    "<3.0.0",
+    ">3.0.0",
+    "^3.0.0",
+    "^ 3.0.0",
+    "^3.0.0 ",
+    ">=3.18.0-18.0.pre.54",
+    ">=3.0.0-0 <3.0.0+build.1-x",
+    "1.0.0-a-b.1.0+x.y",
+    ">=1.0.0 >=2.0.0 <1.0.0",
+    "1.0.0 2.0.0",
+    ">=01.02.003",
+    "  >=3.0.0   <4.0.0  ",
+    ">=1.0.0\t<2.0.0",
+    ">=9223372036854775807.0.0",
+    ">=1.0.00009223372036854775807",
+]
+
+_REFUSED_CONSTRAINTS = [
+    "",
+    "   ",
+    "foo",
+    "3",
+    "3.0",
+    "v3.0.0",
+    "1.0.0.0",
+    "1.0.0-",
+    "1.0.0+",
+    "1.0.0-a.",
+    "1.0.0-a..b",
+    "1.0.0-a_b",
+    "any 1.0.0",
+    "1.0.0 any",
+    ">=1.0.0 any",
+    "Any",
+    "anything",
+    "*",
+    "^",
+    "^3.0.0 <4.0.0",
+    ">=",
+    ">= <4.0.0",
+    ">>3.0.0",
+    "=>3.0.0",
+    "> =3.0.0",
+    "=3.0.0",
+    "==3.0.0",
+    "!=3.0.0",
+    ">=3.0.0,<4.0.0",
+    ">=3.0.0 || <1.0.0",
+    ">=3.0.0 <",
+    "~3.0.0",
+    ">=-1.0.0",
+    ">=1.0.0-@",
+    ">=9223372036854775808.0.0",
+    ">=1.9223372036854775808.0",
+    ">=1.0.00009223372036854775808",
+]
+
+def _lock_constraints_test_impl(ctx):
+    env = unittest.begin(ctx)
+    for constraint in _ACCEPTED_CONSTRAINTS:
+        lock = _sdks_lock("dart: \"{}\"".format(constraint))
+        asserts.equals(env, None, lock_error(lock), "pub reads {}".format(repr(constraint)))
+        asserts.equals(env, {"dart": constraint}, _sdks(lock))
+    for constraint in _REFUSED_CONSTRAINTS:
+        problem = lock_error(_sdks_lock("dart: \"{}\"".format(constraint)))
+        asserts.true(env, problem != None and "`sdks.dart`" in problem, "pub refuses {}, got {}".format(repr(constraint), repr(problem)))
     return unittest.end(env)
 
 _t0_test = unittest.make(_parse_lock_packages_test_impl)
@@ -132,6 +285,9 @@ _t1_test = unittest.make(_parse_lock_hosted_test_impl)
 _t2_test = unittest.make(_parse_lock_sdk_test_impl)
 _t3_test = unittest.make(_lock_error_test_impl)
 _t4_test = unittest.make(_lock_shape_test_impl)
+_t5_test = unittest.make(_lock_sdks_test_impl)
+_t6_test = unittest.make(_lock_sdks_refused_test_impl)
+_t7_test = unittest.make(_lock_constraints_test_impl)
 
 def yaml_parser_test_suite(name):
-    small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test, _t4_test)
+    small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test, _t4_test, _t5_test, _t6_test, _t7_test)
