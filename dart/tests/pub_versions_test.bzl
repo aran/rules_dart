@@ -1,7 +1,7 @@
 """Unit tests for `select_pub_version`, the one policy for a hosted package's version."""
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
-load("//dart/pub:pub_versions.bzl", "pub_version_request", "select_pub_version")
+load("//dart/pub:pub_versions.bzl", "is_semver", "pub_version_request", "select_pub_version", "version_constraint_allows", "version_constraint_error")
 
 # buildifier: disable=bzl-visibility
 load("//dart/pub/private:pub_settings.bzl", "root_only_settings")
@@ -200,6 +200,55 @@ _registry_conflict_is_an_error_test = unittest.make(_registry_conflict_is_an_err
 _prerelease_orders_below_release_test = unittest.make(_prerelease_orders_below_release_test_impl)
 _higher_build_raises_root_test = unittest.make(_higher_build_raises_root_test_impl)
 
+def _constraint_allows_as_pub_does_test_impl(ctx):
+    # A sample of what `pub_semver_conformance` checks against pub_semver.
+    env = unittest.begin(ctx)
+    for constraint, version, allowed in [
+        # A pre-release sorts below its release, so it misses that floor.
+        (">=3.50.1", "3.50.1-0.0.pre-12", False),
+        (">=3.50.1-0", "3.50.1-0.0.pre-12", True),
+        (">=3.50.1", "3.50.1", True),
+        # No space is needed between terms.
+        (">=2.11.0<3.0.0", "2.10.0", False),
+        (">=2.11.0<3.0.0", "2.11.0", True),
+        (">=2.11.0<3.0.0", "3.0.0", False),
+        # A max bound leaves out its own pre-releases...
+        ("<2.0.0", "2.0.0-dev", False),
+        (">=1.0.0 <2.0.0", "2.0.0-dev", False),
+        # ...unless the range starts among them or the bound is one or has a build.
+        (">=2.0.0-dev <2.0.0", "2.0.0-rc", True),
+        ("<2.0.0-rc", "2.0.0-dev", True),
+        ("<2.0.0+1", "2.0.0-dev", True),
+        # Builds are ordered, and an exact version takes only itself.
+        (">1.0.0", "1.0.0+1", True),
+        ("1.0.0", "1.0.0+1", False),
+        # `^` keeps the left-most non-zero of major and minor.
+        ("^1.2.3", "1.9.0", True),
+        ("^1.2.3", "2.0.0-0", False),
+        ("^0.2.3", "0.2.9", True),
+        ("^0.2.3", "0.3.0", False),
+        ("^0.0.3", "0.0.9", True),
+        ("any", "0.0.0-0", True),
+        # A range with nothing in it.
+        (">=2.0.0 <1.0.0", "1.5.0", False),
+    ]:
+        asserts.equals(env, allowed, version_constraint_allows(constraint, version), "%s allows %s" % (constraint, version))
+    return unittest.end(env)
+
+_constraint_allows_as_pub_does_test = unittest.make(_constraint_allows_as_pub_does_test_impl)
+
+def _constraint_and_version_errors_test_impl(ctx):
+    env = unittest.begin(ctx)
+    asserts.equals(env, None, version_constraint_error(">=1.0.0<2.0.0"))
+    asserts.equals(env, "cannot parse an empty string", version_constraint_error(" "))
+    asserts.equals(env, "cannot include other constraints with \"^\"", version_constraint_error("^1.0.0 || ^2.0.0"))
+    asserts.true(env, is_semver("3.50.1-0.0.pre-12"))
+    asserts.false(env, is_semver("3.50"))
+    asserts.false(env, is_semver("9223372036854775808.0.0"), "pub_semver reads an int64")
+    return unittest.end(env)
+
+_constraint_and_version_errors_test = unittest.make(_constraint_and_version_errors_test_impl)
+
 def pub_versions_test_suite(name):
     small_unittest_suite(
         name,
@@ -221,4 +270,6 @@ def pub_versions_test_suite(name):
         _dependency_settings_fail_test,
         _two_root_settings_fail_test,
         _dependency_ignore_hooks_fail_test,
+        _constraint_allows_as_pub_does_test,
+        _constraint_and_version_errors_test,
     )

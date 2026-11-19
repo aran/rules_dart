@@ -35,7 +35,7 @@ bzl_library(
     name = "registry",
     srcs = ["registry.bzl"],
     visibility = ["//visibility:public"],
-    deps = ["//dart/pub:defs"],
+    deps = ["//dart/pub:pub_versions"],
 )
 
 dart_package_metadata(

@@ -39,6 +39,7 @@ def _single_version_entry_test_impl(ctx):
     asserts.equals(env, ["@rules_dart//dart/ext/webcrypto:code_asset"], curated_code_assets("webcrypto", "0.6.2"))
     asserts.equals(env, [], curated_code_assets("webcrypto", "0.6.1"))
     asserts.equals(env, [], curated_code_assets("webcrypto", "0.6.3"))
+    asserts.equals(env, [], curated_code_assets("webcrypto", "0.6.3-dev"), "`<0.6.3` leaves out its pre-releases")
     asserts.equals(env, [">=0.6.2 <0.6.3"], curated_versions("webcrypto"))
     asserts.equals(env, [">=2.0.0"], curated_versions("sqlite3"))
     asserts.equals(env, [], curated_versions("uncurated"))

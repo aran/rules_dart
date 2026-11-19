@@ -1,5 +1,12 @@
-"""The one policy for which version of a hosted pub package a build uses.
+"""Pub versions for rule sets: comparing them with constraints, and choosing one.
 
+`version_constraint_allows` answers what pub_semver's `allows` answers, in plain
+Starlark, so a module extension can ask it as well as a repository rule or a
+rule; `version_constraint_error` says why pub would refuse a constraint and
+`is_semver` whether pub reads a version. A test compares them with
+`package:pub_semver` over thousands of cases.
+
+The rest is the one policy for which version of a hosted pub package a build uses.
 Every statement of a package's version is a request: a `pub.package()` in any
 module, and each lock that lists the package as hosted. The highest request
 wins, as Bazel's minimal version selection picks the highest version any
@@ -13,9 +20,13 @@ test can check them, and so rules_flutter's pub extension applies the same
 policy with its own commands.
 """
 
-load("//dart/pub/private:version.bzl", "parse_semver")
+load("//dart/pub/private:version.bzl", "constraint_allows", "constraint_error", "parse_semver", _is_semver = "is_semver")
 
 CHECK_LEVELS = ["off", "warning", "error"]
+
+is_semver = _is_semver
+version_constraint_error = constraint_error
+version_constraint_allows = constraint_allows
 
 def pub_version_request(version, sha256, url, is_root, where, upgrade = "", refresh = ""):
     """One statement of a hosted package's version, for `select_pub_version`.

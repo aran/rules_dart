@@ -37,10 +37,11 @@ version of a package: `//dart/ext/sqlite3` binds
 `package:sqlite3/src/ffi/libsqlite3.g.dart`, which is where that package's
 bindings live today. Attaching it to a lock pinning a version whose bindings
 moved would be silently wrong. `min_version` is inclusive, `max_version`
-exclusive; either may be empty for an open bound.
+exclusive, as a pub constraint has them (`>=min <max`, which leaves out
+pre-releases of `max`); either may be empty for an open bound.
 """
 
-load("//dart/pub:defs.bzl", "parse_semver")
+load("//dart/pub:pub_versions.bzl", "version_constraint_allows")
 
 _ENTRIES = {
     "sqlite3": [
@@ -61,6 +62,12 @@ _ENTRIES = {
     ],
 }
 
+def _constraint(entry):
+    return " ".join([b for b in [
+        ">=" + entry.min_version if entry.min_version else "",
+        "<" + entry.max_version if entry.max_version else "",
+    ] if b]) or "any"
+
 def curated_code_assets(package_name, version):
     """Returns curated `dart_code_asset` labels for a locked pub package.
 
@@ -76,13 +83,9 @@ def curated_code_assets(package_name, version):
     if not entries:
         return []
 
-    parsed = parse_semver(version)
     for entry in entries:
-        if entry.min_version and parsed < parse_semver(entry.min_version):
-            continue
-        if entry.max_version and parsed >= parse_semver(entry.max_version):
-            continue
-        return list(entry.labels)
+        if version_constraint_allows(_constraint(entry), version):
+            return list(entry.labels)
     return []
 
 def curated_versions(package_name):
@@ -98,13 +101,7 @@ def curated_versions(package_name):
       List of pub version constraints, such as `>=0.6.2 <0.6.3`; empty when
       rules_dart curates nothing for this package.
     """
-    return [
-        " ".join([b for b in [
-            ">=" + entry.min_version if entry.min_version else "",
-            "<" + entry.max_version if entry.max_version else "",
-        ] if b]) or "any"
-        for entry in _ENTRIES.get(package_name, [])
-    ]
+    return [_constraint(entry) for entry in _ENTRIES.get(package_name, [])]
 
 def curated_packages():
     """Returns the pub package names rules_dart curates assets for.
