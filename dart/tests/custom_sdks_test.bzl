@@ -183,10 +183,10 @@ def _toolchains_follow_the_choice_test_impl(ctx):
     _contains(env, build, 'package_metadata = ["@dart_macos-arm64//:package_metadata"]')
     _contains(env, build, 'package_metadata = ["@dart_macos-arm64//:package_metadata","@dart_macos-arm64_cross_linux-x64//:package_metadata"]')
 
-    # Only the SDK's files say a checkout's version: its tools' toolchains are
-    # in the repository reading them.
-    _contains(env, build, 'toolchain = "@local_tools//:outline"')
-    _contains(env, build, 'toolchain = "@local_tools//:analyzer"')
+    # Only an SDK's files say its version: its tools' toolchains are in the
+    # repository reading them, each host's in its own.
+    _contains(env, build, 'toolchain = "@local_macos-arm64//:outline"')
+    _contains(env, build, 'toolchain = "@local_linux-x64//:analyzer"')
     _contains(env, build, '"@next_kernel_source//:outline_tool"')
 
     # An SDK that cannot serve the build says so when it is used.
@@ -326,6 +326,27 @@ def _aot_snapshot_runtime_follows_the_version_test_impl(ctx):
         asserts.equals(env, version == "3.15.0-1.0.beta", aot_snapshot_needs_runtime(version), version)
     return unittest.end(env)
 
+def _a_custom_sdks_tools_follow_each_host_test_impl(ctx):
+    env = unittest.begin(ctx)
+    parts = _parts("fork", "")
+    parts["hosts"]["windows-x64"] = {"error": "no SDK for windows-x64"}
+    sdks = {"dart": _parts("dart", "3.14.1"), "fork": parts}
+    build = toolchains_build_content(sdks, "dart", {})
+
+    # Each host's own repository, which alone reads that host's version file.
+    _contains(env, build, 'name = "fork-macos-arm64_outline_toolchain"')
+    _contains(env, build, 'toolchain = "@fork_macos-arm64//:outline"')
+    _contains(env, build, 'toolchain = "@fork_linux-x64//:analyzer"')
+    asserts.false(env, "@fork_tools" in build, build)
+    asserts.false(env, "fork-windows-x64_outline_toolchain" in build, build)
+
+    # And it applies only where that host's SDK runs the build.
+    start = build.index('name = "fork-linux-x64_outline_toolchain"')
+    toolchain = build[start:build.index(")", build.index("toolchain_type", start))]
+    asserts.true(env, "@platforms//os:linux" in toolchain, toolchain)
+    asserts.true(env, "@platforms//cpu:x86_64" in toolchain, toolchain)
+    return unittest.end(env)
+
 _EDGE_COMMIT = "5016166518df602cf8cfb867af5902839f6c21b7"
 _EDGE = "3.15.0-edge." + _EDGE_COMMIT
 
@@ -375,6 +396,7 @@ def _a_main_channel_build_is_fetched_by_its_commit_test_impl(ctx):
     asserts.equals(env, "sdk-3.14.1", dart_source_archive_prefix("3.14.1"))
     return unittest.end(env)
 
+_custom_tools_test = unittest.make(_a_custom_sdks_tools_follow_each_host_test_impl)
 _published_test = unittest.make(_a_release_must_be_one_the_archive_can_have_test_impl)
 _three_numbers_test = unittest.make(_a_version_has_three_numbers_test_impl)
 _edge_urls_test = unittest.make(_a_main_channel_build_is_fetched_by_its_commit_test_impl)
@@ -408,4 +430,4 @@ def custom_sdks_test_suite(name):
         size = "small",
         target_under_test = "@unsupported_host_toolchains//:unsupported_host",
     )
-    small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test, _t4_test, _t5_test, _t6_test, _t7_test, _t8_test, _t9_test, _minimum_test, _lacks_test, _checkout_host_test, _toolchain_names_test, _aot_runtime_test, _published_test, _three_numbers_test, _edge_urls_test)
+    small_unittest_suite(name, _t0_test, _t1_test, _t2_test, _t3_test, _t4_test, _t5_test, _t6_test, _t7_test, _t8_test, _t9_test, _minimum_test, _lacks_test, _checkout_host_test, _toolchain_names_test, _aot_runtime_test, _published_test, _three_numbers_test, _edge_urls_test, _custom_tools_test)

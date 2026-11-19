@@ -34,7 +34,7 @@ builds using it.
 """
 
 load("//dart/private:custom_sdks.bzl", "custom_sdks", "sdk_name_error")
-load("//dart/private:local_sdk.bzl", "dart_checkout_cross_sdk", "dart_checkout_sdk", "dart_checkout_sdk_tools", "dart_local_cross_sdk", "dart_local_sdk", "dart_local_sdk_tools")
+load("//dart/private:local_sdk.bzl", "dart_checkout_cross_sdk", "dart_checkout_sdk", "dart_checkout_sdk_tools", "dart_local_cross_sdk", "dart_local_sdk")
 load("//dart/private:toolchain_selection.bzl", "named_toolchain_requests", "newest_version", "parse_version_or_none", "sdk_too_old_error", "select_toolchain_version", "servable_release")
 load("//dart/private:toolchains_repo.bzl", "CROSS_TARGETS", "DEFAULT_SDK_NAME", "PLATFORMS", "cross_pair", "cross_tool_files", "dart_bin", "dart_host_toolchains", "toolchains_repo")
 load("//dart/private:versions.bzl", "TOOL_VERSIONS")
@@ -114,7 +114,7 @@ dart_custom_sdk = tag_class(
     doc = """\
 A Dart SDK that other repositories hold, such as a fork's build. Root module only.
 
-The SDK's version is what its `version` file says.
+The SDK's version is what its `version` file says, each host's its own.
 """,
     attrs = {
         "name": attr.string(doc = _SDK_NAME_DOC, mandatory = True),
@@ -129,7 +129,8 @@ naming the machine it ran on.
 The `DEPS` file at the root of this SDK's source (dart-lang/sdk or a fork of
 it), from whose `pkg/` the outline stripper and the summary analyzer are built.
 Without it, a build needing either fails, naming this attribute and the flag
-that turns the tool off.
+that turns the tool off. It must be the source of the version each host builds
+with: hosts of different versions cannot share one.
 """),
         "cross_tools": attr.string_keyed_label_dict(doc = _CROSS_TOOLS_DOC),
     },
@@ -210,7 +211,7 @@ the root of its source: dart.custom_sdk(name = "{name}", source = ...). Or build
 without it: {flag}.""".format(name = name, what = what, flag = flag)}
     return tools
 
-def _declare_local_host(name, platform, tag, requests, location, parts, sdk_rule, cross_rule):
+def _declare_local_host(name, platform, tag, requests, location, parts, sdk_rule, cross_rule, **sdk_attrs):
     repo = "%s_%s" % (name, platform)
     sdk_rule(
         name = repo,
@@ -218,7 +219,7 @@ def _declare_local_host(name, platform, tag, requests, location, parts, sdk_rule
         platform = platform,
         build_file_template = dart_local_sdk_build_file(platform),
         requests = requests,
-        **location
+        **dict(location, **sdk_attrs)
     )
     parts["hosts"][platform] = {"repo": repo}
     for target in CROSS_TARGETS.get(platform, []):
@@ -244,9 +245,11 @@ def _local_parts():
 
 def _declare_custom_sdk(name, tag, requests):
     parts = _local_parts()
+    parts["tools"] = _source_tools(name, source = tag.source) if tag.source else _source_tools(name)
+    tools = json.encode(parts["tools"])
     for platform in PLATFORMS.keys():
         if platform in tag.sdk:
-            _declare_local_host(name, platform, tag, requests, {"version_file": tag.sdk[platform]}, parts, dart_local_sdk, dart_local_cross_sdk)
+            _declare_local_host(name, platform, tag, requests, {"version_file": tag.sdk[platform]}, parts, dart_local_sdk, dart_local_cross_sdk, tools = tools)
             continue
         no_host = {"error": """\
 Dart SDK "{name}" has no SDK for {platform}. Add the `version` file of one: \
@@ -254,8 +257,6 @@ dart.custom_sdk(name = "{name}", sdk = {{"{platform}": ...}}).""".format(name = 
         parts["hosts"][platform] = no_host
         for target in CROSS_TARGETS.get(platform, []):
             parts["cross"][cross_pair(platform, target)] = no_host
-    parts["tools"] = _source_tools(name, source = tag.source) if tag.source else _source_tools(name)
-    dart_local_sdk_tools(name = name + "_tools", sdk_name = name, version_files = tag.sdk, tools = json.encode(parts["tools"]))
     return parts
 
 def _declare_checkout(name, tag, requests):

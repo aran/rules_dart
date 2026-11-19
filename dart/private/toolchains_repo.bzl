@@ -452,15 +452,27 @@ def _sdk_toolchains(sdk, parts, unavailable):
         lambda platform, target: _shared_toolchain_applies(parts, unavailable, platform, target),
     )
 
-    # The outline stripper and the summary analyzer of the same SDK. An SDK
-    # whose version only its own files say has them in a repository that reads it.
+    def tool_toolchains(name, tools, exec_compatible_with = None):
+        return "".join([
+            _toolchain(name + tool + "_toolchain", tool + "_toolchain_type", tools + tool, settings, exec_compatible_with = exec_compatible_with)
+            for tool in ["outline", "analyzer"]
+        ])
+
+    # The outline stripper and the summary analyzer of the same SDK.
     if version:
         content += sdk_tool_toolchains(version, parts["tools"], prefix)
-        tools = ":" + prefix
-    else:
-        tools = "@%s_tools//:" % sdk
-    content += _toolchain(prefix + "outline_toolchain", "outline_toolchain_type", tools + "outline", settings)
-    content += _toolchain(prefix + "analyzer_toolchain", "analyzer_toolchain_type", tools + "analyzer", settings)
+        return content + tool_toolchains(prefix, ":" + prefix)
+
+    # Only an SDK's own files say its version. A checkout is this machine's, in
+    # a repository reading them.
+    if parts.get("host_only"):
+        return content + tool_toolchains(prefix, "@%s_tools//:" % sdk)
+
+    # Each host's files may say another, so each host's repository has its own.
+    for platform, meta in PLATFORMS.items():
+        repo = parts["hosts"][platform].get("repo")
+        if repo:
+            content += tool_toolchains(prefix + platform + "_", "@%s//:" % repo, meta.compatible_with)
     return content
 
 def toolchains_build_content(sdks, default_sdk, unavailable):
