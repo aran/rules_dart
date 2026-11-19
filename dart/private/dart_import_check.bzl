@@ -300,7 +300,7 @@ def dart_import_check_action(ctx, kernel_tool, name, srcs, own, deps, indirect_d
     for f in generated:
         if f.extension != "dart":
             fail("%s: `generated` takes the Dart files the rule writes; %s is not one" % (ctx.label, f.short_path))
-    if not srcs or ctx.label.workspace_name:
+    if not srcs or ctx.label.repo_name:
         return struct(validation = None, report = None, unloaded = None)
     dep_infos = [dep[DartInfo] for dep in deps if DartInfo in dep]
     packages = depset(
