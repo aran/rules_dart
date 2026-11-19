@@ -30,7 +30,7 @@ load(
     "target_dart_abi",
 )
 load("//dart/private:dart_coverage.bzl", "COVERAGE_ATTRS", "test_coverage")
-load("//dart/private:dart_import_check.bzl", "dart_import_check_aspect", "import_check_output_groups")
+load("//dart/private:dart_import_check.bzl", "EXECUTABLE_SRCS_DOC", "dart_import_check_aspect", "import_check_output_groups")
 load(
     "//dart/private:dart_module.bzl",
     "MODULE_EXECUTABLE_ATTRS",
@@ -474,7 +474,7 @@ dart_test = rule(
             allow_single_file = [".dart"],
         ),
         "srcs": attr.label_list(
-            doc = "Additional Dart source files that are part of this test's package but not reachable via `deps`.",
+            doc = EXECUTABLE_SRCS_DOC,
             allow_files = [".dart"],
         ),
         "deps": attr.label_list(

@@ -18,7 +18,7 @@ load(
     "target_dart_abi",
 )
 load("//dart/private:dart_compile.bzl", "compile_kernel_file", "dart_compile_action", "front_end_flags", "get_compilation_mode_flags", "recorded_uses_kind")
-load("//dart/private:dart_import_check.bzl", "dart_import_check_aspect", "import_check_output_groups", "without_import_check")
+load("//dart/private:dart_import_check.bzl", "EXECUTABLE_SRCS_DOC", "dart_import_check_aspect", "import_check_output_groups", "without_import_check")
 load("//dart/private:dart_module.bzl", "KERNEL_TOOL_ATTR", "PROGRAM_KERNEL_SDK_ATTR", "whole_program_kernel")
 load("//dart/private:exec_groups.bzl", "PORTABLE_EXEC_GROUPS")
 load("//dart/private:executable_package.bzl", "EXECUTABLE_PACKAGE_ATTRS", "executable_package")
@@ -319,7 +319,7 @@ def _dart_binary_rule(check_imports, compile_runner = True, launcher = True):
                     allow_single_file = [".dart"],
                 ),
                 "srcs": attr.label_list(
-                    doc = "Additional Dart source files that are part of this binary's package but not reachable via `deps`.",
+                    doc = EXECUTABLE_SRCS_DOC,
                     allow_files = [".dart"],
                 ),
                 "deps": attr.label_list(

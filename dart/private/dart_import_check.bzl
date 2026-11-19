@@ -486,6 +486,23 @@ def unloaded_srcs_report(target):
     reports = getattr(target[OutputGroupInfo], UNLOADED_SRCS_OUTPUT_GROUP, depset()).to_list()
     return reports[0] if reports else None
 
+EXECUTABLE_SRCS_DOC = """\
+The program's other Dart files in its own package, beside `main`; what other \
+packages provide comes from `deps`. `main` must reach each of them through \
+`import`, `export` or `part`, directly or through a file it reaches, so that a \
+file the program never loads cannot make a dep count as used. A file the rule \
+writes and the package's link hook reach files too. A file listed here that \
+nothing reaches fails the build.
+
+An entry holding several files, such as a `filegroup`, fails only when none of \
+its files is reached, so tests can share one. Its other files are no part of \
+this program: what they import is neither checked against `deps` nor counted as \
+used, and analysis of this target skips them.
+
+With the `dart_unused_deps` feature off, an unreached file fails nothing. A file \
+listed by itself is then still checked and analyzed, and an entry with no \
+reached file stays, as no part of the program."""
+
 def import_check_output_groups(ctx, kernel_tool, srcs, own_package, deps, *, main, generated = []):
     """An executable's import-check output groups.
 
