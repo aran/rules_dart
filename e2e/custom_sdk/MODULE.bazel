@@ -22,6 +22,14 @@ dart = use_extension("@rules_dart//dart:extensions.bzl", "dart")
 # The SDK this workspace builds with, stated here and nowhere else.
 dart.use_sdk(name = "released")
 
+# A name that reads like one of rules_dart's own repositories. Declared first,
+# so that its repository for this host's archive is named after it.
+dart.release(
+    name = "pubspec_reader",
+    dart_version = "3.14.0",
+    sdk_sha256 = {"linux-arm64": "2bb9a19418ced8d9f5cc9e7faa2dcbbc7dc93882b287b8cd8db859efa191c888"},
+)
+
 # A published release rules_dart does not pin.
 dart.release(
     name = "released",

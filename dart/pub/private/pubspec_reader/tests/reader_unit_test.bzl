@@ -1,10 +1,10 @@
 """Unit tests for the host and URI helpers of the pubspec reader's tool repository."""
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
-load("//dart/private:toolchains_repo.bzl", "host_platform", "host_toolchains_build_content", "unsupported_host_message")
+load("//dart/private:toolchains_repo.bzl", "PLATFORMS", "host_platform", "host_toolchains_build_content", "unsupported_host_message")
 load("//dart/pub:pubspec.bzl", "read_pubspec")
 load("//dart/pub/private:pub_archive.bzl", "fetch_pub_archive")
-load("//dart/pub/private/pubspec_reader:reader.bzl", "file_uri")
+load("//dart/pub/private/pubspec_reader:reader.bzl", "file_uri", "reader_tool_repo")
 load("//dart/tests:small_suite.bzl", "small_unittest_suite")
 
 visibility("//dart/...")
@@ -77,10 +77,18 @@ def _unsupported_host_test_impl(ctx):
     asserts.false(env, "toolchain(" in host_toolchains_build_content("linux-x64", None, {}, {}))
     return unittest.end(env)
 
+def _reader_repositories_collide_with_no_sdk_test_impl(ctx):
+    env = unittest.begin(ctx)
+    for platform in PLATFORMS:
+        asserts.false(env, reader_tool_repo(platform).endswith("_" + platform), platform)
+    return unittest.end(env)
+
+_reader_repositories_test = unittest.make(_reader_repositories_collide_with_no_sdk_test_impl)
+
 _unsupported_host_test = unittest.make(_unsupported_host_test_impl)
 
 _file_uri_test = unittest.make(_file_uri_test_impl)
 _host_platform_test = unittest.make(_host_platform_test_impl)
 
 def reader_unit_test_suite(name):
-    small_unittest_suite(name, _file_uri_test, _host_platform_test, _unsupported_host_test)
+    small_unittest_suite(name, _file_uri_test, _host_platform_test, _unsupported_host_test, _reader_repositories_test)

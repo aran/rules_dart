@@ -6,7 +6,7 @@ fields rules_dart reads, and prints the result as JSON, which a repository rule
 decodes. Its packages are pinned here by version and sha256, outside pub
 resolution, and joined by a hand-written package config; `pub get` never runs.
 
-`pubspec_reader_<platform>` compiles the program on a host of that platform
+`pubspec_reader-<platform>` compiles the program on a host of that platform
 only, so no cache can hand one OS's binary to another. Pubspecs are read while
 repositories are fetched, before any build has chosen an SDK, so the compiler is
 the one the project builds with by default, the SDK `dart.use_sdk` names, when
@@ -45,7 +45,18 @@ def reader_package_repo(name):
     return "pubspec_reader_pkg_" + name
 
 def reader_tool_repo(platform):
-    return "pubspec_reader_" + platform
+    """The name of the reader's repository for a host.
+
+    An SDK's repositories are named `<sdk>_<platform>`, and an SDK's name has no
+    `-`, so no SDK, whatever it is called, can be given this name.
+
+    Args:
+        platform: A `PLATFORMS` key.
+
+    Returns:
+        The name.
+    """
+    return "pubspec_reader-" + platform
 
 # The host's reader, by platform. Labels are resolved here, in rules_dart, so a
 # repository rule of any module reaches them.

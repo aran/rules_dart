@@ -185,12 +185,12 @@ use_repo(
     "dart_toolchains",
     # rules_dart reads pubspecs with Dart's own package:yaml, compiled once per
     # host (dart/pub/pubspec.bzl). Only the host's reader is fetched.
-    "pubspec_reader_linux-arm64",
-    "pubspec_reader_linux-x64",
-    "pubspec_reader_macos-arm64",
-    "pubspec_reader_macos-x64",
-    "pubspec_reader_windows-arm64",
-    "pubspec_reader_windows-x64",
+    "pubspec_reader-linux-arm64",
+    "pubspec_reader-linux-x64",
+    "pubspec_reader-macos-arm64",
+    "pubspec_reader-macos-x64",
+    "pubspec_reader-windows-arm64",
+    "pubspec_reader-windows-x64",
 )
 
 # A Dart SDK source checkout on disk and the outline stripper and summary

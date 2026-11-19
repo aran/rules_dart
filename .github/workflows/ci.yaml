@@ -1149,7 +1149,7 @@ jobs:
           base="$RUNNER_TEMP/pubspec_reader"
           bazel --output_base="$base" build @rules_dart//dart/kernel_list:all
           repos=$(ls "$base/external")
-          echo "$repos" | grep -qE '^rules_dart\+\+dart\+pubspec_reader_' || { echo "ERROR: nothing read a pubspec"; exit 1; }
+          echo "$repos" | grep -qE '^rules_dart\+\+dart\+pubspec_reader-' || { echo "ERROR: nothing read a pubspec"; exit 1; }
           if echo "$repos" | grep -E '^rules_dart\+\+dart\+dart_(linux|macos|windows)-'; then
             echo "ERROR: the pubspec reader fetched the dart release"
             exit 1
