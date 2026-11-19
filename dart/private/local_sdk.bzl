@@ -19,7 +19,7 @@ not freeze into a directory other machines use, so it leaves them out.
 """
 
 load(":toolchain_selection.bzl", "parse_version_or_none", "sdk_too_old_error")
-load(":toolchains_repo.bzl", "PLATFORMS", "SDK_ERROR_LOAD", "build_root_cross_tools", "cross_tool_files", "host_platform", "sdk_error_target", "sdk_tool_toolchains")
+load(":toolchains_repo.bzl", "PLATFORMS", "SDK_ERROR_LOAD", "build_root_cross_tools", "cross_tool_files", "host_platform", "sdk_error_target", "sdk_tool_toolchains", "unsupported_host_message")
 
 visibility("//dart/...")
 
@@ -114,6 +114,8 @@ def _checkout_sdk(rctx, platform):
     attr = rctx.attr
     sdk = attr.sdk_name
     host = host_platform(rctx.os)
+    if not host:
+        return None, unsupported_host_message(rctx.os)
     if platform != host:
         return None, """\
 Dart SDK "{sdk}" is a checkout, which holds SDKs for the machine they were \

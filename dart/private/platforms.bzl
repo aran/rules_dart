@@ -51,23 +51,49 @@ PLATFORMS = {
     ),
 }
 
+_HOST_OS = {"mac": "macos", "windows": "windows", "linux": "linux"}
+
+_HOST_CPU = {
+    "aarch64": "arm64",
+    "arm64": "arm64",
+    "amd64": "x64",
+    "x64": "x64",
+    "x86_64": "x64",
+}
+
 def host_platform(os):
-    """The `PLATFORMS` key of the host a repository rule runs on.
+    """The `PLATFORMS` key of the host a repository rule runs on, if it has one.
+
+    A host with none is not an error here: a repository must still fetch on it,
+    for `bazel fetch --all` and `bazel vendor`, and what needs an SDK says so
+    with `unsupported_host_message` when it is used.
 
     Args:
         os: `repository_ctx.os`.
 
     Returns:
-        A `PLATFORMS` key, e.g. `macos-arm64`.
+        A `PLATFORMS` key, e.g. `macos-arm64`, or None for a host the Dart SDK
+        has no build for.
     """
     name = os.name.lower()
-    cpu = "arm64" if os.arch in ("aarch64", "arm64") else "x64"
-    if name.startswith("mac"):
-        platform = "macos-" + cpu
-    elif name.startswith("windows"):
-        platform = "windows-" + cpu
-    else:
-        platform = "linux-" + cpu
-    if platform not in PLATFORMS:
-        fail("The Dart SDK has no build for this host ({} {}), so rules_dart cannot run on it.".format(os.name, os.arch))
-    return platform
+    cpu = _HOST_CPU.get(os.arch.lower())
+    for prefix, dart_os in _HOST_OS.items():
+        if name.startswith(prefix) and cpu:
+            platform = dart_os + "-" + cpu
+            return platform if platform in PLATFORMS else None
+    return None
+
+def unsupported_host_message(os):
+    """What to say on a host `host_platform` has no key for.
+
+    Args:
+        os: `repository_ctx.os`.
+
+    Returns:
+        The message.
+    """
+    return "rules_dart has no Dart SDK for this machine ({} {}). It runs on: {}.".format(
+        os.name,
+        os.arch,
+        ", ".join(sorted(PLATFORMS.keys())),
+    )

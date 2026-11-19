@@ -36,7 +36,7 @@ builds using it.
 load("//dart/private:custom_sdks.bzl", "custom_sdks", "sdk_name_error")
 load("//dart/private:local_sdk.bzl", "dart_checkout_cross_sdk", "dart_checkout_sdk", "dart_checkout_sdk_tools", "dart_local_cross_sdk", "dart_local_sdk", "dart_local_sdk_tools")
 load("//dart/private:toolchain_selection.bzl", "named_toolchain_requests", "newest_version", "sdk_too_old_error", "select_toolchain_version", "servable_release")
-load("//dart/private:toolchains_repo.bzl", "CROSS_TARGETS", "DEFAULT_SDK_NAME", "PLATFORMS", "cross_pair", "dart_bin", "toolchains_repo")
+load("//dart/private:toolchains_repo.bzl", "CROSS_TARGETS", "DEFAULT_SDK_NAME", "PLATFORMS", "cross_pair", "dart_bin", "dart_host_toolchains", "toolchains_repo")
 load("//dart/private:versions.bzl", "TOOL_VERSIONS")
 load("//dart/pub/private/pubspec_reader:reader.bzl", "pubspec_reader_repositories")
 load(":repositories.bzl", "dart_checkout_source_tool", "dart_local_cross_sdk_build_file", "dart_local_sdk_build_file", "dart_release_repositories", "dart_sdk_source_tool")
@@ -357,6 +357,7 @@ def _toolchain_extension(module_ctx):
             unavailable[name] = error
 
     _declare_pubspec_reader(sdks, default_sdk)
+    dart_host_toolchains(name = "dart_host_toolchains")
     toolchains_repo(
         name = _DEFAULT_NAME + "_toolchains",
         sdks = {name: json.encode(parts) for name, parts in sdks.items()},

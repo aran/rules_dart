@@ -19,7 +19,7 @@ cache key, so without the watch a reader change would leave every package read
 by the old one.
 """
 
-load("//dart/private:platforms.bzl", "PLATFORMS", "host_platform")
+load("//dart/private:platforms.bzl", "PLATFORMS", "host_platform", "unsupported_host_message")
 load("//dart/pub/private:pub_archive.bzl", "fetch_pub_archive")
 
 visibility("//dart/...")
@@ -105,9 +105,9 @@ def file_uri(path):
     return "file://" + "".join([_URI_ESCAPES.get(ch, ch) for ch in path.elems()])
 
 def _reader_package_impl(rctx):
-    fetch_pub_archive(rctx, rctx.attr.package_name, rctx.attr.version, rctx.attr.sha256)
+    extracted = fetch_pub_archive(rctx, rctx.attr.package_name, rctx.attr.version, rctx.attr.sha256)
     rctx.file("BUILD.bazel", "")
-    return rctx.repo_metadata(reproducible = True)
+    return rctx.repo_metadata(reproducible = extracted)
 
 pubspec_reader_package = repository_rule(
     implementation = _reader_package_impl,
@@ -123,8 +123,17 @@ def _reader_tool_impl(rctx):
     platform = rctx.attr.platform
     host = host_platform(rctx.os)
     if host != platform:
-        # Another host's: nothing here runs it, and `bazel fetch --all` and
-        # `bazel vendor` must still be able to fetch it.
+        # Another host's, or this host has none: nothing here runs it, and
+        # `bazel fetch --all` and `bazel vendor` must still be able to fetch it.
+        message = unsupported_host_message(rctx.os) if not host else (
+            "@{repo} is the pubspec reader for {platform} hosts, and this host is {host}. " +
+            "rules_dart reads pubspecs with @{host_repo}."
+        ).format(
+            repo = rctx.original_name,
+            platform = platform,
+            host = host,
+            host_repo = reader_tool_repo(host),
+        )
         rctx.file("BUILD.bazel", """\
 load("@rules_dart//dart/private:sdk_error.bzl", "dart_sdk_error")
 
@@ -133,16 +142,8 @@ dart_sdk_error(
     message = {message},
     visibility = ["//visibility:public"],
 )
-""".format(exe = _executable(platform), message = json.encode(
-            ("@{repo} is the pubspec reader for {platform} hosts, and this host is {host}. " +
-             "rules_dart reads pubspecs with @{host_repo}.").format(
-                repo = rctx.original_name,
-                platform = platform,
-                host = host,
-                host_repo = reader_tool_repo(host),
-            ),
-        )))
-        return rctx.repo_metadata(reproducible = True)
+""".format(exe = _executable(platform), message = json.encode(message)))
+        return rctx.repo_metadata(reproducible = bool(host))
     packages = []
     for label, name in rctx.attr.packages.items():
         packages.append({
@@ -250,12 +251,17 @@ def run_pubspec_reader(rctx, pubspec, expected_name = None, locked_versions = No
             with, by package; None or a package left out to compare none.
 
     Returns:
-        `struct(error, pubspec)`: pub's message for a pubspec it refuses, or
-        None and `struct(name, dependencies, sdk_constraint, language_version,
-        unsatisfied, fields)`.
+        `struct(error, refused, pubspec)`. `error` is what stops the pubspec
+        being read, or None and `pubspec` is `struct(name, dependencies,
+        sdk_constraint, language_version, unsatisfied, fields)`. `refused` says
+        whether `error` is pub's message for the pubspec, not that this host has
+        no Dart SDK to read it with, which fails no fetch either.
     """
     rctx.watch(_SOURCE)
-    tool = rctx.path(_TOOLS[host_platform(rctx.os)])
+    host = host_platform(rctx.os)
+    if not host:
+        return struct(error = unsupported_host_message(rctx.os), refused = False, pubspec = None)
+    tool = rctx.path(_TOOLS[host])
     args = [tool, pubspec]
     if expected_name != None:
         args.append(expected_name)
@@ -267,9 +273,9 @@ def run_pubspec_reader(rctx, pubspec, expected_name = None, locked_versions = No
         fail("rules_dart's pubspec reader crashed on {} in @{}:\n{}{}".format(pubspec, rctx.original_name, result.stdout, result.stderr))
     decoded = json.decode(out)
     if "error" in decoded:
-        return struct(error = decoded["error"], pubspec = None)
+        return struct(error = decoded["error"], refused = True, pubspec = None)
     ok = decoded["ok"]
-    return struct(error = None, pubspec = struct(
+    return struct(error = None, refused = False, pubspec = struct(
         name = ok["name"],
         dependencies = ok["dependencies"],
         sdk_constraint = ok["sdk"] or "",

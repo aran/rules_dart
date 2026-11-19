@@ -180,6 +180,7 @@ use_repo(
     # The pinned SDK's summary analyzer and outline stripper, for their own
     # tests.
     "dart_analyzer_source",
+    "dart_host_toolchains",
     "dart_kernel_source",
     "dart_toolchains",
     # rules_dart reads pubspecs with Dart's own package:yaml, compiled once per
@@ -204,6 +205,10 @@ kernel_checkout = use_extension("//dart/tests:kernel_checkout.bzl", "kernel_chec
 use_repo(kernel_checkout, "analyzer_checkout_source", "analyzer_prefixed_source", "analyzer_unserved_source", "kernel_checkout_source", "kernel_prefixed_source", "kernel_unserved_source")
 
 register_toolchains("@dart_toolchains//:all")
+
+# Empty on a host the Dart SDK runs on. Elsewhere, a build needing Dart fails
+# saying so.
+register_toolchains("@dart_host_toolchains//:all")
 
 # The reader's results on hand-written pubspecs, for its test.
 pubspec_reader_cases = use_extension(

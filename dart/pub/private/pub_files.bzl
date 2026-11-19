@@ -25,12 +25,12 @@ visibility("//dart/...")
 FILES_LOAD = _FILES_LOAD
 FILES_MARKER = _FILES_MARKER
 
-def _finish(rctx, fetched):
+def _finish(rctx, fetched, reproducible = True):
     write_pub_files_root(rctx, fetched)
-    return rctx.repo_metadata(reproducible = True)
+    return rctx.repo_metadata(reproducible = reproducible)
 
 def _pub_archive_files_impl(rctx):
-    fetch_pub_archive(
+    extracted = fetch_pub_archive(
         rctx,
         package_name = rctx.attr.package_name,
         version = rctx.attr.version,
@@ -43,7 +43,7 @@ def _pub_archive_files_impl(rctx):
         "version": rctx.attr.version,
         "sha256": rctx.attr.sha256,
         "base_url": rctx.attr.base_url,
-    })
+    }, reproducible = extracted)
 
 pub_archive_files = repository_rule(
     implementation = _pub_archive_files_impl,

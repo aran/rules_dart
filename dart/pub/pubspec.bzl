@@ -19,8 +19,9 @@ def read_pubspec(rctx, package_name, version = "", pubspec = "pubspec.yaml", loc
     A refusal is about the package, so it is a value: `fail(result.error)`, or
     fetch anyway and fail only the builds using the package, as rules_dart's pub
     repositories do, since `bazel fetch --all` and `bazel vendor` fetch packages
-    no build uses. A reader that does not run or answers nonsense is no refusal:
-    nothing is known of the package, so that fails the fetch.
+    no build uses. So is a host with no Dart SDK, where no pubspec can be read.
+    A reader that does not run or answers nonsense is no refusal: nothing is
+    known of the package, so that fails the fetch.
 
     Args:
         rctx: The `repository_ctx`.
@@ -34,7 +35,8 @@ def read_pubspec(rctx, package_name, version = "", pubspec = "pubspec.yaml", loc
 
     Returns:
         `struct(error, pubspec)`. `error` is the message for a pubspec pub
-        refuses, naming it and giving pub's words, and `pubspec` is then None.
+        refuses, naming it and giving pub's words, or says that this host has no
+        Dart SDK, and `pubspec` is then None.
         Otherwise `error` is None and `pubspec` is a `struct`:
         - `name`: the `name` field.
         - `dependencies`: the names under `dependencies:`, in order.
@@ -49,7 +51,7 @@ def read_pubspec(rctx, package_name, version = "", pubspec = "pubspec.yaml", loc
           as Flutter's `flutter:` block.
     """
     result = run_pubspec_reader(rctx, pubspec, package_name, locked_versions)
-    if result.error == None:
+    if not result.refused:
         return result
     if package_name == None:
         what = "{} in @{}".format(pubspec, rctx.original_name)
