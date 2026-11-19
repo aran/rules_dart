@@ -1023,10 +1023,11 @@ jobs:
         working-directory: e2e/examples
         run: bazel query "@rules_dart//..."
   # Windows on Arm is a host with its own Dart SDK. The reusable `test` job has
-  # no runner for it, so the smoke workspace runs here.
+  # no runner for it, so what a project does on one runs here: reading pub
+  # packages, analysis, compiled programs, cross-compiling, and the fixers.
   windows-arm64:
     runs-on: windows-11-arm
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: bazel-contrib/setup-bazel@104e3eea9447cdaa4b00d0fb46191a3985d26ab3 # 0.19.1
@@ -1038,6 +1039,12 @@ jobs:
       - name: Smoke tests on Windows arm64
         working-directory: e2e/smoke
         run: bazel test --test_output=errors //...
+      - name: Pub packages, analysis, compiled programs and cross-compiling on Windows arm64
+        working-directory: e2e/examples
+        run: bazel test --test_output=errors //pub/... //analysis/... //hello_world/... //cross_compile/...
+      - name: The fixers on Windows arm64
+        working-directory: e2e/examples
+        run: bazel run //fix/write_back
   # `bazel run @rules_dart//dart/fix` and `@rules_dart//dart/format` write into
   # the source tree, from a `bazel build` they run themselves, so no test can
   # run them. Each check runs them over its workspace's fixtures and puts the
