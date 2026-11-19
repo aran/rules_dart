@@ -1,0 +1,8 @@
+filegroup(
+    name = "support",
+    srcs = [
+        "lent.dart",
+        "lent_more_test.dart",
+    ],
+    visibility = ["//test:__subpackages__"],
+)

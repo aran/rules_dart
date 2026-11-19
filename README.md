@@ -1114,7 +1114,8 @@ would:
 
 - **`lib/`**: every file goes into the package's one `dart_library` (see
   [One library per package](#one-library-per-package)).
-- **`bin/`**: each file becomes a `dart_binary`.
+- **`bin/`**: each file becomes a `dart_binary`, except a part, which goes in
+  the `srcs` of the binary that reaches it.
 - **`test/`**: each `_test.dart` file becomes a `dart_test`, and the other files
   are helpers (below).
 - **Any other directory**, such as `tool/`, `example/` or `benchmark/`: its
@@ -1144,8 +1145,9 @@ library's name fails too, and the error asks you to rename the file.
 
 Gazelle treats `test/` as `package:test` does. It makes a test of each
 `_test.dart` file, and any other file there is a helper. A helper goes in the
-`srcs` of every test that imports it, directly or through another helper. What
-the helper imports goes in that test's `deps`. A test lists a helper in its own
+`srcs` of every test that imports it, directly or through another helper, and a
+part goes in with the file that names it. What these files import goes in that
+test's `deps`. A part is never a test or a program, whatever its name. A test lists a helper in its own
 directory by file name. When tests import helpers from another directory under
 `test/`, Gazelle gives that directory a `filegroup` named after it, holding its
 helpers, and the tests list the filegroup. A test's `deps` still come only from

@@ -147,7 +147,7 @@ func (d *dartLang) codegenRules(args language.GenerateArgs, scan *packageScan, r
 		if !ok {
 			continue
 		}
-		p, err := planCodegen(DartFileInfo{Path: relTo(root, file.Path), Imports: file.Imports}, anns, registry)
+		p, err := planCodegen(file.at(relTo(root, file.Path)), anns, registry)
 		if err != nil {
 			log.Printf("dart: %s: %v", file.Path, err)
 			continue

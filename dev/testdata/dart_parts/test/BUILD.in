@@ -1,0 +1,7 @@
+load("@rules_dart//dart:defs.bzl", "dart_test")
+
+dart_test(
+    name = "own_more_test",
+    main = "own_more_test.dart",
+    package = "//:pubspec-metadata",
+)

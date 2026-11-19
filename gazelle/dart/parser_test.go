@@ -16,6 +16,28 @@ func writeTempDart(t *testing.T, content string) string {
 	return path
 }
 
+func TestParseDartDirTellsParts(t *testing.T) {
+	dir := t.TempDir()
+	for name, src := range map[string]string{
+		"library.dart": "part 'uri.dart';\n// part of 'nothing.dart';\nconst s = 'part of x;';\n",
+		"uri.dart":     "part of 'library.dart';\n",
+		"name.dart":    "part of some.library;\n",
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(src), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	files, err := ParseDartDir(dir, []string{"library.dart", "name.dart", "uri.dart"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range files {
+		if want := f.Path != "library.dart"; f.IsPart != want {
+			t.Errorf("%s: IsPart = %v, want %v", f.Path, f.IsPart, want)
+		}
+	}
+}
+
 func TestParseDartFile(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -122,6 +144,13 @@ import 'package:native_helpers/helpers.dart'
 				{URI: "helper.dart", IsRelative: true, Path: "helper.dart"},
 				{URI: "package:native_helpers/helpers.dart", IsPackage: true, Package: "native_helpers", Path: "helpers.dart"},
 				{URI: "package:web_helpers/helpers.dart", IsPackage: true, Package: "web_helpers", Path: "helpers.dart"},
+			},
+		},
+		{
+			name:  "PartsAreFollowedAndPartOfIsNot",
+			input: "part 'a.dart';\npart of 'b.dart';\npart of some.library;\n// part 'c.dart';\n",
+			want: []DartImport{
+				{URI: "a.dart", IsRelative: true, IsPart: true, Path: "a.dart"},
 			},
 		},
 		{

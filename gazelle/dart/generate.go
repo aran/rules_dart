@@ -80,7 +80,7 @@ func (d *dartLang) generateDartRules(args language.GenerateArgs) language.Genera
 	helpers := map[string]DartFileInfo{}
 	for _, f := range dartFiles {
 		switch {
-		case strings.HasSuffix(f.Path, "_test.dart"):
+		case isTestFile(f):
 			testFiles = append(testFiles, f)
 		case layout == "test":
 			// package:test runs only `_test.dart` files; the others in
@@ -114,13 +114,11 @@ func (d *dartLang) generateDartRules(args language.GenerateArgs) language.Genera
 		}
 	}
 
-	for _, f := range binFiles {
-		name := strings.TrimSuffix(f.Path, ".dart")
-		r := rule.NewRule("dart_binary", name)
-		r.SetAttr("main", f.Path)
-		d.setPackage(r, args.Config, root, args.Rel)
-		gen = append(gen, r)
-		imports = append(imports, collectImports(args, []DartFileInfo{f}))
+	if len(binFiles) > 0 {
+		bins, binImports := d.binaryRules(args, root, binFiles)
+		gen = append(gen, bins...)
+		imports = append(imports, binImports...)
+		stale = append(stale, partBinaries(args.File, binFiles)...)
 	}
 
 	for _, f := range testFiles {
@@ -216,59 +214,160 @@ func staleSourceLibraries(f *rule.File, root string, scan *packageScan, pkgLib s
 	return empty
 }
 
-// scriptRules is what Gazelle writes for the Dart files of a directory in
-// no package's lib/, bin/ or test/ (tool/, example/), which are scripts: a
-// `dart_binary` for each file with a top-level `main`, holding in `srcs`
-// each file of the directory it reaches by relative imports. A file no
-// binary reaches is an error naming it, since nothing could build it. A
-// `dart_library` of the directory's own files, which earlier Gazelle
-// versions wrote and `dart_library` refuses outside lib/, is deleted.
-func (d *dartLang) scriptRules(args language.GenerateArgs, root string, files []DartFileInfo, taken []*rule.Rule) ([]*rule.Rule, []interface{}, []*rule.Rule) {
-	byPath := map[string]DartFileInfo{}
-	for _, f := range repoFiles(args.Rel, files) {
-		byPath[f.Path] = f
-	}
+// binaryRules is what Gazelle writes for the Dart files of a bin/ directory:
+// a `dart_binary` for each file that is not a part, holding in `srcs` each
+// file of the directory it reaches by relative imports and parts. A part no
+// binary reaches is an error naming it, since nothing could build it.
+func (d *dartLang) binaryRules(args language.GenerateArgs, root string, files []DartFileInfo) ([]*rule.Rule, []interface{}) {
+	byPath := filesByPath(args.Rel, files)
 	reached := map[string]bool{}
 	var gen []*rule.Rule
 	var imports []interface{}
 	for _, f := range files {
-		if !HasTopLevelMain(filepath.Join(args.Dir, f.Path)) {
+		if f.IsPart {
 			continue
 		}
-		main := byPath[path.Join(args.Rel, f.Path)]
-		reached[main.Path] = true
-		held := []DartFileInfo{main}
-		var srcs []string
-		var visit func(DartFileInfo)
-		visit = func(g DartFileInfo) {
-			for _, imp := range g.Imports {
-				h, ok := byPath[relativeTarget(g.Path, imp)]
-				if !ok || h.Path == main.Path || containsFile(held, h.Path) {
-					continue
-				}
-				reached[h.Path] = true
-				held = append(held, h)
-				srcs = append(srcs, path.Base(h.Path))
-				visit(h)
+		r, is := d.programRule(args, root, f, byPath, reached)
+		gen = append(gen, r)
+		imports = append(imports, is)
+	}
+	for _, f := range sortedKeys(byPath) {
+		if byPath[f].IsPart && !reached[f] {
+			d.errs.add(unreachedPartError(f, "binary"))
+		}
+	}
+	return gen, imports
+}
+
+// programRule is the `dart_binary` of the file f of directory args.Rel, whose
+// files are byPath, and what it imports. The files it holds go in reached.
+func (d *dartLang) programRule(args language.GenerateArgs, root string, f DartFileInfo, byPath map[string]DartFileInfo, reached map[string]bool) (*rule.Rule, *importSet) {
+	main := byPath[path.Join(args.Rel, f.Path)]
+	reached[main.Path] = true
+	held := filesReached(main, byPath)
+	var srcs []string
+	for _, h := range held[1:] {
+		reached[h.Path] = true
+		srcs = append(srcs, path.Base(h.Path))
+	}
+	r := rule.NewRule("dart_binary", strings.TrimSuffix(f.Path, ".dart"))
+	r.SetAttr("main", f.Path)
+	if len(srcs) > 0 {
+		sort.Strings(srcs)
+		r.SetAttr("srcs", srcs)
+	}
+	d.setPackage(r, args.Config, root, args.Rel)
+	return r, collectRepoImports(args, held)
+}
+
+// filesByPath is files, of directory rel, by repo-relative path, each named
+// by it.
+func filesByPath(rel string, files []DartFileInfo) map[string]DartFileInfo {
+	byPath := map[string]DartFileInfo{}
+	for _, f := range repoFiles(rel, files) {
+		byPath[f.Path] = f
+	}
+	return byPath
+}
+
+// filesReached is main, then each file of byPath it reaches through relative
+// imports, exports and parts.
+func filesReached(main DartFileInfo, byPath map[string]DartFileInfo) []DartFileInfo {
+	held := []DartFileInfo{main}
+	var visit func(DartFileInfo)
+	visit = func(g DartFileInfo) {
+		for _, imp := range g.Imports {
+			h, ok := byPath[relativeTarget(g.Path, imp)]
+			if !ok || containsFile(held, h.Path) {
+				continue
+			}
+			held = append(held, h)
+			visit(h)
+		}
+	}
+	visit(main)
+	return held
+}
+
+// declaresMain reports whether the library of the file f of directory dir, the
+// file and its parts, has a top-level `main`.
+func declaresMain(dir string, f DartFileInfo, byPath map[string]DartFileInfo) bool {
+	if HasTopLevelMain(filepath.Join(dir, path.Base(f.Path))) {
+		return true
+	}
+	seen := map[string]bool{f.Path: true}
+	var inParts func(DartFileInfo) bool
+	inParts = func(g DartFileInfo) bool {
+		for _, imp := range g.Imports {
+			h, ok := byPath[relativeTarget(g.Path, imp)]
+			if !imp.IsPart || !ok || seen[h.Path] {
+				continue
+			}
+			seen[h.Path] = true
+			if HasTopLevelMain(filepath.Join(dir, path.Base(h.Path))) || inParts(h) {
+				return true
 			}
 		}
-		visit(main)
-		name := strings.TrimSuffix(f.Path, ".dart")
-		if ruleNamed(taken, name) != nil {
-			d.errs.add(fmt.Sprintf(
-				"dart: %s: its `dart_binary` would be named %q, as the package's "+
-					"library is; rename the file", main.Path, name))
+		return false
+	}
+	return inParts(f)
+}
+
+// unreachedPartError is the error for the part at file, which no program of
+// its directory, each a kind, includes.
+func unreachedPartError(file, kind string) string {
+	return fmt.Sprintf("dart: %s is a part, and no %s beside it reaches it; "+
+		"name it in a `part` directive of a file beside it that one reaches, or "+
+		"exclude it with `# gazelle:exclude`", file, kind)
+}
+
+// partBinaries returns an empty-rule marker for each existing dart_binary
+// whose main is one of files that is a part, which earlier Gazelle versions
+// wrote: a part cannot be compiled alone. `# keep` keeps one.
+func partBinaries(f *rule.File, files []DartFileInfo) []*rule.Rule {
+	if f == nil {
+		return nil
+	}
+	parts := map[string]bool{}
+	for _, file := range files {
+		parts[file.Path] = file.IsPart
+	}
+	var empty []*rule.Rule
+	for _, r := range f.Rules {
+		if r.Kind() == "dart_binary" && parts[r.AttrString("main")] && !r.ShouldKeep() {
+			empty = append(empty, rule.NewRule("dart_binary", r.Name()))
+		}
+	}
+	return empty
+}
+
+// scriptRules is what Gazelle writes for the Dart files of a directory in
+// no package's lib/, bin/ or test/ (tool/, example/), which are scripts: a
+// `dart_binary` for each file that is no part and whose library has a
+// top-level `main`, holding in `srcs` each file of the directory it reaches
+// by relative imports and parts. A file no binary reaches is an error naming
+// it, since nothing could build it. A `dart_library` of the directory's own
+// files, which earlier Gazelle versions wrote and `dart_library` refuses
+// outside lib/, is deleted, as is a `dart_binary` of a part.
+func (d *dartLang) scriptRules(args language.GenerateArgs, root string, files []DartFileInfo, taken []*rule.Rule) ([]*rule.Rule, []interface{}, []*rule.Rule) {
+	byPath := filesByPath(args.Rel, files)
+	reached := map[string]bool{}
+	var gen []*rule.Rule
+	var imports []interface{}
+	for _, f := range files {
+		main := byPath[path.Join(args.Rel, f.Path)]
+		if f.IsPart || !declaresMain(args.Dir, main, byPath) {
 			continue
 		}
-		r := rule.NewRule("dart_binary", name)
-		r.SetAttr("main", f.Path)
-		if len(srcs) > 0 {
-			sort.Strings(srcs)
-			r.SetAttr("srcs", srcs)
+		r, is := d.programRule(args, root, f, byPath, reached)
+		if ruleNamed(taken, r.Name()) != nil {
+			d.errs.add(fmt.Sprintf(
+				"dart: %s: its `dart_binary` would be named %q, as the package's "+
+					"library is; rename the file", main.Path, r.Name()))
+			continue
 		}
-		d.setPackage(r, args.Config, root, args.Rel)
 		gen = append(gen, r)
-		imports = append(imports, collectRepoImports(args, held))
+		imports = append(imports, is)
 	}
 	for _, f := range sortedKeys(byPath) {
 		if reached[f] {
@@ -280,6 +379,10 @@ func (d *dartLang) scriptRules(args language.GenerateArgs, root string, files []
 					"rooted at %s has its lib/ at %s; make %s a package of its own "+
 					"with a pubspec.yaml or a `dart_package_metadata`, or move the file",
 				f, lib, dirName(root), libDirOf(root), dirName(path.Dir(lib))))
+			continue
+		}
+		if byPath[f].IsPart {
+			d.errs.add(unreachedPartError(f, "script"))
 			continue
 		}
 		d.errs.add(fmt.Sprintf(
@@ -296,7 +399,7 @@ func (d *dartLang) scriptRules(args language.GenerateArgs, root string, files []
 			}
 		}
 	}
-	return gen, imports, stale
+	return gen, imports, append(stale, partBinaries(args.File, files)...)
 }
 
 // strayLib is the directory named `lib` that directory rel, in the package
@@ -348,8 +451,8 @@ func ruleNamed(rules []*rule.Rule, name string) *rule.Rule {
 	return nil
 }
 
-// testHelpers is what a test reaches through relative imports, its own or
-// those of the files it reaches: the `srcs` of its dart_test, sorted -- each
+// testHelpers is what a test reaches through relative imports and parts, its
+// own or those of the files it reaches: the `srcs` of its dart_test, sorted -- each
 // file of its own directory, and the filegroup of each other test-tree
 // directory of its package it reaches a file of (package_scan.go) -- and
 // those files, the test first, repo-relative, whose imports are its deps. The
@@ -360,7 +463,7 @@ func (d *dartLang) testHelpers(args language.GenerateArgs, test DartFileInfo) ([
 	root, _ := packageRootOf(args.Config, args.Rel)
 	scan := d.scan.scanOf(args.Config, root)
 	self := packageNameIn(args.Config, args.Rel)
-	main := DartFileInfo{Path: path.Join(args.Rel, test.Path), Imports: test.Imports}
+	main := test.at(path.Join(args.Rel, test.Path))
 	files := []DartFileInfo{main}
 	seen := map[string]bool{main.Path: true}
 	var own, lent []string
@@ -550,22 +653,19 @@ type importSet struct {
 	cycle *cycleDecl
 }
 
-func collectImports(args language.GenerateArgs, files []DartFileInfo) *importSet {
-	return collectRepoImports(args, repoFiles(args.Rel, files))
-}
-
 // repoFiles is files, named relative to directory rel, named from the
 // repository root.
 func repoFiles(rel string, files []DartFileInfo) []DartFileInfo {
 	out := make([]DartFileInfo, len(files))
 	for i, f := range files {
-		out[i] = DartFileInfo{Path: path.Join(rel, f.Path), Imports: f.Imports}
+		out[i] = f.at(path.Join(rel, f.Path))
 	}
 	return out
 }
 
 // collectRepoImports is what files, named from the repository root, of the
-// package args.Rel is in import.
+// package args.Rel is in import. A part directive adds nothing: the part is in
+// the library, and its own imports are its file's.
 func collectRepoImports(args language.GenerateArgs, files []DartFileInfo) *importSet {
 	root, rootErr := packageRootOf(args.Config, args.Rel)
 	self := packageNameIn(args.Config, args.Rel)
@@ -576,6 +676,9 @@ func collectRepoImports(args language.GenerateArgs, files []DartFileInfo) *impor
 	for _, f := range files {
 		file := f.Path
 		for _, imp := range f.Imports {
+			if imp.IsPart {
+				continue
+			}
 			uri := ""
 			if rootErr == nil {
 				uri = importedURI(self, root, file, imp)

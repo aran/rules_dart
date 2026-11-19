@@ -1,0 +1,41 @@
+load("@rules_dart//dart:defs.bzl", "dart_test")
+
+dart_test(
+    name = "helper_test",
+    srcs = [
+        "helper.dart",
+        "helper_dep.dart",
+        "helper_nested.dart",
+        "helper_part.dart",
+    ],
+    main = "helper_test.dart",
+    package = "//:pubspec-metadata",
+    deps = [
+        "@pub_deps//:args",
+        "@pub_deps//:collection",
+        "@pub_deps//:path",
+        "@pub_deps//:test",
+    ],
+)
+
+dart_test(
+    name = "lent_test",
+    srcs = ["//test/support"],
+    main = "lent_test.dart",
+    package = "//:pubspec-metadata",
+    deps = [
+        "@pub_deps//:crypto",
+        "@pub_deps//:test",
+    ],
+)
+
+dart_test(
+    name = "own_test",
+    srcs = ["own_more_test.dart"],
+    main = "own_test.dart",
+    package = "//:pubspec-metadata",
+    deps = [
+        "@pub_deps//:async",
+        "@pub_deps//:test",
+    ],
+)

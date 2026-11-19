@@ -153,7 +153,9 @@ var _primitiveDartKinds = map[string]rule.KindInfo{
 	"dart_binary": {
 		MatchAttrs:    []string{"main"},
 		NonEmptyAttrs: map[string]bool{"main": true},
+		// main too, so a binary made of a part can be deleted (partBinaries).
 		MergeableAttrs: map[string]bool{
+			"main":    true,
 			"srcs":    true,
 			"deps":    true,
 			"package": true,

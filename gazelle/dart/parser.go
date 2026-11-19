@@ -13,14 +13,17 @@ type DartImport struct {
 	IsPackage  bool   // True if package: import
 	IsDartSDK  bool   // True if dart: import
 	IsRelative bool   // True if relative import (no scheme)
+	IsPart     bool   // True if a `part` directive: same library, so no dep
 	Package    string // Package name for package: imports
 	Path       string // Path within package (e.g., "bar.dart")
 }
 
-var importRe = regexp.MustCompile(`^\s*(?:import|export)\s+['"](.+?)['"]`)
+// importRe matches an import, export or part directive with its URI. `part of`
+// does not match: `of` is no URI.
+var importRe = regexp.MustCompile(`^\s*(import|export|part)\s+['"](.+?)['"]`)
 
-// directiveRe matches a line starting an import or export directive.
-var directiveRe = regexp.MustCompile(`^\s*(?:import|export)\s`)
+// directiveRe matches a line starting an import, export or part directive.
+var directiveRe = regexp.MustCompile(`^\s*(?:import|export|part)\s`)
 
 // condLineRe detects continuation lines: indented "if (" clauses.
 var condLineRe = regexp.MustCompile(`^\s+if\s*\(`)
@@ -48,20 +51,31 @@ func classifyURI(uri string) DartImport {
 	return imp
 }
 
-// ParseDartFile extracts import/export URIs from a Dart source file,
-// including conditional import/export branch URIs.
+// ParseDartFile extracts the import, export and part URIs of a Dart source
+// file, including conditional branch URIs.
 func ParseDartFile(path string) ([]DartImport, error) {
+	imports, _, err := parseDartSource(path)
+	return imports, err
+}
+
+// parseDartSource is ParseDartFile's URIs, and whether the file is itself a
+// part: whether it has a `part of` directive.
+func parseDartSource(path string) ([]DartImport, bool, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	// A directive is a line that starts `import` or `export` once comments
-	// and strings are blanked: one inside a string (a test's generated
-	// source, say) or a comment is no import. Its URI is read from the line
-	// with only comments blanked.
+	// A directive is a line that starts one once comments and strings are
+	// blanked: one inside a string (a test's generated source, say) or a
+	// comment is none. Its URI is read from the line with only comments
+	// blanked.
 	lines := strings.Split(stripCommentsOnly(string(data)), "\n")
 	code := strings.Split(stripCommentsAndStrings(string(data)), "\n")
 	var imports []DartImport
+	isPart := false
+	for _, line := range code {
+		isPart = isPart || partOfRe.MatchString(line)
+	}
 
 	for i := 0; i < len(lines); i++ {
 		line := lines[i]
@@ -69,23 +83,28 @@ func ParseDartFile(path string) ([]DartImport, error) {
 		if m == nil || i >= len(code) || !directiveRe.MatchString(code[i]) {
 			continue
 		}
+		add := func(uri string) {
+			imp := classifyURI(uri)
+			imp.IsPart = m[1] == "part"
+			imports = append(imports, imp)
+		}
 		// Primary URI
-		imports = append(imports, classifyURI(m[1]))
+		add(m[2])
 
 		// Conditional URIs on the same line (single-line form)
 		for _, cm := range condURIRe.FindAllStringSubmatch(line, -1) {
-			imports = append(imports, classifyURI(cm[1]))
+			add(cm[1])
 		}
 
 		// Lookahead: consume indented "if (...)" continuation lines
 		for i+1 < len(lines) && condLineRe.MatchString(lines[i+1]) {
 			i++
 			for _, cm := range condURIRe.FindAllStringSubmatch(lines[i], -1) {
-				imports = append(imports, classifyURI(cm[1]))
+				add(cm[1])
 			}
 		}
 	}
-	return imports, nil
+	return imports, isPart, nil
 }
 
 // ParsePubspecName reads pubspec.yaml in dir and returns the package name,
@@ -233,7 +252,14 @@ func majorMinor(s string) string {
 // DartFileInfo holds metadata about a Dart source file.
 type DartFileInfo struct {
 	Path    string       // Relative path from package root
-	Imports []DartImport // Parsed imports
+	Imports []DartImport // Parsed imports, exports and parts
+	IsPart  bool         // It has a `part of`: it belongs to another file
+}
+
+// at is the file named by path instead.
+func (f DartFileInfo) at(path string) DartFileInfo {
+	f.Path = path
+	return f
 }
 
 // ParseDartDir scans a directory for Dart files and parses their imports.
@@ -244,13 +270,14 @@ func ParseDartDir(dir string, files []string) ([]DartFileInfo, error) {
 			continue
 		}
 		fullPath := filepath.Join(dir, name)
-		imports, err := ParseDartFile(fullPath)
+		imports, isPart, err := parseDartSource(fullPath)
 		if err != nil {
 			continue // Skip files that can't be parsed
 		}
 		result = append(result, DartFileInfo{
 			Path:    name,
 			Imports: imports,
+			IsPart:  isPart,
 		})
 	}
 	return result, nil

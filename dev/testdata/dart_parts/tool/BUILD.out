@@ -1,0 +1,22 @@
+load("@rules_dart//dart:defs.bzl", "dart_binary")
+
+dart_binary(
+    name = "in_part",
+    srcs = ["in_part_main.dart"],
+    main = "in_part.dart",
+    package = "//:pubspec-metadata",
+)
+
+dart_binary(
+    name = "run",
+    srcs = [
+        "run_dep.dart",
+        "run_part.dart",
+    ],
+    main = "run.dart",
+    package = "//:pubspec-metadata",
+    deps = [
+        "@pub_deps//:args",
+        "@pub_deps//:path",
+    ],
+)

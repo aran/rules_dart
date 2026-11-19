@@ -1,0 +1,20 @@
+load("@rules_dart//dart:defs.bzl", "dart_library", "dart_package_metadata")
+
+# gazelle:dart_pub_deps_repo pub_deps
+
+dart_package_metadata(
+    name = "pubspec-metadata",
+    package_name = "parts",
+    visibility = ["//:__subpackages__"],
+)
+
+dart_library(
+    name = "parts",
+    srcs = [
+        "lib/parts.dart",
+        "lib/src/piece.dart",
+    ],
+    package = ":pubspec-metadata",
+    visibility = ["//visibility:public"],
+    deps = ["@pub_deps//:meta"],
+)

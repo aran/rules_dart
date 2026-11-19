@@ -28,8 +28,8 @@ import (
 // Gazelle reads the whole package from disk once per run, since the
 // package's root holds what is under lib/ and a test can import a helper in
 // another directory under test/. A test-tree directory a file in another
-// directory imports from holds its helpers, and any test imported from
-// elsewhere, in a `filegroup` named for the directory, visible to the
+// directory imports from, or has a part in, holds its helpers, and any test
+// imported from elsewhere, in a `filegroup` named for the directory, visible to the
 // package's test tree; a test lists it in `srcs` beside the files of its own
 // directory it imports.
 
@@ -112,7 +112,7 @@ func (s *scanState) scanPackage(c *config.Config, root string) *packageScan {
 	s.walkDartDirs(c, libDirOf(root), inPackage("lib"), func(rel string, files []DartFileInfo) {
 		for _, f := range files {
 			file := path.Join(rel, f.Path)
-			all = append(all, DartFileInfo{Path: file, Imports: f.Imports})
+			all = append(all, f.at(file))
 			anns, err := ParseDartCodegenTriggers(filepath.Join(c.RepoRoot, filepath.FromSlash(file)))
 			if err != nil {
 				log.Printf("dart: %s: annotation parse failed: %v", file, err)
@@ -139,7 +139,7 @@ func (s *scanState) scanPackage(c *config.Config, root string) *packageScan {
 	// test/: the sources of each directory, and what each lends the others.
 	s.walkDartDirs(c, path.Join(root, "test"), inPackage("test"), func(rel string, files []DartFileInfo) {
 		for _, f := range files {
-			p.tests[rel] = append(p.tests[rel], DartFileInfo{Path: path.Join(rel, f.Path), Imports: f.Imports})
+			p.tests[rel] = append(p.tests[rel], f.at(path.Join(rel, f.Path)))
 		}
 	})
 	// Every other directory, for whether any holds a Dart file.
@@ -162,7 +162,7 @@ func (s *scanState) scanPackage(c *config.Config, root string) *packageScan {
 			continue
 		}
 		for _, f := range files {
-			if !strings.HasSuffix(f.Path, "_test.dart") || imported[f.Path] {
+			if !isTestFile(f) || imported[f.Path] {
 				p.lent[dir] = append(p.lent[dir], f)
 			}
 		}
@@ -306,6 +306,12 @@ func osDir(repoRoot string) func(rel string) ([]string, []string, error) {
 		}
 		return dirs, files, nil
 	}
+}
+
+// isTestFile reports whether package:test would run the file: a part is no
+// library, whatever it is called.
+func isTestFile(f DartFileInfo) bool {
+	return strings.HasSuffix(f.Path, "_test.dart") && !f.IsPart
 }
 
 // relativeTarget is the repo-relative path a relative import in the

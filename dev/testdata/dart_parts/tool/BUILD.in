@@ -1,0 +1,7 @@
+load("@rules_dart//dart:defs.bzl", "dart_binary")
+
+dart_binary(
+    name = "in_part_main",
+    main = "in_part_main.dart",
+    package = "//:pubspec-metadata",
+)

@@ -1,0 +1,9 @@
+load("@rules_dart//dart:defs.bzl", "dart_binary")
+
+dart_binary(
+    name = "cli",
+    srcs = ["cli_part.dart"],
+    main = "cli.dart",
+    package = "//:pubspec-metadata",
+    deps = ["@pub_deps//:args"],
+)
