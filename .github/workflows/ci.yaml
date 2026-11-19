@@ -428,7 +428,8 @@ jobs:
           expect source_refused 'Dart SDK "source_refused" cannot build the outline stripper' 'pub would refuse' '--@rules_dart//dart:outline_kernel=false'
           expect source_missing_dep 'Dart SDK "source_missing_dep" cannot build the outline stripper' 'its pkg/kernel depends on' not_among_rules_dart_packages
           expect source_old_dep 'Dart SDK "source_old_dep" cannot build the outline stripper' 'its pkg/kernel needs' 'collection' '>=99.0.0'
-          for sdk in no_source_checksum no_cross_tools source_refused source_missing_dep source_old_dep; do
+          expect source_reaches_own_package 'Dart SDK "source_reaches_own_package" cannot build the outline stripper' 'its pkg/kernel depends on' source_gen "rules_dart's own" _fe_analyzer_shared
+          for sdk in no_source_checksum no_cross_tools source_refused source_missing_dep source_old_dep source_reaches_own_package; do
             bazel build //:value_program "--@rules_dart//dart:sdk=$sdk"
           done
           # A pubspec pub refuses stops the builds reaching it, and no other.

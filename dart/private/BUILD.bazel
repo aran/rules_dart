@@ -583,6 +583,7 @@ bzl_library(
     deps = [
         ":toolchain_selection",
         ":toolchains_repo",
+        "//dart/pub:pub_graph",
         "//dart/pub:pubspec",
     ],
 )

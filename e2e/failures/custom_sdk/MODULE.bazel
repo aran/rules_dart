@@ -192,4 +192,18 @@ dart.custom_sdk(
     },
     source = "//bad_sources/old_dep:DEPS",
 )
+
+# An SDK that runs here, with source reaching, through one of them, the pub
+# release of a package this source itself supplies.
+dart.custom_sdk(
+    name = "source_reaches_own_package",
+    sdk = {
+        "linux-arm64": "@dart_linux-arm64//:version",
+        "linux-x64": "@dart_linux-x64//:version",
+        "macos-arm64": "@dart_macos-arm64//:version",
+        "macos-x64": "@dart_macos-x64//:version",
+        "windows-x64": "@dart_windows-x64//:version",
+    },
+    source = "//bad_sources/reaches_own_package:DEPS",
+)
 use_repo(dart, "dart_linux-arm64", "dart_linux-x64", "dart_macos-arm64", "dart_macos-x64", "dart_windows-x64")

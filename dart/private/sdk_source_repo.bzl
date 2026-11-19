@@ -9,6 +9,7 @@ repository `dart_source_packages` makes (`sdk_fetch.bzl`), which loads nothing.
 
 load("//dart/private:toolchain_selection.bzl", "edge_commit")
 load("//dart/private:toolchains_repo.bzl", "SDK_ERROR_LOAD", "sdk_tool_error_target")
+load("//dart/pub:pub_graph.bzl", "dependency_graph", "read_pubspec_dependencies")
 load("//dart/pub:pubspec.bzl", "read_pubspec")
 
 visibility("//dart/...")
@@ -59,6 +60,9 @@ _TOOLS = {
 # The version of each package `@ext_pub_deps` has.
 _PUB_VERSIONS = Label("@ext_pub_deps//:versions.json")
 
+# A file of the source repository of each of those fetched.
+_PUB_SOURCES = Label("@ext_pub_deps//:sources.json")
+
 def source_tool_packages(tool):
     """The packages under an SDK source's `pkg/` that one tool is built on.
 
@@ -108,6 +112,22 @@ def _link_checkout(rctx, caller, path, prefix, packages):
         rctx.symlink(pubspec, _join(prefix, package, "pubspec.yaml"))
         rctx.symlink(sources, _join(prefix, package, "lib"))
 
+def _own_package_reached(rctx, tool, dep, sources):
+    """The package of `tool` that `dep`, one of rules_dart's pub packages, brings in again, if any.
+
+    A program has one package per name, and the tool takes these from the SDK.
+    """
+    if dep not in sources:
+        return None
+    graph = dependency_graph(
+        dep,
+        lambda package: read_pubspec_dependencies(rctx, Label(sources[package])),
+        follow = sources,
+    )
+    reached = {name: True for package, deps in graph.items() for name in [package] + deps}
+    clashes = [package for package in tool.packages if package in reached]
+    return clashes[0] if clashes else None
+
 def _read_packages(rctx, tool, prefix, sdk):
     """Reads the pubspecs of a tool's packages.
 
@@ -127,6 +147,7 @@ Use a rules_dart whose own pub packages suit this SDK, or build without it: {fla
 
     # A package rules_dart's lock maps elsewhere has no version here.
     available = json.decode(rctx.read(_PUB_VERSIONS))
+    sources = json.decode(rctx.read(_PUB_SOURCES))
     pubspecs = {}
     for package in tool.packages:
         read = read_pubspec(
@@ -149,6 +170,9 @@ Use a rules_dart whose own pub packages suit this SDK, or build without it: {fla
                     read.pubspec.unsatisfied[dep],
                     available[dep],
                 ))
+            own = _own_package_reached(rctx, tool, dep, sources)
+            if own:
+                return problem("its pkg/%s depends on `%s`, which brings in rules_dart's own `%s`, and this SDK's source supplies that package too." % (package, dep, own))
         pubspecs[package] = read.pubspec
     return pubspecs, None
 
